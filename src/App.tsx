@@ -36,6 +36,7 @@ const LeadDetailCommandPage = lazy(() => import('./components/dashboard-command/
 const AppointmentsCommandPage = lazy(() => import('./components/dashboard-command/AppointmentsCommandPage'));
 const ListingsCommandPage = lazy(() => import('./components/dashboard-command/ListingsCommandPage'));
 const ListingPerformancePage = lazy(() => import('./components/dashboard-command/ListingPerformancePage'));
+const ListingEditorPage = lazy(() => import('./components/dashboard-command/ListingEditorPage'));
 const BillingCommandPage = lazy(() => import('./components/dashboard-command/BillingCommandPage'));
 const OnboardingCommandPage = lazy(() => import('./components/dashboard-command/OnboardingCommandPage'));
 const ShareTestPage = lazy(() => import('./components/dashboard-command/ShareTestPage'));
@@ -413,6 +414,7 @@ const App: React.FC = () => {
 
 
     const [, setIsProfileLoading] = useState(false);
+    const [profileLoadFailed, setProfileLoadFailed] = useState(false);
     const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({
         email_enabled: true,
         daily_digest_enabled: false,
@@ -837,6 +839,7 @@ const App: React.FC = () => {
     const loadAgentProfile = async () => {
         try {
             setIsProfileLoading(true);
+            setProfileLoadFailed(false);
             const profileData = await getProfileForDashboard();
 
             // SECURITY: If we have been identified as an admin while this was loading, 
@@ -859,6 +862,7 @@ const App: React.FC = () => {
             console.log('✅ Loaded centralized agent profile');
         } catch (error) {
             console.error('Failed to load agent profile:', error);
+            setProfileLoadFailed(true);
             // Keep using SAMPLE_AGENT as fallback
         } finally {
             setIsProfileLoading(false);
@@ -1420,7 +1424,11 @@ const App: React.FC = () => {
             <SettingsPage
                 userId={user?.uid ?? 'guest-agent'}
                 userProfile={userProfile}
-                onSaveProfile={async (profile) => setUserProfile(profile)}
+                profileLoadFailed={profileLoadFailed}
+                onSaveProfile={async (profile) => {
+                    setUserProfile(profile);
+                    setProfileLoadFailed(false);
+                }}
                 notificationSettings={notificationSettings}
                 onSaveNotifications={async (settings) => {
                     setNotificationSettings(settings);
@@ -1543,6 +1551,7 @@ const App: React.FC = () => {
                         <Route path="appointments" element={<AppointmentsCommandPage />} />
                         <Route path="listings" element={<ListingsCommandPage />} />
                         <Route path="listings/:listingId" element={<ListingPerformancePage />} />
+                        <Route path="listings/:listingId/edit" element={<ListingEditorPage />} />
                         <Route path="billing" element={<BillingCommandPage />} />
                         <Route path="onboarding" element={<OnboardingCommandPage />} />
                     </Route>
@@ -1621,6 +1630,7 @@ const App: React.FC = () => {
                         <Route path="/dashboard/appointments" element={<AppointmentsCommandPage />} />
                         <Route path="/dashboard/listings" element={<ListingsCommandPage />} />
                         <Route path="/dashboard/listings/:listingId" element={<ListingPerformancePage />} />
+                        <Route path="/dashboard/listings/:listingId/edit" element={<ListingEditorPage />} />
                         <Route path="/dashboard/billing" element={<BillingCommandPage />} />
                         <Route path="/dashboard/onboarding" element={<OnboardingCommandPage />} />
                         <Route path="/dashboard/dev/share-test" element={<ShareTestPage />} />

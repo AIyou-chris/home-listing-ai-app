@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { EmailSettings } from '../../types';
-import { emailAuthService, EmailConnection } from '../../services/emailAuthService';
-import { IntegrationCard, FeatureSection } from './SettingsCommon';
+import { FeatureSection } from './SettingsCommon';
 
 interface EmailSettingsProps {
     settings: EmailSettings;
@@ -12,43 +11,12 @@ interface EmailSettingsProps {
 }
 
 const EmailSettingsPage: React.FC<EmailSettingsProps> = ({
-    settings,
-    onSave,
+    settings: _settings,
+    onSave: _onSave,
     onBack: _onBack,
     agentSlug
 }) => {
-    // Consolidated View: No tabs.
-    const [gmailConnection, setGmailConnection] = useState<EmailConnection | undefined>(
-        emailAuthService.getConnection('gmail')
-    );
-
     const inboundEmail = agentSlug ? `${agentSlug}@leads.homelistingai.com` : 'your-slug@leads.homelistingai.com';
-
-    useEffect(() => {
-        setGmailConnection(emailAuthService.getConnection('gmail'));
-    }, []);
-
-    const handleConnectEmail = async (provider: 'gmail' | 'outlook') => {
-        if (provider === 'gmail') {
-            try {
-                const connection = await emailAuthService.connectGmail();
-                setGmailConnection(connection);
-                await onSave({ ...settings, integrationType: 'oauth' });
-            } catch (error) {
-                console.error('Failed to initiate Google Auth:', error);
-            }
-        }
-    };
-
-    const handleDisconnectEmail = async (provider: 'gmail' | 'outlook') => {
-        try {
-            await emailAuthService.disconnect(provider);
-            setGmailConnection(undefined);
-            await onSave({ ...settings, integrationType: 'forwarding' });
-        } catch (error) {
-            console.error(`Failed to disconnect ${provider}:`, error);
-        }
-    };
 
     const copyToClipboard = () => {
         navigator.clipboard.writeText(inboundEmail);
@@ -62,25 +30,16 @@ const EmailSettingsPage: React.FC<EmailSettingsProps> = ({
                 <p className="text-slate-500 mt-1">Connect your email to sync conversations and leads.</p>
             </div>
 
-            {/* SECTION 1: CONNECT ACCOUNT */}
-            <FeatureSection title="Connect Email" icon="mail">
+            {/* SECTION 1: EMAIL STATUS */}
+            <FeatureSection title="Mailbox Sync" icon="mail">
                 <p className="text-slate-600 mb-6">
-                    Connect your Google account to automatically sync Gmail conversations, replies, and lead notifications directly to your HomeListingAI dashboard.
+                    OAuth mailbox connections are disabled in this build. Use inbound forwarding below for lead ingestion.
                 </p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <IntegrationCard
-                        icon="mail"
-                        title="Gmail"
-                        description={gmailConnection ? `Connected as ${gmailConnection.email}` : "Connect your Google Workspace or Gmail account to sync emails."}
-                        tags={gmailConnection ? [
-                            { label: 'Connected', color: 'green' }
-                        ] : [
-                            { label: 'Popular', color: 'green' },
-                            { label: 'Recommended', color: 'blue' }
-                        ]}
-                        isSelected={!!gmailConnection}
-                        onClick={() => gmailConnection ? handleDisconnectEmail('gmail') : handleConnectEmail('gmail')}
-                    />
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-5">
+                    <span className="inline-flex items-center gap-2 rounded-full bg-slate-200 px-3 py-1 text-xs font-semibold text-slate-700">
+                        <span className="material-symbols-outlined text-sm">block</span>
+                        Google entry points removed
+                    </span>
                 </div>
             </FeatureSection>
 

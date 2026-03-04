@@ -15,7 +15,8 @@ const NAV_ITEMS = [
   { key: 'command-center', icon: 'space_dashboard', label: 'Command Center', path: '/command-center', testid: 'nav-command-center' },
   { key: 'listings', icon: 'storefront', label: 'Listings', path: '/listings', testid: 'nav-listings' },
   { key: 'leads', icon: 'groups', label: 'Leads', path: '/leads', testid: 'nav-leads' },
-  { key: 'appointments', icon: 'event_available', label: 'Appointments', path: '/appointments', testid: 'nav-appointments' }
+  { key: 'appointments', icon: 'event_available', label: 'Appointments', path: '/appointments', testid: 'nav-appointments' },
+  { key: 'settings', icon: 'settings', label: 'Settings', path: '/settings', testid: 'nav-settings' }
 ] as const;
 
 const Icon: React.FC<{ name: string; className?: string }> = ({ name, className }) => (
@@ -59,9 +60,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
     '/command-center': derivedDemoMode || derivedBlueprintMode ? getPath('/command-center') : '/dashboard/command-center',
     '/listings': derivedDemoMode || derivedBlueprintMode ? getPath('/listings') : '/dashboard/listings',
     '/leads': derivedDemoMode || derivedBlueprintMode ? getPath('/leads') : '/dashboard/leads',
-    '/appointments': derivedDemoMode || derivedBlueprintMode ? getPath('/appointments') : '/dashboard/appointments'
+    '/appointments': derivedDemoMode || derivedBlueprintMode ? getPath('/appointments') : '/dashboard/appointments',
+    '/settings': derivedDemoMode || derivedBlueprintMode ? getPath('/settings') : '/settings'
   };
-  const settingsPath = derivedDemoMode || derivedBlueprintMode ? getPath('/settings') : '/settings';
+  const visibleNavItems = derivedDemoMode && !derivedBlueprintMode
+    ? NAV_ITEMS.filter((item) => item.key !== 'settings')
+    : NAV_ITEMS;
 
   const handleLogoClick = () => {
     onClose();
@@ -109,7 +113,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
 
         <nav className="flex min-h-0 flex-1 flex-col gap-4">
           <div className="flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-            {NAV_ITEMS.map((item) => (
+            {visibleNavItems.map((item) => (
               <NavItem key={item.key} to={pathMap[item.path]} icon={item.icon} onClose={onClose} testid={item.testid}>
                 {item.label}
               </NavItem>
@@ -118,13 +122,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
 
           {!derivedDemoMode && !derivedBlueprintMode && (
             <div className="mt-auto border-t border-slate-100 px-2 pb-6 pt-4">
-              <NavItem to={settingsPath} icon="settings" onClose={onClose} testid="nav-settings">
-                Settings
-              </NavItem>
-
               <button
                 onClick={() => adminAuthService.logout()}
-                className="flex w-full items-center gap-3 rounded-lg px-4 py-2.5 text-sm font-medium text-rose-600 transition-colors hover:bg-rose-50"
+                className="hidden w-full items-center gap-3 rounded-lg px-4 py-2.5 text-sm font-medium text-rose-600 transition-colors hover:bg-rose-50 lg:flex"
               >
                 <Icon name="logout" className="text-rose-500" />
                 <span>Sign Out</span>
@@ -133,7 +133,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
           )}
 
           {derivedDemoMode && !derivedBlueprintMode && (
-            <div className="mt-auto space-y-3 pt-6">
+            <div className="mt-auto hidden space-y-3 pt-6 lg:block">
               <div className="px-2">
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                   <p className="mb-3 text-xs font-medium uppercase tracking-wider text-slate-500">Demo Mode</p>

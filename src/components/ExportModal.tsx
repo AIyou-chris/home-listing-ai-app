@@ -39,7 +39,7 @@ const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, leads, appoi
 
   const exportStats = ExportService.getExportStats(leads, appointments);
 
-  const handleExport = async (destination: 'download' | 'sheets') => {
+  const handleExport = async () => {
     setIsExporting(true);
     
     try {
@@ -68,12 +68,7 @@ const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, leads, appoi
           break;
       }
 
-      if (destination === 'download') {
-        ExportService.downloadCSV(csvContent, filename);
-      } else {
-        const sheetsUrl = ExportService.generateGoogleSheetsURL(csvContent);
-        window.open(sheetsUrl, '_blank');
-      }
+      ExportService.downloadCSV(csvContent, filename);
 
       // Show success message
       setTimeout(() => {
@@ -203,29 +198,19 @@ const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, leads, appoi
           {/* Export Actions */}
           <div className="flex gap-3">
             <button
-              onClick={() => handleExport('download')}
+              onClick={handleExport}
               disabled={isExporting}
               className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-primary-600 text-white rounded-lg font-semibold hover:bg-primary-700 transition-colors disabled:opacity-50"
             >
               <span className="material-symbols-outlined">download</span>
               {isExporting ? 'Exporting...' : 'Download CSV'}
             </button>
-            
-            <button
-              onClick={() => handleExport('sheets')}
-              disabled={isExporting}
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors disabled:opacity-50"
-            >
-              <span className="material-symbols-outlined">table_chart</span>
-              {isExporting ? 'Opening...' : 'Open in Google Sheets'}
-            </button>
           </div>
 
           {/* Help Text */}
           <div className="mt-4 p-3 bg-blue-50 rounded-lg">
             <p className="text-sm text-blue-700">
-              <strong>Tip:</strong> The CSV file can be imported into Excel, Google Sheets, or any CRM system. 
-              Google Sheets will automatically create a new spreadsheet with your data.
+              <strong>Tip:</strong> The CSV file can be imported into Excel or any CRM system that supports CSV uploads.
             </p>
           </div>
         </div>

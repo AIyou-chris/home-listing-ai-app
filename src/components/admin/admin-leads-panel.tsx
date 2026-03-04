@@ -17,8 +17,6 @@ interface AdminLeadsPanelProps {
   leads: Lead[]
   isLoading: boolean
   errorMessage?: string | null
-  googleConnected: boolean
-  onConnectGoogle: () => Promise<void> | void
   onOpenAddLeadModal: () => void
   onOpenEditLeadModal: (lead: Lead) => void
   onDeleteLead: (leadId: string) => void
@@ -63,8 +61,6 @@ const AdminLeadsPanel: React.FC<AdminLeadsPanelProps> = ({
   leads,
   isLoading,
   errorMessage,
-  googleConnected,
-  onConnectGoogle,
   onOpenAddLeadModal,
   onOpenEditLeadModal,
   onDeleteLead,
@@ -111,20 +107,6 @@ const AdminLeadsPanel: React.FC<AdminLeadsPanelProps> = ({
             <span className="material-symbols-outlined w-5 h-5">add</span>
             <span>Add New Lead</span>
           </button>
-          {!googleConnected ? (
-            <button
-              onClick={onConnectGoogle}
-              className="flex items-center gap-2 px-4 py-2 bg-white text-slate-700 border border-slate-300 rounded-lg font-semibold shadow-sm hover:bg-slate-50 transition"
-            >
-              <span className="material-symbols-outlined w-5 h-5">link</span>
-              <span>Connect Google Calendar</span>
-            </button>
-          ) : (
-            <span className="inline-flex items-center gap-1 px-3 py-2 text-sm font-medium rounded-lg bg-green-50 text-green-700 border border-green-200">
-              <span className="material-symbols-outlined w-5 h-5">check_circle</span>
-              Connected
-            </span>
-          )}
           <button
             onClick={() => openScheduler({ kind: 'Consultation' })}
             className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg font-semibold shadow-sm hover:bg-green-600 transition"

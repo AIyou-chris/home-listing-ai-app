@@ -1,15 +1,54 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { buildDashboardPath, useDemoMode } from '../../demo/useDemoMode'
+import { useLocation, useNavigate } from 'react-router-dom'
+import toast from 'react-hot-toast'
+import { useDemoMode } from '../../demo/useDemoMode'
 import { fetchListingShareKit } from '../../services/dashboardCommandService'
+import { createListingDraft } from '../../services/listingBuilderService'
 import { listingsService } from '../../services/listingsService'
-import type { Property } from '../../types'
+import { listLocalListingDrafts, saveLocalListingDraft } from '../../services/listingDraftStorage'
 
 type ListingRow = {
-  property: Property
+  id: string
+  title: string
+  address: string
+  price: number
+  bedrooms: number
+  bathrooms: number
+  squareFeet: number
+  heroPhoto: string | null
   isPublished: boolean
+  statusLabel: 'Draft' | 'Published'
   shareUrl: string | null
 }
+
+const DEMO_ROWS: ListingRow[] = [
+  {
+    id: 'demo-published',
+    title: 'Oceanview Condo',
+    address: '1280 Sunset Blvd, Santa Monica, CA',
+    price: 1285000,
+    bedrooms: 2,
+    bathrooms: 2,
+    squareFeet: 1480,
+    heroPhoto: 'https://images.unsplash.com/photo-1600585154526-990dced4db0d?q=80&w=1200&auto=format&fit=crop',
+    isPublished: true,
+    statusLabel: 'Published',
+    shareUrl: 'https://homelistingai.app/l/oceanview-condo'
+  },
+  {
+    id: 'demo-draft',
+    title: 'Draft Listing',
+    address: 'Address coming soon',
+    price: 0,
+    bedrooms: 0,
+    bathrooms: 0,
+    squareFeet: 0,
+    heroPhoto: null,
+    isPublished: false,
+    statusLabel: 'Draft',
+    shareUrl: null
+  }
+]
 
 const formatPrice = (value?: number) => {
   const amount = Number(value || 0)
@@ -19,10 +58,46 @@ const formatPrice = (value?: number) => {
 
 const ListingsCommandPage: React.FC = () => {
   const navigate = useNavigate()
+  const location = useLocation()
   const demoMode = useDemoMode()
   const [loading, setLoading] = useState(true)
+  const [creatingDraft, setCreatingDraft] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [rows, setRows] = useState<ListingRow[]>([])
+
+  const saveDraftAndNavigate = () => {
+    const draftId = `draft-${Date.now()}`
+    saveLocalListingDraft({
+      id: draftId,
+      title: 'Draft Listing',
+      address: 'Address coming soon',
+      price: 0,
+      bedrooms: 0,
+      bathrooms: 0,
+      squareFeet: 0,
+      description: '',
+      amenities: [],
+      photos: [],
+      createdAt: new Date().toISOString()
+    })
+    setRows((prev) => [
+      {
+        id: draftId,
+        title: 'Draft Listing',
+        address: 'Address coming soon',
+        price: 0,
+        bedrooms: 0,
+        bathrooms: 0,
+        squareFeet: 0,
+        heroPhoto: null,
+        isPublished: false,
+        statusLabel: 'Draft',
+        shareUrl: null
+      },
+      ...prev.filter((row) => row.id !== draftId)
+    ])
+    navigate(buildListingPath(`/listings/${draftId}/edit`))
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -33,18 +108,63 @@ const ListingsCommandPage: React.FC = () => {
         const properties = await listingsService.listProperties()
         const preview = properties.slice(0, 20)
         const kits = await Promise.all(
-          preview.map(async (property) => {
+          preview.map(async (property): Promise<ListingRow> => {
             const shareKit = await fetchListingShareKit(property.id).catch(() => null)
+            const heroPhoto = property.heroPhotos.find((photo): photo is string => typeof photo === 'string') || null
+            const statusValue = String(property.status || '').toLowerCase()
+            const isPublished = Boolean(shareKit?.is_published) || ['active', 'published', 'sold'].includes(statusValue)
+            const statusLabel: ListingRow['statusLabel'] = isPublished ? 'Published' : 'Draft'
             return {
-              property,
-              isPublished: Boolean(shareKit?.is_published),
+              id: property.id,
+              title: property.title || 'Draft Listing',
+              address: property.address || property.title || 'Listing',
+              price: Number(property.price) || 0,
+              bedrooms: Number(property.bedrooms) || 0,
+              bathrooms: Number(property.bathrooms) || 0,
+              squareFeet: Number(property.squareFeet) || 0,
+              heroPhoto,
+              isPublished,
+              statusLabel,
               shareUrl: shareKit?.share_url || null
             }
           })
         )
-        if (!cancelled) setRows(kits)
+        const localDraftRows: ListingRow[] = listLocalListingDrafts().map((draft) => ({
+          id: draft.id,
+          title: draft.title || 'Draft Listing',
+          address: draft.address || 'Address coming soon',
+          price: draft.price,
+          bedrooms: draft.bedrooms,
+          bathrooms: draft.bathrooms,
+          squareFeet: draft.squareFeet,
+          heroPhoto: draft.photos[0] || null,
+          isPublished: false,
+          statusLabel: 'Draft',
+          shareUrl: null
+        }))
+        const merged = [...localDraftRows, ...kits].reduce<ListingRow[]>((acc, row) => {
+          if (acc.some((item) => item.id === row.id)) return acc
+          acc.push(row)
+          return acc
+        }, [])
+        if (!cancelled) setRows(merged.length > 0 ? merged : DEMO_ROWS)
       } catch (loadError) {
-        if (!cancelled) setError(loadError instanceof Error ? loadError.message : 'Failed to load listings.')
+        if (cancelled) return
+        const fallbackRows: ListingRow[] = listLocalListingDrafts().map((draft) => ({
+          id: draft.id,
+          title: draft.title || 'Draft Listing',
+          address: draft.address || 'Address coming soon',
+          price: draft.price,
+          bedrooms: draft.bedrooms,
+          bathrooms: draft.bathrooms,
+          squareFeet: draft.squareFeet,
+          heroPhoto: draft.photos[0] || null,
+          isPublished: false,
+          statusLabel: 'Draft',
+          shareUrl: null
+        }))
+        setRows(fallbackRows.length > 0 ? fallbackRows : DEMO_ROWS)
+        setError('Live listings are unavailable right now. Showing local demo data.')
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -60,16 +180,59 @@ const ListingsCommandPage: React.FC = () => {
       rows.slice().sort((a, b) => {
         if (a.isPublished && !b.isPublished) return -1
         if (!a.isPublished && b.isPublished) return 1
-        return String(a.property.title || '').localeCompare(String(b.property.title || ''))
+        return String(a.title || '').localeCompare(String(b.title || ''))
       }),
     [rows]
   )
 
+  const dashboardRoot = useMemo(
+    () => (location.pathname.startsWith('/dashboard') ? '/dashboard' : '/demo-dashboard'),
+    [location.pathname]
+  )
+
+  const appendDemoQuery = useMemo(
+    () => (demoMode && dashboardRoot === '/dashboard' ? '?demo=1' : ''),
+    [dashboardRoot, demoMode]
+  )
+
+  const buildListingPath = (pathSuffix: string) => `${dashboardRoot}${pathSuffix}${appendDemoQuery}`
+
+  const handleCreateDraft = async () => {
+    setCreatingDraft(true)
+    try {
+      if (demoMode) {
+        saveDraftAndNavigate()
+        return
+      }
+
+      const response = await createListingDraft({
+        status: 'draft',
+        address: 'Address coming soon'
+      })
+      navigate(buildListingPath(`/listings/${response.listing.id}/edit`))
+    } catch (createError) {
+      saveDraftAndNavigate()
+      toast.error('API create failed, so a local draft was created for now.')
+    } finally {
+      setCreatingDraft(false)
+    }
+  }
+
   return (
     <div className="mx-auto max-w-6xl space-y-6 px-4 py-6 md:px-8">
-      <header>
-        <h1 className="text-3xl font-bold text-slate-900">Listings</h1>
-        <p className="mt-1 text-sm text-slate-600">Published AI listings and share-ready pages.</p>
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-slate-900">Listings</h1>
+          <p className="mt-1 text-sm text-slate-600">Build and manage AI listings from one place.</p>
+        </div>
+        <button
+          type="button"
+          onClick={handleCreateDraft}
+          disabled={creatingDraft}
+          className="inline-flex items-center justify-center rounded-md bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {creatingDraft ? 'Creating…' : 'New Listing'}
+        </button>
       </header>
 
       {loading && (
@@ -77,33 +240,32 @@ const ListingsCommandPage: React.FC = () => {
       )}
 
       {!loading && error && (
-        <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">{error}</div>
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">{error}</div>
       )}
 
-      {!loading && !error && sortedRows.length === 0 && (
+      {!loading && sortedRows.length === 0 && (
         <div className="rounded-xl border border-slate-200 bg-white p-6">
           <p className="text-base font-semibold text-slate-900">No listings yet</p>
           <button
             type="button"
-            onClick={() => navigate(demoMode ? buildDashboardPath('/listings', demoMode) : '/add-listing')}
+            onClick={handleCreateDraft}
+            disabled={creatingDraft}
             className="mt-3 rounded-md bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white"
           >
-            Create your first listing
+            {creatingDraft ? 'Creating…' : 'Create your first listing'}
           </button>
         </div>
       )}
 
-      {!loading && !error && sortedRows.length > 0 && (
+      {!loading && sortedRows.length > 0 && (
         <div className="grid gap-4 sm:grid-cols-2">
           {sortedRows.map((row) => {
-            const property = row.property
-            const address = property.address || property.title || 'Listing'
-            const heroPhoto = property.heroPhotos?.find((photo): photo is string => typeof photo === 'string') || null
+            const address = row.address || row.title || 'Listing'
             return (
-              <article key={property.id} className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-                {heroPhoto && (
+              <article key={row.id} className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                {row.heroPhoto && (
                   <img
-                    src={heroPhoto}
+                    src={row.heroPhoto}
                     alt={address}
                     className="h-48 w-full object-cover"
                     loading="lazy"
@@ -117,21 +279,30 @@ const ListingsCommandPage: React.FC = () => {
                         row.isPublished ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-700'
                       }`}
                     >
-                      {row.isPublished ? 'Published' : 'Draft'}
+                      {row.statusLabel}
                     </span>
                   </div>
-                  <p className="text-sm font-semibold text-slate-900">{formatPrice(property.price)}</p>
+                  <p className="text-sm font-semibold text-slate-900">{formatPrice(row.price)}</p>
                   <p className="text-xs text-slate-500">
-                    {property.bedrooms || 0} bd • {property.bathrooms || 0} ba • {property.squareFeet || 0} sqft
+                    {row.bedrooms || 0} bd • {row.bathrooms || 0} ba • {row.squareFeet || 0} sqft
                   </p>
                   {row.shareUrl && <p className="truncate text-xs text-slate-500">{row.shareUrl}</p>}
-                  <button
-                    type="button"
-                    onClick={() => navigate(buildDashboardPath(`/listings/${property.id}`, demoMode))}
-                    className="rounded-md bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white"
-                  >
-                    Open Share Kit
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => navigate(buildListingPath(`/listings/${row.id}/edit`))}
+                      className="rounded-md bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white"
+                    >
+                      Edit Listing
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => navigate(buildListingPath(`/listings/${row.id}`))}
+                      className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700"
+                    >
+                      Share Kit
+                    </button>
+                  </div>
                 </div>
               </article>
             )

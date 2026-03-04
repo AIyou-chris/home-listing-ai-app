@@ -39,12 +39,37 @@ interface ListingVideoRow {
 }
 
 const creditsLabel = (remaining: number, total: number) => `${remaining}/${total}`
+const DEMO_VIDEO_CREDITS_KEY_PREFIX = 'hlai_demo_video_credits_'
+
+function isDevCreditsEnabled(): boolean {
+  if (typeof window === 'undefined') return false
+  const hostnameMatch = window.location.hostname === 'localhost'
+  const demoQueryMatch = new URLSearchParams(window.location.search).get('demo') === '1'
+  const envEnabled = String(import.meta.env.VITE_DEMO_MODE || '').trim().toLowerCase() === 'true'
+  return hostnameMatch || demoQueryMatch || envEnabled
+}
+
+function getDemoCredits(listingId: string): number | null {
+  if (typeof window === 'undefined' || !listingId) return null
+  const raw = window.localStorage.getItem(`${DEMO_VIDEO_CREDITS_KEY_PREFIX}${listingId}`)
+  if (raw === null) return null
+  const parsed = Number(raw)
+  if (!Number.isFinite(parsed)) return null
+  return Math.max(0, Math.floor(parsed))
+}
+
+function setDemoCredits(listingId: string, value: number) {
+  if (typeof window === 'undefined' || !listingId) return
+  const safeValue = Math.max(0, Math.floor(Number(value) || 0))
+  window.localStorage.setItem(`${DEMO_VIDEO_CREDITS_KEY_PREFIX}${listingId}`, String(safeValue))
+}
 
 export default function SocialVideoWidget({ listingId, listingAddress, listingLink }: SocialVideoWidgetProps) {
   const demoMode = useDemoMode()
   const [status, setStatus] = useState<WidgetStatus>('default')
   const [creditsRemaining, setCreditsRemaining] = useState<number>(3)
   const [creditsTotal, setCreditsTotal] = useState<number>(3)
+  const [demoCreditsOverride, setDemoCreditsOverride] = useState<number | null>(null)
   const [videoId, setVideoId] = useState<string | null>(null)
   const [videoUrl, setVideoUrl] = useState<string | null>(null)
   const [templateStyle, setTemplateStyle] = useState<string>('luxury')
@@ -52,6 +77,10 @@ export default function SocialVideoWidget({ listingId, listingAddress, listingLi
   const [scenario, setScenario] = useState<DemoScenario>('normal')
   const listingRealtimeSignal = useDashboardRealtimeStore((state) => state.listingSignalsById[listingId] || null)
   const canShare = useMemo(() => isNativeShareAvailable(), [])
+  const devCreditsEnabled = isDevCreditsEnabled()
+
+  const effectiveCreditsRemaining = demoCreditsOverride ?? creditsRemaining
+  const effectiveCreditsTotal = demoCreditsOverride === null ? creditsTotal : Math.max(creditsTotal, demoCreditsOverride)
 
   const captionTemplate = useMemo(
     () => `Just listed: ${listingAddress}. Get the 1-page report + showing options: ${listingLink}`,
@@ -68,6 +97,14 @@ export default function SocialVideoWidget({ listingId, listingAddress, listingLi
 
       setCreditsRemaining(remaining)
       setCreditsTotal(total)
+      if (devCreditsEnabled) {
+        setDemoCreditsOverride(getDemoCredits(listingId))
+      } else {
+        setDemoCreditsOverride(null)
+      }
+
+      const demoCredits = devCreditsEnabled ? getDemoCredits(listingId) : null
+      const resolvedRemaining = demoCredits ?? remaining
 
       if (demoMode && typeof data.scenario === 'string') {
         setScenario(data.scenario as DemoScenario)
@@ -76,7 +113,7 @@ export default function SocialVideoWidget({ listingId, listingAddress, listingLi
       if (!latestVideo) {
         setVideoId(null)
         setVideoUrl(null)
-        setStatus(remaining <= 0 ? 'limit_reached' : 'default')
+        setStatus(resolvedRemaining <= 0 ? 'limit_reached' : 'default')
         return
       }
 
@@ -110,12 +147,12 @@ export default function SocialVideoWidget({ listingId, listingAddress, listingLi
         return
       }
 
-      setStatus(remaining <= 0 ? 'limit_reached' : 'default')
+      setStatus(resolvedRemaining <= 0 ? 'limit_reached' : 'default')
     } catch (error) {
       console.error('Failed to load listing video data:', error)
       setStatus('failed')
     }
-  }, [demoMode, listingId])
+  }, [demoMode, devCreditsEnabled, listingId])
 
   useEffect(() => {
     void loadVideoData()
@@ -159,10 +196,29 @@ export default function SocialVideoWidget({ listingId, listingAddress, listingLi
     void loadVideoData()
   }, [demoMode, listingRealtimeSignal, loadVideoData])
 
+  useEffect(() => {
+    if (!devCreditsEnabled) {
+      setDemoCreditsOverride(null)
+      return
+    }
+    setDemoCreditsOverride(getDemoCredits(listingId))
+  }, [devCreditsEnabled, listingId])
+
   const handleGenerate = async () => {
+    const currentOverride = devCreditsEnabled ? getDemoCredits(listingId) : null
+    if (devCreditsEnabled && currentOverride !== null && currentOverride <= 0) {
+      setStatus('limit_reached')
+      return
+    }
+
     setStatus('rendering')
     try {
       await generateListingVideo(listingId, { template_style: templateStyle })
+      if (devCreditsEnabled && currentOverride !== null) {
+        const nextOverride = Math.max(0, currentOverride - 1)
+        setDemoCredits(listingId, nextOverride)
+        setDemoCreditsOverride(nextOverride)
+      }
       void loadVideoData()
     } catch (error) {
       const message = error instanceof Error ? error.message.toLowerCase() : ''
@@ -217,13 +273,21 @@ export default function SocialVideoWidget({ listingId, listingAddress, listingLi
     }
   }
 
+  const handleAddDemoCredits = () => {
+    const nextCredits = Math.max(0, effectiveCreditsRemaining) + 3
+    setDemoCredits(listingId, nextCredits)
+    setDemoCreditsOverride(nextCredits)
+    setStatus('default')
+    showToast.success('Added +3 demo videos (dev mode)')
+  }
+
   return (
     <div className="mb-8 rounded-2xl border border-slate-800 bg-[#040814] p-6 text-sm font-sans">
       <div className="mb-4">
         <h3 className="flex items-center gap-2 text-lg font-bold text-white">Social Video (15s)</h3>
         <p className="mt-1 text-sm text-slate-400">Turn listing photos into a post-ready Reel in seconds.</p>
         <div className="mt-4 inline-flex rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-slate-300">
-          Videos left for this listing: {creditsLabel(creditsRemaining, creditsTotal)}
+          Videos left for this listing: {creditsLabel(effectiveCreditsRemaining, effectiveCreditsTotal)}
         </div>
       </div>
 
@@ -326,9 +390,19 @@ export default function SocialVideoWidget({ listingId, listingAddress, listingLi
         <div className="mt-6 rounded-xl border border-amber-500/20 bg-amber-500/10 p-5">
           <p className="mb-2 text-sm font-bold uppercase tracking-wide text-amber-500">Limit reached</p>
           <p className="mb-5 text-sm text-amber-200">You’ve used 3 videos for this listing.</p>
-          <button className="w-full rounded-lg bg-amber-500 py-3 text-sm font-bold text-black hover:bg-amber-400">
-            Buy 3 more for $9
-          </button>
+          {devCreditsEnabled ? (
+            <button
+              type="button"
+              onClick={handleAddDemoCredits}
+              className="w-full rounded-lg bg-amber-500 py-3 text-sm font-bold text-black hover:bg-amber-400"
+            >
+              Add +3 demo videos
+            </button>
+          ) : (
+            <button className="w-full rounded-lg bg-amber-500 py-3 text-sm font-bold text-black hover:bg-amber-400">
+              Buy 3 more for $9
+            </button>
+          )}
           <button
             onClick={() => setStatus('default')}
             className="mt-4 block w-full text-center text-xs font-bold text-amber-500/80 transition-colors hover:text-amber-400"

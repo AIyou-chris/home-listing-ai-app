@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { CalendarSettings } from '../../types';
 import { FeatureSection, ToggleSwitch } from './SettingsCommon';
-import { googleOAuthService } from '../../services/googleOAuthService';
 
 interface CalendarSettingsProps {
     settings: CalendarSettings;
@@ -19,50 +18,12 @@ const CalendarSettingsPage: React.FC<CalendarSettingsProps> = ({
     const [formData, setFormData] = useState<CalendarSettings>(settings);
     const [isSaving, setIsSaving] = useState(false);
     const smsComingSoon = true;
-    const [isConnecting, setIsConnecting] = useState(false);
-    const [userEmail, setUserEmail] = useState<string | null>(null);
 
     useEffect(() => {
         if (settings) {
             setFormData(settings);
         }
     }, [settings]);
-
-    useEffect(() => {
-        const checkAuth = async () => {
-            const authed = await googleOAuthService.isAuthenticated('calendar');
-            if (authed) {
-                const email = await googleOAuthService.getUserEmail('calendar');
-                setUserEmail(email);
-            }
-        };
-        checkAuth();
-    }, []);
-
-    const handleConnectGoogle = async () => {
-        setIsConnecting(true);
-        try {
-            await googleOAuthService.requestAccess({ context: 'calendar' });
-            const email = await googleOAuthService.getUserEmail('calendar');
-
-            setUserEmail(email);
-            setFormData(prev => ({ ...prev, integrationType: 'google' }));
-        } catch (error) {
-            console.error('Failed to connect Google Calendar:', error);
-        } finally {
-            setIsConnecting(false);
-        }
-    };
-
-    const handleDisconnectGoogle = async () => {
-        try {
-            await googleOAuthService.logout('calendar');
-            setUserEmail(null);
-            setFormData(prev => ({ ...prev, integrationType: null }));
-        } catch (error) {
-            console.error('Failed to disconnect Google Calendar:', error);
-        }
-    };
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
@@ -110,43 +71,21 @@ const CalendarSettingsPage: React.FC<CalendarSettingsProps> = ({
                 <p className="text-slate-500 mt-1">Configure your availability and booking preferences.</p>
             </div>
 
-            <FeatureSection title="Google Calendar Connection" icon="link">
+            <FeatureSection title="Calendar Integration" icon="link">
                 <div className="bg-slate-50 border border-slate-200 rounded-lg p-6">
                     <div className="flex items-start gap-4">
-                        <div className="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <div className="w-12 h-12 bg-slate-800 rounded-lg flex items-center justify-center flex-shrink-0">
                             <span className="material-symbols-outlined text-white w-6 h-6">calendar_today</span>
                         </div>
                         <div className="flex-1">
-                            <h3 className="text-lg font-semibold text-slate-900 mb-2">Google Calendar Integration</h3>
+                            <h3 className="text-lg font-semibold text-slate-900 mb-2">External Calendar Sync</h3>
                             <p className="text-sm text-slate-600 mb-4">
-                                Sync your consultations with Google Calendar to avoid double bookings and automatically generate Meet links for clients.
+                                Google OAuth entry points are disabled in this build. Use booking rules below and ICS invites from appointment emails.
                             </p>
-
-                            {userEmail ? (
-                                <div className="space-y-4">
-                                    <div className="flex items-center gap-2 text-green-700 font-medium">
-                                        <span className="material-symbols-outlined text-base">check_circle</span>
-                                        <span>Connected as {userEmail}</span>
-                                    </div>
-                                    <button
-                                        type="button"
-                                        onClick={handleDisconnectGoogle}
-                                        className="text-sm text-red-600 hover:text-red-700 font-semibold underline"
-                                    >
-                                        Disconnect Google Calendar
-                                    </button>
-                                </div>
-                            ) : (
-                                <button
-                                    type="button"
-                                    onClick={handleConnectGoogle}
-                                    disabled={isConnecting}
-                                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
-                                >
-                                    <span className="material-symbols-outlined text-base">link</span>
-                                    {isConnecting ? 'Connecting...' : 'Connect Google Calendar'}
-                                </button>
-                            )}
+                            <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                                <span className="material-symbols-outlined text-sm">block</span>
+                                Google integrations disabled
+                            </span>
                         </div>
                     </div>
                 </div>

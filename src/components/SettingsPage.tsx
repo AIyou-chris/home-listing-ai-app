@@ -8,6 +8,7 @@ import BillingSettingsPage from './settings/BillingSettings';
 interface SettingsPageProps {
     userId: string;
     userProfile: AgentProfile;
+    profileLoadFailed?: boolean;
     onSaveProfile: (profile: AgentProfile) => Promise<void>;
     notificationSettings: NotificationSettings;
     onSaveNotifications: (settings: NotificationSettings) => Promise<void>;
@@ -24,6 +25,7 @@ interface SettingsPageProps {
 
 const SettingsPage: React.FC<SettingsPageProps> = ({
     userProfile,
+    profileLoadFailed = false,
     onSaveProfile,
     notificationSettings,
     onSaveNotifications,
@@ -111,6 +113,11 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                     </div>
 
                     <div className="pb-20 md:pb-0">
+                        {profileLoadFailed && (
+                            <div className="mb-4 rounded-lg border border-slate-200 bg-white p-3">
+                                <p className="text-sm text-slate-700">Profile will appear after you add your details.</p>
+                            </div>
+                        )}
                         {isDemoMode && (
                             <div className="mb-6 bg-amber-50 border border-amber-200 rounded-lg p-4">
                                 <div className="flex items-start gap-3">
