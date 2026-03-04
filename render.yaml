@@ -4,7 +4,7 @@ services:
     runtime: node
     region: oregon
     plan: free
-    buildCommand: HUSKY=0 npm install && npm run build && cd backend && npm install
+    buildCommand: npm install --ignore-scripts && npm run build && cd backend && npm install --ignore-scripts
     startCommand: cd backend && node server.cjs
     envVars:
       - key: NODE_ENV
