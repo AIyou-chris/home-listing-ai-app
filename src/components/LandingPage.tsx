@@ -4,7 +4,6 @@ import { useNavigate } from 'react-router-dom';
 const ChatBotFAB = lazy(() => import('./ChatBotFAB'));
 import SEO from './SEO';
 import { StripeLogo } from './StripeLogo';
-const MultiToolShowcase = lazy(() => import('./MultiToolShowcase').then(module => ({ default: module.MultiToolShowcase })));
 import { PublicHeader } from './layout/PublicHeader';
 import { PublicFooter } from './layout/PublicFooter';
 import { ConversionWedge } from './ConversionWedge';
@@ -20,7 +19,7 @@ import { FinalCtaNew } from './FinalCtaNew';
 // const AIAppShowcaseSection ...
 
 
-const PricingSection: React.FC<{ onNavigateToSignUp: () => void; onOpenContact: () => void }> = ({ onNavigateToSignUp, onOpenContact }) => {
+const _PricingSection: React.FC<{ onNavigateToSignUp: () => void; onOpenContact: () => void }> = ({ onNavigateToSignUp, onOpenContact }) => {
 
 
     return (
@@ -225,7 +224,7 @@ const PricingSection: React.FC<{ onNavigateToSignUp: () => void; onOpenContact: 
     );
 };
 
-const WhiteLabelSection: React.FC = () => {
+const _WhiteLabelSection: React.FC = () => {
     const navigate = useNavigate();
 
     const ServiceItem: React.FC<{ icon: string, title: string, iconClass?: string, children: React.ReactNode }> = ({ icon, title, iconClass, children }) => (
@@ -320,7 +319,7 @@ const WhiteLabelSection: React.FC = () => {
     );
 };
 
-const FeaturesGridSection: React.FC = () => {
+const _FeaturesGridSection: React.FC = () => {
     const features = [
         { icon: "rocket_launch", title: "Generate 3x More Leads", description: "AI responds instantly to every buyer inquiry, capturing leads while you sleep." },
         { icon: "bolt", title: "Close Deals Faster", description: "Pre-qualified buyers arrive ready to buy, shortening your sales cycle." },
@@ -389,7 +388,7 @@ const FeaturesGridSection: React.FC = () => {
     );
 };
 
-const WhatYouGetSectionNew: React.FC = () => {
+const _WhatYouGetSectionNew: React.FC = () => {
     const items = [
         { icon: 'chat_bubble', title: 'AI Listing Agent', description: 'Your own AI assistant that answers buyer questions 24/7.', features: ['Instant responses', 'Qualifies leads', 'Schedules showings'] },
         { icon: 'dashboard', title: 'Live Dashboard & Notifications', description: 'Track leads, appointments, and messages in real-time with a notification center.', features: ['Live lead tracking', 'Notification center', 'Mobile-first design'] },
@@ -473,7 +472,7 @@ const WhatYouGetSectionNew: React.FC = () => {
     );
 };
 
-const TestimonialsSection: React.FC = () => (
+const _TestimonialsSection: React.FC = () => (
     <section className="py-20 bg-white relative overflow-hidden">
         {/* Background Elements */}
         <div className="absolute inset-0 pointer-events-none">
@@ -537,7 +536,7 @@ const TestimonialsSection: React.FC = () => (
     </section>
 );
 
-const FaqSection: React.FC = () => {
+const _FaqSection: React.FC = () => {
     const [openIndex, setOpenIndex] = React.useState<number | null>(null);
     const faqs = [
         { q: "How does the AI property assistant work?", a: "Our AI is trained on your specific property details, local market data, and your agent profile. It uses this knowledge to answer buyer questions 24/7 via text and voice, just like a real assistant." },
@@ -576,7 +575,7 @@ const FaqSection: React.FC = () => {
     );
 };
 
-const AboutUsSection: React.FC = () => (
+const _AboutUsSection: React.FC = () => (
     <section id="about-us" className="py-20 bg-white relative overflow-hidden">
         {/* Background Elements */}
         <div className="absolute inset-0 pointer-events-none">
@@ -718,7 +717,7 @@ const AboutUsSection: React.FC = () => (
 
 
 
-const Hero: React.FC<{ onNavigateToSignUp: () => void, onEnterDemoMode: () => void, onOpenChatBot?: () => void }> = ({ onNavigateToSignUp, onEnterDemoMode, onOpenChatBot }) => (
+const Hero: React.FC<{ onNavigateToSignUp: () => void, onEnterDemoMode: () => void, onOpenChatBot?: () => void }> = ({ onNavigateToSignUp, onEnterDemoMode, onOpenChatBot: _onOpenChatBot }) => (
     <section className="relative pt-32 pb-20 lg:pt-48 lg:pb-32 overflow-hidden bg-slate-950">
         {/* Deep, dark gradient background */}
         <div className="absolute inset-0 bg-gradient-to-br from-[#0B0F19] via-[#0B1528] to-[#040814]"></div>

@@ -4,10 +4,6 @@ import { supabase } from './services/supabase';
 import { Property, View, AgentProfile, NotificationSettings, EmailSettings, CalendarSettings, BillingSettings, Lead, Appointment, Interaction, LeadFunnelType } from './types';
 import { DEMO_FAT_PROPERTIES, DEMO_FAT_LEADS, DEMO_FAT_APPOINTMENTS } from './demoConstants';
 import { SAMPLE_AGENT, SAMPLE_INTERACTIONS } from './constants';
-import {
-    BLUEPRINT_AGENT,
-    BLUEPRINT_PROPERTIES
-} from './constants/agentBlueprintData';
 const LandingPage = lazy(() => import('./components/LandingPage'));
 const NewLandingPage = lazy(() => import('./components/NewLandingPage'));
 const SignUpPage = lazy(() => import('./components/SignUpPage'));
@@ -21,14 +17,9 @@ import { getRegistrationContext } from './services/agentOnboardingService';
 
 const WhiteLabelPage = lazy(() => import('./pages/WhiteLabelPage'));
 
-const AgentDashboard = lazy(() => import('./components/AgentDashboard'));
 const NotificationSystem = lazy(() => import('./components/NotificationSystem'));
 
 const Sidebar = lazy(() => import('./components/Sidebar'));
-const PropertyPage = lazy(() => import('./components/PropertyPage'));
-const ListingsPage = lazy(() => import('./components/ListingsPage'));
-const AddListingPage = lazy(() => import('./components/AddListingPage'));
-const ListingStudioV2Page = lazy(() => import('./components/listings/ListingStudioV2Page'));
 const ConversionDashboardHome = lazy(() => import('./components/dashboard-command/ConversionDashboardHome'));
 const TodayDashboardPage = lazy(() => import('./components/dashboard-command/TodayDashboardPage'));
 const LeadsInboxCommandPage = lazy(() => import('./components/dashboard-command/LeadsInboxCommandPage'));
@@ -40,8 +31,6 @@ const ListingEditorPage = lazy(() => import('./components/dashboard-command/List
 const BillingCommandPage = lazy(() => import('./components/dashboard-command/BillingCommandPage'));
 const OnboardingCommandPage = lazy(() => import('./components/dashboard-command/OnboardingCommandPage'));
 const ShareTestPage = lazy(() => import('./components/dashboard-command/ShareTestPage'));
-const LeadsAndAppointmentsPage = lazy(() => import('./components/LeadsAndAppointmentsPage'));
-const InteractionHubPage = lazy(() => import('./components/AIInteractionHubPage'));
 const AIConversationsPage = lazy(() => import('./components/AIConversationsPage'));
 const AICardPage = lazy(() => import('./components/AICardPage'));
 const MarketingReportsPage = lazy(() => import('./components/MarketingReportsPage'));
@@ -67,7 +56,6 @@ const DemoListingPage = lazy(() => import('./components/DemoListingPage'));
 const ChatBotFAB = lazy(() => import('./components/ChatBotFAB'));
 const StorefrontPage = lazy(() => import('./pages/StorefrontPage').then(module => ({ default: module.StorefrontPage })));
 // Note: StorefrontPage is named export in original file based on import { StorefrontPage } ...
-const MultiToolShowcase = lazy(() => import('./components/MultiToolShowcase').then(module => ({ default: module.MultiToolShowcase })));
 const FUNNEL_TRIGGER_MAP: Record<LeadFunnelType, SequenceTriggerType> = {
     universal_sales: 'Buyer Lead',
     homebuyer: 'Buyer Lead',
@@ -526,8 +514,8 @@ const App: React.FC = () => {
     const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
     const [properties, setProperties] = useState<Property[]>([]);
     const [leads, setLeads] = useState<Lead[]>([]);
-    const [appointments, setAppointments] = useState<Appointment[]>([]);
-    const [interactions, setInteractions] = useState<Interaction[]>([]);
+    const [_appointments, setAppointments] = useState<Appointment[]>();
+    const [_interactions, setInteractions] = useState<Interaction[]>();
 
 
 
@@ -1130,21 +1118,6 @@ const App: React.FC = () => {
         navigate('/demo-dashboard');
     };
 
-    const _handleEnterBlueprintMode = () => {
-        setIsDemoMode(false);
-        setIsBlueprintMode(true);
-
-        // Clear mock data to ensure "Blank Slate" / "Live" experience
-        // BUT stick the Demo Listing in so they have an example (as requested)
-        setProperties(BLUEPRINT_PROPERTIES);
-        setLeads([]);
-        setAppointments([]);
-        setInteractions([]);
-
-        // Keep the Blueprint Agent profile for context/sidebar branding
-        setUserProfile(BLUEPRINT_AGENT);
-    };
-
     const handleNavigateToAdmin = () => {
         navigate('/admin-login');
     };
@@ -1218,16 +1191,16 @@ const App: React.FC = () => {
     // Task management handlers
 
 
-    const handleSelectProperty = (id: string) => {
+    const _handleSelectProperty = (id: string) => {
         setSelectedPropertyId(id);
         setView('property');
     };
 
-    const handleSetProperty = (updatedProperty: Property) => {
+    const _handleSetProperty = (updatedProperty: Property) => {
         setProperties(prev => prev.map(p => p.id === updatedProperty.id ? updatedProperty : p));
     };
 
-    const handleSaveNewProperty = async (newPropertyData: Omit<Property, 'id' | 'description' | 'imageUrl'>) => {
+    const _handleSaveNewProperty = async (newPropertyData: Omit<Property, 'id' | 'description' | 'imageUrl'>) => {
         if (!user && !isDemoMode) {
             alert("Please sign in to add a new listing.");
             setView('signin');
@@ -1285,7 +1258,7 @@ const App: React.FC = () => {
         }
     };
 
-    const handleDeleteProperty = (id: string) => {
+    const _handleDeleteProperty = (id: string) => {
         if (window.confirm('Are you sure you want to delete this listing?')) {
             setProperties(prev => prev.filter(p => p.id !== id));
             if (selectedPropertyId === id) {
@@ -1314,7 +1287,7 @@ const App: React.FC = () => {
         []
     );
 
-    const handleAddNewLead = async (leadData: { name: string; email: string; phone: string; message: string; source: string; funnelType?: string }) => {
+    const _handleAddNewLead = async (leadData: { name: string; email: string; phone: string; message: string; source: string; funnelType?: string }) => {
         const payload: LeadPayload = {
             name: leadData.name,
             email: leadData.email,
@@ -1347,7 +1320,7 @@ const App: React.FC = () => {
         setView('leads');
     };
 
-    const handleLeadFunnelAssigned = useCallback(
+    const _handleLeadFunnelAssigned = useCallback(
         async (lead: Lead, funnel: LeadFunnelType | null) => {
             const previous = lead.funnelType ?? null;
             setLeads((prev) =>
@@ -1379,7 +1352,7 @@ const App: React.FC = () => {
         [resolvePropertyForLead, triggerLeadSequences]
     );
 
-    const handleUpdateLead = useCallback(async (leadId: string, updatedData: { name: string; email: string; phone: string; message: string; source: string; funnelType?: string }) => {
+    const _handleUpdateLead = useCallback(async (leadId: string, updatedData: { name: string; email: string; phone: string; message: string; source: string; funnelType?: string }) => {
         try {
             // Optimistic update
             const leadToUpdate = leads.find(l => l.id === leadId);
@@ -1432,7 +1405,7 @@ const App: React.FC = () => {
         }
     }, [leads]);
 
-    const handleDeleteLead = useCallback(async (leadId: string) => {
+    const _handleDeleteLead = useCallback(async (leadId: string) => {
         if (window.confirm('Are you sure you want to delete this lead?')) {
             // Store previous state for rollback
             const previousLeads = leads;
@@ -1505,7 +1478,7 @@ const App: React.FC = () => {
     }, [user, isDemoMode]);
 
     // Track which property is currently selected
-    const selectedProperty = properties.find(p => p.id === selectedPropertyId);
+    const _selectedProperty = properties.find(p => p.id === selectedPropertyId);
     // Local admin check removed (use isAdmin state)
 
     if (isLoading) {
@@ -1685,10 +1658,6 @@ const App: React.FC = () => {
                         <Route path="billing" element={<BillingCommandPage />} />
                         <Route path="onboarding" element={<OnboardingCommandPage />} />
                     </Route>
-                    {/* Legacy blueprint routes — kept for backward compat, not actively used */}
-                    <Route path="/dashboard-blueprint/*" element={<AgentDashboard isDemoMode={true} demoListingCount={1} />} />
-                    <Route path="/agent-blueprint-dashboard/*" element={<AgentDashboard isDemoMode={false} isBlueprintMode={true} demoListingCount={1} />} />
-                    <Route path="/demo-showcase" element={<MultiToolShowcase />} />
 
                     {/* Public Property Route */}
                     <Route path="/listing/:id" element={
@@ -1765,50 +1734,12 @@ const App: React.FC = () => {
                         <Route path="/dashboard/dev/share-test" element={<ShareTestPage />} />
 
 
-                        <Route path="/listings" element={
-                            <ListingsPage properties={properties} onSelectProperty={handleSelectProperty} onAddNew={() => navigate('/add-listing')} onDeleteProperty={handleDeleteProperty} onBackToDashboard={() => navigate('/dashboard')} />
-                        } />
-
-                        <Route path="/listings-v2" element={
-                            <ListingStudioV2Page properties={properties} agentProfile={userProfile} onBackToListings={() => navigate('/listings')} />
-                        } />
-
-                        <Route path="/add-listing" element={
-                            <AddListingPage onCancel={() => navigate('/dashboard')} onSave={handleSaveNewProperty} />
-                        } />
-
-                        <Route path="/property" element={
-                            selectedProperty ? <PropertyPage property={selectedProperty} setProperty={handleSetProperty} onBack={() => navigate('/listings')} leadCount={leads.filter(l => l.interestedProperties?.includes(selectedProperty.id)).length} /> : <Navigate to="/listings" />
-                        } />
-
-                        <Route path="/leads" element={
-                            <LeadsAndAppointmentsPage
-                                leads={leads}
-                                appointments={appointments}
-                                onAddNewLead={handleAddNewLead}
-                                onBackToDashboard={() => navigate('/dashboard')}
-                                resolvePropertyForLead={resolvePropertyForLead}
-                                onNewAppointment={async (appt) => {
-                                    setAppointments((prev) => [appt, ...prev]);
-                                    const lead = appt.leadId ? leads.find((l) => l.id === appt.leadId) : undefined;
-                                    if (lead) await triggerLeadSequences(lead, 'Appointment Scheduled', resolvePropertyForLead(lead));
-                                }}
-                                onAssignFunnel={handleLeadFunnelAssigned}
-                                onUpdateLead={(lead) => handleUpdateLead(lead.id, {
-                                    name: lead.name,
-                                    email: lead.email,
-                                    phone: lead.phone,
-                                    message: lead.lastMessage,
-                                    source: lead.source || 'Manual Entry',
-                                    funnelType: lead.funnelType
-                                })}
-                                onDeleteLead={handleDeleteLead}
-                            />
-                        } />
-
-                        <Route path="/inbox" element={
-                            <InteractionHubPage properties={properties} interactions={interactions} setInteractions={setInteractions} onAddNewLead={handleAddNewLead} onBackToDashboard={() => navigate('/dashboard')} />
-                        } />
+                        <Route path="/listings" element={<Navigate to="/dashboard/listings" replace />} />
+                        <Route path="/listings-v2" element={<Navigate to="/dashboard/listings" replace />} />
+                        <Route path="/add-listing" element={<Navigate to="/dashboard/listings" replace />} />
+                        <Route path="/property" element={<Navigate to="/dashboard/listings" replace />} />
+                        <Route path="/leads" element={<Navigate to="/dashboard/leads" replace />} />
+                        <Route path="/inbox" element={<Navigate to="/dashboard/leads" replace />} />
 
                         <Route path="/ai-conversations" element={<AIConversationsPage isDemoMode={isDemoMode} />} />
                         <Route path="/ai-card" element={<AICardPage isDemoMode={isDemoMode} isBlueprintMode={isBlueprintMode} />} />
