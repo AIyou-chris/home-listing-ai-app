@@ -50,9 +50,11 @@ const NavItem: React.FC<{
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, isBlueprintMode = false }) => {
   const location = useLocation();
   const derivedDemoMode = isDemoMode || location.pathname.startsWith('/demo-dashboard');
-  const derivedBlueprintMode = isBlueprintMode || location.pathname.startsWith('/agent-blueprint-dashboard');
+  const derivedBlueprintMode = isBlueprintMode || location.pathname.startsWith('/agent-blueprint-dashboard') || location.pathname.startsWith('/blueprint-dashboard');
 
-  const basePath = derivedBlueprintMode ? '/agent-blueprint-dashboard' : derivedDemoMode ? '/demo-dashboard' : '';
+  // New blueprint dashboard uses /blueprint-dashboard; legacy uses /agent-blueprint-dashboard
+  const blueprintBase = location.pathname.startsWith('/blueprint-dashboard') ? '/blueprint-dashboard' : '/agent-blueprint-dashboard';
+  const basePath = derivedBlueprintMode ? blueprintBase : derivedDemoMode ? '/demo-dashboard' : '';
 
   const getPath = (path: string) => `${basePath}${path}`;
   const pathMap: Record<string, string> = {

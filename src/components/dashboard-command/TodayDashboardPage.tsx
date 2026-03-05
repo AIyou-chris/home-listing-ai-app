@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { buildDashboardPath, useDemoMode } from '../../demo/useDemoMode'
+import { buildBlueprintPath, useBlueprintMode } from '../../demo/useBlueprintMode'
+import { BLUEPRINT_PROPERTIES } from '../../constants/agentBlueprintData'
 import {
   fetchDashboardAppointments,
   fetchDashboardLeads,
@@ -85,6 +87,13 @@ const formatWarningLine = (billing: DashboardBillingSnapshot, key: string) => {
 const TodayDashboardPage: React.FC = () => {
   const navigate = useNavigate()
   const demoMode = useDemoMode()
+  const blueprintMode = useBlueprintMode()
+
+  // Unified nav helper — routes to the correct base path regardless of mode
+  const navTo = useCallback((path: string) => {
+    if (blueprintMode) navigate(buildBlueprintPath(path))
+    else navigate(buildDashboardPath(path, demoMode))
+  }, [blueprintMode, demoMode, navigate])
   const leadsById = useDashboardRealtimeStore((state) => state.leadsById)
   const appointmentsById = useDashboardRealtimeStore((state) => state.appointmentsById)
   const setInitialLeads = useDashboardRealtimeStore((state) => state.setInitialLeads)
@@ -168,8 +177,20 @@ const TodayDashboardPage: React.FC = () => {
   useEffect(() => {
     if (hasFetchedInitialStateRef.current) return
     hasFetchedInitialStateRef.current = true
+
+    if (blueprintMode) {
+      // Blueprint mode: skip all API calls (no auth, would 401).
+      // Show one example listing in Share Kit; leads + appointments stay empty.
+      const bp = BLUEPRINT_PROPERTIES[0]
+      if (bp) {
+        setRecentListing({ id: bp.id, address: bp.address || '123 Inspiration Way, Future City, CA 90210' })
+      }
+      setLoading(false)
+      return
+    }
+
     void load()
-  }, [load])
+  }, [load, blueprintMode])
 
   useEffect(() => {
     isMountedRef.current = true
@@ -248,7 +269,7 @@ const TodayDashboardPage: React.FC = () => {
       action: 'lead_opened',
       metadata: { source: 'today_dashboard' }
     }).catch(() => undefined)
-    navigate(buildDashboardPath(`/leads/${leadId}`, demoMode))
+    navTo(`/leads/${leadId}`)
   }
 
   const handleDownloadQr = () => {
@@ -262,6 +283,7 @@ const TodayDashboardPage: React.FC = () => {
 
   const handlePublishListing = async () => {
     if (!recentListing?.id) return
+    if (blueprintMode) return // no auth in blueprint mode
     try {
       const published = await publishListingShareKit(recentListing.id, true)
       setShareKit(published)
@@ -288,6 +310,32 @@ const TodayDashboardPage: React.FC = () => {
         <p className="mt-1 text-base text-slate-700">Good {dayPart()}, {greetingName}.</p>
         <p className="mt-1 text-sm text-slate-500">Here’s what needs your attention right now.</p>
       </header>
+
+      {/* Welcome banner — brand new agents only (no listing yet, onboarding pending, real dashboard) */}
+      {!loading && !blueprintMode && !demoMode && onboarding && !onboarding.onboarding_completed && !recentListing && (
+        <div className="rounded-2xl border border-primary-200 bg-primary-50 p-5">
+          <h2 className="text-base font-bold text-primary-900">Let's get your first listing live, {greetingName}.</h2>
+          <p className="mt-1 text-sm text-primary-700">
+            You're {onboarding.progress.total_items - onboarding.progress.completed_items} steps away from capturing your first lead.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => navTo('/listings')}
+              className="rounded-md bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+            >
+              Create your first listing
+            </button>
+            <button
+              type="button"
+              onClick={() => navTo('/onboarding')}
+              className="rounded-md border border-primary-300 bg-white px-4 py-2 text-sm font-semibold text-primary-700"
+            >
+              View setup checklist
+            </button>
+          </div>
+        </div>
+      )}
 
       <TodayROIStrip />
 
@@ -319,15 +367,31 @@ const TodayDashboardPage: React.FC = () => {
             {leadsOpen && <div className="mt-4 space-y-3">
               {newLeads.length === 0 ? (
                 <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4">
-                  <p className="font-semibold text-slate-900">All caught up.</p>
-                  <p className="mt-1 text-sm text-slate-500">New leads will appear here automatically.</p>
-                  <button
-                    type="button"
-                    onClick={() => navigate(buildDashboardPath('/leads', demoMode))}
-                    className="mt-3 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700"
-                  >
-                    View all leads
-                  </button>
+                  {!blueprintMode && !demoMode && onboarding && !onboarding.onboarding_checklist.first_listing_created ? (
+                    <>
+                      <p className="font-semibold text-slate-900">No leads yet — that's expected.</p>
+                      <p className="mt-1 text-sm text-slate-500">Publish your first listing and leads start flowing in automatically.</p>
+                      <button
+                        type="button"
+                        onClick={() => navTo('/listings')}
+                        className="mt-3 rounded-md bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white"
+                      >
+                        Create a listing
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <p className="font-semibold text-slate-900">All caught up.</p>
+                      <p className="mt-1 text-sm text-slate-500">New leads will appear here automatically.</p>
+                      <button
+                        type="button"
+                        onClick={() => navTo('/leads')}
+                        className="mt-3 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700"
+                      >
+                        View all leads
+                      </button>
+                    </>
+                  )}
                 </div>
               ) : (
                 newLeads.map((lead: DashboardLeadItem) => (
@@ -385,14 +449,23 @@ const TodayDashboardPage: React.FC = () => {
             {appointmentsOpen && <div className="mt-4 space-y-3">
               {upcomingAppointments.length === 0 ? (
                 <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4">
-                  <p className="font-semibold text-slate-900">Nothing scheduled in the next 24 hours.</p>
-                  <button
-                    type="button"
-                    onClick={() => navigate(buildDashboardPath('/appointments', demoMode))}
-                    className="mt-3 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700"
-                  >
-                    View appointments
-                  </button>
+                  {!blueprintMode && !demoMode && onboarding && !onboarding.onboarding_checklist.first_listing_created ? (
+                    <>
+                      <p className="font-semibold text-slate-900">Showings start here.</p>
+                      <p className="mt-1 text-sm text-slate-500">Once your listing is live, buyers can request showings and they'll appear here.</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="font-semibold text-slate-900">Nothing scheduled in the next 24 hours.</p>
+                      <button
+                        type="button"
+                        onClick={() => navTo('/appointments')}
+                        className="mt-3 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700"
+                      >
+                        View appointments
+                      </button>
+                    </>
+                  )}
                 </div>
               ) : (
                 upcomingAppointments.map((appointment) => (
@@ -407,7 +480,7 @@ const TodayDashboardPage: React.FC = () => {
                     </div>
                     <button
                       type="button"
-                      onClick={() => navigate(`${buildDashboardPath('/appointments', demoMode)}?appointmentId=${appointment.id}`)}
+                      onClick={() => navTo(`/appointments?appointmentId=${appointment.id}`)}
                       className="mt-3 rounded-md bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white"
                     >
                       Open
@@ -420,6 +493,36 @@ const TodayDashboardPage: React.FC = () => {
         </div>
 
         <div className="space-y-4">
+          {/* Launch Checklist at TOP — only for brand new agents (no listing yet) */}
+          {!blueprintMode && !demoMode && onboarding && !onboarding.onboarding_completed && !recentListing && (
+            <article className={containerCardClass}>
+              <h2 className="text-lg font-semibold text-slate-900">Launch Checklist</h2>
+              <p className="mt-1 text-sm text-slate-500">Finish this once. Then it runs itself.</p>
+              <div className="mt-3 h-2 rounded-full bg-slate-100">
+                <div
+                  className="h-2 rounded-full bg-primary-600"
+                  style={{
+                    width: `${Math.round((onboarding.progress.completed_items / Math.max(onboarding.progress.total_items, 1)) * 100)}%`
+                  }}
+                />
+              </div>
+              <ul className="mt-3 space-y-2 text-xs text-slate-600">
+                <li>{onboarding.onboarding_checklist.brand_profile ? '✓' : '○'} Add your details</li>
+                <li>{onboarding.onboarding_checklist.first_listing_created ? '✓' : '○'} Create a listing</li>
+                <li>{onboarding.onboarding_checklist.first_listing_published && onboarding.onboarding_checklist.share_kit_copied ? '✓' : '○'} Publish and copy link</li>
+                <li>{onboarding.onboarding_checklist.test_lead_sent ? '✓' : '○'} Send a test lead</li>
+                <li>{onboarding.onboarding_checklist.first_appointment_created ? '✓' : '○'} Schedule a showing</li>
+              </ul>
+              <button
+                type="button"
+                onClick={() => navTo('/onboarding')}
+                className="mt-3 rounded-md bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white"
+              >
+                Continue setup
+              </button>
+            </article>
+          )}
+
           <article className={containerCardClass}>
             <h2 className="text-lg font-semibold text-slate-900">Share Kit</h2>
             <p className="mt-1 text-sm text-slate-500">Copy your link or download a QR in seconds.</p>
@@ -429,7 +532,7 @@ const TodayDashboardPage: React.FC = () => {
                   <p className="font-semibold text-slate-900">No listings yet</p>
                   <button
                     type="button"
-                    onClick={() => navigate(buildDashboardPath('/listings', demoMode))}
+                    onClick={() => navTo('/listings')}
                     className="mt-3 rounded-md bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90"
                   >
                     Create your first listing
@@ -470,7 +573,7 @@ const TodayDashboardPage: React.FC = () => {
                         </button>
                         <button
                           type="button"
-                          onClick={() => navigate(buildDashboardPath(`/listings/${recentListing.id}`, demoMode))}
+                          onClick={() => navTo(`/listings/${recentListing.id}`)}
                           className="rounded-md bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white"
                         >
                           Open Share Kit
@@ -490,7 +593,7 @@ const TodayDashboardPage: React.FC = () => {
                         </button>
                         <button
                           type="button"
-                          onClick={() => navigate(buildDashboardPath('/listings', demoMode))}
+                          onClick={() => navTo('/listings')}
                           className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700"
                         >
                           Open listing
@@ -553,20 +656,36 @@ const TodayDashboardPage: React.FC = () => {
                   {(billing.plan.id === 'free' || billingWarningLines.length > 0) && (
                     <button
                     type="button"
-                    onClick={() => navigate(buildDashboardPath('/billing', demoMode))}
+                    onClick={() => navTo('/billing')}
                       className="rounded-md bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white"
                     >
                       Upgrade
                     </button>
                   )}
                 </>
+              ) : blueprintMode ? (
+                <div className="space-y-3">
+                  <p className="text-xs text-slate-600">
+                    Your plan and usage limits will appear here once you sign up.
+                  </p>
+                  <div className="h-2 rounded-full bg-slate-100">
+                    <div className="h-2 w-0 rounded-full bg-primary-600" />
+                  </div>
+                  <a
+                    href="/#signup"
+                    className="inline-block rounded-md bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white"
+                  >
+                    Start your app
+                  </a>
+                </div>
               ) : (
                 <p className="text-xs text-slate-500">Loading plan usage...</p>
               )}
             </div>
           </article>
 
-          {onboarding && !onboarding.onboarding_completed && (
+          {/* Launch Checklist at BOTTOM — only once they have a listing (already moved to top before that) */}
+          {onboarding && !onboarding.onboarding_completed && recentListing && (
             <article className={containerCardClass}>
               <h2 className="text-lg font-semibold text-slate-900">Launch Checklist</h2>
               <p className="mt-1 text-sm text-slate-500">Finish this once. Then it runs itself.</p>
@@ -587,7 +706,7 @@ const TodayDashboardPage: React.FC = () => {
               </ul>
               <button
                 type="button"
-                onClick={() => navigate(buildDashboardPath('/onboarding', demoMode))}
+                onClick={() => navTo('/onboarding')}
                 className="mt-3 rounded-md bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white"
               >
                 Continue setup

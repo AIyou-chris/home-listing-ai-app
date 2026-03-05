@@ -275,6 +275,44 @@ const DemoDashboardLayout = () => {
     );
 };
 
+// ─── BlueprintDashboardLayout ─────────────────────────────────────────────────
+// Same shell as DemoDashboardLayout but with isBlueprintMode sidebar flag.
+// Data is NOT pre-seeded — TodayDashboardPage detects the route and shows
+// empty state + one example listing without making real API calls.
+const BlueprintDashboardLayout = () => {
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const location = useLocation();
+    const pageTitle = resolveDashboardPageTitle(location.pathname);
+
+    return (
+        <div className="relative flex h-screen bg-slate-50">
+            <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} isBlueprintMode />
+            <div className="relative flex flex-1 flex-col overflow-hidden">
+                <header
+                    className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-200 bg-white px-3 py-3 shadow-sm lg:hidden"
+                    style={{
+                        paddingTop: 'calc(env(safe-area-inset-top) + 0.75rem)',
+                        paddingBottom: 'calc(env(safe-area-inset-bottom) + 0.5rem)'
+                    }}
+                >
+                    <button
+                        onClick={() => setIsSidebarOpen(true)}
+                        className="rounded-lg p-2 text-slate-600 transition-colors hover:bg-slate-100"
+                        aria-label="Open navigation menu"
+                    >
+                        <span className="material-symbols-outlined text-xl">menu</span>
+                    </button>
+                    <h1 className="truncate px-3 text-base font-semibold text-slate-900">{pageTitle}</h1>
+                    <div className="w-10" aria-hidden="true" />
+                </header>
+                <main className="relative z-0 flex-1 overflow-x-hidden overflow-y-auto bg-slate-50">
+                    <Outlet />
+                </main>
+            </div>
+        </div>
+    );
+};
+
 // ─── ProtectedDashboardLayout (module-level, stable identity) ────────────────
 const ProtectedDashboardLayout: React.FC = () => {
     const ctx = React.useContext(DashboardLayoutContext)!;
@@ -552,8 +590,8 @@ const App: React.FC = () => {
         weeklyReport: true,
         monthlyInsights: true
     });
-    const [emailSettings, setEmailSettings] = useState<EmailSettings>({ integrationType: 'oauth', aiEmailProcessing: true, autoReply: true, leadScoring: true, followUpSequences: true });
-    const [calendarSettings, setCalendarSettings] = useState<CalendarSettings>({
+    const [_emailSettings, setEmailSettings] = useState<EmailSettings>({ integrationType: 'oauth', aiEmailProcessing: true, autoReply: true, leadScoring: true, followUpSequences: true });
+    const [_calendarSettings, setCalendarSettings] = useState<CalendarSettings>({
         integrationType: 'google',
         aiScheduling: true,
         conflictDetection: true,
@@ -1092,7 +1130,7 @@ const App: React.FC = () => {
         navigate('/demo-dashboard');
     };
 
-    const handleEnterBlueprintMode = () => {
+    const _handleEnterBlueprintMode = () => {
         setIsDemoMode(false);
         setIsBlueprintMode(true);
 
@@ -1633,6 +1671,21 @@ const App: React.FC = () => {
                         <Route path="billing" element={<BillingCommandPage />} />
                         <Route path="onboarding" element={<OnboardingCommandPage />} />
                     </Route>
+                    {/* New Blueprint Dashboard — same UI as demo, zero fake data, one example listing */}
+                    <Route path="/blueprint-dashboard" element={<BlueprintDashboardLayout />}>
+                        <Route index element={<Navigate to="/blueprint-dashboard/today" replace />} />
+                        <Route path="today" element={<TodayDashboardPage />} />
+                        <Route path="command-center" element={<ConversionDashboardHome />} />
+                        <Route path="leads" element={<LeadsInboxCommandPage />} />
+                        <Route path="leads/:leadId" element={<LeadDetailCommandPage />} />
+                        <Route path="appointments" element={<AppointmentsCommandPage />} />
+                        <Route path="listings" element={<ListingsCommandPage />} />
+                        <Route path="listings/:listingId" element={<ListingPerformancePage />} />
+                        <Route path="listings/:listingId/edit" element={<ListingEditorPage />} />
+                        <Route path="billing" element={<BillingCommandPage />} />
+                        <Route path="onboarding" element={<OnboardingCommandPage />} />
+                    </Route>
+                    {/* Legacy blueprint routes — kept for backward compat, not actively used */}
                     <Route path="/dashboard-blueprint/*" element={<AgentDashboard isDemoMode={true} demoListingCount={1} />} />
                     <Route path="/agent-blueprint-dashboard/*" element={<AgentDashboard isDemoMode={false} isBlueprintMode={true} demoListingCount={1} />} />
                     <Route path="/demo-showcase" element={<MultiToolShowcase />} />
@@ -1696,10 +1749,8 @@ const App: React.FC = () => {
                         <Route path="/dashboard" element={
                             <DashboardRouteGate />
                         } />
-                        <Route path="/daily-pulse" element={
-                            (userProfile.slug && userProfile.id !== SAMPLE_AGENT.id ? <Navigate to={`/dashboard/${userProfile.slug}`} replace /> : <AgentDashboard preloadedProperties={properties} />)
-                        } />
-                        <Route path="/dashboard/:slug" element={<AgentDashboard preloadedProperties={properties} />} />
+                        <Route path="/daily-pulse" element={<Navigate to="/dashboard/today" replace />} />
+                        <Route path="/dashboard/:slug" element={<Navigate to="/dashboard/today" replace />} />
 
                         <Route path="/dashboard/today" element={<TodayDashboardPage />} />
                         <Route path="/dashboard/command-center" element={<ConversionDashboardHome />} />
