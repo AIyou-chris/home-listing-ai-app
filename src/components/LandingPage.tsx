@@ -161,8 +161,8 @@ const PricingSection: React.FC<{ onNavigateToSignUp: () => void; onOpenContact: 
                                 <li className="flex items-start gap-3">
                                     <span className="material-symbols-outlined w-6 h-6 text-yellow-400 flex-shrink-0 mt-0.5">language</span>
                                     <div>
-                                        <span className="text-slate-100 font-bold text-lg">12-Language Auto-Detect</span>
-                                        <p className="text-sm text-slate-300 mt-1">Your AI instantly responds in your lead’s preferred language.</p>
+                                        <span className="text-slate-100 font-bold text-lg">26-Language Auto-Detect</span>
+                                        <p className="text-sm text-slate-300 mt-1">Your AI instantly responds in your lead’s preferred language — across 26 languages.</p>
                                     </div>
                                 </li>
                                 <li className="flex items-start gap-3">
@@ -878,6 +878,223 @@ const Hero: React.FC<{ onNavigateToSignUp: () => void, onEnterDemoMode: () => vo
     </section>
 );
 
+// ─── Lead Machine Timeline Section ────────────────────────────────────────────
+const LeadMachineSection: React.FC = () => {
+    const leftSteps = [
+        { icon: 'forum', title: 'New Lead Detected', desc: 'Lead captured via landing page, chat/voice, or showing request' },
+        { icon: 'smart_toy', title: 'AI Chat Engages', desc: 'AI texts back instantly, does Q&A, and collects showing times' },
+        { icon: 'calendar_month', title: 'Showing Scheduled', desc: 'Agent or AI sets and confirms the showing' },
+        { icon: 'notifications_active', title: 'Follow-Up & Reminders', desc: 'Smart follow-up reminders and reschedules' },
+        { icon: 'handshake', title: 'Lead Converts', desc: 'Offer made, deal negotiated, under contract' },
+    ];
+    const rightCards = [
+        { icon: 'mark_email_unread', title: 'Capture Lead', desc: 'AI listing page, chat/voice, or showing request' },
+        { icon: 'smart_toy', title: 'AI Chat', desc: 'AI asks qualifying questions and collects showing times' },
+        { icon: 'event_available', title: 'Schedule Showing', desc: 'Agent or AI sets and confirms the showing appointment' },
+        { icon: 'task_alt', title: 'Smart Follow-Up', desc: 'Friendly reminders and reschedules sent automatically' },
+        { icon: 'real_estate_agent', title: 'Close or Nurture', desc: 'Negotiate the deal, or nurture with touch points' },
+    ];
+    return (
+        <section className="relative py-20 lg:py-28 bg-[#020B18] overflow-hidden border-t border-slate-900">
+            {/* Ambient glows */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-blue-900/8 rounded-full blur-[140px] pointer-events-none" />
+            <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-cyan-900/6 rounded-full blur-[100px] pointer-events-none" />
+            <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 z-10">
+                {/* Heading */}
+                <div className="text-center mb-14">
+                    <p className="text-blue-400 font-bold tracking-widest text-sm uppercase mb-3">How It Works</p>
+                    <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-white tracking-tight">
+                        The Lead Machine Timeline
+                    </h2>
+                    <p className="mt-3 text-xl text-slate-400">
+                        <span className="text-blue-400 font-semibold">New</span>
+                        <span className="mx-2 text-slate-600">→</span>
+                        <span className="text-cyan-400 font-semibold">Closed</span>
+                        <span className="mx-2 text-slate-600">→</span>
+                        <span className="text-emerald-400 font-semibold">Repeat</span>
+                    </p>
+                </div>
+
+                {/* Three-column layout */}
+                <div className="grid lg:grid-cols-3 gap-8 lg:gap-6 items-center">
+
+                    {/* Left: Agent timeline */}
+                    <div className="space-y-0">
+                        {leftSteps.map((step, i) => (
+                            <div key={i} className="flex gap-4 relative">
+                                {/* Connector line */}
+                                {i < leftSteps.length - 1 && (
+                                    <div className="absolute left-[19px] top-10 w-[2px] h-[calc(100%-8px)] bg-gradient-to-b from-blue-700/50 to-transparent" />
+                                )}
+                                {/* Icon circle */}
+                                <div className="flex-shrink-0 w-10 h-10 rounded-full bg-blue-900/40 border border-blue-700/40 flex items-center justify-center z-10">
+                                    <span className="material-symbols-outlined text-blue-400" style={{ fontSize: '18px' }}>{step.icon}</span>
+                                </div>
+                                <div className="pb-7">
+                                    <p className="font-semibold text-white text-sm mb-0.5">{step.title}</p>
+                                    <p className="text-xs text-slate-400 leading-relaxed">{step.desc}</p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Center: Flywheel + phone mock */}
+                    <div className="flex flex-col items-center gap-8">
+                        {/* SVG flywheel */}
+                        <div className="relative w-60 h-60 flex items-center justify-center">
+                            <svg viewBox="0 0 240 240" className="absolute inset-0 w-full h-full" aria-hidden="true">
+                                {/* Outer dashed orbit */}
+                                <circle cx="120" cy="120" r="96" fill="none" stroke="rgba(59,130,246,0.18)" strokeWidth="1.5" strokeDasharray="6 5" />
+                                {/* Inner glow circle */}
+                                <circle cx="120" cy="120" r="58" fill="rgba(15,30,60,0.6)" stroke="rgba(59,130,246,0.22)" strokeWidth="1" />
+                                {/* Top node — New Lead Captured */}
+                                <circle cx="120" cy="24" r="10" fill="rgba(59,130,246,0.25)" stroke="rgba(99,155,255,0.5)" strokeWidth="1.5" />
+                                {/* Bottom-right node — Turn Leads */}
+                                <circle cx="204" cy="168" r="10" fill="rgba(34,211,238,0.2)" stroke="rgba(34,211,238,0.45)" strokeWidth="1.5" />
+                                {/* Bottom-left node — Nurture */}
+                                <circle cx="36" cy="168" r="10" fill="rgba(52,211,153,0.2)" stroke="rgba(52,211,153,0.45)" strokeWidth="1.5" />
+                                {/* Arc arrows (clockwise) */}
+                                <path d="M 145 32 A 96 96 0 0 1 197 155" fill="none" stroke="rgba(59,130,246,0.35)" strokeWidth="1.5" markerEnd="url(#arrowBlue)" />
+                                <path d="M 192 180 A 96 96 0 0 1 48 180" fill="none" stroke="rgba(34,211,238,0.35)" strokeWidth="1.5" markerEnd="url(#arrowCyan)" />
+                                <path d="M 43 155 A 96 96 0 0 1 95 32" fill="none" stroke="rgba(52,211,153,0.35)" strokeWidth="1.5" markerEnd="url(#arrowGreen)" />
+                                {/* Arrow markers */}
+                                <defs>
+                                    <marker id="arrowBlue" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+                                        <path d="M0,0 L6,3 L0,6 Z" fill="rgba(59,130,246,0.7)" />
+                                    </marker>
+                                    <marker id="arrowCyan" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+                                        <path d="M0,0 L6,3 L0,6 Z" fill="rgba(34,211,238,0.7)" />
+                                    </marker>
+                                    <marker id="arrowGreen" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+                                        <path d="M0,0 L6,3 L0,6 Z" fill="rgba(52,211,153,0.7)" />
+                                    </marker>
+                                </defs>
+                            </svg>
+                            {/* Orbit labels */}
+                            <span className="absolute top-0 left-1/2 -translate-x-1/2 text-[10px] text-blue-300 font-semibold text-center leading-tight whitespace-nowrap">New Lead<br/>Captured</span>
+                            <span className="absolute bottom-2 right-0 text-[10px] text-cyan-300 font-semibold text-center leading-tight">Turn<br/>Leads</span>
+                            <span className="absolute bottom-2 left-0 text-[10px] text-emerald-300 font-semibold text-center leading-tight">Nurture<br/>Leads</span>
+                            {/* Center label */}
+                            <div className="z-10 text-center px-2">
+                                <p className="text-white font-bold text-base leading-tight">Turn Leads<br/>into Clients</p>
+                            </div>
+                        </div>
+
+                        {/* Phone mock — drip/weekly touchpoint */}
+                        <div className="w-48 bg-[#0B1525] border border-slate-700/60 rounded-2xl p-3 shadow-2xl shadow-blue-900/20">
+                            <div className="bg-[#111e36] rounded-xl p-3 space-y-2">
+                                <div className="flex items-center gap-2 mb-1">
+                                    <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-xs text-white font-bold">A</div>
+                                    <span className="text-xs text-white font-semibold">Ava Brooks</span>
+                                    <span className="ml-auto text-[10px] text-emerald-400 font-medium">Open</span>
+                                </div>
+                                <div className="bg-blue-600 rounded-xl rounded-tl-none px-3 py-2 text-xs text-white leading-relaxed">
+                                    Tour set for tomorrow at 1:00 PM. See you soon! 🎉
+                                </div>
+                                <div className="flex items-center gap-1 text-[10px] text-slate-500 mt-1">
+                                    <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>location_on</span>
+                                    458 Cedar Ave
+                                </div>
+                            </div>
+                            <p className="text-[10px] text-slate-500 text-center mt-2 leading-tight">Weekly touch points &amp; drip campaigns</p>
+                        </div>
+                    </div>
+
+                    {/* Right: Feature cards */}
+                    <div className="space-y-3">
+                        {rightCards.map((card, i) => (
+                            <div key={i} className="flex items-start gap-3 bg-[#0B1525] border border-slate-800 rounded-xl px-4 py-3 hover:border-blue-800/50 hover:bg-[#0d1a2e] transition-all">
+                                <div className="flex-shrink-0 w-9 h-9 rounded-lg bg-blue-900/30 border border-blue-800/30 flex items-center justify-center">
+                                    <span className="material-symbols-outlined text-blue-400" style={{ fontSize: '18px' }}>{card.icon}</span>
+                                </div>
+                                <div>
+                                    <p className="font-semibold text-white text-sm">{card.title}</p>
+                                    <p className="text-xs text-slate-400 leading-snug mt-0.5">{card.desc}</p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                </div>
+            </div>
+        </section>
+    );
+};
+
+// ─── Trust & Compliance Section ───────────────────────────────────────────────
+const TrustComplianceSection: React.FC = () => (
+    <section className="relative py-20 lg:py-24 bg-[#040814] overflow-hidden border-t border-slate-900">
+        <div className="absolute top-1/2 right-1/4 w-[500px] h-[500px] bg-emerald-900/10 rounded-full blur-[120px] pointer-events-none -translate-y-1/2" />
+        <div className="absolute top-1/2 left-0 w-[400px] h-[400px] bg-blue-900/8 rounded-full blur-[120px] pointer-events-none -translate-y-1/2" />
+        <div className="relative max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 z-10">
+            <div className="text-center mb-12">
+                <p className="text-emerald-400 font-bold tracking-widest text-sm uppercase mb-3">Trust &amp; Compliance</p>
+                <h2 className="text-3xl md:text-4xl font-bold text-white tracking-tight">
+                    Built for real estate realities.
+                </h2>
+            </div>
+            <div className="grid md:grid-cols-3 gap-6">
+                {/* Multilingual */}
+                <div className="bg-[#0B1121] border border-slate-800 rounded-2xl p-6 hover:border-slate-700 transition-colors">
+                    <div className="flex items-center gap-2 mb-3">
+                        <span className="text-emerald-400 font-bold text-xs uppercase tracking-widest">✅ Multilingual support</span>
+                    </div>
+                    <p className="text-2xl font-bold text-white mb-2">26 languages</p>
+                    <p className="text-sm text-slate-400 leading-relaxed">
+                        Agents and buyers can chat and capture leads in 26 languages.
+                    </p>
+                </div>
+                {/* Fair Housing */}
+                <div className="bg-[#0B1121] border border-slate-800 rounded-2xl p-6 hover:border-slate-700 transition-colors">
+                    <div className="flex items-center gap-2 mb-3">
+                        <span className="text-emerald-400 font-bold text-xs uppercase tracking-widest">✅ Fair-housing compliance scan</span>
+                    </div>
+                    <p className="text-2xl font-bold text-white mb-2">In-app guardrails</p>
+                    <p className="text-sm text-slate-400 leading-relaxed">
+                        Flags risky phrasing and suggests safer rewrites before you publish or send messages.
+                    </p>
+                    <p className="text-[11px] text-slate-600 mt-4 leading-relaxed">
+                        Not legal advice. Agents/brokers remain responsible for compliance.
+                    </p>
+                </div>
+                {/* Teams */}
+                <div className="bg-[#0B1121] border border-slate-800 rounded-2xl p-6 hover:border-slate-700 transition-colors">
+                    <div className="flex items-center gap-2 mb-3">
+                        <span className="text-emerald-400 font-bold text-xs uppercase tracking-widest">✅ Team / multi-agent branding</span>
+                    </div>
+                    <p className="text-2xl font-bold text-white mb-2">Contact us</p>
+                    <p className="text-sm text-slate-400 leading-relaxed">
+                        Multi-agent branding + routing available on team plans.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+);
+
+// ─── Teams CTA Section ─────────────────────────────────────────────────────────
+const TeamsCTASection: React.FC<{ onOpenContact: () => void }> = ({ onOpenContact }) => (
+    <section className="relative py-16 bg-[#02050D] border-t border-slate-900 overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-r from-cyan-900/5 via-transparent to-blue-900/5 pointer-events-none" />
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[200px] bg-cyan-900/8 rounded-full blur-[80px] pointer-events-none" />
+        <div className="relative max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 z-10 text-center">
+            <p className="text-cyan-400 font-bold tracking-widest text-sm uppercase mb-3">For Brokerages</p>
+            <h2 className="text-3xl md:text-4xl font-bold text-white tracking-tight mb-4">
+                Teams &amp; brokerages
+            </h2>
+            <p className="text-lg text-slate-400 mb-8 max-w-xl mx-auto leading-relaxed">
+                Want multi-agent branding and routing? We'll set it up.
+            </p>
+            <button
+                onClick={onOpenContact}
+                className="inline-flex items-center gap-2 px-8 py-4 bg-white text-slate-950 hover:bg-slate-100 font-bold rounded-xl transition-all text-lg shadow-[0_0_30px_rgba(255,255,255,0.08)]"
+            >
+                Contact us
+            </button>
+        </div>
+    </section>
+);
+
 interface LandingPageProps {
     onNavigateToSignUp: () => void;
     onNavigateToSignIn: () => void;
@@ -938,7 +1155,13 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigat
 
                 <StatStripNew />
 
+                <LeadMachineSection />
+
+                <TrustComplianceSection />
+
                 <PricingSectionNew onNavigateToSignUp={onNavigateToSignUp} onEnterDemoMode={onEnterDemoMode} />
+
+                <TeamsCTASection onOpenContact={handleOpenContact} />
 
                 <FaqSectionNew onNavigateToSignUp={onNavigateToSignUp} onEnterDemoMode={onEnterDemoMode} />
 

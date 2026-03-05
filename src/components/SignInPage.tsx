@@ -26,6 +26,13 @@ const SignInPage: React.FC<SignInPageProps> = ({ onNavigateToSignUp, onNavigateT
     const handleSignIn = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
+
+        // Demo shortcut — skip Supabase entirely and enter demo mode
+        if (email.trim().toLowerCase() === 'demo@homelistingai.com') {
+            onEnterDemoMode();
+            return;
+        }
+
         setIsLoading(true);
         console.log('🚀 Attempting Sign In for:', email);
 

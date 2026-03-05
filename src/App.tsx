@@ -167,6 +167,26 @@ interface BackendListing {
 
 import { ImpersonationProvider } from './context/ImpersonationContext';
 
+// ─── Module-level contexts ───────────────────────────────────────────────────
+// ProtectedDashboardLayout and CheckoutRouteWrapper are defined OUTSIDE App so
+// their component identity is stable across App re-renders (sidebar open/close,
+// toast notifications, profile updates, etc.). Defining them inside App or
+// renderRoutes() creates a NEW component type on every render, causing React to
+// unmount and remount the entire dashboard tree on every state change.
+
+interface DashboardLayoutContextValue {
+    authReady: boolean;
+    user: AppUser | null;
+    isAdmin: boolean;
+    isDemoMode: boolean;
+    isSidebarOpen: boolean;
+    setIsSidebarOpen: React.Dispatch<React.SetStateAction<boolean>>;
+    logAuthBreadcrumb: (eventType: string, session: { expires_at?: number; user?: { id?: string } } | null) => void;
+}
+const DashboardLayoutContext = React.createContext<DashboardLayoutContextValue | null>(null);
+const CheckoutContext = React.createContext<{ onBackToSignup: () => void } | null>(null);
+// ────────────────────────────────────────────────────────────────────────────
+
 const DashboardRouteGate = () => {
     const [routeTarget, setRouteTarget] = useState<'loading' | 'today' | 'onboarding'>('loading');
 
@@ -254,6 +274,98 @@ const DemoDashboardLayout = () => {
         </div>
     );
 };
+
+// ─── ProtectedDashboardLayout (module-level, stable identity) ────────────────
+const ProtectedDashboardLayout: React.FC = () => {
+    const ctx = React.useContext(DashboardLayoutContext)!;
+    const { authReady, user, isAdmin, isDemoMode, isSidebarOpen, setIsSidebarOpen, logAuthBreadcrumb } = ctx;
+    const location = useLocation();
+
+    if (!authReady) {
+        return (
+            <div className="flex h-screen items-center justify-center bg-slate-50">
+                <LoadingSpinner size="lg" type="dots" text="Checking session..." />
+            </div>
+        );
+    }
+
+    if (!user && !isAdmin && !isDemoMode) {
+        logAuthBreadcrumb('ROUTE_GUARD_REDIRECT_NO_SESSION', null);
+        return <Navigate to="/signin?reason=expired" replace />;
+    }
+
+    return (
+        <div className="flex h-screen bg-slate-50 relative">
+            <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+            <div className="flex-1 flex flex-col overflow-hidden relative">
+                {/* Mobile Header */}
+                <header
+                    className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-200 bg-white px-3 py-3 shadow-sm lg:hidden"
+                    style={{
+                        paddingTop: 'calc(env(safe-area-inset-top) + 0.75rem)',
+                        paddingBottom: 'calc(env(safe-area-inset-bottom) + 0.5rem)'
+                    }}
+                >
+                    <button
+                        onClick={() => setIsSidebarOpen(true)}
+                        className="rounded-lg p-2 text-slate-600 transition-colors hover:bg-slate-100"
+                        aria-label="Open navigation menu"
+                    >
+                        <span className="material-symbols-outlined text-xl">menu</span>
+                    </button>
+                    <h1 className="truncate px-3 text-base font-semibold text-slate-900">
+                        {resolveDashboardPageTitle(location.pathname)}
+                    </h1>
+                    <div className="flex w-10 justify-end">
+                        {user && <NotificationSystem userId={user.uid} />}
+                    </div>
+                </header>
+
+                {/* Desktop Notification Bell (Absolute Top-Right) */}
+                <div className="absolute right-8 top-6 z-50 hidden lg:block">
+                    {user && <NotificationSystem userId={user.uid} />}
+                </div>
+
+                <main className="flex-1 overflow-x-hidden overflow-y-auto bg-slate-50 relative z-0">
+                    <DashboardRealtimeBootstrap />
+                    <Outlet />
+                </main>
+            </div>
+        </div>
+    );
+};
+
+// ─── CheckoutRouteWrapper (module-level, stable identity) ─────────────────────
+const CheckoutRouteWrapper: React.FC = () => {
+    const params = useParams<{ slug?: string }>();
+    const ctx = React.useContext(CheckoutContext)!;
+    const registrationContext = getRegistrationContext() as { slug?: string } | null;
+    const slugForCheckout = params.slug || registrationContext?.slug || null;
+
+    if (!slugForCheckout) {
+        return (
+            <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 px-6 text-center">
+                <div className="max-w-md space-y-4">
+                    <h2 className="text-xl font-semibold text-slate-800">We could not find your registration</h2>
+                    <p className="text-sm text-slate-600">
+                        Your secure checkout link may have expired. Please restart the signup process to generate a new link.
+                    </p>
+                    <button
+                        type="button"
+                        onClick={ctx.onBackToSignup}
+                        className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-500 transition"
+                    >
+                        <span className="material-symbols-outlined text-base">person_add</span>
+                        Start new signup
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    return <CheckoutPage slug={slugForCheckout} onBackToSignup={ctx.onBackToSignup} />;
+};
+// ────────────────────────────────────────────────────────────────────────────
 
 const App: React.FC = () => {
     const [user, setUser] = useState<AppUser | null>(null);
@@ -622,6 +734,11 @@ const App: React.FC = () => {
                 currentPath.startsWith('/checkout') || // Critical for checkout flow
                 currentPath.includes('/demo-') ||
                 currentPath.startsWith('/blog') || // Allow blog access
+                currentPath.startsWith('/listing/') || // Public listing pages
+                currentPath.startsWith('/l/') || // Public listing short URLs
+                currentPath.startsWith('/card/') || // Public AI card pages
+                currentPath === '/compliance' ||
+                currentPath === '/dmca' ||
                 currentPath === '/agent-blueprint-dashboard' || currentPath.startsWith('/agent-blueprint-dashboard') ||
                 currentPath === '/white-label';
 
@@ -646,13 +763,15 @@ const App: React.FC = () => {
                 >([
                     supabase.auth.getSession(),
                     new Promise<{ timedOut: true }>((resolve) =>
-                        setTimeout(() => resolve({ timedOut: true }), 8000)
+                        setTimeout(() => resolve({ timedOut: true }), 3000)
                     )
                 ]);
 
                 if ('timedOut' in sessionResult) {
-                    console.warn('⚠️ Session check timed out. Continuing without blocking UI.');
-                    setUser(null);
+                    // getSession() took too long — unblock the UI but DO NOT clear user state.
+                    // INITIAL_SESSION has already fired and restored the user from local storage.
+                    // Calling setUser(null) here would race against that and kill the session.
+                    console.warn('⚠️ Session check timed out. Unblocking UI — INITIAL_SESSION already handled user state.');
                     return;
                 }
 
@@ -762,7 +881,7 @@ const App: React.FC = () => {
                     fastAdminCheck(session.user.email);
                     console.log('🔄 INITIAL_SESSION: user restored from storage, authReady will resolve.');
                 }
-            } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+            } else if (event === 'SIGNED_IN') {
                 if (session?.user) {
                     const currentUser = buildAppUser(session.user);
                     setUser(currentUser);
@@ -774,14 +893,22 @@ const App: React.FC = () => {
                         void securitySettingsService.notifyLogin(currentUser.id, currentUser.email);
                     }
                 }
+            } else if (event === 'TOKEN_REFRESHED') {
+                // Token silently refreshed every ~1hr — just update the user reference.
+                // No need to reload all data (properties, settings, etc.) — it hasn't changed.
+                if (session?.user) {
+                    const currentUser = buildAppUser(session.user);
+                    setUser(currentUser);
+                    fastAdminCheck(session.user.email);
+                    console.log('🔑 TOKEN_REFRESHED: session extended, skipping full data reload.');
+                }
             } else if (event === 'SIGNED_OUT') {
                 setUser(null);
-
                 setUserProfile(SAMPLE_AGENT);
                 setIsAdmin(false);
                 setProperties([]);
                 localStorage.removeItem('hlai_impersonated_user_id'); // Clear impersonation
-                navigate('/');
+                navigate('/signin'); // Send to sign-in, not landing
             }
         });
 
@@ -804,17 +931,18 @@ const App: React.FC = () => {
                 console.log("👮 Admin detected on protected agent page (" + path + "). Redirecting...");
                 navigate('/admin-dashboard', { replace: true });
             }
-        } else if (location.pathname.startsWith('/admin') && location.pathname !== '/admin-login') {
-            // Safety: If NOT admin but on admin page, kick out
+        } else if (authReady && location.pathname.startsWith('/admin') && location.pathname !== '/admin-login') {
+            // Safety: If NOT admin but on admin page, kick out.
+            // Guard with authReady so we don't bounce RPC-only admins before loadUserData completes.
             console.warn("⛔️ Accessing admin page without admin privileges. Redirecting.");
             if (user) {
-                // If logged in but not admin, maybe regular dashboard?
+                // If logged in but not admin, send to regular dashboard
                 navigate('/dashboard', { replace: true });
             } else {
                 navigate('/admin-login', { replace: true });
             }
         }
-    }, [isAdmin, user, location.pathname, navigate]);
+    }, [isAdmin, authReady, user, location.pathname, navigate]);
 
     // --- FORCE AUTH REDIRECT ---
     // If user is logged in but on a public auth page (Signin/Signup), redirect to Dashboard.
@@ -1357,97 +1485,15 @@ const App: React.FC = () => {
     }
 
 
-    // Unified Checkout Wrapper to handle both URL params and context
-    const CheckoutRouteWrapper = () => {
-        const params = useParams<{ slug?: string }>();
-        const registrationContext = getRegistrationContext() as { slug?: string } | null;
-
-        // Prioritize URL param, fallback to context
-        const slugForCheckout = params.slug || registrationContext?.slug || null;
-
-        if (!slugForCheckout) {
-            return (
-                <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 px-6 text-center">
-                    <div className="max-w-md space-y-4">
-                        <h2 className="text-xl font-semibold text-slate-800">We could not find your registration</h2>
-                        <p className="text-sm text-slate-600">
-                            Your secure checkout link may have expired. Please restart the signup process to generate a new link.
-                        </p>
-                        <button
-                            type="button"
-                            onClick={handleNavigateToSignUp}
-                            className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-500 transition"
-                        >
-                            <span className="material-symbols-outlined text-base">person_add</span>
-                            Start new signup
-                        </button>
-                    </div>
-                </div>
-            );
-        }
-
-        return <CheckoutPage slug={slugForCheckout} onBackToSignup={handleNavigateToSignUp} />;
-    };
+    // CheckoutRouteWrapper is defined at module level above for stable component identity.
 
 
     // Helper to render routes
+    // Note: ProtectedDashboardLayout and CheckoutRouteWrapper are defined at module level
+    // above the App component for stable component identity (see Edit #2).
     const renderRoutes = () => {
         if (isLoading) return <div className="flex h-screen items-center justify-center"><LoadingSpinner /></div>;
         console.log("📍 Rendering Routes");
-        const ProtectedDashboardLayout = () => {
-            if (!authReady) {
-                return (
-                    <div className="flex h-screen items-center justify-center bg-slate-50">
-                        <LoadingSpinner size="lg" type="dots" text="Checking session..." />
-                    </div>
-                );
-            }
-
-            if (!user && !isAdmin && !isDemoMode) {
-                logAuthBreadcrumb('ROUTE_GUARD_REDIRECT_NO_SESSION', null);
-                return <Navigate to="/signin?reason=expired" replace />;
-            }
-
-            return (
-                <div className="flex h-screen bg-slate-50 relative">
-                    <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
-                    <div className="flex-1 flex flex-col overflow-hidden relative">
-                        {/* Mobile Header */}
-                        <header
-                            className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-200 bg-white px-3 py-3 shadow-sm lg:hidden"
-                            style={{
-                                paddingTop: 'calc(env(safe-area-inset-top) + 0.75rem)',
-                                paddingBottom: 'calc(env(safe-area-inset-bottom) + 0.5rem)'
-                            }}
-                        >
-                            <button
-                                onClick={() => setIsSidebarOpen(true)}
-                                className="rounded-lg p-2 text-slate-600 transition-colors hover:bg-slate-100"
-                                aria-label="Open navigation menu"
-                            >
-                                <span className="material-symbols-outlined text-xl">menu</span>
-                            </button>
-                            <h1 className="truncate px-3 text-base font-semibold text-slate-900">
-                                {resolveDashboardPageTitle(location.pathname)}
-                            </h1>
-                            <div className="flex w-10 justify-end">
-                                {user && <NotificationSystem userId={user.uid} />}
-                            </div>
-                        </header>
-
-                        {/* Desktop Notification Bell (Absolute Top-Right) */}
-                        <div className="absolute right-8 top-6 z-50 hidden lg:block">
-                            {user && <NotificationSystem userId={user.uid} />}
-                        </div>
-
-                        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-slate-50 relative z-0">
-                            <DashboardRealtimeBootstrap />
-                            <Outlet />
-                        </main>
-                    </div>
-                </div>
-            );
-        };
 
         const renderSettingsPage = (initialTab: 'profile' | 'notifications' | 'security' | 'billing' = 'profile') => (
             <SettingsPage
@@ -1485,6 +1531,7 @@ const App: React.FC = () => {
                 <Routes>
                     {/* Public Routes */}
                     <Route path="/" element={
+                        !authReady ? <LoadingSpinner /> :
                         (user || isDemoMode || isAdmin) ? <Navigate to="/dashboard" replace /> :
                             <Suspense fallback={<LoadingSpinner />}>
                                 <LandingPage
@@ -1758,6 +1805,8 @@ const App: React.FC = () => {
         <ImpersonationProvider>
             <AgentBrandingProvider>
                 <AISidekickProvider>
+                    <DashboardLayoutContext.Provider value={{ authReady, user, isAdmin, isDemoMode, isSidebarOpen, setIsSidebarOpen, logAuthBreadcrumb }}>
+                    <CheckoutContext.Provider value={{ onBackToSignup: handleNavigateToSignUp }}>
                     <ErrorBoundary>
                         <Suspense fallback={<LoadingSpinner />}>
                             {renderRoutes()}
@@ -1807,6 +1856,8 @@ const App: React.FC = () => {
                             </Suspense>
                         )}
                     </ErrorBoundary>
+                    </CheckoutContext.Provider>
+                    </DashboardLayoutContext.Provider>
                 </AISidekickProvider>
                 <Toaster
                     position="bottom-center"
