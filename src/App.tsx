@@ -731,28 +731,42 @@ const App: React.FC = () => {
             console.log("🔐 Auth Change:", event, session?.user?.email);
             markAuthReady(event, session ?? null);
 
-            if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+            // Helper: build AppUser from a Supabase User object
+        const buildAppUser = (supaUser: NonNullable<typeof session>['user']): AppUser => ({
+            uid: supaUser.id,
+            id: supaUser.id,
+            email: supaUser.email ?? null,
+            displayName: supaUser.user_metadata?.name ?? null,
+            created_at: supaUser.created_at
+        });
+
+        // Fast admin email check
+        const fastAdminCheck = (email: string | null | undefined) => {
+            const envAdminEmail = import.meta.env.VITE_ADMIN_EMAIL as string | undefined;
+            const adminEmails = ['admin@homelistingai.com', 'us@homelistingai.com'];
+            if (envAdminEmail) adminEmails.push(envAdminEmail.toLowerCase());
+            if (email && adminEmails.includes(email.toLowerCase())) {
+                console.log("👮 Fast Admin Check Passed");
+                setIsAdmin(true);
+            }
+        };
+
+        if (event === 'INITIAL_SESSION') {
+                // CRITICAL FIX: INITIAL_SESSION fires on page load when a session exists in storage.
+                // We MUST set `user` here before markAuthReady() makes authReady=true,
+                // otherwise ProtectedDashboardLayout sees authReady=true + user=null → redirect to /signin.
+                // loadUserData is intentionally skipped here — initAuth's getSession() path handles it.
                 if (session?.user) {
-                    const currentUser: AppUser = {
-                        uid: session.user.id,
-                        id: session.user.id,
-                        email: session.user.email ?? null,
-                        displayName: session.user.user_metadata?.name ?? null,
-                        created_at: session.user.created_at
-                    };
+                    const currentUser = buildAppUser(session.user);
                     setUser(currentUser);
-
-                    // IMMEDIATE ADMIN CHECK (Redundant but fast)
-                    const envAdminEmail = import.meta.env.VITE_ADMIN_EMAIL as string | undefined;
-                    const adminEmails = ['admin@homelistingai.com', 'us@homelistingai.com'];
-                    if (envAdminEmail) adminEmails.push(envAdminEmail.toLowerCase());
-
-                    if (session.user.email && adminEmails.includes(session.user.email.toLowerCase())) {
-                        console.log("👮 Fast Admin Check Passed");
-                        setIsAdmin(true);
-                        // Force navigation will happen via useEffect below
-                    }
-
+                    fastAdminCheck(session.user.email);
+                    console.log('🔄 INITIAL_SESSION: user restored from storage, authReady will resolve.');
+                }
+            } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+                if (session?.user) {
+                    const currentUser = buildAppUser(session.user);
+                    setUser(currentUser);
+                    fastAdminCheck(session.user.email);
                     await loadUserData(currentUser);
 
                     // Security Notification (Non-blocking)

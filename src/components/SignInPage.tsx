@@ -19,20 +19,9 @@ const SignInPage: React.FC<SignInPageProps> = ({ onNavigateToSignUp, onNavigateT
     const [isPasswordVisible, setIsPasswordVisible] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
 
-    // Check for existing session on mount
-    React.useEffect(() => {
-        const checkSession = async () => {
-            console.log('🔍 SignInPage: Checking for existing session...');
-            const { data: { session } } = await supabase.auth.getSession();
-            if (session) {
-                console.log('✅ SignInPage: Active session found, redirecting...');
-                window.location.href = '/dashboard';
-            } else {
-                console.log('⚪ SignInPage: No active session.');
-            }
-        };
-        checkSession();
-    }, []);
+    // Active session check is handled by App.tsx FORCE AUTH REDIRECT useEffect.
+    // Do NOT call window.location.href here — that causes a full page reload
+    // which triggers the INITIAL_SESSION race condition in onAuthStateChange.
 
     const handleSignIn = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -59,11 +48,7 @@ const SignInPage: React.FC<SignInPageProps> = ({ onNavigateToSignUp, onNavigateT
                 throw result.error;
             }
 
-            console.log('✅ Sign In Success! Session Established.');
-            setTimeout(() => {
-                console.log('🔄 Manually triggering dashboard navigation...');
-                window.location.href = '/dashboard';
-            }, 1000);
+            console.log('✅ Sign In Success! Session Established. onAuthStateChange will handle navigation.');
 
         } catch (err: unknown) {
             const message = err instanceof Error ? err.message : 'An unexpected error occurred';
