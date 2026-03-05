@@ -26,9 +26,12 @@ const readAll = (): LocalListingDraftRecord[] => {
     if (!raw) return []
     const parsed = JSON.parse(raw)
     if (!Array.isArray(parsed)) return []
-    return parsed.filter((item): item is LocalListingDraftRecord =>
-      Boolean(item && typeof item === 'object' && typeof (item as { id?: unknown }).id === 'string')
-    )
+    // Strip any base64 photos that were persisted by older code versions
+    return parsed
+      .filter((item): item is LocalListingDraftRecord =>
+        Boolean(item && typeof item === 'object' && typeof (item as { id?: unknown }).id === 'string')
+      )
+      .map((item) => ({ ...item, photos: sanitizePhotos(item.photos ?? []) }))
   } catch {
     return []
   }
@@ -36,15 +39,18 @@ const readAll = (): LocalListingDraftRecord[] => {
 
 const writeAll = (records: LocalListingDraftRecord[]) => {
   if (typeof window === 'undefined') return
+  // Sanitize ALL records (not just the incoming one) so old bloated entries
+  // already in sessionStorage don't re-bloat the payload on the next write.
+  const safe = records.map((r) => ({ ...r, photos: sanitizePhotos(r.photos) }))
   try {
-    window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(records))
+    window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(safe))
   } catch {
-    // Quota exceeded — retry with all photos stripped
+    // Still over quota (e.g. huge descriptions) — strip photos entirely
     try {
-      const stripped = records.map((r) => ({ ...r, photos: [] }))
+      const stripped = safe.map((r) => ({ ...r, photos: [] }))
       window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(stripped))
     } catch {
-      // Still failing — clear stale data and try once more
+      // Nuclear option: clear the key so the next save succeeds
       window.sessionStorage.removeItem(STORAGE_KEY)
     }
   }
