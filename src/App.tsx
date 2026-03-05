@@ -946,15 +946,17 @@ const App: React.FC = () => {
 
     // --- FORCE AUTH REDIRECT ---
     // If user is logged in but on a public auth page (Signin/Signup), redirect to Dashboard.
+    // Skip admin users — the FORCE ADMIN REDIRECT above already handles routing them to /admin-dashboard.
+    // Without this guard, both effects fire and the last one (this one) wins, sending admins to /dashboard.
     useEffect(() => {
-        if (user && authReady) {
+        if (user && authReady && !isAdmin) {
             const path = location.pathname;
             if (path === '/signin' || path === '/signup') {
                 console.log("✅ User authenticated on auth page. Redirecting to dashboard...");
                 navigate('/dashboard', { replace: true });
             }
         }
-    }, [user, authReady, location.pathname, navigate]);
+    }, [user, authReady, isAdmin, location.pathname, navigate]);
 
     // Load centralized agent profile and set up real-time updates
     useEffect(() => {
