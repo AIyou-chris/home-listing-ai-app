@@ -639,9 +639,24 @@ const App: React.FC = () => {
             }
 
             try {
-                // 1. Check Local Session (Network Validation)
+                // 1. Check Local Session (Network Validation) with timeout guard
                 console.log('🔍 Checking session...');
-                const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+                const sessionResult = await Promise.race<
+                    Awaited<ReturnType<typeof supabase.auth.getSession>> | { timedOut: true }
+                >([
+                    supabase.auth.getSession(),
+                    new Promise<{ timedOut: true }>((resolve) =>
+                        setTimeout(() => resolve({ timedOut: true }), 8000)
+                    )
+                ]);
+
+                if ('timedOut' in sessionResult) {
+                    console.warn('⚠️ Session check timed out. Continuing without blocking UI.');
+                    setUser(null);
+                    return;
+                }
+
+                const { data: { session }, error: sessionError } = sessionResult;
                 resolvedSession = session ?? null;
 
                 console.log('🔍 Session check complete. User:', session?.user?.email);
