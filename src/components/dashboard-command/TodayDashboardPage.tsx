@@ -398,24 +398,37 @@ const TodayDashboardPage: React.FC = () => {
       {/* Welcome banner — brand new agents only (no listing yet, onboarding pending, real dashboard) */}
       {!loading && !blueprintMode && !demoMode && onboarding && !onboarding.onboarding_completed && !recentListing && (
         <div className="rounded-2xl border border-primary-200 bg-primary-50 p-5">
-          <h2 className="text-base font-bold text-primary-900">Let's get your first listing live, {greetingName}.</h2>
-          <p className="mt-1 text-sm text-primary-700">
-            You're {onboarding.progress.total_items - onboarding.progress.completed_items} steps away from capturing your first lead.
-          </p>
-          <div className="mt-3 flex flex-wrap gap-2">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1">
+              <h2 className="text-base font-bold text-primary-900">Let's get your first listing live, {greetingName}.</h2>
+              <p className="mt-1 text-sm text-primary-700">
+                You're {onboarding.progress.total_items - onboarding.progress.completed_items} steps away from capturing your first lead.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => navTo('/listings')}
+                  className="rounded-md bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+                >
+                  Create your first listing
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navTo('/onboarding')}
+                  className="rounded-md border border-primary-300 bg-white px-4 py-2 text-sm font-semibold text-primary-700"
+                >
+                  View setup checklist
+                </button>
+              </div>
+            </div>
+            {/* Quick way to see what a full dashboard looks like */}
             <button
               type="button"
-              onClick={() => navTo('/listings')}
-              className="rounded-md bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+              onClick={() => navigate('/blueprint-dashboard/today')}
+              className="shrink-0 rounded-xl border border-primary-300 bg-white px-3 py-2 text-xs font-semibold text-primary-700 hover:bg-primary-50 transition-colors flex items-center gap-1.5"
             >
-              Create your first listing
-            </button>
-            <button
-              type="button"
-              onClick={() => navTo('/onboarding')}
-              className="rounded-md border border-primary-300 bg-white px-4 py-2 text-sm font-semibold text-primary-700"
-            >
-              View setup checklist
+              <span className="material-symbols-outlined text-base text-primary-500">visibility</span>
+              Preview sample data
             </button>
           </div>
         </div>
@@ -455,13 +468,23 @@ const TodayDashboardPage: React.FC = () => {
                     <>
                       <p className="font-semibold text-slate-900">No leads yet — that's expected.</p>
                       <p className="mt-1 text-sm text-slate-500">Publish your first listing and leads start flowing in automatically.</p>
-                      <button
-                        type="button"
-                        onClick={() => navTo('/listings')}
-                        className="mt-3 rounded-md bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white"
-                      >
-                        Create a listing
-                      </button>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => navTo('/listings')}
+                          className="rounded-md bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white"
+                        >
+                          Create a listing
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => navigate('/blueprint-dashboard/today')}
+                          className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 flex items-center gap-1"
+                        >
+                          <span className="material-symbols-outlined text-sm text-slate-400">visibility</span>
+                          See sample
+                        </button>
+                      </div>
                     </>
                   ) : (
                     <>
