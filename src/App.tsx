@@ -905,7 +905,7 @@ const App: React.FC = () => {
             const isPublicDetails = path.startsWith('/listing/') || path.startsWith('/store/') || path.startsWith('/card/') || path.startsWith('/p/') || path.startsWith('/compliance') || path.startsWith('/dmca');
             const isPublicRoot = path === '/' || path === '/landing' || path === '/white-label' || path.includes('/demo-');
 
-            if (!path.startsWith('/admin') && path !== '/admin-login' && !isPublicDetails && !isPublicRoot) {
+            if (!path.startsWith('/admin') && !path.startsWith('/dashboard') && path !== '/admin-login' && !isPublicDetails && !isPublicRoot) {
                 console.log("👮 Admin detected on protected agent page (" + path + "). Redirecting...");
                 navigate('/admin-dashboard', { replace: true });
             }
@@ -938,7 +938,7 @@ const App: React.FC = () => {
 
     // Load centralized agent profile and set up real-time updates
     useEffect(() => {
-        if (user && !isDemoMode && !isAdmin) {
+        if (user && !isDemoMode) {
             // Load centralized agent profile
             loadAgentProfile();
 
@@ -963,7 +963,7 @@ const App: React.FC = () => {
                 unsubscribe();
             };
         }
-    }, [user, isDemoMode, isAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [user, isDemoMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const handleNavigateToSignUp = () => navigate('/signup');
     const handleNavigateToSignIn = () => navigate('/signin');
