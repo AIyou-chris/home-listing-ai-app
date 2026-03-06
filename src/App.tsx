@@ -1089,7 +1089,8 @@ const App: React.FC = () => {
                 const demo = await adminAuthService.login(trimmedEmail, trimmedPassword);
                 if (demo.success) {
                     setIsAdminLoginOpen(false);
-                    // navigate to admin dashboard
+                    setIsAdmin(true);
+                    localStorage.removeItem('hlai_impersonated_user_id');
                     navigate('/admin-dashboard');
                     return;
                 }
@@ -1106,18 +1107,25 @@ const App: React.FC = () => {
                 return;
             }
 
-            // Check if user has admin role via RPC
-            const { data: isAdmin, error: rpcError } = await supabase.rpc('is_user_admin', { uid: data.user.id });
+            // Check email whitelist first (fast path — no RPC needed)
+            const envAdminEmail = import.meta.env.VITE_ADMIN_EMAIL as string | undefined;
+            const adminEmails = ['admin@homelistingai.com', 'us@homelistingai.com'];
+            if (envAdminEmail) adminEmails.push(envAdminEmail.toLowerCase());
+            const isWhitelistedAdmin = adminEmails.includes(trimmedEmail);
 
-            if (rpcError || !isAdmin) {
-                console.warn('Login successful but user is not an admin', rpcError);
-                await supabase.auth.signOut();
-                setAdminLoginError('Unauthorized: You do not have admin privileges.');
-                return;
+            if (!isWhitelistedAdmin) {
+                // Not in whitelist — fall back to RPC check
+                const { data: isRpcAdmin, error: rpcError } = await supabase.rpc('is_user_admin', { uid: data.user.id });
+
+                if (rpcError || !isRpcAdmin) {
+                    console.warn('Login successful but user is not an admin', rpcError);
+                    await supabase.auth.signOut();
+                    setAdminLoginError('Unauthorized: You do not have admin privileges.');
+                    return;
+                }
             }
 
-            // Admin role confirmed via RPC
-            // Proceed to dashboard
+            // Admin confirmed (whitelist or RPC) — proceed to dashboard
 
             setIsAdminLoginOpen(false);
             setIsAdmin(true); // Manually set admin for this session (RPC verified)
