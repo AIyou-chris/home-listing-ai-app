@@ -1,4 +1,5 @@
-import React, { Suspense, lazy } from 'react';
+import React, { Suspense, lazy, useState } from 'react';
+import ComparePlansModal from './ComparePlansModal';
 import { useNavigate } from 'react-router-dom';
 
 const ChatBotFAB = lazy(() => import('./ChatBotFAB'));
@@ -717,7 +718,7 @@ const _AboutUsSection: React.FC = () => (
 
 
 
-const Hero: React.FC<{ onNavigateToSignUp: () => void, onEnterDemoMode: () => void, onOpenChatBot?: () => void }> = ({ onNavigateToSignUp, onEnterDemoMode, onOpenChatBot: _onOpenChatBot }) => (
+const Hero: React.FC<{ onNavigateToSignUp: () => void, onEnterDemoMode: () => void, onOpenChatBot?: () => void, onOpenComparePlans: () => void }> = ({ onNavigateToSignUp, onEnterDemoMode, onOpenChatBot: _onOpenChatBot, onOpenComparePlans }) => (
     <section className="relative pt-32 pb-20 lg:pt-48 lg:pb-32 overflow-hidden bg-slate-950">
         {/* Deep, dark gradient background */}
         <div className="absolute inset-0 bg-gradient-to-br from-[#0B0F19] via-[#0B1528] to-[#040814]"></div>
@@ -761,6 +762,14 @@ const Hero: React.FC<{ onNavigateToSignUp: () => void, onEnterDemoMode: () => vo
                     <p className="mt-2 text-sm text-slate-500 text-center lg:text-left">
                         Live demo. Fake data. Real flow.
                     </p>
+                    <div className="mt-4 text-center lg:text-left">
+                        <button
+                            onClick={onOpenComparePlans}
+                            className="text-sm text-slate-400 hover:text-cyan-400 transition-colors underline underline-offset-4"
+                        >
+                            Compare all plans →
+                        </button>
+                    </div>
                 </div>
 
                 <div className="relative animate-fade-in-up" style={{ animationDelay: "600ms" }}>
@@ -1106,8 +1115,8 @@ interface LandingPageProps {
 }
 
 const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigateToSignIn, onEnterDemoMode, onOpenConsultationModal, onNavigateToAdmin, onNavigateToShowcase }) => {
-    const [isChatOpen, setIsChatOpen] = React.useState(false);
-    // const [isAIContactOpen, setIsAIContactOpen] = React.useState(false); // Unused now
+    const [isChatOpen, setIsChatOpen] = useState(false);
+    const [isComparePlansOpen, setIsComparePlansOpen] = useState(false);
 
     const handleOpenChatBot = () => {
         setIsChatOpen(true);
@@ -1115,6 +1124,10 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigat
 
     const handleOpenContact = () => {
         onOpenConsultationModal();
+    };
+
+    const handleOpenComparePlans = () => {
+        setIsComparePlansOpen(true);
     };
 
     return (
@@ -1144,7 +1157,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigat
                 onNavigateToShowcase={onNavigateToShowcase}
             />
             <main className="pt-20"> {/* Add padding top to account for fixed header */}
-                <Hero onNavigateToSignUp={onNavigateToSignUp} onEnterDemoMode={onEnterDemoMode} onOpenChatBot={handleOpenChatBot} />
+                <Hero onNavigateToSignUp={onNavigateToSignUp} onEnterDemoMode={onEnterDemoMode} onOpenChatBot={handleOpenChatBot} onOpenComparePlans={handleOpenComparePlans} />
 
                 <ConversionWedge onNavigateToSignUp={onNavigateToSignUp} onEnterDemoMode={onEnterDemoMode} />
 
@@ -1158,7 +1171,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigat
 
                 <TrustComplianceSection />
 
-                <PricingSectionNew onNavigateToSignUp={onNavigateToSignUp} onEnterDemoMode={onEnterDemoMode} />
+                <PricingSectionNew onNavigateToSignUp={onNavigateToSignUp} onEnterDemoMode={onEnterDemoMode} onOpenComparePlans={handleOpenComparePlans} />
 
                 <TeamsCTASection onOpenContact={handleOpenContact} />
 
@@ -1191,6 +1204,12 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigat
             </Suspense>
 
             {/* <AIContactOverlay isOpen={false} onClose={() => {}} /> Unused - replaced by ConsultationModal */}
+
+            {/* Compare Plans Modal — triggered from Hero + Pricing section */}
+            <ComparePlansModal
+                isOpen={isComparePlansOpen}
+                onClose={() => setIsComparePlansOpen(false)}
+            />
         </div >
     );
 };
