@@ -10261,19 +10261,27 @@ const verifyAdmin = async (req, res, next) => {
     // If no token -> Fail
     if (!token) return res.status(401).json({ error: 'Unauthorized: Missing token' });
 
-    const { data: { user }, error } = await supabase.auth.getUser(token);
-    if (error || !user) return res.status(401).json({ error: 'Unauthorized: Invalid token' });
+    // Use supabaseAdmin (service role) for token validation — more reliable than anon key client
+    // which can fail if SUPABASE_ANON_KEY is misconfigured on the host.
+    const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
+    if (error || !user) {
+      console.warn('[verifyAdmin] Token validation failed:', error?.message);
+      return res.status(401).json({ error: 'Unauthorized: Invalid token' });
+    }
 
     // Check Admin Role via RPC
-    const { data: isAdmin, error: rpcError } = await supabase.rpc('is_user_admin', { uid: user.id });
+    const { data: isAdmin, error: rpcError } = await supabaseAdmin.rpc('is_user_admin', { uid: user.id });
 
     if (rpcError) {
       console.warn('⚠️ Admin check RPC failed (function might be missing):', rpcError.message);
       // Fall through to env check, do not throw
     }
 
-    // Fallback: Check strictly against Env Var
-    const isEnvAdmin = process.env.VITE_ADMIN_EMAIL && user.email === process.env.VITE_ADMIN_EMAIL;
+    // Fallback: Check strictly against Env Var (both prefixed and unprefixed names)
+    const adminEmailEnv = process.env.ADMIN_EMAIL || process.env.VITE_ADMIN_EMAIL;
+    const hardcodedAdminEmails = ['admin@homelistingai.com', 'us@homelistingai.com'];
+    if (adminEmailEnv) hardcodedAdminEmails.push(adminEmailEnv.toLowerCase());
+    const isEnvAdmin = user.email && hardcodedAdminEmails.includes(user.email.toLowerCase());
 
     if (!isAdmin && !isEnvAdmin) {
       console.warn(`⛔ Blocked non-admin access attempt by: ${user.email}`);
