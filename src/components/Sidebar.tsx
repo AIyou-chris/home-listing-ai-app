@@ -63,7 +63,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
     '/listings': derivedDemoMode || derivedBlueprintMode ? getPath('/listings') : '/dashboard/listings',
     '/leads': derivedDemoMode || derivedBlueprintMode ? getPath('/leads') : '/dashboard/leads',
     '/appointments': derivedDemoMode || derivedBlueprintMode ? getPath('/appointments') : '/dashboard/appointments',
-    '/settings': derivedDemoMode || derivedBlueprintMode ? getPath('/settings') : '/settings'
+    '/settings': derivedDemoMode || derivedBlueprintMode ? getPath('/settings') : '/dashboard/settings'
   };
   const visibleNavItems = derivedDemoMode && !derivedBlueprintMode
     ? NAV_ITEMS.filter((item) => item.key !== 'settings')

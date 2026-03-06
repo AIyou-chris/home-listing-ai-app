@@ -71,7 +71,7 @@ const TrialLock: React.FC<TrialLockProps> = ({ _user }) => {
                             </button>
 
                             <button
-                                onClick={() => navigate('/settings')}
+                                onClick={() => navigate('/dashboard/settings')}
                                 className="w-full bg-white/5 hover:bg-white/10 text-slate-300 font-medium py-3 rounded-xl transition-all border border-white/10 flex items-center justify-center gap-2"
                             >
                                 <Settings className="w-4 h-4" />

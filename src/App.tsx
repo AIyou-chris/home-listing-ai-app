@@ -905,7 +905,8 @@ const App: React.FC = () => {
             const isPublicDetails = path.startsWith('/listing/') || path.startsWith('/store/') || path.startsWith('/card/') || path.startsWith('/p/') || path.startsWith('/compliance') || path.startsWith('/dmca');
             const isPublicRoot = path === '/' || path === '/landing' || path === '/white-label' || path.includes('/demo-');
 
-            if (!path.startsWith('/admin') && !path.startsWith('/dashboard') && path !== '/admin-login' && !isPublicDetails && !isPublicRoot) {
+            const isLegacySettingsPath = path === '/settings' || path.startsWith('/settings/');
+            if (!path.startsWith('/admin') && !path.startsWith('/dashboard') && path !== '/admin-login' && !isLegacySettingsPath && !isPublicDetails && !isPublicRoot) {
                 console.log("👮 Admin detected on protected agent page (" + path + "). Redirecting...");
                 navigate('/admin-dashboard', { replace: true });
             }
@@ -1471,7 +1472,8 @@ const App: React.FC = () => {
                                 <VoiceLabPage />
                             </Suspense>
                         } />
-                        <Route path="/settings" element={renderSettingsPage()} />
+                        <Route path="/settings" element={<Navigate to="/dashboard/settings" replace />} />
+                        <Route path="/dashboard/settings" element={renderSettingsPage()} />
                         <Route path="/dashboard/settings/notifications" element={renderSettingsPage('notifications')} />
                     </Route>
 
