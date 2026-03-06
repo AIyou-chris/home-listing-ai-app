@@ -32,7 +32,7 @@ export const PublicSidekickModal: React.FC<PublicSidekickModalProps> = ({ proper
     const voiceAudioRef = useRef<HTMLAudioElement | null>(null)
     const recognitionRef = useRef<any>(null) // eslint-disable-line @typescript-eslint/no-explicit-any
 
-    const persona = useMemo(() => profile?.description?.trim() ?? DEFAULT_PERSONA_DESCRIPTION, [profile])
+    const _persona = useMemo(() => profile?.description?.trim() ?? DEFAULT_PERSONA_DESCRIPTION, [profile])
 
     // Load Profile (using Agent ID from property)
     useEffect(() => {
@@ -185,7 +185,7 @@ INSTRUCTIONS:
         } finally {
             setLoading(false)
         }
-    }, [conversationId, history, systemContext, mode, speak])
+    }, [conversationId, history, systemContext, mode, speak, property.address, property.agentId])
 
     // Voice Recognition Setup
     useEffect(() => {

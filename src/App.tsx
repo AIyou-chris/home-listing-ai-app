@@ -1,7 +1,7 @@
 import React, { useState, useEffect, Suspense, lazy, useCallback, useRef } from 'react';
 import { Routes, Route, useNavigate, useLocation, Navigate, Outlet, useParams } from 'react-router-dom';
 import { supabase } from './services/supabase';
-import { Property, View, AgentProfile, NotificationSettings, EmailSettings, CalendarSettings, BillingSettings, Lead, Appointment, Interaction, LeadFunnelType } from './types';
+import { Property, View, AgentProfile, NotificationSettings, EmailSettings, CalendarSettings, BillingSettings, Lead, Appointment, Interaction } from './types';
 import { DEMO_FAT_PROPERTIES, DEMO_FAT_LEADS, DEMO_FAT_APPOINTMENTS } from './demoConstants';
 import { SAMPLE_AGENT, SAMPLE_INTERACTIONS } from './constants';
 const LandingPage = lazy(() => import('./components/LandingPage'));
@@ -12,7 +12,6 @@ const ForgotPasswordPage = lazy(() => import('./components/ForgotPasswordPage'))
 const ResetPasswordPage = lazy(() => import('./components/ResetPasswordPage'));
 const CheckoutPage = lazy(() => import('./components/CheckoutPage'));
 import { Toaster } from 'react-hot-toast';
-import { showToast } from './utils/toastService';
 import { getRegistrationContext } from './services/agentOnboardingService';
 
 const WhiteLabelPage = lazy(() => import('./pages/WhiteLabelPage'));
@@ -56,15 +55,6 @@ const DemoListingPage = lazy(() => import('./components/DemoListingPage'));
 const ChatBotFAB = lazy(() => import('./components/ChatBotFAB'));
 const StorefrontPage = lazy(() => import('./pages/StorefrontPage').then(module => ({ default: module.StorefrontPage })));
 // Note: StorefrontPage is named export in original file based on import { StorefrontPage } ...
-const FUNNEL_TRIGGER_MAP: Record<LeadFunnelType, SequenceTriggerType> = {
-    universal_sales: 'Buyer Lead',
-    homebuyer: 'Buyer Lead',
-    seller: 'Seller Lead',
-    postShowing: 'Property Viewed'
-};
-
-
-
 
 
 import LoadingSpinner from './components/LoadingSpinner';
@@ -84,7 +74,7 @@ const CombinedTrainingPage = lazy(() => import('./components/AgentAISidekicksPag
 // import AIInteractiveTraining from './components/AIInteractiveTraining'; // Keeping as backkup
 const FunnelAnalyticsPanel = lazy(() => import('./components/FunnelAnalyticsPanel'));
 
-import { listingsService, CreatePropertyInput } from './services/listingsService';
+import { listingsService } from './services/listingsService';
 // Stubs removed, using real service
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { EnvValidation } from './utils/envValidation';
@@ -93,8 +83,6 @@ import { fetchOnboardingState } from './services/onboardingService';
 // SessionService removed
 import { listAppointments } from './services/appointmentsService';
 import { PerformanceService } from './services/performanceService';
-import { SequenceTriggerType } from './services/sequenceExecutionService';
-import { leadsService, LeadPayload } from './services/leadsService';
 
 
 // A helper function to delay execution
@@ -401,23 +389,6 @@ const App: React.FC = () => {
     // Mock data for settings (Moved up for scope access)
     const [userProfile, setUserProfile] = useState<AgentProfile>(SAMPLE_AGENT);
 
-    // COMPATIBILITY: Bridge legacy 'setView' calls to 'navigate'
-    const setView = useCallback((viewName: string) => {
-        // Handle special cases
-        if (viewName === 'landing') {
-            navigate('/');
-        } else if (viewName === 'dashboard') {
-            // FIX: Do not redirect to slug if it's the default sample agent (Sarah Johnson)
-            // This prevents new users from seeing "/dashboard/sarah-johnson"
-            if (userProfile?.slug && userProfile.id !== SAMPLE_AGENT.id) {
-                navigate(`/dashboard/${userProfile.slug}`);
-            } else {
-                navigate('/dashboard');
-            }
-        } else {
-            navigate(`/${viewName}`);
-        }
-    }, [navigate, userProfile?.slug, userProfile?.id]);
 
 
 
@@ -511,32 +482,13 @@ const App: React.FC = () => {
 
 
 
-    const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
-    const [properties, setProperties] = useState<Property[]>([]);
+    const [_selectedPropertyId, _setSelectedPropertyId] = useState<string | null>(null);
+    const [_properties, setProperties] = useState<Property[]>([]);
     const [leads, setLeads] = useState<Lead[]>([]);
     const [_appointments, setAppointments] = useState<Appointment[]>();
     const [_interactions, setInteractions] = useState<Interaction[]>();
 
 
-
-    const resolvePropertyForLead = useCallback(
-        (targetLead?: Lead | null): Property | undefined => {
-            const leadRef = targetLead ?? null;
-            if (leadRef?.interestedProperties?.length) {
-                const matchedProperty = properties.find((property) =>
-                    leadRef.interestedProperties?.includes(property.id)
-                );
-                if (matchedProperty) {
-                    return matchedProperty;
-                }
-            }
-            if (selectedPropertyId) {
-                return properties.find((property) => property.id === selectedPropertyId);
-            }
-            return undefined;
-        },
-        [properties, selectedPropertyId]
-    );
 
     // Removed unused selectedLead state
     const [isConsultationModalOpen, setIsConsultationModalOpen] = useState(false);
@@ -1188,256 +1140,6 @@ const App: React.FC = () => {
 
     // Notification handling is now managed by NotificationSystem component
 
-    // Task management handlers
-
-
-    const _handleSelectProperty = (id: string) => {
-        setSelectedPropertyId(id);
-        setView('property');
-    };
-
-    const _handleSetProperty = (updatedProperty: Property) => {
-        setProperties(prev => prev.map(p => p.id === updatedProperty.id ? updatedProperty : p));
-    };
-
-    const _handleSaveNewProperty = async (newPropertyData: Omit<Property, 'id' | 'description' | 'imageUrl'>) => {
-        if (!user && !isDemoMode) {
-            alert("Please sign in to add a new listing.");
-            setView('signin');
-            return;
-        }
-
-        const propertyWithAgent = {
-            ...newPropertyData,
-            agent: userProfile,
-        };
-
-        const tempId = `prop-temp-${Date.now()}`;
-        const propertyForState: Property = {
-            id: tempId,
-            description: '',
-            imageUrl: 'https://images.unsplash.com/photo-1599809275671-55822c1f6a12?q=80&w=800&auto-format&fit=crop',
-            ...propertyWithAgent,
-        };
-
-        setProperties(prev => [propertyForState, ...prev]);
-        setView('listings');
-
-        if (isDemoMode) {
-            // In demo mode, simulate saving and then automatically delete the listing after a delay
-            setTimeout(() => {
-                alert("This is a demo. The listing you just created will now be automatically deleted to complete the demonstration.");
-                setProperties(prev => prev.filter(p => p.id !== tempId));
-            }, 4000);
-        } else if (user) { // Only save to Firestore if a real user is logged in
-            try {
-                const { id: _discardedId, ...dataForPersistence } = propertyForState;
-                void _discardedId;
-
-                // Map Property object to CreatePropertyInput
-                const propertyInput: CreatePropertyInput = {
-                    ...dataForPersistence,
-                    agentSnapshot: dataForPersistence.agent,
-                    // Ensure features are passed correctly
-                    features: dataForPersistence.features || [],
-                    heroPhotos: dataForPersistence.heroPhotos,
-                    galleryPhotos: dataForPersistence.galleryPhotos,
-                    appFeatures: dataForPersistence.appFeatures,
-                    status: dataForPersistence.status?.toLowerCase() || 'active'
-                };
-
-                const newProperty = await listingsService.createProperty(propertyInput);
-
-                setProperties(prev => prev.map(p => p.id === tempId ? newProperty : p));
-            } catch (error) {
-                console.error("Failed to save property:", error);
-                alert("Error: Could not save the property to the database. Please try again.");
-                setProperties(prev => prev.filter(p => p.id !== tempId));
-                setView('add-listing');
-            }
-        }
-    };
-
-    const _handleDeleteProperty = (id: string) => {
-        if (window.confirm('Are you sure you want to delete this listing?')) {
-            setProperties(prev => prev.filter(p => p.id !== id));
-            if (selectedPropertyId === id) {
-                setSelectedPropertyId(null);
-                setView('listings');
-            }
-            showToast.success('Listing removed successfully');
-        }
-    };
-
-    const triggerLeadSequences = useCallback(
-        async (
-            lead: Lead,
-            triggerType: SequenceTriggerType = 'Lead Capture',
-            _propertyOverride?: Property
-        ) => {
-            try {
-                // [MIGRATION] Client-side execution disabled. Architecture moved to Server (funnelExecutionService.js)
-                // const sequenceService = SequenceExecutionService.getInstance();
-                console.log(`✅ [Backend] Sequence trigger requested for: ${triggerType} (Handled by Server)`);
-                console.log(`✅ ${triggerType} sequences triggered for:`, lead.name);
-            } catch (error) {
-                console.error('❌ Error triggering sequences:', error);
-            }
-        },
-        []
-    );
-
-    const _handleAddNewLead = async (leadData: { name: string; email: string; phone: string; message: string; source: string; funnelType?: string }) => {
-        const payload: LeadPayload = {
-            name: leadData.name,
-            email: leadData.email,
-            phone: leadData.phone,
-            source: leadData.source || 'Website',
-            lastMessage: leadData.message,
-            funnelType: leadData.funnelType || null
-        };
-
-        try {
-            const createdLead = await leadsService.create(payload);
-            setLeads(prev => [createdLead, ...prev]);
-            await triggerLeadSequences(createdLead);
-        } catch (error) {
-            console.error('❌ Failed to create lead via API, using local fallback:', error);
-            const createdLead: Lead = {
-                id: `lead-${Date.now()}`,
-                name: leadData.name,
-                email: leadData.email,
-                phone: leadData.phone,
-                lastMessage: leadData.message,
-                status: 'New',
-                date: new Date().toISOString(),
-                funnelType: null,
-                interestedProperties: []
-            };
-            setLeads(prev => [createdLead, ...prev]);
-            await triggerLeadSequences(createdLead);
-        }
-        setView('leads');
-    };
-
-    const _handleLeadFunnelAssigned = useCallback(
-        async (lead: Lead, funnel: LeadFunnelType | null) => {
-            const previous = lead.funnelType ?? null;
-            setLeads((prev) =>
-                prev.map((item) =>
-                    item.id === lead.id ? { ...item, funnelType: funnel ?? undefined } : item
-                )
-            );
-            try {
-                const updatedLead = await leadsService.assignFunnel(lead.id, funnel);
-                setLeads((prev) => prev.map((item) => (item.id === lead.id ? updatedLead : item)));
-                if (funnel) {
-                    const triggerType = FUNNEL_TRIGGER_MAP[funnel];
-                    await triggerLeadSequences(
-                        updatedLead,
-                        triggerType,
-                        resolvePropertyForLead(updatedLead)
-                    );
-                }
-            } catch (error) {
-                console.error('❌ Failed to assign lead funnel:', error);
-                setLeads((prev) =>
-                    prev.map((item) =>
-                        item.id === lead.id ? { ...item, funnelType: previous ?? undefined } : item
-                    )
-                );
-                alert('Unable to update the lead funnel right now. Please try again.');
-            }
-        },
-        [resolvePropertyForLead, triggerLeadSequences]
-    );
-
-    const _handleUpdateLead = useCallback(async (leadId: string, updatedData: { name: string; email: string; phone: string; message: string; source: string; funnelType?: string }) => {
-        try {
-            // Optimistic update
-            const leadToUpdate = leads.find(l => l.id === leadId);
-            if (!leadToUpdate) return;
-            const previousLead = leadToUpdate; // Capture for comparison
-
-            const updatedLead = {
-                ...leadToUpdate,
-                ...updatedData,
-                notes: updatedData.message // Map message back to notes/lastMessage if needed
-            };
-
-            setLeads(prev => prev.map(l => l.id === leadId ? updatedLead : l));
-
-            await leadsService.update(leadId, {
-                name: updatedData.name,
-                email: updatedData.email,
-                phone: updatedData.phone,
-                lastMessage: updatedData.message,
-                source: updatedData.source,
-                funnelType: updatedData.funnelType
-            });
-
-            // AUTOMATION TRIGGER: If status changed, trigger sequences
-            if (previousLead && previousLead.status !== updatedLead.status) {
-                console.log(`🔄 Lead status changed from ${previousLead.status} to ${updatedLead.status}. Triggering automation...`);
-                try {
-                    // Map status to appropriate trigger type
-                    let triggerType: SequenceTriggerType | null = null;
-                    if (updatedLead.status === 'Qualified') {
-                        triggerType = 'Buyer Lead';
-                    } else if (updatedLead.status === 'Contacted') {
-                        triggerType = 'Seller Lead';
-                    }
-
-                    if (triggerType) {
-                        // [MIGRATION] Client-side execution disabled.
-                        console.log('✅ [Backend] Lead status change automation handled by server');
-                    }
-                } catch (automationError) {
-                    console.error('Failed to trigger automation:', automationError);
-                    // Don't block the update, just log the error
-                }
-            }
-
-            console.log('Lead updated successfully');
-        } catch (error) {
-            console.error('Failed to update lead:', error);
-            // Revert state if needed - relying on next fetch for now or we could snapshot prev state
-        }
-    }, [leads]);
-
-    const _handleDeleteLead = useCallback(async (leadId: string) => {
-        if (window.confirm('Are you sure you want to delete this lead?')) {
-            // Store previous state for rollback
-            const previousLeads = leads;
-
-            try {
-                // Optimistic update
-                setLeads(prev => prev.filter(l => l.id !== leadId));
-
-                // Call backend API to actually delete
-                const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/admin/leads/${leadId}`, {
-                    method: 'DELETE',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${sessionStorage.getItem('access_token') || ''}`
-                    }
-                });
-
-                if (!response.ok) {
-                    throw new Error(`Failed to delete lead: ${response.statusText}`);
-                }
-
-                const result = await response.json();
-                console.log('✅ Lead deleted successfully:', result);
-                showToast.success('Lead removed successfully');
-            } catch (error) {
-                console.error('DELETE LEAD ERROR:', error);
-                // Rollback on error - this ensures the UI matches reality
-                setLeads(previousLeads);
-                showToast.error('Delete failed. Try again.');
-            }
-        }
-    }, [leads]);
 
     // Load appointments from Supabase when user signs in or demo/local admin
     React.useEffect(() => {
@@ -1477,8 +1179,6 @@ const App: React.FC = () => {
         load();
     }, [user, isDemoMode]);
 
-    // Track which property is currently selected
-    const _selectedProperty = properties.find(p => p.id === selectedPropertyId);
     // Local admin check removed (use isAdmin state)
 
     if (isLoading) {
