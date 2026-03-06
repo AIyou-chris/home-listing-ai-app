@@ -1,6 +1,8 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 
+export const PENDING_PLAN_KEY = 'homelistingai:pending_plan';
+
 interface ComparePlansModalProps {
     isOpen: boolean;
     onClose: () => void;
@@ -8,6 +10,13 @@ interface ComparePlansModalProps {
     highlightPlan?: 'free' | 'starter' | 'pro';
     /** Context label shown at top of modal, e.g. "Upgrade to unlock videos" */
     contextLabel?: string;
+    /**
+     * Called when a PAID plan CTA is clicked from an authenticated context
+     * (e.g. inside the dashboard). If omitted, the modal stores the plan in
+     * sessionStorage and sends the user to /signup so they can create an
+     * account first and finish the upgrade on first login.
+     */
+    onUpgrade?: (planId: 'starter' | 'pro') => void;
 }
 
 const CHECK = (
@@ -40,7 +49,7 @@ const plans = [
         badge: null,
         ctaLabel: 'Get Starter',
         ctaStyle: 'bg-slate-800 text-white hover:bg-slate-700',
-        checkoutPath: '/checkout?plan=starter',
+        checkoutPath: '/signup?plan=starter',
     },
     {
         id: 'pro',
@@ -52,7 +61,7 @@ const plans = [
         badge: 'MOST POPULAR',
         ctaLabel: 'Go Pro',
         ctaStyle: 'bg-primary-600 text-white hover:bg-primary-700',
-        checkoutPath: '/checkout?plan=pro',
+        checkoutPath: '/signup?plan=pro',
     },
 ];
 
@@ -104,14 +113,33 @@ const ComparePlansModal: React.FC<ComparePlansModalProps> = ({
     onClose,
     highlightPlan = 'pro',
     contextLabel,
+    onUpgrade,
 }) => {
     const navigate = useNavigate();
 
     if (!isOpen) return null;
 
-    const handlePlanCTA = (path: string) => {
+    const handlePlanCTA = (plan: typeof plans[number]) => {
         onClose();
-        navigate(path);
+
+        if (plan.id === 'free') {
+            navigate('/signup');
+            return;
+        }
+
+        const planId = plan.id as 'starter' | 'pro';
+
+        // Authenticated context (inside dashboard) — trigger Stripe immediately
+        if (onUpgrade) {
+            onUpgrade(planId);
+            return;
+        }
+
+        // Unauthenticated visitor — store plan intent, send to signup
+        try {
+            sessionStorage.setItem(PENDING_PLAN_KEY, planId);
+        } catch (_) { /* ignore */ }
+        navigate(plan.checkoutPath);
     };
 
     return (
@@ -178,7 +206,7 @@ const ComparePlansModal: React.FC<ComparePlansModalProps> = ({
                                         <p className="text-xs text-slate-500 mt-1 hidden sm:block">{plan.tagline}</p>
                                     </div>
                                     <button
-                                        onClick={() => handlePlanCTA(plan.checkoutPath)}
+                                        onClick={() => handlePlanCTA(plan)}
                                         className={`w-full py-2 px-3 rounded-lg text-sm font-semibold transition-colors ${plan.ctaStyle}`}
                                     >
                                         {plan.ctaLabel}

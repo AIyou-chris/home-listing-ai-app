@@ -166,7 +166,7 @@ export const createBillingCheckoutSession = async (planId: Exclude<PlanId, 'free
     },
     body: JSON.stringify({
       plan_id: planId,
-      success_url: `${window.location.origin}/dashboard/billing?checkout=success`,
+      success_url: `${window.location.origin}/dashboard/today?upgraded=true`,
       cancel_url: `${window.location.origin}/dashboard/billing?checkout=cancelled`
     })
   });

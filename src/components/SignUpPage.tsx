@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import { agentOnboardingService } from '../services/agentOnboardingService';
+import { PENDING_PLAN_KEY } from './ComparePlansModal';
 import { PublicHeader } from './layout/PublicHeader';
 import { PublicFooter } from './layout/PublicFooter';
 import { StripeLogo } from './StripeLogo';
@@ -26,13 +27,18 @@ const FeatureHighlight: React.FC<{ icon: string, title: string, children: React.
     </div>
 );
 
-const SignUpPage = ({ onNavigateToSignIn, onNavigateToLanding, onNavigateToSection, onEnterDemoMode }: SignUpPageProps): JSX.Element => {
+const SignUpPage = ({ onNavigateToSignIn, onNavigateToLanding: _onNavigateToLanding, onNavigateToSection: _onNavigateToSection, onEnterDemoMode }: SignUpPageProps): JSX.Element => {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     const [firstName, setFirstName] = useState('');
     const [lastName, setLastName] = useState('');
     const [email, setEmail] = useState('');
     const [error, setError] = useState<React.ReactNode>('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    // Preserve plan intent from ?plan= so the dashboard can auto-start upgrade
+    const planParam = searchParams.get('plan');
+    const pendingPlan = planParam === 'starter' || planParam === 'pro' ? planParam : null;
 
     const handleSignUp = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -50,6 +56,11 @@ const SignUpPage = ({ onNavigateToSignIn, onNavigateToLanding, onNavigateToSecti
         }
 
         setIsSubmitting(true);
+
+        // Store plan intent before navigating away
+        if (pendingPlan) {
+            try { sessionStorage.setItem(PENDING_PLAN_KEY, pendingPlan); } catch (_) { /* ignore */ }
+        }
 
         try {
             const data = await agentOnboardingService.registerAgent({
@@ -137,6 +148,17 @@ const SignUpPage = ({ onNavigateToSignIn, onNavigateToLanding, onNavigateToSecti
 
                         {/* Right Column */}
                         <div className="bg-[#0B1121]/80 backdrop-blur-md p-8 sm:p-10 rounded-3xl shadow-[0_0_40px_rgba(6,182,212,0.1)] border border-cyan-900/30">
+                            {/* Plan intent banner — shown when user clicked a paid plan CTA */}
+                            {pendingPlan && (
+                                <div className="mb-6 flex items-center gap-3 rounded-xl bg-primary-600/10 border border-primary-500/30 px-4 py-3">
+                                    <span className="material-symbols-outlined text-primary-400 text-lg shrink-0">workspace_premium</span>
+                                    <p className="text-sm text-primary-200">
+                                        You're signing up for{' '}
+                                        <span className="font-bold text-white capitalize">{pendingPlan}</span>
+                                        {' '}— create your account first, then we'll set up your plan.
+                                    </p>
+                                </div>
+                            )}
                             <h2 className="text-2xl font-bold text-white tracking-tight">Start Free Trial</h2>
                             <p className="text-sm text-slate-400 mt-1 font-light">Get started in less than 30 seconds</p>
 

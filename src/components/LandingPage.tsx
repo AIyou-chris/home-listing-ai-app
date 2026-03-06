@@ -1143,7 +1143,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigat
                     "operatingSystem": "Web",
                     "offers": {
                         "@type": "Offer",
-                        "price": "89.00",
+                        "price": "34.00",
                         "priceCurrency": "USD"
                     },
                     "description": "AI-powered real estate assistant for lead generation and management."

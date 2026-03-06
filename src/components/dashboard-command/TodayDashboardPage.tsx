@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { buildDashboardPath, useDemoMode } from '../../demo/useDemoMode'
 import { buildBlueprintPath, useBlueprintMode } from '../../demo/useBlueprintMode'
 import { BLUEPRINT_PROPERTIES } from '../../constants/agentBlueprintData'
@@ -13,7 +13,8 @@ import {
   type DashboardLeadItem,
   type ListingShareKitResponse
 } from '../../services/dashboardCommandService'
-import { fetchDashboardBilling, type DashboardBillingSnapshot } from '../../services/dashboardBillingService'
+import { fetchDashboardBilling, createBillingCheckoutSession, type DashboardBillingSnapshot } from '../../services/dashboardBillingService'
+import { PENDING_PLAN_KEY } from '../ComparePlansModal'
 import { fetchOnboardingState, type OnboardingState } from '../../services/onboardingService'
 import { listingsService } from '../../services/listingsService'
 import { useDashboardRealtimeStore } from '../../state/useDashboardRealtimeStore'
@@ -86,6 +87,7 @@ const formatWarningLine = (billing: DashboardBillingSnapshot, key: string) => {
 
 const TodayDashboardPage: React.FC = () => {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const demoMode = useDemoMode()
   const blueprintMode = useBlueprintMode()
 
@@ -111,6 +113,47 @@ const TodayDashboardPage: React.FC = () => {
   const hasFetchedInitialStateRef = useRef(false)
   const fetchInFlightRef = useRef(false)
   const isMountedRef = useRef(true)
+
+  // ── Banner state ──────────────────────────────────────────────────────────
+  // ?upgraded=true or ?checkout=success → show upgrade success banner
+  const showUpgradedBanner = searchParams.get('upgraded') === 'true' || searchParams.get('checkout') === 'success'
+  // sessionStorage plan intent set by ComparePlansModal → prompt user to complete upgrade
+  const [pendingPlan, setPendingPlan] = useState<'starter' | 'pro' | null>(null)
+  const [isStartingCheckout, setIsStartingCheckout] = useState(false)
+
+  useEffect(() => {
+    // Only show upgrade banners in real authenticated dashboard
+    if (demoMode || blueprintMode) return
+    try {
+      const stored = sessionStorage.getItem(PENDING_PLAN_KEY) as 'starter' | 'pro' | null
+      if (stored === 'starter' || stored === 'pro') setPendingPlan(stored)
+    } catch (_) { /* ignore */ }
+  }, [demoMode, blueprintMode])
+
+  const dismissUpgradedBanner = () => {
+    const next = new URLSearchParams(searchParams)
+    next.delete('upgraded')
+    next.delete('checkout')
+    setSearchParams(next, { replace: true })
+  }
+
+  const handlePendingPlanUpgrade = async () => {
+    if (!pendingPlan || isStartingCheckout) return
+    setIsStartingCheckout(true)
+    try {
+      sessionStorage.removeItem(PENDING_PLAN_KEY)
+      const { url } = await createBillingCheckoutSession(pendingPlan)
+      if (url) window.location.href = url
+    } catch (err) {
+      console.error('[TodayDashboard] Checkout session failed', err)
+      setIsStartingCheckout(false)
+    }
+  }
+
+  const dismissPendingPlan = () => {
+    try { sessionStorage.removeItem(PENDING_PLAN_KEY) } catch (_) { /* ignore */ }
+    setPendingPlan(null)
+  }
 
   const load = useCallback(async () => {
     if (fetchInFlightRef.current) return
@@ -310,6 +353,47 @@ const TodayDashboardPage: React.FC = () => {
         <p className="mt-1 text-base text-slate-700">Good {dayPart()}, {greetingName}.</p>
         <p className="mt-1 text-sm text-slate-500">Here’s what needs your attention right now.</p>
       </header>
+
+      {/* ── Upgrade success banner (?upgraded=true / ?checkout=success) ─────── */}
+      {showUpgradedBanner && !demoMode && !blueprintMode && (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 flex items-start gap-4">
+          <span className="material-symbols-outlined text-emerald-500 text-2xl shrink-0 mt-0.5">celebration</span>
+          <div className="flex-1">
+            <h2 className="text-base font-bold text-emerald-900">You're all set! Welcome to your new plan. 🎉</h2>
+            <p className="mt-0.5 text-sm text-emerald-700">Your upgraded features are active. Start adding listings, capturing leads, and growing your pipeline.</p>
+          </div>
+          <button onClick={dismissUpgradedBanner} className="p-1 rounded-full text-emerald-500 hover:bg-emerald-100 transition-colors shrink-0" aria-label="Dismiss">
+            <span className="material-symbols-outlined text-base">close</span>
+          </button>
+        </div>
+      )}
+
+      {/* ── Pending plan upgrade banner (set by ComparePlansModal) ──────────── */}
+      {pendingPlan && !loading && !demoMode && !blueprintMode && (
+        <div className="rounded-2xl border border-primary-200 bg-primary-50 p-5 flex items-start gap-4">
+          <span className="material-symbols-outlined text-primary-500 text-2xl shrink-0 mt-0.5">workspace_premium</span>
+          <div className="flex-1">
+            <h2 className="text-base font-bold text-primary-900">Complete your {pendingPlan === 'pro' ? 'Pro' : 'Starter'} upgrade</h2>
+            <p className="mt-0.5 text-sm text-primary-700">You selected the {pendingPlan === 'pro' ? 'Pro ($79/mo)' : 'Starter ($34/mo)'} plan. Finish checkout to unlock all your features.</p>
+            <div className="mt-3 flex gap-2">
+              <button
+                type="button"
+                onClick={handlePendingPlanUpgrade}
+                disabled={isStartingCheckout}
+                className="rounded-md bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700 transition-colors disabled:opacity-60"
+              >
+                {isStartingCheckout ? 'Opening checkout…' : `Activate ${pendingPlan === 'pro' ? 'Pro' : 'Starter'} →`}
+              </button>
+              <button type="button" onClick={dismissPendingPlan} className="rounded-md border border-primary-300 bg-white px-4 py-2 text-sm font-semibold text-primary-700 hover:bg-primary-50">
+                Maybe later
+              </button>
+            </div>
+          </div>
+          <button onClick={dismissPendingPlan} className="p-1 rounded-full text-primary-400 hover:bg-primary-100 transition-colors shrink-0" aria-label="Dismiss">
+            <span className="material-symbols-outlined text-base">close</span>
+          </button>
+        </div>
+      )}
 
       {/* Welcome banner — brand new agents only (no listing yet, onboarding pending, real dashboard) */}
       {!loading && !blueprintMode && !demoMode && onboarding && !onboarding.onboarding_completed && !recentListing && (
