@@ -803,6 +803,7 @@ const createBillingEngine = ({ supabaseAdmin, stripe, enqueueJob, appBaseUrl }) 
       customer: customerId || undefined,
       customer_email: !customerId ? email || undefined : undefined,
       line_items: [{ price: plan.stripe_price_id, quantity: 1 }],
+      allow_promotion_codes: true,
       success_url: dashboardSuccess,
       cancel_url: dashboardCancel,
       metadata: {
