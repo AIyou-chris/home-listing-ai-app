@@ -374,7 +374,7 @@ const TodayDashboardPage: React.FC = () => {
           <span className="material-symbols-outlined text-primary-500 text-2xl shrink-0 mt-0.5">workspace_premium</span>
           <div className="flex-1">
             <h2 className="text-base font-bold text-primary-900">Complete your {pendingPlan === 'pro' ? 'Pro' : 'Starter'} upgrade</h2>
-            <p className="mt-0.5 text-sm text-primary-700">You selected the {pendingPlan === 'pro' ? 'Pro ($79/mo)' : 'Starter ($34/mo)'} plan. Finish checkout to unlock all your features.</p>
+            <p className="mt-0.5 text-sm text-primary-700">You selected the {pendingPlan === 'pro' ? 'Team ($79/mo)' : 'Pro ($39/mo)'} plan. Finish checkout to unlock all your features.</p>
             <div className="mt-3 flex gap-2">
               <button
                 type="button"
@@ -382,7 +382,7 @@ const TodayDashboardPage: React.FC = () => {
                 disabled={isStartingCheckout}
                 className="rounded-md bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700 transition-colors disabled:opacity-60"
               >
-                {isStartingCheckout ? 'Opening checkout…' : `Activate ${pendingPlan === 'pro' ? 'Pro' : 'Starter'} →`}
+                {isStartingCheckout ? 'Opening checkout…' : `Activate ${pendingPlan === 'pro' ? 'Team' : 'Pro'} →`}
               </button>
               <button type="button" onClick={dismissPendingPlan} className="rounded-md border border-primary-300 bg-white px-4 py-2 text-sm font-semibold text-primary-700 hover:bg-primary-50">
                 Maybe later
@@ -714,6 +714,20 @@ const TodayDashboardPage: React.FC = () => {
           </article>
 
           <article className={containerCardClass}>
+            {!blueprintMode && !demoMode && (
+              <div className="mb-4 rounded-xl border border-primary-200 bg-primary-50 p-4">
+                <p className="text-base font-bold text-primary-900">Upgrade your plan</p>
+                <p className="mt-1 text-sm text-primary-700">Unlock more listings, video credits, team branding, compliance tools.</p>
+                <button
+                  type="button"
+                  onClick={() => navTo('/settings/billing')}
+                  className="mt-3 rounded-md bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white"
+                >
+                  View plans
+                </button>
+              </div>
+            )}
+
             <h2 className="text-lg font-semibold text-slate-900">Plan & Limits</h2>
             <p className="mt-1 text-sm text-slate-500">Clear limits. No surprise charges.</p>
             <div className="mt-4 space-y-3">
@@ -763,10 +777,10 @@ const TodayDashboardPage: React.FC = () => {
                   {(billing.plan.id === 'free' || billingWarningLines.length > 0) && (
                     <button
                     type="button"
-                    onClick={() => navTo('/billing')}
+                    onClick={() => navTo('/settings/billing')}
                       className="rounded-md bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white"
                     >
-                      Upgrade
+                      View plans
                     </button>
                   )}
                 </>

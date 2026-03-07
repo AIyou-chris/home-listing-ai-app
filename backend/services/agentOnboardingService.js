@@ -433,6 +433,18 @@ module.exports = ({ supabaseAdmin, emailService, dashboardBaseUrl }) => {
     throw new Error('Email service is required for agent onboarding service');
   }
 
+  const normalizeBaseUrl = (rawBaseUrl) => {
+    const fallback = 'https://homelistingai.com';
+    const raw = String(rawBaseUrl || fallback).trim();
+    const withoutHash = raw.replace(/\/?#.*$/, '');
+    const normalized = withoutHash.replace(/\/+$/, '');
+    return normalized || fallback;
+  };
+
+  const appBaseUrl = normalizeBaseUrl(dashboardBaseUrl);
+  const dashboardTodayUrl = `${appBaseUrl}/dashboard/today`;
+  const billingSettingsUrl = `${appBaseUrl}/dashboard/settings/billing`;
+
   const getAgentBySlug = async (slug) => {
     const { data, error } = await supabaseAdmin.from('agents').select('*').eq('slug', slug).limit(1);
     if (error) throw error;
@@ -444,6 +456,20 @@ module.exports = ({ supabaseAdmin, emailService, dashboardBaseUrl }) => {
       throw new Error('Missing required fields for agent registration');
     }
 
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const { data: existingAgentByEmail, error: existingAgentLookupError } = await supabaseAdmin
+      .from('agents')
+      .select('id, email, status')
+      .eq('email', normalizedEmail)
+      .neq('status', 'deleted')
+      .limit(1);
+
+    if (existingAgentLookupError) throw existingAgentLookupError;
+    if (existingAgentByEmail && existingAgentByEmail.length > 0) {
+      throw new Error('Account already exists for this email. Please sign in.');
+    }
+
     const slug = await generateUniqueSlug(supabaseAdmin, firstName, lastName);
 
     const { data, error } = await supabaseAdmin
@@ -451,17 +477,68 @@ module.exports = ({ supabaseAdmin, emailService, dashboardBaseUrl }) => {
       .insert({
         first_name: firstName.trim(),
         last_name: lastName.trim(),
-        email: email.trim().toLowerCase(),
+        email: normalizedEmail,
         slug,
-        status: 'pending',
-        payment_status: 'awaiting_payment'
+        status: 'active',
+        payment_status: 'awaiting_payment',
+        activated_at: new Date().toISOString()
       })
       .select('*')
       .limit(1);
 
     if (error) throw error;
 
-    return { agent: data?.[0], slug };
+    const agent = data?.[0];
+    if (!agent) {
+      throw new Error('Failed to create account record.');
+    }
+
+    const dashboard = await ensureDashboardRecord(supabaseAdmin, agent);
+    await ensureTemplates(supabaseAdmin, agent.id);
+    await ensureFunnels(supabaseAdmin, agent.id);
+
+    const credentials = await ensureAuthUser(supabaseAdmin, agent);
+
+    let finalAgent = agent;
+    if (credentials.userId && agent.auth_user_id !== credentials.userId) {
+      const { data: updatedAgentRows, error: authLinkError } = await supabaseAdmin
+        .from('agents')
+        .update({ auth_user_id: credentials.userId })
+        .eq('id', agent.id)
+        .select('*')
+        .limit(1);
+      if (authLinkError) throw authLinkError;
+      finalAgent = updatedAgentRows?.[0] || agent;
+    }
+
+    await emailService.sendWelcomeEmail({
+      to: finalAgent.email,
+      firstName: finalAgent.first_name,
+      dashboardUrl: dashboardTodayUrl,
+      billingUrl: billingSettingsUrl
+    });
+
+    if (credentials.isNew && credentials.password) {
+      await emailService.sendCredentialsEmail({
+        to: finalAgent.email,
+        firstName: finalAgent.first_name,
+        password: credentials.password,
+        dashboardUrl: dashboardTodayUrl,
+        billingUrl: billingSettingsUrl
+      });
+    }
+
+    return {
+      agent: finalAgent,
+      slug: finalAgent.slug,
+      dashboard,
+      dashboardUrl: dashboardTodayUrl,
+      billingUrl: billingSettingsUrl,
+      checkoutUrl: null,
+      credentials: credentials.password
+        ? { email: finalAgent.email, password: credentials.password }
+        : { email: finalAgent.email, password: null }
+    };
   };
 
   const handlePaymentSuccess = async ({
@@ -541,12 +618,13 @@ module.exports = ({ supabaseAdmin, emailService, dashboardBaseUrl }) => {
         Object.assign(updatedAgent, agentWithAuth[0]);
       }
     }
-    const dashboardUrl = `${dashboardBaseUrl || 'https://homelistingai.com/#'}${dashboard.dashboard_url}`;
+    const dashboardUrl = dashboardTodayUrl;
 
     await emailService.sendWelcomeEmail({
       to: updatedAgent.email,
       firstName: updatedAgent.first_name,
-      dashboardUrl
+      dashboardUrl,
+      billingUrl: billingSettingsUrl
     });
 
     if (credentials.isNew && credentials.password) {
@@ -554,7 +632,8 @@ module.exports = ({ supabaseAdmin, emailService, dashboardBaseUrl }) => {
         to: updatedAgent.email,
         firstName: updatedAgent.first_name,
         password: credentials.password,
-        dashboardUrl
+        dashboardUrl,
+        billingUrl: billingSettingsUrl
       });
     }
 

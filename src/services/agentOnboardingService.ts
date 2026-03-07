@@ -18,7 +18,13 @@ export interface AgentRecord {
 
 export interface AgentRegistrationResponse {
   slug: string;
-  checkoutUrl: string;
+  checkoutUrl?: string | null;
+  dashboardUrl?: string | null;
+  billingUrl?: string | null;
+  credentials?: {
+    email: string;
+    password: string | null;
+  } | null;
   agent: AgentRecord;
 }
 
@@ -60,7 +66,7 @@ const persistRegistrationContext = (payload: AgentRegistrationResponse) => {
         email: payload.agent.email,
         firstName: payload.agent.first_name,
         lastName: payload.agent.last_name,
-        checkoutUrl: payload.checkoutUrl,
+        checkoutUrl: payload.checkoutUrl || null,
         createdAt: payload.agent.created_at
       })
     );

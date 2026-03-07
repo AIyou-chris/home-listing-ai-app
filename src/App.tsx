@@ -1241,7 +1241,6 @@ const App: React.FC = () => {
                     }
                 }}
                 onBackToDashboard={() => navigate('/dashboard')}
-                onNavigateToAICard={() => navigate('/ai-card')}
                 securitySettings={{}}
                 onSaveSecuritySettings={async () => { }}
                 isBlueprintMode={isBlueprintMode}
@@ -1438,7 +1437,7 @@ const App: React.FC = () => {
                         <Route path="/dashboard/listings" element={<ListingsCommandPage />} />
                         <Route path="/dashboard/listings/:listingId" element={<ListingPerformancePage />} />
                         <Route path="/dashboard/listings/:listingId/edit" element={<ListingEditorPage />} />
-                        <Route path="/dashboard/billing" element={<BillingCommandPage />} />
+                        <Route path="/dashboard/billing" element={<Navigate to="/dashboard/settings/billing" replace />} />
                         <Route path="/dashboard/onboarding" element={<OnboardingCommandPage />} />
                         <Route path="/dashboard/dev/share-test" element={<ShareTestPage />} />
 
@@ -1473,7 +1472,9 @@ const App: React.FC = () => {
                             </Suspense>
                         } />
                         <Route path="/settings" element={<Navigate to="/dashboard/settings" replace />} />
+                        <Route path="/settings/billing" element={<Navigate to="/dashboard/settings/billing" replace />} />
                         <Route path="/dashboard/settings" element={renderSettingsPage()} />
+                        <Route path="/dashboard/settings/billing" element={renderSettingsPage('billing')} />
                         <Route path="/dashboard/settings/notifications" element={renderSettingsPage('notifications')} />
                     </Route>
 

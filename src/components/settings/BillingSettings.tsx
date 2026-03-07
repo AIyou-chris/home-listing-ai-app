@@ -1,333 +1,324 @@
-import React, { useState } from 'react';
-import { BillingSettings, AgentProfile } from '../../types';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { BillingSettings } from '../../types';
+import {
+  createBillingCheckoutSession,
+  createBillingPortalSession,
+  fetchDashboardBilling,
+  type DashboardBillingSnapshot,
+  type PlanId
+} from '../../services/dashboardBillingService';
 import { FeatureSection } from './SettingsCommon';
 
 interface BillingSettingsProps {
-    settings: BillingSettings;
-    onSave: (settings: BillingSettings) => Promise<void>;
-    onBack?: () => void;
-    isLoading?: boolean;
-    isBlueprintMode?: boolean;
-    agentProfile?: AgentProfile;
+  settings: BillingSettings;
+  onSave: (settings: BillingSettings) => Promise<void>;
+  onBack?: () => void;
+  isLoading?: boolean;
+  isBlueprintMode?: boolean;
 }
 
+type PaidPlanId = Exclude<PlanId, 'free'>;
+
+const planLabels: Record<PlanId, string> = {
+  free: 'Free',
+  starter: 'Pro $39',
+  pro: 'Team $79'
+};
+
+const statusLabels: Record<string, string> = {
+  active: 'Active',
+  trialing: 'Active',
+  free: 'Active',
+  past_due: 'Past due',
+  cancelled: 'Cancelled',
+  cancel_pending: 'Cancel scheduled'
+};
+
+const featureRows: Array<{ label: string; free: string; starter: string; pro: string }> = [
+  { label: 'Listings allowed', free: '1', starter: '10', pro: '50' },
+  { label: 'AI Listing Brain sources', free: '1 source/listing', starter: '10 sources/listing', pro: 'Unlimited' },
+  { label: 'Social Video credits/month', free: '2', starter: '25', pro: '100' },
+  { label: 'Multilingual support', free: 'Yes', starter: 'Yes', pro: 'Yes' },
+  { label: 'Fair-housing compliance scan', free: 'Coming soon', starter: 'Coming soon', pro: 'Coming soon' },
+  { label: 'Team / multi-agent branding', free: 'No', starter: 'Limited', pro: 'Full' },
+  { label: 'Support level', free: 'Email (48h)', starter: 'Priority email', pro: 'Priority + onboarding' }
+];
+
+const inferPlanFromSettings = (settings: BillingSettings): PlanId => {
+  const name = String(settings.planName || '').toLowerCase();
+  if (name.includes('team') || name.includes('pro') || name.includes('79')) return 'pro';
+  if (name.includes('starter') || name.includes('39')) return 'starter';
+  return 'free';
+};
+
 const BillingSettingsPage: React.FC<BillingSettingsProps> = ({
-    settings,
-    onSave: _onSave,
-    onBack: _onBack,
-    isBlueprintMode,
-    agentProfile
+  settings,
+  onSave: _onSave,
+  onBack: _onBack,
+  isLoading: _isLoading,
+  isBlueprintMode
 }) => {
-    const [showBillingTips, setShowBillingTips] = useState(false);
-    const [isRedirecting, setIsRedirecting] = useState(false);
+  const [snapshot, setSnapshot] = useState<DashboardBillingSnapshot | null>(null);
+  const [loadingSnapshot, setLoadingSnapshot] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState<'starter' | 'pro' | 'portal' | null>(null);
+  const comparisonRef = useRef<HTMLDivElement | null>(null);
 
-    const planStatusBadges: Record<string, string> = {
-        active: 'bg-green-100 text-green-700 border-green-200',
-        past_due: 'bg-red-100 text-red-700 border-red-200',
-        cancelled: 'bg-slate-100 text-slate-700 border-slate-200',
-        trialing: 'bg-blue-100 text-blue-700 border-blue-200',
+  const loadSnapshot = useCallback(async () => {
+    if (isBlueprintMode) {
+      setLoadingSnapshot(false);
+      return;
+    }
+    setLoadingSnapshot(true);
+    setError(null);
+    try {
+      const payload = await fetchDashboardBilling();
+      setSnapshot(payload);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load billing data.');
+    } finally {
+      setLoadingSnapshot(false);
+    }
+  }, [isBlueprintMode]);
+
+  useEffect(() => {
+    void loadSnapshot();
+  }, [loadSnapshot]);
+
+  const currentPlanId: PlanId = snapshot?.plan.id || inferPlanFromSettings(settings);
+  const currentPlanLabel = planLabels[currentPlanId];
+  const currentStatus = statusLabels[snapshot?.plan.status || settings.planStatus || 'active'] || 'Active';
+  const nextBillingDate = snapshot?.plan.current_period_end || settings.renewalDate || null;
+  const isPaidPlan = currentPlanId !== 'free';
+
+  const startCheckout = async (planId: PaidPlanId) => {
+    try {
+      setBusy(planId);
+      const checkout = await createBillingCheckoutSession(planId);
+      if (!checkout.url) {
+        throw new Error('Missing checkout URL');
+      }
+      window.location.href = checkout.url;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to open checkout.');
+      setBusy(null);
+    }
+  };
+
+  const openPortal = async () => {
+    try {
+      setBusy('portal');
+      const portal = await createBillingPortalSession();
+      if (!portal.url) {
+        throw new Error('Missing billing portal URL');
+      }
+      window.location.href = portal.url;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to open billing portal.');
+      setBusy(null);
+    }
+  };
+
+  const handleChangePlanClick = () => {
+    comparisonRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const planButtons = useMemo(() => {
+    return {
+      starterDisabled: busy !== null || currentPlanId === 'starter',
+      proDisabled: busy !== null || currentPlanId === 'pro'
     };
+  }, [busy, currentPlanId]);
 
-    const planStatusLabels: Record<string, string> = {
-        active: 'Active',
-        past_due: 'Past Due',
-        cancelled: 'Cancelled',
-        trialing: 'Trial',
-    };
+  return (
+    <div className="p-8 space-y-8 animate-fadeIn">
+      <div>
+        <h2 className="text-2xl font-bold text-slate-900">Billing</h2>
+        <p className="text-slate-500 mt-1">Pick your plan, upgrade when you want, and manage billing from one place.</p>
+      </div>
 
-    const handleCheckout = async (provider: string = 'stripe') => {
-        setIsRedirecting(true);
-        try {
-            const slug = agentProfile?.slug;
+      {error && (
+        <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>
+      )}
 
-            if (!slug) {
-                alert('Account configuration error: No slug found.');
-                setIsRedirecting(false);
-                return;
-            }
-
-            const response = await fetch('/api/payments/checkout-session', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    slug: slug,
-                    provider,
-                })
-            });
-
-            const data = await response.json();
-            if (data.success && data.session?.url) {
-                window.location.href = data.session.url;
-            } else {
-                console.error('Checkout Error:', data.error);
-                alert('Failed to start checkout: ' + (data.error || 'Unknown error'));
-                setIsRedirecting(false);
-            }
-        } catch (error) {
-            console.error('Checkout Request Error:', error);
-            alert('An error occurred. Please try again.');
-            setIsRedirecting(false);
-        }
-    };
-
-    const handlePortalSession = async () => {
-        setIsRedirecting(true);
-
-        if (isBlueprintMode) {
-            setTimeout(() => {
-                alert('This feature is a demo simulation. In production, this would redirect to the Stripe Customer Portal.');
-                setIsRedirecting(false);
-            }, 800);
-            return;
-        }
-
-        try {
-            const { supabase } = await import('../../services/supabase');
-            const { data: { user } } = await supabase.auth.getUser();
-
-            if (!user) {
-                // Determine if we are in admin view or just lost auth
-                console.error('User not found for portal redirect');
-                // Fallback or alert
-                alert('Could not identify user. Please refresh.');
-                setIsRedirecting(false);
-                return;
-            }
-
-            const response = await fetch('/api/payments/portal-session', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    userId: user.id,
-                    returnUrl: window.location.href
-                })
-            });
-
-            const data = await response.json();
-            if (data.success && data.url) {
-                window.location.href = data.url;
-            } else {
-                console.error('Portal Error:', data.error);
-                alert('Failed to redirect: ' + (data.error || 'Unknown error'));
-                setIsRedirecting(false);
-            }
-        } catch (error) {
-            console.error('Portal Request Error:', error);
-            alert('An error occurred. Please try again.');
-            setIsRedirecting(false);
-        }
-    };
-
-    const handleContactSupport = () => {
-        window.dispatchEvent(new CustomEvent('open-chat', { detail: { mode: 'help' } }));
-    };
-
-    const cancelButtonDisabled = isRedirecting;
-
-    return (
-        <div className="p-8 space-y-8 animate-fadeIn">
+      <FeatureSection title="Current plan" icon="credit_card">
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-                <div className="flex items-center justify-between gap-3">
-                    <h2 className="text-2xl font-bold text-slate-900">💳 Billing & Subscription</h2>
-                </div>
-                <p className="text-slate-500 mt-1">Manage your subscription, billing information, and payment methods.</p>
+              <p className="text-xs uppercase tracking-wide text-slate-500">Current plan</p>
+              <h3 className="mt-1 text-2xl font-bold text-slate-900">{currentPlanLabel}</h3>
+              <p className="mt-2 text-sm text-slate-600">Status: {currentStatus}</p>
+              <p className="text-sm text-slate-500">
+                Next billing date: {nextBillingDate ? new Date(nextBillingDate).toLocaleDateString() : isPaidPlan ? 'Not available' : 'N/A on Free'}
+              </p>
             </div>
+            {loadingSnapshot ? (
+              <p className="text-sm text-slate-500">Loading billing status…</p>
+            ) : null}
+          </div>
 
-            {/* Billing Tips */}
-            <div className="bg-white border border-primary-100 rounded-xl shadow-sm">
+          <div className="mt-5 flex flex-wrap gap-2">
+            {!isPaidPlan ? (
+              <>
                 <button
-                    type="button"
-                    onClick={() => setShowBillingTips(prev => !prev)}
-                    className="flex items-center gap-2 w-full px-5 py-3 text-sm font-semibold text-primary-700 bg-primary-50 hover:bg-primary-100 transition-colors rounded-t-xl"
+                  type="button"
+                  onClick={() => void startCheckout('starter')}
+                  disabled={planButtons.starterDisabled}
+                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                 >
-                    <span className="material-symbols-outlined text-xl">{showBillingTips ? 'psychiatry' : 'tips_and_updates'}</span>
-                    {showBillingTips ? 'Hide Billing Tips' : 'Show Billing Tips'}
-                    <span className="material-symbols-outlined text-base ml-auto">{showBillingTips ? 'expand_less' : 'expand_more'}</span>
+                  {busy === 'starter' ? 'Opening checkout…' : 'Upgrade to $39'}
                 </button>
-                {showBillingTips && (
-                    <div className="px-5 pb-5 pt-4 border-t border-primary-100">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-slate-600">
-                            <div className="bg-primary-50 border border-primary-100 rounded-lg p-3">
-                                <p className="font-semibold text-primary-700 mb-1">Download invoices</p>
-                                <p>Use Billing History to grab receipts for bookkeeping—each line has a quick download link.</p>
-                            </div>
-                            <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
-                                <p className="font-semibold text-blue-700 mb-1">Need to pause?</p>
-                                <p>Use the cancel plan link below to schedule a downgrade at the end of the billing period.</p>
-                            </div>
-                            <div className="bg-green-50 border border-green-100 rounded-lg p-3">
-                                <p className="font-semibold text-green-700 mb-1">Upgrade anytime</p>
-                                <p>Reach out to our team for custom plans if you need more AI power than the standard package.</p>
-                            </div>
-                            <div className="bg-amber-50 border border-amber-100 rounded-lg p-3">
-                                <p className="font-semibold text-amber-700 mb-1">Keep forwarding active</p>
-                                <p>Even after canceling, remember to disable email forwarding rules so leads stop routing to the AI.</p>
-                            </div>
-                        </div>
-                    </div>
-                )}
-            </div>
-
-            <FeatureSection title="Current Plan" icon="star">
-                <div className="bg-gradient-to-tr from-primary-700 to-primary-500 text-white rounded-2xl p-8 shadow-2xl">
-                    <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                        <div>
-                            <div className="flex flex-wrap items-center gap-3">
-                                <h3 className="text-2xl font-bold text-white">{settings.planName || 'Subscription Plan'}</h3>
-                                {settings.planStatus && (
-                                    <span className={`inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-full ${planStatusBadges[settings.planStatus] ?? 'bg-white/20 text-white border border-white/30'}`}>
-                                        {planStatusLabels[settings.planStatus] ?? settings.planStatus}
-                                    </span>
-                                )}
-                            </div>
-                            <p className="mt-2 text-slate-300">Everything you need to dominate your market and close more deals.</p>
-                        </div>
-                        <div className="text-right">
-                            <div className="text-3xl font-bold">
-                                {settings.amount ? `$${settings.amount.toFixed(2)}` : '$69.00'}
-                                <span className="text-lg font-medium">/mo</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="mt-6 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
-                        {[
-                            'Unlimited AI interactions per month',
-                            'Advanced analytics dashboard',
-                            'Automated follow-up sequences',
-                            'Your AI sidekick trained on your brand',
-                            'Lead capture to closing automations',
-                            'Custom programs available any time'
-                        ].map((feature) => (
-                            <div key={feature} className="flex items-center gap-2">
-                                <span className="material-symbols-outlined w-4 h-4 text-green-300">check_circle</span>
-                                <span>{feature}</span>
-                            </div>
-                        ))}
-                    </div>
-
-                    <div className="mt-6 flex flex-wrap gap-3">
-                        {settings.planStatus === 'cancelled' || settings.planStatus === 'past_due' ? (
-                            <button
-                                type="button"
-                                onClick={() => handleCheckout('stripe')}
-                                disabled={isRedirecting}
-                                className={`flex items-center gap-2 px-4 py-2 rounded-lg bg-white text-primary-700 font-semibold shadow hover:bg-slate-50 transition-colors ${isRedirecting ? 'opacity-70 cursor-not-allowed' : ''}`}
-                            >
-                                <span className="material-symbols-outlined text-base">rocket_launch</span>
-                                {isRedirecting ? 'Opening checkout...' : 'Re-activate Subscription'}
-                            </button>
-                        ) : (
-                            <button
-                                type="button"
-                                onClick={handlePortalSession}
-                                disabled={cancelButtonDisabled}
-                                className={`flex items-center gap-2 px-4 py-2 rounded-lg border border-white/20 bg-white/10 text-white transition-colors ${cancelButtonDisabled ? 'opacity-60 cursor-not-allowed' : 'hover:bg-white/20'}`}
-                            >
-                                <span className="material-symbols-outlined text-base">cancel</span>
-                                Cancel Plan
-                            </button>
-                        )}
-                        <button
-                            type="button"
-                            onClick={handleContactSupport}
-                            className="flex items-center gap-2 px-4 py-2 bg-white text-primary-600 rounded-lg hover:bg-slate-100 transition-colors"
-                        >
-                            <span className="material-symbols-outlined text-base">support_agent</span>
-                            Talk to Support
-                        </button>
-                    </div>
-                    <p className="mt-2 text-xs text-white/90">Changes to your subscription are managed securely through your configured payment provider.</p>
-                </div>
-            </FeatureSection>
-
-            {/* Usage Stats (New) */}
-            <FeatureSection title="Usage & Limits" icon="bar_chart">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
-                        <div className="flex items-center justify-between mb-2">
-                            <span className="text-slate-500 text-sm font-medium">AI Voice Minutes</span>
-                            <span className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full font-semibold">
-                                {settings.usage?.voiceMinutes || 0} / ∞ used
-                            </span>
-                        </div>
-                        <div className="w-full bg-slate-100 rounded-full h-2 mb-2">
-                            <div className="bg-blue-500 h-2 rounded-full" style={{ width: '5%' }}></div>
-                        </div>
-                        <p className="text-xs text-slate-400">Unlimited minutes included in Pro Plan.</p>
-                    </div>
-
-                    <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
-                        <div className="flex items-center justify-between mb-2">
-                            <span className="text-slate-500 text-sm font-medium">SMS Sent</span>
-                            <span className="bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full font-semibold">
-                                {settings.usage?.smsCount || 0} / ∞ used
-                            </span>
-                        </div>
-                        <div className="w-full bg-slate-100 rounded-full h-2 mb-2">
-                            <div className="bg-green-500 h-2 rounded-full" style={{ width: '5%' }}></div>
-                        </div>
-                        <p className="text-xs text-slate-400">Unlimited SMS included in Pro Plan.</p>
-                    </div>
-                </div>
-            </FeatureSection>
-
-            {/* Billing History */}
-            <FeatureSection title="Billing History" icon="history">
-                <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-                    {settings.history && settings.history.length > 0 ? (
-                        <table className="min-w-full divide-y divide-slate-200">
-                            <thead className="bg-slate-50">
-                                <tr>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Date</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Description</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Amount</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Status</th>
-                                    <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">Invoice</th>
-                                </tr>
-                            </thead>
-                            <tbody className="bg-white divide-y divide-slate-200">
-                                {settings.history.map((entry) => (
-                                    <tr key={entry.id}>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
-                                            {entry.date}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900 font-medium">
-                                            {entry.description || 'Subscription'}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
-                                            ${typeof entry.amount === 'number' ? entry.amount.toFixed(2) : entry.amount}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${entry.status === 'Paid' ? 'bg-green-100 text-green-800' :
-                                                entry.status === 'Pending' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'
-                                                }`}>
-                                                {entry.status}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                            {entry.invoiceUrl ? (
-                                                <a href={entry.invoiceUrl} target="_blank" rel="noopener noreferrer" className="text-primary-600 hover:text-primary-900 flex items-center justify-end gap-1">
-                                                    Download
-                                                    <span className="material-symbols-outlined text-sm">open_in_new</span>
-                                                </a>
-                                            ) : (
-                                                <span className="text-slate-400">Unavailable</span>
-                                            )}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    ) : (
-                        <div className="p-8 text-center text-slate-500">
-                            No billing history available.
-                        </div>
-                    )}
-                </div>
-            </FeatureSection>
+                <button
+                  type="button"
+                  onClick={() => void startCheckout('pro')}
+                  disabled={planButtons.proDisabled}
+                  className="rounded-lg bg-[#233074] px-3 py-2 text-sm font-semibold text-white hover:bg-[#1b275e] disabled:opacity-50"
+                >
+                  {busy === 'pro' ? 'Opening checkout…' : 'Upgrade to $79'}
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => void openPortal()}
+                  disabled={busy !== null}
+                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  {busy === 'portal' ? 'Opening…' : 'Manage plan'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleChangePlanClick}
+                  disabled={busy !== null}
+                  className="rounded-lg border border-primary-300 bg-primary-50 px-3 py-2 text-sm font-semibold text-primary-700 hover:bg-primary-100 disabled:opacity-50"
+                >
+                  Change plan
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void openPortal()}
+                  disabled={busy !== null}
+                  className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+              </>
+            )}
+          </div>
         </div>
-    );
+      </FeatureSection>
+
+      <FeatureSection title="Plan comparison" icon="table_chart">
+        <div ref={comparisonRef} className="rounded-2xl border border-slate-200 bg-white p-0 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="min-w-full border-collapse">
+              <thead className="bg-slate-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Feature</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-slate-900">Free</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-slate-900">
+                    <div className="inline-flex items-center gap-2">
+                      <span>Pro $39</span>
+                      <span className="rounded-full bg-primary-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary-700">Most popular</span>
+                    </div>
+                  </th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-slate-900">Team $79</th>
+                </tr>
+              </thead>
+              <tbody>
+                {featureRows.map((row) => (
+                  <tr key={row.label} className="border-t border-slate-100">
+                    <td className="px-4 py-3 text-sm font-medium text-slate-700">{row.label}</td>
+                    <td className="px-4 py-3 text-sm text-slate-600">{row.free}</td>
+                    <td className="px-4 py-3 text-sm text-slate-700">{row.starter}</td>
+                    <td className="px-4 py-3 text-sm text-slate-700">{row.pro}</td>
+                  </tr>
+                ))}
+                <tr className="border-t border-slate-200 bg-slate-50">
+                  <td className="px-4 py-4 text-sm font-semibold text-slate-700">Action</td>
+                  <td className="px-4 py-4 text-sm text-slate-500">{currentPlanId === 'free' ? 'Current plan' : 'Free option'}</td>
+                  <td className="px-4 py-4">
+                    <button
+                      type="button"
+                      onClick={() => void startCheckout('starter')}
+                      disabled={planButtons.starterDisabled}
+                      className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+                    >
+                      {currentPlanId === 'starter' ? 'Current plan' : busy === 'starter' ? 'Opening…' : 'Choose plan'}
+                    </button>
+                  </td>
+                  <td className="px-4 py-4">
+                    <button
+                      type="button"
+                      onClick={() => void startCheckout('pro')}
+                      disabled={planButtons.proDisabled}
+                      className="rounded-md bg-[#233074] px-3 py-2 text-xs font-semibold text-white hover:bg-[#1b275e] disabled:opacity-50"
+                    >
+                      {currentPlanId === 'pro' ? 'Current plan' : busy === 'pro' ? 'Opening…' : 'Choose plan'}
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </FeatureSection>
+
+      <FeatureSection title="Billing history" icon="history">
+        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+          {settings.history && settings.history.length > 0 ? (
+            <table className="min-w-full divide-y divide-slate-200">
+              <thead className="bg-slate-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Date</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Description</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Amount</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">Invoice</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-slate-200">
+                {settings.history.map((entry) => (
+                  <tr key={entry.id}>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">{entry.date}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900 font-medium">{entry.description || 'Subscription'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
+                      ${typeof entry.amount === 'number' ? entry.amount.toFixed(2) : entry.amount}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span
+                        className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                          entry.status === 'Paid'
+                            ? 'bg-green-100 text-green-800'
+                            : entry.status === 'Pending'
+                              ? 'bg-yellow-100 text-yellow-800'
+                              : 'bg-red-100 text-red-800'
+                        }`}
+                      >
+                        {entry.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      {entry.invoiceUrl ? (
+                        <a href={entry.invoiceUrl} target="_blank" rel="noopener noreferrer" className="text-primary-600 hover:text-primary-900">
+                          Download
+                        </a>
+                      ) : (
+                        <span className="text-slate-400">Unavailable</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <div className="p-8 text-center text-slate-500">No billing history available yet.</div>
+          )}
+        </div>
+      </FeatureSection>
+    </div>
+  );
 };
 
 export default BillingSettingsPage;

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AgentProfile, NotificationSettings, EmailSettings, CalendarSettings, BillingSettings, SecuritySettings } from '../types';
+import { AgentProfile, NotificationSettings, BillingSettings, SecuritySettings } from '../types';
 import ProfileSettings from './settings/ProfileSettings';
 import NotificationSettingsPage from './settings/NotificationSettings';
 import SecuritySettingsPage from './settings/SecuritySettings';
@@ -17,7 +17,6 @@ interface SettingsPageProps {
     securitySettings: SecuritySettings;
     onSaveSecuritySettings: (settings: SecuritySettings) => Promise<void>;
     onBackToDashboard: () => void;
-    onNavigateToAICard?: () => void;
     isDemoMode?: boolean;
     isBlueprintMode?: boolean;
     initialTab?: 'profile' | 'notifications' | 'security' | 'billing';
@@ -34,8 +33,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
     securitySettings,
     onSaveSecuritySettings,
     onBackToDashboard,
-    onNavigateToAICard,
-    userId,
+    userId: _userId,
     isDemoMode = false,
     isBlueprintMode,
     initialTab = 'profile'
@@ -133,8 +131,6 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                             <ProfileSettings
                                 userProfile={userProfile}
                                 onSave={isDemoMode ? async () => { } : onSaveProfile}
-                                onBack={onBackToDashboard}
-                                onNavigateToAICard={onNavigateToAICard}
                             />
                         )}
                         {activeTab === 'notifications' && (
