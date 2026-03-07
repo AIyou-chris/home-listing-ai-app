@@ -2819,9 +2819,12 @@ const buildListingVideoFileName = ({ listingRow, templateStyle, durationSeconds 
 
 const resolveCreatomateTemplateIdByStyle = (templateStyle) => {
   const style = normalizeVideoTemplateStyle(templateStyle) || 'luxury';
+  // Safety fallback for production: keeps video rendering alive if env wiring is incomplete.
+  const fallbackLuxuryTemplateId = '9ba619ff-c4ce-4132-aace-314e89ec7ad3';
   const luxuryTemplateId =
     toTrimmedOrNull(process.env.CREATOMATE_TEMPLATE_LUXURY_ID) ||
-    toTrimmedOrNull(process.env.CREATOMATE_LUXURY_TEMPLATE_ID);
+    toTrimmedOrNull(process.env.CREATOMATE_LUXURY_TEMPLATE_ID) ||
+    fallbackLuxuryTemplateId;
   const storyTemplateId =
     toTrimmedOrNull(process.env.CREATOMATE_TEMPLATE_STORY_ID) ||
     toTrimmedOrNull(process.env.CREATOMATE_STORY_TEMPLATE_ID);
