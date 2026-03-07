@@ -10192,7 +10192,7 @@ function extractPhoneFromText(text) {
 
 const loginNotificationCooldowns = new Map();
 
-app.post('/api/security/notify-login', async (req, res) => {
+app.post(['/api/security/notify-login', '/api/security/notify_login'], async (req, res) => {
   const { userId, email, ip, userAgent } = req.body;
   if (!userId || !email) return res.status(400).json({ error: 'Missing userId or email' });
 
