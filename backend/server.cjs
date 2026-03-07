@@ -16771,9 +16771,8 @@ app.get('/api/dashboard/listings/:listingId/videos', async (req, res) => {
 
 app.post('/api/dev/listings/:id/videos/credits/add', async (req, res) => {
   try {
-    const isProduction = String(process.env.NODE_ENV || '').trim().toLowerCase() === 'production';
-    const allowDemoCredits = String(process.env.ALLOW_DEMO_CREDITS || '').trim().toLowerCase() === 'true';
-    if (isProduction && !allowDemoCredits) {
+    const freeTestCreditsEnabled = String(process.env.FREE_TEST_VIDEO_CREDITS_ENABLED || 'true').trim().toLowerCase() !== 'false';
+    if (!freeTestCreditsEnabled) {
       return res.status(403).json({ error: 'dev_credits_disabled' });
     }
 
