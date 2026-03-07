@@ -16669,7 +16669,7 @@ app.get('/api/dashboard/listings/:listingId/videos', async (req, res) => {
 
     let { data: videos, error: videosError } = await supabaseAdmin
       .from('listing_videos')
-      .select('id, listing_id, template_style, duration_seconds, status, storage_bucket, storage_path, file_name, error_message, creatomate_render_id, creatomate_url, created_at, updated_at')
+      .select('*')
       .eq('listing_id', listing.id)
       .eq('agent_id', ownerId)
       .order('created_at', { ascending: false });
@@ -16729,7 +16729,7 @@ app.get('/api/dashboard/listings/:listingId/videos', async (req, res) => {
     if (refreshed) {
       const reload = await supabaseAdmin
         .from('listing_videos')
-        .select('id, listing_id, template_style, duration_seconds, status, storage_bucket, storage_path, file_name, error_message, creatomate_render_id, creatomate_url, created_at, updated_at')
+        .select('*')
         .eq('listing_id', listing.id)
         .eq('agent_id', ownerId)
         .order('created_at', { ascending: false });
