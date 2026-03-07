@@ -113,7 +113,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'dashboard
   const navigate = useNavigate();
 
   // Use URL tab if available, otherwise fall back to initialTab
-  const activeView = (tab as DashboardView) || initialTab;
+  const normalizedTab = tab === 'overview' ? 'dashboard' : tab;
+  const activeView = (normalizedTab as DashboardView) || initialTab;
 
   const handleSetView = (newView: DashboardView) => {
     navigate(`/admin/${newView}`);

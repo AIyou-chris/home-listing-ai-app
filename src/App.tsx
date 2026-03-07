@@ -1,5 +1,6 @@
 import React, { useState, useEffect, Suspense, lazy, useCallback, useRef } from 'react';
 import { Routes, Route, useNavigate, useLocation, Navigate, Outlet, useParams } from 'react-router-dom';
+import type { Session } from '@supabase/supabase-js';
 import { supabase } from './services/supabase';
 import { Property, View, AgentProfile, NotificationSettings, EmailSettings, CalendarSettings, BillingSettings, Lead, Appointment, Interaction } from './types';
 import { DEMO_FAT_PROPERTIES, DEMO_FAT_LEADS, DEMO_FAT_APPOINTMENTS } from './demoConstants';
@@ -83,6 +84,7 @@ import { fetchOnboardingState } from './services/onboardingService';
 // SessionService removed
 import { listAppointments } from './services/appointmentsService';
 import { PerformanceService } from './services/performanceService';
+import PostAuth from './routes/PostAuth';
 
 
 // A helper function to delay execution
@@ -95,6 +97,8 @@ export type AppUser = {
     displayName?: string | null;
     created_at?: string;
 };
+
+type AppRole = 'admin' | 'agent' | 'user' | null;
 
 
 
@@ -152,6 +156,9 @@ import { ImpersonationProvider } from './context/ImpersonationContext';
 
 interface DashboardLayoutContextValue {
     authReady: boolean;
+    session: Session | null;
+    role: AppRole;
+    roleReady: boolean;
     user: AppUser | null;
     isAdmin: boolean;
     isDemoMode: boolean;
@@ -162,6 +169,32 @@ interface DashboardLayoutContextValue {
 const DashboardLayoutContext = React.createContext<DashboardLayoutContextValue | null>(null);
 const CheckoutContext = React.createContext<{ onBackToSignup: () => void } | null>(null);
 // ────────────────────────────────────────────────────────────────────────────
+
+const AuthGateSpinner: React.FC<{ text?: string }> = ({ text = 'Checking session...' }) => (
+    <div className="flex h-screen items-center justify-center bg-slate-50">
+        <LoadingSpinner size="lg" type="dots" text={text} />
+    </div>
+);
+
+const RequireAuth: React.FC = () => {
+    const ctx = React.useContext(DashboardLayoutContext)!;
+    const { authReady, session, roleReady } = ctx;
+
+    if (!authReady) return <AuthGateSpinner text="Checking session..." />;
+    if (authReady && !session) return <Navigate to="/signin" replace />;
+    if (session && !roleReady) return <AuthGateSpinner text="Loading your access..." />;
+    return <Outlet />;
+};
+
+const RequireRole: React.FC<{ requiredRole: Exclude<AppRole, null> }> = ({ requiredRole }) => {
+    const ctx = React.useContext(DashboardLayoutContext)!;
+    const { session, roleReady, role } = ctx;
+
+    if (!session) return <Navigate to="/signin" replace />;
+    if (!roleReady) return <AuthGateSpinner text="Loading your access..." />;
+    if (role !== requiredRole) return <Navigate to="/dashboard/today" replace />;
+    return <Outlet />;
+};
 
 const DashboardRouteGate = () => {
     const [routeTarget, setRouteTarget] = useState<'loading' | 'today' | 'onboarding'>('loading');
@@ -292,21 +325,8 @@ const BlueprintDashboardLayout = () => {
 // ─── ProtectedDashboardLayout (module-level, stable identity) ────────────────
 const ProtectedDashboardLayout: React.FC = () => {
     const ctx = React.useContext(DashboardLayoutContext)!;
-    const { authReady, user, isAdmin, isDemoMode, isSidebarOpen, setIsSidebarOpen, logAuthBreadcrumb } = ctx;
+    const { user, isSidebarOpen, setIsSidebarOpen } = ctx;
     const location = useLocation();
-
-    if (!authReady) {
-        return (
-            <div className="flex h-screen items-center justify-center bg-slate-50">
-                <LoadingSpinner size="lg" type="dots" text="Checking session..." />
-            </div>
-        );
-    }
-
-    if (!user && !isAdmin && !isDemoMode) {
-        logAuthBreadcrumb('ROUTE_GUARD_REDIRECT_NO_SESSION', null);
-        return <Navigate to="/signin?reason=expired" replace />;
-    }
 
     return (
         <div className="flex h-screen bg-slate-50 relative">
@@ -468,6 +488,9 @@ const App: React.FC = () => {
     // PERF: Initialize loading state
     const [isLoading, setIsLoading] = useState(false); // Router handles most loading now
     const [authReady, setAuthReady] = useState(false);
+    const [session, setSession] = useState<Session | null>(null);
+    const [role, setRole] = useState<AppRole>(null);
+    const [roleReady, setRoleReady] = useState(false);
     const [isSettingUp] = useState(false); // Helper state for setup flows (currently unused)
     const [isDemoMode, setIsDemoMode] = useState(() => {
         const path = window.location.pathname;
@@ -578,6 +601,145 @@ const App: React.FC = () => {
             logAuthBreadcrumb(eventType, session);
         });
     }, [logAuthBreadcrumb]);
+
+    const resolveRoleForSession = useCallback(async (nextSession: Session): Promise<Exclude<AppRole, null>> => {
+        const userId = String(nextSession.user.id || '');
+        const userEmail = String(nextSession.user.email || '').toLowerCase();
+        const profileRoleCandidates: string[] = [];
+
+        const normalizedMetaRole = String(
+            nextSession.user.user_metadata?.role ||
+            nextSession.user.app_metadata?.role ||
+            ''
+        ).trim().toLowerCase();
+        if (normalizedMetaRole) profileRoleCandidates.push(normalizedMetaRole);
+
+        const adminClaim = Boolean(
+            nextSession.user.app_metadata?.claims_admin ||
+            nextSession.user.app_metadata?.admin
+        );
+        const envAdminEmail = String(import.meta.env.VITE_ADMIN_EMAIL || '').trim().toLowerCase();
+        const adminEmails = ['admin@homelistingai.com', 'us@homelistingai.com'];
+        if (envAdminEmail) adminEmails.push(envAdminEmail);
+        if (adminClaim || adminEmails.includes(userEmail)) {
+            return 'admin';
+        }
+
+        try {
+            const { data: isRpcAdmin } = await supabase.rpc('is_user_admin', { uid: userId });
+            if (isRpcAdmin) return 'admin';
+        } catch (_error) {
+            // Ignore role-RPC failures and keep deterministic fallback below.
+        }
+
+        try {
+            const { data: profileById } = await supabase
+                .from('profiles')
+                .select('role')
+                .eq('id', userId)
+                .maybeSingle();
+            if (profileById?.role) profileRoleCandidates.push(String(profileById.role).trim().toLowerCase());
+        } catch (_error) {
+            // Profiles table can be absent or RLS-restricted; continue.
+        }
+
+        try {
+            const { data: profileByUserId } = await supabase
+                .from('profiles')
+                .select('role')
+                .eq('user_id', userId)
+                .maybeSingle();
+            if (profileByUserId?.role) profileRoleCandidates.push(String(profileByUserId.role).trim().toLowerCase());
+        } catch (_error) {
+            // Profiles table can be absent or RLS-restricted; continue.
+        }
+
+        const normalizedProfileRole = profileRoleCandidates.find((candidate) =>
+            candidate === 'admin' || candidate === 'agent' || candidate === 'user'
+        );
+
+        if (normalizedProfileRole === 'admin') return 'admin';
+        if (normalizedProfileRole === 'agent') return 'agent';
+        if (normalizedProfileRole === 'user') return 'user';
+
+        try {
+            const { data: agentRow } = await supabase
+                .from('agents')
+                .select('id')
+                .eq('auth_user_id', userId)
+                .maybeSingle();
+            if (agentRow?.id) return 'agent';
+        } catch (_error) {
+            // Ignore and default to user.
+        }
+
+        return 'user';
+    }, []);
+
+    useEffect(() => {
+        let active = true;
+        hasInitializedAuthRef.current = true; // Disable legacy auth bootstrapping below.
+
+        const applyAuthSnapshot = async (nextSession: Session | null) => {
+            if (!active) return;
+
+            console.log(`[AUTH] session loaded: ${nextSession ? 'yes' : 'no'}`);
+            setSession(nextSession);
+            setAuthReady(true);
+            setRoleReady(false);
+
+            if (!nextSession) {
+                setUser(null);
+                setIsAdmin(false);
+                setRole(null);
+                setRoleReady(true);
+                return;
+            }
+
+            const currentUser: AppUser = {
+                uid: nextSession.user.id,
+                id: nextSession.user.id,
+                email: nextSession.user.email ?? null,
+                displayName: nextSession.user.user_metadata?.name ?? null,
+                created_at: nextSession.user.created_at
+            };
+            setUser(currentUser);
+
+            const resolvedRole = await resolveRoleForSession(nextSession);
+            if (!active) return;
+
+            setRole(resolvedRole);
+            setIsAdmin(resolvedRole === 'admin');
+            setRoleReady(true);
+            console.log(`[AUTH] role loaded: ${resolvedRole}`);
+        };
+
+        void (async () => {
+            try {
+                EnvValidation.logValidationResults();
+                PerformanceService.initialize();
+                const { data: { session: initialSession } } = await supabase.auth.getSession();
+                await applyAuthSnapshot(initialSession ?? null);
+            } catch (error) {
+                console.error('[AUTH] bootstrap failed:', error);
+                if (!active) return;
+                setSession(null);
+                setUser(null);
+                setRole(null);
+                setRoleReady(true);
+                setAuthReady(true);
+            }
+        })();
+
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+            void applyAuthSnapshot(nextSession ?? null);
+        });
+
+        return () => {
+            active = false;
+            subscription.unsubscribe();
+        };
+    }, [resolveRoleForSession]);
 
 
 
@@ -895,47 +1057,28 @@ const App: React.FC = () => {
         };
     }, [navigate, isBlueprintMode, markAuthReady]);
 
-    // --- FORCE ADMIN REDIRECT ---
-    // If we are detected as Admin, but not on an admin page, GO TO ADMIN DASHBOARD.
-    // --- FORCE ADMIN REDIRECT ---
-    // If we are detected as Admin, but not on an admin page, GO TO ADMIN DASHBOARD.
     useEffect(() => {
-        if (isAdmin) {
-            const path = location.pathname;
-            const isPublicDetails = path.startsWith('/listing/') || path.startsWith('/store/') || path.startsWith('/card/') || path.startsWith('/p/') || path.startsWith('/compliance') || path.startsWith('/dmca');
-            const isPublicRoot = path === '/' || path === '/landing' || path === '/white-label' || path.includes('/demo-');
+        if (!authReady || !roleReady) return;
+        if (!session) return;
 
-            const isLegacySettingsPath = path === '/settings' || path.startsWith('/settings/');
-            if (!path.startsWith('/admin') && !path.startsWith('/dashboard') && path !== '/admin-login' && !isLegacySettingsPath && !isPublicDetails && !isPublicRoot) {
-                console.log("👮 Admin detected on protected agent page (" + path + "). Redirecting...");
-                navigate('/admin-dashboard', { replace: true });
-            }
-        } else if (authReady && location.pathname.startsWith('/admin') && location.pathname !== '/admin-login') {
-            // Safety: If NOT admin but on admin page, kick out.
-            // Guard with authReady so we don't bounce RPC-only admins before loadUserData completes.
-            console.warn("⛔️ Accessing admin page without admin privileges. Redirecting.");
-            if (user) {
-                // If logged in but not admin, send to regular dashboard
-                navigate('/dashboard', { replace: true });
-            } else {
-                navigate('/admin-login', { replace: true });
-            }
-        }
-    }, [isAdmin, authReady, user, location.pathname, navigate]);
+        const path = location.pathname;
+        const isAuthPage = path === '/signin' || path === '/signup' || path === '/';
+        const isPostAuthPage = path === '/post-auth';
 
-    // --- FORCE AUTH REDIRECT ---
-    // If user is logged in but on a public auth page (Signin/Signup), redirect to Dashboard.
-    // Skip admin users — the FORCE ADMIN REDIRECT above already handles routing them to /admin-dashboard.
-    // Without this guard, both effects fire and the last one (this one) wins, sending admins to /dashboard.
-    useEffect(() => {
-        if (user && authReady && !isAdmin) {
-            const path = location.pathname;
-            if (path === '/signin' || path === '/signup') {
-                console.log("✅ User authenticated on auth page. Redirecting to dashboard...");
-                navigate('/dashboard', { replace: true });
-            }
+        if (isAuthPage || isPostAuthPage) {
+            navigate('/post-auth', { replace: true });
+            return;
         }
-    }, [user, authReady, isAdmin, location.pathname, navigate]);
+
+        if (role === 'admin' && path.startsWith('/dashboard')) {
+            navigate('/admin/overview', { replace: true });
+            return;
+        }
+
+        if (role !== 'admin' && path.startsWith('/admin')) {
+            navigate('/dashboard/today', { replace: true });
+        }
+    }, [authReady, roleReady, session, role, location.pathname, navigate]);
 
     // Load centralized agent profile and set up real-time updates
     useEffect(() => {
@@ -1092,7 +1235,7 @@ const App: React.FC = () => {
                     setIsAdminLoginOpen(false);
                     setIsAdmin(true);
                     localStorage.removeItem('hlai_impersonated_user_id');
-                    navigate('/admin-dashboard');
+                    navigate('/admin/overview');
                     return;
                 }
             }
@@ -1132,7 +1275,7 @@ const App: React.FC = () => {
             setIsAdmin(true); // Manually set admin for this session (RPC verified)
             // CRITICAL: Clear any leftover impersonation state to ensure we enter Admin Dashboard cleanly
             localStorage.removeItem('hlai_impersonated_user_id');
-            navigate('/admin-dashboard');
+            navigate('/admin/overview');
         } catch (error) {
             console.error('Admin login failed', error);
             setAdminLoginError('Invalid login credentials');
@@ -1253,7 +1396,8 @@ const App: React.FC = () => {
                     {/* Public Routes */}
                     <Route path="/" element={
                         !authReady ? <LoadingSpinner /> :
-                        (user || isDemoMode || isAdmin) ? <Navigate to="/dashboard" replace /> :
+                        isDemoMode ? <Navigate to="/demo-dashboard/today" replace /> :
+                        session ? <Navigate to="/post-auth" replace /> :
                             <Suspense fallback={<LoadingSpinner />}>
                                 <LandingPage
                                     onNavigateToSignUp={handleNavigateToSignUp}
@@ -1269,14 +1413,18 @@ const App: React.FC = () => {
                     } />
                     <Route path="/landing" element={<Navigate to="/" replace />} />
                     <Route path="/signin" element={
-                        <Suspense fallback={<LoadingSpinner />}>
-                            <SignInPage
-                                onNavigateToSignUp={handleNavigateToSignUp}
-                                onNavigateToLanding={handleNavigateToLanding}
-                                onEnterDemoMode={() => navigate('/demo-dashboard')}
-                                onNavigateToSection={(section) => { navigate('/'); setTimeout(() => setScrollToSection(section), 100); }}
-                            />
-                        </Suspense>
+                        session && roleReady ? (
+                            <Navigate to="/post-auth" replace />
+                        ) : (
+                            <Suspense fallback={<LoadingSpinner />}>
+                                <SignInPage
+                                    onNavigateToSignUp={handleNavigateToSignUp}
+                                    onNavigateToLanding={handleNavigateToLanding}
+                                    onEnterDemoMode={() => navigate('/demo-dashboard')}
+                                    onNavigateToSection={(section) => { navigate('/'); setTimeout(() => setScrollToSection(section), 100); }}
+                                />
+                            </Suspense>
+                        )
                     } />
                     <Route path="/forgot-password" element={
                         <Suspense fallback={<LoadingSpinner />}>
@@ -1293,14 +1441,21 @@ const App: React.FC = () => {
                         </Suspense>
                     } />
                     <Route path="/signup" element={
-                        <Suspense fallback={<LoadingSpinner />}>
-                            <SignUpPage
-                                onNavigateToSignIn={handleNavigateToSignIn}
-                                onNavigateToLanding={handleNavigateToLanding}
-                                onEnterDemoMode={() => navigate('/demo-dashboard')}
-                                onNavigateToSection={(section) => { navigate('/'); setTimeout(() => setScrollToSection(section), 100); }}
-                            />
-                        </Suspense>
+                        session && roleReady ? (
+                            <Navigate to="/post-auth" replace />
+                        ) : (
+                            <Suspense fallback={<LoadingSpinner />}>
+                                <SignUpPage
+                                    onNavigateToSignIn={handleNavigateToSignIn}
+                                    onNavigateToLanding={handleNavigateToLanding}
+                                    onEnterDemoMode={() => navigate('/demo-dashboard')}
+                                    onNavigateToSection={(section) => { navigate('/'); setTimeout(() => setScrollToSection(section), 100); }}
+                                />
+                            </Suspense>
+                        )
+                    } />
+                    <Route path="/post-auth" element={
+                        <PostAuth authReady={authReady} session={session} role={role} roleReady={roleReady} />
                     } />
 
                     <Route path="/checkout/:slug?" element={
@@ -1379,27 +1534,19 @@ const App: React.FC = () => {
                         </Suspense>
                     } />
 
-                    {/* Demo Dashboard */}
-                    <Route path="/admin" element={
-                        isAdmin ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/" />
-                    } />
-                    <Route path="/admin-dashboard" element={<Navigate to="/admin/dashboard" replace />} />
-                    <Route path="/admin/:tab" element={
-                        isAdmin ? (
-                            <AdminDashboard />
-                        ) : (
-                            <Navigate to="/" />
-                        )
-                    } />
-                    <Route path="/admin/leads/:id/dashboard" element={
-                        isAdmin ? (
-                            <Suspense fallback={<LoadingSpinner />}>
-                                <LeadDetailDashboard leads={leads} />
-                            </Suspense>
-                        ) : (
-                            <Navigate to="/" />
-                        )
-                    } />
+                    {/* Admin Routes */}
+                    <Route element={<RequireAuth />}>
+                        <Route element={<RequireRole requiredRole="admin" />}>
+                            <Route path="/admin" element={<Navigate to="/admin/overview" replace />} />
+                            <Route path="/admin-dashboard" element={<Navigate to="/admin/overview" replace />} />
+                            <Route path="/admin/:tab" element={<AdminDashboard />} />
+                            <Route path="/admin/leads/:id/dashboard" element={
+                                <Suspense fallback={<LoadingSpinner />}>
+                                    <LeadDetailDashboard leads={leads} />
+                                </Suspense>
+                            } />
+                        </Route>
+                    </Route>
                     <Route path="/admin-login" element={
                         <AdminLogin
                             onLogin={handleAdminLogin}
@@ -1422,6 +1569,7 @@ const App: React.FC = () => {
 
 
                     {/* Protected Routes (Wrapped in Layout) */}
+                    <Route element={<RequireAuth />}>
                     <Route element={<ProtectedDashboardLayout />}>
                         <Route path="/dashboard" element={
                             <DashboardRouteGate />
@@ -1477,6 +1625,7 @@ const App: React.FC = () => {
                         <Route path="/dashboard/settings/billing" element={renderSettingsPage('billing')} />
                         <Route path="/dashboard/settings/notifications" element={renderSettingsPage('notifications')} />
                     </Route>
+                    </Route>
 
                     {/* Legacy/Misc Public Views */}
 
@@ -1500,7 +1649,7 @@ const App: React.FC = () => {
         <ImpersonationProvider>
             <AgentBrandingProvider>
                 <AISidekickProvider>
-                    <DashboardLayoutContext.Provider value={{ authReady, user, isAdmin, isDemoMode, isSidebarOpen, setIsSidebarOpen, logAuthBreadcrumb }}>
+                    <DashboardLayoutContext.Provider value={{ authReady, session, role, roleReady, user, isAdmin, isDemoMode, isSidebarOpen, setIsSidebarOpen, logAuthBreadcrumb }}>
                     <CheckoutContext.Provider value={{ onBackToSignup: handleNavigateToSignUp }}>
                     <ErrorBoundary>
                         <Suspense fallback={<LoadingSpinner />}>

@@ -139,8 +139,9 @@ const ResetPasswordPage: React.FC = () => {
             }
 
             console.log('✅ Password updated!');
-            setMessage('Success! Password updated. Redirecting...');
-            setTimeout(() => navigate('/dashboard'), 2000);
+            setMessage('Success! Password updated. Redirecting to sign in...');
+            await supabase.auth.signOut();
+            setTimeout(() => navigate('/signin?reason=reset_success', { replace: true }), 1200);
 
         } catch (err: unknown) {
             console.error('❌ Error caught:', err);

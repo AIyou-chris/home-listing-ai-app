@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../services/supabase';
 import { PublicHeader } from './layout/PublicHeader';
 import { PublicFooter } from './layout/PublicFooter';
@@ -12,16 +13,13 @@ interface SignInPageProps {
     onNavigateToAdmin?: () => void;
 }
 
-const SignInPage: React.FC<SignInPageProps> = ({ onNavigateToSignUp, onNavigateToLanding, onEnterDemoMode, onNavigateToAdmin }) => {
+const SignInPage: React.FC<SignInPageProps> = ({ onNavigateToSignUp, onNavigateToLanding: _onNavigateToLanding, onEnterDemoMode, onNavigateToAdmin }) => {
+    const navigate = useNavigate();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [isPasswordVisible, setIsPasswordVisible] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
-
-    // Active session check is handled by App.tsx FORCE AUTH REDIRECT useEffect.
-    // Do NOT call window.location.href here — that causes a full page reload
-    // which triggers the INITIAL_SESSION race condition in onAuthStateChange.
 
     const handleSignIn = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -55,7 +53,7 @@ const SignInPage: React.FC<SignInPageProps> = ({ onNavigateToSignUp, onNavigateT
                 throw result.error;
             }
 
-            console.log('✅ Sign In Success! Session Established. onAuthStateChange will handle navigation.');
+            navigate('/post-auth', { replace: true });
 
         } catch (err: unknown) {
             const message = err instanceof Error ? err.message : 'An unexpected error occurred';
