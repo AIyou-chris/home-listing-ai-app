@@ -22,7 +22,7 @@ async function makePublic() {
     const { data, error } = await supabaseAdmin.storage
         .updateBucket('ai-card-assets', {
             public: true,
-            fileSizeLimit: 5242880, // 5MB
+            fileSizeLimit: 10485760, // 10MB
             allowedMimeTypes: ['image/png', 'image/jpeg', 'image/gif', 'image/webp']
         });
 
