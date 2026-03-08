@@ -17,6 +17,7 @@ import {
 import { publishListingShareKit } from '../../services/dashboardCommandService'
 import { getLocalListingDraft, saveLocalListingDraft } from '../../services/listingDraftStorage'
 import { uploadListingPhoto } from '../../services/listingMediaService'
+import FairHousingScannerModal from '../modals/FairHousingScannerModal'
 
 type EditorSection = 'essentials' | 'photos' | 'brain'
 
@@ -125,6 +126,7 @@ const ListingEditorPage: React.FC = () => {
   const [sourceBusy, setSourceBusy] = useState(false)
   const [generatingDesc, setGeneratingDesc] = useState(false)
   const [publishing, setPublishing] = useState(false)
+  const [fairHousingOpen, setFairHousingOpen] = useState(false)
 
   // Brain modal — replaces window.prompt()
   const [brainModal, setBrainModal] = useState<{ type: 'text' | 'url'; value: string } | null>(null)
@@ -664,24 +666,33 @@ const ListingEditorPage: React.FC = () => {
               <div className="rounded-xl border border-slate-100 bg-slate-50 p-5">
                 <div className="mb-3 flex items-center justify-between">
                   <label className={sectionLabel}>About This Home</label>
-                  <button
-                    type="button"
-                    onClick={() => void handleGenerateDescription()}
-                    disabled={generatingDesc || saving}
-                    className="flex items-center gap-1.5 rounded-lg border border-primary-200 bg-primary-50 px-3 py-1.5 text-xs font-semibold text-primary-700 transition hover:bg-primary-100 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {generatingDesc ? (
-                      <>
-                        <svg className="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-                        </svg>
-                        Writing…
-                      </>
-                    ) : (
-                      <>✨ Write with AI</>
-                    )}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setFairHousingOpen(true)}
+                      className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+                    >
+                      Fair Housing Scan
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleGenerateDescription()}
+                      disabled={generatingDesc || saving}
+                      className="flex items-center gap-1.5 rounded-lg border border-primary-200 bg-primary-50 px-3 py-1.5 text-xs font-semibold text-primary-700 transition hover:bg-primary-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {generatingDesc ? (
+                        <>
+                          <svg className="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                          </svg>
+                          Writing…
+                        </>
+                      ) : (
+                        <>✨ Write with AI</>
+                      )}
+                    </button>
+                  </div>
                 </div>
                 <textarea
                   rows={7}
@@ -1026,6 +1037,12 @@ const ListingEditorPage: React.FC = () => {
         </div>
       </div>
     )}
+    <FairHousingScannerModal
+      open={fairHousingOpen}
+      onClose={() => setFairHousingOpen(false)}
+      initialText={draft.description || ''}
+      contextLabel="Listing Editor"
+    />
     </>
   )
 }
