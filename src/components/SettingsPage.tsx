@@ -39,6 +39,26 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
     initialTab = 'profile'
 }) => {
     const [activeTab, setActiveTab] = useState<'profile' | 'notifications' | 'security' | 'billing'>(initialTab);
+    const [refreshingApp, setRefreshingApp] = useState(false);
+
+    const hardRefreshApp = async () => {
+        if (refreshingApp) return;
+        setRefreshingApp(true);
+        try {
+            if ('serviceWorker' in navigator) {
+                const regs = await navigator.serviceWorker.getRegistrations();
+                await Promise.all(regs.map((reg) => reg.unregister()));
+            }
+            if ('caches' in window) {
+                const keys = await caches.keys();
+                await Promise.all(keys.map((key) => caches.delete(key)));
+            }
+        } catch (_error) {
+            // no-op
+        } finally {
+            window.location.reload();
+        }
+    };
 
     React.useEffect(() => {
         setActiveTab(initialTab);
@@ -158,6 +178,16 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                                 agentProfile={userProfile}
                             />
                         )}
+                        <div className="mt-6 flex justify-end px-2 pb-4">
+                            <button
+                                type="button"
+                                onClick={() => void hardRefreshApp()}
+                                disabled={refreshingApp}
+                                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                                {refreshingApp ? 'Refreshing…' : 'Refresh app'}
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>

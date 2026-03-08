@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import { HelmetProvider } from 'react-helmet-async'
+import { registerSW } from 'virtual:pwa-register'
 import './index.css'
 import App from './App'
 import ErrorBoundary from './components/ErrorBoundary'
@@ -10,6 +11,18 @@ import { ImpersonationProvider } from './context/ImpersonationContext'
 
 const rootElement = document.getElementById('root')!
 const root = createRoot(rootElement)
+
+if (import.meta.env.PROD) {
+  registerSW({
+    immediate: true,
+    onNeedRefresh() {
+      window.location.reload()
+    },
+    onOfflineReady() {
+      // no-op
+    }
+  })
+}
 
 root.render(
   <StrictMode>
