@@ -3,10 +3,12 @@ import { BillingSettings } from '../../types';
 import {
   createBillingCheckoutSession,
   createBillingPortalSession,
+  deleteDashboardAccount,
   fetchDashboardBilling,
   type DashboardBillingSnapshot,
   type PlanId
 } from '../../services/dashboardBillingService';
+import { supabase } from '../../services/supabase';
 import { FeatureSection } from './SettingsCommon';
 
 interface BillingSettingsProps {
@@ -15,6 +17,7 @@ interface BillingSettingsProps {
   onBack?: () => void;
   isLoading?: boolean;
   isBlueprintMode?: boolean;
+  agentProfile?: unknown;
 }
 
 type PaidPlanId = Exclude<PlanId, 'free'>;
@@ -56,12 +59,15 @@ const BillingSettingsPage: React.FC<BillingSettingsProps> = ({
   onSave: _onSave,
   onBack: _onBack,
   isLoading: _isLoading,
-  isBlueprintMode
+  isBlueprintMode,
+  agentProfile: _agentProfile
 }) => {
   const [snapshot, setSnapshot] = useState<DashboardBillingSnapshot | null>(null);
   const [loadingSnapshot, setLoadingSnapshot] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<'starter' | 'pro' | 'portal' | null>(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState('');
+  const [deleteBusy, setDeleteBusy] = useState(false);
   const comparisonRef = useRef<HTMLDivElement | null>(null);
 
   const loadSnapshot = useCallback(async () => {
@@ -129,6 +135,31 @@ const BillingSettingsPage: React.FC<BillingSettingsProps> = ({
       proDisabled: busy !== null || currentPlanId === 'pro'
     };
   }, [busy, currentPlanId]);
+
+  const deleteEnabled = deleteConfirmation.trim().toUpperCase() === 'DELETE' && !deleteBusy;
+
+  const handleDeleteAccount = async () => {
+    setError(null);
+    if (!deleteEnabled) {
+      setError('Type DELETE to confirm account removal.');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      'Delete your entire account and all associated data? This cannot be undone.'
+    );
+    if (!confirmed) return;
+
+    try {
+      setDeleteBusy(true);
+      await deleteDashboardAccount('DELETE');
+      await supabase.auth.signOut();
+      window.location.href = '/signin?reason=account_deleted';
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete account.');
+      setDeleteBusy(false);
+    }
+  };
 
   return (
     <div className="p-8 space-y-8 animate-fadeIn">
@@ -315,6 +346,35 @@ const BillingSettingsPage: React.FC<BillingSettingsProps> = ({
           ) : (
             <div className="p-8 text-center text-slate-500">No billing history available yet.</div>
           )}
+        </div>
+      </FeatureSection>
+
+      <FeatureSection title="Danger zone" icon="warning">
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5 shadow-sm">
+          <h3 className="text-base font-semibold text-rose-900">Delete account</h3>
+          <p className="mt-1 text-sm text-rose-700">
+            This permanently deletes your account, listings, leads, and billing profile.
+          </p>
+          <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-rose-700">
+            Type DELETE to confirm
+          </p>
+          <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+            <input
+              type="text"
+              value={deleteConfirmation}
+              onChange={(event) => setDeleteConfirmation(event.target.value)}
+              placeholder="DELETE"
+              className="w-full rounded-lg border border-rose-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-rose-400 focus:outline-none focus:ring-2 focus:ring-rose-200 sm:max-w-xs"
+            />
+            <button
+              type="button"
+              onClick={() => void handleDeleteAccount()}
+              disabled={!deleteEnabled}
+              className="rounded-lg border border-rose-300 bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {deleteBusy ? 'Deleting…' : 'Delete my account'}
+            </button>
+          </div>
         </div>
       </FeatureSection>
     </div>
