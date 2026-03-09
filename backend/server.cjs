@@ -4466,7 +4466,19 @@ const enqueueLeadCaptureNotifications = async ({
 
   // Push/in-app notification
   try {
-    const { error } = await supabaseAdmin
+    const notificationPayload = {
+      type: 'lead',
+      entityType: 'lead',
+      entityId: String(lead.id || ''),
+      route: `/dashboard/leads/${encodeURIComponent(String(lead.id || ''))}`,
+      routeParams: {
+        leadId: String(lead.id || '')
+      },
+      fallbackLabel: 'Lead no longer available.',
+      createdAt: nowIso()
+    };
+
+    let { error } = await supabaseAdmin
       .from('notifications')
       .insert({
         user_id: lead.agent_id,
@@ -4474,8 +4486,27 @@ const enqueueLeadCaptureNotifications = async ({
         content: `${fullName || 'Unknown lead'} captured from ${listing.address || 'a listing'}.`,
         type: 'lead',
         priority: 'high',
-        is_read: false
+        is_read: false,
+        payload: notificationPayload,
+        entity_type: 'lead',
+        entity_id: String(lead.id || ''),
+        route: `/dashboard/leads/${encodeURIComponent(String(lead.id || ''))}`,
+        route_params: { leadId: String(lead.id || '') },
+        fallback_label: 'Lead no longer available.'
       });
+    if (error && /column .*payload|column .*entity_type|column .*entity_id|column .*route|column .*route_params|column .*fallback_label/i.test(String(error.message || ''))) {
+      const fallback = await supabaseAdmin
+        .from('notifications')
+        .insert({
+          user_id: lead.agent_id,
+          title: 'New lead captured',
+          content: `${fullName || 'Unknown lead'} captured from ${listing.address || 'a listing'}.`,
+          type: 'lead',
+          priority: 'high',
+          is_read: false
+        });
+      error = fallback.error;
+    }
     if (error) throw error;
     attempts.push({ channel: 'push', status: 'queued' });
   } catch (error) {
@@ -14208,6 +14239,11 @@ app.post('/api/leads/capture', async (req, res) => {
 const resolveDashboardOwnerId = (req) =>
   String(req.body?.agentId || req.query.agentId || req.headers['x-user-id'] || req.headers['x-agent-id'] || DEFAULT_LEAD_USER_ID || '');
 
+const resolveDashboardOwnerIdStrict = async (req) => {
+  const requesterUserId = await resolveRequesterUserId(req, { allowDefault: false });
+  return requesterUserId ? String(requesterUserId) : '';
+};
+
 app.get('/api/dashboard/onboarding', async (req, res) => {
   try {
     const agentId = await resolveRequesterUserId(req, { allowDefault: false });
@@ -14424,6 +14460,130 @@ app.get('/api/dashboard/billing', async (req, res) => {
     res.status(500).json({ error: 'failed_to_load_billing_snapshot' });
   }
 });
+
+const handleDashboardBillingStatus = async (req, res) => {
+  const safeDefaults = {
+    plan_id: 'free',
+    plan_status: 'active',
+    trial_ends_at: null,
+    current_period_end: null,
+    past_due_reason: null
+  };
+
+  const normalizePlanId = (value) => {
+    const normalized = String(value || '').trim().toLowerCase();
+    return normalized === 'starter' || normalized === 'pro' ? normalized : 'free';
+  };
+
+  const mapStatus = (value) => {
+    const normalized = String(value || '').trim().toLowerCase();
+    if (normalized === 'active') return 'active';
+    if (normalized === 'trialing') return 'trialing';
+    if (normalized === 'past_due' || normalized === 'unpaid') return 'past_due';
+    if (normalized === 'canceled' || normalized === 'cancelled' || normalized === 'incomplete_expired') return 'canceled';
+    if (normalized === 'incomplete') return 'past_due';
+    return 'active';
+  };
+
+  const toIsoOrNull = (value) => {
+    if (!value) return null;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return null;
+    return date.toISOString();
+  };
+
+  try {
+    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!agentId) return res.status(401).json({ error: 'unauthorized' });
+
+    let result = { ...safeDefaults };
+    let subscription = null;
+
+    try {
+      subscription = await billingEngine.getOrCreateSubscription(agentId);
+    } catch (error) {
+      console.warn('[BillingStatus] Failed to load local subscription, using safe defaults:', error?.message || error);
+    }
+
+    if (subscription) {
+      const localStatus = mapStatus(subscription.status);
+      result = {
+        plan_id: normalizePlanId(subscription.plan_id),
+        plan_status: localStatus,
+        trial_ends_at: localStatus === 'trialing' ? toIsoOrNull(subscription.current_period_end) : null,
+        current_period_end: toIsoOrNull(subscription.current_period_end),
+        past_due_reason: localStatus === 'past_due' ? 'payment_required' : null
+      };
+    }
+
+    const stripeSubscriptionId = String(subscription?.stripe_subscription_id || '').trim();
+    if (stripeSubscriptionId && stripe) {
+      try {
+        const stripeSubscription = await stripe.subscriptions.retrieve(stripeSubscriptionId, {
+          expand: ['latest_invoice.payment_intent', 'items.data.price']
+        });
+
+        const stripeStatus = mapStatus(stripeSubscription?.status);
+        result.plan_status = stripeStatus;
+
+        const currentPeriodEndUnix = Number(stripeSubscription?.current_period_end || 0);
+        if (currentPeriodEndUnix > 0) {
+          result.current_period_end = new Date(currentPeriodEndUnix * 1000).toISOString();
+        }
+
+        const trialEndUnix = Number(stripeSubscription?.trial_end || 0);
+        if (trialEndUnix > 0) {
+          result.trial_ends_at = new Date(trialEndUnix * 1000).toISOString();
+        } else if (stripeStatus !== 'trialing') {
+          result.trial_ends_at = null;
+        }
+
+        const priceId = stripeSubscription?.items?.data?.[0]?.price?.id || null;
+        if (priceId) {
+          try {
+            const plans = await billingEngine.loadPlanRows();
+            const matchedPlan = Object.values(plans || {}).find(
+              (plan) => String(plan?.stripe_price_id || '') === String(priceId)
+            );
+            if (matchedPlan?.id) {
+              result.plan_id = normalizePlanId(matchedPlan.id);
+            }
+          } catch (error) {
+            console.warn('[BillingStatus] Failed to map stripe price to plan id:', error?.message || error);
+          }
+        }
+
+        if (stripeStatus === 'past_due') {
+          const invoice = stripeSubscription?.latest_invoice || null;
+          const paymentIntent = invoice?.payment_intent || null;
+          const providerCode = String(
+            paymentIntent?.last_payment_error?.code ||
+            paymentIntent?.status ||
+            invoice?.status ||
+            'payment_required'
+          ).trim();
+          result.past_due_reason = providerCode || 'payment_required';
+        } else {
+          result.past_due_reason = null;
+        }
+      } catch (error) {
+        console.warn('[BillingStatus] Failed to load stripe subscription, using local status:', error?.message || error);
+      }
+    }
+
+    if (!subscription) {
+      result = { ...safeDefaults };
+    }
+
+    return res.json(result);
+  } catch (error) {
+    console.error('[BillingStatus] Unexpected error, returning safe defaults:', error?.message || error);
+    return res.json({ ...safeDefaults });
+  }
+};
+
+app.get('/api/dashboard/billing/status', handleDashboardBillingStatus);
+app.get('/api/billing/status', handleDashboardBillingStatus);
 
 app.get('/api/dashboard/billing/usage', async (req, res) => {
   try {
@@ -14778,7 +14938,7 @@ const loadDashboardAppointmentsWindow = async ({ agentId, fromIso, toIso }) => {
 
 app.post('/api/dashboard/agent-actions', async (req, res) => {
   try {
-    const agentId = resolveDashboardOwnerId(req);
+    const agentId = await resolveDashboardOwnerIdStrict(req);
     const leadId = req.body?.lead_id ? String(req.body.lead_id) : null;
     const action = req.body?.action ? String(req.body.action) : null;
     const metadata = req.body?.metadata && typeof req.body.metadata === 'object' ? req.body.metadata : {};
@@ -14792,7 +14952,7 @@ app.post('/api/dashboard/agent-actions', async (req, res) => {
       'appointment_updated'
     ]);
 
-    if (!agentId) return res.status(400).json({ error: 'agent_id_required' });
+    if (!agentId) return res.status(401).json({ error: 'unauthorized' });
     if (!leadId) return res.status(400).json({ error: 'lead_id_required' });
     if (!action || !allowedActions.has(action)) return res.status(400).json({ error: 'invalid_action' });
 
@@ -14977,9 +15137,9 @@ const enqueueManualReminderForAppointment = async ({
 app.get('/api/dashboard/appointments/:appointmentId/reminders', async (req, res) => {
   try {
     const { appointmentId } = req.params;
-    const agentId = resolveDashboardOwnerId(req);
+    const agentId = await resolveDashboardOwnerIdStrict(req);
     if (!appointmentId) return res.status(400).json({ error: 'appointment_id_required' });
-    if (!agentId) return res.status(400).json({ error: 'agent_id_required' });
+    if (!agentId) return res.status(401).json({ error: 'unauthorized' });
 
     const scoped = await loadScopedAppointmentForDashboard({ appointmentId, agentId });
     if (scoped.error) return res.status(scoped.status).json({ error: scoped.error });
@@ -15018,10 +15178,10 @@ app.get('/api/dashboard/appointments/:appointmentId/reminders', async (req, res)
 app.post('/api/dashboard/appointments/:appointmentId/reminders/:reminderId/retry', async (req, res) => {
   try {
     const { appointmentId, reminderId } = req.params;
-    const agentId = resolveDashboardOwnerId(req);
+    const agentId = await resolveDashboardOwnerIdStrict(req);
     if (!appointmentId) return res.status(400).json({ error: 'appointment_id_required' });
     if (!reminderId) return res.status(400).json({ error: 'reminder_id_required' });
-    if (!agentId) return res.status(400).json({ error: 'agent_id_required' });
+    if (!agentId) return res.status(401).json({ error: 'unauthorized' });
 
     const scoped = await loadScopedAppointmentForDashboard({ appointmentId, agentId });
     if (scoped.error) return res.status(scoped.status).json({ error: scoped.error });
@@ -15073,9 +15233,9 @@ app.post('/api/dashboard/appointments/:appointmentId/reminders/:reminderId/retry
 app.post('/api/dashboard/appointments/:appointmentId/reminders/send-now', async (req, res) => {
   try {
     const { appointmentId } = req.params;
-    const agentId = resolveDashboardOwnerId(req);
+    const agentId = await resolveDashboardOwnerIdStrict(req);
     if (!appointmentId) return res.status(400).json({ error: 'appointment_id_required' });
-    if (!agentId) return res.status(400).json({ error: 'agent_id_required' });
+    if (!agentId) return res.status(401).json({ error: 'unauthorized' });
 
     const scoped = await loadScopedAppointmentForDashboard({ appointmentId, agentId });
     if (scoped.error) return res.status(scoped.status).json({ error: scoped.error });
@@ -15145,9 +15305,9 @@ app.post('/api/dashboard/appointments/:appointmentId/reminders/send-now', async 
 app.post('/api/dashboard/appointments/:appointmentId/reminders/disable', async (req, res) => {
   try {
     const { appointmentId } = req.params;
-    const agentId = resolveDashboardOwnerId(req);
+    const agentId = await resolveDashboardOwnerIdStrict(req);
     if (!appointmentId) return res.status(400).json({ error: 'appointment_id_required' });
-    if (!agentId) return res.status(400).json({ error: 'agent_id_required' });
+    if (!agentId) return res.status(401).json({ error: 'unauthorized' });
 
     const scoped = await loadScopedAppointmentForDashboard({ appointmentId, agentId });
     if (scoped.error) return res.status(scoped.status).json({ error: scoped.error });
@@ -15187,9 +15347,9 @@ app.post('/api/dashboard/appointments/:appointmentId/reminders/disable', async (
 app.post('/api/dashboard/reminders/:appointmentId/retry', async (req, res) => {
   try {
     const { appointmentId } = req.params;
-    const agentId = resolveDashboardOwnerId(req);
+    const agentId = await resolveDashboardOwnerIdStrict(req);
     if (!appointmentId) return res.status(400).json({ error: 'appointment_id_required' });
-    if (!agentId) return res.status(400).json({ error: 'agent_id_required' });
+    if (!agentId) return res.status(401).json({ error: 'unauthorized' });
 
     const scoped = await loadScopedAppointmentForDashboard({ appointmentId, agentId });
     if (scoped.error) return res.status(scoped.status).json({ error: scoped.error });
@@ -15228,8 +15388,8 @@ app.post('/api/dashboard/reminders/:appointmentId/retry', async (req, res) => {
 
 app.get('/api/dashboard/command-center', async (req, res) => {
   try {
-    const agentId = resolveDashboardOwnerId(req);
-    if (!agentId) return res.status(400).json({ error: 'agent_id_required' });
+    const agentId = await resolveDashboardOwnerIdStrict(req);
+    if (!agentId) return res.status(401).json({ error: 'unauthorized' });
 
     const loadRecentConfirmations = async () => {
       const sinceIso = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
@@ -15463,10 +15623,10 @@ app.get('/api/dashboard/leads', async (req, res) => {
     const intentFilter = req.query.intent ? String(req.query.intent) : null;
     const timeframe = req.query.timeframe ? String(req.query.timeframe) : null;
     const sortMode = req.query.sort ? String(req.query.sort) : 'hot_first';
-    const agentId = String(req.query.agentId || req.headers['x-user-id'] || req.headers['x-agent-id'] || DEFAULT_LEAD_USER_ID || '');
+    const agentId = await resolveDashboardOwnerIdStrict(req);
 
     if (!agentId) {
-      return res.status(400).json({ error: 'agent_id_required' });
+      return res.status(401).json({ error: 'unauthorized' });
     }
 
     let fromDateIso = null;
@@ -15604,8 +15764,9 @@ app.get('/api/dashboard/leads', async (req, res) => {
 app.get('/api/dashboard/leads/:leadId', async (req, res) => {
   try {
     const { leadId } = req.params;
-    const agentId = String(req.query.agentId || req.headers['x-user-id'] || req.headers['x-agent-id'] || DEFAULT_LEAD_USER_ID || '');
+    const agentId = await resolveDashboardOwnerIdStrict(req);
     const shouldRefreshIntel = String(req.query.refreshIntel || 'false').toLowerCase() === 'true';
+    if (!agentId) return res.status(401).json({ error: 'unauthorized' });
 
     const baseLeadQuery = supabaseAdmin
       .from('leads')
@@ -15802,7 +15963,8 @@ app.get('/api/dashboard/leads/:leadId', async (req, res) => {
 app.get('/api/dashboard/leads/:leadId/conversation', async (req, res) => {
   try {
     const { leadId } = req.params;
-    const agentId = String(req.query.agentId || req.headers['x-user-id'] || req.headers['x-agent-id'] || DEFAULT_LEAD_USER_ID || '');
+    const agentId = await resolveDashboardOwnerIdStrict(req);
+    if (!agentId) return res.status(401).json({ error: 'unauthorized' });
 
     const runLeadScopeQuery = (ownerMode = 'agent_or_user') => {
       let scoped = supabaseAdmin
@@ -15887,6 +16049,7 @@ app.get('/api/dashboard/leads/:leadId/conversation', async (req, res) => {
 app.patch('/api/dashboard/leads/:leadId/status', async (req, res) => {
   try {
     const { leadId } = req.params;
+    const agentId = await resolveDashboardOwnerIdStrict(req);
     const updates = req.body || {};
     const allowedStatus = ['New', 'Contacted', 'Nurture', 'Closed-Lost'];
     const status = allowedStatus.includes(updates.status) ? updates.status : null;
@@ -15902,6 +16065,31 @@ app.patch('/api/dashboard/leads/:leadId/status', async (req, res) => {
       working_with_agent: updates.working_with_agent || undefined,
       updated_at: nowIso()
     };
+
+    if (!agentId) return res.status(401).json({ error: 'unauthorized' });
+
+    const runLeadScopeQuery = async (ownerMode = 'agent_or_user') => {
+      let scoped = supabaseAdmin
+        .from('leads')
+        .select('id, agent_id, user_id')
+        .eq('id', leadId)
+        .limit(1);
+      scoped = ownerMode === 'agent_or_user'
+        ? scoped.or(`agent_id.eq.${agentId},user_id.eq.${agentId}`)
+        : scoped.eq('user_id', agentId);
+      return scoped;
+    };
+
+    let { data: leadRows, error: leadScopeError } = await runLeadScopeQuery('agent_or_user');
+    if (leadScopeError && /agent_id/i.test(leadScopeError.message || '')) {
+      const fallback = await runLeadScopeQuery('user_only');
+      leadRows = fallback.data;
+      leadScopeError = fallback.error;
+    }
+    if (leadScopeError) throw leadScopeError;
+    if (!Array.isArray(leadRows) || leadRows.length === 0) {
+      return res.status(404).json({ error: 'lead_not_found' });
+    }
 
     const { data: updatedLead, error } = await supabaseAdmin
       .from('leads')
@@ -17887,7 +18075,8 @@ app.get('/api/dashboard/listings/:listingId/performance', async (req, res) => {
 app.get('/api/dashboard/appointments', async (req, res) => {
   try {
     const view = String(req.query.view || 'week').toLowerCase();
-    const agentId = String(req.query.agentId || req.headers['x-user-id'] || req.headers['x-agent-id'] || DEFAULT_LEAD_USER_ID || '');
+    const agentId = await resolveDashboardOwnerIdStrict(req);
+    if (!agentId) return res.status(401).json({ error: 'unauthorized' });
     const now = new Date();
     const start = view === 'today'
       ? new Date(now.getFullYear(), now.getMonth(), now.getDate())
@@ -23939,8 +24128,10 @@ app.post(['/api/voice/hume/connect', '/api/voice/telnyx/events'], async (req, re
   res.status(410).json({ error: 'Legacy Hume/Telnyx bridge is removed. Use /api/voice/vapi/webhook.' });
 });
 
-const server = app.listen(port, '0.0.0.0', () => {
-  console.log(`🚀 AI Server running on http://0.0.0.0:${port}`);
+const listenHost = process.env.HOST || (process.env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1');
+
+const server = app.listen(port, listenHost, () => {
+  console.log(`🚀 AI Server running on http://${listenHost}:${port}`);
   console.log('📝 Available endpoints:');
   console.log('   POST /api/continue-conversation');
   console.log('   POST /api/generate-speech');
