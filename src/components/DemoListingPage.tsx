@@ -44,19 +44,7 @@ const DemoListingPage: React.FC = () => {
   }
 
   return (
-    <div className='min-h-screen bg-slate-50 flex items-center justify-center p-6'>
-      <div className='max-w-5xl w-full grid md:grid-cols-2 gap-8 items-start'>
-        <div>
-          <h1 className='text-2xl font-bold text-slate-900 mb-2'>Demo Listing App</h1>
-          <p className='text-slate-600 mb-4'>Preview the end-user experience without creating a listing.</p>
-          <button onClick={() => setOpen(true)} className='px-4 py-2 rounded-lg bg-slate-900 text-white'>Open Demo</button>
-        </div>
-        <div className='hidden md:block'>
-          <div className='rounded-2xl border border-slate-200 p-4 bg-white'>
-            <div className='text-sm text-slate-600'>This demo uses sample data and your new layout: sticky “Talk to the Home” bar, To Listing/Media buttons, See the house, Map, and Gallery.</div>
-          </div>
-        </div>
-      </div>
+    <>
       {open && (
         <>
           <PublicPropertyApp
@@ -74,7 +62,7 @@ const DemoListingPage: React.FC = () => {
           />
         </>
       )}
-    </div>
+    </>
   )
 }
 

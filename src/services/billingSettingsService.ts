@@ -37,10 +37,20 @@ export const billingSettingsService = {
     return data.settings as BillingSettings
   },
 
-  async createCheckoutSession(userId: string, email?: string): Promise<{ url: string }> {
-    const fallbackPriceId = 'price_1SeMLsGtlY59RT0yAVUe2vTJ'
-    const rawPriceId = (import.meta as unknown as { env?: Record<string, unknown> })?.env?.VITE_STRIPE_PRO_PRICE_ID
-    const priceId = typeof rawPriceId === 'string' && rawPriceId.trim() ? rawPriceId : fallbackPriceId
+  async createCheckoutSession(userId: string, email?: string, plan: 'starter' | 'pro' = 'pro'): Promise<{ url: string }> {
+    const env = (import.meta as unknown as { env?: Record<string, unknown> })?.env || {}
+    const starterPriceId =
+      typeof env.VITE_STRIPE_STARTER_PRICE_ID === 'string' && env.VITE_STRIPE_STARTER_PRICE_ID.trim()
+        ? env.VITE_STRIPE_STARTER_PRICE_ID
+        : null
+    const proPriceId =
+      typeof env.VITE_STRIPE_PRO_PRICE_ID === 'string' && env.VITE_STRIPE_PRO_PRICE_ID.trim()
+        ? env.VITE_STRIPE_PRO_PRICE_ID
+        : null
+    const priceId = plan === 'starter' ? (starterPriceId || proPriceId) : (proPriceId || starterPriceId)
+    if (!priceId) {
+      throw new Error('Missing Stripe price IDs. Set VITE_STRIPE_STARTER_PRICE_ID and VITE_STRIPE_PRO_PRICE_ID.')
+    }
     const appBase = (import.meta as unknown as { env?: Record<string, unknown> })?.env?.VITE_APP_URL
     const baseUrl = typeof appBase === 'string' && appBase.trim() ? appBase : window.location.origin
 
@@ -54,8 +64,8 @@ export const billingSettingsService = {
         email,
         priceId,
         mode: 'subscription',
-        successUrl: `${baseUrl}/dashboard?checkout=success`,
-        cancelUrl: `${baseUrl}/dashboard?checkout=cancelled`
+        successUrl: `${baseUrl}/dashboard/settings/billing?checkout=success`,
+        cancelUrl: `${baseUrl}/dashboard/settings/billing?checkout=cancelled`
       })
     })
 

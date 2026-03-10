@@ -206,10 +206,10 @@ const SignUpPage = ({ onNavigateToSignIn, onNavigateToLanding: _onNavigateToLand
                                         )}
                                     </button>
                                     {isSubmitting && (
-                                    <div className="mt-4 text-center animate-pulse">
+                                        <div className="mt-4 text-center animate-pulse">
                                             <p className="text-sm text-slate-400 font-light">Signing you in...</p>
-                                    </div>
-                                )}
+                                        </div>
+                                    )}
                                 </div>
                             </form>
 

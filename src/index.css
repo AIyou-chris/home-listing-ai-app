@@ -2,6 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
 /* Custom animations for background elements and parallax effects */
 @keyframes float {
   0%, 100% { transform: translateY(0px); }

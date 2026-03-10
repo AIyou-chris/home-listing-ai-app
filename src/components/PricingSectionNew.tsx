@@ -92,7 +92,7 @@ export const PricingSectionNew: React.FC<PricingProps> = ({ onNavigateToSignUp, 
                         <div className="mb-8">
                             <h3 className="text-2xl font-bold text-white mb-2">Starter</h3>
                             <div className="flex items-baseline gap-1 mb-4">
-                                <span className="text-5xl font-extrabold text-white">$34</span>
+                                <span className="text-5xl font-extrabold text-white">$39</span>
                                 <span className="text-slate-400">/ month</span>
                             </div>
                             <p className="text-slate-400 text-sm h-10">For agents running a handful of listings.</p>
@@ -261,7 +261,7 @@ export const PricingSectionNew: React.FC<PricingProps> = ({ onNavigateToSignUp, 
                             onClick={onNavigateToSignUp}
                             className="w-full sm:w-auto px-8 py-4 bg-white text-slate-950 hover:bg-slate-200 font-bold rounded-lg transition-all text-lg flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(255,255,255,0.2)]"
                         >
-                            Start Free Trial
+                            Create Free Account
                         </button>
                     </div>
                     <p className="text-slate-500 text-sm font-medium">

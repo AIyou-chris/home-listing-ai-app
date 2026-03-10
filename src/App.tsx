@@ -1,5 +1,5 @@
 import React, { useState, useEffect, Suspense, lazy, useCallback, useRef } from 'react';
-import { Routes, Route, useNavigate, useLocation, Navigate, Outlet, useParams } from 'react-router-dom';
+import { Routes, Route, useNavigate, useLocation, Navigate, Outlet } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from './services/supabase';
 import { Property, View, AgentProfile, NotificationSettings, EmailSettings, CalendarSettings, BillingSettings, Lead, Appointment, Interaction } from './types';
@@ -11,9 +11,8 @@ const SignUpPage = lazy(() => import('./components/SignUpPage'));
 const SignInPage = lazy(() => import('./components/SignInPage'));
 const ForgotPasswordPage = lazy(() => import('./components/ForgotPasswordPage'));
 const ResetPasswordPage = lazy(() => import('./components/ResetPasswordPage'));
-const CheckoutPage = lazy(() => import('./components/CheckoutPage'));
 import { Toaster } from 'react-hot-toast';
-import { getRegistrationContext } from './services/agentOnboardingService';
+import { showToast } from './utils/toastService';
 
 const WhiteLabelPage = lazy(() => import('./pages/WhiteLabelPage'));
 
@@ -167,7 +166,6 @@ interface DashboardLayoutContextValue {
     logAuthBreadcrumb: (eventType: string, session: { expires_at?: number; user?: { id?: string } } | null) => void;
 }
 const DashboardLayoutContext = React.createContext<DashboardLayoutContextValue | null>(null);
-const CheckoutContext = React.createContext<{ onBackToSignup: () => void } | null>(null);
 // ────────────────────────────────────────────────────────────────────────────
 
 const AuthGateSpinner: React.FC<{ text?: string }> = ({ text = 'Checking session...' }) => (
@@ -371,33 +369,23 @@ const ProtectedDashboardLayout: React.FC = () => {
 
 // ─── CheckoutRouteWrapper (module-level, stable identity) ─────────────────────
 const CheckoutRouteWrapper: React.FC = () => {
-    const params = useParams<{ slug?: string }>();
-    const ctx = React.useContext(CheckoutContext)!;
-    const registrationContext = getRegistrationContext() as { slug?: string } | null;
-    const slugForCheckout = params.slug || registrationContext?.slug || null;
+    const ctx = React.useContext(DashboardLayoutContext)!;
+    const navigate = useNavigate();
+    const hasRedirected = React.useRef(false);
+    const isLoggedIn = Boolean(ctx.session || ctx.user || ctx.isAdmin);
 
-    if (!slugForCheckout) {
-        return (
-            <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 px-6 text-center">
-                <div className="max-w-md space-y-4">
-                    <h2 className="text-xl font-semibold text-slate-800">We could not find your registration</h2>
-                    <p className="text-sm text-slate-600">
-                        Your secure checkout link may have expired. Please restart the signup process to generate a new link.
-                    </p>
-                    <button
-                        type="button"
-                        onClick={ctx.onBackToSignup}
-                        className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-500 transition"
-                    >
-                        <span className="material-symbols-outlined text-base">person_add</span>
-                        Start new signup
-                    </button>
-                </div>
-            </div>
-        );
-    }
+    useEffect(() => {
+        if (hasRedirected.current) return;
+        hasRedirected.current = true;
+        showToast.info('Billing is managed in your Dashboard → Settings → Billing.');
+        navigate(isLoggedIn ? '/dashboard/settings/billing' : '/signup', { replace: true });
+    }, [isLoggedIn, navigate]);
 
-    return <CheckoutPage slug={slugForCheckout} onBackToSignup={ctx.onBackToSignup} />;
+    return (
+        <div className="flex h-screen items-center justify-center bg-slate-50">
+            <LoadingSpinner size="lg" type="dots" text="Redirecting..." />
+        </div>
+    );
 };
 // ────────────────────────────────────────────────────────────────────────────
 
@@ -422,6 +410,14 @@ const App: React.FC = () => {
 
     // We treat 'view' as derived state now
     const view = getCurrentView();
+    const pathname = location.pathname || '';
+    const isPublicListingRoute = (
+        pathname.startsWith('/draft-listing') ||
+        pathname.startsWith('/listing/') ||
+        pathname.startsWith('/l/') ||
+        pathname.startsWith('/demo-listing') ||
+        (pathname.includes('/demo-') && pathname.includes('listing'))
+    );
 
     const shouldNoindexRoute = useCallback((pathname: string) => {
         const privatePrefixes = [
@@ -961,7 +957,7 @@ const App: React.FC = () => {
                         const urlParams = new URLSearchParams(window.location.search);
                         const next = urlParams.get('next'); // e.g. /checkout
                         if (next) {
-                            navigate(next);
+                            navigate(next.startsWith('/checkout') ? '/dashboard/settings/billing' : next);
                         } else {
                             navigate('/dashboard');
                         }
@@ -1349,7 +1345,6 @@ const App: React.FC = () => {
         );
     }
 
-
     // CheckoutRouteWrapper is defined at module level above for stable component identity.
 
 
@@ -1504,7 +1499,9 @@ const App: React.FC = () => {
                         <Route path="listings" element={<ListingsCommandPage />} />
                         <Route path="listings/:listingId" element={<ListingPerformancePage />} />
                         <Route path="listings/:listingId/edit" element={<ListingEditorPage />} />
-                        <Route path="billing" element={<BillingCommandPage />} />
+                        <Route path="billing" element={<Navigate to="/demo-dashboard/settings/billing" replace />} />
+                        <Route path="settings" element={<Navigate to="/demo-dashboard/settings/billing" replace />} />
+                        <Route path="settings/billing" element={<BillingCommandPage />} />
                         <Route path="onboarding" element={<OnboardingCommandPage />} />
                     </Route>
                     {/* New Blueprint Dashboard — same UI as demo, zero fake data, one example listing */}
@@ -1650,7 +1647,6 @@ const App: React.FC = () => {
             <AgentBrandingProvider>
                 <AISidekickProvider>
                     <DashboardLayoutContext.Provider value={{ authReady, session, role, roleReady, user, isAdmin, isDemoMode, isSidebarOpen, setIsSidebarOpen, logAuthBreadcrumb }}>
-                    <CheckoutContext.Provider value={{ onBackToSignup: handleNavigateToSignUp }}>
                     <ErrorBoundary>
                         <Suspense fallback={<LoadingSpinner />}>
                             {renderRoutes()}
@@ -1675,7 +1671,7 @@ const App: React.FC = () => {
                                 <AdminLogin onLogin={handleAdminLogin} onBack={handleAdminLoginClose} isLoading={isAdminLoginLoading} error={adminLoginError || undefined} />
                             </Suspense>
                         )}
-                        {view !== 'landing' && view !== 'new-landing' && (
+                        {view !== 'landing' && view !== 'new-landing' && !isPublicListingRoute && (
                             <Suspense fallback={null}>
                                 <ChatBotFAB
                                     context={{
@@ -1700,7 +1696,6 @@ const App: React.FC = () => {
                             </Suspense>
                         )}
                     </ErrorBoundary>
-                    </CheckoutContext.Provider>
                     </DashboardLayoutContext.Provider>
                 </AISidekickProvider>
                 <Toaster

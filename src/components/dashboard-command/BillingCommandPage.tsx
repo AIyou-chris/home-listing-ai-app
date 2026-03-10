@@ -4,7 +4,8 @@ import {
   createBillingCheckoutSession,
   createBillingPortalSession,
   fetchDashboardBilling,
-  type DashboardBillingSnapshot
+  type DashboardBillingSnapshot,
+  type PlanId
 } from '../../services/dashboardBillingService';
 import BillingValueProofWidget from '../dashboard-widgets/BillingValueProofWidget';
 
@@ -20,6 +21,33 @@ const meterLabels: Record<string, string> = {
   reports_per_month: 'Reports used',
   reminder_calls_per_month: 'Reminder calls used',
   stored_leads_cap: 'Stored leads'
+};
+
+const planMeta: Record<PlanId, { name: string; monthly: string; subtitle: string }> = {
+  free: {
+    name: 'Free',
+    monthly: '$0/mo',
+    subtitle: 'Start free and publish your first listing.'
+  },
+  starter: {
+    name: 'Starter $39',
+    monthly: '$39/mo',
+    subtitle: 'More listings, reports, and faster growth.'
+  },
+  pro: {
+    name: 'Pro $79',
+    monthly: '$79/mo',
+    subtitle: 'Higher limits, team support, and full automation.'
+  }
+};
+
+const statusLabel: Record<string, string> = {
+  active: 'Active',
+  trialing: 'Trialing',
+  past_due: 'Past due',
+  cancelled: 'Cancelled',
+  canceled: 'Cancelled',
+  free: 'Active'
 };
 
 const formatPercent = (used: number, limit: number) => {
@@ -62,6 +90,10 @@ const BillingCommandPage: React.FC = () => {
   useEffect(() => {
     void loadBilling();
   }, [loadBilling]);
+
+  const currentPlanId: PlanId = (snapshot?.plan.id as PlanId) || 'free';
+  const currentPlan = planMeta[currentPlanId] || planMeta.free;
+  const planStatus = statusLabel[String(snapshot?.plan.status || 'active')] || String(snapshot?.plan.status || 'Active');
 
   const warningTriggered = useMemo(
     () => (snapshot?.warnings || []).some((item) => item.percent >= 80 && item.percent < 100),
@@ -115,7 +147,7 @@ const BillingCommandPage: React.FC = () => {
     <div className="mx-auto max-w-5xl space-y-5 px-4 py-6 md:px-8">
       <header>
         <h1 className="text-3xl font-bold text-slate-900">Billing</h1>
-        <p className="mt-1 text-sm text-slate-600">Clear limits. No surprise charges.</p>
+        <p className="mt-1 text-sm text-slate-600">Free account by default. Upgrade from here anytime.</p>
       </header>
 
       {warningTriggered && (
@@ -142,39 +174,162 @@ const BillingCommandPage: React.FC = () => {
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <p className="text-xs uppercase tracking-wide text-slate-500">Current plan</p>
-            <p className="text-2xl font-bold text-slate-900">{snapshot?.plan.name || 'Free'}</p>
-            <p className="mt-1 text-sm text-slate-600">Status: {snapshot?.plan.status || 'free'}</p>
+            <p className="text-2xl font-bold text-slate-900">{currentPlan.name}</p>
+            <p className="mt-1 text-sm text-slate-600">Status: {planStatus}</p>
             <p className="text-sm text-slate-500">
-              Current period ends:{' '}
               {snapshot?.plan.current_period_end
-                ? new Date(snapshot.plan.current_period_end).toLocaleDateString()
-                : 'N/A'}
+                ? `Next billing date: ${new Date(snapshot.plan.current_period_end).toLocaleDateString()}`
+                : 'No upcoming charge scheduled'}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
+            {currentPlanId === 'free' ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => void startUpgrade('starter')}
+                  disabled={busy !== null}
+                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  {busy === 'starter' ? 'Loading…' : 'Upgrade to $39'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void startUpgrade('pro')}
+                  disabled={busy !== null}
+                  className="rounded-lg bg-[#233074] px-3 py-2 text-sm font-semibold text-white hover:bg-[#1b275e] disabled:opacity-50"
+                >
+                  {busy === 'pro' ? 'Loading…' : 'Upgrade to $79'}
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => void openPortal()}
+                  disabled={busy !== null}
+                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  {busy === 'portal' ? 'Loading…' : 'Manage plan'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void startUpgrade(currentPlanId === 'starter' ? 'pro' : 'starter')}
+                  disabled={busy !== null}
+                  className="rounded-lg bg-[#233074] px-3 py-2 text-sm font-semibold text-white hover:bg-[#1b275e] disabled:opacity-50"
+                >
+                  {currentPlanId === 'starter'
+                    ? busy === 'pro' ? 'Loading…' : 'Change plan to $79'
+                    : busy === 'starter' ? 'Loading…' : 'Change plan to $39'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void openPortal()}
+                  disabled={busy !== null}
+                  className="rounded-lg border border-rose-200 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="text-xl font-bold text-slate-900">Plans</h2>
+        <p className="mt-1 text-sm text-slate-600">Upgrade happens only from Dashboard → Settings → Billing.</p>
+
+        <div className="mt-4 overflow-x-auto">
+          <table className="min-w-full text-left text-sm text-slate-700">
+            <thead>
+              <tr className="border-b border-slate-200 text-slate-500">
+                <th className="px-3 py-3 font-semibold">Feature</th>
+                <th className="px-3 py-3 font-semibold">Free</th>
+                <th className="px-3 py-3 font-semibold">Starter $39</th>
+                <th className="px-3 py-3 font-semibold">Pro $79</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr className="border-b border-slate-100">
+                <td className="px-3 py-3 font-medium">Listings allowed</td>
+                <td className="px-3 py-3">1</td>
+                <td className="px-3 py-3">10</td>
+                <td className="px-3 py-3">50</td>
+              </tr>
+              <tr className="border-b border-slate-100">
+                <td className="px-3 py-3 font-medium">AI Listing Brain sources</td>
+                <td className="px-3 py-3">1 source/listing</td>
+                <td className="px-3 py-3">10 sources/listing</td>
+                <td className="px-3 py-3">Unlimited</td>
+              </tr>
+              <tr className="border-b border-slate-100">
+                <td className="px-3 py-3 font-medium">Social video credits/month</td>
+                <td className="px-3 py-3">2</td>
+                <td className="px-3 py-3">25</td>
+                <td className="px-3 py-3">100</td>
+              </tr>
+              <tr className="border-b border-slate-100">
+                <td className="px-3 py-3 font-medium">Multilingual support</td>
+                <td className="px-3 py-3">Yes</td>
+                <td className="px-3 py-3">Yes</td>
+                <td className="px-3 py-3">Yes</td>
+              </tr>
+              <tr className="border-b border-slate-100">
+                <td className="px-3 py-3 font-medium">Fair-housing compliance scan</td>
+                <td className="px-3 py-3">Coming soon</td>
+                <td className="px-3 py-3">Coming soon</td>
+                <td className="px-3 py-3">Coming soon</td>
+              </tr>
+              <tr className="border-b border-slate-100">
+                <td className="px-3 py-3 font-medium">Team / multi-agent branding</td>
+                <td className="px-3 py-3">No</td>
+                <td className="px-3 py-3">Limited</td>
+                <td className="px-3 py-3">Full</td>
+              </tr>
+              <tr>
+                <td className="px-3 py-3 font-medium">Support</td>
+                <td className="px-3 py-3">Email</td>
+                <td className="px-3 py-3">Priority email</td>
+                <td className="px-3 py-3">Priority + team support</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <p className="text-xs uppercase tracking-wide text-slate-500">Free</p>
+            <p className="mt-1 text-lg font-semibold text-slate-900">$0/mo</p>
+            <button type="button" disabled className="mt-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-500">
+              {currentPlanId === 'free' ? 'Current plan' : 'Included'}
+            </button>
+          </div>
+          <div className="rounded-xl border border-primary-200 bg-primary-50 p-3">
+            <div className="flex items-center justify-between">
+              <p className="text-xs uppercase tracking-wide text-primary-700">Starter</p>
+              <span className="rounded-full bg-primary-100 px-2 py-0.5 text-[10px] font-bold uppercase text-primary-700">Most popular</span>
+            </div>
+            <p className="mt-1 text-lg font-semibold text-slate-900">$39/mo</p>
             <button
               type="button"
               onClick={() => void startUpgrade('starter')}
-              disabled={busy !== null}
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              disabled={busy !== null || currentPlanId === 'starter'}
+              className="mt-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-white disabled:opacity-50"
             >
-              {busy === 'starter' ? 'Loading…' : 'Upgrade to Starter'}
+              {currentPlanId === 'starter' ? 'Current plan' : busy === 'starter' ? 'Loading…' : 'Choose plan'}
             </button>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-3">
+            <p className="text-xs uppercase tracking-wide text-slate-500">Pro</p>
+            <p className="mt-1 text-lg font-semibold text-slate-900">$79/mo</p>
             <button
               type="button"
               onClick={() => void startUpgrade('pro')}
-              disabled={busy !== null}
-              className="rounded-lg bg-[#233074] px-3 py-2 text-sm font-semibold text-white hover:bg-[#1b275e] disabled:opacity-50"
+              disabled={busy !== null || currentPlanId === 'pro'}
+              className="mt-3 w-full rounded-lg bg-[#233074] px-3 py-2 text-sm font-semibold text-white hover:bg-[#1b275e] disabled:opacity-50"
             >
-              {busy === 'pro' ? 'Loading…' : 'Upgrade to Pro'}
-            </button>
-            <button
-              type="button"
-              onClick={() => void openPortal()}
-              disabled={busy !== null}
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-            >
-              {busy === 'portal' ? 'Loading…' : 'Manage billing'}
+              {currentPlanId === 'pro' ? 'Current plan' : busy === 'pro' ? 'Loading…' : 'Choose plan'}
             </button>
           </div>
         </div>

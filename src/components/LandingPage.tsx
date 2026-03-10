@@ -87,7 +87,7 @@ const _PricingSection: React.FC<{ onNavigateToSignUp: () => void; onOpenContact:
                                 </p>
                                 <div className="mt-6 pt-6 border-t-2 border-dashed border-slate-300">
                                     <p className="text-slate-800 font-semibold text-xl" style={{ fontFamily: "'Caveat', cursive", fontSize: '1.3rem' }}>
-                                        👉 Normally $149/month, but right now, you can get it for just <span className="text-primary-700">$69/month</span>.
+                                        👉 Start on the Free plan, then upgrade to <span className="text-primary-700">$39/mo or $79/mo</span> from your dashboard.
                                     </p>
                                 </div>
                                 <p className="text-slate-800 font-medium mt-8" style={{ fontFamily: "'Caveat', cursive", fontSize: '1.3rem' }}>
@@ -104,13 +104,13 @@ const _PricingSection: React.FC<{ onNavigateToSignUp: () => void; onOpenContact:
                     {/* Single Plan */}
                     <div className="p-8 h-full flex flex-col rounded-2xl bg-gradient-to-tr from-primary-700 to-primary-500 text-white shadow-2xl relative border-2 border-primary-500 transform hover:scale-105 transition-all duration-300 animate-fade-in-up glow max-w-5xl w-full">
                         <div className="flex-grow">
-                            <h3 className="text-2xl font-bold text-white text-center">Complete AI Solution</h3>
-                            <p className="mt-2 text-slate-300 text-center">Everything you need to dominate your market, impress clients, and close more deals — automatically.</p>
+                            <h3 className="text-2xl font-bold text-white text-center">HomeListingAI Plans</h3>
+                            <p className="mt-2 text-slate-300 text-center">Start free. Upgrade in Dashboard → Settings → Billing when you need more power.</p>
                             <p className="mt-6 text-center">
-                                <span className="text-5xl font-extrabold text-white">$69</span>
-                                <span className="text-xl font-medium text-slate-300">/mo</span>
+                                <span className="text-5xl font-extrabold text-white">Free</span>
+                                <span className="text-xl font-medium text-slate-300"> • Starter $39 • Pro $79</span>
                             </p>
-                            <p className="mt-2 text-slate-300 line-through text-sm text-center">Regular price: $149/mo</p>
+                            <p className="mt-2 text-slate-300 text-sm text-center">Pick the plan that matches your volume and goals.</p>
 
                             <ul className="mt-10 grid md:grid-cols-2 gap-x-12 gap-y-6 text-left">
                                 {/* LEFT COLUMN */}
@@ -192,10 +192,10 @@ const _PricingSection: React.FC<{ onNavigateToSignUp: () => void; onOpenContact:
                             onClick={onNavigateToSignUp}
                             className="w-full mt-8 py-3 px-6 text-lg font-bold rounded-lg transition-all duration-300 bg-white text-primary-700 shadow-lg hover:bg-slate-200 transform hover:scale-[1.02]"
                         >
-                            Start Free Trial
+                            Create Free Account
                         </button>
                         <p className="text-center text-xs text-slate-300 mt-3 opacity-90">
-                            Price may increase at any time. Secure your lifetime rate today.
+                            Billing is managed in your dashboard settings.
                         </p>
                         <p className="text-center text-xs text-slate-300 mt-1 opacity-90">
                             Includes Unlimited AI Chat • 60 Voice Mins/mo • 1,000 SMS/mo
@@ -748,7 +748,7 @@ const Hero: React.FC<{ onNavigateToSignUp: () => void, onEnterDemoMode: () => vo
                     </p>
                     <div className="mt-10 flex flex-col sm:flex-row justify-center lg:justify-start items-center gap-5 animate-fade-in-up px-4 lg:px-0" style={{ animationDelay: "400ms" }}>
                         <button onClick={onNavigateToSignUp} className="w-full sm:w-auto px-8 py-4 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold rounded-lg shadow-[0_0_20px_rgba(6,182,212,0.4)] transition-all transform hover:scale-105 text-lg btn-animate group flex items-center justify-center gap-2">
-                            Start Free Trial
+                            Create Free Account
                             <span className="material-symbols-outlined text-xl transition-transform group-hover:translate-x-1">arrow_forward</span>
                         </button>
                         <button

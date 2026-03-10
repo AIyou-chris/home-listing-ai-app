@@ -126,7 +126,7 @@ export const FaqSectionNew: React.FC<FaqSectionProps> = ({ onNavigateToSignUp, o
                             onClick={onNavigateToSignUp}
                             className="w-full sm:w-auto px-10 py-4 bg-white text-slate-950 hover:bg-slate-200 hover:shadow-[0_0_20px_rgba(255,255,255,0.3)] font-bold rounded-lg transition-all text-lg flex items-center justify-center gap-2"
                         >
-                            Start Free Trial
+                            Create Free Account
                         </button>
                     </div>
                     <p className="text-slate-500 text-sm font-medium">

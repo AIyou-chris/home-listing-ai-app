@@ -83,7 +83,7 @@ const BlogIndex: React.FC = () => {
                                 className="flex items-center justify-center gap-2 px-8 py-4 bg-white text-slate-950 font-bold rounded-lg shadow-[0_0_20px_rgba(255,255,255,0.2)] hover:bg-slate-200 hover:shadow-[0_0_25px_rgba(255,255,255,0.3)] transition-all text-lg"
                             >
                                 <span className="material-symbols-outlined shrink-0 text-slate-900 text-xl">rocket_launch</span>
-                                Start Free Trial
+                                Create Free Account
                             </button>
                         </FadeIn>
                     </div>

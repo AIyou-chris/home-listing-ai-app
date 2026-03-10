@@ -32,7 +32,7 @@ export const AIContactOverlay: React.FC<AIContactOverlayProps> = ({
             setHasStarted(true);
             // Brief delay for natural feel
             setTimeout(() => {
-                handleAIResponse("Hi there! 👋 I'm the AI assistant for HomeListingAI. I can answer questions, schedule a 1-on-1 consultation, or get you set up with a free trial immediately. How can I help you today?", 'sales');
+                handleAIResponse("Hi there! 👋 I'm the AI assistant for HomeListingAI. I can answer questions, schedule a 1-on-1 consultation, or help you create your free account right now. How can I help you today?", 'sales');
             }, 500);
         }
     }, [isOpen, hasStarted]);

@@ -573,7 +573,7 @@ const OnboardingCommandPage: React.FC = () => {
 
           <div className="mt-5 flex flex-wrap gap-3">
             {!state.is_pro ? (
-              <button type="button" onClick={() => navigate(buildDashboardPath('/billing', demoMode))} className="rounded-xl bg-primary-600 px-4 py-2 text-sm font-semibold text-white">
+              <button type="button" onClick={() => navigate(buildDashboardPath('/settings/billing', demoMode))} className="rounded-xl bg-primary-600 px-4 py-2 text-sm font-semibold text-white">
                 Upgrade to Pro
               </button>
             ) : (
