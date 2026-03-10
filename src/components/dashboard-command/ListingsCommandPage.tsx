@@ -20,6 +20,7 @@ type ListingRow = {
   statusLabel: 'Draft' | 'Published'
   shareUrl: string | null
 }
+const DEFAULT_LISTING_ADDRESS = '123 Main St'
 
 const DEMO_ROWS: ListingRow[] = [
   {
@@ -38,7 +39,7 @@ const DEMO_ROWS: ListingRow[] = [
   {
     id: 'demo-draft',
     title: 'Draft Listing',
-    address: 'Address coming soon',
+    address: DEFAULT_LISTING_ADDRESS,
     price: 0,
     bedrooms: 0,
     bathrooms: 0,
@@ -71,7 +72,7 @@ const ListingsCommandPage: React.FC = () => {
     saveLocalListingDraft({
       id: draftId,
       title: 'Draft Listing',
-      address: 'Address coming soon',
+      address: DEFAULT_LISTING_ADDRESS,
       price: 0,
       bedrooms: 0,
       bathrooms: 0,
@@ -85,7 +86,7 @@ const ListingsCommandPage: React.FC = () => {
       {
         id: draftId,
         title: 'Draft Listing',
-        address: 'Address coming soon',
+        address: DEFAULT_LISTING_ADDRESS,
         price: 0,
         bedrooms: 0,
         bathrooms: 0,
@@ -133,7 +134,7 @@ const ListingsCommandPage: React.FC = () => {
         const localDraftRows: ListingRow[] = listLocalListingDrafts().map((draft) => ({
           id: draft.id,
           title: draft.title || 'Draft Listing',
-          address: draft.address || 'Address coming soon',
+          address: draft.address || DEFAULT_LISTING_ADDRESS,
           price: draft.price,
           bedrooms: draft.bedrooms,
           bathrooms: draft.bathrooms,
@@ -157,7 +158,7 @@ const ListingsCommandPage: React.FC = () => {
         const fallbackRows: ListingRow[] = listLocalListingDrafts().map((draft) => ({
           id: draft.id,
           title: draft.title || 'Draft Listing',
-          address: draft.address || 'Address coming soon',
+          address: draft.address || DEFAULT_LISTING_ADDRESS,
           price: draft.price,
           bedrooms: draft.bedrooms,
           bathrooms: draft.bathrooms,
@@ -218,7 +219,7 @@ const ListingsCommandPage: React.FC = () => {
 
       const response = await createListingDraft({
         status: 'draft',
-        address: 'Address coming soon'
+        address: DEFAULT_LISTING_ADDRESS
       })
       navigate(buildListingPath(`/listings/${response.listing.id}/edit`))
     } catch (createError) {

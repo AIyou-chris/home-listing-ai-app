@@ -102,6 +102,7 @@ const FAIR_HOUSING_FLAG_PHRASES = [
   'muslim',
   'white neighborhood'
 ]
+const DEFAULT_LISTING_ADDRESS = '123 Main St'
 
 const runLocalFairHousingScan = (value: string): FairHousingResult => {
   const normalized = value.toLowerCase()
@@ -226,7 +227,7 @@ const ListingEditorPage: React.FC = () => {
     const loadFromLocal = (message: string | null) => {
       const local = getLocalListingDraft(listingId)
       const fb = local || {
-        id: listingId, title: 'Draft Listing', address: 'Address coming soon',
+        id: listingId, title: 'Draft Listing', address: DEFAULT_LISTING_ADDRESS,
         price: 0, bedrooms: 0, bathrooms: 0, squareFeet: 0,
         description: '', amenities: [], photos: [], createdAt: new Date().toISOString()
       }
@@ -452,7 +453,7 @@ const ListingEditorPage: React.FC = () => {
         saveLocalListingDraft({
           id: listingId,
           title: draft.address.trim() || 'Draft Listing',
-          address: draft.address || 'Address coming soon',
+          address: draft.address || DEFAULT_LISTING_ADDRESS,
           price: numPrice, bedrooms: numBeds, bathrooms: numBaths, squareFeet: numSqft,
           description: draft.description, amenities: [], photos,
           createdAt: new Date().toISOString()

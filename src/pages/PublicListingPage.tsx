@@ -42,9 +42,9 @@ const toPropertyFromPublicPayload = (payload: Record<string, unknown>): Property
             messaging: true
         },
         agent: {
-            name: String((payload.agent as Record<string, unknown> | undefined)?.name || 'HomeListingAI Agent'),
-            title: 'Listing Specialist',
-            company: 'HomeListingAI',
+            name: String((payload.agent as Record<string, unknown> | undefined)?.name || 'Listing Agent'),
+            title: String((payload.agent as Record<string, unknown> | undefined)?.title || 'Licensed Realtor®'),
+            company: String((payload.agent as Record<string, unknown> | undefined)?.company || 'HomeListingAI'),
             phone: String((payload.agent as Record<string, unknown> | undefined)?.phone || ''),
             email: String((payload.agent as Record<string, unknown> | undefined)?.email || ''),
             headshotUrl: String((payload.agent as Record<string, unknown> | undefined)?.headshotUrl || ''),

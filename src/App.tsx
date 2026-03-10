@@ -410,6 +410,14 @@ const App: React.FC = () => {
 
     // We treat 'view' as derived state now
     const view = getCurrentView();
+    const pathname = location.pathname || '';
+    const isPublicListingRoute = (
+        pathname.startsWith('/draft-listing') ||
+        pathname.startsWith('/listing/') ||
+        pathname.startsWith('/l/') ||
+        pathname.startsWith('/demo-listing') ||
+        (pathname.includes('/demo-') && pathname.includes('listing'))
+    );
 
     const shouldNoindexRoute = useCallback((pathname: string) => {
         const privatePrefixes = [
@@ -1663,7 +1671,7 @@ const App: React.FC = () => {
                                 <AdminLogin onLogin={handleAdminLogin} onBack={handleAdminLoginClose} isLoading={isAdminLoginLoading} error={adminLoginError || undefined} />
                             </Suspense>
                         )}
-                        {view !== 'landing' && view !== 'new-landing' && (
+                        {view !== 'landing' && view !== 'new-landing' && !isPublicListingRoute && (
                             <Suspense fallback={null}>
                                 <ChatBotFAB
                                     context={{

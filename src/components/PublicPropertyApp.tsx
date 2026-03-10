@@ -10,6 +10,29 @@ interface PublicPropertyAppProps {
     onTalkToHome?: () => void;
 }
 
+type PublicAgentCardModel = {
+    name: string;
+    company: string;
+    title: string;
+    phone?: string;
+    email?: string;
+    website?: string;
+    headshotUrl?: string;
+};
+
+const FALLBACK_AGENT: PublicAgentCardModel = {
+    name: 'Listing Agent',
+    company: 'HomeListingAI',
+    title: 'Licensed Realtor®'
+};
+
+const getInitials = (name: string) => {
+    const parts = name.trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return 'LA';
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+};
+
 const ActionPillButton: React.FC<{ icon: string; label: string; onClick: () => void }> = ({ icon, label, onClick }) => (
     <button
         onClick={onClick}
@@ -32,6 +55,7 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({ property, onExit,
 
     const [galleryIndex, setGalleryIndex] = useState(0);
     const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
+    const [contactOpen, setContactOpen] = useState(false);
 
     const heroPhotosArray = useMemo(
         () => (property.heroPhotos?.filter((photo): photo is string => typeof photo === 'string') || []),
@@ -47,6 +71,19 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({ property, onExit,
     }, [galleryPhotosArray, heroPhotosArray, property.imageUrl]);
 
     const hasMultiplePhotos = allPhotos.length > 1;
+    const agent = useMemo<PublicAgentCardModel>(() => {
+        const raw = property.agent || ({} as Property['agent']);
+        return {
+            name: raw.name?.trim() || FALLBACK_AGENT.name,
+            company: raw.company?.trim() || FALLBACK_AGENT.company,
+            title: raw.title?.trim() || FALLBACK_AGENT.title,
+            phone: raw.phone?.trim() || undefined,
+            email: raw.email?.trim() || undefined,
+            website: raw.website?.trim() || undefined,
+            headshotUrl: raw.headshotUrl?.trim() || undefined
+        };
+    }, [property.agent]);
+    const agentInitials = useMemo(() => getInitials(agent.name), [agent.name]);
 
     useEffect(() => {
         if (!hasMultiplePhotos || modalSubState.gallery) return;
@@ -96,6 +133,38 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({ property, onExit,
         setModalSubState((prev) => ({ ...prev, gallery: true }));
     };
 
+    const handleShareContact = async () => {
+        const contactText = [
+            agent.name,
+            agent.title,
+            agent.company,
+            agent.phone ? `Phone: ${agent.phone}` : '',
+            agent.email ? `Email: ${agent.email}` : '',
+            agent.website ? `Website: ${agent.website}` : '',
+            `Listing: ${window.location.href}`
+        ].filter(Boolean).join('\n');
+
+        if (navigator.share) {
+            try {
+                await navigator.share({
+                    title: `${agent.name} — Listing Agent`,
+                    text: contactText,
+                    url: window.location.href
+                });
+                return;
+            } catch (_error) {
+                // User canceled share sheet.
+            }
+        }
+
+        try {
+            await navigator.clipboard.writeText(contactText);
+            alert('Contact copied to clipboard.');
+        } catch (_error) {
+            alert('Unable to share contact right now.');
+        }
+    };
+
     const listingSchema = {
         '@context': 'https://schema.org',
         '@type': ['SingleFamilyResidence', 'RealEstateListing'],
@@ -116,7 +185,7 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({ property, onExit,
     };
 
     return (
-        <div className="flex min-h-screen flex-col items-center justify-center bg-slate-200 font-sans">
+        <div className="relative flex h-[100svh] min-h-[100svh] w-screen items-stretch justify-center overflow-hidden bg-slate-950 font-sans">
             <SEO
                 title={property.title}
                 description={descriptionText}
@@ -124,13 +193,16 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({ property, onExit,
                 schema={listingSchema}
             />
 
-            <div className="relative flex h-[850px] max-h-[90vh] w-full max-w-md flex-col items-center overflow-hidden rounded-[40px] bg-white shadow-2xl">
+            <div className="relative flex h-[100svh] min-h-[100svh] w-[100vw] flex-col items-center overflow-hidden bg-white shadow-2xl md:my-4 md:h-[calc(100svh-2rem)] md:min-h-0 md:max-h-[920px] md:max-w-md md:rounded-[40px]">
                 <div className="absolute inset-0 z-0">
                     <img src={backgroundImage} alt={property.title} className="h-full w-full object-cover" />
                     <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-transparent to-black/60"></div>
                 </div>
 
-                <div className="absolute left-6 right-6 top-6 z-20 flex items-center justify-between">
+                <div
+                    className="absolute left-4 right-4 z-20 flex items-center justify-between md:left-6 md:right-6 md:top-6"
+                    style={{ top: 'calc(env(safe-area-inset-top, 0px) + 1rem)' }}
+                >
                     {showBackButton && (
                         <button onClick={onExit} className="flex h-10 w-10 items-center justify-center rounded-full border border-white/30 bg-white/20 text-white shadow-lg backdrop-blur-md transition hover:bg-white/30">
                             <span className="material-symbols-outlined text-lg">arrow_back</span>
@@ -145,7 +217,10 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({ property, onExit,
                 </div>
 
                 {onTalkToHome && (
-                    <div className="absolute left-4 right-4 top-20 z-20">
+                    <div
+                        className="absolute left-4 right-4 z-20"
+                        style={{ top: 'calc(env(safe-area-inset-top, 0px) + 4.5rem)' }}
+                    >
                         <button
                             onClick={onTalkToHome}
                             className="w-full rounded-2xl border border-cyan-300/40 bg-gradient-to-r from-slate-900/80 via-cyan-900/70 to-blue-900/70 px-4 py-3 text-center text-sm font-bold text-white shadow-xl backdrop-blur-xl transition hover:from-slate-900/90 hover:to-blue-800/80"
@@ -155,7 +230,7 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({ property, onExit,
                     </div>
                 )}
 
-                <div className="absolute bottom-32 left-4 right-4 z-20">
+                <div className="absolute bottom-[13.75rem] left-4 right-4 z-20 md:bottom-36">
                     <div className="rounded-3xl border border-white/20 bg-white/10 p-6 text-center text-white shadow-2xl backdrop-blur-xl">
                         <h2 className="mb-1 text-3xl font-bold tracking-tight text-shadow-sm">
                             ${property.price.toLocaleString('en-US')}
@@ -184,7 +259,50 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({ property, onExit,
                     </div>
                 </div>
 
-                <div className="absolute bottom-0 left-0 right-0 z-30 flex h-28 items-center justify-around rounded-t-[32px] border-t border-white/40 bg-white/30 px-2 pb-4 shadow-[0_-8px_32px_rgba(0,0,0,0.1)] backdrop-blur-xl">
+                <div
+                    className="absolute left-4 right-4 z-30 rounded-2xl border border-white/20 bg-slate-900/55 p-3 text-white shadow-2xl backdrop-blur-xl md:left-5 md:right-5"
+                    style={{ bottom: 'calc(6.75rem + env(safe-area-inset-bottom, 0px))' }}
+                >
+                    <div className="flex items-center gap-3">
+                        {agent.headshotUrl ? (
+                            <img
+                                src={agent.headshotUrl}
+                                alt={agent.name}
+                                className="h-12 w-12 rounded-full border border-white/40 object-cover"
+                            />
+                        ) : (
+                            <div className="flex h-12 w-12 items-center justify-center rounded-full border border-white/35 bg-white/10 text-sm font-bold">
+                                {agentInitials}
+                            </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-semibold">{agent.name}</p>
+                            <p className="truncate text-xs text-white/80">{agent.company}</p>
+                            <p className="truncate text-[11px] text-white/70">{agent.title}</p>
+                        </div>
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                        <button
+                            type="button"
+                            onClick={() => onTalkToHome?.()}
+                            className="rounded-xl bg-primary-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-primary-700"
+                        >
+                            Chat
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setContactOpen(true)}
+                            className="rounded-xl border border-white/35 bg-white/10 px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/20"
+                        >
+                            Contact
+                        </button>
+                    </div>
+                </div>
+
+                <div
+                    className="absolute bottom-0 left-0 right-0 z-30 flex h-28 items-center justify-around rounded-t-[32px] border-t border-white/40 bg-white/30 px-2 shadow-[0_-8px_32px_rgba(0,0,0,0.1)] backdrop-blur-xl"
+                    style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)' }}
+                >
                     <ActionPillButton icon="photo_library" label="Gallery" onClick={openGallery} />
                     <ActionPillButton icon="description" label="Flyer" onClick={handleFlyer} />
                     <ActionPillButton icon="share" label="Share" onClick={handleShare} />
@@ -243,6 +361,51 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({ property, onExit,
                                         <img src={photo} alt={`Thumbnail ${index + 1}`} className="h-14 w-full object-cover" />
                                     </button>
                                 ))}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {contactOpen && (
+                    <div className="fixed inset-0 z-[90] flex items-end justify-center bg-black/55 p-4 md:items-center" onClick={() => setContactOpen(false)}>
+                        <div className="w-full max-w-md rounded-2xl border border-white/20 bg-slate-900/95 p-4 text-white shadow-2xl backdrop-blur-xl" onClick={(event) => event.stopPropagation()}>
+                            <div className="mb-3 flex items-start justify-between gap-3">
+                                <div>
+                                    <p className="text-base font-bold">{agent.name}</p>
+                                    <p className="text-sm text-white/75">{agent.title} • {agent.company}</p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setContactOpen(false)}
+                                    className="rounded-full bg-white/15 p-1.5 text-white transition hover:bg-white/25"
+                                    aria-label="Close contact panel"
+                                >
+                                    <span className="material-symbols-outlined text-[18px]">close</span>
+                                </button>
+                            </div>
+                            <div className="space-y-2">
+                                {agent.phone && (
+                                    <a href={`tel:${agent.phone}`} className="block rounded-xl border border-white/20 bg-white/5 px-3 py-2 text-sm hover:bg-white/10">
+                                        Call {agent.phone}
+                                    </a>
+                                )}
+                                {agent.email && (
+                                    <a href={`mailto:${agent.email}`} className="block rounded-xl border border-white/20 bg-white/5 px-3 py-2 text-sm hover:bg-white/10">
+                                        Email {agent.email}
+                                    </a>
+                                )}
+                                {agent.website && (
+                                    <a href={agent.website} target="_blank" rel="noreferrer" className="block rounded-xl border border-white/20 bg-white/5 px-3 py-2 text-sm hover:bg-white/10">
+                                        Visit website
+                                    </a>
+                                )}
+                                <button
+                                    type="button"
+                                    onClick={() => void handleShareContact()}
+                                    className="w-full rounded-xl bg-primary-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-primary-700"
+                                >
+                                    Share contact
+                                </button>
                             </div>
                         </div>
                     </div>
