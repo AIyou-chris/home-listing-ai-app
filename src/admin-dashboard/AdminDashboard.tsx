@@ -10,12 +10,10 @@ import MarketingReportsPage from '../components/MarketingReportsPage';
 // import EnhancedAISidekicksHub from '../components/EnhancedAISidekicksHub'; // Kept for reference if needed, but unused in new flow
 import AdminMarketingFunnelsPanel from '../components/admin/AdminMarketingFunnelsPanel';
 import InteractionHubPage from '../components/InteractionHubPage';
-import AddListingPage from '../components/AddListingPage';
-import PropertyPage from '../components/PropertyPage';
 import AdminSettingsPage from './components/AdminSettingsPage';
 import AdminUsersPage from '../components/AdminUsersPage';
 import { LogoWithName } from '../components/LogoWithName';
-import ListingsPage from '../components/ListingsPage';
+import AdminListingsPage from './AdminListingsPage';
 import AdminDashboardSidebar from './AdminDashboardSidebar';
 import { DEMO_FAT_PROPERTIES } from '../demoConstants';
 import { SAMPLE_AGENT, SAMPLE_INTERACTIONS } from '../constants';
@@ -115,7 +113,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'dashboard
   const navigate = useNavigate();
 
   // Use URL tab if available, otherwise fall back to initialTab
-  const activeView = (tab as DashboardView) || initialTab;
+  const normalizedTab = tab === 'overview' ? 'dashboard' : tab;
+  const activeView = (normalizedTab as DashboardView) || initialTab;
 
   const handleSetView = (newView: DashboardView) => {
     navigate(`/admin/${newView}`);
@@ -128,7 +127,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'dashboard
     DEMO_FAT_PROPERTIES.map((property, index) => cloneDemoProperty(property, index))
   );
   const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
-  const selectedProperty = useMemo(
+  const _selectedProperty = useMemo(
     () => properties.find((property) => property.id === selectedPropertyId) || null,
     [properties, selectedPropertyId]
   );
@@ -140,14 +139,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'dashboard
 
   const [agentProfile] = useState<AgentProfile>(SAMPLE_AGENT);
 
-  const handleSelectProperty = (propertyId: string | null) => {
+  const _handleSelectProperty = (propertyId: string | null) => {
     setSelectedPropertyId(propertyId);
     if (propertyId) {
       handleSetView('property');
     }
   };
 
-  const handleSetProperty = (property: Property) => {
+  const _handleSetProperty = (property: Property) => {
     setProperties((prev) => prev.map((p) => (p.id === property.id ? property : p)));
   };
 
@@ -164,7 +163,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'dashboard
     void loadAppointments();
   }, []);
 
-  const handleSaveNewProperty = async (propertyData: Property) => {
+  const _handleSaveNewProperty = async (propertyData: Property) => {
     const newProperty: Property = {
       ...propertyData,
       id: `prop-${Date.now()}`,
@@ -174,7 +173,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'dashboard
     handleSetView('listings');
   };
 
-  const handleDeleteProperty = (propertyId: string) => {
+  const _handleDeleteProperty = (propertyId: string) => {
     setProperties((prev) => prev.filter((property) => property.id !== propertyId));
     if (selectedPropertyId === propertyId) {
       setSelectedPropertyId(null);
@@ -344,59 +343,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'dashboard
       case 'ai-conversations':
         return <AIConversationsPage isDemoMode={isDemoMode} />;
       case 'listings':
-        return (
-          <ListingsPage
-            properties={properties}
-            onSelectProperty={(id, action) => {
-              setSelectedPropertyId(id);
-              if (action === 'edit') {
-                // Open admin builder or just property
-                handleSetView('property');
-              } else {
-                handleSetView('property');
-              }
-            }}
-            onAddNew={() => handleSetView('add-listing')}
-            onDeleteProperty={handleDeleteProperty}
-            onBackToDashboard={resetToDashboard}
-            onOpenMarketing={(id) => {
-              setSelectedPropertyId(id);
-              handleSetView('property');
-            }}
-            onOpenBuilder={(id) => {
-              setSelectedPropertyId(id);
-              handleSetView('property');
-            }}
-          />
-        );
       case 'add-listing':
-        return (
-          <AddListingPage
-            onCancel={resetToDashboard}
-            onSave={handleSaveNewProperty}
-            agentProfile={agentProfile}
-          />
-        );
       case 'property':
-        return selectedProperty ? (
-          <PropertyPage property={selectedProperty} setProperty={handleSetProperty} onBack={() => handleSetView('listings')} />
-        ) : (
-          <ListingsPage
-            properties={properties}
-            onSelectProperty={handleSelectProperty}
-            onAddNew={() => handleSetView('add-listing')}
-            onDeleteProperty={handleDeleteProperty}
-            onBackToDashboard={resetToDashboard}
-            onOpenMarketing={(id) => {
-              setSelectedPropertyId(id);
-              handleSetView('property');
-            }}
-            onOpenBuilder={(id) => {
-              setSelectedPropertyId(id);
-              handleSetView('property');
-            }}
-          />
-        );
+        return <AdminListingsPage />;
       case 'knowledge-base':
         return <AdminAISidekicksPage initialTab="overview" />;
 

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import VideoShareActions from './VideoShareActions';
 import SocialVideoWidget from '../dashboard-widgets/SocialVideoWidget';
 import { showToast } from '../../utils/toastService';
+import FairHousingScannerModal from '../modals/FairHousingScannerModal';
 
 // Using dummy types for the prop signature to wire this up quickly
 export interface ShareKitPanelProps {
@@ -28,6 +29,7 @@ export interface ShareKitPanelProps {
         caption?: string | null;
         file_name?: string | null;
     } | null;
+    listingDescription?: string | null;
 }
 
 export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
@@ -35,11 +37,13 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
     onPublish,
     onTestLeadSubmit,
     stats = { leadsCaptured: 0, topSource: 'None', lastLeadAgo: 'N/A' },
-    latestVideo = null
+    latestVideo = null,
+    listingDescription = null
 }) => {
 
     const [qrSource, setQrSource] = useState<'sign' | 'open_house' | 'social'>('sign');
     const [isTestModalOpen, setIsTestModalOpen] = useState(false);
+    const [isFairHousingOpen, setIsFairHousingOpen] = useState(false);
 
     // Copy states
     const [copiedLink, setCopiedLink] = useState(false);
@@ -61,6 +65,10 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
 
     const captionTemplate = `Just listed: ${listing.address} 🏡✨\nPrice: ${listing.price} | ${listing.beds} Beds | ${listing.baths} Baths\n\nGet the instant 1-page property report + request a showing right here: ${shareUrl}`;
     const effectiveVideoCaption = latestVideo?.caption?.trim() || captionTemplate;
+    const fairHousingInitialText =
+      String(listingDescription || '').trim() ||
+      String(effectiveVideoCaption || '').trim() ||
+      '';
 
     const handleCopy = async (text: string, setCopiedState: (v: boolean) => void) => {
         try {
@@ -131,23 +139,31 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
                 </div>
 
                 <div>
-                    {isDraft ? (
+                    <div className="flex flex-col gap-2 sm:flex-row">
                         <button
-                            onClick={onPublish}
-                            className="w-full md:w-auto px-8 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition-colors shadow-lg shadow-blue-600/20"
+                            onClick={() => setIsFairHousingOpen(true)}
+                            className="w-full md:w-auto px-5 py-3 border border-slate-700 hover:bg-slate-800 text-white font-bold rounded-lg transition-colors text-center"
                         >
-                            Publish Listing
+                            Fair Housing Scan
                         </button>
-                    ) : (
-                        <a
-                            href={shareUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-block w-full md:w-auto px-8 py-3 border border-slate-700 hover:bg-slate-800 text-white font-bold rounded-lg transition-colors text-center"
-                        >
-                            View Live Listing
-                        </a>
-                    )}
+                        {isDraft ? (
+                            <button
+                                onClick={onPublish}
+                                className="w-full md:w-auto px-8 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition-colors shadow-lg shadow-blue-600/20"
+                            >
+                                Publish Listing
+                            </button>
+                        ) : (
+                            <a
+                                href={shareUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-block w-full md:w-auto px-8 py-3 border border-slate-700 hover:bg-slate-800 text-white font-bold rounded-lg transition-colors text-center"
+                            >
+                                View Live Listing
+                            </a>
+                        )}
+                    </div>
                 </div>
             </div>
 
@@ -411,6 +427,12 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
                     <p className="text-slate-500">Publish your listing to unlock the link, QR codes, and marketing packs.</p>
                 </div>
             )}
+            <FairHousingScannerModal
+                open={isFairHousingOpen}
+                onClose={() => setIsFairHousingOpen(false)}
+                initialText={fairHousingInitialText}
+                contextLabel="Share Kit"
+            />
         </div>
     );
 };

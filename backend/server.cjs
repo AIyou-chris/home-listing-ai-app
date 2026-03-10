@@ -2819,9 +2819,12 @@ const buildListingVideoFileName = ({ listingRow, templateStyle, durationSeconds 
 
 const resolveCreatomateTemplateIdByStyle = (templateStyle) => {
   const style = normalizeVideoTemplateStyle(templateStyle) || 'luxury';
+  // Safety fallback for production: keeps video rendering alive if env wiring is incomplete.
+  const fallbackLuxuryTemplateId = '9ba619ff-c4ce-4132-aace-314e89ec7ad3';
   const luxuryTemplateId =
     toTrimmedOrNull(process.env.CREATOMATE_TEMPLATE_LUXURY_ID) ||
-    toTrimmedOrNull(process.env.CREATOMATE_LUXURY_TEMPLATE_ID);
+    toTrimmedOrNull(process.env.CREATOMATE_LUXURY_TEMPLATE_ID) ||
+    fallbackLuxuryTemplateId;
   const storyTemplateId =
     toTrimmedOrNull(process.env.CREATOMATE_TEMPLATE_STORY_ID) ||
     toTrimmedOrNull(process.env.CREATOMATE_STORY_TEMPLATE_ID);
@@ -3078,6 +3081,23 @@ const resolveRequesterUserId = async (req, { allowDefault = false } = {}) => {
 
   return allowDefault ? String(DEFAULT_LEAD_USER_ID || '') : null;
 };
+
+const resolveAuthenticatedUserIdFromToken = async (req) => {
+  const authHeader = req.headers.authorization || req.headers.Authorization;
+  if (!authHeader || !String(authHeader).startsWith('Bearer ')) return null;
+
+  const token = String(authHeader).replace('Bearer ', '').trim();
+  if (!token) return null;
+
+  const { data: authData, error } = await supabaseAdmin.auth.getUser(token);
+  if (error || !authData?.user?.id) return null;
+  return String(authData.user.id);
+};
+
+const isIgnorableCleanupError = (error) =>
+  error?.code === '42P01' || // undefined table
+  error?.code === 'PGRST205' || // table missing in API schema cache
+  error?.code === '42703'; // undefined column
 
 const limitReasonByFeature = (feature, limit) => {
   const safeLimit = Number(limit || 0);
@@ -9618,6 +9638,73 @@ app.post('/api/realtime/handoff', async (req, res) => {
 });
 
 // Original /api/realtime/offer remains below...
+// Quick local test:
+// curl -X POST "http://127.0.0.1:3002/api/chatkit/session" \
+//   -H "Content-Type: application/json" \
+//   -H "x-user-id: <YOUR_USER_ID>" \
+//   -d '{"workflow_id":"wf_123","version":"production"}'
+app.post('/api/chatkit/session', async (req, res) => {
+  try {
+    const requesterUserId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!requesterUserId) return res.status(401).json({ error: 'unauthorized' });
+
+    const workflowId = String(req.body?.workflow_id || '').trim();
+    if (!workflowId) {
+      return res.status(400).json({ error: 'workflow_id_required' });
+    }
+
+    const version = String(req.body?.version || 'production').trim() || 'production';
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      console.error('[ChatKit] OPENAI_API_KEY is missing');
+      return res.status(500).json({ error: 'chatkit_session_failed' });
+    }
+
+    const openAiResponse = await fetch('https://api.openai.com/v1/chatkit/sessions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'OpenAI-Beta': 'assistants=v2'
+      },
+      body: JSON.stringify({
+        user: String(requesterUserId),
+        workflow: {
+          id: workflowId,
+          version
+        }
+      })
+    });
+
+    if (!openAiResponse.ok) {
+      const details = await openAiResponse.text().catch(() => '');
+      console.error('[ChatKit] Session creation failed:', openAiResponse.status, details);
+      return res.status(500).json({ error: 'chatkit_session_failed' });
+    }
+
+    const sessionPayload = await openAiResponse.json();
+    const clientSecret =
+      typeof sessionPayload?.client_secret === 'string'
+        ? sessionPayload.client_secret
+        : (typeof sessionPayload?.session?.client_secret === 'string' ? sessionPayload.session.client_secret : null);
+    if (!clientSecret) {
+      console.error('[ChatKit] Session payload missing client_secret');
+      return res.status(500).json({ error: 'chatkit_session_failed' });
+    }
+
+    return res.json({
+      client_secret: clientSecret,
+      workflow_id: workflowId,
+      version,
+      user_id: String(requesterUserId),
+      session: sessionPayload
+    });
+  } catch (error) {
+    console.error('[ChatKit] Session route failed:', error?.message || error);
+    return res.status(500).json({ error: 'chatkit_session_failed' });
+  }
+});
+
 app.post('/api/realtime/offer', async (req, res) => {
   try {
     const { sdp, type, model } = req.body || {};
@@ -10190,7 +10277,7 @@ function extractPhoneFromText(text) {
 
 const loginNotificationCooldowns = new Map();
 
-app.post('/api/security/notify-login', async (req, res) => {
+app.post(['/api/security/notify-login', '/api/security/notify_login'], async (req, res) => {
   const { userId, email, ip, userAgent } = req.body;
   if (!userId || !email) return res.status(400).json({ error: 'Missing userId or email' });
 
@@ -10262,19 +10349,27 @@ const verifyAdmin = async (req, res, next) => {
     // If no token -> Fail
     if (!token) return res.status(401).json({ error: 'Unauthorized: Missing token' });
 
-    const { data: { user }, error } = await supabase.auth.getUser(token);
-    if (error || !user) return res.status(401).json({ error: 'Unauthorized: Invalid token' });
+    // Use supabaseAdmin (service role) for token validation — more reliable than anon key client
+    // which can fail if SUPABASE_ANON_KEY is misconfigured on the host.
+    const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
+    if (error || !user) {
+      console.warn('[verifyAdmin] Token validation failed:', error?.message);
+      return res.status(401).json({ error: 'Unauthorized: Invalid token' });
+    }
 
     // Check Admin Role via RPC
-    const { data: isAdmin, error: rpcError } = await supabase.rpc('is_user_admin', { uid: user.id });
+    const { data: isAdmin, error: rpcError } = await supabaseAdmin.rpc('is_user_admin', { uid: user.id });
 
     if (rpcError) {
       console.warn('⚠️ Admin check RPC failed (function might be missing):', rpcError.message);
       // Fall through to env check, do not throw
     }
 
-    // Fallback: Check strictly against Env Var
-    const isEnvAdmin = process.env.VITE_ADMIN_EMAIL && user.email === process.env.VITE_ADMIN_EMAIL;
+    // Fallback: Check strictly against Env Var (both prefixed and unprefixed names)
+    const adminEmailEnv = process.env.ADMIN_EMAIL || process.env.VITE_ADMIN_EMAIL;
+    const hardcodedAdminEmails = ['admin@homelistingai.com', 'us@homelistingai.com'];
+    if (adminEmailEnv) hardcodedAdminEmails.push(adminEmailEnv.toLowerCase());
+    const isEnvAdmin = user.email && hardcodedAdminEmails.includes(user.email.toLowerCase());
 
     if (!isAdmin && !isEnvAdmin) {
       console.warn(`⛔ Blocked non-admin access attempt by: ${user.email}`);
@@ -14432,6 +14527,104 @@ app.post('/api/billing/portal-session', async (req, res) => {
   }
 });
 
+app.post('/api/account/delete', async (req, res) => {
+  try {
+    const confirmation = String(req.body?.confirmation || '').trim().toUpperCase();
+    if (confirmation !== 'DELETE') {
+      return res.status(400).json({ error: 'confirmation_required_type_DELETE' });
+    }
+
+    const authedUserId = await resolveAuthenticatedUserIdFromToken(req);
+    const allowHeaderFallback = process.env.NODE_ENV !== 'production';
+    const fallbackUserId = authedUserId || !allowHeaderFallback
+      ? null
+      : await resolveRequesterUserId(req, { allowDefault: false });
+    const requesterUserId = String(authedUserId || fallbackUserId || '');
+    if (!requesterUserId) {
+      return res.status(401).json({ error: 'unauthorized' });
+    }
+
+    // Never allow deleting someone else by spoofing x-user-id while authenticated.
+    const explicitHeaderUserId = String(req.headers['x-user-id'] || req.headers['x-agent-id'] || '').trim();
+    if (authedUserId && explicitHeaderUserId && explicitHeaderUserId !== authedUserId) {
+      return res.status(403).json({ error: 'account_delete_forbidden' });
+    }
+
+    const { data: agentRow, error: agentLookupError } = await supabaseAdmin
+      .from('agents')
+      .select('id, auth_user_id, stripe_customer_id')
+      .or(`id.eq.${requesterUserId},auth_user_id.eq.${requesterUserId}`)
+      .limit(1)
+      .maybeSingle();
+    if (agentLookupError && !isIgnorableCleanupError(agentLookupError)) throw agentLookupError;
+
+    const canonicalAuthUserId = String(authedUserId || agentRow?.auth_user_id || requesterUserId);
+    const agentIdentifiers = Array.from(
+      new Set(
+        [requesterUserId, canonicalAuthUserId, agentRow?.id]
+          .map((value) => String(value || '').trim())
+          .filter(Boolean)
+      )
+    );
+
+    // Best-effort Stripe subscription cancellation to prevent future billing.
+    try {
+      const { data: subRows, error: subLookupError } = await supabaseAdmin
+        .from('subscriptions')
+        .select('stripe_subscription_id')
+        .in('agent_id', agentIdentifiers);
+      if (subLookupError && !isIgnorableCleanupError(subLookupError)) throw subLookupError;
+
+      const stripeSubscriptionIds = Array.from(
+        new Set((subRows || []).map((row) => String(row?.stripe_subscription_id || '').trim()).filter(Boolean))
+      );
+      for (const subscriptionId of stripeSubscriptionIds) {
+        try {
+          await stripe.subscriptions.cancel(subscriptionId);
+        } catch (stripeError) {
+          console.warn('[AccountDelete] Stripe cancel failed for subscription:', subscriptionId, stripeError?.message || stripeError);
+        }
+      }
+    } catch (stripeLookupError) {
+      console.warn('[AccountDelete] Stripe cleanup lookup failed:', stripeLookupError?.message || stripeLookupError);
+    }
+
+    const deleteWhereIn = async (table, column, values) => {
+      if (!values.length) return;
+      const { error } = await supabaseAdmin.from(table).delete().in(column, values);
+      if (error && !isIgnorableCleanupError(error)) throw error;
+    };
+
+    // Child records first, then parent records.
+    await deleteWhereIn('listing_sources', 'agent_id', agentIdentifiers);
+    await deleteWhereIn('appointments', 'agent_id', agentIdentifiers);
+    await deleteWhereIn('appointments', 'user_id', agentIdentifiers);
+    await deleteWhereIn('leads', 'agent_id', agentIdentifiers);
+    await deleteWhereIn('leads', 'user_id', agentIdentifiers);
+    await deleteWhereIn('usage_events', 'agent_id', agentIdentifiers);
+    await deleteWhereIn('usage_counters', 'agent_id', agentIdentifiers);
+    await deleteWhereIn('usage_periods', 'agent_id', agentIdentifiers);
+    await deleteWhereIn('subscriptions', 'agent_id', agentIdentifiers);
+    await deleteWhereIn('properties', 'agent_id', agentIdentifiers);
+    await deleteWhereIn('properties', 'user_id', agentIdentifiers);
+    await deleteWhereIn('agents', 'id', agentIdentifiers);
+    await deleteWhereIn('agents', 'auth_user_id', agentIdentifiers);
+
+    const { error: authDeleteError } = await supabaseAdmin.auth.admin.deleteUser(canonicalAuthUserId);
+    if (authDeleteError && !/not found/i.test(String(authDeleteError.message || ''))) {
+      throw authDeleteError;
+    }
+
+    return res.json({
+      success: true,
+      deleted_user_id: canonicalAuthUserId
+    });
+  } catch (error) {
+    console.error('[AccountDelete] Failed to delete account:', error);
+    return res.status(500).json({ error: 'failed_to_delete_account' });
+  }
+});
+
 app.post('/api/dashboard/billing/check-entitlement', async (req, res) => {
   try {
     const agentId = await resolveRequesterUserId(req, { allowDefault: false });
@@ -16670,7 +16863,7 @@ app.get('/api/dashboard/listings/:listingId/videos', async (req, res) => {
 
     let { data: videos, error: videosError } = await supabaseAdmin
       .from('listing_videos')
-      .select('id, listing_id, template_style, duration_seconds, status, storage_bucket, storage_path, file_name, error_message, creatomate_render_id, creatomate_url, created_at, updated_at')
+      .select('*')
       .eq('listing_id', listing.id)
       .eq('agent_id', ownerId)
       .order('created_at', { ascending: false });
@@ -16730,7 +16923,7 @@ app.get('/api/dashboard/listings/:listingId/videos', async (req, res) => {
     if (refreshed) {
       const reload = await supabaseAdmin
         .from('listing_videos')
-        .select('id, listing_id, template_style, duration_seconds, status, storage_bucket, storage_path, file_name, error_message, creatomate_render_id, creatomate_url, created_at, updated_at')
+        .select('*')
         .eq('listing_id', listing.id)
         .eq('agent_id', ownerId)
         .order('created_at', { ascending: false });
@@ -16775,9 +16968,8 @@ app.get('/api/dashboard/listings/:listingId/videos', async (req, res) => {
 
 app.post('/api/dev/listings/:id/videos/credits/add', async (req, res) => {
   try {
-    const isProduction = String(process.env.NODE_ENV || '').trim().toLowerCase() === 'production';
-    const allowDemoCredits = String(process.env.ALLOW_DEMO_CREDITS || '').trim().toLowerCase() === 'true';
-    if (isProduction && !allowDemoCredits) {
+    const freeTestCreditsEnabled = String(process.env.FREE_TEST_VIDEO_CREDITS_ENABLED || 'true').trim().toLowerCase() !== 'false';
+    if (!freeTestCreditsEnabled) {
       return res.status(403).json({ error: 'dev_credits_disabled' });
     }
 

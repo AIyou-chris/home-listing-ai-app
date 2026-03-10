@@ -198,6 +198,35 @@ export const createBillingPortalSession = async (): Promise<{ url: string }> => 
   };
 };
 
+export const deleteDashboardAccount = async (confirmation = 'DELETE'): Promise<{ success: boolean }> => {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const accessToken = sessionData.session?.access_token || null;
+  const authedUserId = sessionData.session?.user?.id || null;
+  const agentId = authedUserId || (await resolveAgentId());
+
+  if (!agentId) {
+    throw new Error('You must be signed in to delete your account.');
+  }
+
+  const response = await fetch(buildApiUrl('/api/account/delete'), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(agentId ? { 'x-user-id': agentId } : {}),
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {})
+    },
+    body: JSON.stringify({
+      confirmation
+    })
+  });
+
+  await assertResponse(response);
+  const payload = await parseJson(response);
+  return {
+    success: Boolean(payload.success)
+  };
+};
+
 export const trackDashboardReportGeneration = async (listingId: string, referenceId?: string) => {
   const agentId = await resolveAgentId();
   const response = await fetch(buildApiUrl('/api/dashboard/reports/track-generation'), {

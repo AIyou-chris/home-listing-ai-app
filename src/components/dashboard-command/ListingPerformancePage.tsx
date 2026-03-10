@@ -33,7 +33,7 @@ const ListingPerformancePage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [shareKit, setShareKit] = useState<ListingShareKitResponse | null>(null);
   const [listingDetails, setListingDetails] = useState<{
-    address: string; price: number; beds: number; baths: number;
+    address: string; price: number; beds: number; baths: number; description: string;
   } | null>(null);
   const [activeListingWarning, setActiveListingWarning] = useState<string | null>(null);
   const [upgradeLoading, setUpgradeLoading] = useState(false);
@@ -71,7 +71,8 @@ const ListingPerformancePage: React.FC = () => {
           address: details.listing.address,
           price: details.listing.price,
           beds: details.listing.beds,
-          baths: details.listing.baths
+          baths: details.listing.baths,
+          description: details.listing.description || ''
         });
       }
     } catch (err) {
@@ -173,6 +174,7 @@ const ListingPerformancePage: React.FC = () => {
           baths: listingDetails?.baths ?? '-'
         }}
         latestVideo={shareKit?.latest_video || null}
+        listingDescription={listingDetails?.description || ''}
         onPublish={onPublish}
         onTestLeadSubmit={async (data) => {
           if (!listingId) return;

@@ -795,14 +795,15 @@ const createBillingEngine = ({ supabaseAdmin, stripe, enqueueJob, appBaseUrl }) 
 
     const customerId = await ensureStripeCustomerForAgent({ agentId, email });
 
-    const dashboardSuccess = successUrl || `${(appBaseUrl || 'https://homelistingai.com').replace(/\/$/, '')}/dashboard/billing/success`;
-    const dashboardCancel = cancelUrl || `${(appBaseUrl || 'https://homelistingai.com').replace(/\/$/, '')}/dashboard/billing`;
+    const dashboardSuccess = successUrl || `${(appBaseUrl || 'https://homelistingai.com').replace(/\/$/, '')}/dashboard/today?upgraded=true`;
+    const dashboardCancel = cancelUrl || `${(appBaseUrl || 'https://homelistingai.com').replace(/\/$/, '')}/dashboard/settings/billing?checkout=cancelled`;
 
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       customer: customerId || undefined,
       customer_email: !customerId ? email || undefined : undefined,
       line_items: [{ price: plan.stripe_price_id, quantity: 1 }],
+      allow_promotion_codes: true,
       success_url: dashboardSuccess,
       cancel_url: dashboardCancel,
       metadata: {
@@ -832,7 +833,7 @@ const createBillingEngine = ({ supabaseAdmin, stripe, enqueueJob, appBaseUrl }) 
 
     const session = await stripe.billingPortal.sessions.create({
       customer: customerId,
-      return_url: returnUrl || `${(appBaseUrl || 'https://homelistingai.com').replace(/\/$/, '')}/dashboard/billing`
+      return_url: returnUrl || `${(appBaseUrl || 'https://homelistingai.com').replace(/\/$/, '')}/dashboard/settings/billing`
     });
 
     return { url: session.url };

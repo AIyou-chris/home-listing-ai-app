@@ -17,6 +17,7 @@ import {
 import { publishListingShareKit } from '../../services/dashboardCommandService'
 import { getLocalListingDraft, saveLocalListingDraft } from '../../services/listingDraftStorage'
 import { uploadListingPhoto } from '../../services/listingMediaService'
+import FairHousingScannerModal from '../modals/FairHousingScannerModal'
 
 type EditorSection = 'essentials' | 'photos' | 'brain'
 
@@ -717,11 +718,11 @@ const ListingEditorPage: React.FC = () => {
               <div className="rounded-xl border border-slate-100 bg-slate-50 p-5">
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                   <label className={sectionLabel}>About This Home</label>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      onClick={openFairHousing}
-                      className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100"
+                      onClick={() => setFairHousingOpen(true)}
+                      className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
                     >
                       Fair Housing Scan
                     </button>
@@ -1182,6 +1183,12 @@ const ListingEditorPage: React.FC = () => {
         </div>
       </div>
     )}
+    <FairHousingScannerModal
+      open={fairHousingOpen}
+      onClose={() => setFairHousingOpen(false)}
+      initialText={draft.description || ''}
+      contextLabel="Listing Editor"
+    />
     </>
   )
 }

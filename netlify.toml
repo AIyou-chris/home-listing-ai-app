@@ -7,11 +7,6 @@
   NPM_CONFIG_PRODUCTION = "false"
   VITE_API_BASE_URL = "https://home-listing-ai-backend.onrender.com"
 
-[[headers]]
-  for = "/*"
-  [headers.values]
-    Cache-Control = "public, max-age=0, must-revalidate"
-
 [[redirects]]
   from = "/api/ai-card/*"
   to = "/.netlify/functions/ai-card/:splat"

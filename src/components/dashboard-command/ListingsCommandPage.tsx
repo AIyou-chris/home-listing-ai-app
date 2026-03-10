@@ -148,7 +148,10 @@ const ListingsCommandPage: React.FC = () => {
           acc.push(row)
           return acc
         }, [])
-        if (!cancelled) setRows(merged.length > 0 ? merged : DEMO_ROWS)
+        if (!cancelled) {
+          const emptyStateRows = demoMode ? DEMO_ROWS : []
+          setRows(merged.length > 0 ? merged : emptyStateRows)
+        }
       } catch (loadError) {
         if (cancelled) return
         const fallbackRows: ListingRow[] = listLocalListingDrafts().map((draft) => ({
@@ -164,8 +167,15 @@ const ListingsCommandPage: React.FC = () => {
           statusLabel: 'Draft',
           shareUrl: null
         }))
-        setRows(fallbackRows.length > 0 ? fallbackRows : DEMO_ROWS)
-        setError('Live listings are unavailable right now. Showing local demo data.')
+        const emergencyFallbackRows = fallbackRows.length > 0
+          ? fallbackRows
+          : (demoMode ? DEMO_ROWS : [])
+        setRows(emergencyFallbackRows)
+        setError(
+          demoMode
+            ? 'Live listings are unavailable right now. Showing local demo data.'
+            : 'Live listings are unavailable right now. Please try again in a moment.'
+        )
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -174,7 +184,7 @@ const ListingsCommandPage: React.FC = () => {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [demoMode])
 
   const sortedRows = useMemo(
     () =>

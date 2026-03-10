@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../services/supabase';
 import { PublicHeader } from './layout/PublicHeader';
 import { PublicFooter } from './layout/PublicFooter';
@@ -12,31 +13,24 @@ interface SignInPageProps {
     onNavigateToAdmin?: () => void;
 }
 
-const SignInPage: React.FC<SignInPageProps> = ({ onNavigateToSignUp, onNavigateToLanding, onEnterDemoMode, onNavigateToAdmin }) => {
+const SignInPage: React.FC<SignInPageProps> = ({ onNavigateToSignUp, onNavigateToLanding: _onNavigateToLanding, onEnterDemoMode, onNavigateToAdmin }) => {
+    const navigate = useNavigate();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [isPasswordVisible, setIsPasswordVisible] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
 
-    // Check for existing session on mount
-    React.useEffect(() => {
-        const checkSession = async () => {
-            console.log('🔍 SignInPage: Checking for existing session...');
-            const { data: { session } } = await supabase.auth.getSession();
-            if (session) {
-                console.log('✅ SignInPage: Active session found, redirecting...');
-                window.location.href = '/dashboard';
-            } else {
-                console.log('⚪ SignInPage: No active session.');
-            }
-        };
-        checkSession();
-    }, []);
-
     const handleSignIn = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
+
+        // Demo shortcut — skip Supabase entirely and enter demo mode
+        if (email.trim().toLowerCase() === 'demo@homelistingai.com') {
+            onEnterDemoMode();
+            return;
+        }
+
         setIsLoading(true);
         console.log('🚀 Attempting Sign In for:', email);
 
@@ -59,11 +53,7 @@ const SignInPage: React.FC<SignInPageProps> = ({ onNavigateToSignUp, onNavigateT
                 throw result.error;
             }
 
-            console.log('✅ Sign In Success! Session Established.');
-            setTimeout(() => {
-                console.log('🔄 Manually triggering dashboard navigation...');
-                window.location.href = '/dashboard';
-            }, 1000);
+            navigate('/post-auth', { replace: true });
 
         } catch (err: unknown) {
             const message = err instanceof Error ? err.message : 'An unexpected error occurred';
