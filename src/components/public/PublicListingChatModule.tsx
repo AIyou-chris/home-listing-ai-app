@@ -527,7 +527,10 @@ const PublicListingChatModule: React.FC<PublicListingChatModuleProps> = ({
             aria-label="Close Talk to the Home panel"
           />
 
-          <section className="relative z-10 flex h-[88vh] w-full flex-col overflow-hidden rounded-t-3xl border border-slate-200 bg-white shadow-2xl md:h-full md:max-w-[430px] md:rounded-none md:rounded-l-3xl">
+          <section
+            className="relative z-10 flex h-[88vh] w-full flex-col overflow-hidden rounded-t-3xl border border-slate-200 bg-white shadow-2xl md:h-full md:max-w-[430px] md:rounded-none md:rounded-l-3xl"
+            style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+          >
             <header className="bg-gradient-to-r from-slate-900 via-indigo-700 to-blue-600 px-4 py-4 text-white">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">

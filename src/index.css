@@ -9,6 +9,24 @@ body,
   margin: 0;
 }
 
+@media (max-width: 767px) {
+  body.public-listing-fullscreen {
+    margin: 0;
+    height: 100%;
+    overflow: hidden;
+    background: #0b1220;
+  }
+
+  .public-listing-root {
+    height: 100dvh;
+    width: 100vw;
+    display: flex;
+    flex-direction: column;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
 /* Custom animations for background elements and parallax effects */
 @keyframes float {
   0%, 100% { transform: translateY(0px); }

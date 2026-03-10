@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import PublicPropertyApp from './PublicPropertyApp'
 import PublicListingChatModule from './public/PublicListingChatModule'
 import { SAMPLE_AGENT } from '../constants'
@@ -7,6 +7,14 @@ import { Property } from '../types'
 const DemoListingPage: React.FC = () => {
   const [open, setOpen] = useState(true)
   const [talkToHomeOpen, setTalkToHomeOpen] = useState(false)
+
+  useEffect(() => {
+    document.body.classList.add('public-listing-fullscreen')
+    return () => {
+      document.body.classList.remove('public-listing-fullscreen')
+    }
+  }, [])
+
   const demo: Property = {
     id: 'demo-1',
     title: 'Modern Family Home',
@@ -52,6 +60,7 @@ const DemoListingPage: React.FC = () => {
             onExit={() => setOpen(false)}
             showBackButton={false}
             onTalkToHome={() => setTalkToHomeOpen(true)}
+            contactShareUrl={`${window.location.origin}/demo-listing#contact`}
           />
           <PublicListingChatModule
             property={demo}

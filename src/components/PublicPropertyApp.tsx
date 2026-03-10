@@ -2,35 +2,20 @@ import React, { useEffect, useMemo, useState } from 'react';
 import ViewingModal from './ViewingModal';
 import { Property, isAIDescription } from '../types';
 import SEO from './SEO';
+import AgentContactSheet, { type AgentContactInfo } from './public/AgentContactSheet';
 
 interface PublicPropertyAppProps {
     property: Property;
     onExit: () => void;
     showBackButton?: boolean;
     onTalkToHome?: () => void;
+    contactShareUrl?: string;
 }
 
-type PublicAgentCardModel = {
-    name: string;
-    company: string;
-    title: string;
-    phone?: string;
-    email?: string;
-    website?: string;
-    headshotUrl?: string;
-};
-
-const FALLBACK_AGENT: PublicAgentCardModel = {
-    name: 'Listing Agent',
+const FALLBACK_AGENT: AgentContactInfo = {
+    name: 'HomeListingAI Agent',
     company: 'HomeListingAI',
-    title: 'Licensed Realtor®'
-};
-
-const getInitials = (name: string) => {
-    const parts = name.trim().split(/\s+/).filter(Boolean);
-    if (parts.length === 0) return 'LA';
-    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-    return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+    title: 'Listing Specialist'
 };
 
 const ActionPillButton: React.FC<{ icon: string; label: string; onClick: () => void }> = ({ icon, label, onClick }) => (
@@ -43,16 +28,34 @@ const ActionPillButton: React.FC<{ icon: string; label: string; onClick: () => v
     </button>
 );
 
-const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({ property, onExit, showBackButton = true, onTalkToHome }) => {
+const toAgentContactInfo = (property: Property): AgentContactInfo => {
+    const raw = property.agent || ({} as Property['agent']);
+    return {
+        name: raw.name?.trim() || FALLBACK_AGENT.name,
+        company: raw.company?.trim() || FALLBACK_AGENT.company,
+        title: raw.title?.trim() || FALLBACK_AGENT.title,
+        phone: raw.phone?.trim() || undefined,
+        email: raw.email?.trim() || undefined,
+        website: raw.website?.trim() || undefined,
+        headshotUrl: raw.headshotUrl?.trim() || undefined
+    };
+};
+
+const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({
+    property,
+    onExit,
+    showBackButton = true,
+    onTalkToHome,
+    contactShareUrl
+}) => {
     const descriptionText = isAIDescription(property.description)
         ? property.description.paragraphs.join(' ')
         : (typeof property.description === 'string' ? property.description : '');
 
-    const [modalSubState, setModalSubState] = useState<{
-        viewing: boolean;
-        gallery: boolean;
-    }>({ viewing: false, gallery: false });
-
+    const [modalSubState, setModalSubState] = useState<{ viewing: boolean; gallery: boolean }>({
+        viewing: false,
+        gallery: false
+    });
     const [galleryIndex, setGalleryIndex] = useState(0);
     const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
     const [contactOpen, setContactOpen] = useState(false);
@@ -71,19 +74,14 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({ property, onExit,
     }, [galleryPhotosArray, heroPhotosArray, property.imageUrl]);
 
     const hasMultiplePhotos = allPhotos.length > 1;
-    const agent = useMemo<PublicAgentCardModel>(() => {
-        const raw = property.agent || ({} as Property['agent']);
-        return {
-            name: raw.name?.trim() || FALLBACK_AGENT.name,
-            company: raw.company?.trim() || FALLBACK_AGENT.company,
-            title: raw.title?.trim() || FALLBACK_AGENT.title,
-            phone: raw.phone?.trim() || undefined,
-            email: raw.email?.trim() || undefined,
-            website: raw.website?.trim() || undefined,
-            headshotUrl: raw.headshotUrl?.trim() || undefined
-        };
-    }, [property.agent]);
-    const agentInitials = useMemo(() => getInitials(agent.name), [agent.name]);
+    const agent = useMemo(() => toAgentContactInfo(property), [property]);
+
+    const resolvedContactShareUrl = useMemo(() => {
+        const base = (contactShareUrl && contactShareUrl.trim().length > 0)
+            ? contactShareUrl
+            : window.location.href;
+        return `${base.replace(/#.*$/, '')}#contact`;
+    }, [contactShareUrl]);
 
     useEffect(() => {
         if (!hasMultiplePhotos || modalSubState.gallery) return;
@@ -97,28 +95,6 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({ property, onExit,
 
     const backgroundImage = allPhotos[currentPhotoIndex] || property.imageUrl;
 
-    const handleShare = async () => {
-        if (navigator.share) {
-            try {
-                await navigator.share({
-                    title: property.title,
-                    text: `Check out this home: ${property.address}`,
-                    url: window.location.href
-                });
-            } catch (_err) {
-                // User canceled share sheet.
-            }
-            return;
-        }
-
-        try {
-            await navigator.clipboard.writeText(window.location.href);
-            alert('Link copied to clipboard!');
-        } catch (_error) {
-            alert('Copy failed. Please copy the URL from your browser bar.');
-        }
-    };
-
     const handleFlyer = () => {
         const mediaUrl = (typeof property.ctaMediaUrl === 'string' ? property.ctaMediaUrl.trim() : '') || '';
         if (mediaUrl) {
@@ -131,38 +107,6 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({ property, onExit,
     const openGallery = () => {
         setGalleryIndex(currentPhotoIndex);
         setModalSubState((prev) => ({ ...prev, gallery: true }));
-    };
-
-    const handleShareContact = async () => {
-        const contactText = [
-            agent.name,
-            agent.title,
-            agent.company,
-            agent.phone ? `Phone: ${agent.phone}` : '',
-            agent.email ? `Email: ${agent.email}` : '',
-            agent.website ? `Website: ${agent.website}` : '',
-            `Listing: ${window.location.href}`
-        ].filter(Boolean).join('\n');
-
-        if (navigator.share) {
-            try {
-                await navigator.share({
-                    title: `${agent.name} — Listing Agent`,
-                    text: contactText,
-                    url: window.location.href
-                });
-                return;
-            } catch (_error) {
-                // User canceled share sheet.
-            }
-        }
-
-        try {
-            await navigator.clipboard.writeText(contactText);
-            alert('Contact copied to clipboard.');
-        } catch (_error) {
-            alert('Unable to share contact right now.');
-        }
     };
 
     const listingSchema = {
@@ -185,7 +129,7 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({ property, onExit,
     };
 
     return (
-        <div className="relative flex h-[100svh] min-h-[100svh] w-screen items-stretch justify-center overflow-hidden bg-slate-950 font-sans">
+        <div className="public-listing-root relative flex h-[100dvh] min-h-[100dvh] w-screen items-stretch justify-center overflow-hidden bg-slate-950 font-sans">
             <SEO
                 title={property.title}
                 description={descriptionText}
@@ -193,27 +137,27 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({ property, onExit,
                 schema={listingSchema}
             />
 
-            <div className="relative flex h-[100svh] min-h-[100svh] w-[100vw] flex-col items-center overflow-hidden bg-white shadow-2xl md:my-4 md:h-[calc(100svh-2rem)] md:min-h-0 md:max-h-[920px] md:max-w-md md:rounded-[40px]">
+            <div className="relative flex h-[100dvh] min-h-[100dvh] w-[100vw] flex-col items-center overflow-hidden bg-white shadow-2xl md:my-4 md:h-[calc(100svh-2rem)] md:min-h-0 md:max-h-[920px] md:max-w-md md:rounded-[40px]">
                 <div className="absolute inset-0 z-0">
                     <img src={backgroundImage} alt={property.title} className="h-full w-full object-cover" />
-                    <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-transparent to-black/60"></div>
+                    <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-transparent to-black/60" />
                 </div>
 
                 <div
                     className="absolute left-4 right-4 z-20 flex items-center justify-between md:left-6 md:right-6 md:top-6"
                     style={{ top: 'calc(env(safe-area-inset-top, 0px) + 1rem)' }}
                 >
-                    {showBackButton && (
-                        <button onClick={onExit} className="flex h-10 w-10 items-center justify-center rounded-full border border-white/30 bg-white/20 text-white shadow-lg backdrop-blur-md transition hover:bg-white/30">
+                    {showBackButton ? (
+                        <button
+                            onClick={onExit}
+                            className="flex h-10 w-10 items-center justify-center rounded-full border border-white/30 bg-white/20 text-white shadow-lg backdrop-blur-md transition hover:bg-white/30"
+                            aria-label="Back"
+                        >
                             <span className="material-symbols-outlined text-lg">arrow_back</span>
                         </button>
+                    ) : (
+                        <span />
                     )}
-                    <button
-                        onClick={handleShare}
-                        className="ml-auto flex h-10 w-10 items-center justify-center rounded-full border border-white/30 bg-white/20 text-white shadow-lg backdrop-blur-md transition hover:bg-white/30"
-                    >
-                        <span className="material-symbols-outlined text-lg">ios_share</span>
-                    </button>
                 </div>
 
                 {onTalkToHome && (
@@ -230,7 +174,7 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({ property, onExit,
                     </div>
                 )}
 
-                <div className="absolute bottom-[13.75rem] left-4 right-4 z-20 md:bottom-36">
+                <div className="absolute bottom-[8.75rem] left-4 right-4 z-20 md:bottom-36">
                     <div className="rounded-3xl border border-white/20 bg-white/10 p-6 text-center text-white shadow-2xl backdrop-blur-xl">
                         <h2 className="mb-1 text-3xl font-bold tracking-tight text-shadow-sm">
                             ${property.price.toLocaleString('en-US')}
@@ -245,12 +189,12 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({ property, onExit,
                                 <span className="block text-xl font-bold">{property.bedrooms}</span>
                                 <span className="text-[10px] uppercase tracking-wider opacity-80">Beds</span>
                             </div>
-                            <div className="h-8 w-px bg-white/20"></div>
+                            <div className="h-8 w-px bg-white/20" />
                             <div className="text-center">
                                 <span className="block text-xl font-bold">{property.bathrooms}</span>
                                 <span className="text-[10px] uppercase tracking-wider opacity-80">Baths</span>
                             </div>
-                            <div className="h-8 w-px bg-white/20"></div>
+                            <div className="h-8 w-px bg-white/20" />
                             <div className="text-center">
                                 <span className="block text-xl font-bold">{property.squareFeet.toLocaleString()}</span>
                                 <span className="text-[10px] uppercase tracking-wider opacity-80">Sq Ft</span>
@@ -260,52 +204,12 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({ property, onExit,
                 </div>
 
                 <div
-                    className="absolute left-4 right-4 z-30 rounded-2xl border border-white/20 bg-slate-900/55 p-3 text-white shadow-2xl backdrop-blur-xl md:left-5 md:right-5"
-                    style={{ bottom: 'calc(6.75rem + env(safe-area-inset-bottom, 0px))' }}
-                >
-                    <div className="flex items-center gap-3">
-                        {agent.headshotUrl ? (
-                            <img
-                                src={agent.headshotUrl}
-                                alt={agent.name}
-                                className="h-12 w-12 rounded-full border border-white/40 object-cover"
-                            />
-                        ) : (
-                            <div className="flex h-12 w-12 items-center justify-center rounded-full border border-white/35 bg-white/10 text-sm font-bold">
-                                {agentInitials}
-                            </div>
-                        )}
-                        <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-semibold">{agent.name}</p>
-                            <p className="truncate text-xs text-white/80">{agent.company}</p>
-                            <p className="truncate text-[11px] text-white/70">{agent.title}</p>
-                        </div>
-                    </div>
-                    <div className="mt-3 grid grid-cols-2 gap-2">
-                        <button
-                            type="button"
-                            onClick={() => onTalkToHome?.()}
-                            className="rounded-xl bg-primary-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-primary-700"
-                        >
-                            Chat
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setContactOpen(true)}
-                            className="rounded-xl border border-white/35 bg-white/10 px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/20"
-                        >
-                            Contact
-                        </button>
-                    </div>
-                </div>
-
-                <div
                     className="absolute bottom-0 left-0 right-0 z-30 flex h-28 items-center justify-around rounded-t-[32px] border-t border-white/40 bg-white/30 px-2 shadow-[0_-8px_32px_rgba(0,0,0,0.1)] backdrop-blur-xl"
                     style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)' }}
                 >
                     <ActionPillButton icon="photo_library" label="Gallery" onClick={openGallery} />
                     <ActionPillButton icon="description" label="Flyer" onClick={handleFlyer} />
-                    <ActionPillButton icon="share" label="Share" onClick={handleShare} />
+                    <ActionPillButton icon="contact_phone" label="Contact" onClick={() => setContactOpen(true)} />
                     <ActionPillButton icon="calendar_month" label="Showing" onClick={() => setModalSubState((prev) => ({ ...prev, viewing: true }))} />
                 </div>
 
@@ -366,50 +270,12 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({ property, onExit,
                     </div>
                 )}
 
-                {contactOpen && (
-                    <div className="fixed inset-0 z-[90] flex items-end justify-center bg-black/55 p-4 md:items-center" onClick={() => setContactOpen(false)}>
-                        <div className="w-full max-w-md rounded-2xl border border-white/20 bg-slate-900/95 p-4 text-white shadow-2xl backdrop-blur-xl" onClick={(event) => event.stopPropagation()}>
-                            <div className="mb-3 flex items-start justify-between gap-3">
-                                <div>
-                                    <p className="text-base font-bold">{agent.name}</p>
-                                    <p className="text-sm text-white/75">{agent.title} • {agent.company}</p>
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={() => setContactOpen(false)}
-                                    className="rounded-full bg-white/15 p-1.5 text-white transition hover:bg-white/25"
-                                    aria-label="Close contact panel"
-                                >
-                                    <span className="material-symbols-outlined text-[18px]">close</span>
-                                </button>
-                            </div>
-                            <div className="space-y-2">
-                                {agent.phone && (
-                                    <a href={`tel:${agent.phone}`} className="block rounded-xl border border-white/20 bg-white/5 px-3 py-2 text-sm hover:bg-white/10">
-                                        Call {agent.phone}
-                                    </a>
-                                )}
-                                {agent.email && (
-                                    <a href={`mailto:${agent.email}`} className="block rounded-xl border border-white/20 bg-white/5 px-3 py-2 text-sm hover:bg-white/10">
-                                        Email {agent.email}
-                                    </a>
-                                )}
-                                {agent.website && (
-                                    <a href={agent.website} target="_blank" rel="noreferrer" className="block rounded-xl border border-white/20 bg-white/5 px-3 py-2 text-sm hover:bg-white/10">
-                                        Visit website
-                                    </a>
-                                )}
-                                <button
-                                    type="button"
-                                    onClick={() => void handleShareContact()}
-                                    className="w-full rounded-xl bg-primary-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-primary-700"
-                                >
-                                    Share contact
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )}
+                <AgentContactSheet
+                    open={contactOpen}
+                    onClose={() => setContactOpen(false)}
+                    agent={agent}
+                    shareUrl={resolvedContactShareUrl}
+                />
             </div>
         </div>
     );

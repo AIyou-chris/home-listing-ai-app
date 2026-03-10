@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { listingsService } from '../services/listingsService';
 import PublicPropertyApp from '../components/PublicPropertyApp';
@@ -42,8 +42,8 @@ const toPropertyFromPublicPayload = (payload: Record<string, unknown>): Property
             messaging: true
         },
         agent: {
-            name: String((payload.agent as Record<string, unknown> | undefined)?.name || 'Listing Agent'),
-            title: String((payload.agent as Record<string, unknown> | undefined)?.title || 'Licensed Realtor®'),
+            name: String((payload.agent as Record<string, unknown> | undefined)?.name || 'HomeListingAI Agent'),
+            title: String((payload.agent as Record<string, unknown> | undefined)?.title || 'Listing Specialist'),
             company: String((payload.agent as Record<string, unknown> | undefined)?.company || 'HomeListingAI'),
             phone: String((payload.agent as Record<string, unknown> | undefined)?.phone || ''),
             email: String((payload.agent as Record<string, unknown> | undefined)?.email || ''),
@@ -70,6 +70,18 @@ const PublicListingPage: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [talkToHomeOpen, setTalkToHomeOpen] = useState(false);
+    const publicContactUrl = useMemo(() => {
+        if (publicSlug) return `${window.location.origin}/l/${publicSlug}#contact`;
+        if (id) return `${window.location.origin}/listing/${id}#contact`;
+        return `${window.location.origin}${window.location.pathname}#contact`;
+    }, [id, publicSlug]);
+
+    useEffect(() => {
+        document.body.classList.add('public-listing-fullscreen');
+        return () => {
+            document.body.classList.remove('public-listing-fullscreen');
+        };
+    }, []);
 
     useEffect(() => {
         const fetchProperty = async () => {
@@ -207,6 +219,7 @@ const PublicListingPage: React.FC = () => {
                 onExit={() => navigate('/')}
                 showBackButton={false} // Clean look for standalone page
                 onTalkToHome={() => setTalkToHomeOpen(true)}
+                contactShareUrl={publicContactUrl}
             />
             <PublicListingChatModule
                 property={property}
