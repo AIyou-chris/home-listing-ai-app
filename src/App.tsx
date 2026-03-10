@@ -1,5 +1,5 @@
 import React, { useState, useEffect, Suspense, lazy, useCallback, useRef } from 'react';
-import { Routes, Route, useNavigate, useLocation, Navigate, Outlet, useParams } from 'react-router-dom';
+import { Routes, Route, useNavigate, useLocation, Navigate, Outlet } from 'react-router-dom';
 import { supabase } from './services/supabase';
 import { Property, View, AgentProfile, NotificationSettings, EmailSettings, CalendarSettings, BillingSettings, Lead, Appointment, Interaction, LeadFunnelType } from './types';
 import { DEMO_FAT_PROPERTIES, DEMO_FAT_LEADS, DEMO_FAT_APPOINTMENTS } from './demoConstants';
@@ -14,10 +14,8 @@ const SignUpPage = lazy(() => import('./components/SignUpPage'));
 const SignInPage = lazy(() => import('./components/SignInPage'));
 const ForgotPasswordPage = lazy(() => import('./components/ForgotPasswordPage'));
 const ResetPasswordPage = lazy(() => import('./components/ResetPasswordPage'));
-const CheckoutPage = lazy(() => import('./components/CheckoutPage'));
 import { Toaster } from 'react-hot-toast';
 import { showToast } from './utils/toastService';
-import { getRegistrationContext } from './services/agentOnboardingService';
 
 const WhiteLabelPage = lazy(() => import('./pages/WhiteLabelPage'));
 
@@ -687,7 +685,7 @@ const App: React.FC = () => {
                         const urlParams = new URLSearchParams(window.location.search);
                         const next = urlParams.get('next'); // e.g. /checkout
                         if (next) {
-                            navigate(next);
+                            navigate(next.startsWith('/checkout') ? '/dashboard/settings/billing' : next);
                         } else {
                             navigate('/dashboard');
                         }
@@ -1328,36 +1326,23 @@ const App: React.FC = () => {
     }
 
 
-    // Unified Checkout Wrapper to handle both URL params and context
-    const CheckoutRouteWrapper = () => {
-        const params = useParams<{ slug?: string }>();
-        const registrationContext = getRegistrationContext() as { slug?: string } | null;
+    const CheckoutRouteRedirect = () => {
+        const navigate = useNavigate();
 
-        // Prioritize URL param, fallback to context
-        const slugForCheckout = params.slug || registrationContext?.slug || null;
+        useEffect(() => {
+            showToast.info('Billing is managed in your Dashboard → Settings → Billing.');
+            if (user || isAdmin) {
+                navigate('/dashboard/settings/billing', { replace: true });
+                return;
+            }
+            navigate('/signup', { replace: true });
+        }, [isAdmin, navigate, user]);
 
-        if (!slugForCheckout) {
-            return (
-                <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 px-6 text-center">
-                    <div className="max-w-md space-y-4">
-                        <h2 className="text-xl font-semibold text-slate-800">We could not find your registration</h2>
-                        <p className="text-sm text-slate-600">
-                            Your secure checkout link may have expired. Please restart the signup process to generate a new link.
-                        </p>
-                        <button
-                            type="button"
-                            onClick={handleNavigateToSignUp}
-                            className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-500 transition"
-                        >
-                            <span className="material-symbols-outlined text-base">person_add</span>
-                            Start new signup
-                        </button>
-                    </div>
-                </div>
-            );
-        }
-
-        return <CheckoutPage slug={slugForCheckout} onBackToSignup={handleNavigateToSignUp} />;
+        return (
+            <div className="flex h-screen items-center justify-center bg-slate-50">
+                <LoadingSpinner size="lg" type="dots" text="Redirecting..." />
+            </div>
+        );
     };
 
 
@@ -1508,7 +1493,7 @@ const App: React.FC = () => {
 
                     <Route path="/checkout/:slug?" element={
                         <Suspense fallback={<LoadingSpinner />}>
-                            <CheckoutRouteWrapper />
+                            <CheckoutRouteRedirect />
                         </Suspense>
                     } />
 
@@ -1552,7 +1537,9 @@ const App: React.FC = () => {
                         <Route path="listings" element={<ListingsCommandPage />} />
                         <Route path="listings/:listingId" element={<ListingPerformancePage />} />
                         <Route path="listings/:listingId/edit" element={<ListingEditorPage />} />
-                        <Route path="billing" element={<BillingCommandPage />} />
+                        <Route path="billing" element={<Navigate to="/demo-dashboard/settings/billing" replace />} />
+                        <Route path="settings" element={<Navigate to="/demo-dashboard/settings/billing" replace />} />
+                        <Route path="settings/billing" element={<BillingCommandPage />} />
                         <Route path="onboarding" element={<OnboardingCommandPage />} />
                     </Route>
                     <Route path="/dashboard-blueprint/*" element={<AgentDashboard isDemoMode={true} demoListingCount={1} />} />
@@ -1631,7 +1618,9 @@ const App: React.FC = () => {
                         <Route path="/dashboard/listings" element={<ListingsCommandPage />} />
                         <Route path="/dashboard/listings/:listingId" element={<ListingPerformancePage />} />
                         <Route path="/dashboard/listings/:listingId/edit" element={<ListingEditorPage />} />
-                        <Route path="/dashboard/billing" element={<BillingCommandPage />} />
+                        <Route path="/dashboard/billing" element={<Navigate to="/dashboard/settings/billing" replace />} />
+                        <Route path="/dashboard/settings" element={<Navigate to="/dashboard/settings/billing" replace />} />
+                        <Route path="/dashboard/settings/billing" element={<BillingCommandPage />} />
                         <Route path="/dashboard/onboarding" element={<OnboardingCommandPage />} />
                         <Route path="/dashboard/dev/share-test" element={<ShareTestPage />} />
 

@@ -249,7 +249,7 @@ export const ProofSectionNew: React.FC<ProofSectionProps> = ({ onNavigateToSignU
                             onClick={onNavigateToSignUp}
                             className="w-full sm:w-auto px-10 py-4 bg-white text-slate-950 hover:bg-slate-200 font-bold rounded-lg transition-all text-lg flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(255,255,255,0.2)]"
                         >
-                            Start Free Trial
+                            Create Free Account
                         </button>
                     </div>
                     <p className="text-slate-500 text-sm font-medium">

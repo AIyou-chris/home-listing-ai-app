@@ -213,7 +213,7 @@ const ListingPerformancePage: React.FC = () => {
         onClose={() => setUpgradeModal((prev) => ({ ...prev, open: false }))}
           onUpgrade={() => {
             if (!upgradeModal.targetPlan) {
-              navigate(buildDashboardPath('/billing', demoMode));
+              navigate(buildDashboardPath('/settings/billing', demoMode));
               return;
             }
           void (async () => {

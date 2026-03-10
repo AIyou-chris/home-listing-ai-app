@@ -509,7 +509,7 @@ export const ListingStudioV2Page: React.FC<ListingStudioV2PageProps> = ({ proper
         onClose={() => setUpgradeModal((prev) => ({ ...prev, open: false }))}
         onUpgrade={() => {
           if (!upgradeModal.targetPlan) {
-            navigate('/dashboard/billing');
+            navigate('/dashboard/settings/billing');
             return;
           }
           void (async () => {

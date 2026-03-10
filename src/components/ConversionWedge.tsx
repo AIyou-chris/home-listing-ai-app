@@ -310,7 +310,7 @@ export const ConversionWedge: React.FC<ConversionWedgeProps> = ({ onNavigateToSi
                             onClick={onNavigateToSignUp}
                             className="px-8 py-4 bg-white text-slate-950 hover:bg-slate-200 font-bold rounded-lg transition-all text-lg flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(255,255,255,0.2)]"
                         >
-                            Start Free Trial
+                            Create Free Account
                         </button>
                     </div>
                     <p className="text-slate-500 text-sm font-medium">
@@ -447,7 +447,7 @@ export const ConversionWedge: React.FC<ConversionWedgeProps> = ({ onNavigateToSi
                                             onClick={() => { setIsModalOpen(false); onNavigateToSignUp(); }}
                                             className="w-full py-3.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold rounded-xl transition-all"
                                         >
-                                            Start free trial
+                                            Create free account
                                         </button>
                                     </div>
                                 </div>

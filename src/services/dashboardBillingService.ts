@@ -166,8 +166,8 @@ export const createBillingCheckoutSession = async (planId: Exclude<PlanId, 'free
     },
     body: JSON.stringify({
       plan_id: planId,
-      success_url: `${window.location.origin}/dashboard/billing?checkout=success`,
-      cancel_url: `${window.location.origin}/dashboard/billing?checkout=cancelled`
+      success_url: `${window.location.origin}/dashboard/settings/billing?checkout=success`,
+      cancel_url: `${window.location.origin}/dashboard/settings/billing?checkout=cancelled`
     })
   });
 
@@ -187,7 +187,7 @@ export const createBillingPortalSession = async (): Promise<{ url: string }> => 
       ...(agentId ? { 'x-user-id': agentId } : {})
     },
     body: JSON.stringify({
-      return_url: `${window.location.origin}/dashboard/billing`
+      return_url: `${window.location.origin}/dashboard/settings/billing`
     })
   });
 

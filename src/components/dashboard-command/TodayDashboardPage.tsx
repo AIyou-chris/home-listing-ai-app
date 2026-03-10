@@ -553,7 +553,7 @@ const TodayDashboardPage: React.FC = () => {
                   {(billing.plan.id === 'free' || billingWarningLines.length > 0) && (
                     <button
                     type="button"
-                    onClick={() => navigate(buildDashboardPath('/billing', demoMode))}
+                    onClick={() => navigate(buildDashboardPath('/settings/billing', demoMode))}
                       className="rounded-md bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white"
                     >
                       Upgrade

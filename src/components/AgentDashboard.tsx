@@ -716,20 +716,8 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
     };
   }, [agentProfile.slug, isDemoMode, notifyApiError, currentUserId]); // Added currentUserId dependency
 
-  const handleUpgradeSubscription = async () => {
-    try {
-      if (!agentProfile.email || !currentUserId) {
-        notifyApiError({ title: 'Upgrade Failed', description: 'Missing account information.', error: null });
-        return;
-      }
-
-      // Show loading state if needed, or simplified button text change
-      // For now, we rely on the redirect behavior
-      const { url } = await billingSettingsService.createCheckoutSession(currentUserId, agentProfile.email);
-      window.location.href = url;
-    } catch (error) {
-      notifyApiError({ title: 'Checkout Failed', description: 'Could not start checkout session.', error });
-    }
+  const handleUpgradeSubscription = () => {
+    navigate('/dashboard/settings/billing');
   };
 
   const leadsMountedRef = useRef(true);
@@ -1561,7 +1549,7 @@ const AgentDashboard: React.FC<AgentDashboardProps> = ({ isDemoMode: propIsDemoM
                       <h3 className="text-xl font-bold">Founding Member Trial Active</h3>
                     </div>
                     <p className="text-white/90 text-sm md:text-base">
-                      Your 3-day full access pass is live. Lock in your <strong>$69/mo</strong> rate (vs $99) before the trial expires.
+                      Your account is live on the free plan. Upgrade to <strong>Starter $39</strong> or <strong>Pro $79</strong> from Settings → Billing whenever you are ready.
                     </p>
                   </div>
                   <button

@@ -110,7 +110,7 @@ export const agentOnboardingService = {
       persistRegistrationContext({
         agent: data.agent,
         slug: data.agent.slug,
-        checkoutUrl: `/checkout/${data.agent.slug}`
+        checkoutUrl: '/dashboard/today'
       });
     }
     return data.agent;
