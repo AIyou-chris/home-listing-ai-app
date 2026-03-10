@@ -1,10 +1,12 @@
 import React, { useState } from 'react'
 import PublicPropertyApp from './PublicPropertyApp'
+import PublicListingChatModule from './public/PublicListingChatModule'
 import { SAMPLE_AGENT } from '../constants'
 import { Property } from '../types'
 
 const DemoListingPage: React.FC = () => {
   const [open, setOpen] = useState(true)
+  const [talkToHomeOpen, setTalkToHomeOpen] = useState(false)
   const demo: Property = {
     id: 'demo-1',
     title: 'Modern Family Home',
@@ -56,15 +58,24 @@ const DemoListingPage: React.FC = () => {
         </div>
       </div>
       {open && (
-        <PublicPropertyApp
-          property={demo}
-          onExit={() => setOpen(false)}
-          showBackButton={false}
-        />
+        <>
+          <PublicPropertyApp
+            property={demo}
+            onExit={() => setOpen(false)}
+            showBackButton={false}
+            onTalkToHome={() => setTalkToHomeOpen(true)}
+          />
+          <PublicListingChatModule
+            property={demo}
+            open={talkToHomeOpen}
+            hideLauncher
+            demoMode
+            onOpenChange={setTalkToHomeOpen}
+          />
+        </>
       )}
     </div>
   )
 }
 
 export default DemoListingPage
-

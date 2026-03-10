@@ -30,6 +30,12 @@ type ListingDraftState = {
   description: string
 }
 
+type FairHousingResult = {
+  risk: 'Low' | 'Moderate' | 'High'
+  flagged: string[]
+  rewrite: string
+}
+
 const SECTIONS: Array<{ key: EditorSection; label: string }> = [
   { key: 'essentials', label: 'Essentials' },
   { key: 'photos', label: 'Photos' },
@@ -82,6 +88,36 @@ const sanitizeDecimal = (raw: string): string => {
   const dot = cleaned.indexOf('.')
   if (dot === -1) return cleaned
   return cleaned.slice(0, dot + 2)
+}
+
+const FAIR_HOUSING_FLAG_PHRASES = [
+  'perfect for families',
+  'safe neighborhood',
+  'walk to church',
+  'ideal for young couples',
+  'exclusive community',
+  'quiet retirees',
+  'christian',
+  'jewish',
+  'muslim',
+  'white neighborhood'
+]
+
+const runLocalFairHousingScan = (value: string): FairHousingResult => {
+  const normalized = value.toLowerCase()
+  const flagged = FAIR_HOUSING_FLAG_PHRASES.filter((term) => normalized.includes(term))
+  const risk: FairHousingResult['risk'] = flagged.length >= 3 ? 'High' : flagged.length >= 1 ? 'Moderate' : 'Low'
+  let rewrite = value.trim()
+  if (!rewrite) {
+    rewrite = 'Highlight the property features, upgrades, layout, and location convenience without describing people who should live there.'
+  }
+  rewrite = rewrite
+    .replace(/perfect for families/gi, 'great layout for everyday living')
+    .replace(/safe neighborhood/gi, 'well-located neighborhood')
+    .replace(/ideal for young couples/gi, 'ideal for buyers seeking convenience')
+    .replace(/quiet retirees/gi, 'quiet setting')
+    .replace(/walk to church/gi, 'close to local amenities')
+  return { risk, flagged, rewrite }
 }
 
 // ── Shared style tokens ────────────────────────────────────────────────────────
@@ -236,6 +272,19 @@ const ListingEditorPage: React.FC = () => {
     void load()
     return () => { cancelled = true }
   }, [demoMode, listingId])
+
+  const openFairHousing = () => {
+    setFairHousingText(draft.description || '')
+    setFairHousingResult(null)
+    setFairHousingOpen(true)
+  }
+
+  const handleRunFairHousing = async () => {
+    setRunningFairHousing(true)
+    await new Promise((resolve) => window.setTimeout(resolve, 380))
+    setFairHousingResult(runLocalFairHousingScan(fairHousingText))
+    setRunningFairHousing(false)
+  }
 
   const updateDraft = (key: keyof ListingDraftState, value: string | number) =>
     setDraft((prev) => ({ ...prev, [key]: value }))
@@ -664,7 +713,7 @@ const ListingEditorPage: React.FC = () => {
 
               {/* About card */}
               <div className="rounded-xl border border-slate-100 bg-slate-50 p-5">
-                <div className="mb-3 flex items-center justify-between">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                   <label className={sectionLabel}>About This Home</label>
                   <div className="flex items-center gap-2">
                     <button
@@ -694,12 +743,13 @@ const ListingEditorPage: React.FC = () => {
                     </button>
                   </div>
                 </div>
+                <p className="mb-2 text-xs text-slate-500">Describe what makes this home special…</p>
                 <textarea
-                  rows={7}
+                  rows={8}
                   value={draft.description}
                   onChange={(e) => updateDraft('description', e.target.value)}
                   placeholder="Describe what makes this home special — neighbourhood, upgrades, lifestyle…"
-                  className={`${fieldCls} resize-none`}
+                  className={`${fieldCls} min-h-[200px] resize-none rounded-2xl border-slate-200 bg-white p-4 leading-relaxed`}
                 />
               </div>
 
@@ -760,7 +810,7 @@ const ListingEditorPage: React.FC = () => {
                   value={photoUrlInput}
                   onChange={(e) => setPhotoUrlInput(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && addPhotoUrl()}
-                  placeholder="Or paste a photo URL…"
+                  placeholder="Paste a photo URL to add it instantly…"
                   className={`${fieldCls} flex-1`}
                 />
                 <button
@@ -821,7 +871,7 @@ const ListingEditorPage: React.FC = () => {
               <div className="rounded-xl border border-slate-100 bg-slate-50 p-5">
                 <p className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Listing Brain</p>
                 <p className="mb-4 text-sm text-slate-500">
-                  Feed the AI everything you know about this property. The more it knows, the better the listing copy.
+                  Feed the AI everything you know about this property. This trains the home&apos;s AI voice for descriptions, scripts, and follow-up copy.
                 </p>
                 <div className="flex flex-wrap gap-2">
                   <button
@@ -875,7 +925,7 @@ const ListingEditorPage: React.FC = () => {
                 {sources.length === 0 ? (
                   <div className="px-4 py-10 text-center">
                     <p className="text-sm font-semibold text-slate-500">No sources yet</p>
-                    <p className="mt-1 text-xs text-slate-400">Add your first source above to train the listing AI.</p>
+                    <p className="mt-1 text-xs text-slate-400">Add your first source above to train this home&apos;s AI before publishing.</p>
                   </div>
                 ) : (
                   <ul className="divide-y divide-slate-100">
@@ -951,6 +1001,99 @@ const ListingEditorPage: React.FC = () => {
         </div>
       </div>
     </div>
+
+    {/* ── Fair housing scan modal ── */}
+    {fairHousingOpen && (
+      <div className="fixed inset-0 z-[10000] flex items-end justify-center p-0 md:items-center md:p-4">
+        <div className="absolute inset-0 bg-slate-900/45 backdrop-blur-sm" onClick={() => setFairHousingOpen(false)} />
+        <div className="relative flex h-[90vh] w-full flex-col rounded-t-3xl border border-slate-200 bg-white shadow-2xl md:h-auto md:max-h-[92vh] md:max-w-3xl md:rounded-2xl">
+          <header className="border-b border-slate-200 px-5 py-4">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900">Fair Housing Scan</h2>
+                <p className="text-sm text-slate-500">Flag risky wording and get safer rewrites for your listing copy.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFairHousingOpen(false)}
+                className="rounded-full bg-slate-100 p-2 text-slate-500 transition hover:bg-slate-200 hover:text-slate-700"
+                aria-label="Close fair housing scan"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </header>
+
+          <div className="grid flex-1 gap-4 overflow-y-auto p-5 md:grid-cols-2">
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">Scan Text</p>
+              <textarea
+                rows={12}
+                value={fairHousingText}
+                onChange={(event) => setFairHousingText(event.target.value)}
+                placeholder="Paste listing remarks, captions, SMS copy, or email text..."
+                className={`${fieldCls} min-h-[240px] resize-y bg-white`}
+              />
+              <p className="text-xs text-slate-500">TODO: Wire this modal to the full ChatKit fair housing workflow when production workflow ID is enabled on this branch.</p>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">Scan Result</p>
+              {!fairHousingResult ? (
+                <p className="mt-3 text-sm text-slate-500">Run a scan to see risk level, flagged language, and a safer rewrite.</p>
+              ) : (
+                <div className="mt-3 space-y-3 text-sm text-slate-700">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-slate-800">Risk</span>
+                    <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                      fairHousingResult.risk === 'High'
+                        ? 'bg-rose-100 text-rose-700'
+                        : fairHousingResult.risk === 'Moderate'
+                          ? 'bg-amber-100 text-amber-700'
+                          : 'bg-emerald-100 text-emerald-700'
+                    }`}>
+                      {fairHousingResult.risk}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="mb-1 font-semibold text-slate-800">Flagged phrases</p>
+                    {fairHousingResult.flagged.length === 0 ? (
+                      <p className="text-xs text-emerald-700">No common risky phrases detected in this draft.</p>
+                    ) : (
+                      <ul className="list-disc space-y-1 pl-5 text-xs text-slate-600">
+                        {fairHousingResult.flagged.map((phrase) => (
+                          <li key={phrase}>{phrase}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                  <div>
+                    <p className="mb-1 font-semibold text-slate-800">Suggested rewrite</p>
+                    <p className="rounded-xl border border-slate-200 bg-white p-3 text-xs leading-relaxed text-slate-700">{fairHousingResult.rewrite}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <footer className="flex flex-wrap justify-end gap-2 border-t border-slate-200 px-5 py-4">
+            <button type="button" onClick={() => setFairHousingOpen(false)} className={outlineBtn}>
+              Close
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleRunFairHousing()}
+              disabled={runningFairHousing || !fairHousingText.trim()}
+              className="rounded-lg bg-primary-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {runningFairHousing ? 'Scanning…' : 'Run scan'}
+            </button>
+          </footer>
+        </div>
+      </div>
+    )}
 
     {/* ── Brain source modal ── */}
     {brainModal && (

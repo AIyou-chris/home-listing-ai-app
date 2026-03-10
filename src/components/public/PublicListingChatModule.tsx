@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { buildApiUrl } from '../../lib/api';
 import { Property } from '../../types';
 
@@ -7,6 +7,32 @@ const SESSION_STORAGE_PREFIX = 'hlai_public_listing_session_';
 const ATTRIBUTION_STORAGE_PREFIX = 'hlai_public_listing_attribution_';
 
 type ChatSender = 'visitor' | 'ai' | 'system';
+type ChatTab = 'chat' | 'voice';
+type VoiceStatus = 'idle' | 'requesting' | 'listening' | 'error';
+
+type SpeechRecognitionResultLike = {
+  isFinal: boolean;
+  0: { transcript?: string };
+};
+
+type SpeechRecognitionEventLike = {
+  resultIndex: number;
+  results: ArrayLike<SpeechRecognitionResultLike>;
+};
+
+type SpeechRecognitionInstance = {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  onstart: (() => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  start: () => void;
+  stop: () => void;
+};
+
+type SpeechRecognitionCtor = new () => SpeechRecognitionInstance;
 
 interface ChatMessage {
   id: string;
@@ -18,6 +44,10 @@ interface ChatMessage {
 interface PublicListingChatModuleProps {
   property: Property;
   listingSlug?: string;
+  open?: boolean;
+  hideLauncher?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  demoMode?: boolean;
 }
 
 const DEFAULT_SUGGESTED = [
@@ -50,8 +80,54 @@ const formatRelativeTime = (value?: string) => {
   return `${Math.floor(deltaHours / 24)}d`;
 };
 
-const PublicListingChatModule: React.FC<PublicListingChatModuleProps> = ({ property, listingSlug }) => {
-  const [open, setOpen] = useState(false);
+const getSpeechRecognitionCtor = () => {
+  if (typeof window === 'undefined') return null;
+  const speechWindow = window as Window & {
+    webkitSpeechRecognition?: SpeechRecognitionCtor;
+    SpeechRecognition?: SpeechRecognitionCtor;
+  };
+  return speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition || null;
+};
+
+const buildFallbackResponse = (question: string, property: Property) => {
+  const text = question.toLowerCase();
+  const address = property.address || 'this home';
+  if (text.includes('available')) {
+    return `This home at ${address} is currently listed. Want me to help you book a showing window?`;
+  }
+  if (text.includes('hoa')) {
+    return 'HOA details are not listed in this preview. I can help you request full disclosures from the agent.';
+  }
+  if (text.includes('school')) {
+    return 'I can share nearby school context and commute notes once the agent confirms your preferred area details.';
+  }
+  if (text.includes('price')) {
+    return `Current listed price is $${Number(property.price || 0).toLocaleString('en-US')}.`;
+  }
+  if (text.includes('showing') || text.includes('tour')) {
+    return 'Great. Use the Showing button to request a tour and the agent will confirm the best time.';
+  }
+  return `I can answer basics for ${address} right now. Tell me what matters most: price, showings, neighborhood, or property features.`;
+};
+
+const PublicListingChatModule: React.FC<PublicListingChatModuleProps> = ({
+  property,
+  listingSlug,
+  open,
+  hideLauncher = false,
+  onOpenChange,
+  demoMode = false
+}) => {
+  const isControlled = typeof open === 'boolean';
+  const [localOpen, setLocalOpen] = useState(false);
+  const isOpen = isControlled ? Boolean(open) : localOpen;
+
+  const setOpenState = (nextOpen: boolean) => {
+    if (!isControlled) setLocalOpen(nextOpen);
+    onOpenChange?.(nextOpen);
+  };
+
+  const [activeTab, setActiveTab] = useState<ChatTab>('chat');
   const [loading, setLoading] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [visitorId, setVisitorId] = useState<string | null>(null);
@@ -68,14 +144,41 @@ const PublicListingChatModule: React.FC<PublicListingChatModuleProps> = ({ prope
   const [captureSubmitting, setCaptureSubmitting] = useState(false);
   const [leadCaptured, setLeadCaptured] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [useLocalFallback, setUseLocalFallback] = useState(Boolean(demoMode));
+
+  const [voiceStatus, setVoiceStatus] = useState<VoiceStatus>('idle');
+  const [voiceTranscript, setVoiceTranscript] = useState('');
+  const [voiceError, setVoiceError] = useState<string | null>(null);
+
   const transcriptRef = useRef<HTMLDivElement | null>(null);
+  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
 
   useEffect(() => {
-    if (!open) return;
+    setConversationId(null);
+    setMessages([]);
+    setLeadCaptured(false);
+    setUseLocalFallback(Boolean(demoMode));
+    setError(null);
+  }, [demoMode, property.id]);
+
+  useEffect(() => {
+    if (!isOpen) return;
     if (transcriptRef.current) {
       transcriptRef.current.scrollTop = transcriptRef.current.scrollHeight;
     }
-  }, [messages, open]);
+  }, [isOpen, messages]);
+
+  useEffect(() => {
+    return () => {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch (_error) {
+          // noop
+        }
+      }
+    };
+  }, []);
 
   const attribution = useMemo(() => {
     const raw = localStorage.getItem(`${ATTRIBUTION_STORAGE_PREFIX}${property.id}`);
@@ -87,8 +190,37 @@ const PublicListingChatModule: React.FC<PublicListingChatModuleProps> = ({ prope
     }
   }, [property.id]);
 
+  const pushMessage = (sender: ChatSender, text: string) => {
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: `${sender}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        sender,
+        text,
+        created_at: new Date().toISOString()
+      }
+    ]);
+  };
+
+  const ensureFallbackGreeting = useCallback(() => {
+    setMessages((prev) => {
+      if (prev.length > 0) return prev;
+      return [
+        {
+          id: 'fallback-greeting',
+          sender: 'ai',
+          text: `Hi, I can help with questions about ${property.address || 'this home'}. Ask me about price, showings, or features.`,
+          created_at: new Date().toISOString()
+        }
+      ];
+    });
+  }, [property.address]);
+
   useEffect(() => {
-    if (!open || conversationId) return;
+    if (!isOpen || conversationId || useLocalFallback) {
+      if (isOpen && useLocalFallback) ensureFallbackGreeting();
+      return;
+    }
 
     const bootstrap = async () => {
       setLoading(true);
@@ -154,37 +286,35 @@ const PublicListingChatModule: React.FC<PublicListingChatModuleProps> = ({ prope
             : DEFAULT_SUGGESTED
         );
         if (payload.lead_id) setLeadCaptured(true);
-      } catch (bootstrapError) {
-        setError(bootstrapError instanceof Error ? bootstrapError.message : 'Unable to start chat.');
+      } catch (_bootstrapError) {
+        setError('Live assistant is temporarily unavailable. Using listing basics for now.');
+        setUseLocalFallback(true);
+        ensureFallbackGreeting();
       } finally {
         setLoading(false);
       }
     };
 
     void bootstrap();
-  }, [attribution, conversationId, listingSlug, open, property.id]);
-
-  const pushMessage = (sender: ChatSender, text: string) => {
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: `${sender}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-        sender,
-        text,
-        created_at: new Date().toISOString()
-      }
-    ]);
-  };
+  }, [attribution, conversationId, ensureFallbackGreeting, isOpen, listingSlug, property.address, property.id, useLocalFallback]);
 
   const sendMessage = async (text: string) => {
     const clean = text.trim();
-    if (!clean || !conversationId || !visitorId) return;
+    if (!clean) return;
 
     setInputValue('');
     setCaptureRequired(false);
     setError(null);
+    setActiveTab('chat');
     pushMessage('visitor', clean);
     setLoading(true);
+
+    if (useLocalFallback || !conversationId || !visitorId) {
+      await new Promise((resolve) => window.setTimeout(resolve, 480));
+      pushMessage('ai', buildFallbackResponse(clean, property));
+      setLoading(false);
+      return;
+    }
 
     try {
       const response = await fetch(
@@ -194,7 +324,9 @@ const PublicListingChatModule: React.FC<PublicListingChatModuleProps> = ({ prope
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             text: clean,
-            visitor_id: visitorId
+            visitor_id: visitorId,
+            listing_id: property.id,
+            listing_slug: listingSlug || null
           })
         }
       );
@@ -202,6 +334,7 @@ const PublicListingChatModule: React.FC<PublicListingChatModuleProps> = ({ prope
       if (!response.ok) {
         if (response.status === 429) {
           pushMessage('ai', 'Try again in a moment.');
+          setLoading(false);
           return;
         }
         throw new Error(String(payload.error || 'failed_to_send_message'));
@@ -218,8 +351,10 @@ const PublicListingChatModule: React.FC<PublicListingChatModuleProps> = ({ prope
       if (Array.isArray(payload.suggested_questions) && payload.suggested_questions.length > 0) {
         setSuggestedQuestions(payload.suggested_questions.map((value: unknown) => String(value)));
       }
-    } catch (sendError) {
-      setError(sendError instanceof Error ? sendError.message : 'Failed to send message.');
+    } catch (_sendError) {
+      setError('Live assistant failed to respond. I can still answer basic listing questions now.');
+      setUseLocalFallback(true);
+      pushMessage('ai', buildFallbackResponse(clean, property));
     } finally {
       setLoading(false);
     }
@@ -282,136 +417,310 @@ const PublicListingChatModule: React.FC<PublicListingChatModuleProps> = ({ prope
       setCaptureName('');
       setCaptureContact('');
       setCaptureConsent(false);
-      pushMessage('ai', 'Got it. Want to request a showing window?');
-    } catch (captureError) {
-      setError(captureError instanceof Error ? captureError.message : 'Failed to capture contact.');
+      pushMessage('ai', 'Got it. I sent your details to the listing agent. Want to request a showing window?');
+    } catch (_captureError) {
+      setError('Failed to capture contact right now.');
     } finally {
       setCaptureSubmitting(false);
     }
   };
 
+  const stopVoice = () => {
+    if (!recognitionRef.current) {
+      setVoiceStatus('idle');
+      return;
+    }
+
+    try {
+      recognitionRef.current.stop();
+    } catch (_error) {
+      // noop
+    }
+    setVoiceStatus('idle');
+  };
+
+  const startVoice = async () => {
+    setVoiceError(null);
+    setVoiceTranscript('');
+    setVoiceStatus('requesting');
+
+    try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error('microphone_not_supported');
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach((track) => track.stop());
+
+      const RecognitionCtor = getSpeechRecognitionCtor();
+      if (!RecognitionCtor) {
+        throw new Error('speech_recognition_not_supported');
+      }
+
+      const recognition = new RecognitionCtor();
+      recognitionRef.current = recognition;
+      recognition.lang = 'en-US';
+      recognition.continuous = false;
+      recognition.interimResults = true;
+
+      recognition.onstart = () => {
+        setVoiceStatus('listening');
+      };
+
+      recognition.onerror = () => {
+        setVoiceStatus('error');
+        setVoiceError('Voice temporarily unavailable. Please use Chat for now.');
+      };
+
+      recognition.onend = () => {
+        setVoiceStatus((prev) => (prev === 'error' ? 'error' : 'idle'));
+      };
+
+      recognition.onresult = (event: SpeechRecognitionEventLike) => {
+        let interim = '';
+        let finalTranscript = '';
+
+        for (let i = event.resultIndex; i < event.results.length; i += 1) {
+          const transcript = String(event.results[i][0]?.transcript || '');
+          if (event.results[i].isFinal) {
+            finalTranscript += transcript;
+          } else {
+            interim += transcript;
+          }
+        }
+
+        setVoiceTranscript(interim || finalTranscript);
+
+        if (finalTranscript.trim()) {
+          setVoiceStatus('idle');
+          setVoiceTranscript('');
+          void sendMessage(finalTranscript.trim());
+        }
+      };
+
+      recognition.start();
+    } catch (_error) {
+      setVoiceStatus('error');
+      setVoiceError('Voice temporarily unavailable. Please use Chat for now.');
+    }
+  };
+
   return (
-    <div className="fixed bottom-4 right-4 z-50 w-[min(94vw,380px)]">
-      {!open ? (
-        <button
-          onClick={() => setOpen(true)}
-          className="w-full rounded-2xl bg-slate-900 px-4 py-3 text-left text-sm font-semibold text-white shadow-xl transition hover:bg-slate-800"
-        >
-          Ask about this home
-        </button>
-      ) : (
-        <div className="rounded-2xl border border-slate-200 bg-white shadow-2xl">
-          <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-            <div>
-              <h3 className="text-sm font-bold text-slate-900">Ask about this home</h3>
-              <p className="text-xs text-slate-500">Fast answers from listing details.</p>
-            </div>
-            <button
-              onClick={() => setOpen(false)}
-              className="rounded-lg p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
-              aria-label="Close chat"
-            >
-              <span className="material-symbols-outlined text-[18px]">close</span>
-            </button>
-          </div>
-
-          <div ref={transcriptRef} className="max-h-64 space-y-3 overflow-y-auto px-4 py-3">
-            {messages.map((message) => (
-              <div
-                key={message.id}
-                className={`flex ${message.sender === 'visitor' ? 'justify-end' : 'justify-start'}`}
-              >
-                <div
-                  className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm ${
-                    message.sender === 'visitor'
-                      ? 'rounded-br-sm bg-slate-900 text-white'
-                      : 'rounded-tl-sm bg-slate-100 text-slate-800'
-                  }`}
-                >
-                  <p>{message.text}</p>
-                  <span className="mt-1 block text-[10px] opacity-70">{formatRelativeTime(message.created_at)}</span>
-                </div>
-              </div>
-            ))}
-            {loading && (
-              <div className="rounded-xl bg-slate-100 px-3 py-2 text-xs text-slate-500">Thinking...</div>
-            )}
-          </div>
-
-          {captureRequired && !leadCaptured && (
-            <div className="space-y-2 border-t border-slate-200 bg-slate-50 px-4 py-3">
-              <p className="text-xs font-semibold text-slate-700">{capturePrompt}</p>
-              <input
-                value={captureName}
-                onChange={(event) => setCaptureName(event.target.value)}
-                placeholder="Name (optional)"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-slate-500"
-              />
-              <input
-                value={captureContact}
-                onChange={(event) => setCaptureContact(event.target.value)}
-                placeholder="Email or phone"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-slate-500"
-              />
-              {looksLikePhone(captureContact) && (
-                <label className="flex items-start gap-2 text-xs text-slate-600">
-                  <input
-                    type="checkbox"
-                    checked={captureConsent}
-                    onChange={(event) => setCaptureConsent(event.target.checked)}
-                    className="mt-0.5"
-                  />
-                  Yes, you can text me about this home.
-                </label>
-              )}
-              <button
-                onClick={() => void submitCapture()}
-                disabled={captureSubmitting}
-                className="w-full rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
-              >
-                {captureSubmitting ? 'Submitting...' : 'Submit'}
-              </button>
-            </div>
-          )}
-
-          <div className="space-y-2 border-t border-slate-200 px-4 py-3">
-            <div className="flex flex-wrap gap-2">
-              {suggestedQuestions.slice(0, 3).map((question) => (
-                <button
-                  key={question}
-                  onClick={() => void sendMessage(question)}
-                  className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700 transition hover:bg-slate-200"
-                >
-                  {question}
-                </button>
-              ))}
-            </div>
-            <div className="flex gap-2">
-              <input
-                value={inputValue}
-                onChange={(event) => setInputValue(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
-                    event.preventDefault();
-                    void sendMessage(inputValue);
-                  }
-                }}
-                placeholder="Ask a question..."
-                className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-slate-500"
-              />
-              <button
-                onClick={() => void sendMessage(inputValue)}
-                disabled={!conversationId || loading}
-                className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-50"
-              >
-                Send
-              </button>
-            </div>
-            {error && <p className="text-xs text-rose-600">{error}</p>}
-          </div>
+    <>
+      {!hideLauncher && !isOpen && (
+        <div className="fixed bottom-4 right-4 z-50 w-[min(94vw,380px)]">
+          <button
+            onClick={() => setOpenState(true)}
+            className="w-full rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-700 to-blue-600 px-4 py-3 text-left text-sm font-semibold text-white shadow-xl transition hover:brightness-110"
+          >
+            Talk to the Home
+          </button>
         </div>
       )}
-    </div>
+
+      {isOpen && (
+        <div className="fixed inset-0 z-[70] flex items-end md:items-stretch md:justify-end">
+          <button
+            type="button"
+            className="absolute inset-0 bg-slate-950/45 backdrop-blur-[1px]"
+            onClick={() => setOpenState(false)}
+            aria-label="Close Talk to the Home panel"
+          />
+
+          <section className="relative z-10 flex h-[88vh] w-full flex-col overflow-hidden rounded-t-3xl border border-slate-200 bg-white shadow-2xl md:h-full md:max-w-[430px] md:rounded-none md:rounded-l-3xl">
+            <header className="bg-gradient-to-r from-slate-900 via-indigo-700 to-blue-600 px-4 py-4 text-white">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-bold">Talk to the Home</p>
+                  <p className="truncate text-xs text-blue-100">{property.address || 'Listing assistant'}</p>
+                </div>
+                <button
+                  onClick={() => setOpenState(false)}
+                  className="rounded-full bg-white/20 p-1.5 text-white transition hover:bg-white/30"
+                  aria-label="Close Talk to the Home"
+                >
+                  <span className="material-symbols-outlined text-[18px]">close</span>
+                </button>
+              </div>
+
+              <div className="mt-3 inline-flex rounded-xl bg-white/15 p-1">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('chat')}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                    activeTab === 'chat' ? 'bg-white text-slate-900' : 'text-white/85 hover:bg-white/20'
+                  }`}
+                >
+                  Chat
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('voice')}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                    activeTab === 'voice' ? 'bg-white text-slate-900' : 'text-white/85 hover:bg-white/20'
+                  }`}
+                >
+                  Voice
+                </button>
+              </div>
+            </header>
+
+            {activeTab === 'chat' ? (
+              <>
+                <div ref={transcriptRef} className="flex-1 space-y-3 overflow-y-auto bg-slate-50 px-4 py-3">
+                  {messages.map((message) => (
+                    <div
+                      key={message.id}
+                      className={`flex ${message.sender === 'visitor' ? 'justify-end' : 'justify-start'}`}
+                    >
+                      <div
+                        className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm ${
+                          message.sender === 'visitor'
+                            ? 'rounded-br-sm bg-slate-900 text-white'
+                            : 'rounded-tl-sm bg-white text-slate-800 shadow-sm border border-slate-200'
+                        }`}
+                      >
+                        <p>{message.text}</p>
+                        <span className="mt-1 block text-[10px] opacity-70">{formatRelativeTime(message.created_at)}</span>
+                      </div>
+                    </div>
+                  ))}
+                  {loading && (
+                    <div className="w-fit rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-500 shadow-sm">Thinking...</div>
+                  )}
+                  {error && (
+                    <div className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">{error}</div>
+                  )}
+                </div>
+
+                {captureRequired && !leadCaptured && (
+                  <div className="space-y-2 border-t border-slate-200 bg-slate-50 px-4 py-3">
+                    <p className="text-xs font-semibold text-slate-700">{capturePrompt}</p>
+                    <input
+                      value={captureName}
+                      onChange={(event) => setCaptureName(event.target.value)}
+                      placeholder="Name (optional)"
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-slate-500"
+                    />
+                    <input
+                      value={captureContact}
+                      onChange={(event) => setCaptureContact(event.target.value)}
+                      placeholder="Email or phone"
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-slate-500"
+                    />
+                    {looksLikePhone(captureContact) && (
+                      <label className="flex items-start gap-2 text-xs text-slate-600">
+                        <input
+                          type="checkbox"
+                          checked={captureConsent}
+                          onChange={(event) => setCaptureConsent(event.target.checked)}
+                          className="mt-0.5"
+                        />
+                        Yes, you can text me about this home.
+                      </label>
+                    )}
+                    <button
+                      onClick={() => void submitCapture()}
+                      disabled={captureSubmitting}
+                      className="w-full rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
+                    >
+                      {captureSubmitting ? 'Submitting...' : 'Submit'}
+                    </button>
+                  </div>
+                )}
+
+                <div className="space-y-2 border-t border-slate-200 px-4 py-3">
+                  <div className="flex flex-wrap gap-2">
+                    {suggestedQuestions.slice(0, 3).map((question) => (
+                      <button
+                        key={question}
+                        onClick={() => void sendMessage(question)}
+                        className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700 transition hover:bg-slate-200"
+                      >
+                        {question}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      value={inputValue}
+                      onChange={(event) => setInputValue(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                          event.preventDefault();
+                          void sendMessage(inputValue);
+                        }
+                      }}
+                      placeholder="Ask a question..."
+                      className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-slate-500"
+                    />
+                    <button
+                      onClick={() => void sendMessage(inputValue)}
+                      disabled={loading}
+                      className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-50"
+                    >
+                      Send
+                    </button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="flex flex-1 flex-col items-center justify-center gap-5 bg-slate-50 px-6 py-8 text-center">
+                <div className={`relative flex h-28 w-28 items-center justify-center rounded-full border border-slate-200 bg-white shadow ${voiceStatus === 'listening' ? 'animate-pulse' : ''}`}>
+                  <span className="material-symbols-outlined text-4xl text-slate-700">mic</span>
+                </div>
+
+                <div className="space-y-1">
+                  <p className="text-base font-bold text-slate-900">
+                    {voiceStatus === 'listening'
+                      ? 'Listening...'
+                      : voiceStatus === 'requesting'
+                        ? 'Requesting microphone...'
+                        : 'Ask by voice'}
+                  </p>
+                  <p className="text-sm text-slate-600">
+                    {voiceTranscript || 'Tap Start voice, speak your question, and I will reply here.'}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {voiceStatus === 'listening' ? (
+                    <button
+                      type="button"
+                      onClick={stopVoice}
+                      className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                    >
+                      Stop
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => void startVoice()}
+                      className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+                    >
+                      Start voice
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('chat')}
+                    className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                  >
+                    Use chat
+                  </button>
+                </div>
+
+                {voiceError && (
+                  <div className="w-full max-w-sm rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                    {voiceError}
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+        </div>
+      )}
+    </>
   );
 };
 
