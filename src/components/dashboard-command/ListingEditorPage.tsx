@@ -29,14 +29,6 @@ type ListingDraftState = {
   description: string
 }
 
-type ChatRole = 'assistant' | 'user'
-
-type ListingChatMessage = {
-  id: string
-  role: ChatRole
-  text: string
-}
-
 type FairHousingResult = {
   risk: 'Low' | 'Moderate' | 'High'
   flagged: string[]
@@ -95,40 +87,6 @@ const sanitizeDecimal = (raw: string): string => {
   const dot = cleaned.indexOf('.')
   if (dot === -1) return cleaned
   return cleaned.slice(0, dot + 2)
-}
-
-const createInitialChatMessages = (address: string): ListingChatMessage[] => {
-  const homeLabel = address.trim() || 'this home'
-  return [
-    {
-      id: 'assistant-welcome',
-      role: 'assistant',
-      text: `I’m ready to help you shape the story for ${homeLabel}. Ask for headline ideas, feature highlights, or showing scripts.`
-    },
-    {
-      id: 'assistant-tip',
-      role: 'assistant',
-      text: 'Try: “Give me a high-converting listing hook for first-time buyers.”'
-    }
-  ]
-}
-
-const buildMockAssistantReply = (input: string, address: string): string => {
-  const text = input.toLowerCase()
-  const homeLabel = address.trim() || 'this property'
-  if (text.includes('headline') || text.includes('hook')) {
-    return `Headline idea: “Fresh, bright, and move-in ready — discover ${homeLabel} before it’s gone.”`
-  }
-  if (text.includes('price') || text.includes('value')) {
-    return `Value framing: “Priced to compete with nearby inventory while offering upgraded finishes and flexible living space.”`
-  }
-  if (text.includes('showing') || text.includes('tour')) {
-    return 'Showing script: “Welcome in. Notice the natural light and flow from the living room into the kitchen — this is where buyers immediately picture daily life.”'
-  }
-  if (text.includes('social') || text.includes('caption')) {
-    return `Social caption: “New on the market: ${homeLabel}. Bright layout, modern updates, and a location buyers ask for every day. DM for a private tour.”`
-  }
-  return `Great direction. For ${homeLabel}, lead with lifestyle value first, then back it up with tangible details (beds, baths, sqft, and upgrades).`
 }
 
 const FAIR_HOUSING_FLAG_PHRASES = [
@@ -203,10 +161,6 @@ const ListingEditorPage: React.FC = () => {
   const [sourceBusy, setSourceBusy] = useState(false)
   const [generatingDesc, setGeneratingDesc] = useState(false)
   const [publishing, setPublishing] = useState(false)
-  const [chatOpen, setChatOpen] = useState(false)
-  const [chatInput, setChatInput] = useState('')
-  const [chatBusy, setChatBusy] = useState(false)
-  const [chatMessages, setChatMessages] = useState<ListingChatMessage[]>(createInitialChatMessages(''))
   const [fairHousingOpen, setFairHousingOpen] = useState(false)
   const [fairHousingText, setFairHousingText] = useState('')
   const [fairHousingResult, setFairHousingResult] = useState<FairHousingResult | null>(null)
@@ -223,7 +177,6 @@ const ListingEditorPage: React.FC = () => {
 
   const photoFileRef = useRef<HTMLInputElement | null>(null)
   const docFileRef = useRef<HTMLInputElement | null>(null)
-  const chatScrollRef = useRef<HTMLDivElement | null>(null)
 
   const dashboardRoot = useMemo(
     () => (location.pathname.startsWith('/dashboard') ? '/dashboard' : '/demo-dashboard'),
@@ -236,7 +189,6 @@ const ListingEditorPage: React.FC = () => {
   const buildListingPath = (suffix: string) => `${dashboardRoot}${suffix}${appendDemoQuery}`
 
   const listingLabel = draft.address.trim() || 'Untitled Listing'
-  const chatSubtitle = draft.address.trim() || 'Ask about this listing'
   const statusLabel = normalizeStatusLabel(listingStatus)
 
   const canPublish = useMemo(
@@ -322,42 +274,6 @@ const ListingEditorPage: React.FC = () => {
     void load()
     return () => { cancelled = true }
   }, [demoMode, listingId])
-
-  useEffect(() => {
-    setChatMessages((prev) => {
-      const hasUserMessages = prev.some((message) => message.role === 'user')
-      return hasUserMessages ? prev : createInitialChatMessages(draft.address)
-    })
-  }, [draft.address])
-
-  useEffect(() => {
-    if (!chatOpen) return
-    const timer = window.setTimeout(() => {
-      chatScrollRef.current?.scrollTo({ top: chatScrollRef.current.scrollHeight, behavior: 'smooth' })
-    }, 50)
-    return () => window.clearTimeout(timer)
-  }, [chatMessages, chatOpen])
-
-  const handleSendChat = async () => {
-    const value = chatInput.trim()
-    if (!value || chatBusy) return
-    const userMessage: ListingChatMessage = {
-      id: `user-${Date.now()}`,
-      role: 'user',
-      text: value
-    }
-    setChatInput('')
-    setChatMessages((prev) => [...prev, userMessage])
-    setChatBusy(true)
-    await new Promise((resolve) => window.setTimeout(resolve, 520))
-    const assistantMessage: ListingChatMessage = {
-      id: `assistant-${Date.now()}`,
-      role: 'assistant',
-      text: buildMockAssistantReply(value, draft.address)
-    }
-    setChatMessages((prev) => [...prev, assistantMessage])
-    setChatBusy(false)
-  }
 
   const openFairHousing = () => {
     setFairHousingText(draft.description || '')
@@ -1087,95 +1003,6 @@ const ListingEditorPage: React.FC = () => {
         </div>
       </div>
     </div>
-
-    {/* ── Talk to the Home launcher + panel ── */}
-    <button
-      type="button"
-      onClick={() => setChatOpen(true)}
-      className={`fixed bottom-24 right-4 z-[9999] inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-slate-900 via-primary-700 to-primary-600 px-4 py-3 text-sm font-semibold text-white shadow-xl transition hover:scale-[1.01] hover:shadow-2xl md:bottom-24 md:right-8 ${chatOpen ? 'hidden' : ''}`}
-      aria-label="Talk to the Home"
-    >
-      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-4l-4 4v-4z" />
-      </svg>
-      Talk to the Home
-    </button>
-
-    {chatOpen && (
-      <div className="fixed inset-0 z-[9999]">
-        <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-[1px] md:hidden" onClick={() => setChatOpen(false)} />
-        <section className="absolute inset-x-3 bottom-20 top-20 flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl md:inset-auto md:bottom-24 md:right-6 md:top-20 md:h-[calc(100vh-8.5rem)] md:w-[390px] md:max-w-[calc(100vw-4rem)]">
-          <header className="bg-gradient-to-r from-slate-900 via-primary-700 to-primary-600 px-4 py-3 text-white">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-sm font-bold">Talk to the Home</p>
-                <p className="truncate text-xs text-primary-100">{chatSubtitle}</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setChatOpen(false)}
-                className="rounded-full bg-white/20 p-1.5 text-white transition hover:bg-white/30"
-                aria-label="Close Talk to the Home"
-              >
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-          </header>
-
-          <div ref={chatScrollRef} className="flex-1 space-y-3 overflow-y-auto bg-slate-50 px-3 py-3">
-            {chatMessages.map((message) => (
-              <div key={message.id} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div
-                  className={`max-w-[86%] rounded-2xl px-3 py-2 text-sm leading-relaxed shadow-sm ${
-                    message.role === 'user'
-                      ? 'rounded-br-md bg-primary-600 text-white'
-                      : 'rounded-bl-md border border-slate-200 bg-white text-slate-700'
-                  }`}
-                >
-                  {message.text}
-                </div>
-              </div>
-            ))}
-            {chatBusy && (
-              <div className="flex justify-start">
-                <div className="rounded-2xl rounded-bl-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-500 shadow-sm">
-                  Thinking…
-                </div>
-              </div>
-            )}
-          </div>
-
-          <footer className="border-t border-slate-200 bg-white p-3">
-            <p className="mb-2 text-[11px] text-slate-500">Listing-focused chat is ready now. Voice can be added later.</p>
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                value={chatInput}
-                onChange={(event) => setChatInput(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
-                    event.preventDefault()
-                    void handleSendChat()
-                  }
-                }}
-                placeholder="Ask for listing copy, hooks, or showing scripts…"
-                className={`${fieldCls} h-10 flex-1 bg-white`}
-              />
-              <button
-                type="button"
-                onClick={() => void handleSendChat()}
-                disabled={!chatInput.trim() || chatBusy}
-                className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Send
-              </button>
-            </div>
-          </footer>
-        </section>
-      </div>
-    )}
 
     {/* ── Fair housing scan modal ── */}
     {fairHousingOpen && (
