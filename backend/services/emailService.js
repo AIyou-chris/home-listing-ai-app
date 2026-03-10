@@ -8,7 +8,7 @@ const assertFetchAvailable = () => {
 
 const { sendAlert } = require('./slackService');
 
-const buildWelcomeHtml = (firstName, dashboardUrl, password) => `
+const buildWelcomeHtml = (firstName, dashboardUrl, password, billingUrl) => `
   <!DOCTYPE html>
   <html>
   <head>
@@ -24,6 +24,7 @@ const buildWelcomeHtml = (firstName, dashboardUrl, password) => `
       .hero-text { font-size: 16px; line-height: 1.6; margin-bottom: 24px; color: #475569; }
       .btn-container { text-align: center; margin: 32px 0; }
       .btn { background-color: #4f46e5; color: white; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px; display: inline-block; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3); }
+      .btn-secondary { background-color: white; color: #1e40af; border: 1px solid #bfdbfe; padding: 12px 20px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px; display: inline-block; }
       .section-title { font-size: 18px; font-weight: bold; color: #0f172a; margin-top: 32px; margin-bottom: 16px; border-bottom: 2px solid #f1f5f9; padding-bottom: 8px; }
       .feature-list { list-style: none; padding: 0; margin: 0; }
       .feature-item { display: flex; align-items: flex-start; margin-bottom: 16px; }
@@ -67,6 +68,7 @@ const buildWelcomeHtml = (firstName, dashboardUrl, password) => `
 
           <div class="btn-container">
             <a href="${dashboardUrl}" class="btn">Launch My Dashboard</a>
+            ${billingUrl ? `<div style="margin-top: 12px;"><a href="${billingUrl}" class="btn-secondary">View plans</a></div>` : ''}
           </div>
 
           <h3 class="section-title">🚀 What You Can Do Now</h3>
@@ -506,20 +508,20 @@ module.exports = (supabaseAdmin) => {
     }
   };
 
-  const sendWelcomeEmail = async ({ to, firstName, dashboardUrl, cc }) =>
+  const sendWelcomeEmail = async ({ to, firstName, dashboardUrl, billingUrl, cc }) =>
     sendEmail({
       to,
-      subject: `Welcome to AI You Agent Team!`,
-      html: buildWelcomeHtml(firstName, dashboardUrl),
+      subject: 'Welcome to HomeListingAI — your dashboard is ready',
+      html: buildWelcomeHtml(firstName, dashboardUrl, undefined, billingUrl),
       cc: cc && cc.length ? cc : fallbackSupportEmail ? [fallbackSupportEmail] : [],
       tags: { template: 'welcome' }
     });
 
-  const sendCredentialsEmail = async ({ to, firstName, dashboardUrl, password, cc }) =>
+  const sendCredentialsEmail = async ({ to, firstName, dashboardUrl, billingUrl, password, cc }) =>
     sendEmail({
       to,
-      subject: 'Welcome to AI You Agent Team!',
-      html: buildWelcomeHtml(firstName, dashboardUrl, password),
+      subject: 'Welcome to HomeListingAI — your dashboard is ready',
+      html: buildWelcomeHtml(firstName, dashboardUrl, password, billingUrl),
       cc: cc && cc.length ? cc : fallbackSupportEmail ? [fallbackSupportEmail] : [],
       tags: { template: 'welcome-credentials' }
     });

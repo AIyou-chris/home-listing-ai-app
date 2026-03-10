@@ -384,10 +384,10 @@ export default function SocialVideoWidget({ listingId, listingAddress, listingLi
         setDemoCreditsOverride(nextCredits)
       }
       setStatus('default')
-      showToast.success('Added +3 demo videos (dev mode)')
+      showToast.success('Added +3 videos')
     } catch (error) {
       console.error('Failed to add demo credits:', error)
-      showToast.error('Could not add demo credits')
+      showToast.error('Could not add credits')
     }
   }
 
@@ -522,19 +522,13 @@ export default function SocialVideoWidget({ listingId, listingAddress, listingLi
         <div className="mt-6 rounded-xl border border-amber-500/20 bg-amber-500/10 p-5">
           <p className="mb-2 text-sm font-bold uppercase tracking-wide text-amber-500">Limit reached</p>
           <p className="mb-5 text-sm text-amber-200">You’ve used 3 videos for this listing.</p>
-          {devCreditsEnabled ? (
-            <button
-              type="button"
-              onClick={handleAddDemoCredits}
-              className="w-full rounded-lg bg-amber-500 py-3 text-sm font-bold text-black hover:bg-amber-400"
-            >
-              Add +3 demo videos
-            </button>
-          ) : (
-            <button className="w-full rounded-lg bg-amber-500 py-3 text-sm font-bold text-black hover:bg-amber-400">
-              Buy 3 more for $9
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={handleAddDemoCredits}
+            className="w-full rounded-lg bg-amber-500 py-3 text-sm font-bold text-black hover:bg-amber-400"
+          >
+            Add 3 more videos (free test)
+          </button>
           <button
             onClick={() => setStatus('default')}
             className="mt-4 block w-full text-center text-xs font-bold text-amber-500/80 transition-colors hover:text-amber-400"
@@ -548,13 +542,13 @@ export default function SocialVideoWidget({ listingId, listingAddress, listingLi
         <div className="mt-6 rounded-xl border border-rose-500/20 bg-rose-500/10 p-5 text-center">
           <p className="mb-1 text-sm font-bold tracking-wide text-rose-500">Video failed to render.</p>
           <p className="mb-5 text-xs text-rose-300/70">Try again in a moment.</p>
-          {devCreditsEnabled && effectiveCreditsRemaining <= 0 && (
+          {effectiveCreditsRemaining <= 0 && (
             <button
               type="button"
               onClick={handleAddDemoCredits}
               className="mb-3 w-full rounded-lg bg-amber-500 py-3 text-sm font-bold text-black hover:bg-amber-400"
             >
-              Add +3 demo videos
+              Add 3 more videos (free test)
             </button>
           )}
           <button

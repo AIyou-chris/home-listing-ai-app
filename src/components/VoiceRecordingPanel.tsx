@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Mic, StopCircle, Upload, AlertCircle, CheckCircle, Clock } from 'lucide-react';
 
 interface VoiceRecordingPanelProps {
@@ -16,12 +16,7 @@ export default function VoiceRecordingPanel({ agentId }: VoiceRecordingPanelProp
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const chunksRef = useRef<Blob[]>([]);
 
-    // Load existing recording status
-    useEffect(() => {
-        fetchRecordingStatus();
-    }, [agentId]);
-
-    const fetchRecordingStatus = async () => {
+    const fetchRecordingStatus = useCallback(async () => {
         try {
             const response = await fetch(`/api/voice-clone/my-recording?agentId=${agentId}`);
             const data = await response.json();
@@ -31,7 +26,12 @@ export default function VoiceRecordingPanel({ agentId }: VoiceRecordingPanelProp
         } catch (err) {
             console.error('Failed to fetch recording status:', err);
         }
-    };
+    }, [agentId]);
+
+    // Load existing recording status
+    useEffect(() => {
+        void fetchRecordingStatus();
+    }, [fetchRecordingStatus]);
 
     const startRecording = async () => {
         try {
@@ -89,7 +89,7 @@ export default function VoiceRecordingPanel({ agentId }: VoiceRecordingPanelProp
                 throw new Error('Upload failed');
             }
 
-            const result = await response.json();
+            await response.json();
             setRecordingStatus({ status: 'pending' });
             setAudioBlob(null);
             setAudioURL('');

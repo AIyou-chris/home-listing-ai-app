@@ -90,7 +90,7 @@ const AdminDashboardSidebar: React.FC<AdminDashboardSidebarProps> = ({ activeVie
         aria-hidden="true"
       />
       <aside className={`
-            fixed inset-y-0 left-0 z-40 h-full w-64 flex-col border-r border-slate-200 bg-white px-4 py-6
+            fixed inset-y-0 left-0 z-40 h-full w-64 flex flex-col border-r border-slate-200 bg-white px-4 py-6
             transform transition-transform duration-300 ease-in-out
             md:static md:flex md:translate-x-0
             ${isOpen ? 'translate-x-0' : '-translate-x-full'}
@@ -108,7 +108,7 @@ const AdminDashboardSidebar: React.FC<AdminDashboardSidebarProps> = ({ activeVie
           </button>
         </div>
 
-        <nav className="flex-1">
+        <nav className="flex-1 overflow-y-auto">
           <div className="rounded-xl border border-slate-200 overflow-hidden bg-white shadow-sm divide-y divide-slate-200">
             {navItems.map((item) => (
               <NavItem

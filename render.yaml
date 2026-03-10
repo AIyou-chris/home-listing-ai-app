@@ -4,7 +4,7 @@ services:
     runtime: node
     region: oregon
     plan: free
-    buildCommand: cd backend && npm install
+    buildCommand: npm install --include=dev --ignore-scripts && npm run build && cd backend && npm install --omit=dev --ignore-scripts
     startCommand: cd backend && node server.cjs
     envVars:
       - key: NODE_ENV

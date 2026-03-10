@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 
 import { agentOnboardingService } from '../services/agentOnboardingService';
+import { supabase } from '../services/supabase';
+import { PENDING_PLAN_KEY } from './ComparePlansModal';
 import { PublicHeader } from './layout/PublicHeader';
 import { PublicFooter } from './layout/PublicFooter';
 import { StripeLogo } from './StripeLogo';
@@ -26,13 +28,17 @@ const FeatureHighlight: React.FC<{ icon: string, title: string, children: React.
     </div>
 );
 
-const SignUpPage = ({ onNavigateToSignIn, onNavigateToLanding, onNavigateToSection, onEnterDemoMode }: SignUpPageProps): JSX.Element => {
-    const navigate = useNavigate();
+const SignUpPage = ({ onNavigateToSignIn, onNavigateToLanding: _onNavigateToLanding, onNavigateToSection: _onNavigateToSection, onEnterDemoMode }: SignUpPageProps): JSX.Element => {
+    const [searchParams] = useSearchParams();
     const [firstName, setFirstName] = useState('');
     const [lastName, setLastName] = useState('');
     const [email, setEmail] = useState('');
     const [error, setError] = useState<React.ReactNode>('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    // Preserve plan intent from ?plan= so the dashboard can auto-start upgrade
+    const planParam = searchParams.get('plan');
+    const pendingPlan = planParam === 'starter' || planParam === 'pro' ? planParam : null;
 
     const handleSignUp = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -51,6 +57,11 @@ const SignUpPage = ({ onNavigateToSignIn, onNavigateToLanding, onNavigateToSecti
 
         setIsSubmitting(true);
 
+        // Store plan intent before navigating away
+        if (pendingPlan) {
+            try { sessionStorage.setItem(PENDING_PLAN_KEY, pendingPlan); } catch (_) { /* ignore */ }
+        }
+
         try {
             const data = await agentOnboardingService.registerAgent({
                 firstName,
@@ -58,13 +69,23 @@ const SignUpPage = ({ onNavigateToSignIn, onNavigateToLanding, onNavigateToSecti
                 email: email.trim().toLowerCase()
             });
 
-            const { checkoutUrl, slug } = data;
-
-            if (checkoutUrl) {
-                navigate(checkoutUrl);
-            } else {
-                navigate(`/checkout/${slug}`);
+            const tempPassword = data.credentials?.password;
+            if (!tempPassword) {
+                throw new Error('Your account was created, but auto-login failed. Please check your email for login details.');
             }
+
+            const { error: signInError } = await supabase.auth.signInWithPassword({
+                email: email.trim().toLowerCase(),
+                password: tempPassword
+            });
+
+            if (signInError) {
+                throw signInError;
+            }
+
+            // Use a hard replace so app state rehydrates from the fresh session
+            // before route guards evaluate.
+            window.location.replace('/dashboard/today');
         } catch (error) {
             console.error('Signup error:', error);
             const message = error instanceof Error ? error.message : 'An error occurred during sign up. Please try again.';
@@ -104,7 +125,7 @@ const SignUpPage = ({ onNavigateToSignIn, onNavigateToLanding, onNavigateToSecti
                             <div className="flex items-center gap-3">
                                 <div>
                                     <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">Level Up Your Business</h1>
-                                    <p className="text-cyan-400 font-semibold tracking-wide text-sm uppercase mt-2">No commitment • Capture leads instantly</p>
+                                    <p className="text-cyan-400 font-semibold tracking-wide text-sm uppercase mt-2">Real free plan • Dashboard in under 30 seconds</p>
                                 </div>
                             </div>
 
@@ -119,8 +140,8 @@ const SignUpPage = ({ onNavigateToSignIn, onNavigateToLanding, onNavigateToSecti
                                 <div className="flex items-start gap-4">
                                     <span className="material-symbols-outlined w-8 h-8 text-cyan-400 flex-shrink-0">verified_user</span>
                                     <div>
-                                        <h3 className="font-bold text-lg text-white">Temporary Trial Data</h3>
-                                        <p className="text-sm mt-2 text-slate-300 font-light leading-relaxed">Your privacy is respected. This trial account is temporary. All information is secure and you can delete your account easily at any time.</p>
+                                        <h3 className="font-bold text-lg text-white">Your Data Stays Private</h3>
+                                        <p className="text-sm mt-2 text-slate-300 font-light leading-relaxed">Your privacy is respected. This is your real free account, not a timed trial. All information is secure and you can upgrade any time from Settings → Billing.</p>
                                     </div>
                                 </div>
                             </div>
@@ -137,8 +158,19 @@ const SignUpPage = ({ onNavigateToSignIn, onNavigateToLanding, onNavigateToSecti
 
                         {/* Right Column */}
                         <div className="bg-[#0B1121]/80 backdrop-blur-md p-8 sm:p-10 rounded-3xl shadow-[0_0_40px_rgba(6,182,212,0.1)] border border-cyan-900/30">
-                            <h2 className="text-2xl font-bold text-white tracking-tight">Start Free Trial</h2>
-                            <p className="text-sm text-slate-400 mt-1 font-light">Get started in less than 30 seconds</p>
+                            {/* Plan intent banner — shown when user clicked a paid plan CTA */}
+                            {pendingPlan && (
+                                <div className="mb-6 flex items-center gap-3 rounded-xl bg-primary-600/10 border border-primary-500/30 px-4 py-3">
+                                    <span className="material-symbols-outlined text-primary-400 text-lg shrink-0">workspace_premium</span>
+                                    <p className="text-sm text-primary-200">
+                                        You're signing up for{' '}
+                                        <span className="font-bold text-white capitalize">{pendingPlan}</span>
+                                        {' '}— create your account first, then we'll set up your plan.
+                                    </p>
+                                </div>
+                            )}
+                            <h2 className="text-2xl font-bold text-white tracking-tight">Create Free Account</h2>
+                            <p className="text-sm text-slate-400 mt-1 font-light">Get your dashboard instantly. Upgrade later only if you want to.</p>
 
                             <form className="mt-8 space-y-6" onSubmit={handleSignUp}>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -167,17 +199,17 @@ const SignUpPage = ({ onNavigateToSignIn, onNavigateToLanding, onNavigateToSecti
                                         {isSubmitting ? (
                                             <>
                                                 <span className="material-symbols-outlined animate-spin mr-2">progress_activity</span>
-                                                Preparing account...
+                                                Creating your dashboard...
                                             </>
                                         ) : (
                                             'Create Free Account'
                                         )}
                                     </button>
                                     {isSubmitting && (
-                                        <div className="mt-4 text-center animate-pulse">
-                                            <p className="text-sm text-slate-400 font-light">Redirecting securely...</p>
-                                        </div>
-                                    )}
+                                    <div className="mt-4 text-center animate-pulse">
+                                            <p className="text-sm text-slate-400 font-light">Signing you in...</p>
+                                    </div>
+                                )}
                                 </div>
                             </form>
 

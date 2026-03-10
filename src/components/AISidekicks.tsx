@@ -350,7 +350,7 @@ const AISidekicks: React.FC<AISidekicksProps> = ({ isDemoMode = false, hideLifec
     } finally {
       setLoading(false);
     }
-  }, [isDemoMode, sidekickTemplatesOverride, effectiveTemplates]);
+  }, [isDemoMode, sidekickTemplatesOverride, effectiveTemplates, hideLifecycleControls]);
 
   useEffect(() => {
     const hydrateCache = () => {

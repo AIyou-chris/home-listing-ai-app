@@ -1,13 +1,10 @@
 import React, { useState, useEffect, Suspense, lazy, useCallback, useRef } from 'react';
 import { Routes, Route, useNavigate, useLocation, Navigate, Outlet, useParams } from 'react-router-dom';
+import type { Session } from '@supabase/supabase-js';
 import { supabase } from './services/supabase';
-import { Property, View, AgentProfile, NotificationSettings, EmailSettings, CalendarSettings, BillingSettings, Lead, Appointment, Interaction, LeadFunnelType } from './types';
+import { Property, View, AgentProfile, NotificationSettings, EmailSettings, CalendarSettings, BillingSettings, Lead, Appointment, Interaction } from './types';
 import { DEMO_FAT_PROPERTIES, DEMO_FAT_LEADS, DEMO_FAT_APPOINTMENTS } from './demoConstants';
 import { SAMPLE_AGENT, SAMPLE_INTERACTIONS } from './constants';
-import {
-    BLUEPRINT_AGENT,
-    BLUEPRINT_PROPERTIES
-} from './constants/agentBlueprintData';
 const LandingPage = lazy(() => import('./components/LandingPage'));
 const NewLandingPage = lazy(() => import('./components/NewLandingPage'));
 const SignUpPage = lazy(() => import('./components/SignUpPage'));
@@ -16,19 +13,13 @@ const ForgotPasswordPage = lazy(() => import('./components/ForgotPasswordPage'))
 const ResetPasswordPage = lazy(() => import('./components/ResetPasswordPage'));
 const CheckoutPage = lazy(() => import('./components/CheckoutPage'));
 import { Toaster } from 'react-hot-toast';
-import { showToast } from './utils/toastService';
 import { getRegistrationContext } from './services/agentOnboardingService';
 
 const WhiteLabelPage = lazy(() => import('./pages/WhiteLabelPage'));
 
-const AgentDashboard = lazy(() => import('./components/AgentDashboard'));
 const NotificationSystem = lazy(() => import('./components/NotificationSystem'));
 
 const Sidebar = lazy(() => import('./components/Sidebar'));
-const PropertyPage = lazy(() => import('./components/PropertyPage'));
-const ListingsPage = lazy(() => import('./components/ListingsPage'));
-const AddListingPage = lazy(() => import('./components/AddListingPage'));
-const ListingStudioV2Page = lazy(() => import('./components/listings/ListingStudioV2Page'));
 const ConversionDashboardHome = lazy(() => import('./components/dashboard-command/ConversionDashboardHome'));
 const TodayDashboardPage = lazy(() => import('./components/dashboard-command/TodayDashboardPage'));
 const LeadsInboxCommandPage = lazy(() => import('./components/dashboard-command/LeadsInboxCommandPage'));
@@ -40,8 +31,6 @@ const ListingEditorPage = lazy(() => import('./components/dashboard-command/List
 const BillingCommandPage = lazy(() => import('./components/dashboard-command/BillingCommandPage'));
 const OnboardingCommandPage = lazy(() => import('./components/dashboard-command/OnboardingCommandPage'));
 const ShareTestPage = lazy(() => import('./components/dashboard-command/ShareTestPage'));
-const LeadsAndAppointmentsPage = lazy(() => import('./components/LeadsAndAppointmentsPage'));
-const InteractionHubPage = lazy(() => import('./components/AIInteractionHubPage'));
 const AIConversationsPage = lazy(() => import('./components/AIConversationsPage'));
 const AICardPage = lazy(() => import('./components/AICardPage'));
 const MarketingReportsPage = lazy(() => import('./components/MarketingReportsPage'));
@@ -67,16 +56,6 @@ const DemoListingPage = lazy(() => import('./components/DemoListingPage'));
 const ChatBotFAB = lazy(() => import('./components/ChatBotFAB'));
 const StorefrontPage = lazy(() => import('./pages/StorefrontPage').then(module => ({ default: module.StorefrontPage })));
 // Note: StorefrontPage is named export in original file based on import { StorefrontPage } ...
-const MultiToolShowcase = lazy(() => import('./components/MultiToolShowcase').then(module => ({ default: module.MultiToolShowcase })));
-const FUNNEL_TRIGGER_MAP: Record<LeadFunnelType, SequenceTriggerType> = {
-    universal_sales: 'Buyer Lead',
-    homebuyer: 'Buyer Lead',
-    seller: 'Seller Lead',
-    postShowing: 'Property Viewed'
-};
-
-
-
 
 
 import LoadingSpinner from './components/LoadingSpinner';
@@ -96,7 +75,7 @@ const CombinedTrainingPage = lazy(() => import('./components/AgentAISidekicksPag
 // import AIInteractiveTraining from './components/AIInteractiveTraining'; // Keeping as backkup
 const FunnelAnalyticsPanel = lazy(() => import('./components/FunnelAnalyticsPanel'));
 
-import { listingsService, CreatePropertyInput } from './services/listingsService';
+import { listingsService } from './services/listingsService';
 // Stubs removed, using real service
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { EnvValidation } from './utils/envValidation';
@@ -105,8 +84,7 @@ import { fetchOnboardingState } from './services/onboardingService';
 // SessionService removed
 import { listAppointments } from './services/appointmentsService';
 import { PerformanceService } from './services/performanceService';
-import { SequenceTriggerType } from './services/sequenceExecutionService';
-import { leadsService, LeadPayload } from './services/leadsService';
+import PostAuth from './routes/PostAuth';
 
 
 // A helper function to delay execution
@@ -119,6 +97,8 @@ export type AppUser = {
     displayName?: string | null;
     created_at?: string;
 };
+
+type AppRole = 'admin' | 'agent' | 'user' | null;
 
 
 
@@ -166,6 +146,55 @@ interface BackendListing {
 }
 
 import { ImpersonationProvider } from './context/ImpersonationContext';
+
+// ─── Module-level contexts ───────────────────────────────────────────────────
+// ProtectedDashboardLayout and CheckoutRouteWrapper are defined OUTSIDE App so
+// their component identity is stable across App re-renders (sidebar open/close,
+// toast notifications, profile updates, etc.). Defining them inside App or
+// renderRoutes() creates a NEW component type on every render, causing React to
+// unmount and remount the entire dashboard tree on every state change.
+
+interface DashboardLayoutContextValue {
+    authReady: boolean;
+    session: Session | null;
+    role: AppRole;
+    roleReady: boolean;
+    user: AppUser | null;
+    isAdmin: boolean;
+    isDemoMode: boolean;
+    isSidebarOpen: boolean;
+    setIsSidebarOpen: React.Dispatch<React.SetStateAction<boolean>>;
+    logAuthBreadcrumb: (eventType: string, session: { expires_at?: number; user?: { id?: string } } | null) => void;
+}
+const DashboardLayoutContext = React.createContext<DashboardLayoutContextValue | null>(null);
+const CheckoutContext = React.createContext<{ onBackToSignup: () => void } | null>(null);
+// ────────────────────────────────────────────────────────────────────────────
+
+const AuthGateSpinner: React.FC<{ text?: string }> = ({ text = 'Checking session...' }) => (
+    <div className="flex h-screen items-center justify-center bg-slate-50">
+        <LoadingSpinner size="lg" type="dots" text={text} />
+    </div>
+);
+
+const RequireAuth: React.FC = () => {
+    const ctx = React.useContext(DashboardLayoutContext)!;
+    const { authReady, session, roleReady } = ctx;
+
+    if (!authReady) return <AuthGateSpinner text="Checking session..." />;
+    if (authReady && !session) return <Navigate to="/signin" replace />;
+    if (session && !roleReady) return <AuthGateSpinner text="Loading your access..." />;
+    return <Outlet />;
+};
+
+const RequireRole: React.FC<{ requiredRole: Exclude<AppRole, null> }> = ({ requiredRole }) => {
+    const ctx = React.useContext(DashboardLayoutContext)!;
+    const { session, roleReady, role } = ctx;
+
+    if (!session) return <Navigate to="/signin" replace />;
+    if (!roleReady) return <AuthGateSpinner text="Loading your access..." />;
+    if (role !== requiredRole) return <Navigate to="/dashboard/today" replace />;
+    return <Outlet />;
+};
 
 const DashboardRouteGate = () => {
     const [routeTarget, setRouteTarget] = useState<'loading' | 'today' | 'onboarding'>('loading');
@@ -255,6 +284,123 @@ const DemoDashboardLayout = () => {
     );
 };
 
+// ─── BlueprintDashboardLayout ─────────────────────────────────────────────────
+// Same shell as DemoDashboardLayout but with isBlueprintMode sidebar flag.
+// Data is NOT pre-seeded — TodayDashboardPage detects the route and shows
+// empty state + one example listing without making real API calls.
+const BlueprintDashboardLayout = () => {
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const location = useLocation();
+    const pageTitle = resolveDashboardPageTitle(location.pathname);
+
+    return (
+        <div className="relative flex h-screen bg-slate-50">
+            <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} isBlueprintMode />
+            <div className="relative flex flex-1 flex-col overflow-hidden">
+                <header
+                    className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-200 bg-white px-3 py-3 shadow-sm lg:hidden"
+                    style={{
+                        paddingTop: 'calc(env(safe-area-inset-top) + 0.75rem)',
+                        paddingBottom: 'calc(env(safe-area-inset-bottom) + 0.5rem)'
+                    }}
+                >
+                    <button
+                        onClick={() => setIsSidebarOpen(true)}
+                        className="rounded-lg p-2 text-slate-600 transition-colors hover:bg-slate-100"
+                        aria-label="Open navigation menu"
+                    >
+                        <span className="material-symbols-outlined text-xl">menu</span>
+                    </button>
+                    <h1 className="truncate px-3 text-base font-semibold text-slate-900">{pageTitle}</h1>
+                    <div className="w-10" aria-hidden="true" />
+                </header>
+                <main className="relative z-0 flex-1 overflow-x-hidden overflow-y-auto bg-slate-50">
+                    <Outlet />
+                </main>
+            </div>
+        </div>
+    );
+};
+
+// ─── ProtectedDashboardLayout (module-level, stable identity) ────────────────
+const ProtectedDashboardLayout: React.FC = () => {
+    const ctx = React.useContext(DashboardLayoutContext)!;
+    const { user, isSidebarOpen, setIsSidebarOpen } = ctx;
+    const location = useLocation();
+
+    return (
+        <div className="flex h-screen bg-slate-50 relative">
+            <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+            <div className="flex-1 flex flex-col overflow-hidden relative">
+                {/* Mobile Header */}
+                <header
+                    className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-200 bg-white px-3 py-3 shadow-sm lg:hidden"
+                    style={{
+                        paddingTop: 'calc(env(safe-area-inset-top) + 0.75rem)',
+                        paddingBottom: 'calc(env(safe-area-inset-bottom) + 0.5rem)'
+                    }}
+                >
+                    <button
+                        onClick={() => setIsSidebarOpen(true)}
+                        className="rounded-lg p-2 text-slate-600 transition-colors hover:bg-slate-100"
+                        aria-label="Open navigation menu"
+                    >
+                        <span className="material-symbols-outlined text-xl">menu</span>
+                    </button>
+                    <h1 className="truncate px-3 text-base font-semibold text-slate-900">
+                        {resolveDashboardPageTitle(location.pathname)}
+                    </h1>
+                    <div className="flex w-10 justify-end">
+                        {user && <NotificationSystem userId={user.uid} />}
+                    </div>
+                </header>
+
+                {/* Desktop Notification Bell (Absolute Top-Right) */}
+                <div className="absolute right-8 top-6 z-50 hidden lg:block">
+                    {user && <NotificationSystem userId={user.uid} />}
+                </div>
+
+                <main className="flex-1 overflow-x-hidden overflow-y-auto bg-slate-50 relative z-0">
+                    <DashboardRealtimeBootstrap />
+                    <Outlet />
+                </main>
+            </div>
+        </div>
+    );
+};
+
+// ─── CheckoutRouteWrapper (module-level, stable identity) ─────────────────────
+const CheckoutRouteWrapper: React.FC = () => {
+    const params = useParams<{ slug?: string }>();
+    const ctx = React.useContext(CheckoutContext)!;
+    const registrationContext = getRegistrationContext() as { slug?: string } | null;
+    const slugForCheckout = params.slug || registrationContext?.slug || null;
+
+    if (!slugForCheckout) {
+        return (
+            <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 px-6 text-center">
+                <div className="max-w-md space-y-4">
+                    <h2 className="text-xl font-semibold text-slate-800">We could not find your registration</h2>
+                    <p className="text-sm text-slate-600">
+                        Your secure checkout link may have expired. Please restart the signup process to generate a new link.
+                    </p>
+                    <button
+                        type="button"
+                        onClick={ctx.onBackToSignup}
+                        className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-500 transition"
+                    >
+                        <span className="material-symbols-outlined text-base">person_add</span>
+                        Start new signup
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    return <CheckoutPage slug={slugForCheckout} onBackToSignup={ctx.onBackToSignup} />;
+};
+// ────────────────────────────────────────────────────────────────────────────
+
 const App: React.FC = () => {
     const [user, setUser] = useState<AppUser | null>(null);
     const navigate = useNavigate();
@@ -263,23 +409,6 @@ const App: React.FC = () => {
     // Mock data for settings (Moved up for scope access)
     const [userProfile, setUserProfile] = useState<AgentProfile>(SAMPLE_AGENT);
 
-    // COMPATIBILITY: Bridge legacy 'setView' calls to 'navigate'
-    const setView = useCallback((viewName: string) => {
-        // Handle special cases
-        if (viewName === 'landing') {
-            navigate('/');
-        } else if (viewName === 'dashboard') {
-            // FIX: Do not redirect to slug if it's the default sample agent (Sarah Johnson)
-            // This prevents new users from seeing "/dashboard/sarah-johnson"
-            if (userProfile?.slug && userProfile.id !== SAMPLE_AGENT.id) {
-                navigate(`/dashboard/${userProfile.slug}`);
-            } else {
-                navigate('/dashboard');
-            }
-        } else {
-            navigate(`/${viewName}`);
-        }
-    }, [navigate, userProfile?.slug, userProfile?.id]);
 
 
 
@@ -359,6 +488,9 @@ const App: React.FC = () => {
     // PERF: Initialize loading state
     const [isLoading, setIsLoading] = useState(false); // Router handles most loading now
     const [authReady, setAuthReady] = useState(false);
+    const [session, setSession] = useState<Session | null>(null);
+    const [role, setRole] = useState<AppRole>(null);
+    const [roleReady, setRoleReady] = useState(false);
     const [isSettingUp] = useState(false); // Helper state for setup flows (currently unused)
     const [isDemoMode, setIsDemoMode] = useState(() => {
         const path = window.location.pathname;
@@ -373,32 +505,13 @@ const App: React.FC = () => {
 
 
 
-    const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
-    const [properties, setProperties] = useState<Property[]>([]);
+    const [_selectedPropertyId, _setSelectedPropertyId] = useState<string | null>(null);
+    const [_properties, setProperties] = useState<Property[]>([]);
     const [leads, setLeads] = useState<Lead[]>([]);
-    const [appointments, setAppointments] = useState<Appointment[]>([]);
-    const [interactions, setInteractions] = useState<Interaction[]>([]);
+    const [_appointments, setAppointments] = useState<Appointment[]>();
+    const [_interactions, setInteractions] = useState<Interaction[]>();
 
 
-
-    const resolvePropertyForLead = useCallback(
-        (targetLead?: Lead | null): Property | undefined => {
-            const leadRef = targetLead ?? null;
-            if (leadRef?.interestedProperties?.length) {
-                const matchedProperty = properties.find((property) =>
-                    leadRef.interestedProperties?.includes(property.id)
-                );
-                if (matchedProperty) {
-                    return matchedProperty;
-                }
-            }
-            if (selectedPropertyId) {
-                return properties.find((property) => property.id === selectedPropertyId);
-            }
-            return undefined;
-        },
-        [properties, selectedPropertyId]
-    );
 
     // Removed unused selectedLead state
     const [isConsultationModalOpen, setIsConsultationModalOpen] = useState(false);
@@ -440,8 +553,8 @@ const App: React.FC = () => {
         weeklyReport: true,
         monthlyInsights: true
     });
-    const [emailSettings, setEmailSettings] = useState<EmailSettings>({ integrationType: 'oauth', aiEmailProcessing: true, autoReply: true, leadScoring: true, followUpSequences: true });
-    const [calendarSettings, setCalendarSettings] = useState<CalendarSettings>({
+    const [_emailSettings, setEmailSettings] = useState<EmailSettings>({ integrationType: 'oauth', aiEmailProcessing: true, autoReply: true, leadScoring: true, followUpSequences: true });
+    const [_calendarSettings, setCalendarSettings] = useState<CalendarSettings>({
         integrationType: 'google',
         aiScheduling: true,
         conflictDetection: true,
@@ -488,6 +601,145 @@ const App: React.FC = () => {
             logAuthBreadcrumb(eventType, session);
         });
     }, [logAuthBreadcrumb]);
+
+    const resolveRoleForSession = useCallback(async (nextSession: Session): Promise<Exclude<AppRole, null>> => {
+        const userId = String(nextSession.user.id || '');
+        const userEmail = String(nextSession.user.email || '').toLowerCase();
+        const profileRoleCandidates: string[] = [];
+
+        const normalizedMetaRole = String(
+            nextSession.user.user_metadata?.role ||
+            nextSession.user.app_metadata?.role ||
+            ''
+        ).trim().toLowerCase();
+        if (normalizedMetaRole) profileRoleCandidates.push(normalizedMetaRole);
+
+        const adminClaim = Boolean(
+            nextSession.user.app_metadata?.claims_admin ||
+            nextSession.user.app_metadata?.admin
+        );
+        const envAdminEmail = String(import.meta.env.VITE_ADMIN_EMAIL || '').trim().toLowerCase();
+        const adminEmails = ['admin@homelistingai.com', 'us@homelistingai.com'];
+        if (envAdminEmail) adminEmails.push(envAdminEmail);
+        if (adminClaim || adminEmails.includes(userEmail)) {
+            return 'admin';
+        }
+
+        try {
+            const { data: isRpcAdmin } = await supabase.rpc('is_user_admin', { uid: userId });
+            if (isRpcAdmin) return 'admin';
+        } catch (_error) {
+            // Ignore role-RPC failures and keep deterministic fallback below.
+        }
+
+        try {
+            const { data: profileById } = await supabase
+                .from('profiles')
+                .select('role')
+                .eq('id', userId)
+                .maybeSingle();
+            if (profileById?.role) profileRoleCandidates.push(String(profileById.role).trim().toLowerCase());
+        } catch (_error) {
+            // Profiles table can be absent or RLS-restricted; continue.
+        }
+
+        try {
+            const { data: profileByUserId } = await supabase
+                .from('profiles')
+                .select('role')
+                .eq('user_id', userId)
+                .maybeSingle();
+            if (profileByUserId?.role) profileRoleCandidates.push(String(profileByUserId.role).trim().toLowerCase());
+        } catch (_error) {
+            // Profiles table can be absent or RLS-restricted; continue.
+        }
+
+        const normalizedProfileRole = profileRoleCandidates.find((candidate) =>
+            candidate === 'admin' || candidate === 'agent' || candidate === 'user'
+        );
+
+        if (normalizedProfileRole === 'admin') return 'admin';
+        if (normalizedProfileRole === 'agent') return 'agent';
+        if (normalizedProfileRole === 'user') return 'user';
+
+        try {
+            const { data: agentRow } = await supabase
+                .from('agents')
+                .select('id')
+                .eq('auth_user_id', userId)
+                .maybeSingle();
+            if (agentRow?.id) return 'agent';
+        } catch (_error) {
+            // Ignore and default to user.
+        }
+
+        return 'user';
+    }, []);
+
+    useEffect(() => {
+        let active = true;
+        hasInitializedAuthRef.current = true; // Disable legacy auth bootstrapping below.
+
+        const applyAuthSnapshot = async (nextSession: Session | null) => {
+            if (!active) return;
+
+            console.log(`[AUTH] session loaded: ${nextSession ? 'yes' : 'no'}`);
+            setSession(nextSession);
+            setAuthReady(true);
+            setRoleReady(false);
+
+            if (!nextSession) {
+                setUser(null);
+                setIsAdmin(false);
+                setRole(null);
+                setRoleReady(true);
+                return;
+            }
+
+            const currentUser: AppUser = {
+                uid: nextSession.user.id,
+                id: nextSession.user.id,
+                email: nextSession.user.email ?? null,
+                displayName: nextSession.user.user_metadata?.name ?? null,
+                created_at: nextSession.user.created_at
+            };
+            setUser(currentUser);
+
+            const resolvedRole = await resolveRoleForSession(nextSession);
+            if (!active) return;
+
+            setRole(resolvedRole);
+            setIsAdmin(resolvedRole === 'admin');
+            setRoleReady(true);
+            console.log(`[AUTH] role loaded: ${resolvedRole}`);
+        };
+
+        void (async () => {
+            try {
+                EnvValidation.logValidationResults();
+                PerformanceService.initialize();
+                const { data: { session: initialSession } } = await supabase.auth.getSession();
+                await applyAuthSnapshot(initialSession ?? null);
+            } catch (error) {
+                console.error('[AUTH] bootstrap failed:', error);
+                if (!active) return;
+                setSession(null);
+                setUser(null);
+                setRole(null);
+                setRoleReady(true);
+                setAuthReady(true);
+            }
+        })();
+
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+            void applyAuthSnapshot(nextSession ?? null);
+        });
+
+        return () => {
+            active = false;
+            subscription.unsubscribe();
+        };
+    }, [resolveRoleForSession]);
 
 
 
@@ -622,6 +874,11 @@ const App: React.FC = () => {
                 currentPath.startsWith('/checkout') || // Critical for checkout flow
                 currentPath.includes('/demo-') ||
                 currentPath.startsWith('/blog') || // Allow blog access
+                currentPath.startsWith('/listing/') || // Public listing pages
+                currentPath.startsWith('/l/') || // Public listing short URLs
+                currentPath.startsWith('/card/') || // Public AI card pages
+                currentPath === '/compliance' ||
+                currentPath === '/dmca' ||
                 currentPath === '/agent-blueprint-dashboard' || currentPath.startsWith('/agent-blueprint-dashboard') ||
                 currentPath === '/white-label';
 
@@ -639,9 +896,26 @@ const App: React.FC = () => {
             }
 
             try {
-                // 1. Check Local Session (Network Validation)
+                // 1. Check Local Session (Network Validation) with timeout guard
                 console.log('🔍 Checking session...');
-                const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+                const sessionResult = await Promise.race<
+                    Awaited<ReturnType<typeof supabase.auth.getSession>> | { timedOut: true }
+                >([
+                    supabase.auth.getSession(),
+                    new Promise<{ timedOut: true }>((resolve) =>
+                        setTimeout(() => resolve({ timedOut: true }), 3000)
+                    )
+                ]);
+
+                if ('timedOut' in sessionResult) {
+                    // getSession() took too long — unblock the UI but DO NOT clear user state.
+                    // INITIAL_SESSION has already fired and restored the user from local storage.
+                    // Calling setUser(null) here would race against that and kill the session.
+                    console.warn('⚠️ Session check timed out. Unblocking UI — INITIAL_SESSION already handled user state.');
+                    return;
+                }
+
+                const { data: { session }, error: sessionError } = sessionResult;
                 resolvedSession = session ?? null;
 
                 console.log('🔍 Session check complete. User:', session?.user?.email);
@@ -716,28 +990,42 @@ const App: React.FC = () => {
             console.log("🔐 Auth Change:", event, session?.user?.email);
             markAuthReady(event, session ?? null);
 
-            if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+            // Helper: build AppUser from a Supabase User object
+        const buildAppUser = (supaUser: NonNullable<typeof session>['user']): AppUser => ({
+            uid: supaUser.id,
+            id: supaUser.id,
+            email: supaUser.email ?? null,
+            displayName: supaUser.user_metadata?.name ?? null,
+            created_at: supaUser.created_at
+        });
+
+        // Fast admin email check
+        const fastAdminCheck = (email: string | null | undefined) => {
+            const envAdminEmail = import.meta.env.VITE_ADMIN_EMAIL as string | undefined;
+            const adminEmails = ['admin@homelistingai.com', 'us@homelistingai.com'];
+            if (envAdminEmail) adminEmails.push(envAdminEmail.toLowerCase());
+            if (email && adminEmails.includes(email.toLowerCase())) {
+                console.log("👮 Fast Admin Check Passed");
+                setIsAdmin(true);
+            }
+        };
+
+        if (event === 'INITIAL_SESSION') {
+                // CRITICAL FIX: INITIAL_SESSION fires on page load when a session exists in storage.
+                // We MUST set `user` here before markAuthReady() makes authReady=true,
+                // otherwise ProtectedDashboardLayout sees authReady=true + user=null → redirect to /signin.
+                // loadUserData is intentionally skipped here — initAuth's getSession() path handles it.
                 if (session?.user) {
-                    const currentUser: AppUser = {
-                        uid: session.user.id,
-                        id: session.user.id,
-                        email: session.user.email ?? null,
-                        displayName: session.user.user_metadata?.name ?? null,
-                        created_at: session.user.created_at
-                    };
+                    const currentUser = buildAppUser(session.user);
                     setUser(currentUser);
-
-                    // IMMEDIATE ADMIN CHECK (Redundant but fast)
-                    const envAdminEmail = import.meta.env.VITE_ADMIN_EMAIL as string | undefined;
-                    const adminEmails = ['admin@homelistingai.com', 'us@homelistingai.com'];
-                    if (envAdminEmail) adminEmails.push(envAdminEmail.toLowerCase());
-
-                    if (session.user.email && adminEmails.includes(session.user.email.toLowerCase())) {
-                        console.log("👮 Fast Admin Check Passed");
-                        setIsAdmin(true);
-                        // Force navigation will happen via useEffect below
-                    }
-
+                    fastAdminCheck(session.user.email);
+                    console.log('🔄 INITIAL_SESSION: user restored from storage, authReady will resolve.');
+                }
+            } else if (event === 'SIGNED_IN') {
+                if (session?.user) {
+                    const currentUser = buildAppUser(session.user);
+                    setUser(currentUser);
+                    fastAdminCheck(session.user.email);
                     await loadUserData(currentUser);
 
                     // Security Notification (Non-blocking)
@@ -745,14 +1033,22 @@ const App: React.FC = () => {
                         void securitySettingsService.notifyLogin(currentUser.id, currentUser.email);
                     }
                 }
+            } else if (event === 'TOKEN_REFRESHED') {
+                // Token silently refreshed every ~1hr — just update the user reference.
+                // No need to reload all data (properties, settings, etc.) — it hasn't changed.
+                if (session?.user) {
+                    const currentUser = buildAppUser(session.user);
+                    setUser(currentUser);
+                    fastAdminCheck(session.user.email);
+                    console.log('🔑 TOKEN_REFRESHED: session extended, skipping full data reload.');
+                }
             } else if (event === 'SIGNED_OUT') {
                 setUser(null);
-
                 setUserProfile(SAMPLE_AGENT);
                 setIsAdmin(false);
                 setProperties([]);
                 localStorage.removeItem('hlai_impersonated_user_id'); // Clear impersonation
-                navigate('/');
+                navigate('/signin'); // Send to sign-in, not landing
             }
         });
 
@@ -761,47 +1057,32 @@ const App: React.FC = () => {
         };
     }, [navigate, isBlueprintMode, markAuthReady]);
 
-    // --- FORCE ADMIN REDIRECT ---
-    // If we are detected as Admin, but not on an admin page, GO TO ADMIN DASHBOARD.
-    // --- FORCE ADMIN REDIRECT ---
-    // If we are detected as Admin, but not on an admin page, GO TO ADMIN DASHBOARD.
     useEffect(() => {
-        if (isAdmin) {
-            const path = location.pathname;
-            const isPublicDetails = path.startsWith('/listing/') || path.startsWith('/store/') || path.startsWith('/card/') || path.startsWith('/p/') || path.startsWith('/compliance') || path.startsWith('/dmca');
-            const isPublicRoot = path === '/' || path === '/landing' || path === '/white-label' || path.includes('/demo-');
+        if (!authReady || !roleReady) return;
+        if (!session) return;
 
-            if (!path.startsWith('/admin') && path !== '/admin-login' && !isPublicDetails && !isPublicRoot) {
-                console.log("👮 Admin detected on protected agent page (" + path + "). Redirecting...");
-                navigate('/admin-dashboard', { replace: true });
-            }
-        } else if (location.pathname.startsWith('/admin') && location.pathname !== '/admin-login') {
-            // Safety: If NOT admin but on admin page, kick out
-            console.warn("⛔️ Accessing admin page without admin privileges. Redirecting.");
-            if (user) {
-                // If logged in but not admin, maybe regular dashboard?
-                navigate('/dashboard', { replace: true });
-            } else {
-                navigate('/admin-login', { replace: true });
-            }
-        }
-    }, [isAdmin, user, location.pathname, navigate]);
+        const path = location.pathname;
+        const isAuthPage = path === '/signin' || path === '/signup' || path === '/';
+        const isPostAuthPage = path === '/post-auth';
 
-    // --- FORCE AUTH REDIRECT ---
-    // If user is logged in but on a public auth page (Signin/Signup), redirect to Dashboard.
-    useEffect(() => {
-        if (user && authReady) {
-            const path = location.pathname;
-            if (path === '/signin' || path === '/signup') {
-                console.log("✅ User authenticated on auth page. Redirecting to dashboard...");
-                navigate('/dashboard', { replace: true });
-            }
+        if (isAuthPage || isPostAuthPage) {
+            navigate('/post-auth', { replace: true });
+            return;
         }
-    }, [user, authReady, location.pathname, navigate]);
+
+        if (role === 'admin' && path.startsWith('/dashboard')) {
+            navigate('/admin/overview', { replace: true });
+            return;
+        }
+
+        if (role !== 'admin' && path.startsWith('/admin')) {
+            navigate('/dashboard/today', { replace: true });
+        }
+    }, [authReady, roleReady, session, role, location.pathname, navigate]);
 
     // Load centralized agent profile and set up real-time updates
     useEffect(() => {
-        if (user && !isDemoMode && !isAdmin) {
+        if (user && !isDemoMode) {
             // Load centralized agent profile
             loadAgentProfile();
 
@@ -826,7 +1107,7 @@ const App: React.FC = () => {
                 unsubscribe();
             };
         }
-    }, [user, isDemoMode, isAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [user, isDemoMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const handleNavigateToSignUp = () => navigate('/signup');
     const handleNavigateToSignIn = () => navigate('/signin');
@@ -933,21 +1214,6 @@ const App: React.FC = () => {
         navigate('/demo-dashboard');
     };
 
-    const handleEnterBlueprintMode = () => {
-        setIsDemoMode(false);
-        setIsBlueprintMode(true);
-
-        // Clear mock data to ensure "Blank Slate" / "Live" experience
-        // BUT stick the Demo Listing in so they have an example (as requested)
-        setProperties(BLUEPRINT_PROPERTIES);
-        setLeads([]);
-        setAppointments([]);
-        setInteractions([]);
-
-        // Keep the Blueprint Agent profile for context/sidebar branding
-        setUserProfile(BLUEPRINT_AGENT);
-    };
-
     const handleNavigateToAdmin = () => {
         navigate('/admin-login');
     };
@@ -967,8 +1233,9 @@ const App: React.FC = () => {
                 const demo = await adminAuthService.login(trimmedEmail, trimmedPassword);
                 if (demo.success) {
                     setIsAdminLoginOpen(false);
-                    // navigate to admin dashboard
-                    navigate('/admin-dashboard');
+                    setIsAdmin(true);
+                    localStorage.removeItem('hlai_impersonated_user_id');
+                    navigate('/admin/overview');
                     return;
                 }
             }
@@ -984,24 +1251,31 @@ const App: React.FC = () => {
                 return;
             }
 
-            // Check if user has admin role via RPC
-            const { data: isAdmin, error: rpcError } = await supabase.rpc('is_user_admin', { uid: data.user.id });
+            // Check email whitelist first (fast path — no RPC needed)
+            const envAdminEmail = import.meta.env.VITE_ADMIN_EMAIL as string | undefined;
+            const adminEmails = ['admin@homelistingai.com', 'us@homelistingai.com'];
+            if (envAdminEmail) adminEmails.push(envAdminEmail.toLowerCase());
+            const isWhitelistedAdmin = adminEmails.includes(trimmedEmail);
 
-            if (rpcError || !isAdmin) {
-                console.warn('Login successful but user is not an admin', rpcError);
-                await supabase.auth.signOut();
-                setAdminLoginError('Unauthorized: You do not have admin privileges.');
-                return;
+            if (!isWhitelistedAdmin) {
+                // Not in whitelist — fall back to RPC check
+                const { data: isRpcAdmin, error: rpcError } = await supabase.rpc('is_user_admin', { uid: data.user.id });
+
+                if (rpcError || !isRpcAdmin) {
+                    console.warn('Login successful but user is not an admin', rpcError);
+                    await supabase.auth.signOut();
+                    setAdminLoginError('Unauthorized: You do not have admin privileges.');
+                    return;
+                }
             }
 
-            // Admin role confirmed via RPC
-            // Proceed to dashboard
+            // Admin confirmed (whitelist or RPC) — proceed to dashboard
 
             setIsAdminLoginOpen(false);
             setIsAdmin(true); // Manually set admin for this session (RPC verified)
             // CRITICAL: Clear any leftover impersonation state to ensure we enter Admin Dashboard cleanly
             localStorage.removeItem('hlai_impersonated_user_id');
-            navigate('/admin-dashboard');
+            navigate('/admin/overview');
         } catch (error) {
             console.error('Admin login failed', error);
             setAdminLoginError('Invalid login credentials');
@@ -1018,256 +1292,6 @@ const App: React.FC = () => {
 
     // Notification handling is now managed by NotificationSystem component
 
-    // Task management handlers
-
-
-    const handleSelectProperty = (id: string) => {
-        setSelectedPropertyId(id);
-        setView('property');
-    };
-
-    const handleSetProperty = (updatedProperty: Property) => {
-        setProperties(prev => prev.map(p => p.id === updatedProperty.id ? updatedProperty : p));
-    };
-
-    const handleSaveNewProperty = async (newPropertyData: Omit<Property, 'id' | 'description' | 'imageUrl'>) => {
-        if (!user && !isDemoMode) {
-            alert("Please sign in to add a new listing.");
-            setView('signin');
-            return;
-        }
-
-        const propertyWithAgent = {
-            ...newPropertyData,
-            agent: userProfile,
-        };
-
-        const tempId = `prop-temp-${Date.now()}`;
-        const propertyForState: Property = {
-            id: tempId,
-            description: '',
-            imageUrl: 'https://images.unsplash.com/photo-1599809275671-55822c1f6a12?q=80&w=800&auto-format&fit=crop',
-            ...propertyWithAgent,
-        };
-
-        setProperties(prev => [propertyForState, ...prev]);
-        setView('listings');
-
-        if (isDemoMode) {
-            // In demo mode, simulate saving and then automatically delete the listing after a delay
-            setTimeout(() => {
-                alert("This is a demo. The listing you just created will now be automatically deleted to complete the demonstration.");
-                setProperties(prev => prev.filter(p => p.id !== tempId));
-            }, 4000);
-        } else if (user) { // Only save to Firestore if a real user is logged in
-            try {
-                const { id: _discardedId, ...dataForPersistence } = propertyForState;
-                void _discardedId;
-
-                // Map Property object to CreatePropertyInput
-                const propertyInput: CreatePropertyInput = {
-                    ...dataForPersistence,
-                    agentSnapshot: dataForPersistence.agent,
-                    // Ensure features are passed correctly
-                    features: dataForPersistence.features || [],
-                    heroPhotos: dataForPersistence.heroPhotos,
-                    galleryPhotos: dataForPersistence.galleryPhotos,
-                    appFeatures: dataForPersistence.appFeatures,
-                    status: dataForPersistence.status?.toLowerCase() || 'active'
-                };
-
-                const newProperty = await listingsService.createProperty(propertyInput);
-
-                setProperties(prev => prev.map(p => p.id === tempId ? newProperty : p));
-            } catch (error) {
-                console.error("Failed to save property:", error);
-                alert("Error: Could not save the property to the database. Please try again.");
-                setProperties(prev => prev.filter(p => p.id !== tempId));
-                setView('add-listing');
-            }
-        }
-    };
-
-    const handleDeleteProperty = (id: string) => {
-        if (window.confirm('Are you sure you want to delete this listing?')) {
-            setProperties(prev => prev.filter(p => p.id !== id));
-            if (selectedPropertyId === id) {
-                setSelectedPropertyId(null);
-                setView('listings');
-            }
-            showToast.success('Listing removed successfully');
-        }
-    };
-
-    const triggerLeadSequences = useCallback(
-        async (
-            lead: Lead,
-            triggerType: SequenceTriggerType = 'Lead Capture',
-            _propertyOverride?: Property
-        ) => {
-            try {
-                // [MIGRATION] Client-side execution disabled. Architecture moved to Server (funnelExecutionService.js)
-                // const sequenceService = SequenceExecutionService.getInstance();
-                console.log(`✅ [Backend] Sequence trigger requested for: ${triggerType} (Handled by Server)`);
-                console.log(`✅ ${triggerType} sequences triggered for:`, lead.name);
-            } catch (error) {
-                console.error('❌ Error triggering sequences:', error);
-            }
-        },
-        []
-    );
-
-    const handleAddNewLead = async (leadData: { name: string; email: string; phone: string; message: string; source: string; funnelType?: string }) => {
-        const payload: LeadPayload = {
-            name: leadData.name,
-            email: leadData.email,
-            phone: leadData.phone,
-            source: leadData.source || 'Website',
-            lastMessage: leadData.message,
-            funnelType: leadData.funnelType || null
-        };
-
-        try {
-            const createdLead = await leadsService.create(payload);
-            setLeads(prev => [createdLead, ...prev]);
-            await triggerLeadSequences(createdLead);
-        } catch (error) {
-            console.error('❌ Failed to create lead via API, using local fallback:', error);
-            const createdLead: Lead = {
-                id: `lead-${Date.now()}`,
-                name: leadData.name,
-                email: leadData.email,
-                phone: leadData.phone,
-                lastMessage: leadData.message,
-                status: 'New',
-                date: new Date().toISOString(),
-                funnelType: null,
-                interestedProperties: []
-            };
-            setLeads(prev => [createdLead, ...prev]);
-            await triggerLeadSequences(createdLead);
-        }
-        setView('leads');
-    };
-
-    const handleLeadFunnelAssigned = useCallback(
-        async (lead: Lead, funnel: LeadFunnelType | null) => {
-            const previous = lead.funnelType ?? null;
-            setLeads((prev) =>
-                prev.map((item) =>
-                    item.id === lead.id ? { ...item, funnelType: funnel ?? undefined } : item
-                )
-            );
-            try {
-                const updatedLead = await leadsService.assignFunnel(lead.id, funnel);
-                setLeads((prev) => prev.map((item) => (item.id === lead.id ? updatedLead : item)));
-                if (funnel) {
-                    const triggerType = FUNNEL_TRIGGER_MAP[funnel];
-                    await triggerLeadSequences(
-                        updatedLead,
-                        triggerType,
-                        resolvePropertyForLead(updatedLead)
-                    );
-                }
-            } catch (error) {
-                console.error('❌ Failed to assign lead funnel:', error);
-                setLeads((prev) =>
-                    prev.map((item) =>
-                        item.id === lead.id ? { ...item, funnelType: previous ?? undefined } : item
-                    )
-                );
-                alert('Unable to update the lead funnel right now. Please try again.');
-            }
-        },
-        [resolvePropertyForLead, triggerLeadSequences]
-    );
-
-    const handleUpdateLead = useCallback(async (leadId: string, updatedData: { name: string; email: string; phone: string; message: string; source: string; funnelType?: string }) => {
-        try {
-            // Optimistic update
-            const leadToUpdate = leads.find(l => l.id === leadId);
-            if (!leadToUpdate) return;
-            const previousLead = leadToUpdate; // Capture for comparison
-
-            const updatedLead = {
-                ...leadToUpdate,
-                ...updatedData,
-                notes: updatedData.message // Map message back to notes/lastMessage if needed
-            };
-
-            setLeads(prev => prev.map(l => l.id === leadId ? updatedLead : l));
-
-            await leadsService.update(leadId, {
-                name: updatedData.name,
-                email: updatedData.email,
-                phone: updatedData.phone,
-                lastMessage: updatedData.message,
-                source: updatedData.source,
-                funnelType: updatedData.funnelType
-            });
-
-            // AUTOMATION TRIGGER: If status changed, trigger sequences
-            if (previousLead && previousLead.status !== updatedLead.status) {
-                console.log(`🔄 Lead status changed from ${previousLead.status} to ${updatedLead.status}. Triggering automation...`);
-                try {
-                    // Map status to appropriate trigger type
-                    let triggerType: SequenceTriggerType | null = null;
-                    if (updatedLead.status === 'Qualified') {
-                        triggerType = 'Buyer Lead';
-                    } else if (updatedLead.status === 'Contacted') {
-                        triggerType = 'Seller Lead';
-                    }
-
-                    if (triggerType) {
-                        // [MIGRATION] Client-side execution disabled.
-                        console.log('✅ [Backend] Lead status change automation handled by server');
-                    }
-                } catch (automationError) {
-                    console.error('Failed to trigger automation:', automationError);
-                    // Don't block the update, just log the error
-                }
-            }
-
-            console.log('Lead updated successfully');
-        } catch (error) {
-            console.error('Failed to update lead:', error);
-            // Revert state if needed - relying on next fetch for now or we could snapshot prev state
-        }
-    }, [leads]);
-
-    const handleDeleteLead = useCallback(async (leadId: string) => {
-        if (window.confirm('Are you sure you want to delete this lead?')) {
-            // Store previous state for rollback
-            const previousLeads = leads;
-
-            try {
-                // Optimistic update
-                setLeads(prev => prev.filter(l => l.id !== leadId));
-
-                // Call backend API to actually delete
-                const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/admin/leads/${leadId}`, {
-                    method: 'DELETE',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${sessionStorage.getItem('access_token') || ''}`
-                    }
-                });
-
-                if (!response.ok) {
-                    throw new Error(`Failed to delete lead: ${response.statusText}`);
-                }
-
-                const result = await response.json();
-                console.log('✅ Lead deleted successfully:', result);
-                showToast.success('Lead removed successfully');
-            } catch (error) {
-                console.error('DELETE LEAD ERROR:', error);
-                // Rollback on error - this ensures the UI matches reality
-                setLeads(previousLeads);
-                showToast.error('Delete failed. Try again.');
-            }
-        }
-    }, [leads]);
 
     // Load appointments from Supabase when user signs in or demo/local admin
     React.useEffect(() => {
@@ -1307,8 +1331,6 @@ const App: React.FC = () => {
         load();
     }, [user, isDemoMode]);
 
-    // Track which property is currently selected
-    const selectedProperty = properties.find(p => p.id === selectedPropertyId);
     // Local admin check removed (use isAdmin state)
 
     if (isLoading) {
@@ -1328,97 +1350,15 @@ const App: React.FC = () => {
     }
 
 
-    // Unified Checkout Wrapper to handle both URL params and context
-    const CheckoutRouteWrapper = () => {
-        const params = useParams<{ slug?: string }>();
-        const registrationContext = getRegistrationContext() as { slug?: string } | null;
-
-        // Prioritize URL param, fallback to context
-        const slugForCheckout = params.slug || registrationContext?.slug || null;
-
-        if (!slugForCheckout) {
-            return (
-                <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 px-6 text-center">
-                    <div className="max-w-md space-y-4">
-                        <h2 className="text-xl font-semibold text-slate-800">We could not find your registration</h2>
-                        <p className="text-sm text-slate-600">
-                            Your secure checkout link may have expired. Please restart the signup process to generate a new link.
-                        </p>
-                        <button
-                            type="button"
-                            onClick={handleNavigateToSignUp}
-                            className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-500 transition"
-                        >
-                            <span className="material-symbols-outlined text-base">person_add</span>
-                            Start new signup
-                        </button>
-                    </div>
-                </div>
-            );
-        }
-
-        return <CheckoutPage slug={slugForCheckout} onBackToSignup={handleNavigateToSignUp} />;
-    };
+    // CheckoutRouteWrapper is defined at module level above for stable component identity.
 
 
     // Helper to render routes
+    // Note: ProtectedDashboardLayout and CheckoutRouteWrapper are defined at module level
+    // above the App component for stable component identity (see Edit #2).
     const renderRoutes = () => {
         if (isLoading) return <div className="flex h-screen items-center justify-center"><LoadingSpinner /></div>;
         console.log("📍 Rendering Routes");
-        const ProtectedDashboardLayout = () => {
-            if (!authReady) {
-                return (
-                    <div className="flex h-screen items-center justify-center bg-slate-50">
-                        <LoadingSpinner size="lg" type="dots" text="Checking session..." />
-                    </div>
-                );
-            }
-
-            if (!user && !isAdmin && !isDemoMode) {
-                logAuthBreadcrumb('ROUTE_GUARD_REDIRECT_NO_SESSION', null);
-                return <Navigate to="/signin?reason=expired" replace />;
-            }
-
-            return (
-                <div className="flex h-screen bg-slate-50 relative">
-                    <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
-                    <div className="flex-1 flex flex-col overflow-hidden relative">
-                        {/* Mobile Header */}
-                        <header
-                            className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-200 bg-white px-3 py-3 shadow-sm lg:hidden"
-                            style={{
-                                paddingTop: 'calc(env(safe-area-inset-top) + 0.75rem)',
-                                paddingBottom: 'calc(env(safe-area-inset-bottom) + 0.5rem)'
-                            }}
-                        >
-                            <button
-                                onClick={() => setIsSidebarOpen(true)}
-                                className="rounded-lg p-2 text-slate-600 transition-colors hover:bg-slate-100"
-                                aria-label="Open navigation menu"
-                            >
-                                <span className="material-symbols-outlined text-xl">menu</span>
-                            </button>
-                            <h1 className="truncate px-3 text-base font-semibold text-slate-900">
-                                {resolveDashboardPageTitle(location.pathname)}
-                            </h1>
-                            <div className="flex w-10 justify-end">
-                                {user && <NotificationSystem userId={user.uid} />}
-                            </div>
-                        </header>
-
-                        {/* Desktop Notification Bell (Absolute Top-Right) */}
-                        <div className="absolute right-8 top-6 z-50 hidden lg:block">
-                            {user && <NotificationSystem userId={user.uid} />}
-                        </div>
-
-                        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-slate-50 relative z-0">
-                            <DashboardRealtimeBootstrap />
-                            <Outlet />
-                        </main>
-                    </div>
-                </div>
-            );
-        };
 
         const renderSettingsPage = (initialTab: 'profile' | 'notifications' | 'security' | 'billing' = 'profile') => (
             <SettingsPage
@@ -1444,7 +1384,6 @@ const App: React.FC = () => {
                     }
                 }}
                 onBackToDashboard={() => navigate('/dashboard')}
-                onNavigateToAICard={() => navigate('/ai-card')}
                 securitySettings={{}}
                 onSaveSecuritySettings={async () => { }}
                 isBlueprintMode={isBlueprintMode}
@@ -1456,7 +1395,9 @@ const App: React.FC = () => {
                 <Routes>
                     {/* Public Routes */}
                     <Route path="/" element={
-                        (user || isDemoMode || isAdmin) ? <Navigate to="/dashboard" replace /> :
+                        !authReady ? <LoadingSpinner /> :
+                        isDemoMode ? <Navigate to="/demo-dashboard/today" replace /> :
+                        session ? <Navigate to="/post-auth" replace /> :
                             <Suspense fallback={<LoadingSpinner />}>
                                 <LandingPage
                                     onNavigateToSignUp={handleNavigateToSignUp}
@@ -1472,14 +1413,18 @@ const App: React.FC = () => {
                     } />
                     <Route path="/landing" element={<Navigate to="/" replace />} />
                     <Route path="/signin" element={
-                        <Suspense fallback={<LoadingSpinner />}>
-                            <SignInPage
-                                onNavigateToSignUp={handleNavigateToSignUp}
-                                onNavigateToLanding={handleNavigateToLanding}
-                                onEnterDemoMode={() => navigate('/demo-dashboard')}
-                                onNavigateToSection={(section) => { navigate('/'); setTimeout(() => setScrollToSection(section), 100); }}
-                            />
-                        </Suspense>
+                        session && roleReady ? (
+                            <Navigate to="/post-auth" replace />
+                        ) : (
+                            <Suspense fallback={<LoadingSpinner />}>
+                                <SignInPage
+                                    onNavigateToSignUp={handleNavigateToSignUp}
+                                    onNavigateToLanding={handleNavigateToLanding}
+                                    onEnterDemoMode={() => navigate('/demo-dashboard')}
+                                    onNavigateToSection={(section) => { navigate('/'); setTimeout(() => setScrollToSection(section), 100); }}
+                                />
+                            </Suspense>
+                        )
                     } />
                     <Route path="/forgot-password" element={
                         <Suspense fallback={<LoadingSpinner />}>
@@ -1496,14 +1441,21 @@ const App: React.FC = () => {
                         </Suspense>
                     } />
                     <Route path="/signup" element={
-                        <Suspense fallback={<LoadingSpinner />}>
-                            <SignUpPage
-                                onNavigateToSignIn={handleNavigateToSignIn}
-                                onNavigateToLanding={handleNavigateToLanding}
-                                onEnterDemoMode={() => navigate('/demo-dashboard')}
-                                onNavigateToSection={(section) => { navigate('/'); setTimeout(() => setScrollToSection(section), 100); }}
-                            />
-                        </Suspense>
+                        session && roleReady ? (
+                            <Navigate to="/post-auth" replace />
+                        ) : (
+                            <Suspense fallback={<LoadingSpinner />}>
+                                <SignUpPage
+                                    onNavigateToSignIn={handleNavigateToSignIn}
+                                    onNavigateToLanding={handleNavigateToLanding}
+                                    onEnterDemoMode={() => navigate('/demo-dashboard')}
+                                    onNavigateToSection={(section) => { navigate('/'); setTimeout(() => setScrollToSection(section), 100); }}
+                                />
+                            </Suspense>
+                        )
+                    } />
+                    <Route path="/post-auth" element={
+                        <PostAuth authReady={authReady} session={session} role={role} roleReady={roleReady} />
                     } />
 
                     <Route path="/checkout/:slug?" element={
@@ -1555,9 +1507,20 @@ const App: React.FC = () => {
                         <Route path="billing" element={<BillingCommandPage />} />
                         <Route path="onboarding" element={<OnboardingCommandPage />} />
                     </Route>
-                    <Route path="/dashboard-blueprint/*" element={<AgentDashboard isDemoMode={true} demoListingCount={1} />} />
-                    <Route path="/agent-blueprint-dashboard/*" element={<AgentDashboard isDemoMode={false} isBlueprintMode={true} demoListingCount={1} />} />
-                    <Route path="/demo-showcase" element={<MultiToolShowcase />} />
+                    {/* New Blueprint Dashboard — same UI as demo, zero fake data, one example listing */}
+                    <Route path="/blueprint-dashboard" element={<BlueprintDashboardLayout />}>
+                        <Route index element={<Navigate to="/blueprint-dashboard/today" replace />} />
+                        <Route path="today" element={<TodayDashboardPage />} />
+                        <Route path="command-center" element={<ConversionDashboardHome />} />
+                        <Route path="leads" element={<LeadsInboxCommandPage />} />
+                        <Route path="leads/:leadId" element={<LeadDetailCommandPage />} />
+                        <Route path="appointments" element={<AppointmentsCommandPage />} />
+                        <Route path="listings" element={<ListingsCommandPage />} />
+                        <Route path="listings/:listingId" element={<ListingPerformancePage />} />
+                        <Route path="listings/:listingId/edit" element={<ListingEditorPage />} />
+                        <Route path="billing" element={<BillingCommandPage />} />
+                        <Route path="onboarding" element={<OnboardingCommandPage />} />
+                    </Route>
 
                     {/* Public Property Route */}
                     <Route path="/listing/:id" element={
@@ -1571,27 +1534,19 @@ const App: React.FC = () => {
                         </Suspense>
                     } />
 
-                    {/* Demo Dashboard */}
-                    <Route path="/admin" element={
-                        isAdmin ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/" />
-                    } />
-                    <Route path="/admin-dashboard" element={<Navigate to="/admin/dashboard" replace />} />
-                    <Route path="/admin/:tab" element={
-                        isAdmin ? (
-                            <AdminDashboard />
-                        ) : (
-                            <Navigate to="/" />
-                        )
-                    } />
-                    <Route path="/admin/leads/:id/dashboard" element={
-                        isAdmin ? (
-                            <Suspense fallback={<LoadingSpinner />}>
-                                <LeadDetailDashboard leads={leads} />
-                            </Suspense>
-                        ) : (
-                            <Navigate to="/" />
-                        )
-                    } />
+                    {/* Admin Routes */}
+                    <Route element={<RequireAuth />}>
+                        <Route element={<RequireRole requiredRole="admin" />}>
+                            <Route path="/admin" element={<Navigate to="/admin/overview" replace />} />
+                            <Route path="/admin-dashboard" element={<Navigate to="/admin/overview" replace />} />
+                            <Route path="/admin/:tab" element={<AdminDashboard />} />
+                            <Route path="/admin/leads/:id/dashboard" element={
+                                <Suspense fallback={<LoadingSpinner />}>
+                                    <LeadDetailDashboard leads={leads} />
+                                </Suspense>
+                            } />
+                        </Route>
+                    </Route>
                     <Route path="/admin-login" element={
                         <AdminLogin
                             onLogin={handleAdminLogin}
@@ -1614,14 +1569,13 @@ const App: React.FC = () => {
 
 
                     {/* Protected Routes (Wrapped in Layout) */}
+                    <Route element={<RequireAuth />}>
                     <Route element={<ProtectedDashboardLayout />}>
                         <Route path="/dashboard" element={
                             <DashboardRouteGate />
                         } />
-                        <Route path="/daily-pulse" element={
-                            (userProfile.slug && userProfile.id !== SAMPLE_AGENT.id ? <Navigate to={`/dashboard/${userProfile.slug}`} replace /> : <AgentDashboard preloadedProperties={properties} />)
-                        } />
-                        <Route path="/dashboard/:slug" element={<AgentDashboard preloadedProperties={properties} />} />
+                        <Route path="/daily-pulse" element={<Navigate to="/dashboard/today" replace />} />
+                        <Route path="/dashboard/:slug" element={<Navigate to="/dashboard/today" replace />} />
 
                         <Route path="/dashboard/today" element={<TodayDashboardPage />} />
                         <Route path="/dashboard/command-center" element={<ConversionDashboardHome />} />
@@ -1631,55 +1585,17 @@ const App: React.FC = () => {
                         <Route path="/dashboard/listings" element={<ListingsCommandPage />} />
                         <Route path="/dashboard/listings/:listingId" element={<ListingPerformancePage />} />
                         <Route path="/dashboard/listings/:listingId/edit" element={<ListingEditorPage />} />
-                        <Route path="/dashboard/billing" element={<BillingCommandPage />} />
+                        <Route path="/dashboard/billing" element={<Navigate to="/dashboard/settings/billing" replace />} />
                         <Route path="/dashboard/onboarding" element={<OnboardingCommandPage />} />
                         <Route path="/dashboard/dev/share-test" element={<ShareTestPage />} />
 
 
-                        <Route path="/listings" element={
-                            <ListingsPage properties={properties} onSelectProperty={handleSelectProperty} onAddNew={() => navigate('/add-listing')} onDeleteProperty={handleDeleteProperty} onBackToDashboard={() => navigate('/dashboard')} />
-                        } />
-
-                        <Route path="/listings-v2" element={
-                            <ListingStudioV2Page properties={properties} agentProfile={userProfile} onBackToListings={() => navigate('/listings')} />
-                        } />
-
-                        <Route path="/add-listing" element={
-                            <AddListingPage onCancel={() => navigate('/dashboard')} onSave={handleSaveNewProperty} />
-                        } />
-
-                        <Route path="/property" element={
-                            selectedProperty ? <PropertyPage property={selectedProperty} setProperty={handleSetProperty} onBack={() => navigate('/listings')} leadCount={leads.filter(l => l.interestedProperties?.includes(selectedProperty.id)).length} /> : <Navigate to="/listings" />
-                        } />
-
-                        <Route path="/leads" element={
-                            <LeadsAndAppointmentsPage
-                                leads={leads}
-                                appointments={appointments}
-                                onAddNewLead={handleAddNewLead}
-                                onBackToDashboard={() => navigate('/dashboard')}
-                                resolvePropertyForLead={resolvePropertyForLead}
-                                onNewAppointment={async (appt) => {
-                                    setAppointments((prev) => [appt, ...prev]);
-                                    const lead = appt.leadId ? leads.find((l) => l.id === appt.leadId) : undefined;
-                                    if (lead) await triggerLeadSequences(lead, 'Appointment Scheduled', resolvePropertyForLead(lead));
-                                }}
-                                onAssignFunnel={handleLeadFunnelAssigned}
-                                onUpdateLead={(lead) => handleUpdateLead(lead.id, {
-                                    name: lead.name,
-                                    email: lead.email,
-                                    phone: lead.phone,
-                                    message: lead.lastMessage,
-                                    source: lead.source || 'Manual Entry',
-                                    funnelType: lead.funnelType
-                                })}
-                                onDeleteLead={handleDeleteLead}
-                            />
-                        } />
-
-                        <Route path="/inbox" element={
-                            <InteractionHubPage properties={properties} interactions={interactions} setInteractions={setInteractions} onAddNewLead={handleAddNewLead} onBackToDashboard={() => navigate('/dashboard')} />
-                        } />
+                        <Route path="/listings" element={<Navigate to="/dashboard/listings" replace />} />
+                        <Route path="/listings-v2" element={<Navigate to="/dashboard/listings" replace />} />
+                        <Route path="/add-listing" element={<Navigate to="/dashboard/listings" replace />} />
+                        <Route path="/property" element={<Navigate to="/dashboard/listings" replace />} />
+                        <Route path="/leads" element={<Navigate to="/dashboard/leads" replace />} />
+                        <Route path="/inbox" element={<Navigate to="/dashboard/leads" replace />} />
 
                         <Route path="/ai-conversations" element={<AIConversationsPage isDemoMode={isDemoMode} />} />
                         <Route path="/ai-card" element={<AICardPage isDemoMode={isDemoMode} isBlueprintMode={isBlueprintMode} />} />
@@ -1703,8 +1619,12 @@ const App: React.FC = () => {
                                 <VoiceLabPage />
                             </Suspense>
                         } />
-                        <Route path="/settings" element={renderSettingsPage()} />
+                        <Route path="/settings" element={<Navigate to="/dashboard/settings" replace />} />
+                        <Route path="/settings/billing" element={<Navigate to="/dashboard/settings/billing" replace />} />
+                        <Route path="/dashboard/settings" element={renderSettingsPage()} />
+                        <Route path="/dashboard/settings/billing" element={renderSettingsPage('billing')} />
                         <Route path="/dashboard/settings/notifications" element={renderSettingsPage('notifications')} />
+                    </Route>
                     </Route>
 
                     {/* Legacy/Misc Public Views */}
@@ -1729,6 +1649,8 @@ const App: React.FC = () => {
         <ImpersonationProvider>
             <AgentBrandingProvider>
                 <AISidekickProvider>
+                    <DashboardLayoutContext.Provider value={{ authReady, session, role, roleReady, user, isAdmin, isDemoMode, isSidebarOpen, setIsSidebarOpen, logAuthBreadcrumb }}>
+                    <CheckoutContext.Provider value={{ onBackToSignup: handleNavigateToSignUp }}>
                     <ErrorBoundary>
                         <Suspense fallback={<LoadingSpinner />}>
                             {renderRoutes()}
@@ -1778,6 +1700,8 @@ const App: React.FC = () => {
                             </Suspense>
                         )}
                     </ErrorBoundary>
+                    </CheckoutContext.Provider>
+                    </DashboardLayoutContext.Provider>
                 </AISidekickProvider>
                 <Toaster
                     position="bottom-center"

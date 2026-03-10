@@ -1,13 +1,27 @@
 const normalizeBase = (): string => {
-  // Check common env vars, prioritizing standard VITE_BACKEND_URL
-  const raw = import.meta.env?.VITE_BACKEND_URL || import.meta.env?.VITE_API_BASE_URL
+  const env = import.meta.env || {}
+  const raw =
+    env.VITE_BACKEND_URL ||
+    env.VITE_API_BASE_URL ||
+    env.VITE_API_URL ||
+    env.VITE_VOICE_API_BASE_URL
 
-  // Default to local backend for development reliability
-  if (typeof raw !== 'string' || !raw.trim().length) {
-    return 'http://localhost:3002'
+  if (typeof raw === 'string' && raw.trim().length) {
+    const trimmed = raw.trim()
+    return trimmed.endsWith('/') ? trimmed.slice(0, -1) : trimmed
   }
-  const trimmed = raw.trim()
-  return trimmed.endsWith('/') ? trimmed.slice(0, -1) : trimmed
+
+  // In production/staging, default to same-origin API host when no explicit env is set.
+  if (typeof window !== 'undefined') {
+    const host = String(window.location.hostname || '').toLowerCase()
+    const isLocalHost = host === 'localhost' || host === '127.0.0.1' || host.endsWith('.local')
+    if (!isLocalHost) {
+      return window.location.origin.replace(/\/+$/, '')
+    }
+  }
+
+  // Local development fallback.
+  return 'http://localhost:3002'
 }
 
 const API_BASE_URL = normalizeBase()
@@ -20,6 +34,5 @@ export const buildApiUrl = (path: string): string => {
 }
 
 export const getApiBaseUrl = (): string => API_BASE_URL
-
 
 

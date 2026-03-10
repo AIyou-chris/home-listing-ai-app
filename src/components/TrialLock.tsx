@@ -63,7 +63,7 @@ const TrialLock: React.FC<TrialLockProps> = ({ _user }) => {
 
                         <div className="space-y-3">
                             <button
-                                onClick={() => navigate('/billing')}
+                                onClick={() => navigate('/dashboard/settings/billing')}
                                 className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-blue-600/20 hover:shadow-blue-600/30 flex items-center justify-center gap-2"
                             >
                                 Join the Pro Club
@@ -71,7 +71,7 @@ const TrialLock: React.FC<TrialLockProps> = ({ _user }) => {
                             </button>
 
                             <button
-                                onClick={() => navigate('/settings')}
+                                onClick={() => navigate('/dashboard/settings')}
                                 className="w-full bg-white/5 hover:bg-white/10 text-slate-300 font-medium py-3 rounded-xl transition-all border border-white/10 flex items-center justify-center gap-2"
                             >
                                 <Settings className="w-4 h-4" />

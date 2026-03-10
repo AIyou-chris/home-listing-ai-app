@@ -1,13 +1,14 @@
 import React from 'react';
-import { StripeLogo } from './StripeLogo';
+import { StripeLogo as _StripeLogo } from './StripeLogo';
 import { BackgroundTechIcons } from './BackgroundTechIcons';
 
 interface PricingProps {
     onNavigateToSignUp: () => void;
     onEnterDemoMode: () => void;
+    onOpenComparePlans?: () => void;
 }
 
-export const PricingSectionNew: React.FC<PricingProps> = ({ onNavigateToSignUp, onEnterDemoMode }) => {
+export const PricingSectionNew: React.FC<PricingProps> = ({ onNavigateToSignUp, onEnterDemoMode, onOpenComparePlans }) => {
     return (
         <section id="pricing" className="relative py-24 lg:py-32 bg-[#02050D] overflow-hidden">
 
@@ -266,6 +267,14 @@ export const PricingSectionNew: React.FC<PricingProps> = ({ onNavigateToSignUp, 
                     <p className="text-slate-500 text-sm font-medium">
                         No credit card required to start.
                     </p>
+                    {onOpenComparePlans && (
+                        <button
+                            onClick={onOpenComparePlans}
+                            className="mt-4 text-sm text-slate-500 hover:text-cyan-400 transition-colors underline underline-offset-4"
+                        >
+                            See full feature comparison →
+                        </button>
+                    )}
                 </div>
 
             </div>
