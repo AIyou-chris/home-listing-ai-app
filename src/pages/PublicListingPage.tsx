@@ -54,6 +54,7 @@ const toPropertyFromPublicPayload = (payload: Record<string, unknown>): Property
         features: Array.isArray(payload.features) ? payload.features.filter((item): item is string => typeof item === 'string') : [],
         imageUrl,
         ctaListingUrl: typeof payload.ctaListingUrl === 'string' ? payload.ctaListingUrl : undefined,
+        ctaMediaUrl: typeof payload.ctaMediaUrl === 'string' ? payload.ctaMediaUrl : undefined,
         ctaContactMode: typeof payload.ctaContactMode === 'string' ? payload.ctaContactMode as Property['ctaContactMode'] : 'form',
         agentId: typeof (payload.agent as Record<string, unknown> | undefined)?.id === 'string'
             ? String((payload.agent as Record<string, unknown>).id)
@@ -68,6 +69,7 @@ const PublicListingPage: React.FC = () => {
     const [property, setProperty] = useState<Property | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [talkToHomeOpen, setTalkToHomeOpen] = useState(false);
 
     useEffect(() => {
         const fetchProperty = async () => {
@@ -204,8 +206,15 @@ const PublicListingPage: React.FC = () => {
                 property={property}
                 onExit={() => navigate('/')}
                 showBackButton={false} // Clean look for standalone page
+                onTalkToHome={() => setTalkToHomeOpen(true)}
             />
-            <PublicListingChatModule property={property} listingSlug={publicSlug} />
+            <PublicListingChatModule
+                property={property}
+                listingSlug={publicSlug}
+                open={talkToHomeOpen}
+                hideLauncher
+                onOpenChange={setTalkToHomeOpen}
+            />
         </>
     );
 };

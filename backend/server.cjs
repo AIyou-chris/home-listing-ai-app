@@ -3791,6 +3791,7 @@ const mapPublicListingPayload = async (listingRow) => {
     galleryPhotos,
     imageUrl,
     ctaListingUrl: listingRow.cta_listing_url || null,
+    ctaMediaUrl: listingRow.cta_media_url || null,
     ctaContactMode: listingRow.cta_contact_mode || 'form',
     publicSlug: listingRow.public_slug || null,
     shareUrl: listingRow.share_url || (listingRow.public_slug ? buildListingShareUrl(listingRow.public_slug) : null),
@@ -13580,6 +13581,8 @@ app.post('/api/public/conversations/:conversationId/message', async (req, res) =
     const { conversationId } = req.params;
     const text = String(req.body?.text || '').trim();
     const visitorId = toTrimmedOrNull(req.body?.visitor_id || req.headers['x-visitor-id']);
+    const scopedListingId = toTrimmedOrNull(req.body?.listing_id);
+    const scopedListingSlug = toTrimmedOrNull(req.body?.listing_slug);
 
     if (!text) return res.status(400).json({ error: 'text_required' });
     if (!visitorId) return res.status(400).json({ error: 'visitor_id_required' });
@@ -13605,6 +13608,15 @@ app.post('/api/public/conversations/:conversationId/message', async (req, res) =
       .maybeSingle();
     if (conversationError) throw conversationError;
     if (!conversationRow?.id) return res.status(404).json({ error: 'conversation_not_found' });
+    if (scopedListingId && scopedListingId !== conversationRow.listing_id) {
+      return res.status(403).json({ error: 'listing_scope_mismatch' });
+    }
+    if (scopedListingSlug) {
+      const scopedListing = await resolveListingByPublicSlug(scopedListingSlug);
+      if (!scopedListing?.id || scopedListing.id !== conversationRow.listing_id) {
+        return res.status(403).json({ error: 'listing_scope_mismatch' });
+      }
+    }
 
     const conversationVisitor =
       toTrimmedOrNull(conversationRow.visitor_id) ||
