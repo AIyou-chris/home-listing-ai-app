@@ -88,6 +88,7 @@ const BACKEND_BASE_URL = String(
   process.env.PUBLIC_URL ||
   `http://localhost:${process.env.PORT || 3002}`
 ).replace(/\/+$/, '');
+const VIDEO_TEST_SECRET = String(process.env.VIDEO_TEST_SECRET || '').trim();
 
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
@@ -16837,6 +16838,119 @@ app.get('/api/dashboard/videos/:videoId/signed-url', async (req, res) => {
   }
 });
 
+const buildVideoCreditsResponse = ({ listingId, credits }) => {
+  const included = Number(credits?.included || 0);
+  const extra = Number(credits?.extra || 0);
+  const used = Number(credits?.used || 0);
+  const remaining = Number(credits?.remaining || 0);
+
+  return {
+    listing_id: listingId,
+    remaining,
+    used,
+    limit: Math.max(0, included + extra),
+    included_credits: included,
+    extra_credits: extra,
+    included,
+    extra
+  };
+};
+
+const handleGetVideoCredits = async (req, res) => {
+  try {
+    const requesterUserId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!requesterUserId) return res.status(401).json({ error: 'unauthorized' });
+
+    const listingId = String(req.params.listingId || '').trim();
+    if (!listingId) return res.status(400).json({ error: 'listing_id_required' });
+
+    const listingRow = await loadListingById({ listingId });
+    if (!listingRow) return res.status(404).json({ error: 'listing_not_found' });
+
+    const ownerId = getListingOwnerId(listingRow);
+    if (!ownerId || ownerId !== String(requesterUserId)) {
+      return res.status(403).json({ error: 'listing_access_denied' });
+    }
+
+    const billingSnapshot = await billingEngine.getBillingSnapshot(ownerId).catch(() => null);
+    const planId = String(billingSnapshot?.plan?.id || 'free');
+
+    await listingVideoCreditsService.ensureCreditsRow({
+      agentId: ownerId,
+      listingId,
+      planId
+    });
+
+    const credits = await listingVideoCreditsService.getCredits({
+      agentId: ownerId,
+      listingId
+    });
+
+    return res.json(buildVideoCreditsResponse({ listingId, credits }));
+  } catch (error) {
+    if (billingEngine.isMissingTableError?.(error)) {
+      return res.status(500).json({ error: 'billing_tables_missing_run_phase3_5_migration' });
+    }
+    if (/listing_video_credits|reserve_listing_video_credit|add_listing_video_extra_credits/i.test(error?.message || '')) {
+      return res.status(500).json({ error: 'video_tables_missing_run_phase5_1_2_migration' });
+    }
+    console.error('[Dashboard] Failed to get video credits:', error);
+    return res.status(500).json({ error: 'failed_to_get_video_credits' });
+  }
+};
+
+const handlePostFreeTestVideoCredits = async (req, res) => {
+  try {
+    const requesterUserId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!requesterUserId) return res.status(401).json({ error: 'unauthorized' });
+
+    const requestSecret = String(req.headers['x-dev-secret'] || '').trim();
+    if (!VIDEO_TEST_SECRET || requestSecret !== VIDEO_TEST_SECRET) {
+      return res.status(401).json({ error: 'unauthorized' });
+    }
+
+    const listingId = String(req.body?.listing_id || '').trim();
+    if (!listingId) return res.status(400).json({ error: 'listing_id_required' });
+
+    const addRaw = req.body?.add;
+    const add = addRaw === undefined ? 3 : Number(addRaw);
+    if (!Number.isInteger(add) || add <= 0) {
+      return res.status(400).json({ error: 'invalid_add' });
+    }
+
+    const listingRow = await loadListingById({ listingId });
+    if (!listingRow) return res.status(404).json({ error: 'listing_not_found' });
+
+    const ownerId = getListingOwnerId(listingRow);
+    if (!ownerId || ownerId !== String(requesterUserId)) {
+      return res.status(403).json({ error: 'listing_access_denied' });
+    }
+
+    const credits = await listingVideoCreditsService.addExtraCredits({
+      agentId: ownerId,
+      listingId,
+      amount: add
+    });
+
+    return res.json({
+      ok: true,
+      added: add,
+      ...buildVideoCreditsResponse({ listingId, credits })
+    });
+  } catch (error) {
+    if (/listing_video_credits|reserve_listing_video_credit|add_listing_video_extra_credits/i.test(error?.message || '')) {
+      return res.status(500).json({ error: 'video_tables_missing_run_phase5_1_2_migration' });
+    }
+    console.error('[Dashboard] Failed to add free-test video credits:', error);
+    return res.status(500).json({ error: 'failed_to_add_video_credits' });
+  }
+};
+
+app.get('/api/dashboard/video-credits/:listingId', handleGetVideoCredits);
+app.get('/api/video-credits/:listingId', handleGetVideoCredits);
+app.post('/api/dashboard/video-credits/free-test', handlePostFreeTestVideoCredits);
+app.post('/api/video-credits/free-test', handlePostFreeTestVideoCredits);
+
 app.get('/api/dashboard/listings/:listingId/videos', async (req, res) => {
   try {
     const agentId = await resolveRequesterUserId(req, { allowDefault: false });
@@ -17048,12 +17162,7 @@ app.post('/api/dashboard/listings/:listingId/videos/generate', async (req, res) 
     const planId = String(billingSnapshot?.plan?.id || 'free');
 
     if (planId !== 'pro') {
-      return res.status(403).json({
-        error: 'PRO_REQUIRED',
-        upgrade_required: true,
-        upgrade_plan_id: 'pro',
-        plan_id: planId
-      });
+      return res.status(402).json({ error: 'payment_required' });
     }
 
     const templateStyle = normalizeVideoTemplateStyle(req.body?.template_style);
@@ -17162,7 +17271,11 @@ app.post('/api/dashboard/listings/:listingId/videos/generate', async (req, res) 
     });
   } catch (error) {
     if (error?.code === 'NO_CREDITS') {
-      return res.status(403).json({ error: 'NO_CREDITS' });
+      return res.status(403).json({ error: 'no_credits' });
+    }
+    const legacyErrorCode = String(error?.error || error?.code || error?.message || '').trim().toUpperCase();
+    if (legacyErrorCode === 'PRO_REQUIRED' || legacyErrorCode === 'PAYMENT_REQUIRED') {
+      return res.status(402).json({ error: 'payment_required' });
     }
     if (billingEngine.isMissingTableError?.(error)) {
       return res.status(500).json({ error: 'billing_tables_missing_run_phase3_5_migration' });
