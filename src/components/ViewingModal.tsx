@@ -68,7 +68,7 @@ const ViewingModal: React.FC<ViewingModalProps> = ({ onClose, onSuccess, propert
               full_name: form.name,
               email: form.email || undefined,
               phone: form.phone || undefined,
-              consent_sms: form.phone ? true : false,
+              consent_sms: false,
               source_type: attribution.source_type || 'link',
               source_key: attribution.source_key || 'link',
               source_meta: {
@@ -149,6 +149,7 @@ const ViewingModal: React.FC<ViewingModalProps> = ({ onClose, onSuccess, propert
             <div>
               <label className='block text-sm font-semibold text-slate-700 mb-1.5'>Phone</label>
               <input value={form.phone} onChange={e => set('phone', e.target.value)} className='w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500' />
+              <p className='mt-1 text-xs text-slate-500'>Optional. Use a phone number if you want reminder calls about your showing.</p>
             </div>
           </div>
           <div className='grid grid-cols-2 gap-4'>

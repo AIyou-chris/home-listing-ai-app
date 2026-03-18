@@ -6,6 +6,7 @@ import {
   isNativeShareAvailable,
   shareVideo
 } from '../../services/videoShareService';
+import { copyToClipboard } from '../../services/listingShareAssetsService';
 
 interface VideoShareActionsProps {
   videoId: string;
@@ -55,7 +56,7 @@ const VideoShareActions: React.FC<VideoShareActionsProps> = ({ videoId, fileName
     if (isCopying) return;
     setIsCopying(true);
     try {
-      await navigator.clipboard.writeText(captionText);
+      await copyToClipboard(captionText);
       showToast.success('Copied');
     } catch (error) {
       console.error('Failed to copy caption', error);

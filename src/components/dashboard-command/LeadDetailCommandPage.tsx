@@ -58,6 +58,33 @@ const LeadDetailCommandPage: React.FC = () => {
   const [timeline, setTimeline] = useState('unknown');
   const [financing, setFinancing] = useState('unknown');
   const [workingWithAgent, setWorkingWithAgent] = useState('unknown');
+  const [notes, setNotes] = useState('');
+
+  const saveLeadProfilePartial = async (updates: Partial<{ status: string; timeline: string; financing: string; working_with_agent: string; notes: string }>) => {
+    if (!leadId) return;
+    setSaving(true);
+    try {
+      // Merge with current state to ensure we send all fields
+      const payload = {
+        status: updates.status ?? status,
+        timeline: updates.timeline ?? timeline,
+        financing: updates.financing ?? financing,
+        working_with_agent: updates.working_with_agent ?? workingWithAgent,
+        notes: updates.notes ?? notes
+      };
+
+      await updateDashboardLeadStatus(leadId, payload);
+      await logAction('status_changed', {
+        ...payload,
+        source: 'lead_detail'
+      });
+      await load(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update lead.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const logAction = async (
     action: 'call_clicked' | 'email_clicked' | 'lead_opened' | 'status_changed' | 'appointment_created' | 'appointment_updated',
@@ -84,6 +111,7 @@ const LeadDetailCommandPage: React.FC = () => {
       setTimeline(String(lead.timeline || 'unknown'));
       setFinancing(String(lead.financing || 'unknown'));
       setWorkingWithAgent(String(lead.working_with_agent || 'unknown'));
+      setNotes(String(lead.notes || ''));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load lead detail.');
     } finally {
@@ -191,30 +219,7 @@ const LeadDetailCommandPage: React.FC = () => {
 
   const lead = useMemo(() => (detail?.lead || {}) as Record<string, unknown>, [detail]);
 
-  const saveLeadProfile = async () => {
-    if (!leadId) return;
-    setSaving(true);
-    try {
-      await updateDashboardLeadStatus(leadId, {
-        status,
-        timeline,
-        financing,
-        working_with_agent: workingWithAgent
-      });
-      await logAction('status_changed', {
-        status,
-        timeline,
-        financing,
-        working_with_agent: workingWithAgent,
-        source: 'lead_detail'
-      });
-      await load(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update lead.');
-    } finally {
-      setSaving(false);
-    }
-  };
+  // Removed legacy saveLeadProfile in favor of saveLeadProfilePartial
 
   const createAppointment = async () => {
     if (!appointmentDateTime) {
@@ -278,26 +283,9 @@ const LeadDetailCommandPage: React.FC = () => {
   };
 
   const handleQuickMarkContacted = async () => {
-    setSaving(true);
-    try {
-      const nextStatus = 'Contacted';
-      setStatus(nextStatus);
-      await updateDashboardLeadStatus(leadId, {
-        status: nextStatus,
-        timeline,
-        financing,
-        working_with_agent: workingWithAgent
-      });
-      await logAction('status_changed', {
-        status: nextStatus,
-        source: 'lead_detail_quick_action'
-      });
-      await load(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to mark contacted.');
-    } finally {
-      setSaving(false);
-    }
+    const nextStatus = 'Contacted';
+    setStatus(nextStatus);
+    await saveLeadProfilePartial({ status: nextStatus });
   };
 
   const loadConversation = async () => {
@@ -453,8 +441,26 @@ const LeadDetailCommandPage: React.FC = () => {
         {/* KEY CHIPS */}
         <div className="flex flex-wrap gap-2 mt-6 pt-6 border-t border-slate-200">
           <select
+            value={status}
+            onChange={(e) => { 
+                const val = e.target.value;
+                setStatus(val);
+                void saveLeadProfilePartial({ status: val });
+            }}
+            className="bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-700 outline-none cursor-pointer"
+          >
+            {(detail.actionBar.statusOptions || ['New', 'Contacted', 'Nurture', 'Closed-Lost']).map(opt => (
+                <option key={opt} value={opt}>Status: {opt}</option>
+            ))}
+          </select>
+
+          <select
             value={timeline}
-            onChange={(e) => { setTimeline(e.target.value); setTimeout(saveLeadProfile, 100); }}
+            onChange={(e) => { 
+                const val = e.target.value;
+                setTimeline(val); 
+                void saveLeadProfilePartial({ timeline: val });
+            }}
             className="bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-700 outline-none cursor-pointer"
           >
             <option value="unknown">Timeline: Unknown</option>
@@ -465,7 +471,11 @@ const LeadDetailCommandPage: React.FC = () => {
 
           <select
             value={financing}
-            onChange={(e) => { setFinancing(e.target.value); setTimeout(saveLeadProfile, 100); }}
+            onChange={(e) => { 
+                const val = e.target.value;
+                setFinancing(val); 
+                void saveLeadProfilePartial({ financing: val });
+            }}
             className="bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-700 outline-none cursor-pointer"
           >
             <option value="unknown">Financing: Unknown</option>
@@ -476,7 +486,11 @@ const LeadDetailCommandPage: React.FC = () => {
 
           <select
             value={workingWithAgent}
-            onChange={(e) => { setWorkingWithAgent(e.target.value); setTimeout(saveLeadProfile, 100); }}
+            onChange={(e) => { 
+                const val = e.target.value;
+                setWorkingWithAgent(val); 
+                void saveLeadProfilePartial({ working_with_agent: val });
+            }}
             className="bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-bold text-slate-700 outline-none cursor-pointer"
           >
             <option value="unknown">Agent: Unknown</option>
@@ -504,6 +518,13 @@ const LeadDetailCommandPage: React.FC = () => {
           {activeAppointments.length > 0 && (
             <span className="bg-rose-100 text-rose-700 py-0.5 px-1.5 rounded-full text-[10px]">{activeAppointments.length}</span>
           )}
+        </button>
+        <button
+          onClick={() => setActiveTab('notes')}
+          className={`px-4 py-3 text-sm font-bold uppercase tracking-widest transition-colors ${activeTab === 'notes' ? 'border-b-2 border-slate-900 text-slate-900' : 'text-slate-400 hover:text-slate-600'
+            }`}
+        >
+          Notes
         </button>
       </div>
 
@@ -587,6 +608,44 @@ const LeadDetailCommandPage: React.FC = () => {
                 </div>
               ))
             )}
+          </div>
+        )}
+        {/* NOTES TAB */}
+        {activeTab === 'notes' && (
+          <div className="space-y-6">
+            <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+              <div className="p-6">
+                <label className="block text-xs font-bold text-slate-500 mb-3 uppercase tracking-widest">General Notes</label>
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Add details about this lead, past conversations, or specific needs..."
+                  rows={8}
+                  className="w-full rounded-xl border border-slate-200 p-4 text-slate-900 font-medium text-[15px] outline-none focus:border-slate-900 transition-colors bg-slate-50/50"
+                />
+              </div>
+              <div className="px-6 py-4 bg-slate-50 flex justify-end">
+                <button
+                  onClick={() => void saveLeadProfilePartial({ notes })}
+                  disabled={saving}
+                  className="bg-slate-900 text-white font-bold py-2.5 px-8 rounded-xl text-sm transition-transform active:scale-[0.98] disabled:opacity-50"
+                >
+                  {saving ? 'Saving...' : 'Save Notes'}
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 bg-blue-50/50 border border-blue-100 rounded-2xl">
+              <div className="flex gap-3">
+                <span className="material-symbols-outlined text-blue-500">info</span>
+                <div>
+                  <p className="text-sm font-bold text-blue-900 mb-1">Agent Private Notes</p>
+                  <p className="text-xs font-medium text-blue-700/80 leading-relaxed">
+                    These notes are visible only to you and your team. The AI sidekick will use these insights to better personalize future interactions with {leadName}.
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>

@@ -621,7 +621,7 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                 const normalizeWithBots = (step: EditableStep) => normalizeCallStep(step, botOptions);
 
                 // User Request: "Only want a realtor funnel and a broker funnel that's it"
-                const allowedFunnels = ['realtor_funnel', 'broker_funnel'];
+                const allowedFunnels = ['realtor_funnel', 'broker_funnel', 'marketing_funnel_2'];
                 const filteredFunnels = Object.fromEntries(
                     Object.entries(funnelData).filter(([key]) => allowedFunnels.includes(key))
                 );

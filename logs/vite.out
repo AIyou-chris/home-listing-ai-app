@@ -1,6 +1,89 @@
 
-  VITE v7.2.2  ready in 500 ms
+  VITE v7.2.2  ready in 580 ms
+
+  ➜  Local:   http://127.0.0.1:5175/
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+
+  VITE v7.2.2  ready in 1119 ms
 
   ➜  Local:   http://localhost:5175/
   ➜  Network: http://192.168.1.28:5175/
 [baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+4:33:50 PM [vite] (client) hmr update /src/components/dashboard-command/LeadDetailCommandPage.tsx, /src/index.css
+4:34:06 PM [vite] (client) hmr update /src/components/dashboard-command/LeadDetailCommandPage.tsx, /src/index.css
+4:43:50 PM [vite] (client) hmr update /src/index.css, /src/components/dashboard-command/DashboardRealtimeBootstrap.tsx, /src/components/dashboard-command/ConversionDashboardHome.tsx, /src/components/dashboard-command/LeadDetailCommandPage.tsx, /src/components/dashboard-command/LeadsInboxCommandPage.tsx
+4:44:06 PM [vite] (client) hmr update /src/index.css, /src/App.tsx, /src/components/dashboard-command/ConversionDashboardHome.tsx, /src/components/dashboard-command/DashboardRealtimeBootstrap.tsx, /src/components/dashboard-command/LeadDetailCommandPage.tsx, /src/components/dashboard-command/LeadsInboxCommandPage.tsx, /src/pages/DemoAssetGalleryPage.tsx
+4:44:11 PM [vite] (client) hmr update /src/index.css, /src/App.tsx, /src/components/dashboard-command/ConversionDashboardHome.tsx, /src/components/dashboard-command/DashboardRealtimeBootstrap.tsx, /src/components/dashboard-command/LeadDetailCommandPage.tsx, /src/components/dashboard-command/LeadsInboxCommandPage.tsx, /src/pages/DemoAssetGalleryPage.tsx
+4:44:22 PM [vite] (client) hmr update /src/components/dashboard-command/LeadDetailCommandPage.tsx, /src/index.css
+4:44:26 PM [vite] (client) hmr update /src/components/dashboard-command/LeadDetailCommandPage.tsx, /src/index.css
+4:44:34 PM [vite] (client) hmr update /src/components/dashboard-command/LeadDetailCommandPage.tsx, /src/index.css
+4:44:44 PM [vite] (client) hmr update /src/components/dashboard-command/LeadDetailCommandPage.tsx, /src/index.css
+4:44:44 PM [vite] Internal server error: /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/components/dashboard-command/LeadDetailCommandPage.tsx: Unexpected token, expected "," (612:8)
+
+  610 |             )}
+  611 |           </div>
+> 612 |         {/* NOTES TAB */}
+      |         ^
+  613 |         {activeTab === 'notes' && (
+  614 |           <div className="space-y-6">
+  615 |             <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+  Plugin: vite:react-babel
+  File: /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/src/components/dashboard-command/LeadDetailCommandPage.tsx:612:8
+  610 |              )}
+  611 |            </div>
+  612 |          {/* NOTES TAB */}
+      |          ^
+  613 |          {activeTab === 'notes' && (
+  614 |            <div className="space-y-6">
+      at constructor (/Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:365:19)
+      at TypeScriptParserMixin.raise (/Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:6599:19)
+      at TypeScriptParserMixin.unexpected (/Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:6619:16)
+      at TypeScriptParserMixin.expect (/Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:6899:12)
+      at TypeScriptParserMixin.parseParenAndDistinguishExpression (/Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11651:14)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11321:23)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:4764:20)
+      at TypeScriptParserMixin.parseExprSubscripts (/Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11071:23)
+      at TypeScriptParserMixin.parseUpdate (/Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11056:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11036:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9827:18)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (/Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10889:61)
+      at TypeScriptParserMixin.parseExprOpBaseRightExpr (/Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10976:34)
+      at TypeScriptParserMixin.parseExprOpRightExpr (/Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10971:21)
+      at TypeScriptParserMixin.parseExprOp (/Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10937:27)
+      at TypeScriptParserMixin.parseExprOp (/Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9306:18)
+      at TypeScriptParserMixin.parseExprOp (/Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10943:21)
+      at TypeScriptParserMixin.parseExprOp (/Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9306:18)
+      at TypeScriptParserMixin.parseExprOps (/Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10898:17)
+      at TypeScriptParserMixin.parseMaybeConditional (/Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10871:23)
+      at TypeScriptParserMixin.parseMaybeAssign (/Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10821:21)
+      at TypeScriptParserMixin.parseMaybeAssign (/Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9776:20)
+      at TypeScriptParserMixin.parseExpressionBase (/Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10774:23)
+      at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10770:39
+      at TypeScriptParserMixin.allowInAnd (/Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12416:12)
+      at TypeScriptParserMixin.parseExpression (/Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10770:17)
+      at TypeScriptParserMixin.jsxParseExpressionContainer (/Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:4632:31)
+      at TypeScriptParserMixin.jsxParseElementAt (/Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:4711:36)
+      at TypeScriptParserMixin.jsxParseElementAt (/Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:4698:32)
+      at TypeScriptParserMixin.jsxParseElement (/Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:4749:17)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:4759:19)
+      at TypeScriptParserMixin.parseExprSubscripts (/Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11071:23)
+      at TypeScriptParserMixin.parseUpdate (/Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11056:21)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11036:23)
+      at TypeScriptParserMixin.parseMaybeUnary (/Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9827:18)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (/Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10889:61)
+      at TypeScriptParserMixin.parseExprOps (/Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10894:23)
+      at TypeScriptParserMixin.parseMaybeConditional (/Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10871:23)
+      at TypeScriptParserMixin.parseMaybeAssign (/Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10821:21)
+      at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9765:39
+      at TypeScriptParserMixin.tryParse (/Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:6907:20)
+      at TypeScriptParserMixin.parseMaybeAssign (/Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:9765:18)
+      at /Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10790:39
+      at TypeScriptParserMixin.allowInAnd (/Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12416:12)
+      at TypeScriptParserMixin.parseMaybeAssignAllowIn (/Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:10790:17)
+      at TypeScriptParserMixin.parseMaybeAssignAllowInOrVoidPattern (/Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:12483:17)
+      at TypeScriptParserMixin.parseParenAndDistinguishExpression (/Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11665:28)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11321:23)
+      at TypeScriptParserMixin.parseExprAtom (/Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:4764:20)
+      at TypeScriptParserMixin.parseExprSubscripts (/Volumes/GFY/EatADick/Documents/GitHub/home-listing-ai-app/node_modules/@babel/parser/lib/index.js:11071:23)
+4:45:01 PM [vite] (client) hmr update /src/components/dashboard-command/LeadDetailCommandPage.tsx, /src/index.css
+9:02:31 AM [vite] (client) hmr update /src/index.css, /src/components/admin/AdminMarketingFunnelsPanel.tsx

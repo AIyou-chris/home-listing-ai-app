@@ -318,35 +318,63 @@ const createBillingEngine = ({ supabaseAdmin, stripe, enqueueJob, appBaseUrl }) 
 
   const ensureUsagePeriod = async ({ agentId, subscription }) => {
     const period = getPeriodWindow(subscription);
-    const payload = {
-      id: crypto.randomUUID(),
+    const { data: existingPeriod, error: existingPeriodError } = await supabaseAdmin
+      .from('usage_periods')
+      .select('*')
+      .eq('agent_id', agentId)
+      .eq('period_start', period.start)
+      .eq('period_end', period.end)
+      .maybeSingle();
+
+    if (existingPeriodError && !isMissingTableError(existingPeriodError)) {
+      throw existingPeriodError;
+    }
+
+    const basePayload = {
+      id: existingPeriod?.id || crypto.randomUUID(),
       agent_id: agentId,
-      subscription_id: subscription?.id || null,
       period_start: period.start,
       period_end: period.end,
       counters: {
-        active_listings_peak: 0,
-        reports_generated: 0,
-        reminder_calls_used: 0,
-        sms_messages: 0,
-        stored_leads: 0
+        active_listings_peak: Number(existingPeriod?.counters?.active_listings_peak || 0),
+        reports_generated: Number(existingPeriod?.counters?.reports_generated || 0),
+        reminder_calls_used: Number(existingPeriod?.counters?.reminder_calls_used || 0),
+        sms_messages: Number(existingPeriod?.counters?.sms_messages || 0),
+        stored_leads: Number(existingPeriod?.counters?.stored_leads || 0)
       },
-      created_at: nowIso(),
+      created_at: existingPeriod?.created_at || nowIso(),
       updated_at: nowIso()
     };
 
-    const { data, error } = await supabaseAdmin
-      .from('usage_periods')
-      .upsert(payload, { onConflict: 'agent_id,period_start,period_end' })
-      .select('*')
-      .maybeSingle();
+    const writeUsagePeriod = async (subscriptionId) =>
+      supabaseAdmin
+        .from('usage_periods')
+        .upsert(
+          {
+            ...basePayload,
+            subscription_id: subscriptionId || null
+          },
+          { onConflict: 'agent_id,period_start,period_end' }
+        )
+        .select('*')
+        .maybeSingle();
+
+    let { data, error } = await writeUsagePeriod(subscription?.id || null);
+
+    if (
+      error &&
+      error.code === '23503' &&
+      /usage_periods_subscription_id_fkey/i.test(error.message || '')
+    ) {
+      ({ data, error } = await writeUsagePeriod(null));
+    }
 
     if (error) {
-      if (isMissingTableError(error)) return { ...payload, id: null };
+      if (isMissingTableError(error)) return { ...basePayload, id: null, subscription_id: null };
       throw error;
     }
 
-    return data || payload;
+    return data || { ...basePayload, subscription_id: subscription?.id || null };
   };
 
   const countActiveListings = async (agentId) => {

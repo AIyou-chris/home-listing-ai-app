@@ -3,18 +3,34 @@ import React from 'react';
 export interface YardSignRiderProps {
     slug?: string;
     qrImageUrl?: string;
+    agentName?: string;
+    agentCompany?: string;
+    agentBrandColor?: string;
     // Two standard sizes: 6x24 (horizontal strip) or 18x24 (large portrait sign)
     size?: '6x24' | '18x24';
     // Two layout variations
     layout?: 'split' | 'centered';
 }
 
+const getInitials = (name: string) => {
+    const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return 'AG';
+    return parts.slice(0, 2).map((part) => part[0]?.toUpperCase() || '').join('');
+};
+
 export const YardSignRider: React.FC<YardSignRiderProps> = ({
     slug = "123-main-st",
     qrImageUrl = "https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=https://homelistingai.com/l/sample-slug",
+    agentName = 'HomeListingAI Agent',
+    agentCompany = 'HomeListingAI',
+    agentBrandColor = '#28a7e8',
     size = '6x24',
     layout = 'split'
 }) => {
+    const initials = getInitials(agentName);
+    const accentColorStyle = { color: agentBrandColor };
+    const accentBackgroundStyle = { backgroundColor: agentBrandColor };
+    const accentBorderStyle = { borderColor: agentBrandColor };
 
     // Size mappings (in inches mapped to CSS standard 96dpi scaling for print)
     const dimensions = {
@@ -42,11 +58,11 @@ export const YardSignRider: React.FC<YardSignRiderProps> = ({
                 <div className="flex flex-row flex-1 items-stretch gap-12">
                     {/* Left Column: Big Copy */}
                     <div className="flex-[1.5] flex flex-col justify-center">
-                        <div className="inline-block px-8 py-3 bg-blue-600 text-white font-black tracking-widest text-4xl uppercase rounded-xl mb-8 self-start">
+                        <div className="inline-block px-8 py-3 text-white font-black tracking-widest text-4xl uppercase rounded-xl mb-8 self-start" style={accentBackgroundStyle}>
                             SCAN
                         </div>
                         <h1 className="text-[6.5rem] leading-[0.95] font-black text-slate-950 uppercase tracking-tighter mb-8">
-                            FOR PRICE <br /> <span className="text-blue-600">+ REPORT</span>
+                            FOR PRICE <br /> <span style={accentColorStyle}>+ REPORT</span>
                         </h1>
                         <p className="text-[2.75rem] text-slate-700 font-bold leading-tight">
                             Instant answers. <br /> Request a showing.
@@ -64,6 +80,15 @@ export const YardSignRider: React.FC<YardSignRiderProps> = ({
                             homelistingai.com/l/<br />
                             <span className="text-slate-900 font-black">{slug}</span>
                         </p>
+                        <div className="mt-6 flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-md">
+                            <div className="flex h-12 w-12 items-center justify-center rounded-full text-lg font-bold text-white" style={{ backgroundColor: agentBrandColor }}>
+                                {initials}
+                            </div>
+                            <div className="text-left">
+                                <p className="text-base font-bold text-slate-900">{agentName}</p>
+                                <p className="text-sm text-slate-500">{agentCompany}</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -98,6 +123,15 @@ export const YardSignRider: React.FC<YardSignRiderProps> = ({
                         Instant answers. Request a showing.
                     </p>
                     <p className="text-lg font-bold text-slate-400">homelistingai.com/l/{slug}</p>
+                    <div className="mt-3 flex items-center gap-3">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-full text-base font-bold text-white" style={{ backgroundColor: agentBrandColor }}>
+                            {initials}
+                        </div>
+                        <div>
+                            <p className="text-lg font-bold text-slate-900">{agentName}</p>
+                            <p className="text-sm text-slate-500">{agentCompany}</p>
+                        </div>
+                    </div>
                 </div>
             </div>
         );
@@ -113,7 +147,7 @@ export const YardSignRider: React.FC<YardSignRiderProps> = ({
             {/* Left Side: Bold Text */}
             <div className="flex-[1.8] flex flex-col justify-center h-full pr-8">
                 <div className="flex items-center gap-8 mb-1">
-                    <span className="text-[5.5rem] leading-none font-black text-blue-600 uppercase tracking-tighter">
+                    <span className="text-[5.5rem] leading-none font-black uppercase tracking-tighter" style={accentColorStyle}>
                         SCAN
                     </span>
                     <span className="text-[4rem] leading-none font-black text-slate-950 uppercase tracking-tighter pt-3">
@@ -121,7 +155,7 @@ export const YardSignRider: React.FC<YardSignRiderProps> = ({
                     </span>
                 </div>
 
-                <div className="flex items-center justify-between mt-2 pl-1 border-t-8 border-blue-600 pt-3">
+                <div className="flex items-center justify-between mt-2 pl-1 border-t-8 pt-3" style={accentBorderStyle}>
                     <p className="text-[1.85rem] text-slate-800 font-extrabold tracking-tight">
                         Instant answers. Request a showing.
                     </p>
@@ -142,6 +176,15 @@ export const YardSignRider: React.FC<YardSignRiderProps> = ({
                 <p className="text-lg font-black text-slate-800 mt-2 tracking-widest text-center whitespace-nowrap">
                     homelistingai.com/l/{slug}
                 </p>
+                <div className="mt-2 flex items-center gap-2 rounded-2xl bg-slate-50 px-3 py-2">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full text-sm font-bold text-white" style={{ backgroundColor: agentBrandColor }}>
+                        {initials}
+                    </div>
+                    <div className="text-left">
+                        <p className="text-sm font-bold text-slate-900 leading-tight">{agentName}</p>
+                        <p className="text-xs text-slate-500 leading-tight">{agentCompany}</p>
+                    </div>
+                </div>
             </div>
         </div>
     );

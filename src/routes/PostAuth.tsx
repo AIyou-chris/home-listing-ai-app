@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
+import React from 'react';
+import { Navigate } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 
 export type AppRole = 'admin' | 'agent' | 'user' | null;
@@ -12,18 +12,6 @@ interface PostAuthProps {
 }
 
 const PostAuth: React.FC<PostAuthProps> = ({ authReady, session, role, roleReady }) => {
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    if (!authReady) return;
-    if (!session) return;
-    if (!roleReady) return;
-
-    const nextPath = role === 'admin' ? '/admin/overview' : '/dashboard/today';
-    console.log(`[NAV] post-auth redirect -> ${nextPath}`);
-    navigate(nextPath, { replace: true });
-  }, [authReady, session, roleReady, role, navigate]);
-
   if (!authReady) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50 p-6 text-slate-600">
@@ -44,11 +32,8 @@ const PostAuth: React.FC<PostAuthProps> = ({ authReady, session, role, roleReady
     );
   }
 
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 p-6 text-slate-600">
-      Redirecting...
-    </div>
-  );
+  const nextPath = role === 'admin' ? '/admin/overview' : '/dashboard/today';
+  return <Navigate to={nextPath} replace />;
 };
 
 export default PostAuth;

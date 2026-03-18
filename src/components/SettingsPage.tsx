@@ -71,6 +71,12 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
         { id: 'billing', label: 'Billing', icon: 'receipt_long' },
     ];
 
+    const demoShowroomLinks = [
+        { label: 'Open Demo Gallery', href: '/demo-dashboard/gallery/demo-listing-oak', tone: 'dark' as const },
+        { label: 'Open Demo CRM', href: '/demo-dashboard/listings/demo-listing-oak', tone: 'light' as const },
+        { label: 'Open Demo Live Listing', href: '/demo-live/demo-124-oak-street-austin', tone: 'light' as const }
+    ];
+
     return (
         <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row">
             {/* Sidebar */}
@@ -137,12 +143,59 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                             </div>
                         )}
                         {isDemoMode && (
-                            <div className="mb-6 bg-amber-50 border border-amber-200 rounded-lg p-4">
-                                <div className="flex items-start gap-3">
-                                    <span className="material-symbols-outlined text-amber-600 flex-shrink-0">info</span>
-                                    <div>
-                                        <h4 className="font-semibold text-amber-900 mb-1">Demo Mode - Settings Are View-Only</h4>
-                                        <p className="text-sm text-amber-700">You're viewing demo settings. Changes won't be saved in demo mode.</p>
+                            <div className="mb-6 space-y-5">
+                                <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(59,130,246,0.16),_transparent_34%),linear-gradient(135deg,#0f172a_0%,#111827_55%,#1e293b_100%)] p-6 text-white shadow-sm">
+                                    <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+                                        <div className="max-w-2xl">
+                                            <p className="text-[11px] font-black uppercase tracking-[0.28em] text-cyan-300">Settings Showroom</p>
+                                            <h2 className="mt-3 text-4xl font-black tracking-tight">This is the part that makes the app feel expensive.</h2>
+                                            <p className="mt-3 text-sm leading-6 text-slate-300">
+                                                Show branding, notifications, security, and billing in one premium walkthrough. This is the “Lamborghini, not Toyota” proof that the platform is complete, not just pretty.
+                                            </p>
+                                        </div>
+                                        <div className="flex flex-wrap gap-3">
+                                            {demoShowroomLinks.map((link) => (
+                                                <a
+                                                    key={link.href}
+                                                    href={link.href}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                    className={link.tone === 'dark'
+                                                        ? 'rounded-2xl bg-white px-5 py-3 text-sm font-bold text-slate-950 transition hover:bg-slate-100'
+                                                        : 'rounded-2xl border border-slate-600 bg-slate-900/30 px-5 py-3 text-sm font-bold text-white transition hover:bg-slate-900/60'}
+                                                >
+                                                    {link.label}
+                                                </a>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </section>
+
+                                <section className="grid gap-4 lg:grid-cols-3">
+                                    <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                                        <div className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-500">Branding / AI Card</div>
+                                        <h3 className="mt-3 text-xl font-black text-slate-950">Every listing looks like one brand.</h3>
+                                        <p className="mt-2 text-sm leading-6 text-slate-600">Show the business card, logo or headshot, color system, and the same identity flowing into reports, flyers, and video.</p>
+                                    </article>
+                                    <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                                        <div className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-500">Notifications + Calls</div>
+                                        <h3 className="mt-3 text-xl font-black text-slate-950">The agent does not miss the handoff.</h3>
+                                        <p className="mt-2 text-sm leading-6 text-slate-600">Show alert preferences and reminder setup. The point is simple: leads come in, reminders happen, and showings do not die in the cracks.</p>
+                                    </article>
+                                    <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                                        <div className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-500">Billing + Control</div>
+                                        <h3 className="mt-3 text-xl font-black text-slate-950">This is a platform, not a one-off tool.</h3>
+                                        <p className="mt-2 text-sm leading-6 text-slate-600">Show that the product has real plan structure, real controls, and a real settings system behind the listing conversion story.</p>
+                                    </article>
+                                </section>
+
+                                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                                    <div className="flex items-start gap-3">
+                                        <span className="material-symbols-outlined text-amber-600 flex-shrink-0">info</span>
+                                        <div>
+                                            <h4 className="font-semibold text-amber-900 mb-1">Demo Mode - Settings Are View-Only</h4>
+                                            <p className="text-sm text-amber-700">This is the polished demo version. It is here to show the system, not save live account changes.</p>
+                                        </div>
                                     </div>
                                 </div>
                             </div>

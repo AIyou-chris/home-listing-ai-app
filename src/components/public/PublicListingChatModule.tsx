@@ -50,6 +50,20 @@ interface PublicListingChatModuleProps {
   demoMode?: boolean;
 }
 
+type ListingSessionBootstrapResponse = {
+  ok?: boolean;
+  visitor_id?: string;
+  listing_id?: string | null;
+  public_slug?: string | null;
+  agent_id?: string | null;
+  session?: {
+    conversation_id?: string | null;
+    channel?: string;
+  } | null;
+  degraded?: boolean;
+  message?: string;
+};
+
 const DEFAULT_SUGGESTED = [
   'Is it still available?',
   'Can I see it this weekend?',
@@ -88,6 +102,12 @@ const getSpeechRecognitionCtor = () => {
   };
   return speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition || null;
 };
+
+const normalizeRouteSlug = (value?: string) =>
+  String(value || '')
+    .trim()
+    .replace(/^\/+/, '')
+    .replace(/\/+$/, '');
 
 const buildFallbackResponse = (question: string, property: Property) => {
   const text = question.toLowerCase();
@@ -136,11 +156,10 @@ const PublicListingChatModule: React.FC<PublicListingChatModuleProps> = ({
   const [inputValue, setInputValue] = useState('');
   const [captureRequired, setCaptureRequired] = useState(false);
   const [capturePrompt, setCapturePrompt] = useState(
-    "Want the 1-page report + showing options? What's the best email or phone?"
+    "Want the 1-page report + showing options? What's the best email or phone for follow-up?"
   );
   const [captureName, setCaptureName] = useState('');
   const [captureContact, setCaptureContact] = useState('');
-  const [captureConsent, setCaptureConsent] = useState(false);
   const [captureSubmitting, setCaptureSubmitting] = useState(false);
   const [leadCaptured, setLeadCaptured] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -236,13 +255,44 @@ const PublicListingChatModule: React.FC<PublicListingChatModuleProps> = ({
         localStorage.setItem(VISITOR_STORAGE_KEY, nextVisitorId);
         setVisitorId(nextVisitorId);
 
+        const normalizedListingSlug = normalizeRouteSlug(listingSlug);
+        const sessionKey = normalizedListingSlug || property.id;
+        const listingSessionResponse = await fetch(
+          buildApiUrl(`/api/public/listings/${encodeURIComponent(sessionKey)}/session`),
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            channel: activeTab === 'voice' ? 'voice' : 'chat',
+            visitor_id: nextVisitorId
+            })
+          }
+        );
+
+        const listingSessionPayload = await listingSessionResponse.json().catch(() => ({} as ListingSessionBootstrapResponse));
+        if (!listingSessionResponse.ok) {
+          throw new Error(String(listingSessionPayload?.message || 'failed_to_start_listing_session'));
+        }
+
+        const resolvedVisitorId = String(listingSessionPayload?.visitor_id || nextVisitorId);
+        localStorage.setItem(VISITOR_STORAGE_KEY, resolvedVisitorId);
+        setVisitorId(resolvedVisitorId);
+
+        if (listingSessionPayload?.degraded || !listingSessionPayload?.session) {
+          setError('Chat is warming up — try again in a moment.');
+          setUseLocalFallback(true);
+          ensureFallbackGreeting();
+          setLoading(false);
+          return;
+        }
+
         const response = await fetch(buildApiUrl('/api/public/conversations/start'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             listing_slug: listingSlug || null,
             listing_id: property.id,
-            visitor_id: nextVisitorId,
+            visitor_id: resolvedVisitorId,
             source_key: attribution.source_key || null,
             source_type: attribution.source_type || null,
             utm_source: attribution.utm_source || null,
@@ -287,7 +337,7 @@ const PublicListingChatModule: React.FC<PublicListingChatModuleProps> = ({
         );
         if (payload.lead_id) setLeadCaptured(true);
       } catch (_bootstrapError) {
-        setError('Live assistant is temporarily unavailable. Using listing basics for now.');
+        setError('Chat is warming up — try again in a moment.');
         setUseLocalFallback(true);
         ensureFallbackGreeting();
       } finally {
@@ -296,7 +346,7 @@ const PublicListingChatModule: React.FC<PublicListingChatModuleProps> = ({
     };
 
     void bootstrap();
-  }, [attribution, conversationId, ensureFallbackGreeting, isOpen, listingSlug, property.address, property.id, useLocalFallback]);
+  }, [activeTab, attribution, conversationId, ensureFallbackGreeting, isOpen, listingSlug, property.address, property.id, useLocalFallback]);
 
   const sendMessage = async (text: string) => {
     const clean = text.trim();
@@ -345,7 +395,7 @@ const PublicListingChatModule: React.FC<PublicListingChatModuleProps> = ({
       setCaptureRequired(shouldCapture);
       if (shouldCapture) {
         setCapturePrompt(
-          String(payload.capture_prompt || "Want the 1-page report + showing options? What's the best email or phone?")
+          String(payload.capture_prompt || "Want the 1-page report + showing options? What's the best email or phone for follow-up?")
         );
       }
       if (Array.isArray(payload.suggested_questions) && payload.suggested_questions.length > 0) {
@@ -376,11 +426,6 @@ const PublicListingChatModule: React.FC<PublicListingChatModuleProps> = ({
     }
 
     const normalizedPhone = isPhone ? normalizePhone(contact) : null;
-    if (isPhone && !captureConsent) {
-      setError('Please confirm consent before submitting a phone number.');
-      return;
-    }
-
     setCaptureSubmitting(true);
     setError(null);
 
@@ -395,7 +440,7 @@ const PublicListingChatModule: React.FC<PublicListingChatModuleProps> = ({
           full_name: captureName || undefined,
           phone: normalizedPhone || undefined,
           email: isEmail ? contact.toLowerCase() : undefined,
-          consent_sms: normalizedPhone ? Boolean(captureConsent) : false,
+          consent_sms: false,
           source_type: attribution.source_type || 'link',
           source_key: attribution.source_key || null,
           source_meta: {
@@ -416,7 +461,6 @@ const PublicListingChatModule: React.FC<PublicListingChatModuleProps> = ({
       setCaptureRequired(false);
       setCaptureName('');
       setCaptureContact('');
-      setCaptureConsent(false);
       pushMessage('ai', 'Got it. I sent your details to the listing agent. Want to request a showing window?');
     } catch (_captureError) {
       setError('Failed to capture contact right now.');
@@ -527,7 +571,10 @@ const PublicListingChatModule: React.FC<PublicListingChatModuleProps> = ({
             aria-label="Close Talk to the Home panel"
           />
 
-          <section className="relative z-10 flex h-[88vh] w-full flex-col overflow-hidden rounded-t-3xl border border-slate-200 bg-white shadow-2xl md:h-full md:max-w-[430px] md:rounded-none md:rounded-l-3xl">
+          <section
+            className="relative z-10 flex h-[88vh] w-full flex-col overflow-hidden rounded-t-3xl border border-slate-200 bg-white shadow-2xl md:h-full md:max-w-[430px] md:rounded-none md:rounded-l-3xl"
+            style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+          >
             <header className="bg-gradient-to-r from-slate-900 via-indigo-700 to-blue-600 px-4 py-4 text-white">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -608,17 +655,9 @@ const PublicListingChatModule: React.FC<PublicListingChatModuleProps> = ({
                       placeholder="Email or phone"
                       className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-slate-500"
                     />
-                    {looksLikePhone(captureContact) && (
-                      <label className="flex items-start gap-2 text-xs text-slate-600">
-                        <input
-                          type="checkbox"
-                          checked={captureConsent}
-                          onChange={(event) => setCaptureConsent(event.target.checked)}
-                          className="mt-0.5"
-                        />
-                        Yes, you can text me about this home.
-                      </label>
-                    )}
+                    <p className="text-xs text-slate-600">
+                      Use your phone if you want agent follow-up and reminder calls about this home.
+                    </p>
                     <button
                       onClick={() => void submitCapture()}
                       disabled={captureSubmitting}

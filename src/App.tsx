@@ -67,6 +67,8 @@ import { emailSettingsService } from './services/emailSettingsService';
 const EnhancedAISidekicksHub = lazy(() => import('./components/EnhancedAISidekicksHub'));
 const PublicAICard = lazy(() => import('./components/PublicAICard')); // Public View
 const PublicListingPage = lazy(() => import('./pages/PublicListingPage')); // Public View
+const DemoAssetGalleryPage = lazy(() => import('./pages/DemoAssetGalleryPage'));
+const DemoPublicListingPage = lazy(() => import('./pages/DemoPublicListingPage'));
 const BlogIndex = lazy(() => import('./pages/Blog/BlogIndex'));
 const BlogPost = lazy(() => import('./pages/Blog/BlogPost'));
 const VoiceLabPage = lazy(() => import('./pages/VoiceLabPage'));
@@ -602,6 +604,12 @@ const App: React.FC = () => {
         const userId = String(nextSession.user.id || '');
         const userEmail = String(nextSession.user.email || '').toLowerCase();
         const profileRoleCandidates: string[] = [];
+        const currentPathname = typeof window !== 'undefined' ? window.location.pathname : '';
+        const isPublicListingRoute =
+            currentPathname.startsWith('/l/') ||
+            currentPathname.startsWith('/draft-listing') ||
+            currentPathname.startsWith('/demo-listing') ||
+            currentPathname.includes('/demo-');
 
         const normalizedMetaRole = String(
             nextSession.user.user_metadata?.role ||
@@ -628,26 +636,17 @@ const App: React.FC = () => {
             // Ignore role-RPC failures and keep deterministic fallback below.
         }
 
-        try {
-            const { data: profileById } = await supabase
-                .from('profiles')
-                .select('role')
-                .eq('id', userId)
-                .maybeSingle();
-            if (profileById?.role) profileRoleCandidates.push(String(profileById.role).trim().toLowerCase());
-        } catch (_error) {
-            // Profiles table can be absent or RLS-restricted; continue.
-        }
-
-        try {
-            const { data: profileByUserId } = await supabase
-                .from('profiles')
-                .select('role')
-                .eq('user_id', userId)
-                .maybeSingle();
-            if (profileByUserId?.role) profileRoleCandidates.push(String(profileByUserId.role).trim().toLowerCase());
-        } catch (_error) {
-            // Profiles table can be absent or RLS-restricted; continue.
+        if (!isPublicListingRoute) {
+            try {
+                const { data: agentRow } = await supabase
+                    .from('agents')
+                    .select('id, role')
+                    .or(`auth_user_id.eq.${userId},id.eq.${userId}`)
+                    .maybeSingle();
+                if (agentRow?.role) profileRoleCandidates.push(String(agentRow.role).trim().toLowerCase());
+            } catch (_error) {
+                // Agents table can also be RLS-restricted; continue with deterministic fallback below.
+            }
         }
 
         const normalizedProfileRole = profileRoleCandidates.find((candidate) =>
@@ -679,7 +678,6 @@ const App: React.FC = () => {
         const applyAuthSnapshot = async (nextSession: Session | null) => {
             if (!active) return;
 
-            console.log(`[AUTH] session loaded: ${nextSession ? 'yes' : 'no'}`);
             setSession(nextSession);
             setAuthReady(true);
             setRoleReady(false);
@@ -707,7 +705,6 @@ const App: React.FC = () => {
             setRole(resolvedRole);
             setIsAdmin(resolvedRole === 'admin');
             setRoleReady(true);
-            console.log(`[AUTH] role loaded: ${resolvedRole}`);
         };
 
         void (async () => {
@@ -1096,7 +1093,6 @@ const App: React.FC = () => {
                     email: updatedProfile.email,
                     phone: updatedProfile.phone
                 }));
-                console.log('🔄 Profile updated across app');
             });
 
             return () => {
@@ -1136,7 +1132,6 @@ const App: React.FC = () => {
                 phone: profileData.phone,
                 language: profileData.language ?? prev.language
             }));
-            console.log('✅ Loaded centralized agent profile');
         } catch (error) {
             console.error('Failed to load agent profile:', error);
             setProfileLoadFailed(true);
@@ -1353,9 +1348,11 @@ const App: React.FC = () => {
     // above the App component for stable component identity (see Edit #2).
     const renderRoutes = () => {
         if (isLoading) return <div className="flex h-screen items-center justify-center"><LoadingSpinner /></div>;
-        console.log("📍 Rendering Routes");
 
-        const renderSettingsPage = (initialTab: 'profile' | 'notifications' | 'security' | 'billing' = 'profile') => (
+        const renderSettingsPage = (
+            initialTab: 'profile' | 'notifications' | 'security' | 'billing' = 'profile',
+            options?: { isDemoPage?: boolean; backPath?: string }
+        ) => (
             <SettingsPage
                 userId={user?.uid ?? 'guest-agent'}
                 userProfile={userProfile}
@@ -1378,9 +1375,10 @@ const App: React.FC = () => {
                         await billingSettingsService.update(user.uid, settings);
                     }
                 }}
-                onBackToDashboard={() => navigate('/dashboard')}
+                onBackToDashboard={() => navigate(options?.backPath || '/dashboard')}
                 securitySettings={{}}
                 onSaveSecuritySettings={async () => { }}
+                isDemoMode={Boolean(options?.isDemoPage)}
                 isBlueprintMode={isBlueprintMode}
                 initialTab={initialTab}
             />
@@ -1397,8 +1395,8 @@ const App: React.FC = () => {
                                 <LandingPage
                                     onNavigateToSignUp={handleNavigateToSignUp}
                                     onNavigateToSignIn={handleNavigateToSignIn}
-                                    onEnterDemoMode={() => navigate('/demo-dashboard/today')}
-                                    onNavigateToShowcase={() => navigate('/demo-dashboard/today')}
+                                    onEnterDemoMode={() => navigate('/demo-dashboard/gallery/demo-listing-oak')}
+                                    onNavigateToShowcase={() => navigate('/demo-dashboard/gallery/demo-listing-oak')}
                                     scrollToSection={scrollToSection}
                                     onScrollComplete={() => setScrollToSection(null)}
                                     onOpenConsultationModal={() => { setConsultationRole('realtor'); setIsConsultationModalOpen(true); }}
@@ -1415,7 +1413,7 @@ const App: React.FC = () => {
                                 <SignInPage
                                     onNavigateToSignUp={handleNavigateToSignUp}
                                     onNavigateToLanding={handleNavigateToLanding}
-                                    onEnterDemoMode={() => navigate('/demo-dashboard')}
+                                    onEnterDemoMode={() => navigate('/demo-dashboard/gallery/demo-listing-oak')}
                                     onNavigateToSection={(section) => { navigate('/'); setTimeout(() => setScrollToSection(section), 100); }}
                                 />
                             </Suspense>
@@ -1443,7 +1441,7 @@ const App: React.FC = () => {
                                 <SignUpPage
                                     onNavigateToSignIn={handleNavigateToSignIn}
                                     onNavigateToLanding={handleNavigateToLanding}
-                                    onEnterDemoMode={() => navigate('/demo-dashboard')}
+                                    onEnterDemoMode={() => navigate('/demo-dashboard/gallery/demo-listing-oak')}
                                     onNavigateToSection={(section) => { navigate('/'); setTimeout(() => setScrollToSection(section), 100); }}
                                 />
                             </Suspense>
@@ -1474,7 +1472,7 @@ const App: React.FC = () => {
                                 onNavigateToAdmin={handleNavigateToAdmin}
                                 onNavigateToSignUp={handleNavigateToSignUp}
                                 onNavigateToSignIn={handleNavigateToSignIn}
-                                onEnterDemoMode={() => navigate('/demo-dashboard')}
+                                onEnterDemoMode={() => navigate('/demo-dashboard/gallery/demo-listing-oak')}
                             />
                         </Suspense>
                     } />
@@ -1499,9 +1497,13 @@ const App: React.FC = () => {
                         <Route path="listings" element={<ListingsCommandPage />} />
                         <Route path="listings/:listingId" element={<ListingPerformancePage />} />
                         <Route path="listings/:listingId/edit" element={<ListingEditorPage />} />
+                        <Route path="gallery" element={<Navigate to="/demo-dashboard/gallery/demo-listing-oak" replace />} />
+                        <Route path="gallery/:listingId" element={<DemoAssetGalleryPage />} />
                         <Route path="billing" element={<Navigate to="/demo-dashboard/settings/billing" replace />} />
-                        <Route path="settings" element={<Navigate to="/demo-dashboard/settings/billing" replace />} />
-                        <Route path="settings/billing" element={<BillingCommandPage />} />
+                        <Route path="settings" element={renderSettingsPage('profile', { isDemoPage: true, backPath: '/demo-dashboard/today' })} />
+                        <Route path="settings/billing" element={renderSettingsPage('billing', { isDemoPage: true, backPath: '/demo-dashboard/today' })} />
+                        <Route path="settings/notifications" element={renderSettingsPage('notifications', { isDemoPage: true, backPath: '/demo-dashboard/today' })} />
+                        <Route path="settings/security" element={renderSettingsPage('security', { isDemoPage: true, backPath: '/demo-dashboard/today' })} />
                         <Route path="onboarding" element={<OnboardingCommandPage />} />
                     </Route>
                     {/* New Blueprint Dashboard — same UI as demo, zero fake data, one example listing */}
@@ -1528,6 +1530,11 @@ const App: React.FC = () => {
                     <Route path="/l/:publicSlug" element={
                         <Suspense fallback={<LoadingSpinner />}>
                             <PublicListingPage />
+                        </Suspense>
+                    } />
+                    <Route path="/demo-live/:publicSlug" element={
+                        <Suspense fallback={<LoadingSpinner />}>
+                            <DemoPublicListingPage />
                         </Suspense>
                     } />
 
@@ -1638,7 +1645,6 @@ const App: React.FC = () => {
     };
 
     // DEBUG: Log current state before render
-    console.log('🎨 RENDERING with view=', view, 'hash=', window.location.hash);
 
     // Hash override removed - AppRoutes handles routing now
 
