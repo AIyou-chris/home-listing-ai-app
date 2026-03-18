@@ -95,6 +95,13 @@ const PUBLIC_CHAT_SUMMARY_BUCKET_SIZE = Number(process.env.PUBLIC_CHAT_SUMMARY_B
 const OPENAI_CHAT_MODEL = process.env.OPENAI_CHAT_MODEL || 'gpt-4o';
 const VIDEOS_BUCKET = String(process.env.VIDEOS_BUCKET || 'videos').trim() || 'videos';
 const VIDEO_TEST_SECRET = String(process.env.VIDEO_TEST_SECRET || '').trim();
+const BACKEND_BASE_URL = String(
+  process.env.BACKEND_BASE_URL ||
+  process.env.VITE_VOICE_API_BASE_URL ||
+  process.env.VOICE_PUBLIC_BASE_URL ||
+  process.env.PUBLIC_URL ||
+  `http://localhost:${process.env.PORT || 3002}`
+).replace(/\/+$/, '');
 const FLYER_IMAGE_FETCH_TIMEOUT_MS = Number(process.env.FLYER_IMAGE_FETCH_TIMEOUT_MS || 10000);
 const FLYER_PAGE_WIDTH_IN = 8.5;
 const FLYER_PAGE_HEIGHT_IN = 11;
