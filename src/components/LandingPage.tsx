@@ -753,14 +753,14 @@ const Hero: React.FC<{ onNavigateToSignUp: () => void, onEnterDemoMode: () => vo
                         </button>
                         <button
                             onClick={onEnterDemoMode}
-                            aria-label="See the machine (demo dashboard)"
+                            aria-label="See a full listing demo"
                             className="w-full sm:w-auto px-8 py-4 bg-transparent border border-slate-700 hover:border-slate-500 text-white font-semibold rounded-lg transition-all text-lg hover:bg-slate-800/50 flex items-center justify-center gap-2"
                         >
-                            See The Machine <span className="text-cyan-500 ml-1">→</span>
+                            See a Full Listing Demo <span className="text-cyan-500 ml-1">→</span>
                         </button>
                     </div>
                     <p className="mt-2 text-sm text-slate-500 text-center lg:text-left">
-                        Live demo. Fake data. Real flow.
+                        Open one finished listing and see the live page, QR system, reports, print, and social assets.
                     </p>
                     <div className="mt-4 text-center lg:text-left">
                         <button

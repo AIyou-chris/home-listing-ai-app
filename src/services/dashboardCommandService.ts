@@ -286,12 +286,30 @@ export interface ListingPerformanceMetrics {
   status_breakdown: Record<string, number>;
   qr_usage: number | null;
   leads_by_source?: Record<string, number>;
+  showing_requests_count?: number;
   last_lead_captured_at?: string | null;
   top_source?: {
     label: string;
     count: number;
   };
   updated_at?: string;
+}
+
+export interface LightCmaManualComp {
+  id: string;
+  address: string;
+  price: number | null;
+  beds: number | null;
+  baths: number | null;
+  sqft: number | null;
+  status: 'sold' | 'active' | 'pending';
+  note?: string | null;
+  is_anchor?: boolean;
+}
+
+export interface LightCmaConfig {
+  pricing_notes: string;
+  manual_comps: LightCmaManualComp[];
 }
 
 export interface ListingSourceDefault {
@@ -446,7 +464,7 @@ export const fetchDashboardLeadConversation = async (leadId: string, agentIdOver
 
 export const updateDashboardLeadStatus = async (
   leadId: string,
-  payload: { status: string; timeline?: string; financing?: string; working_with_agent?: string },
+  payload: { status: string; timeline?: string; financing?: string; working_with_agent?: string; notes?: string },
   agentIdOverride?: string | null
 ) => {
   if (isDemoModeActive()) {
@@ -596,8 +614,55 @@ export const fetchListingPerformance = async (
     breakdown?: {
       by_source_type: Array<{ source_type: string; total: number }>;
       by_source_key: Array<{ source_key: string; total: number }>;
+      showing_requests_by_source_type?: Array<{ source_type: string; total: number }>;
+      showing_requests_by_source_key?: Array<{ source_key: string; total: number }>;
     };
   }>(response);
+};
+
+export const fetchLightCmaConfig = async (listingId: string, agentIdOverride?: string | null) => {
+  if (isDemoModeActive()) {
+    return {
+      success: true,
+      listing_id: listingId,
+      config: {
+        pricing_notes: '',
+        manual_comps: []
+      } as LightCmaConfig
+    };
+  }
+
+  const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
+  const response = await fetch(
+    buildApiUrl(withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}/light-cma/config`, agentId)),
+    { headers: defaultJsonHeaders(agentId) }
+  );
+  return parseResponse<{ success: boolean; listing_id: string; config: LightCmaConfig }>(response);
+};
+
+export const saveLightCmaConfig = async (
+  listingId: string,
+  config: LightCmaConfig,
+  agentIdOverride?: string | null
+) => {
+  if (isDemoModeActive()) {
+    return {
+      success: true,
+      listing_id: listingId,
+      config
+    };
+  }
+
+  const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
+  const response = await fetch(
+    buildApiUrl(withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}/light-cma/config`, agentId)),
+    {
+      method: 'PUT',
+      headers: defaultJsonHeaders(agentId),
+      body: JSON.stringify(config)
+    }
+  );
+  return parseResponse<{ success: boolean; listing_id: string; config: LightCmaConfig }>(response);
 };
 
 export const fetchListingShareKit = async (listingId: string, agentIdOverride?: string | null) => {
@@ -679,18 +744,84 @@ export const fetchListingVideos = async (listingId: string, agentIdOverride?: st
     credits_remaining: number;
     credits_total?: number;
     credits_used?: number;
+    limit?: number;
+    used?: number;
+    remaining?: number;
     scenario?: 'normal' | 'limit_reached' | 'failed_render';
     videos: Array<{
       id: string;
       status: string;
+      template_style?: string | null;
       title?: string | null;
       caption?: string | null;
       file_name?: string | null;
       mime_type?: string | null;
       video_url?: string | null;
-      creatomate_url?: string | null;
+      error_message?: string | null;
       created_at?: string | null;
+      updated_at?: string | null;
+      source_photos?: string[] | null;
     }>;
+  }>(response);
+};
+
+export const fetchDashboardVideoStatus = async (videoId: string, agentIdOverride?: string | null) => {
+  const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
+  const response = await fetch(
+    buildApiUrl(withAgentQuery(`/api/dashboard/videos/${encodeURIComponent(videoId)}/status`, agentId)),
+    { headers: defaultJsonHeaders(agentId) }
+  );
+
+  return parseResponse<{
+    video_id: string;
+    status: string;
+    stage?: 'ffmpeg_rendering' | 'rendering' | 'finalizing' | 'failed' | string;
+    error_message?: string | null;
+  }>(response);
+};
+
+export const fetchListingVideoCredits = async (listingId: string, agentIdOverride?: string | null) => {
+  const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
+  const response = await fetch(
+    buildApiUrl(withAgentQuery(`/api/dashboard/video-credits/${encodeURIComponent(listingId)}`, agentId)),
+    { headers: defaultJsonHeaders(agentId) }
+  );
+
+  return parseResponse<{
+    listing_id: string;
+    remaining: number;
+    limit: number;
+    used: number;
+    included?: number;
+    extra?: number;
+  }>(response);
+};
+
+export const addFreeTestVideoCredits = async (
+  listingId: string,
+  add = 3,
+  agentIdOverride?: string | null
+) => {
+  const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
+  const headers: HeadersInit = {
+    ...defaultJsonHeaders(agentId),
+    'x-dev-secret': String(import.meta.env.VITE_VIDEO_TEST_SECRET || '').trim()
+  };
+
+  const response = await fetch(
+    buildApiUrl(withAgentQuery('/api/dashboard/video-credits/free-test', agentId)),
+    {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ listing_id: listingId, add })
+    }
+  );
+
+  return parseResponse<{
+    ok: boolean;
+    listing_id: string;
+    added: number;
+    remaining: number;
   }>(response);
 };
 
@@ -720,6 +851,7 @@ export const generateListingVideo = async (
   });
   return parseResponse<{
     success: boolean;
+    video_id?: string;
     status?: string;
     credits_remaining?: number;
     video?: Record<string, unknown> | null;
@@ -823,6 +955,156 @@ export const generateListingQrCode = async (
     qr_code_svg: string;
   }>(response);
 };
+
+export const downloadOpenHouseFlyerPdf = async (listingId: string, agentIdOverride?: string | null) => {
+  const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
+  const path = isDemoModeActive()
+    ? `/api/demo/sharekit/listings/${encodeURIComponent(listingId)}/open-house-flyer.pdf`
+    : withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}/open-house-flyer.pdf`, agentId);
+  const response = await fetch(
+    buildApiUrl(path),
+    {
+      headers: agentId ? { 'x-user-id': agentId } : undefined
+    }
+  );
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+    throw new Error(typeof payload.error === 'string' ? payload.error : `Request failed (${response.status})`);
+  }
+
+  return {
+    blob: await response.blob(),
+    fileName:
+      response.headers
+        .get('content-disposition')
+        ?.match(/filename="([^"]+)"/i)?.[1] || `${listingId}-open-house-flyer.pdf`
+  };
+};
+
+const downloadListingBinaryAsset = async (
+  listingId: string,
+  path: string,
+  query: Record<string, string | null | undefined> = {},
+  agentIdOverride?: string | null,
+  options: {
+    demoPath?: string;
+  } = {}
+) => {
+  const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value) params.set(key, value);
+  }
+  const queryString = params.toString();
+  const resolvedPath = isDemoModeActive()
+    ? `${options.demoPath || path}${queryString ? `?${queryString}` : ''}`
+    : withAgentQuery(`${path}${queryString ? `?${queryString}` : ''}`, agentId);
+  const response = await fetch(
+    buildApiUrl(resolvedPath),
+    {
+      headers: agentId ? { 'x-user-id': agentId } : undefined
+    }
+  );
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+    throw new Error(typeof payload.error === 'string' ? payload.error : `Request failed (${response.status})`);
+  }
+
+  const contentType = String(response.headers.get('content-type') || '').trim();
+  if (/text\/html/i.test(contentType)) {
+    throw new Error('unexpected_html_response');
+  }
+
+  return {
+    blob: await response.blob(),
+    fileName:
+      response.headers.get('content-disposition')?.match(/filename="([^"]+)"/i)?.[1] || `${listingId}-asset`,
+    contentType: contentType || 'application/octet-stream'
+  };
+};
+
+export const downloadListingQrFile = async (
+  listingId: string,
+  format: 'png' | 'svg',
+  options: {
+    sourceKey?: string | null;
+    sourceType?: string | null;
+  } = {},
+  agentIdOverride?: string | null
+) =>
+  downloadListingBinaryAsset(
+    listingId,
+    `/api/dashboard/listings/${encodeURIComponent(listingId)}/qr.${encodeURIComponent(format)}`,
+    {
+      sourceKey: options.sourceKey || null,
+      sourceType: options.sourceType || null
+    },
+    agentIdOverride,
+    {
+      demoPath: `/api/demo/sharekit/listings/${encodeURIComponent(listingId)}/qr.${encodeURIComponent(format)}`
+    }
+  );
+
+export const downloadSignRiderPdf = async (listingId: string, agentIdOverride?: string | null) =>
+  downloadListingBinaryAsset(
+    listingId,
+    `/api/dashboard/listings/${encodeURIComponent(listingId)}/sign-rider.pdf`,
+    {},
+    agentIdOverride,
+    {
+      demoPath: `/api/demo/sharekit/listings/${encodeURIComponent(listingId)}/sign-rider.pdf`
+    }
+  );
+
+export const downloadSocialAssetPng = async (
+  listingId: string,
+  format: 'ig_post' | 'ig_story',
+  agentIdOverride?: string | null
+) =>
+  downloadListingBinaryAsset(
+    listingId,
+    `/api/dashboard/listings/${encodeURIComponent(listingId)}/social-asset.png`,
+    { format },
+    agentIdOverride,
+    {
+      demoPath: `/api/demo/sharekit/listings/${encodeURIComponent(listingId)}/social-asset.png`
+    }
+  );
+
+export const downloadPropertyReportPdf = async (listingId: string, agentIdOverride?: string | null) =>
+  downloadListingBinaryAsset(
+    listingId,
+    `/api/dashboard/listings/${encodeURIComponent(listingId)}/property-report.pdf`,
+    {},
+    agentIdOverride,
+    {
+      demoPath: `/api/demo/sharekit/listings/${encodeURIComponent(listingId)}/property-report.pdf`
+    }
+  );
+
+export const downloadFairHousingReviewPdf = async (listingId: string, agentIdOverride?: string | null) =>
+  downloadListingBinaryAsset(
+    listingId,
+    `/api/dashboard/listings/${encodeURIComponent(listingId)}/fair-housing-review.pdf`,
+    {},
+    agentIdOverride,
+    {
+      demoPath: `/api/demo/sharekit/listings/${encodeURIComponent(listingId)}/fair-housing-review.pdf`
+    }
+  );
+
+export const downloadLightCmaPdf = async (listingId: string, agentIdOverride?: string | null) =>
+  downloadListingBinaryAsset(
+    listingId,
+    `/api/dashboard/listings/${encodeURIComponent(listingId)}/light-cma.pdf`,
+    {},
+    agentIdOverride,
+    {
+      demoPath: `/api/demo/sharekit/listings/${encodeURIComponent(listingId)}/light-cma.pdf`
+    }
+  );
 
 export const sendListingTestLeadCapture = async (
   listingId: string,

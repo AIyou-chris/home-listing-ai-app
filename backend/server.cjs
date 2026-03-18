@@ -23,6 +23,7 @@ const axios = require('axios');
 const OpenAI = require('openai');
 const helmet = require('helmet');
 const QRCode = require('qrcode');
+const puppeteer = require('puppeteer');
 // Initialize Stripe with V2 Preview API
 const Stripe = require('stripe');
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
@@ -33,12 +34,27 @@ const { google } = require('googleapis');
 const crypto = require('crypto');
 const fs = require('fs');
 const os = require('os');
+const sharp = require('sharp');
+const { execFile } = require('child_process');
 const multer = require('multer');
 const { WebSocketServer } = require('ws');
 const upload = multer({
   dest: os.tmpdir(),
   limits: { fileSize: 25 * 1024 * 1024 } // 25MB Limit (OpenAI Max)
 });
+const listingBrainUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }
+});
+const LISTING_BRAIN_UPLOAD_BUCKET = 'listing-brain';
+const LISTING_BRAIN_MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+const LISTING_BRAIN_ALLOWED_EXTENSIONS = new Set(['.pdf', '.doc', '.docx', '.txt']);
+const LISTING_BRAIN_ALLOWED_MIME_TYPES = new Set([
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'text/plain'
+]);
 const { parseISO, addMinutes, isBefore, isAfter } = require('date-fns');
 const pdfParse = require('pdf-parse');
 
@@ -77,17 +93,12 @@ const PUBLIC_CHAT_MAX_PER_HOUR = Number(process.env.PUBLIC_CHAT_MAX_PER_HOUR || 
 const PUBLIC_CHAT_HISTORY_LIMIT = Number(process.env.PUBLIC_CHAT_HISTORY_LIMIT || 20);
 const PUBLIC_CHAT_SUMMARY_BUCKET_SIZE = Number(process.env.PUBLIC_CHAT_SUMMARY_BUCKET_SIZE || 3);
 const OPENAI_CHAT_MODEL = process.env.OPENAI_CHAT_MODEL || 'gpt-4o';
-const CREATOMATE_API_BASE_URL = 'https://api.creatomate.com/v2';
-const CREATOMATE_API_KEY = process.env.CREATOMATE_API_KEY || '';
-const CREATOMATE_WEBHOOK_SECRET = process.env.CREATOMATE_WEBHOOK_SECRET || '';
 const VIDEOS_BUCKET = String(process.env.VIDEOS_BUCKET || 'videos').trim() || 'videos';
-const BACKEND_BASE_URL = String(
-  process.env.BACKEND_BASE_URL ||
-  process.env.VITE_VOICE_API_BASE_URL ||
-  process.env.VOICE_PUBLIC_BASE_URL ||
-  process.env.PUBLIC_URL ||
-  `http://localhost:${process.env.PORT || 3002}`
-).replace(/\/+$/, '');
+const VIDEO_TEST_SECRET = String(process.env.VIDEO_TEST_SECRET || '').trim();
+const FLYER_IMAGE_FETCH_TIMEOUT_MS = Number(process.env.FLYER_IMAGE_FETCH_TIMEOUT_MS || 10000);
+const FLYER_PAGE_WIDTH_IN = 8.5;
+const FLYER_PAGE_HEIGHT_IN = 11;
+const FLYER_MAX_PHOTOS = 4;
 
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
@@ -111,6 +122,7 @@ const schemaCapabilities = {
   emailTrackingStatus: false,
   agentsMetadata: false
 };
+const verifiedStorageBuckets = new Set();
 
 const {
   getPreferences: getNotificationPreferences,
@@ -844,7 +856,8 @@ app.post('/api/funnels/:userId/:funnelType', async (req, res) => {
         'realtor_funnel': 'Realtor Funnel',
         'broker_funnel': 'Broker / Recruiter Funnel',
         'universal_sales': 'Agent Outreach',
-        'homebuyer': 'Buyer Journey'
+        'homebuyer': 'Buyer Journey',
+        'marketing_funnel_2': 'Secondary Marketing Funnel'
       };
 
       const { data: newFunnel, error: insertError } = await supabaseAdmin
@@ -2099,57 +2112,6 @@ app.post('/api/webhooks/mailgun', async (req, res) => {
   }
 });
 
-// Creatomate webhook: validate quickly, enqueue finalize jobs, and return.
-app.post('/webhooks/creatomate', express.json({ limit: '2mb' }), async (req, res) => {
-  try {
-    const incomingSecret = String(req.query?.secret || '').trim();
-    if (!CREATOMATE_WEBHOOK_SECRET || incomingSecret !== CREATOMATE_WEBHOOK_SECRET) {
-      return res.status(401).json({ error: 'unauthorized' });
-    }
-
-    const payloads = Array.isArray(req.body) ? req.body : [req.body];
-    const accepted = [];
-    for (const payload of payloads) {
-      if (!payload || typeof payload !== 'object') continue;
-      const renderId = String(payload.id || payload.render_id || '').trim();
-      const status = String(payload.status || 'unknown').trim().toLowerCase();
-      const normalizedMetadata = normalizeCreatomateMetadata(payload.metadata);
-      const metadataVideoId = String(normalizedMetadata?.video_id || '').trim();
-      const jobKeySeed = renderId || metadataVideoId || crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex').slice(0, 20);
-      const idempotencyKey = `webhook:creatomate:${jobKeySeed}:${status || 'unknown'}`;
-
-      await enqueueJob({
-        type: 'video_finalize_upload',
-        payload: {
-          payload,
-          render_id: renderId || null,
-          status,
-          metadata_video_id: metadataVideoId || null
-        },
-        idempotencyKey,
-        priority: 3,
-        runAt: nowIso(),
-        maxAttempts: 3
-      }).catch((error) => {
-        console.warn('[Creatomate Webhook] Failed to enqueue finalize job:', error?.message || error);
-      });
-
-      accepted.push({
-        render_id: renderId || null,
-        status: status || null
-      });
-    }
-
-    return res.status(200).json({
-      ok: true,
-      enqueued: accepted.length
-    });
-  } catch (error) {
-    console.error('[Creatomate Webhook] Error:', error);
-    return res.status(500).json({ error: 'failed_to_queue_creatomate_webhook' });
-  }
-});
-
 // --- INTERNAL EMAIL TRACKING ENDPOINTS ---
 // These handle the links generated by emailTrackingService.js
 
@@ -2796,6 +2758,18 @@ const slugifyListing = (value) =>
     .slice(0, 80);
 
 const VIDEO_TEMPLATE_STYLES = new Set(['luxury', 'country', 'fixer', 'story']);
+const MAX_VIDEO_PHOTOS = 10;
+const VIDEO_FFMPEG_BIN = String(process.env.FFMPEG_BIN || 'ffmpeg').trim() || 'ffmpeg';
+const VIDEO_FFMPEG_FONT_FILE = [
+  '/System/Library/Fonts/Supplemental/Arial.ttf',
+  '/Library/Fonts/Arial Unicode.ttf'
+].find((candidate) => {
+  try {
+    return fs.existsSync(candidate);
+  } catch (_) {
+    return false;
+  }
+}) || null;
 
 const normalizeVideoTemplateStyle = (value) => {
   const normalized = String(value || '')
@@ -2817,34 +2791,6 @@ const buildListingVideoFileName = ({ listingRow, templateStyle, durationSeconds 
   return `${slugSeed}-${safeTemplate}-${safeDuration}s.mp4`;
 };
 
-const resolveCreatomateTemplateIdByStyle = (templateStyle) => {
-  const style = normalizeVideoTemplateStyle(templateStyle) || 'luxury';
-  // Safety fallback for production: keeps video rendering alive if env wiring is incomplete.
-  const fallbackLuxuryTemplateId = '9ba619ff-c4ce-4132-aace-314e89ec7ad3';
-  const luxuryTemplateId =
-    toTrimmedOrNull(process.env.CREATOMATE_TEMPLATE_LUXURY_ID) ||
-    toTrimmedOrNull(process.env.CREATOMATE_LUXURY_TEMPLATE_ID) ||
-    fallbackLuxuryTemplateId;
-  const storyTemplateId =
-    toTrimmedOrNull(process.env.CREATOMATE_TEMPLATE_STORY_ID) ||
-    toTrimmedOrNull(process.env.CREATOMATE_STORY_TEMPLATE_ID);
-  const countryTemplateId =
-    toTrimmedOrNull(process.env.CREATOMATE_TEMPLATE_COUNTRY_ID) ||
-    toTrimmedOrNull(process.env.CREATOMATE_COUNTRY_TEMPLATE_ID);
-  const fixerTemplateId =
-    toTrimmedOrNull(process.env.CREATOMATE_TEMPLATE_FIXER_ID) ||
-    toTrimmedOrNull(process.env.CREATOMATE_FIXER_TEMPLATE_ID);
-
-  if (style === 'luxury') return luxuryTemplateId;
-  // Fall back to luxury so testing does not hard fail when only one template is configured.
-  if (style === 'country') return countryTemplateId || luxuryTemplateId;
-  if (style === 'fixer') return fixerTemplateId || luxuryTemplateId;
-  if (style === 'story') {
-    return storyTemplateId || luxuryTemplateId;
-  }
-  return null;
-};
-
 const formatListingDisplayAddress = (listingRow) => {
   const parts = [
     toTrimmedOrNull(listingRow?.address),
@@ -2855,137 +2801,478 @@ const formatListingDisplayAddress = (listingRow) => {
   return parts.join(', ');
 };
 
-const buildCreatomateVideoModifications = ({ listingRow, agentRow, sourcePhotos = [] }) => {
-  const fallbackPhotoSource =
-    'https://images.unsplash.com/photo-1599809275671-55822c1f6a12?q=80&w=800&auto=format&fit=crop';
-  const uniquePhotos = (sourcePhotos || [])
-    .filter((photo) => typeof photo === 'string' && photo.trim().length > 0)
-    .map((photo) => photo.trim())
-    .slice(0, 6);
+const execFileAsync = (command, args, options = {}) => new Promise((resolve, reject) => {
+  execFile(command, args, options, (error, stdout, stderr) => {
+    if (error) {
+      error.stdout = stdout;
+      error.stderr = stderr;
+      reject(error);
+      return;
+    }
+    resolve({ stdout, stderr });
+  });
+});
 
-  const safeAddress = formatListingDisplayAddress(listingRow);
-  const safePrice = Number(listingRow?.price || 0);
+const isFfmpegAvailable = async () => {
+  try {
+    await execFileAsync(VIDEO_FFMPEG_BIN, ['-version'], { timeout: 8000 });
+    return true;
+  } catch (_) {
+    return false;
+  }
+};
+
+const getVideoSourcePhotos = ({ videoRow, listingRow }) => {
+  const fromVideo = normalizePhotoUrls(videoRow?.source_photos);
+  if (fromVideo.length > 0) return fromVideo;
+  return getListingPhotoUrls({
+    hero_photos: listingRow?.hero_photos,
+    gallery_photos: listingRow?.gallery_photos,
+    photos: listingRow?.photos
+  });
+};
+
+const detectImageExtension = (photoUrl, index) => {
+  try {
+    const parsed = new URL(photoUrl);
+    const ext = path.extname(parsed.pathname || '').toLowerCase();
+    if (ext === '.png' || ext === '.webp') return ext;
+    if (ext === '.jpeg' || ext === '.jpg') return '.jpg';
+    return '.jpg';
+  } catch (_) {
+    return index % 2 === 0 ? '.jpg' : '.png';
+  }
+};
+
+const escapeSvgText = (value) => String(value || '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;');
+
+const getListingVideoSpecialText = (listingRow) => {
+  const raw = typeof listingRow?.description === 'string'
+    ? listingRow.description
+    : Array.isArray(listingRow?.description?.paragraphs)
+      ? listingRow.description.paragraphs.join(' ')
+      : '';
+  return String(raw || '').replace(/\s+/g, ' ').trim();
+};
+
+const wrapOverlayText = (text, maxCharsPerLine = 34, maxLines = 4) => {
+  const words = String(text || '').split(/\s+/).filter(Boolean);
+  const lines = [];
+  let current = '';
+
+  for (const word of words) {
+    const next = current ? `${current} ${word}` : word;
+    if (next.length <= maxCharsPerLine) {
+      current = next;
+      continue;
+    }
+    if (current) lines.push(current);
+    current = word;
+    if (lines.length >= maxLines - 1) break;
+  }
+
+  if (current && lines.length < maxLines) {
+    lines.push(current);
+  }
+
+  const consumedWordCount = lines.join(' ').split(/\s+/).filter(Boolean).length;
+  if (consumedWordCount < words.length && lines.length > 0) {
+    lines[lines.length - 1] = `${lines[lines.length - 1].replace(/\.*$/, '')}…`;
+  }
+
+  return lines;
+};
+
+const buildFfmpegLowerThirdSvg = ({ listingRow }) => {
+  const priceValue = Number(listingRow?.price || 0);
+  const priceText = escapeSvgText(priceValue > 0 ? `$${priceValue.toLocaleString()}` : 'Price on request');
+  const addressText = escapeSvgText(formatListingDisplayAddress(listingRow) || 'Address available on request');
   const beds = Number(listingRow?.bedrooms || 0);
   const baths = Number(listingRow?.bathrooms || 0);
   const sqft = Number(listingRow?.sqft || listingRow?.square_feet || 0);
-  const detailParts = [];
-  if (beds > 0) detailParts.push(`${beds} bed`);
-  if (baths > 0) detailParts.push(`${baths} bath`);
-  if (sqft > 0) detailParts.push(`${sqft.toLocaleString()} sq ft`);
-  const detailsText = detailParts.join(' • ') || 'See listing details';
+  const detailsParts = [];
+  if (beds > 0) detailsParts.push(`${beds} bed`);
+  if (baths > 0) detailsParts.push(`${baths} bath`);
+  if (sqft > 0) detailsParts.push(`${sqft.toLocaleString()} sq ft`);
+  const detailsText = escapeSvgText(detailsParts.join(' • ') || 'Schedule your showing today');
 
-  const agentName = [
-    toTrimmedOrNull(agentRow?.first_name),
-    toTrimmedOrNull(agentRow?.last_name)
-  ].filter(Boolean).join(' ') || 'HomeListingAI Agent';
-
-  const priceText = safePrice > 0 ? `$${safePrice.toLocaleString()}` : 'Price available on request';
-  const addressText = safeAddress || 'Address available on request';
-  const ctaText = 'Scan for details + showing options';
-  const brandText = 'HomeListingAI';
-
-  const modifications = {
-    Price: priceText,
-    'Price.text': priceText,
-    Address: addressText,
-    'Address.text': addressText,
-    Details: detailsText,
-    'Details.text': detailsText,
-    CTA: ctaText,
-    'CTA.text': ctaText,
-    Brand: brandText,
-    'Brand.text': brandText
-  };
-
-  for (let index = 0; index < 6; index += 1) {
-    const resolved = uniquePhotos[index] || uniquePhotos[0] || fallbackPhotoSource;
-    const slot = index + 1;
-    // Support common naming variants across Creatomate templates.
-    modifications[`Photo-${slot}.source`] = resolved;
-    modifications[`Photo ${slot}.source`] = resolved;
-    modifications[`Photo${slot}.source`] = resolved;
-    modifications[`photo-${slot}.source`] = resolved;
-    modifications[`photo_${slot}.source`] = resolved;
-  }
-  modifications['Photo.source'] = uniquePhotos[0] || fallbackPhotoSource;
-
-  if (agentRow?.headshot_url) {
-    modifications['Headshot.source'] = agentRow.headshot_url;
-  }
-  if (agentName) {
-    modifications.Badge = agentName;
-    modifications['Badge.text'] = agentName;
-  }
-
-  return modifications;
+  return `
+    <svg width="1080" height="1920" viewBox="0 0 1080 1920" xmlns="http://www.w3.org/2000/svg">
+      <rect x="48" y="1425" width="984" height="330" rx="28" fill="rgba(7,12,26,0.38)" stroke="rgba(255,255,255,0.18)" stroke-width="3"/>
+      <text x="88" y="1510" fill="#ffffff" font-size="74" font-family="Arial, Helvetica, sans-serif" font-weight="700">${priceText}</text>
+      <text x="88" y="1594" fill="#ffffff" font-size="40" font-family="Arial, Helvetica, sans-serif" font-weight="600">${addressText}</text>
+      <text x="88" y="1654" fill="rgba(255,255,255,0.92)" font-size="34" font-family="Arial, Helvetica, sans-serif">${detailsText}</text>
+      <text x="88" y="1712" fill="rgba(255,255,255,0.88)" font-size="28" font-family="Arial, Helvetica, sans-serif" font-weight="600">HomeListingAI</text>
+    </svg>
+  `.trim();
 };
 
-const normalizeCreatomateMetadata = (rawMetadata) => {
-  if (!rawMetadata) return {};
-  if (typeof rawMetadata === 'string') {
-    try {
-      const parsed = JSON.parse(rawMetadata);
-      return parsed && typeof parsed === 'object' ? parsed : {};
-    } catch (_) {
-      return {};
+const getAgentVideoEndCardProfile = ({ agentRow, aiCardProfile }) => {
+  const fullName = toTrimmedOrNull(aiCardProfile?.fullName)
+    || [toTrimmedOrNull(agentRow?.first_name), toTrimmedOrNull(agentRow?.last_name)].filter(Boolean).join(' ')
+    || 'HomeListingAI Agent';
+  const company = toTrimmedOrNull(aiCardProfile?.company) || 'HomeListingAI';
+  const title = toTrimmedOrNull(aiCardProfile?.professionalTitle)
+    || toTrimmedOrNull(agentRow?.title)
+    || 'Listing Specialist';
+  const phone = toTrimmedOrNull(aiCardProfile?.phone) || toTrimmedOrNull(agentRow?.phone) || 'Add phone number';
+  const email = toTrimmedOrNull(aiCardProfile?.email) || toTrimmedOrNull(agentRow?.email) || 'Add email address';
+  const brandColor = toTrimmedOrNull(aiCardProfile?.brandColor) || '#28a7e8';
+  const headshotUrl =
+    toTrimmedOrNull(aiCardProfile?.headshot) ||
+    toTrimmedOrNull(agentRow?.headshot_url) ||
+    null;
+  const initials = fullName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join('') || 'AG';
+
+  return {
+    fullName,
+    company,
+    title,
+    phone,
+    email,
+    headshotUrl,
+    brandColor,
+    initials
+  };
+};
+
+const buildFfmpegEndCardSvg = ({ agentRow, aiCardProfile }) => {
+  const profile = getAgentVideoEndCardProfile({ agentRow, aiCardProfile });
+  const agentName = escapeSvgText(profile.fullName);
+  const companyText = escapeSvgText(profile.company);
+  const titleText = escapeSvgText(profile.title);
+  const initialsText = escapeSvgText(profile.initials);
+  const brandColor = escapeSvgText(profile.brandColor);
+  const showInitialsAvatar = !profile.headshotUrl;
+
+  return `
+    <svg width="1080" height="1920" viewBox="0 0 1080 1920" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="cardGlow" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="rgba(10,18,40,0.40)"/>
+          <stop offset="100%" stop-color="rgba(4,10,24,0.40)"/>
+        </linearGradient>
+        <radialGradient id="glassSheen" cx="50%" cy="0%" r="85%">
+          <stop offset="0%" stop-color="rgba(255,255,255,0.16)"/>
+          <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
+        </radialGradient>
+      </defs>
+      <rect width="1080" height="1920" fill="rgba(4,10,22,0.62)"/>
+      <rect x="120" y="910" width="840" height="286" rx="34" fill="url(#cardGlow)" stroke="rgba(255,255,255,0.16)" stroke-width="2.5"/>
+      <rect x="138" y="928" width="804" height="250" rx="28" fill="rgba(12,20,40,0.26)" stroke="rgba(255,255,255,0.08)" stroke-width="1.5"/>
+      <rect x="138" y="928" width="804" height="250" rx="28" fill="url(#glassSheen)" opacity="0.55"/>
+      <rect x="466" y="844" width="148" height="148" rx="38" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.12)" stroke-width="2"/>
+      ${showInitialsAvatar ? `<rect x="484" y="862" width="112" height="112" rx="28" fill="${brandColor}"/>` : '<rect x="484" y="862" width="112" height="112" rx="28" fill="rgba(255,255,255,0.06)"/>'}
+      ${showInitialsAvatar ? `<text x="540" y="930" text-anchor="middle" fill="#ffffff" font-size="40" font-family="Arial, Helvetica, sans-serif" font-weight="700">${initialsText}</text>` : ''}
+      <text x="540" y="1024" text-anchor="middle" fill="rgba(255,255,255,0.68)" font-size="22" font-family="Arial, Helvetica, sans-serif" font-weight="700" letter-spacing="7">HOMELISTINGAI</text>
+      <text x="540" y="1086" text-anchor="middle" fill="#ffffff" font-size="58" font-family="Arial, Helvetica, sans-serif" font-weight="700">${agentName}</text>
+      <text x="540" y="1132" text-anchor="middle" fill="rgba(255,255,255,0.92)" font-size="26" font-family="Arial, Helvetica, sans-serif" font-weight="700">${titleText}</text>
+      <text x="540" y="1172" text-anchor="middle" fill="rgba(255,255,255,0.72)" font-size="24" font-family="Arial, Helvetica, sans-serif" font-weight="600">${companyText}</text>
+      <rect x="178" y="1218" width="354" height="72" rx="24" fill="${brandColor}"/>
+      <text x="355" y="1264" text-anchor="middle" fill="#ffffff" font-size="28" font-family="Arial, Helvetica, sans-serif" font-weight="700">Chat With Me</text>
+      <rect x="548" y="1218" width="354" height="72" rx="24" fill="rgba(37,99,235,0.94)"/>
+      <text x="725" y="1264" text-anchor="middle" fill="#ffffff" font-size="28" font-family="Arial, Helvetica, sans-serif" font-weight="700">Contact</text>
+      <rect x="276" y="1308" width="528" height="66" rx="24" fill="rgba(10,17,30,0.70)" stroke="rgba(255,255,255,0.16)" stroke-width="2"/>
+      <circle cx="344" cy="1341" r="22" fill="rgba(255,255,255,0.12)"/>
+      <text x="344" y="1350" text-anchor="middle" fill="#ffffff" font-size="28" font-family="Arial, Helvetica, sans-serif" font-weight="700">i</text>
+      <text x="580" y="1350" text-anchor="middle" fill="#ffffff" font-size="28" font-family="Arial, Helvetica, sans-serif" font-weight="700">Get More Info</text>
+    </svg>
+  `.trim();
+};
+
+const buildFfmpegEndCardAvatarRingSvg = () => `
+  <svg width="116" height="116" viewBox="0 0 116 116" xmlns="http://www.w3.org/2000/svg">
+    <rect x="1.5" y="1.5" width="113" height="113" rx="28" fill="none" stroke="rgba(255,255,255,0.20)" stroke-width="3"/>
+  </svg>
+`.trim();
+
+const buildRoundedRectMaskSvg = (size, radius) => `
+  <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">
+    <rect x="0" y="0" width="${size}" height="${size}" rx="${radius}" fill="#ffffff"/>
+  </svg>
+`.trim();
+
+const buildFfmpegEndCardPngBuffer = async ({ agentRow, aiCardProfile }) => {
+  const profile = getAgentVideoEndCardProfile({ agentRow, aiCardProfile });
+  const baseBuffer = await sharp(Buffer.from(buildFfmpegEndCardSvg({ agentRow, aiCardProfile }))).png().toBuffer();
+
+  if (!profile.headshotUrl) {
+    return baseBuffer;
+  }
+
+  try {
+    const response = await axios.get(profile.headshotUrl, {
+      responseType: 'arraybuffer',
+      timeout: 25000
+    });
+
+    const avatarSize = 112;
+    const avatarBuffer = await sharp(Buffer.from(response.data))
+      .resize(avatarSize, avatarSize, { fit: 'cover', position: 'centre' })
+      .composite([
+        {
+          input: Buffer.from(buildRoundedRectMaskSvg(avatarSize, 28)),
+          blend: 'dest-in'
+        }
+      ])
+      .png()
+      .toBuffer();
+
+    return sharp(baseBuffer)
+      .composite([
+        {
+          input: avatarBuffer,
+          left: 484,
+          top: 862
+        },
+        {
+          input: Buffer.from(buildFfmpegEndCardAvatarRingSvg()),
+          left: 482,
+          top: 860
+        }
+      ])
+      .png()
+      .toBuffer();
+  } catch (error) {
+    console.warn('[video.endcard] headshot_overlay_failed', {
+      message: error?.message || error
+    });
+    return baseBuffer;
+  }
+};
+
+const buildFfmpegSpecialSpotlightSvg = ({ listingRow }) => {
+  const description = getListingVideoSpecialText(listingRow);
+  if (!description) return null;
+  const lines = wrapOverlayText(description, 34, 4).map(escapeSvgText);
+  if (!lines.length) return null;
+
+  return `
+    <svg width="1080" height="1920" viewBox="0 0 1080 1920" xmlns="http://www.w3.org/2000/svg">
+      <rect x="86" y="180" width="908" height="410" rx="34" fill="rgba(9,16,34,0.80)" stroke="rgba(255,255,255,0.16)" stroke-width="3"/>
+      <text x="130" y="258" fill="rgba(132,197,255,0.96)" font-size="28" font-family="Arial, Helvetica, sans-serif" font-weight="700">WHAT MAKES THIS HOME SPECIAL</text>
+      ${lines.map((line, index) => `<text x="130" y="${334 + (index * 66)}" fill="#ffffff" font-size="44" font-family="Arial, Helvetica, sans-serif" font-weight="600">${line}</text>`).join('')}
+    </svg>
+  `.trim();
+};
+
+const createFfmpegFilterGraph = ({ inputCount, totalDurationSeconds }) => {
+  const fps = 30;
+  const xfadeDuration = 0.35;
+  const slideDuration = Math.max(1.8, totalDurationSeconds / Math.max(1, inputCount));
+  const perSlideFrames = Math.max(45, Math.round(slideDuration * fps));
+  const filters = [];
+  const endCardStart = Math.max(8, totalDurationSeconds - 2.8);
+  const specialStart = 2.2;
+  const specialEnd = Math.max(specialStart + 2.5, endCardStart - 0.6);
+
+  for (let index = 0; index < inputCount; index += 1) {
+    filters.push(
+      `[${index}:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,` +
+      `zoompan=z='min(zoom+0.0006,1.12)':d=${perSlideFrames}:s=1080x1920:fps=${fps},` +
+      `trim=duration=${slideDuration.toFixed(3)},setpts=PTS-STARTPTS[v${index}]`
+    );
+  }
+
+  const baseLabel = inputCount <= 1 ? 'v0' : `x${inputCount - 1}`;
+  if (inputCount <= 1) {
+    filters.push(
+      `[${baseLabel}][${inputCount}:v]overlay=0:0:enable='lt(t,${endCardStart.toFixed(3)})'[o1];` +
+      `[o1][${inputCount + 1}:v]overlay=0:0:enable='between(t,${specialStart.toFixed(3)},${specialEnd.toFixed(3)})'[o2];` +
+      `[o2][${inputCount + 2}:v]overlay=0:0:enable='gte(t,${endCardStart.toFixed(3)})',format=yuv420p[vout]`
+    );
+  } else {
+    filters.push(
+      `[v0][v1]xfade=transition=fade:duration=${xfadeDuration.toFixed(3)}:` +
+      `offset=${Math.max(0.2, slideDuration - xfadeDuration).toFixed(3)}[x1]`
+    );
+    for (let index = 2; index < inputCount; index += 1) {
+      const offset = Math.max(0.2, index * (slideDuration - xfadeDuration));
+      filters.push(
+        `[x${index - 1}][v${index}]xfade=transition=fade:duration=${xfadeDuration.toFixed(3)}:` +
+        `offset=${offset.toFixed(3)}[x${index}]`
+      );
     }
+    filters.push(
+      `[${baseLabel}][${inputCount}:v]overlay=0:0:enable='lt(t,${endCardStart.toFixed(3)})'[o1];` +
+      `[o1][${inputCount + 1}:v]overlay=0:0:enable='between(t,${specialStart.toFixed(3)},${specialEnd.toFixed(3)})'[o2];` +
+      `[o2][${inputCount + 2}:v]overlay=0:0:enable='gte(t,${endCardStart.toFixed(3)})',format=yuv420p[vout]`
+    );
   }
-  return rawMetadata && typeof rawMetadata === 'object' ? rawMetadata : {};
-};
 
-const creatomateApiRequest = async ({ method = 'GET', path, data = null }) => {
-  if (!CREATOMATE_API_KEY) {
-    throw new Error('creatomate_api_key_missing');
-  }
-  const url = `${CREATOMATE_API_BASE_URL}${path}`;
-  const response = await axios({
-    method,
-    url,
-    data,
-    headers: {
-      Authorization: `Bearer ${CREATOMATE_API_KEY}`,
-      'Content-Type': 'application/json'
-    },
-    timeout: 45000
-  });
-  return response.data;
-};
-
-const createCreatomateRender = async ({
-  templateId,
-  modifications,
-  metadata
-}) => {
-  if (!CREATOMATE_WEBHOOK_SECRET) {
-    throw new Error('creatomate_webhook_secret_missing');
-  }
-  if (!BACKEND_BASE_URL) {
-    throw new Error('creatomate_webhook_url_missing');
-  }
-  const webhookUrl = `${BACKEND_BASE_URL}/webhooks/creatomate?secret=${encodeURIComponent(CREATOMATE_WEBHOOK_SECRET)}`;
-  const payload = {
-    template_id: templateId,
-    modifications: modifications || {},
-    webhook_url: webhookUrl,
-    metadata: JSON.stringify(metadata || {})
+  const targetDuration = Math.max(6, Math.round((slideDuration * inputCount) - (xfadeDuration * (inputCount - 1))));
+  return {
+    filter: filters.join(';'),
+    outputLabel: 'vout',
+    targetDuration: Math.min(totalDurationSeconds, targetDuration)
   };
-  const result = await creatomateApiRequest({
-    method: 'POST',
-    path: '/renders',
-    data: payload
-  });
-  const render = Array.isArray(result) ? result[0] : result;
-  if (!render?.id) throw new Error('creatomate_render_id_missing');
-  return render;
 };
 
-const fetchCreatomateRenderById = async (renderId) => {
-  if (!renderId) return null;
-  const result = await creatomateApiRequest({
-    method: 'GET',
-    path: `/renders/${encodeURIComponent(renderId)}`
-  });
-  return Array.isArray(result) ? result[0] : result;
+const generateListingVideoViaFfmpegFallback = async ({
+  videoRow,
+  listingRow,
+  agentRow = null,
+  aiCardProfile = null,
+  reason = 'ffmpeg_only'
+}) => {
+  const ownerId = toTrimmedOrNull(videoRow?.agent_id);
+  const listingId = toTrimmedOrNull(videoRow?.listing_id);
+  const videoId = toTrimmedOrNull(videoRow?.id);
+  if (!ownerId || !listingId || !videoId) {
+    throw new Error('video_identity_missing_for_fallback');
+  }
+
+  const ffmpegReady = await isFfmpegAvailable();
+  if (!ffmpegReady) {
+    throw new Error('ffmpeg_missing');
+  }
+
+  const sourcePhotos = getVideoSourcePhotos({ videoRow, listingRow });
+  if (!sourcePhotos.length) {
+    throw new Error('no_photos');
+  }
+
+  const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'hlai-video-fallback-'));
+  const downloadedImages = [];
+  try {
+    for (let index = 0; index < sourcePhotos.length; index += 1) {
+      const photoUrl = sourcePhotos[index];
+      const response = await axios.get(photoUrl, {
+        responseType: 'arraybuffer',
+        timeout: 25000
+      });
+      const ext = detectImageExtension(photoUrl, index);
+      const imagePath = path.join(tempDir, `frame-${String(index + 1).padStart(2, '0')}${ext}`);
+      await fs.promises.writeFile(imagePath, Buffer.from(response.data));
+      downloadedImages.push(imagePath);
+    }
+
+    if (!downloadedImages.length) {
+      throw new Error('no_downloadable_photos');
+    }
+
+    const durationSeconds = Number(videoRow?.duration_seconds || 15);
+    const outputPath = path.join(tempDir, `${videoId}.mp4`);
+    const ffmpegArgs = [];
+    const loopDuration = Math.max(2.6, durationSeconds / Math.max(1, downloadedImages.length) + 0.5);
+    downloadedImages.forEach((imagePath) => {
+      ffmpegArgs.push('-loop', '1', '-t', String(loopDuration.toFixed(3)), '-i', imagePath);
+    });
+
+    const lowerThirdPath = path.join(tempDir, 'overlay-lower-third.png');
+    const specialSpotlightPath = path.join(tempDir, 'overlay-special-spotlight.png');
+    const endCardPath = path.join(tempDir, 'overlay-end-card.png');
+    await sharp(Buffer.from(buildFfmpegLowerThirdSvg({ listingRow }))).png().toFile(lowerThirdPath);
+    const specialSpotlightSvg = buildFfmpegSpecialSpotlightSvg({ listingRow });
+    if (specialSpotlightSvg) {
+      await sharp(Buffer.from(specialSpotlightSvg)).png().toFile(specialSpotlightPath);
+    } else {
+      await sharp({
+        create: {
+          width: 1080,
+          height: 1920,
+          channels: 4,
+          background: { r: 0, g: 0, b: 0, alpha: 0 }
+        }
+      }).png().toFile(specialSpotlightPath);
+    }
+    await sharp(await buildFfmpegEndCardPngBuffer({ agentRow, aiCardProfile })).png().toFile(endCardPath);
+    ffmpegArgs.push('-loop', '1', '-t', String(Math.max(10, durationSeconds)), '-i', lowerThirdPath);
+    ffmpegArgs.push('-loop', '1', '-t', String(Math.max(10, durationSeconds)), '-i', specialSpotlightPath);
+    ffmpegArgs.push('-loop', '1', '-t', String(Math.max(10, durationSeconds)), '-i', endCardPath);
+
+    const filterGraph = createFfmpegFilterGraph({
+      inputCount: downloadedImages.length,
+      totalDurationSeconds: Math.max(10, durationSeconds)
+    });
+
+    ffmpegArgs.push(
+      '-filter_complex',
+      filterGraph.filter,
+      '-map',
+      `[${filterGraph.outputLabel}]`,
+      '-an',
+      '-r',
+      '30',
+      '-pix_fmt',
+      'yuv420p',
+      '-movflags',
+      '+faststart',
+      '-t',
+      String(Math.max(10, durationSeconds)),
+      '-y',
+      outputPath
+    );
+
+    await execFileAsync(VIDEO_FFMPEG_BIN, ffmpegArgs, { timeout: 180000, maxBuffer: 1024 * 1024 * 4 });
+
+    await ensureStorageBucketExists(VIDEOS_BUCKET);
+    const binary = await fs.promises.readFile(outputPath);
+    const storagePath = String(videoRow.storage_path || `agent/${ownerId}/listing/${listingId}/${videoId}.mp4`).trim();
+    const fileName = videoRow.file_name || buildListingVideoFileName({
+      listingRow: listingRow || { id: listingId, public_slug: listingId },
+      templateStyle: videoRow.template_style || 'luxury',
+      durationSeconds: videoRow.duration_seconds || 15
+    });
+
+    const { error: uploadError } = await supabaseAdmin.storage
+      .from(VIDEOS_BUCKET)
+      .upload(storagePath, binary, {
+        contentType: 'video/mp4',
+        upsert: true,
+        cacheControl: '3600'
+      });
+    if (uploadError) throw uploadError;
+
+    const { data: updatedVideo, error: updateError } = await supabaseAdmin
+      .from('listing_videos')
+      .update({
+        status: 'succeeded',
+        storage_bucket: VIDEOS_BUCKET,
+        storage_path: storagePath,
+        file_name: fileName,
+        mime_type: 'video/mp4',
+        error_message: null,
+        updated_at: nowIso()
+      })
+      .eq('id', videoId)
+      .select('id, status, updated_at')
+      .single();
+    if (updateError || !updatedVideo?.id) {
+      throw updateError || new Error('listing_video_update_failed');
+    }
+
+    emitListingVideoRealtimeEvent({
+      agentId: ownerId,
+      listingId,
+      videoId,
+      status: 'succeeded',
+      templateStyle: videoRow.template_style || 'luxury',
+      durationSeconds: Number(videoRow.duration_seconds || 15)
+    });
+
+    console.info('[video.fallback] ffmpeg_succeeded', {
+      listing_id: listingId,
+      video_id: videoId,
+      reason
+    });
+
+    return {
+      status: 'succeeded',
+      stage: 'fallback_succeeded',
+      storage_path: storagePath
+    };
+  } finally {
+    await fs.promises.rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
+  }
 };
 
 const toReferrerDomain = (value) => {
@@ -3040,6 +3327,3311 @@ const generateListingQrAssets = async (targetUrl) => {
     qr_code_svg: qrSvg
   };
 };
+
+const escapeHtml = (value) =>
+  String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+const toDataUrlFromBuffer = (buffer, contentType) =>
+  `data:${String(contentType || 'application/octet-stream').trim()};base64,${Buffer.from(buffer).toString('base64')}`;
+
+const decodeDataUrlToBuffer = (dataUrl) => {
+  const normalized = String(dataUrl || '').trim();
+  const match = normalized.match(/^data:([^;]+);base64,(.+)$/);
+  if (!match) {
+    throw new Error('invalid_data_url');
+  }
+  return {
+    contentType: match[1] || 'application/octet-stream',
+    buffer: Buffer.from(match[2], 'base64')
+  };
+};
+
+const slugifyDownloadName = (value, fallback = 'listing') => {
+  const normalized = String(value || fallback)
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return normalized || fallback;
+};
+
+const buildFlyerPlaceholderDataUrl = ({
+  label = 'Photo unavailable',
+  sublabel = 'Image could not be loaded'
+} = {}) => {
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900" viewBox="0 0 1200 900">
+      <defs>
+        <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#f8f3ea" />
+          <stop offset="100%" stop-color="#efe4d0" />
+        </linearGradient>
+      </defs>
+      <rect width="1200" height="900" rx="40" fill="url(#bg)" />
+      <rect x="60" y="60" width="1080" height="780" rx="32" fill="none" stroke="#d6c7b0" stroke-width="6" stroke-dasharray="16 12" />
+      <g fill="#334155" font-family="Arial, Helvetica, sans-serif" text-anchor="middle">
+        <text x="600" y="420" font-size="52" font-weight="700">${escapeHtml(label)}</text>
+        <text x="600" y="485" font-size="28" font-weight="500" fill="#64748b">${escapeHtml(sublabel)}</text>
+      </g>
+    </svg>
+  `.trim();
+  return `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`;
+};
+
+const getLocalAssetMimeType = (filePath) => {
+  const ext = String(path.extname(filePath || '')).trim().toLowerCase();
+  if (ext === '.svg') return 'image/svg+xml';
+  if (ext === '.jpg' || ext === '.jpeg') return 'image/jpeg';
+  if (ext === '.webp') return 'image/webp';
+  return 'image/png';
+};
+
+const readLocalAssetAsDataUrl = async (filePath) => {
+  const buffer = await fs.promises.readFile(filePath);
+  return toDataUrlFromBuffer(buffer, getLocalAssetMimeType(filePath));
+};
+
+const fetchImageAsDataUrl = async (url, { timeoutMs = FLYER_IMAGE_FETCH_TIMEOUT_MS, fallbackDataUrl = null } = {}) => {
+  const normalizedUrl = String(url || '').trim();
+  if (!normalizedUrl) return fallbackDataUrl;
+  if (normalizedUrl.startsWith('data:')) return normalizedUrl;
+
+  const abortController = new AbortController();
+  const timeoutId = setTimeout(() => abortController.abort(), timeoutMs);
+  try {
+    const response = await fetch(normalizedUrl, {
+      signal: abortController.signal,
+      redirect: 'follow'
+    });
+    if (!response.ok) {
+      throw new Error(`http_${response.status}`);
+    }
+    const contentType = response.headers.get('content-type') || 'image/png';
+    const arrayBuffer = await response.arrayBuffer();
+    return toDataUrlFromBuffer(Buffer.from(arrayBuffer), contentType);
+  } catch (error) {
+    console.warn('[flyer] image_fetch_failed', { url: normalizedUrl, error: String(error) });
+    return fallbackDataUrl;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};
+
+const darkenHexColor = (value, factor = 0.82) => {
+  const normalized = String(value || '').replace('#', '').trim();
+  if (!/^[0-9a-f]{6}$/i.test(normalized)) return '#1d4ed8';
+  const next = [0, 2, 4]
+    .map((offset) => Math.max(0, Math.min(255, Math.round(parseInt(normalized.slice(offset, offset + 2), 16) * factor))))
+    .map((part) => part.toString(16).padStart(2, '0'))
+    .join('');
+  return `#${next}`;
+};
+
+const FAIR_HOUSING_FLAG_RULES = Object.freeze([
+  {
+    phrase: 'perfect for families',
+    reason: 'Avoid language that suggests a preferred familial status.',
+    safer: 'great layout for everyday living'
+  },
+  {
+    phrase: 'safe neighborhood',
+    reason: 'Avoid describing safety or crime levels in a way that can imply protected-class targeting.',
+    safer: 'well-located neighborhood with convenient access'
+  },
+  {
+    phrase: 'walk to church',
+    reason: 'Avoid references to religion-specific destinations.',
+    safer: 'close to local amenities'
+  },
+  {
+    phrase: 'ideal for young couples',
+    reason: 'Avoid describing who should live in the home.',
+    safer: 'ideal for buyers seeking convenience'
+  },
+  {
+    phrase: 'exclusive community',
+    reason: 'Avoid wording that can imply exclusionary access.',
+    safer: 'private community setting'
+  },
+  {
+    phrase: 'quiet retirees',
+    reason: 'Avoid age-based preference language.',
+    safer: 'quiet setting'
+  },
+  {
+    phrase: 'christian',
+    reason: 'Avoid religious preference language.',
+    safer: 'community-focused'
+  },
+  {
+    phrase: 'jewish',
+    reason: 'Avoid religious preference language.',
+    safer: 'community-focused'
+  },
+  {
+    phrase: 'muslim',
+    reason: 'Avoid religious preference language.',
+    safer: 'community-focused'
+  },
+  {
+    phrase: 'white neighborhood',
+    reason: 'Never describe neighborhoods by race.',
+    safer: 'established neighborhood'
+  }
+]);
+
+const buildFairHousingScan = (rawText) => {
+  const originalText = String(rawText || '').trim();
+  const sourceText = originalText || 'Highlight the property features, upgrades, layout, and location convenience without describing who should live there.';
+  const normalized = sourceText.toLowerCase();
+  const flagged = FAIR_HOUSING_FLAG_RULES.filter((rule) => normalized.includes(rule.phrase));
+  const risk = flagged.length >= 3 ? 'High' : flagged.length >= 1 ? 'Moderate' : 'Low';
+
+  let rewrite = sourceText;
+  for (const rule of FAIR_HOUSING_FLAG_RULES) {
+    const pattern = new RegExp(rule.phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+    rewrite = rewrite.replace(pattern, rule.safer);
+  }
+  if (!rewrite.trim()) {
+    rewrite = 'Focus on the home’s layout, finishes, natural light, storage, and nearby conveniences instead of describing who should live there.';
+  }
+
+  return {
+    originalText: sourceText,
+    rewrite,
+    risk,
+    flagged,
+    summary:
+      risk === 'High'
+        ? 'This copy needs revision before it is used in ads, flyers, or listing remarks.'
+        : risk === 'Moderate'
+          ? 'This copy has a few phrases worth cleaning up before publishing.'
+          : 'No common risky phrases were detected in this draft. Keep focusing on property facts and features.'
+  };
+};
+
+const getComparableStatusRank = (status) => {
+  const normalized = String(status || '').trim().toLowerCase();
+  if (normalized === 'sold') return 0;
+  if (normalized === 'pending') return 1;
+  if (normalized === 'active') return 2;
+  return 3;
+};
+
+const normalizeComparableSqft = (row) =>
+  safeNumber(row?.square_feet ?? row?.sqft);
+
+const buildMarketAnalysisBundle = async ({ listingRow, ownerIds = [], manualComps = [] }) => {
+  const zipCode = extractZipFromAddress(listingRow?.address);
+  let compsQuery = supabaseAdmin
+    .from('properties')
+    .select('id,address,price,bedrooms,bathrooms,square_feet,sqft,status,listing_date,created_at,user_id,agent_id')
+    .neq('id', listingRow.id)
+    .limit(250);
+
+  if (zipCode) compsQuery = compsQuery.ilike('address', `%${zipCode}%`);
+
+  const { data: compsRows, error: compsError } = await compsQuery;
+  if (compsError) {
+    throw new Error(`market_analysis_comps_failed:${compsError.message}`);
+  }
+
+  const allowedOwnerIds = ownerIds
+    .map((value) => String(value || '').trim())
+    .filter(Boolean);
+
+  const subjectSqft = normalizeComparableSqft(listingRow);
+  const subjectPrice = safeNumber(listingRow?.price);
+
+  const autoComps = (Array.isArray(compsRows) ? compsRows : [])
+    .filter((row) => {
+      if (allowedOwnerIds.length === 0) return true;
+      const userId = String(row?.user_id || '').trim();
+      const agentId = String(row?.agent_id || '').trim();
+      return allowedOwnerIds.includes(userId) || allowedOwnerIds.includes(agentId);
+    })
+    .map((row) => {
+      const sqft = normalizeComparableSqft(row);
+      const price = safeNumber(row?.price);
+      const pricePerSqft = price > 0 && sqft > 0 ? price / sqft : 0;
+      return {
+        ...row,
+        bedrooms: row?.beds ?? row?.bedrooms ?? null,
+        bathrooms: row?.baths ?? row?.bathrooms ?? null,
+        square_feet: sqft,
+        price,
+        pricePerSqft,
+        daysOnMarket: getDaysOnMarket(row?.listing_date || row?.created_at),
+        sqftDelta: subjectSqft > 0 && sqft > 0 ? Math.abs(subjectSqft - sqft) : Number.MAX_SAFE_INTEGER
+      };
+    })
+    .sort((left, right) => {
+      const statusDelta = getComparableStatusRank(left.status) - getComparableStatusRank(right.status);
+      if (statusDelta !== 0) return statusDelta;
+      if (left.sqftDelta !== right.sqftDelta) return left.sqftDelta - right.sqftDelta;
+      return Math.abs(left.price - subjectPrice) - Math.abs(right.price - subjectPrice);
+    });
+
+  const preparedManualComps = (Array.isArray(manualComps) ? manualComps : [])
+    .map((row, index) => normalizeLightCmaManualComp(row, index))
+    .filter(Boolean)
+    .map((row) => {
+      const sqft = normalizeComparableSqft(row);
+      const price = safeNumber(row?.price);
+      const pricePerSqft = price > 0 && sqft > 0 ? price / sqft : 0;
+      return {
+        ...row,
+        is_anchor: row?.is_anchor === true || row?.isAnchor === true,
+        bedrooms: row?.beds ?? row?.bedrooms ?? null,
+        bathrooms: row?.baths ?? row?.bathrooms ?? null,
+        square_feet: sqft,
+        price,
+        pricePerSqft,
+        daysOnMarket: 0,
+        sqftDelta: subjectSqft > 0 && sqft > 0 ? Math.abs(subjectSqft - sqft) : Number.MAX_SAFE_INTEGER
+      };
+    });
+
+  const seenCompAddresses = new Set();
+  const combinedComps = preparedManualComps
+    .concat(autoComps)
+    .filter((row) => {
+      const key = String(row.address || '').trim().toLowerCase();
+      if (!key) return true;
+      if (seenCompAddresses.has(key)) return false;
+      seenCompAddresses.add(key);
+      return true;
+    });
+
+  const anchorComp = preparedManualComps.find((row) => row.is_anchor) || null;
+  const soldComps = combinedComps.filter((row) => String(row.status || '').toLowerCase() === 'sold').slice(0, 5);
+  const activeComps = combinedComps.filter((row) => ['active', 'pending'].includes(String(row.status || '').toLowerCase())).slice(0, 5);
+  const allRows = [listingRow, ...combinedComps];
+
+  const perSqftValues = allRows
+    .map((row) => {
+      const price = safeNumber(row?.price);
+      const sqft = normalizeComparableSqft(row);
+      return price > 0 && sqft > 0 ? price / sqft : 0;
+    })
+    .filter((value) => value > 0);
+
+  const domValues = allRows
+    .filter((row) => ['active', 'pending'].includes(String(row?.status || '').toLowerCase()))
+    .map((row) => getDaysOnMarket(row?.listing_date || row?.created_at))
+    .filter((value) => value > 0);
+
+  const soldCount = allRows.filter((row) => String(row?.status || '').toLowerCase() === 'sold').length;
+  const relevantCount = allRows.filter((row) => ['active', 'pending', 'sold'].includes(String(row?.status || '').toLowerCase())).length;
+  const activeListings = allRows.filter((row) => String(row?.status || '').toLowerCase() === 'active').length;
+  const listToCloseRatio = relevantCount > 0 ? (soldCount / relevantCount) * 100 : 0;
+  const census = zipCode ? await fetchCensusZipData(zipCode) : null;
+
+  const marketSnapshot = {
+    avgPricePerSqft: perSqftValues.length
+      ? Number((perSqftValues.reduce((sum, value) => sum + value, 0) / perSqftValues.length).toFixed(2))
+      : 0,
+    medianDom: domValues.length ? Math.round(median(domValues)) : 0,
+    activeListings,
+    listToCloseRatio: Number(listToCloseRatio.toFixed(1))
+  };
+
+  const estimateValues = soldComps
+    .concat(activeComps.slice(0, 2))
+    .map((row) => (row.pricePerSqft > 0 && subjectSqft > 0 ? row.pricePerSqft * subjectSqft : 0))
+    .filter((value) => value > 0);
+
+  const anchorEstimate = anchorComp && anchorComp.pricePerSqft > 0 && subjectSqft > 0
+    ? anchorComp.pricePerSqft * subjectSqft
+    : (anchorComp?.price || 0);
+  const lowEstimate = estimateValues.length ? Math.min(...estimateValues) : subjectPrice;
+  const highEstimate = estimateValues.length ? Math.max(...estimateValues) : subjectPrice;
+  const suggestedListPrice = anchorEstimate > 0
+    ? Math.round(((estimateValues.length ? median(estimateValues) : subjectPrice) * 0.55) + (anchorEstimate * 0.45))
+    : (estimateValues.length ? median(estimateValues) : subjectPrice);
+
+  return {
+    zipCode,
+    comps: combinedComps,
+    soldComps,
+    activeComps,
+    anchorComp,
+    marketSnapshot,
+    compsCount: combinedComps.length,
+    publicData: census,
+    estimatedRange: {
+      low: Math.round(lowEstimate),
+      high: Math.round(highEstimate),
+      suggested: Math.round(suggestedListPrice)
+    }
+  };
+};
+
+const formatFlyerPrice = (value) => {
+  const raw = String(value ?? '').trim();
+  if (!raw) return '$0';
+  if (/^\$/.test(raw)) return raw;
+  const numeric = Number(raw.replace(/[^0-9.-]/g, ''));
+  if (!Number.isFinite(numeric)) return raw;
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0
+  }).format(numeric);
+};
+
+const formatFlyerMetric = (value, fallback = '0') => {
+  const raw = String(value ?? '').trim();
+  return raw || fallback;
+};
+
+const DEMO_SHAREKIT_AGENT_PROFILE = {
+  id: 'demo-agent-busy',
+  fullName: 'Chris Potter',
+  professionalTitle: 'Listing Specialist',
+  company: 'HomeListingAI',
+  phone: '+15125550123',
+  email: 'chris@homelistingai.com',
+  website: 'https://homelistingai.com',
+  bio: '',
+  brandColor: '#0ea5e9',
+  language: 'en',
+  socialMedia: {
+    facebook: '',
+    instagram: '',
+    twitter: '',
+    linkedin: '',
+    youtube: ''
+  },
+  headshot: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=400&q=80',
+  logo: null,
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString()
+};
+
+const DEMO_SHAREKIT_LISTINGS = {
+  'demo-listing-oak': {
+    id: 'demo-listing-oak',
+    title: '124 Oak Street, Austin, TX',
+    address: '124 Oak Street, Austin, TX 78704',
+    price: 865000,
+    bedrooms: 4,
+    bathrooms: 3,
+    square_feet: 2620,
+    public_slug: 'demo-124-oak-street-austin',
+    share_url: 'https://homelistingai.com/l/demo-124-oak-street-austin',
+    description:
+      'Modern Hill Country living with a bright open kitchen, oversized slider doors, and an entertainer-friendly backyard. The floor plan balances everyday comfort with a polished, high-end showing experience.',
+    hero_photos: [
+      'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1600&q=80'
+    ],
+    gallery_photos: [
+      'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1600&q=80',
+      'https://images.unsplash.com/photo-1600047509807-ba8f99d2cdde?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1600573472550-8090b5e0745e?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&w=1200&q=80'
+    ]
+  },
+  'demo-listing-maple': {
+    id: 'demo-listing-maple',
+    title: '156 Maple Grove Ln, Austin, TX',
+    address: '156 Maple Grove Ln, Austin, TX 78737',
+    price: 975000,
+    bedrooms: 5,
+    bathrooms: 4,
+    square_feet: 3310,
+    public_slug: 'demo-156-maple-grove-ln-austin',
+    share_url: 'https://homelistingai.com/l/demo-156-maple-grove-ln-austin',
+    description:
+      'Spacious family layout with a statement entry, covered patio, and polished finishes throughout. Built to support both quiet evenings and high-conversion open houses.',
+    hero_photos: [
+      'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1600&q=80'
+    ],
+    gallery_photos: [
+      'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1600&q=80',
+      'https://images.unsplash.com/photo-1600607687644-c7171b42498f?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1600047509358-9dc75507daeb?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1600210492486-724fe5c67fb3?auto=format&fit=crop&w=1200&q=80'
+    ]
+  }
+};
+
+const getDemoShareKitListing = (listingId) =>
+  DEMO_SHAREKIT_LISTINGS[String(listingId || '').trim()] || DEMO_SHAREKIT_LISTINGS['demo-listing-oak'];
+
+const getDemoLightCmaConfig = (listingId) => {
+  const listing = getDemoShareKitListing(listingId);
+  return {
+    pricing_notes: `Price near the suggested range if the upgraded kitchen and outdoor entertaining space are the lead story for ${listing.address}.`,
+    manual_comps: [
+      {
+        id: 'demo-anchor-comp',
+        address: listing.id === 'demo-listing-maple' ? '188 Ridgeview Ct' : '101 Market St',
+        price: listing.id === 'demo-listing-maple' ? 995000 : 875000,
+        beds: listing.id === 'demo-listing-maple' ? 5 : 4,
+        baths: listing.id === 'demo-listing-maple' ? 4 : 3,
+        sqft: listing.id === 'demo-listing-maple' ? 3380 : 2685,
+        status: 'sold',
+        note: 'Closest match on finish quality and backyard presentation.',
+        is_anchor: true
+      },
+      {
+        id: 'demo-support-comp',
+        address: listing.id === 'demo-listing-maple' ? '92 Orchard Loop' : '88 Cedar Ave',
+        price: listing.id === 'demo-listing-maple' ? 958000 : 839000,
+        beds: listing.id === 'demo-listing-maple' ? 5 : 4,
+        baths: listing.id === 'demo-listing-maple' ? 4 : 3,
+        sqft: listing.id === 'demo-listing-maple' ? 3240 : 2550,
+        status: 'pending',
+        note: 'Slightly older interior but strong demand in the same school zone.',
+        is_anchor: false
+      }
+    ]
+  };
+};
+
+const buildDemoMarketAnalysisBundle = ({ listingRow, manualComps = [] }) => {
+  const subjectSqft = normalizeComparableSqft(listingRow);
+  const subjectPrice = safeNumber(listingRow?.price);
+  const zipCode = extractZipFromAddress(listingRow?.address) || '78704';
+  const normalizedManualComps = (Array.isArray(manualComps) ? manualComps : [])
+    .map((row, index) => normalizeLightCmaManualComp(row, index))
+    .filter(Boolean)
+    .map((row) => {
+      const sqft = normalizeComparableSqft(row);
+      const price = safeNumber(row?.price);
+      return {
+        ...row,
+        bedrooms: row?.beds ?? row?.bedrooms ?? null,
+        bathrooms: row?.baths ?? row?.bathrooms ?? null,
+        square_feet: sqft,
+        price,
+        pricePerSqft: price > 0 && sqft > 0 ? price / sqft : 0,
+        daysOnMarket: 11,
+        sqftDelta: subjectSqft > 0 && sqft > 0 ? Math.abs(subjectSqft - sqft) : Number.MAX_SAFE_INTEGER,
+        is_anchor: row?.is_anchor === true || row?.isAnchor === true
+      };
+    });
+
+  const syntheticComps = [
+    {
+      id: `${listingRow.id}-auto-sold-1`,
+      address: listingRow.id === 'demo-listing-maple' ? '71 Oak Terrace, Austin, TX 78737' : '214 South Lamar Ave, Austin, TX 78704',
+      price: Math.round(subjectPrice * 0.98),
+      bedrooms: listingRow.bedrooms,
+      bathrooms: listingRow.bathrooms,
+      square_feet: Math.max(subjectSqft - 90, 0),
+      status: 'sold',
+      daysOnMarket: 9,
+      note: 'Recent sold comp with similar finish level.'
+    },
+    {
+      id: `${listingRow.id}-auto-sold-2`,
+      address: listingRow.id === 'demo-listing-maple' ? '12 Barton Creek View, Austin, TX 78737' : '55 Bluebonnet Trail, Austin, TX 78704',
+      price: Math.round(subjectPrice * 1.03),
+      bedrooms: listingRow.bedrooms,
+      bathrooms: listingRow.bathrooms,
+      square_feet: Math.max(subjectSqft + 120, 0),
+      status: 'sold',
+      daysOnMarket: 14,
+      note: 'Sold slightly above ask after strong open-house traffic.'
+    },
+    {
+      id: `${listingRow.id}-auto-active-1`,
+      address: listingRow.id === 'demo-listing-maple' ? '48 Ridge Canyon Dr, Austin, TX 78737' : '300 Kinney Rd, Austin, TX 78704',
+      price: Math.round(subjectPrice * 1.01),
+      bedrooms: listingRow.bedrooms,
+      bathrooms: listingRow.bathrooms,
+      square_feet: Math.max(subjectSqft + 40, 0),
+      status: 'active',
+      daysOnMarket: 22,
+      note: 'Active comp competing on outdoor space and kitchen finish.'
+    },
+    {
+      id: `${listingRow.id}-auto-pending-1`,
+      address: listingRow.id === 'demo-listing-maple' ? '19 Walnut Rise, Austin, TX 78737' : '142 Jessie St, Austin, TX 78704',
+      price: Math.round(subjectPrice * 0.99),
+      bedrooms: listingRow.bedrooms,
+      bathrooms: listingRow.bathrooms,
+      square_feet: Math.max(subjectSqft - 40, 0),
+      status: 'pending',
+      daysOnMarket: 16,
+      note: 'Pending comp with similar curb appeal and floor plan.'
+    }
+  ].map((row) => ({
+    ...row,
+    pricePerSqft: row.price > 0 && row.square_feet > 0 ? row.price / row.square_feet : 0,
+    sqftDelta: subjectSqft > 0 && row.square_feet > 0 ? Math.abs(subjectSqft - row.square_feet) : Number.MAX_SAFE_INTEGER
+  }));
+
+  const combinedComps = normalizedManualComps.concat(syntheticComps);
+  const soldComps = combinedComps.filter((row) => String(row.status || '').toLowerCase() === 'sold').slice(0, 5);
+  const activeComps = combinedComps.filter((row) => ['active', 'pending'].includes(String(row.status || '').toLowerCase())).slice(0, 5);
+  const anchorComp = normalizedManualComps.find((row) => row.is_anchor) || soldComps[0] || null;
+  const relevantRows = [listingRow, ...combinedComps];
+  const perSqftValues = relevantRows
+    .map((row) => {
+      const price = safeNumber(row?.price);
+      const sqft = normalizeComparableSqft(row);
+      return price > 0 && sqft > 0 ? price / sqft : 0;
+    })
+    .filter((value) => value > 0);
+  const domValues = activeComps.map((row) => safeNumber(row.daysOnMarket)).filter((value) => value > 0);
+  const estimateValues = soldComps
+    .concat(activeComps.slice(0, 2))
+    .map((row) => (row.pricePerSqft > 0 && subjectSqft > 0 ? row.pricePerSqft * subjectSqft : 0))
+    .filter((value) => value > 0);
+  const anchorEstimate = anchorComp && anchorComp.pricePerSqft > 0 && subjectSqft > 0
+    ? anchorComp.pricePerSqft * subjectSqft
+    : (anchorComp?.price || 0);
+  const lowEstimate = estimateValues.length ? Math.min(...estimateValues) : subjectPrice;
+  const highEstimate = estimateValues.length ? Math.max(...estimateValues) : subjectPrice;
+  const suggestedListPrice = anchorEstimate > 0
+    ? Math.round(((estimateValues.length ? median(estimateValues) : subjectPrice) * 0.55) + (anchorEstimate * 0.45))
+    : (estimateValues.length ? median(estimateValues) : subjectPrice);
+
+  return {
+    zipCode,
+    comps: combinedComps,
+    soldComps,
+    activeComps,
+    anchorComp,
+    marketSnapshot: {
+      avgPricePerSqft: perSqftValues.length
+        ? Number((perSqftValues.reduce((sum, value) => sum + value, 0) / perSqftValues.length).toFixed(2))
+        : 0,
+      medianDom: domValues.length ? Math.round(median(domValues)) : 0,
+      activeListings: activeComps.filter((row) => String(row.status || '').toLowerCase() === 'active').length,
+      listToCloseRatio: 66.7
+    },
+    compsCount: combinedComps.length,
+    publicData: {
+      population: 18450,
+      medianAge: 36.4,
+      ownerOccupiedRate: 58.2,
+      medianIncome: 128500,
+      medianHomeValue: Math.round(subjectPrice * 1.04)
+    },
+    estimatedRange: {
+      low: Math.round(lowEstimate),
+      high: Math.round(highEstimate),
+      suggested: Math.round(suggestedListPrice)
+    }
+  };
+};
+
+const buildDemoShareKitContext = async (listingId, sourceKey = 'sign') => {
+  const listing = getDemoShareKitListing(listingId);
+  const publicSlug = listing.public_slug;
+  const shareUrl = listing.share_url || buildListingShareUrl(publicSlug);
+  const trackedUrl = buildTrackedListingUrl({ publicSlug, sourceKey });
+  const chatUrl = `${shareUrl}${shareUrl.includes('?') ? '&' : '?'}action=chat`;
+  const contactUrl = `${shareUrl}${shareUrl.includes('?') ? '&' : '?'}action=contact`;
+  const qrAssets = await generateListingQrAssets(trackedUrl);
+  const photoUrls = getListingPhotoUrls({
+    hero_photos: listing.hero_photos,
+    gallery_photos: listing.gallery_photos,
+    photos: listing.photos
+  });
+  const photoDataUrls = await Promise.all(
+    (photoUrls.length ? photoUrls.slice(0, FLYER_MAX_PHOTOS) : [buildFlyerPlaceholderDataUrl()]).map((photoUrl, index) =>
+      fetchImageAsDataUrl(photoUrl, {
+        timeoutMs: FLYER_IMAGE_FETCH_TIMEOUT_MS,
+        fallbackDataUrl: buildFlyerPlaceholderDataUrl({
+          label: `Photo ${index + 1} unavailable`,
+          sublabel: 'Demo image could not be loaded'
+        })
+      })
+    )
+  );
+  while (photoDataUrls.length < FLYER_MAX_PHOTOS) {
+    photoDataUrls.push(
+      buildFlyerPlaceholderDataUrl({
+        label: `Photo ${photoDataUrls.length + 1} unavailable`,
+        sublabel: 'Demo asset placeholder'
+      })
+    );
+  }
+  const logoDataUrl = await readLocalAssetAsDataUrl(path.resolve(__dirname, '../public/newlogo.png'));
+  const headshotSourceUrl = toTrimmedOrNull(DEMO_SHAREKIT_AGENT_PROFILE.headshot || DEMO_SHAREKIT_AGENT_PROFILE.logo);
+  const agentHeadshotDataUrl = headshotSourceUrl
+    ? await fetchImageAsDataUrl(headshotSourceUrl, {
+      timeoutMs: FLYER_IMAGE_FETCH_TIMEOUT_MS,
+      fallbackDataUrl: null
+    })
+    : null;
+
+  return {
+    listing,
+    publicSlug,
+    shareUrl,
+    trackedUrl,
+    chatUrl,
+    contactUrl,
+    qrAssets,
+    photoDataUrls,
+    logoDataUrl,
+    aiCardProfile: DEMO_SHAREKIT_AGENT_PROFILE,
+    agentHeadshotDataUrl
+  };
+};
+
+const buildOpenHouseFlyerPdfBundle = async ({ listingRow, fallbackUserId = null }) => {
+  const listing = listingRow;
+  const publicSlug = listing.public_slug || await ensureUniquePublicSlug({
+    listingId: listing.id,
+    title: listing.title,
+    address: listing.address
+  });
+  const shareUrl = listing.share_url || buildListingShareUrl(publicSlug);
+  const trackedUrl = buildTrackedListingUrl({
+    publicSlug,
+    sourceKey: 'open_house'
+  });
+  const chatUrl = `${shareUrl}${shareUrl.includes('?') ? '&' : '?'}action=chat`;
+  const contactUrl = `${shareUrl}${shareUrl.includes('?') ? '&' : '?'}action=contact`;
+  const qrAssets = await generateListingQrAssets(trackedUrl);
+
+  const photoUrls = getListingPhotoUrls({
+    hero_photos: listing.hero_photos,
+    gallery_photos: listing.gallery_photos,
+    photos: listing.photos
+  });
+  const photoFallback = buildFlyerPlaceholderDataUrl();
+  const photoDataUrls = await Promise.all(
+    (photoUrls.length > 0 ? photoUrls.slice(0, FLYER_MAX_PHOTOS) : [photoFallback]).map((photoUrl, index) =>
+      fetchImageAsDataUrl(photoUrl, {
+        timeoutMs: FLYER_IMAGE_FETCH_TIMEOUT_MS,
+        fallbackDataUrl: buildFlyerPlaceholderDataUrl({
+          label: `Photo ${index + 1} unavailable`,
+          sublabel: 'The listing image could not be loaded'
+        })
+      })
+    )
+  );
+
+  while (photoDataUrls.length < FLYER_MAX_PHOTOS) {
+    photoDataUrls.push(
+      buildFlyerPlaceholderDataUrl({
+        label: `Photo ${photoDataUrls.length + 1} unavailable`,
+        sublabel: 'Add more listing photos for this space'
+      })
+    );
+  }
+
+  let aiCardUserId = toTrimmedOrNull(listing.user_id) || toTrimmedOrNull(fallbackUserId);
+  if (!aiCardUserId && listing.agent_id) {
+    const { data: agentOwnerRow } = await supabaseAdmin
+      .from('agents')
+      .select('user_id,auth_user_id')
+      .eq('id', listing.agent_id)
+      .maybeSingle();
+    aiCardUserId = toTrimmedOrNull(agentOwnerRow?.user_id || agentOwnerRow?.auth_user_id);
+  }
+
+  const aiCardProfile = (await fetchAiCardProfileForUser(aiCardUserId)) || DEFAULT_AI_CARD_PROFILE;
+  const logoDataUrl = await readLocalAssetAsDataUrl(path.resolve(__dirname, '../public/newlogo.png'));
+  const headshotSourceUrl = toTrimmedOrNull(aiCardProfile.headshot || aiCardProfile.logo);
+  const agentHeadshotDataUrl = headshotSourceUrl
+    ? await fetchImageAsDataUrl(headshotSourceUrl, {
+      timeoutMs: FLYER_IMAGE_FETCH_TIMEOUT_MS,
+      fallbackDataUrl: null
+    })
+    : null;
+
+  const html = buildOpenHouseFlyerHtml({
+    logoDataUrl,
+    address: toTrimmedOrNull(listing.address) || 'Listing address',
+    priceLabel: formatFlyerPrice(listing.price),
+    beds: formatFlyerMetric(listing.bedrooms),
+    baths: formatFlyerMetric(listing.bathrooms),
+    sqft: formatFlyerMetric(listing.square_feet),
+    description: extractListingDescription(listing.description),
+    photoDataUrls,
+    qrDataUrl: qrAssets.qr_code_url,
+    shareUrl,
+    trackedUrl,
+    chatUrl,
+    contactUrl,
+    agentName: toTrimmedOrNull(aiCardProfile.fullName) || 'HomeListingAI Agent',
+    agentTitle: toTrimmedOrNull(aiCardProfile.professionalTitle) || 'Listing Specialist',
+    agentCompany: toTrimmedOrNull(aiCardProfile.company) || 'HomeListingAI',
+    agentHeadshotDataUrl,
+    brandColor: toTrimmedOrNull(aiCardProfile.brandColor) || DEFAULT_AI_CARD_PROFILE.brandColor
+  });
+
+  let browser = null;
+  try {
+    browser = await launchPdfBrowser();
+    const page = await browser.newPage();
+    await page.setViewport({ width: 816, height: 1056, deviceScaleFactor: 2 });
+    await page.setContent(html, { waitUntil: 'load' });
+    await page.waitForFunction(
+      () => Array.from(document.images).every((img) => img.complete && img.naturalWidth > 0),
+      { timeout: 15000 }
+    );
+
+    const pdfBuffer = await page.pdf({
+      format: 'Letter',
+      printBackground: true,
+      preferCSSPageSize: true,
+      margin: {
+        top: '0in',
+        right: '0in',
+        bottom: '0in',
+        left: '0in'
+      }
+    });
+
+    return {
+      pdfBuffer,
+      downloadName: `${String(publicSlug || listing.id || 'listing').trim()}-open-house-flyer.pdf`
+    };
+  } finally {
+    if (browser) {
+      await browser.close().catch(() => undefined);
+    }
+  }
+};
+
+const buildOpenHouseFlyerHtml = ({
+  logoDataUrl,
+  address,
+  priceLabel,
+  beds,
+  baths,
+  sqft,
+  description,
+  photoDataUrls,
+  qrDataUrl,
+  shareUrl,
+  trackedUrl,
+  chatUrl,
+  contactUrl,
+  agentName,
+  agentTitle,
+  agentCompany,
+  agentHeadshotDataUrl,
+  brandColor
+}) => {
+  const safeBrandColor = String(brandColor || '#f97316').trim() || '#f97316';
+  const darkerBrandColor = darkenHexColor(safeBrandColor, 0.8);
+  const photos = Array.from({ length: FLYER_MAX_PHOTOS }, (_, index) => photoDataUrls[index] || buildFlyerPlaceholderDataUrl());
+  const agentInitials = String(agentName || 'AG')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() || '')
+    .join('') || 'AG';
+  const teaser = escapeHtml(description || 'Instant pricing insight, local trends, and showing options in one simple scan.');
+
+  return `
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      @page { size: Letter; margin: 0; }
+      html, body {
+        width: ${FLYER_PAGE_WIDTH_IN}in;
+        height: ${FLYER_PAGE_HEIGHT_IN}in;
+        margin: 0;
+        padding: 0;
+        background: #f4efe6;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+      * { box-sizing: border-box; }
+      .page {
+        width: ${FLYER_PAGE_WIDTH_IN}in;
+        height: ${FLYER_PAGE_HEIGHT_IN}in;
+        overflow: hidden;
+        background: #f4efe6;
+        padding: 0.24in;
+      }
+      .shell {
+        width: 100%;
+        height: 100%;
+        border-radius: 0.32in;
+        background: linear-gradient(180deg, #fbf7ef 0%, #f4ede2 100%);
+        border: 1px solid rgba(255,255,255,0.72);
+        box-shadow: 0 18px 60px rgba(15, 23, 42, 0.08);
+        padding: 0.26in 0.28in 0.24in;
+        display: flex;
+        flex-direction: column;
+        gap: 0.18in;
+      }
+      .header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 0.1in;
+      }
+      .brand img {
+        width: 0.28in;
+        height: 0.28in;
+        object-fit: contain;
+      }
+      .brand-name {
+        font-size: 0.22in;
+        font-weight: 800;
+        color: #0f172a;
+      }
+      .pill {
+        padding: 0.08in 0.14in;
+        border-radius: 999px;
+        background: ${safeBrandColor};
+        color: white;
+        font-size: 0.11in;
+        font-weight: 900;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+      .headline {
+        display: grid;
+        grid-template-columns: 0.92fr 1.08fr;
+        gap: 0.18in;
+        align-items: start;
+      }
+      .kicker {
+        font-size: 0.09in;
+        font-weight: 900;
+        letter-spacing: 0.24em;
+        text-transform: uppercase;
+        color: #64748b;
+      }
+      .headline h1 {
+        margin: 0.08in 0 0;
+        font-size: 0.54in;
+        line-height: 0.9;
+        font-weight: 900;
+        letter-spacing: -0.04em;
+        text-transform: uppercase;
+        color: #0f172a;
+      }
+      .headline h1 .accent { color: ${safeBrandColor}; }
+      .headline-copy {
+        margin-top: 0.12in;
+        font-size: 0.155in;
+        line-height: 1.35;
+        color: #475569;
+      }
+      .hero-summary {
+        justify-self: end;
+        width: 100%;
+        border-radius: 0.26in;
+        background: #ffffff;
+        border: 1px solid rgba(226, 232, 240, 0.9);
+        color: #0f172a;
+        padding: 0.18in 0.18in 0.16in;
+        box-shadow: 0 18px 36px rgba(11, 17, 33, 0.1);
+      }
+      .hero-summary .label {
+        font-size: 0.1in;
+        font-weight: 900;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: #64748b;
+      }
+      .hero-summary .address {
+        margin-top: 0.1in;
+        font-size: 0.26in;
+        line-height: 1.1;
+        font-weight: 800;
+      }
+      .hero-summary .price {
+        margin-top: 0.12in;
+        font-size: 0.34in;
+        line-height: 1;
+        font-weight: 900;
+        color: ${safeBrandColor};
+      }
+      .hero-summary .metrics {
+        margin-top: 0.14in;
+      }
+      .hero-summary-copy {
+        margin-top: 0.14in;
+        font-size: 0.145in;
+        line-height: 1.4;
+        color: #475569;
+      }
+      .content {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.18in;
+        flex: 1;
+        min-height: 0;
+      }
+      .left-column {
+        display: flex;
+        flex-direction: column;
+        gap: 0.1in;
+        min-height: 0;
+      }
+      .card {
+        border-radius: 0.24in;
+        border: 1px solid rgba(226, 232, 240, 0.9);
+        background: white;
+        box-shadow: 0 14px 32px rgba(15, 23, 42, 0.08);
+        overflow: hidden;
+      }
+      .photo-card {
+        padding: 0.12in;
+      }
+      .photo-grid {
+        display: grid;
+        grid-template-columns: 1.3fr 0.7fr;
+        grid-template-rows: 1fr 1fr 1fr;
+        gap: 0.08in;
+        height: 3.68in;
+      }
+      .photo-grid .hero {
+        grid-row: 1 / span 3;
+      }
+      .photo-grid .photo {
+        overflow: hidden;
+        border-radius: 0.18in;
+        background: #f1f5f9;
+      }
+      .photo-grid img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+      .snapshot {
+        padding: 0.16in;
+      }
+      .snapshot-top {
+        display: flex;
+        align-items: start;
+        justify-content: space-between;
+        gap: 0.12in;
+      }
+      .snapshot-kicker {
+        font-size: 0.09in;
+        font-weight: 900;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: #64748b;
+      }
+      .snapshot-address {
+        margin-top: 0.08in;
+        font-size: 0.26in;
+        line-height: 1.15;
+        font-weight: 900;
+        color: #0f172a;
+      }
+      .snapshot-price {
+        background: #fff2e8;
+        border-radius: 0.18in;
+        padding: 0.12in 0.14in;
+        min-width: 1.56in;
+        text-align: right;
+      }
+      .snapshot-price .small {
+        font-size: 0.09in;
+        font-weight: 900;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: #64748b;
+      }
+      .snapshot-price .value {
+        margin-top: 0.05in;
+        font-size: 0.28in;
+        font-weight: 900;
+        color: ${safeBrandColor};
+      }
+      .metrics {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.08in;
+        margin-top: 0.14in;
+      }
+      .metric {
+        border-radius: 0.18in;
+        border: 1px solid #e2e8f0;
+        background: #f8fafc;
+        padding: 0.11in;
+      }
+      .metric-label {
+        font-size: 0.09in;
+        font-weight: 900;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: #64748b;
+      }
+      .metric-value {
+        margin-top: 0.08in;
+        font-size: 0.18in;
+        font-weight: 900;
+        color: #0f172a;
+      }
+      .agent-card {
+        position: relative;
+        border-radius: 0.24in;
+        background: rgba(0,0,0,0.5);
+        border: 1px solid rgba(255,255,255,0.08);
+        color: white;
+        padding: 0.52in 0.14in 0.14in;
+        box-shadow: 0 18px 42px rgba(2, 6, 23, 0.22);
+        backdrop-filter: blur(20px);
+      }
+      .agent-row {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.08in;
+        text-align: center;
+      }
+      .agent-headshot {
+        position: absolute;
+        top: -0.34in;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 0.84in;
+        height: 0.84in;
+        border-radius: 0.22in;
+        overflow: hidden;
+        background: rgba(2,6,23,0.92);
+        border: 1px solid rgba(255,255,255,0.14);
+        flex-shrink: 0;
+        box-shadow: 0 18px 36px rgba(2, 6, 23, 0.34);
+      }
+      .agent-headshot img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+      .agent-headshot-fallback {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: ${safeBrandColor};
+        color: white;
+        font-size: 0.2in;
+        font-weight: 900;
+      }
+      .agent-kicker {
+        font-size: 0.08in;
+        font-weight: 900;
+        letter-spacing: 0.26em;
+        text-transform: uppercase;
+        color: rgba(255,255,255,0.6);
+      }
+      .agent-name {
+        margin-top: 0.02in;
+        font-size: 0.23in;
+        font-weight: 900;
+        line-height: 1.05;
+      }
+      .agent-meta {
+        margin-top: 0.03in;
+        font-size: 0.115in;
+        color: rgba(255,255,255,0.82);
+      }
+      .agent-actions {
+        margin-top: 0.14in;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.1in;
+      }
+      .agent-action {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 999px;
+        min-height: 0.42in;
+        font-size: 0.13in;
+        font-weight: 900;
+        color: white;
+        text-decoration: none;
+      }
+      .agent-action.chat {
+        background: ${safeBrandColor};
+      }
+      .agent-action.contact {
+        background: ${darkerBrandColor};
+      }
+      .qr-card {
+        height: 100%;
+        border-radius: 0.28in;
+        background: white;
+        border: 1px solid rgba(226,232,240,0.9);
+        box-shadow: 0 18px 38px rgba(15, 23, 42, 0.08);
+        padding: 0.18in;
+        display: flex;
+        flex-direction: column;
+      }
+      .qr-head {
+        display: flex;
+        align-items: start;
+        justify-content: space-between;
+        gap: 0.12in;
+      }
+      .qr-kicker {
+        font-size: 0.09in;
+        font-weight: 900;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        color: #64748b;
+      }
+      .qr-title {
+        margin-top: 0.08in;
+        font-size: 0.34in;
+        line-height: 0.95;
+        font-weight: 900;
+        color: #0f172a;
+      }
+      .qr-badge {
+        border-radius: 999px;
+        background: ${safeBrandColor};
+        color: white;
+        padding: 0.08in 0.1in;
+        font-size: 0.1in;
+        font-weight: 900;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+      .qr-image-wrap {
+        margin-top: 0.18in;
+        flex: 1;
+        border-radius: 0.22in;
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0.18in;
+      }
+      .qr-image-wrap img {
+        width: 100%;
+        max-width: 3.05in;
+        object-fit: contain;
+        display: block;
+      }
+      .qr-caption {
+        margin-top: 0.12in;
+        font-size: 0.14in;
+        line-height: 1.35;
+        color: #334155;
+      }
+      .footer-link {
+        margin-top: 0.1in;
+        display: inline-block;
+        font-size: 0.12in;
+        font-weight: 700;
+        color: ${darkerBrandColor};
+        word-break: break-all;
+        text-decoration: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="shell">
+        <div class="header">
+          <div class="brand">
+            <img src="${logoDataUrl}" alt="HomeListingAI" />
+            <div class="brand-name">HomeListingAI</div>
+          </div>
+          <div class="pill">Open House</div>
+        </div>
+
+        <div class="headline">
+          <div>
+            <div class="kicker">HomeListingAI Report</div>
+            <h1>
+              Scan for<br />the<br /><span class="accent">Property</span><br /><span class="accent">Report</span>
+            </h1>
+          </div>
+
+          <div class="hero-summary">
+            <div class="label">Property Snapshot</div>
+            <div class="address">${escapeHtml(address)}</div>
+            <div class="price">${escapeHtml(priceLabel)}</div>
+            <div class="metrics">
+              <div class="metric"><div class="metric-label">Beds</div><div class="metric-value">${escapeHtml(beds)}</div></div>
+              <div class="metric"><div class="metric-label">Baths</div><div class="metric-value">${escapeHtml(baths)}</div></div>
+              <div class="metric"><div class="metric-label">Sq Ft</div><div class="metric-value">${escapeHtml(sqft)}</div></div>
+            </div>
+            <div class="hero-summary-copy">${teaser}</div>
+          </div>
+        </div>
+
+        <div class="content">
+          <div class="left-column">
+            <div class="card photo-card">
+              <div class="photo-grid">
+                <div class="photo hero"><img src="${photos[0]}" alt="Property photo 1" /></div>
+                <div class="photo"><img src="${photos[1]}" alt="Property photo 2" /></div>
+                <div class="photo"><img src="${photos[2]}" alt="Property photo 3" /></div>
+                <div class="photo"><img src="${photos[3]}" alt="Property photo 4" /></div>
+              </div>
+            </div>
+
+            <div class="agent-card">
+              <div class="agent-row">
+                <div class="agent-headshot">
+                  ${
+                    agentHeadshotDataUrl
+                      ? `<img src="${agentHeadshotDataUrl}" alt="${escapeHtml(agentName)}" />`
+                      : `<div class="agent-headshot-fallback">${escapeHtml(agentInitials)}</div>`
+                  }
+                </div>
+                <div>
+                  <div class="agent-kicker">HomeListingAI</div>
+                  <div class="agent-name">${escapeHtml(agentName)}</div>
+                  <div class="agent-meta">${escapeHtml(agentTitle)}<br />${escapeHtml(agentCompany)}</div>
+                </div>
+              </div>
+              <div class="agent-actions">
+                <a class="agent-action chat" href="${escapeHtml(chatUrl)}">Chat With Me</a>
+                <a class="agent-action contact" href="${escapeHtml(contactUrl)}">Contact</a>
+              </div>
+            </div>
+          </div>
+
+          <div class="qr-card">
+            <div class="qr-head">
+              <div>
+                <div class="qr-kicker">Scan Destination</div>
+                <div class="qr-title">Property details +<br />showing request</div>
+              </div>
+              <div class="qr-badge">Scan now</div>
+            </div>
+            <div class="qr-image-wrap">
+              <img src="${qrDataUrl}" alt="Listing QR code" />
+            </div>
+            <div class="qr-caption">Scan to open the live listing with price, photos, home highlights, agent chat, and a showing request for this home.</div>
+            <a class="footer-link" href="${escapeHtml(trackedUrl)}">${escapeHtml(shareUrl)}</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
+  `.trim();
+};
+
+const buildSignRiderHtml = ({
+  logoDataUrl,
+  address,
+  priceLabel,
+  qrDataUrl,
+  trackedUrl,
+  chatUrl,
+  contactUrl,
+  agentName,
+  agentTitle,
+  agentCompany,
+  agentHeadshotDataUrl,
+  brandColor
+}) => {
+  const safeBrandColor = String(brandColor || '#f97316').trim() || '#f97316';
+  const darkerBrandColor = darkenHexColor(safeBrandColor, 0.78);
+  const agentInitials = String(agentName || 'AG')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() || '')
+    .join('') || 'AG';
+
+  return `
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      @page { size: Letter landscape; margin: 0; }
+      html, body {
+        width: 11in;
+        height: 8.5in;
+        margin: 0;
+        padding: 0;
+        background: #f4efe6;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+      * { box-sizing: border-box; }
+      .page {
+        width: 11in;
+        height: 8.5in;
+        overflow: hidden;
+        background: #f4efe6;
+        padding: 0.28in;
+      }
+      .shell {
+        width: 100%;
+        height: 100%;
+        border-radius: 0.32in;
+        background: linear-gradient(180deg, #fbf7ef 0%, #f4ede2 100%);
+        border: 1px solid rgba(255,255,255,0.75);
+        box-shadow: 0 18px 54px rgba(15, 23, 42, 0.08);
+        padding: 0.26in;
+        display: grid;
+        grid-template-columns: 1.35fr 0.9fr;
+        gap: 0.22in;
+      }
+      .left {
+        border-radius: 0.28in;
+        background: #ffffff;
+        border: 1px solid rgba(226, 232, 240, 0.92);
+        box-shadow: 0 16px 36px rgba(15, 23, 42, 0.08);
+        padding: 0.28in;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+      }
+      .header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.18in;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 0.1in;
+      }
+      .brand img {
+        width: 0.28in;
+        height: 0.28in;
+        object-fit: contain;
+      }
+      .brand-name {
+        font-size: 0.22in;
+        font-weight: 900;
+        color: #0f172a;
+      }
+      .pill {
+        padding: 0.08in 0.14in;
+        border-radius: 999px;
+        background: ${safeBrandColor};
+        color: white;
+        font-size: 0.11in;
+        font-weight: 900;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+      .headline {
+        margin-top: 0.12in;
+      }
+      .kicker {
+        font-size: 0.09in;
+        font-weight: 900;
+        letter-spacing: 0.24em;
+        text-transform: uppercase;
+        color: #64748b;
+      }
+      .headline h1 {
+        margin: 0.08in 0 0;
+        font-size: 0.82in;
+        line-height: 0.86;
+        font-weight: 900;
+        letter-spacing: -0.05em;
+        text-transform: uppercase;
+        color: #0f172a;
+      }
+      .headline .accent {
+        color: ${safeBrandColor};
+      }
+      .subcopy {
+        margin-top: 0.16in;
+        font-size: 0.22in;
+        line-height: 1.25;
+        color: #475569;
+        max-width: 5.8in;
+      }
+      .property-bar {
+        margin-top: 0.2in;
+        display: flex;
+        align-items: stretch;
+        justify-content: space-between;
+        gap: 0.14in;
+      }
+      .address-block {
+        flex: 1;
+        border-radius: 0.24in;
+        background: #0f172a;
+        color: white;
+        padding: 0.18in 0.2in;
+        box-shadow: 0 16px 28px rgba(2, 6, 23, 0.18);
+      }
+      .address-block .small {
+        font-size: 0.09in;
+        font-weight: 900;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: rgba(255,255,255,0.62);
+      }
+      .address-block .address {
+        margin-top: 0.08in;
+        font-size: 0.34in;
+        line-height: 1.05;
+        font-weight: 900;
+      }
+      .price-block {
+        min-width: 2.2in;
+        border-radius: 0.24in;
+        background: #fff2e8;
+        border: 1px solid rgba(251, 146, 60, 0.18);
+        padding: 0.18in 0.18in;
+        text-align: right;
+      }
+      .price-block .small {
+        font-size: 0.09in;
+        font-weight: 900;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: #64748b;
+      }
+      .price-block .value {
+        margin-top: 0.08in;
+        font-size: 0.4in;
+        line-height: 1;
+        font-weight: 900;
+        color: ${safeBrandColor};
+      }
+      .agent-card {
+        border-radius: 0.26in;
+        background: rgba(0,0,0,0.5);
+        border: 1px solid rgba(255,255,255,0.08);
+        color: white;
+        padding: 0.18in;
+        box-shadow: 0 18px 42px rgba(2, 6, 23, 0.2);
+        backdrop-filter: blur(20px);
+      }
+      .agent-row {
+        display: flex;
+        align-items: center;
+        gap: 0.16in;
+      }
+      .agent-headshot {
+        width: 0.9in;
+        height: 0.9in;
+        border-radius: 999px;
+        overflow: hidden;
+        border: 1px solid rgba(255,255,255,0.14);
+        flex-shrink: 0;
+        background: rgba(2, 6, 23, 0.92);
+      }
+      .agent-headshot img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+      .agent-headshot-fallback {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: ${safeBrandColor};
+        color: white;
+        font-size: 0.22in;
+        font-weight: 900;
+      }
+      .agent-kicker {
+        font-size: 0.08in;
+        font-weight: 900;
+        letter-spacing: 0.24em;
+        text-transform: uppercase;
+        color: rgba(255,255,255,0.6);
+      }
+      .agent-name {
+        margin-top: 0.02in;
+        font-size: 0.26in;
+        font-weight: 900;
+        line-height: 1.05;
+      }
+      .agent-meta {
+        margin-top: 0.04in;
+        font-size: 0.14in;
+        color: rgba(255,255,255,0.82);
+      }
+      .agent-actions {
+        margin-top: 0.16in;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.12in;
+      }
+      .agent-action {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 0.48in;
+        border-radius: 999px;
+        font-size: 0.14in;
+        font-weight: 900;
+        color: white;
+        text-decoration: none;
+      }
+      .agent-action.chat {
+        background: ${safeBrandColor};
+      }
+      .agent-action.contact {
+        background: ${darkerBrandColor};
+      }
+      .right {
+        border-radius: 0.28in;
+        background: white;
+        border: 1px solid rgba(226,232,240,0.92);
+        box-shadow: 0 18px 38px rgba(15, 23, 42, 0.08);
+        padding: 0.22in;
+        display: flex;
+        flex-direction: column;
+      }
+      .qr-head {
+        display: flex;
+        align-items: start;
+        justify-content: space-between;
+        gap: 0.14in;
+      }
+      .qr-kicker {
+        font-size: 0.1in;
+        font-weight: 900;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        color: #64748b;
+      }
+      .qr-title {
+        margin-top: 0.08in;
+        font-size: 0.48in;
+        line-height: 0.9;
+        font-weight: 900;
+        color: #0f172a;
+      }
+      .qr-badge {
+        border-radius: 999px;
+        background: ${safeBrandColor};
+        color: white;
+        padding: 0.08in 0.12in;
+        font-size: 0.11in;
+        font-weight: 900;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+      .qr-image-wrap {
+        margin-top: 0.18in;
+        flex: 1;
+        border-radius: 0.22in;
+        background: white;
+        border: 1px solid #e2e8f0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0.18in;
+      }
+      .qr-image-wrap img {
+        width: 100%;
+        max-width: 3.6in;
+        object-fit: contain;
+        display: block;
+      }
+      .qr-caption {
+        margin-top: 0.12in;
+        font-size: 0.16in;
+        line-height: 1.35;
+        color: #334155;
+      }
+      .footer-link {
+        margin-top: 0.12in;
+        display: inline-block;
+        font-size: 0.14in;
+        font-weight: 700;
+        color: ${darkerBrandColor};
+        word-break: break-all;
+        text-decoration: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="shell">
+        <div class="left">
+          <div>
+            <div class="header">
+              <div class="brand">
+                <img src="${logoDataUrl}" alt="HomeListingAI" />
+                <div class="brand-name">HomeListingAI</div>
+              </div>
+              <div class="pill">Sign Rider</div>
+            </div>
+            <div class="headline">
+              <div class="kicker">Listing Conversion Software</div>
+              <h1><span class="accent">Scan</span> for<br />price +<br />showing</h1>
+              <div class="subcopy">Instant answers, property details, and a showing request for this listing in one scan.</div>
+            </div>
+            <div class="property-bar">
+              <div class="address-block">
+                <div class="small">Listing address</div>
+                <div class="address">${escapeHtml(address)}</div>
+              </div>
+              <div class="price-block">
+                <div class="small">Live price</div>
+                <div class="value">${escapeHtml(priceLabel)}</div>
+              </div>
+            </div>
+          </div>
+          <div class="agent-card">
+            <div class="agent-row">
+              <div class="agent-headshot">
+                ${
+                  agentHeadshotDataUrl
+                    ? `<img src="${agentHeadshotDataUrl}" alt="${escapeHtml(agentName)}" />`
+                    : `<div class="agent-headshot-fallback">${escapeHtml(agentInitials)}</div>`
+                }
+              </div>
+              <div>
+                <div class="agent-kicker">HomeListingAI</div>
+                <div class="agent-name">${escapeHtml(agentName)}</div>
+                <div class="agent-meta">${escapeHtml(agentTitle)}<br />${escapeHtml(agentCompany)}</div>
+              </div>
+            </div>
+            <div class="agent-actions">
+              <a class="agent-action chat" href="${escapeHtml(chatUrl)}">Chat With Me</a>
+              <a class="agent-action contact" href="${escapeHtml(contactUrl)}">Contact</a>
+            </div>
+          </div>
+        </div>
+        <div class="right">
+          <div class="qr-head">
+            <div>
+              <div class="qr-kicker">Scan destination</div>
+              <div class="qr-title">Property details +<br />showing request</div>
+            </div>
+            <div class="qr-badge">Scan now</div>
+          </div>
+          <div class="qr-image-wrap">
+            <img src="${qrDataUrl}" alt="Listing QR code" />
+          </div>
+          <div class="qr-caption">Scan to open the live listing with price, photos, the agent card, and the showing request flow.</div>
+          <a class="footer-link" href="${escapeHtml(trackedUrl)}">${escapeHtml(trackedUrl)}</a>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
+  `.trim();
+};
+
+const buildSocialAssetHtml = ({
+  format,
+  logoDataUrl,
+  propertyImageDataUrl,
+  address,
+  priceLabel,
+  beds,
+  baths,
+  sqft,
+  qrDataUrl,
+  shareUrl,
+  agentName,
+  agentTitle,
+  agentCompany,
+  agentHeadshotDataUrl,
+  brandColor
+}) => {
+  const safeBrandColor = String(brandColor || '#f97316').trim() || '#f97316';
+  const width = format === 'ig_post' ? 1080 : 1080;
+  const height = format === 'ig_post' ? 1350 : 1920;
+  const qrSize = format === 'ig_post' ? 220 : 280;
+  const isStory = format === 'ig_story';
+  const agentInitials = String(agentName || 'AG')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() || '')
+    .join('') || 'AG';
+
+  return `
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      html, body {
+        width: ${width}px;
+        height: ${height}px;
+        margin: 0;
+        padding: 0;
+        background: #020617;
+        overflow: hidden;
+        -webkit-font-smoothing: antialiased;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+      * { box-sizing: border-box; }
+      .page {
+        position: relative;
+        width: ${width}px;
+        height: ${height}px;
+        overflow: hidden;
+        color: white;
+        background: #020617;
+      }
+      .bg {
+        position: absolute;
+        inset: 0;
+        background-image: url('${propertyImageDataUrl}');
+        background-size: cover;
+        background-position: center;
+        transform: scale(1.02);
+      }
+      .bg::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background:
+          linear-gradient(180deg, rgba(2,6,23,0.25) 0%, rgba(2,6,23,0.55) 44%, rgba(2,6,23,0.92) 100%);
+      }
+      .content {
+        position: relative;
+        z-index: 1;
+        width: 100%;
+        height: 100%;
+        padding: ${isStory ? '64px 58px 72px' : '54px 54px 60px'};
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+      }
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+      }
+      .brand img {
+        width: 44px;
+        height: 44px;
+        object-fit: contain;
+      }
+      .brand-name {
+        font-size: 28px;
+        font-weight: 900;
+        letter-spacing: -0.03em;
+      }
+      .price-pill {
+        padding: 12px 18px;
+        border-radius: 999px;
+        border: 1px solid rgba(255,255,255,0.18);
+        background: rgba(255,255,255,0.1);
+        backdrop-filter: blur(20px);
+        font-size: 26px;
+        font-weight: 900;
+      }
+      .headline {
+        max-width: ${isStory ? '860px' : '760px'};
+      }
+      .headline .kicker {
+        display: inline-flex;
+        padding: 8px 16px;
+        border-radius: 999px;
+        background: ${safeBrandColor};
+        font-size: 16px;
+        font-weight: 900;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+      }
+      .headline h1 {
+        margin: 22px 0 0;
+        font-size: ${isStory ? '110px' : '92px'};
+        line-height: 0.93;
+        letter-spacing: -0.055em;
+        text-transform: uppercase;
+        font-weight: 900;
+      }
+      .headline p {
+        margin: 22px 0 0;
+        font-size: ${isStory ? '34px' : '30px'};
+        line-height: 1.18;
+        color: rgba(255,255,255,0.9);
+      }
+      .metrics {
+        margin-top: 24px;
+        display: flex;
+        gap: 14px;
+        flex-wrap: wrap;
+      }
+      .metric {
+        padding: 12px 16px;
+        border-radius: 18px;
+        background: rgba(15,23,42,0.55);
+        border: 1px solid rgba(255,255,255,0.12);
+        backdrop-filter: blur(20px);
+        font-size: 20px;
+        font-weight: 800;
+      }
+      .lower {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 28px;
+      }
+      .lower-left {
+        flex: 1;
+      }
+      .cta-card {
+        padding: 20px 24px;
+        border-radius: 28px;
+        background: rgba(0,0,0,0.5);
+        border: 1px solid rgba(255,255,255,0.12);
+        backdrop-filter: blur(24px);
+      }
+      .cta-label {
+        font-size: 16px;
+        font-weight: 900;
+        letter-spacing: 0.24em;
+        text-transform: uppercase;
+        color: rgba(255,255,255,0.68);
+      }
+      .cta-title {
+        margin-top: 10px;
+        font-size: ${isStory ? '58px' : '46px'};
+        line-height: 0.96;
+        font-weight: 900;
+      }
+      .cta-url {
+        margin-top: 16px;
+        font-size: 20px;
+        font-weight: 700;
+        color: rgba(255,255,255,0.72);
+      }
+      .agent-card {
+        margin-top: 18px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 18px 20px;
+        border-radius: 28px;
+        background: rgba(0,0,0,0.42);
+        border: 1px solid rgba(255,255,255,0.12);
+        backdrop-filter: blur(22px);
+      }
+      .agent-headshot {
+        width: 76px;
+        height: 76px;
+        border-radius: 999px;
+        overflow: hidden;
+        border: 2px solid rgba(255,255,255,0.16);
+        background: rgba(2,6,23,0.92);
+        flex-shrink: 0;
+      }
+      .agent-headshot img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+      .agent-headshot-fallback {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: ${safeBrandColor};
+        font-size: 28px;
+        font-weight: 900;
+      }
+      .agent-name {
+        font-size: 28px;
+        font-weight: 900;
+      }
+      .agent-meta {
+        margin-top: 4px;
+        font-size: 18px;
+        color: rgba(255,255,255,0.8);
+      }
+      .qr-wrap {
+        width: ${qrSize + 54}px;
+        padding: 20px;
+        border-radius: 34px;
+        background: rgba(255,255,255,0.96);
+        box-shadow: 0 20px 50px rgba(2, 6, 23, 0.3);
+        flex-shrink: 0;
+      }
+      .qr-wrap img {
+        width: ${qrSize}px;
+        height: ${qrSize}px;
+        object-fit: contain;
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="bg"></div>
+      <div class="content">
+        <div>
+          <div class="topbar">
+            <div class="brand">
+              <img src="${logoDataUrl}" alt="HomeListingAI" />
+              <div class="brand-name">HomeListingAI</div>
+            </div>
+            <div class="price-pill">${escapeHtml(priceLabel)}</div>
+          </div>
+          <div class="headline">
+            <div class="kicker">${isStory ? 'Story Ready' : 'Just Listed'}</div>
+            <h1>${isStory ? 'Scan for the<br />Property Report' : 'Get the Property<br />Report'}</h1>
+            <p>${escapeHtml(address)}</p>
+            <div class="metrics">
+              <div class="metric">${escapeHtml(beds)} Beds</div>
+              <div class="metric">${escapeHtml(baths)} Baths</div>
+              <div class="metric">${escapeHtml(sqft)} Sq Ft</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="lower">
+          <div class="lower-left">
+            <div class="cta-card">
+              <div class="cta-label">Scan destination</div>
+              <div class="cta-title">Property details + showing request</div>
+              <div class="cta-url">${escapeHtml(shareUrl)}</div>
+            </div>
+            <div class="agent-card">
+              <div class="agent-headshot">
+                ${
+                  agentHeadshotDataUrl
+                    ? `<img src="${agentHeadshotDataUrl}" alt="${escapeHtml(agentName)}" />`
+                    : `<div class="agent-headshot-fallback">${escapeHtml(agentInitials)}</div>`
+                }
+              </div>
+              <div>
+                <div class="agent-name">${escapeHtml(agentName)}</div>
+                <div class="agent-meta">${escapeHtml(agentTitle)} · ${escapeHtml(agentCompany)}</div>
+              </div>
+            </div>
+          </div>
+          <div class="qr-wrap">
+            <img src="${qrDataUrl}" alt="Listing QR code" />
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
+  `.trim();
+};
+
+const buildPropertyReportHtml = ({
+  logoDataUrl,
+  address,
+  priceLabel,
+  beds,
+  baths,
+  sqft,
+  description,
+  photoDataUrls,
+  qrDataUrl,
+  shareUrl,
+  trackedUrl,
+  chatUrl,
+  contactUrl,
+  agentName,
+  agentTitle,
+  agentCompany,
+  agentPhone,
+  agentEmail,
+  agentHeadshotDataUrl,
+  brandColor
+}) => {
+  const safeBrandColor = String(brandColor || '#f97316').trim() || '#f97316';
+  const darkerBrandColor = darkenHexColor(safeBrandColor, 0.8);
+  const photos = Array.from({ length: FLYER_MAX_PHOTOS }, (_, index) => photoDataUrls[index] || buildFlyerPlaceholderDataUrl());
+  const agentInitials = String(agentName || 'AG')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() || '')
+    .join('') || 'AG';
+  const teaser = escapeHtml(description || 'Property highlights, pricing snapshot, and direct showing options.');
+
+  return `
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      @page { size: Letter; margin: 0; }
+      html, body {
+        width: ${FLYER_PAGE_WIDTH_IN}in;
+        margin: 0;
+        padding: 0;
+        background: #eef2f7;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+      * { box-sizing: border-box; }
+      .page {
+        width: ${FLYER_PAGE_WIDTH_IN}in;
+        height: ${FLYER_PAGE_HEIGHT_IN}in;
+        overflow: hidden;
+        background: #eef2f7;
+        padding: 0.24in;
+        page-break-after: always;
+      }
+      .shell {
+        width: 100%;
+        height: 100%;
+        border-radius: 0.3in;
+        background: linear-gradient(180deg, #ffffff 0%, #f7f8fb 100%);
+        border: 1px solid rgba(226,232,240,0.9);
+        box-shadow: 0 18px 48px rgba(15,23,42,0.08);
+        padding: 0.26in;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .brand-left {
+        display: flex;
+        align-items: center;
+        gap: 0.1in;
+      }
+      .brand-left img {
+        width: 0.28in;
+        height: 0.28in;
+        object-fit: contain;
+      }
+      .brand-name {
+        font-size: 0.22in;
+        font-weight: 900;
+        color: #0f172a;
+      }
+      .pill {
+        padding: 0.08in 0.14in;
+        border-radius: 999px;
+        background: ${safeBrandColor};
+        color: white;
+        font-size: 0.11in;
+        font-weight: 900;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+      .hero {
+        margin-top: 0.16in;
+        display: grid;
+        grid-template-columns: 1.1fr 0.9fr;
+        gap: 0.16in;
+        align-items: stretch;
+      }
+      .hero-copy {
+        display: flex;
+        flex-direction: column;
+        gap: 0.12in;
+      }
+      .kicker {
+        font-size: 0.09in;
+        font-weight: 900;
+        letter-spacing: 0.24em;
+        text-transform: uppercase;
+        color: #64748b;
+      }
+      .hero-copy h1 {
+        margin: 0;
+        font-size: 0.56in;
+        line-height: 0.92;
+        letter-spacing: -0.05em;
+        font-weight: 900;
+        color: #0f172a;
+        text-transform: uppercase;
+      }
+      .hero-copy h1 .accent { color: ${safeBrandColor}; }
+      .hero-copy p {
+        margin: 0;
+        font-size: 0.16in;
+        line-height: 1.42;
+        color: #475569;
+      }
+      .snapshot {
+        border-radius: 0.24in;
+        background: #0f172a;
+        color: white;
+        padding: 0.18in;
+        box-shadow: 0 18px 36px rgba(2, 6, 23, 0.18);
+      }
+      .snapshot .small {
+        font-size: 0.09in;
+        font-weight: 900;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: rgba(255,255,255,0.62);
+      }
+      .snapshot .address {
+        margin-top: 0.08in;
+        font-size: 0.28in;
+        line-height: 1.08;
+        font-weight: 900;
+      }
+      .snapshot .price {
+        margin-top: 0.12in;
+        font-size: 0.34in;
+        font-weight: 900;
+        color: #fff2e8;
+      }
+      .metrics {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.08in;
+        margin-top: 0.14in;
+      }
+      .metric {
+        border-radius: 0.18in;
+        background: rgba(255,255,255,0.08);
+        padding: 0.11in;
+      }
+      .metric-label {
+        font-size: 0.09in;
+        font-weight: 900;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: rgba(255,255,255,0.56);
+      }
+      .metric-value {
+        margin-top: 0.08in;
+        font-size: 0.18in;
+        font-weight: 900;
+      }
+      .hero-photo {
+        margin-top: 0.16in;
+        height: 3.4in;
+        border-radius: 0.26in;
+        overflow: hidden;
+        box-shadow: 0 16px 40px rgba(15,23,42,0.12);
+      }
+      .hero-photo img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+      .footer-grid {
+        margin-top: 0.16in;
+        display: grid;
+        grid-template-columns: 1.05fr 0.95fr;
+        gap: 0.16in;
+      }
+      .agent-card {
+        border-radius: 0.26in;
+        background: rgba(0,0,0,0.5);
+        border: 1px solid rgba(255,255,255,0.08);
+        color: white;
+        padding: 0.18in;
+        box-shadow: 0 18px 42px rgba(2,6,23,0.2);
+        backdrop-filter: blur(20px);
+      }
+      .agent-row {
+        display: flex;
+        align-items: center;
+        gap: 0.16in;
+      }
+      .agent-headshot {
+        width: 0.86in;
+        height: 0.86in;
+        border-radius: 999px;
+        overflow: hidden;
+        background: rgba(2,6,23,0.92);
+        border: 1px solid rgba(255,255,255,0.16);
+        flex-shrink: 0;
+      }
+      .agent-headshot img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+      .agent-headshot-fallback {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: ${safeBrandColor};
+        font-size: 0.2in;
+        font-weight: 900;
+      }
+      .agent-name {
+        font-size: 0.24in;
+        font-weight: 900;
+      }
+      .agent-meta {
+        margin-top: 0.04in;
+        font-size: 0.12in;
+        color: rgba(255,255,255,0.82);
+      }
+      .agent-contact {
+        margin-top: 0.12in;
+        font-size: 0.12in;
+        color: rgba(255,255,255,0.72);
+        line-height: 1.45;
+      }
+      .agent-actions {
+        margin-top: 0.16in;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.1in;
+      }
+      .agent-action {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 0.46in;
+        border-radius: 999px;
+        font-size: 0.13in;
+        font-weight: 900;
+        color: white;
+        text-decoration: none;
+      }
+      .agent-action.chat {
+        background: ${safeBrandColor};
+      }
+      .agent-action.contact {
+        background: ${darkerBrandColor};
+      }
+      .qr-card {
+        border-radius: 0.26in;
+        background: white;
+        border: 1px solid rgba(226,232,240,0.9);
+        box-shadow: 0 16px 38px rgba(15,23,42,0.08);
+        padding: 0.18in;
+        display: flex;
+        flex-direction: column;
+      }
+      .qr-kicker {
+        font-size: 0.09in;
+        font-weight: 900;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        color: #64748b;
+      }
+      .qr-title {
+        margin-top: 0.08in;
+        font-size: 0.28in;
+        line-height: 1;
+        font-weight: 900;
+        color: #0f172a;
+      }
+      .qr-wrap {
+        margin-top: 0.14in;
+        border-radius: 0.22in;
+        border: 1px solid #e2e8f0;
+        padding: 0.16in;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+      .qr-wrap img {
+        width: 2.5in;
+        height: 2.5in;
+        object-fit: contain;
+      }
+      .qr-copy {
+        margin-top: 0.12in;
+        font-size: 0.14in;
+        line-height: 1.35;
+        color: #334155;
+      }
+      .footer-link {
+        margin-top: 0.1in;
+        display: inline-block;
+        font-size: 0.12in;
+        font-weight: 700;
+        color: ${darkerBrandColor};
+        word-break: break-all;
+        text-decoration: none;
+      }
+      .gallery-page {
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+        gap: 0.16in;
+      }
+      .gallery-title {
+        font-size: 0.14in;
+        font-weight: 900;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        color: #64748b;
+      }
+      .gallery-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: 1fr 1fr;
+        gap: 0.12in;
+      }
+      .gallery-grid .photo {
+        border-radius: 0.22in;
+        overflow: hidden;
+        box-shadow: 0 14px 32px rgba(15,23,42,0.1);
+      }
+      .gallery-grid img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+      .summary-strip {
+        display: grid;
+        grid-template-columns: 1.1fr 0.9fr;
+        gap: 0.16in;
+      }
+      .summary-card, .cta-card {
+        border-radius: 0.24in;
+        background: white;
+        border: 1px solid rgba(226,232,240,0.9);
+        box-shadow: 0 14px 32px rgba(15,23,42,0.08);
+        padding: 0.18in;
+      }
+      .summary-card p, .cta-card p {
+        margin: 0.08in 0 0;
+        font-size: 0.15in;
+        line-height: 1.45;
+        color: #475569;
+      }
+      .cta-card {
+        background: linear-gradient(180deg, #0f172a 0%, #111827 100%);
+        color: white;
+      }
+      .cta-card p {
+        color: rgba(255,255,255,0.82);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="shell">
+        <div class="brand">
+          <div class="brand-left">
+            <img src="${logoDataUrl}" alt="HomeListingAI" />
+            <div class="brand-name">HomeListingAI</div>
+          </div>
+          <div class="pill">Property Report</div>
+        </div>
+
+        <div class="hero">
+          <div class="hero-copy">
+            <div class="kicker">HomeListingAI Report</div>
+            <h1>Property <span class="accent">details</span><br />that convert</h1>
+            <p>${teaser}</p>
+          </div>
+          <div class="snapshot">
+            <div class="small">Listing snapshot</div>
+            <div class="address">${escapeHtml(address)}</div>
+            <div class="price">${escapeHtml(priceLabel)}</div>
+            <div class="metrics">
+              <div class="metric"><div class="metric-label">Beds</div><div class="metric-value">${escapeHtml(beds)}</div></div>
+              <div class="metric"><div class="metric-label">Baths</div><div class="metric-value">${escapeHtml(baths)}</div></div>
+              <div class="metric"><div class="metric-label">Sq Ft</div><div class="metric-value">${escapeHtml(sqft)}</div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="hero-photo"><img src="${photos[0]}" alt="Property photo 1" /></div>
+
+        <div class="footer-grid">
+          <div class="agent-card">
+            <div class="agent-row">
+              <div class="agent-headshot">
+                ${
+                  agentHeadshotDataUrl
+                    ? `<img src="${agentHeadshotDataUrl}" alt="${escapeHtml(agentName)}" />`
+                    : `<div class="agent-headshot-fallback">${escapeHtml(agentInitials)}</div>`
+                }
+              </div>
+              <div>
+                <div class="agent-name">${escapeHtml(agentName)}</div>
+                <div class="agent-meta">${escapeHtml(agentTitle)}<br />${escapeHtml(agentCompany)}</div>
+              </div>
+            </div>
+            <div class="agent-contact">${escapeHtml(agentPhone || 'Phone available on listing page')}<br />${escapeHtml(agentEmail || 'Email available on listing page')}</div>
+            <div class="agent-actions">
+              <a class="agent-action chat" href="${escapeHtml(chatUrl)}">Chat With Me</a>
+              <a class="agent-action contact" href="${escapeHtml(contactUrl)}">Contact</a>
+            </div>
+          </div>
+          <div class="qr-card">
+            <div class="qr-kicker">Scan destination</div>
+            <div class="qr-title">Live listing + showing request</div>
+            <div class="qr-wrap"><img src="${qrDataUrl}" alt="Listing QR code" /></div>
+            <div class="qr-copy">Scan to open the live listing with photos, property details, chat, and a showing request.</div>
+            <a class="footer-link" href="${escapeHtml(trackedUrl)}">${escapeHtml(shareUrl)}</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="page">
+      <div class="shell gallery-page">
+        <div>
+          <div class="brand">
+            <div class="brand-left">
+              <img src="${logoDataUrl}" alt="HomeListingAI" />
+              <div class="brand-name">HomeListingAI</div>
+            </div>
+            <div class="pill">Gallery</div>
+          </div>
+          <div class="gallery-title" style="margin-top:0.16in;">See the home</div>
+        </div>
+        <div class="gallery-grid">
+          <div class="photo"><img src="${photos[0]}" alt="Property photo 1" /></div>
+          <div class="photo"><img src="${photos[1]}" alt="Property photo 2" /></div>
+          <div class="photo"><img src="${photos[2]}" alt="Property photo 3" /></div>
+          <div class="photo"><img src="${photos[3]}" alt="Property photo 4" /></div>
+        </div>
+        <div class="summary-strip">
+          <div class="summary-card">
+            <div class="gallery-title">What makes this home special</div>
+            <p>${teaser}</p>
+          </div>
+          <div class="cta-card">
+            <div class="gallery-title" style="color:rgba(255,255,255,0.62);">Next step</div>
+            <p>Open the listing, chat with the home, or request a showing right away from the live property page.</p>
+            <p style="margin-top:0.14in;"><a href="${escapeHtml(trackedUrl)}" style="color:white; text-decoration:none; font-weight:800;">${escapeHtml(shareUrl)}</a></p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
+  `.trim();
+};
+
+const buildFairHousingReportHtml = ({
+  logoDataUrl,
+  address,
+  scan,
+  brandColor
+}) => {
+  const safeBrandColor = String(brandColor || '#f97316').trim() || '#f97316';
+  const darkerBrandColor = darkenHexColor(safeBrandColor, 0.8);
+  const riskTone =
+    scan.risk === 'High'
+      ? { bg: '#fee2e2', fg: '#b91c1c' }
+      : scan.risk === 'Moderate'
+        ? { bg: '#fef3c7', fg: '#b45309' }
+        : { bg: '#dcfce7', fg: '#15803d' };
+  const flaggedMarkup = scan.flagged.length
+    ? scan.flagged
+      .map(
+        (item) => `
+          <div class="flag">
+            <div class="flag-phrase">${escapeHtml(item.phrase)}</div>
+            <div class="flag-reason">${escapeHtml(item.reason)}</div>
+            <div class="flag-safe">Use instead: ${escapeHtml(item.safer)}</div>
+          </div>
+        `
+      )
+      .join('')
+    : `<div class="flag clean">No common risky phrases were detected in this draft.</div>`;
+
+  return `
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      @page { size: Letter; margin: 0; }
+      html, body {
+        width: ${FLYER_PAGE_WIDTH_IN}in;
+        margin: 0;
+        padding: 0;
+        background: #edf2f7;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+      * { box-sizing: border-box; }
+      .page {
+        width: ${FLYER_PAGE_WIDTH_IN}in;
+        height: ${FLYER_PAGE_HEIGHT_IN}in;
+        overflow: hidden;
+        background: #edf2f7;
+        padding: 0.24in;
+      }
+      .shell {
+        width: 100%;
+        height: 100%;
+        border-radius: 0.28in;
+        background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+        border: 1px solid rgba(226,232,240,0.92);
+        box-shadow: 0 18px 48px rgba(15,23,42,0.08);
+        padding: 0.26in;
+        display: flex;
+        flex-direction: column;
+        gap: 0.18in;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .brand-left { display: flex; align-items: center; gap: 0.1in; }
+      .brand-left img { width: 0.28in; height: 0.28in; object-fit: contain; }
+      .brand-name { font-size: 0.22in; font-weight: 900; color: #0f172a; }
+      .pill {
+        padding: 0.08in 0.14in;
+        border-radius: 999px;
+        background: ${safeBrandColor};
+        color: white;
+        font-size: 0.11in;
+        font-weight: 900;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+      .hero {
+        display: grid;
+        grid-template-columns: 1.1fr 0.9fr;
+        gap: 0.16in;
+      }
+      .kicker {
+        font-size: 0.09in;
+        font-weight: 900;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        color: #64748b;
+      }
+      h1 {
+        margin: 0.08in 0 0;
+        font-size: 0.52in;
+        line-height: 0.92;
+        font-weight: 900;
+        letter-spacing: -0.05em;
+        text-transform: uppercase;
+        color: #0f172a;
+      }
+      h1 .accent { color: ${safeBrandColor}; }
+      .copy {
+        margin-top: 0.12in;
+        font-size: 0.16in;
+        line-height: 1.45;
+        color: #475569;
+      }
+      .status-card {
+        border-radius: 0.24in;
+        background: #0f172a;
+        color: white;
+        padding: 0.18in;
+        box-shadow: 0 18px 36px rgba(2, 6, 23, 0.18);
+      }
+      .status-card .small {
+        font-size: 0.09in;
+        font-weight: 900;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: rgba(255,255,255,0.62);
+      }
+      .status-card .address {
+        margin-top: 0.08in;
+        font-size: 0.24in;
+        line-height: 1.15;
+        font-weight: 900;
+      }
+      .risk-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-top: 0.14in;
+        border-radius: 999px;
+        padding: 0.1in 0.14in;
+        background: ${riskTone.bg};
+        color: ${riskTone.fg};
+        font-size: 0.15in;
+        font-weight: 900;
+      }
+      .summary {
+        margin-top: 0.14in;
+        font-size: 0.14in;
+        line-height: 1.4;
+        color: rgba(255,255,255,0.8);
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.16in;
+        flex: 1;
+        min-height: 0;
+      }
+      .card {
+        border-radius: 0.24in;
+        background: white;
+        border: 1px solid rgba(226,232,240,0.9);
+        box-shadow: 0 14px 32px rgba(15,23,42,0.08);
+        padding: 0.18in;
+      }
+      .card-title {
+        font-size: 0.11in;
+        font-weight: 900;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: #64748b;
+      }
+      .flag-list {
+        margin-top: 0.12in;
+        display: flex;
+        flex-direction: column;
+        gap: 0.1in;
+      }
+      .flag {
+        border-radius: 0.18in;
+        border: 1px solid #e2e8f0;
+        background: #f8fafc;
+        padding: 0.14in;
+      }
+      .flag.clean {
+        color: #15803d;
+        font-weight: 700;
+      }
+      .flag-phrase {
+        font-size: 0.14in;
+        font-weight: 900;
+        color: #0f172a;
+      }
+      .flag-reason, .flag-safe {
+        margin-top: 0.05in;
+        font-size: 0.12in;
+        line-height: 1.4;
+        color: #475569;
+      }
+      .text-block {
+        margin-top: 0.12in;
+        border-radius: 0.18in;
+        border: 1px solid #e2e8f0;
+        background: #f8fafc;
+        padding: 0.14in;
+        font-size: 0.12in;
+        line-height: 1.55;
+        color: #334155;
+        white-space: pre-wrap;
+      }
+      .checklist {
+        margin-top: 0.12in;
+        display: grid;
+        gap: 0.1in;
+      }
+      .check {
+        border-radius: 0.18in;
+        background: #0f172a;
+        color: white;
+        padding: 0.14in;
+      }
+      .check .label {
+        font-size: 0.1in;
+        font-weight: 900;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: rgba(255,255,255,0.62);
+      }
+      .check p {
+        margin: 0.06in 0 0;
+        font-size: 0.13in;
+        line-height: 1.45;
+      }
+      .footer {
+        display: flex;
+        justify-content: space-between;
+        gap: 0.12in;
+      }
+      .footer-note {
+        flex: 1;
+        border-radius: 0.18in;
+        background: #fff7ed;
+        border: 1px solid rgba(251,146,60,0.18);
+        padding: 0.14in;
+        font-size: 0.12in;
+        line-height: 1.45;
+        color: #9a3412;
+      }
+      .footer-link {
+        color: ${darkerBrandColor};
+        font-weight: 800;
+        text-decoration: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="shell">
+        <div class="brand">
+          <div class="brand-left">
+            <img src="${logoDataUrl}" alt="HomeListingAI" />
+            <div class="brand-name">HomeListingAI</div>
+          </div>
+          <div class="pill">Fair Housing Review</div>
+        </div>
+        <div class="hero">
+          <div>
+            <div class="kicker">Compliance report</div>
+            <h1>Review this <span class="accent">listing copy</span><br />before it goes live</h1>
+            <div class="copy">This report checks the listing description for a small set of common Fair Housing risk phrases, then gives you safer rewrite guidance. It is a compliance helper, not legal advice.</div>
+          </div>
+          <div class="status-card">
+            <div class="small">Listing</div>
+            <div class="address">${escapeHtml(address)}</div>
+            <div class="risk-badge">${escapeHtml(scan.risk)} risk</div>
+            <div class="summary">${escapeHtml(scan.summary)}</div>
+          </div>
+        </div>
+        <div class="grid">
+          <div class="card">
+            <div class="card-title">Flagged language</div>
+            <div class="flag-list">${flaggedMarkup}</div>
+          </div>
+          <div class="card">
+            <div class="card-title">Recommended rewrite</div>
+            <div class="text-block">${escapeHtml(scan.rewrite)}</div>
+            <div class="card-title" style="margin-top:0.16in;">Safer copy checklist</div>
+            <div class="checklist">
+              <div class="check">
+                <div class="label">Lead with</div>
+                <p>Layout, finishes, storage, natural light, location convenience, and property features.</p>
+              </div>
+              <div class="check">
+                <div class="label">Avoid</div>
+                <p>Describing who should live there, neighborhood demographics, safety claims, or religion/age/family preference language.</p>
+              </div>
+              <div class="check">
+                <div class="label">Use next</div>
+                <p>Run this review any time you change listing remarks, ad copy, captions, or open house follow-up text.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="footer">
+          <div class="footer-note">HomeListingAI provides compliance support. Agents and brokers remain responsible for final Fair Housing compliance review before publication.</div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
+  `.trim();
+};
+
+const buildLightCmaHtml = ({
+  logoDataUrl,
+  address,
+  priceLabel,
+  beds,
+  baths,
+  sqft,
+  estimatedRange,
+  marketSnapshot,
+  soldComps,
+  activeComps,
+  anchorComp = null,
+  census,
+  brandColor,
+  pricingNotes = '',
+  manualCompCount = 0,
+  chatUrl = '#',
+  contactUrl = '#',
+  agentName = 'HomeListingAI Agent',
+  agentTitle = 'Listing Specialist',
+  agentCompany = 'HomeListingAI',
+  agentPhone = '',
+  agentEmail = '',
+  agentHeadshotDataUrl = null
+}) => {
+  const safeBrandColor = String(brandColor || '#f97316').trim() || '#f97316';
+  const darkerBrandColor = darkenHexColor(safeBrandColor, 0.8);
+  const formatCurrency = (value) =>
+    Number.isFinite(Number(value)) && Number(value) > 0
+      ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(Number(value))
+      : '—';
+  const formatPpsf = (value) =>
+    Number.isFinite(Number(value)) && Number(value) > 0 ? `$${Number(value).toFixed(0)}/sf` : '—';
+  const agentInitials = String(agentName || 'AG')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() || '')
+    .join('') || 'AG';
+  const renderCompRows = (rows) =>
+    rows.length
+      ? rows.map((row) => `
+          <tr>
+            <td>
+              <div style="font-weight:700;">${escapeHtml(row.address || 'Comparable')}</div>
+              ${row.is_anchor ? `<div style="margin-top:0.04in;font-size:0.1in;color:#0f172a;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;">Anchor comp</div>` : ''}
+              ${row.manual ? `<div style="margin-top:0.04in;font-size:0.1in;color:${safeBrandColor};font-weight:800;letter-spacing:0.08em;text-transform:uppercase;">Manual override</div>` : ''}
+              ${row.note ? `<div style="margin-top:0.04in;font-size:0.105in;color:#64748b;line-height:1.4;">${escapeHtml(row.note)}</div>` : ''}
+            </td>
+            <td>${formatCurrency(row.price)}</td>
+            <td>${escapeHtml(formatFlyerMetric(row.bedrooms, '—'))}</td>
+            <td>${escapeHtml(formatFlyerMetric(row.bathrooms, '—'))}</td>
+            <td>${escapeHtml(formatFlyerMetric(row.square_feet, '—'))}</td>
+            <td>${formatPpsf(row.pricePerSqft)}</td>
+            <td>${escapeHtml(String(row.status || 'unknown'))}</td>
+          </tr>
+        `).join('')
+      : `<tr><td colspan="7">No comparable homes were found inside this account scope yet.</td></tr>`;
+
+  return `
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      @page { size: Letter; margin: 0; }
+      html, body {
+        width: ${FLYER_PAGE_WIDTH_IN}in;
+        margin: 0;
+        padding: 0;
+        background: #eff3f8;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+      * { box-sizing: border-box; }
+      .page {
+        width: ${FLYER_PAGE_WIDTH_IN}in;
+        height: ${FLYER_PAGE_HEIGHT_IN}in;
+        overflow: hidden;
+        background: #eff3f8;
+        padding: 0.24in;
+        page-break-after: always;
+      }
+      .shell {
+        width: 100%;
+        height: 100%;
+        border-radius: 0.28in;
+        background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+        border: 1px solid rgba(226,232,240,0.92);
+        box-shadow: 0 18px 48px rgba(15,23,42,0.08);
+        padding: 0.26in;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .brand-left { display: flex; align-items: center; gap: 0.1in; }
+      .brand-left img { width: 0.28in; height: 0.28in; object-fit: contain; }
+      .brand-name { font-size: 0.22in; font-weight: 900; color: #0f172a; }
+      .pill {
+        padding: 0.08in 0.14in;
+        border-radius: 999px;
+        background: ${safeBrandColor};
+        color: white;
+        font-size: 0.11in;
+        font-weight: 900;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+      .hero {
+        margin-top: 0.16in;
+        display: grid;
+        grid-template-columns: 1.05fr 0.95fr;
+        gap: 0.16in;
+      }
+      .kicker {
+        font-size: 0.09in;
+        font-weight: 900;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        color: #64748b;
+      }
+      h1 {
+        margin: 0.08in 0 0;
+        font-size: 0.54in;
+        line-height: 0.92;
+        font-weight: 900;
+        letter-spacing: -0.05em;
+        text-transform: uppercase;
+        color: #0f172a;
+      }
+      h1 .accent { color: ${safeBrandColor}; }
+      .copy {
+        margin-top: 0.12in;
+        font-size: 0.16in;
+        line-height: 1.45;
+        color: #475569;
+      }
+      .snapshot {
+        border-radius: 0.24in;
+        background: #0f172a;
+        color: white;
+        padding: 0.18in;
+        box-shadow: 0 18px 36px rgba(2, 6, 23, 0.18);
+      }
+      .snapshot .small {
+        font-size: 0.09in;
+        font-weight: 900;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: rgba(255,255,255,0.62);
+      }
+      .snapshot .address {
+        margin-top: 0.08in;
+        font-size: 0.24in;
+        line-height: 1.12;
+        font-weight: 900;
+      }
+      .snapshot .price {
+        margin-top: 0.1in;
+        font-size: 0.3in;
+        font-weight: 900;
+        color: #fff2e8;
+      }
+      .range-grid {
+        margin-top: 0.16in;
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.08in;
+      }
+      .range-card {
+        border-radius: 0.18in;
+        background: rgba(255,255,255,0.08);
+        padding: 0.11in;
+      }
+      .range-card .label {
+        font-size: 0.085in;
+        font-weight: 900;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: rgba(255,255,255,0.62);
+      }
+      .range-card .value {
+        margin-top: 0.08in;
+        font-size: 0.16in;
+        font-weight: 900;
+      }
+      .stats {
+        margin-top: 0.18in;
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 0.1in;
+      }
+      .stat {
+        border-radius: 0.22in;
+        background: white;
+        border: 1px solid rgba(226,232,240,0.9);
+        box-shadow: 0 14px 32px rgba(15,23,42,0.08);
+        padding: 0.14in;
+      }
+      .stat .label {
+        font-size: 0.085in;
+        font-weight: 900;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: #64748b;
+      }
+      .stat .value {
+        margin-top: 0.08in;
+        font-size: 0.18in;
+        font-weight: 900;
+        color: #0f172a;
+      }
+      .table-card {
+        margin-top: 0.16in;
+        border-radius: 0.24in;
+        background: white;
+        border: 1px solid rgba(226,232,240,0.9);
+        box-shadow: 0 14px 32px rgba(15,23,42,0.08);
+        padding: 0.18in;
+      }
+      .table-card h2 {
+        margin: 0;
+        font-size: 0.2in;
+        font-weight: 900;
+        color: #0f172a;
+      }
+      .table-card p {
+        margin: 0.06in 0 0;
+        font-size: 0.13in;
+        color: #64748b;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 0.12in;
+        font-size: 0.12in;
+      }
+      th, td {
+        padding: 0.08in;
+        border-bottom: 1px solid #e2e8f0;
+        text-align: left;
+        vertical-align: top;
+      }
+      th {
+        font-size: 0.085in;
+        font-weight: 900;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: #64748b;
+      }
+      td { color: #334155; }
+      .summary-strip {
+        margin-top: 0.16in;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.12in;
+      }
+      .summary-card {
+        border-radius: 0.22in;
+        background: #0f172a;
+        color: white;
+        padding: 0.16in;
+      }
+      .summary-card p {
+        margin: 0.06in 0 0;
+        font-size: 0.13in;
+        line-height: 1.45;
+        color: rgba(255,255,255,0.82);
+      }
+      .notes-card {
+        margin-top: 0.16in;
+        border-radius: 0.22in;
+        background: white;
+        border: 1px solid rgba(226,232,240,0.9);
+        box-shadow: 0 14px 32px rgba(15,23,42,0.08);
+        padding: 0.16in;
+      }
+      .notes-card p {
+        margin: 0.08in 0 0;
+        font-size: 0.13in;
+        line-height: 1.55;
+        color: #475569;
+        white-space: pre-wrap;
+      }
+      .agent-card {
+        margin-top: 0.16in;
+        border-radius: 0.26in;
+        background: rgba(0,0,0,0.5);
+        border: 1px solid rgba(255,255,255,0.08);
+        color: white;
+        padding: 0.18in;
+        box-shadow: 0 18px 42px rgba(2,6,23,0.2);
+        backdrop-filter: blur(20px);
+      }
+      .agent-row {
+        display: flex;
+        align-items: center;
+        gap: 0.16in;
+      }
+      .agent-headshot {
+        width: 0.86in;
+        height: 0.86in;
+        border-radius: 999px;
+        overflow: hidden;
+        background: rgba(2,6,23,0.92);
+        border: 1px solid rgba(255,255,255,0.16);
+        flex-shrink: 0;
+      }
+      .agent-headshot img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+      .agent-headshot-fallback {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: ${safeBrandColor};
+        font-size: 0.2in;
+        font-weight: 900;
+      }
+      .agent-name {
+        font-size: 0.24in;
+        font-weight: 900;
+      }
+      .agent-meta {
+        margin-top: 0.04in;
+        font-size: 0.12in;
+        color: rgba(255,255,255,0.82);
+      }
+      .agent-contact {
+        margin-top: 0.12in;
+        font-size: 0.12in;
+        color: rgba(255,255,255,0.72);
+        line-height: 1.45;
+      }
+      .agent-actions {
+        margin-top: 0.16in;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.1in;
+      }
+      .agent-action {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 0.46in;
+        border-radius: 999px;
+        font-size: 0.13in;
+        font-weight: 900;
+        color: white;
+        text-decoration: none;
+      }
+      .agent-action.chat {
+        background: ${safeBrandColor};
+      }
+      .agent-action.contact {
+        background: ${darkerBrandColor};
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="shell">
+        <div class="brand">
+          <div class="brand-left">
+            <img src="${logoDataUrl}" alt="HomeListingAI" />
+            <div class="brand-name">HomeListingAI</div>
+          </div>
+          <div class="pill">Light CMA</div>
+        </div>
+        <div class="hero">
+          <div>
+            <div class="kicker">Pricing report</div>
+            <h1>Set the <span class="accent">pricing range</span><br />for this listing</h1>
+            <div class="copy">This light CMA uses internal comparable listings in the same ZIP and account scope. It is built to give the agent a fast pricing conversation starter, not a full appraisal.</div>
+          </div>
+          <div class="snapshot">
+            <div class="small">Subject property</div>
+            <div class="address">${escapeHtml(address)}</div>
+            <div class="price">${escapeHtml(priceLabel)}</div>
+            <div class="range-grid">
+              <div class="range-card"><div class="label">Low</div><div class="value">${formatCurrency(estimatedRange.low)}</div></div>
+              <div class="range-card"><div class="label">Suggested</div><div class="value">${formatCurrency(estimatedRange.suggested)}</div></div>
+              <div class="range-card"><div class="label">High</div><div class="value">${formatCurrency(estimatedRange.high)}</div></div>
+            </div>
+          </div>
+        </div>
+        <div class="stats">
+          <div class="stat"><div class="label">Beds / Baths</div><div class="value">${escapeHtml(beds)} / ${escapeHtml(baths)}</div></div>
+          <div class="stat"><div class="label">Sq Ft</div><div class="value">${escapeHtml(sqft)}</div></div>
+          <div class="stat"><div class="label">Avg $ / Sq Ft</div><div class="value">${formatPpsf(marketSnapshot.avgPricePerSqft)}</div></div>
+          <div class="stat"><div class="label">Median DOM</div><div class="value">${escapeHtml(String(marketSnapshot.medianDom || 0))}</div></div>
+        </div>
+        <div class="notes-card">
+          <div class="kicker">Pricing notes</div>
+          <p>${escapeHtml(pricingNotes || 'No custom pricing notes saved yet. Add seller-facing pricing guidance from Share Kit to make this CMA more persuasive.')}</p>
+        </div>
+        ${anchorComp ? `
+        <div class="notes-card">
+          <div class="kicker">Anchor comp</div>
+          <p>${escapeHtml(anchorComp.address || 'Manual anchor comp')} is weighted into the suggested range to keep your pricing story tied to the strongest comparable you selected.</p>
+        </div>
+        ` : ''}
+        <div class="table-card">
+          <h2>Sold comparables</h2>
+          <p>Best recent sales to anchor the pricing floor and expected value.${manualCompCount > 0 ? ` Includes ${manualCompCount} manual override${manualCompCount === 1 ? '' : 's'}.` : ''}</p>
+          <table>
+            <thead>
+              <tr>
+                <th>Address</th>
+                <th>Price</th>
+                <th>Beds</th>
+                <th>Baths</th>
+                <th>Sq Ft</th>
+                <th>$/sf</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>${renderCompRows(soldComps)}</tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="page">
+      <div class="shell">
+        <div class="brand">
+          <div class="brand-left">
+            <img src="${logoDataUrl}" alt="HomeListingAI" />
+            <div class="brand-name">HomeListingAI</div>
+          </div>
+          <div class="pill">Market support</div>
+        </div>
+        <div class="table-card" style="margin-top:0;">
+          <h2>Active + pending comparables</h2>
+          <p>Current competition shaping buyer expectations and price pressure.</p>
+          <table>
+            <thead>
+              <tr>
+                <th>Address</th>
+                <th>Price</th>
+                <th>Beds</th>
+                <th>Baths</th>
+                <th>Sq Ft</th>
+                <th>$/sf</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>${renderCompRows(activeComps)}</tbody>
+          </table>
+        </div>
+        <div class="summary-strip">
+          <div class="summary-card">
+            <div class="kicker" style="color:rgba(255,255,255,0.62);">Market snapshot</div>
+            <p>Active listings in scope: ${escapeHtml(String(marketSnapshot.activeListings || 0))}</p>
+            <p>List-to-close ratio: ${escapeHtml(String(marketSnapshot.listToCloseRatio || 0))}%</p>
+            <p>Comparable homes found: ${escapeHtml(String((soldComps.length || 0) + (activeComps.length || 0)))}</p>
+          </div>
+          <div class="summary-card" style="background:white; color:#0f172a; border:1px solid rgba(226,232,240,0.9);">
+            <div class="kicker">Public market data</div>
+            <p style="color:#475569;">ZIP median home value: ${formatCurrency(census?.medianHomeValue || 0)}</p>
+            <p style="color:#475569;">Median household income: ${formatCurrency(census?.medianHouseholdIncome || 0)}</p>
+            <p style="color:#475569;">Population: ${Number(census?.population || 0).toLocaleString('en-US')}</p>
+          </div>
+        </div>
+        <div class="agent-card">
+          <div class="agent-row">
+            <div class="agent-headshot">
+              ${
+                agentHeadshotDataUrl
+                  ? `<img src="${agentHeadshotDataUrl}" alt="${escapeHtml(agentName)}" />`
+                  : `<div class="agent-headshot-fallback">${escapeHtml(agentInitials)}</div>`
+              }
+            </div>
+            <div>
+              <div class="agent-name">${escapeHtml(agentName)}</div>
+              <div class="agent-meta">${escapeHtml(agentTitle)}<br />${escapeHtml(agentCompany)}</div>
+            </div>
+          </div>
+          <div class="agent-contact">${escapeHtml(agentPhone || 'Phone available on listing page')}<br />${escapeHtml(agentEmail || 'Email available on listing page')}</div>
+          <div class="agent-actions">
+            <a class="agent-action chat" href="${escapeHtml(chatUrl)}">Chat With Me</a>
+            <a class="agent-action contact" href="${escapeHtml(contactUrl)}">Contact</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
+  `.trim();
+};
+
+const launchPdfBrowser = async () =>
+  puppeteer.launch({
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox']
+  });
 
 const inferSourceTypeFromKey = (sourceKey) => {
   const key = toSourceKey(sourceKey);
@@ -3352,6 +6944,260 @@ const loadListingByIdForAgent = async ({ listingId, agentId }) => {
   return data[0];
 };
 
+const loadAgentIdentityById = async (agentId) => {
+  const scopedAgentId = toTrimmedOrNull(agentId);
+  if (!scopedAgentId) return null;
+
+  const primary = await supabaseAdmin
+    .from('agents')
+    .select('id, user_id, auth_user_id')
+    .eq('id', scopedAgentId)
+    .limit(1)
+    .maybeSingle();
+
+  if (!primary.error) return primary.data || null;
+
+  if (/user_id/i.test(primary.error.message || '')) {
+    const fallback = await supabaseAdmin
+      .from('agents')
+      .select('id, auth_user_id')
+      .eq('id', scopedAgentId)
+      .limit(1)
+      .maybeSingle();
+    if (!fallback.error) return fallback.data || null;
+    throw fallback.error;
+  }
+
+  throw primary.error;
+};
+
+const resolveRequesterAdminAccess = async (requesterUserId) => {
+  const scopedRequesterId = toTrimmedOrNull(requesterUserId);
+  if (!scopedRequesterId) return false;
+
+  let agentRow = null;
+  const primary = await supabaseAdmin
+    .from('agents')
+    .select('id, auth_user_id, is_admin, metadata')
+    .or(`id.eq.${scopedRequesterId},auth_user_id.eq.${scopedRequesterId}`)
+    .limit(1)
+    .maybeSingle();
+
+  if (!primary.error) {
+    agentRow = primary.data || null;
+  } else if (/is_admin/i.test(primary.error.message || '')) {
+    const fallback = await supabaseAdmin
+      .from('agents')
+      .select('id, auth_user_id, metadata')
+      .or(`id.eq.${scopedRequesterId},auth_user_id.eq.${scopedRequesterId}`)
+      .limit(1)
+      .maybeSingle();
+    if (fallback.error) throw fallback.error;
+    agentRow = fallback.data || null;
+  } else {
+    throw primary.error;
+  }
+
+  if (!agentRow) return false;
+  const metadata = agentRow.metadata && typeof agentRow.metadata === 'object' ? agentRow.metadata : {};
+  const isMetadataAdmin =
+    metadata.is_admin === true ||
+    metadata.admin === true ||
+    ['admin', 'super-admin', 'super_admin'].includes(String(metadata.role || '').toLowerCase());
+
+  return Boolean(agentRow.is_admin) || isMetadataAdmin;
+};
+
+const resolveAgentIdForRequesterUser = async (requesterUserId, options = {}) => {
+  const scopedRequesterId = toTrimmedOrNull(requesterUserId);
+  if (!scopedRequesterId) return null;
+  const autoCreate = options?.autoCreate === true;
+
+  const findByColumn = async (columnName) => {
+    const { data, error } = await supabaseAdmin
+      .from('agents')
+      .select('id')
+      .eq(columnName, scopedRequesterId)
+      .limit(1)
+      .maybeSingle();
+    if (!error) return { id: toTrimmedOrNull(data?.id), missingColumn: false };
+    if (new RegExp(`\\b${columnName}\\b`, 'i').test(error.message || '') && /does not exist|Could not find/i.test(error.message || '')) {
+      return { id: null, missingColumn: true };
+    }
+    throw error;
+  };
+
+  const byUser = await findByColumn('user_id');
+  if (byUser.id) return byUser.id;
+
+  const byAuthUser = await findByColumn('auth_user_id');
+  if (byAuthUser.id) return byAuthUser.id;
+
+  const byId = await findByColumn('id');
+  if (byId.id) return byId.id;
+
+  if (!autoCreate) return null;
+
+  const insertedAt = nowIso();
+  const insertVariants = [
+    {
+      user_id: scopedRequesterId,
+      email: `${scopedRequesterId}@placeholder.local`,
+      first_name: 'Agent',
+      last_name: 'Demo',
+      headshot_url: null,
+      created_at: insertedAt,
+      updated_at: insertedAt
+    },
+    {
+      auth_user_id: scopedRequesterId,
+      email: `${scopedRequesterId}@placeholder.local`,
+      first_name: 'Agent',
+      last_name: 'Demo',
+      headshot_url: null,
+      created_at: insertedAt,
+      updated_at: insertedAt,
+      status: 'active',
+      role: 'agent',
+      slug: `agent-${scopedRequesterId.slice(0, 8)}`
+    },
+    {
+      id: scopedRequesterId,
+      email: `${scopedRequesterId}@placeholder.local`,
+      first_name: 'Agent',
+      last_name: 'Demo',
+      headshot_url: null,
+      created_at: insertedAt,
+      updated_at: insertedAt,
+      status: 'active',
+      role: 'agent',
+      slug: `agent-${scopedRequesterId.slice(0, 8)}`
+    }
+  ];
+
+  let lastInsertError = null;
+  for (const payload of insertVariants) {
+    const { data, error } = await supabaseAdmin
+      .from('agents')
+      .insert(payload)
+      .select('id')
+      .maybeSingle();
+
+    if (!error) return toTrimmedOrNull(data?.id);
+
+    const message = String(error.message || '');
+    const missingColumn = /column .* does not exist|Could not find/i.test(message);
+    if (missingColumn) {
+      lastInsertError = error;
+      continue;
+    }
+
+    const duplicate = /duplicate key value|already exists|violates unique constraint/i.test(message);
+    if (duplicate) {
+      const existingAgentId = await resolveAgentIdForRequesterUser(scopedRequesterId);
+      if (existingAgentId) return existingAgentId;
+    }
+
+    lastInsertError = error;
+  }
+
+  if (lastInsertError) {
+    console.warn('[video.generate] Failed to auto-create agent profile:', {
+      requester_user_id: scopedRequesterId,
+      error: lastInsertError.message || lastInsertError
+    });
+  }
+
+  return null;
+};
+
+const loadListingForVideoAccess = async ({ listingId, requesterUserId, accessTag = 'video' }) => {
+  const scopedListingId = toTrimmedOrNull(listingId);
+  const scopedRequesterId = toTrimmedOrNull(requesterUserId);
+  if (!scopedListingId || !scopedRequesterId) return null;
+
+  const listingRow = await loadListingById({ listingId: scopedListingId });
+  if (!listingRow) {
+    console.info(`[${accessTag}] listing_not_found`, {
+      listing_id: scopedListingId,
+      requester_user_id: scopedRequesterId,
+      listing_exists: false
+    });
+    return null;
+  }
+
+  const listingUserId = toTrimmedOrNull(listingRow.user_id);
+  const listingAgentId = toTrimmedOrNull(listingRow.agent_id);
+  const directUserMatch = Boolean(listingUserId && listingUserId === scopedRequesterId);
+  const directAgentMatch = Boolean(listingAgentId && listingAgentId === scopedRequesterId);
+
+  let agentUserMatch = false;
+  let agentAuthMatch = false;
+  if (listingAgentId) {
+    const agentIdentity = await loadAgentIdentityById(listingAgentId).catch(() => null);
+    const linkedUserId = toTrimmedOrNull(agentIdentity?.user_id);
+    const linkedAuthUserId = toTrimmedOrNull(agentIdentity?.auth_user_id);
+    agentUserMatch = Boolean(linkedUserId && linkedUserId === scopedRequesterId);
+    agentAuthMatch = Boolean(linkedAuthUserId && linkedAuthUserId === scopedRequesterId);
+  }
+
+  let isAdmin = false;
+  if (!directUserMatch && !directAgentMatch && !agentUserMatch && !agentAuthMatch) {
+    isAdmin = await resolveRequesterAdminAccess(scopedRequesterId).catch(() => false);
+  }
+
+  if (directUserMatch || directAgentMatch || agentUserMatch || agentAuthMatch || isAdmin) {
+    return listingRow;
+  }
+
+  console.info(`[${accessTag}] listing_not_found`, {
+    listing_id: scopedListingId,
+    requester_user_id: scopedRequesterId,
+    listing_exists: true,
+    user_match: directUserMatch,
+    agent_match: directAgentMatch,
+    linked_agent_user_match: agentUserMatch,
+    linked_agent_auth_match: agentAuthMatch,
+    requester_is_admin: isAdmin
+  });
+  return null;
+};
+
+const resolveListingAccessContext = async ({ listingId, requesterUserId, accessTag = 'listing' }) => {
+  const listingRow = await loadListingForVideoAccess({ listingId, requesterUserId, accessTag });
+  if (!listingRow) return null;
+
+  const scopedRequesterId = toTrimmedOrNull(requesterUserId);
+  const listingUserId = toTrimmedOrNull(listingRow.user_id);
+  const listingAgentId = toTrimmedOrNull(listingRow.agent_id);
+  const requesterAgentId = await resolveAgentIdForRequesterUser(scopedRequesterId).catch(() => null);
+
+  const sourceAgentIds = Array.from(
+    new Set(
+      [
+        listingAgentId,
+        listingUserId,
+        scopedRequesterId,
+        toTrimmedOrNull(requesterAgentId)
+      ].filter(Boolean)
+    )
+  );
+
+  const primaryAgentId = (() => {
+    if (listingAgentId && sourceAgentIds.includes(listingAgentId)) return listingAgentId;
+    if (listingUserId && sourceAgentIds.includes(listingUserId)) return listingUserId;
+    if (scopedRequesterId) return scopedRequesterId;
+    return sourceAgentIds[0] || null;
+  })();
+
+  return {
+    listingRow,
+    requesterUserId: scopedRequesterId,
+    sourceAgentIds,
+    primaryAgentId
+  };
+};
+
 const loadListingById = async ({ listingId }) => {
   if (!listingId) return null;
   const { data, error } = await supabaseAdmin
@@ -3392,12 +7238,40 @@ const extractListingDescription = (descriptionValue) => {
   return '';
 };
 
+const normalizePhotoUrls = (input) => {
+  const values = Array.isArray(input) ? input : [];
+  const seen = new Set();
+  const normalized = [];
+
+  for (const value of values) {
+    const photoUrl = typeof value === 'string'
+      ? value.trim()
+      : (typeof value?.url === 'string' ? value.url.trim() : '');
+    if (!photoUrl || !/^https?:\/\//i.test(photoUrl)) continue;
+    if (seen.has(photoUrl)) continue;
+    seen.add(photoUrl);
+    normalized.push(photoUrl);
+    if (normalized.length >= MAX_VIDEO_PHOTOS) break;
+  }
+
+  return normalized;
+};
+
+const getListingPhotoUrls = ({ hero_photos, gallery_photos, photos }) => {
+  const primary = normalizePhotoUrls([
+    ...(Array.isArray(hero_photos) ? hero_photos : []),
+    ...(Array.isArray(gallery_photos) ? gallery_photos : [])
+  ]);
+  if (primary.length > 0) return primary;
+  return normalizePhotoUrls(Array.isArray(photos) ? photos : []);
+};
+
 const mapListingRowToDashboardPayload = (listingRow) => {
-  const heroPhotos = Array.isArray(listingRow.hero_photos) ? listingRow.hero_photos : [];
-  const galleryPhotos = Array.isArray(listingRow.gallery_photos) ? listingRow.gallery_photos : [];
-  const photos = [...heroPhotos, ...galleryPhotos]
-    .filter((photo) => typeof photo === 'string' && photo.trim().length > 0)
-    .slice(0, 6);
+  const photos = getListingPhotoUrls({
+    hero_photos: listingRow.hero_photos,
+    gallery_photos: listingRow.gallery_photos,
+    photos: listingRow.photos
+  });
 
   return {
     id: listingRow.id,
@@ -3451,13 +7325,24 @@ const mapListingSourceRow = (row) => {
 };
 
 const listListingBrainSources = async ({ listingId, agentId }) => {
-  const { data, error } = await supabaseAdmin
+  const agentIds = Array.isArray(agentId)
+    ? Array.from(new Set(agentId.map((value) => toTrimmedOrNull(value)).filter(Boolean)))
+    : [toTrimmedOrNull(agentId)].filter(Boolean);
+
+  let query = supabaseAdmin
     .from('listing_sources')
     .select('*')
     .eq('listing_id', listingId)
-    .eq('agent_id', agentId)
     .order('updated_at', { ascending: false, nullsFirst: false })
     .order('created_at', { ascending: false });
+
+  if (agentIds.length === 1) {
+    query = query.eq('agent_id', agentIds[0]);
+  } else if (agentIds.length > 1) {
+    query = query.in('agent_id', agentIds);
+  }
+
+  const { data, error } = await query;
   if (error) {
     if (/does not exist|listing_sources/i.test(error.message || '')) return [];
     throw error;
@@ -3526,6 +7411,42 @@ const insertListingBrainSource = async ({ listingId, agentId, type, title, conte
 
   if (error) throw error;
   return mapListingSourceRow(data);
+};
+
+const ensureStorageBucketExists = async (bucketName) => {
+  if (verifiedStorageBuckets.has(bucketName)) return;
+
+  const { error: bucketError } = await supabaseAdmin.storage.getBucket(bucketName);
+  if (bucketError) {
+    const message = String(bucketError.message || '');
+    const missingBucket = /not found|does not exist|404/i.test(message);
+    if (!missingBucket) throw bucketError;
+
+    const { error: createError } = await supabaseAdmin.storage.createBucket(bucketName, {
+      public: true
+    });
+    if (createError) {
+      const createMessage = String(createError.message || '');
+      const alreadyExists = /already exists|duplicate/i.test(createMessage);
+      if (!alreadyExists) throw createError;
+    }
+  }
+
+  verifiedStorageBuckets.add(bucketName);
+};
+
+const sanitizeStorageFileName = (fileName) => {
+  const base = path.basename(String(fileName || 'document'));
+  const sanitized = base.replace(/[^a-zA-Z0-9._-]/g, '_');
+  return sanitized.length ? sanitized : 'document';
+};
+
+const isAllowedListingBrainUpload = (file) => {
+  const extension = path.extname(String(file?.originalname || '')).toLowerCase();
+  const mimeType = String(file?.mimetype || '').toLowerCase();
+  const extensionAllowed = LISTING_BRAIN_ALLOWED_EXTENSIONS.has(extension);
+  const mimeAllowed = LISTING_BRAIN_ALLOWED_MIME_TYPES.has(mimeType);
+  return extensionAllowed || mimeAllowed;
 };
 
 const recordListingEvent = async ({ listingId, type, payload }) => {
@@ -3622,6 +7543,165 @@ const ensureDefaultListingSources = async ({ listingId, agentId }) => {
     if (row) results.push(row);
   }
   return results;
+};
+
+const LIGHT_CMA_CONFIG_SOURCE_KEY = 'light_cma_config';
+
+const normalizeLightCmaManualComp = (row, index = 0) => {
+  const address = toTrimmedOrNull(row?.address);
+  if (!address) return null;
+
+  const price = safeNumber(row?.price);
+  const bedrooms = safeNumber(row?.beds ?? row?.bedrooms);
+  const bathrooms = safeNumber(row?.baths ?? row?.bathrooms);
+  const squareFeet = safeNumber(row?.sqft ?? row?.square_feet);
+  const statusCandidate = String(row?.status || 'sold').trim().toLowerCase();
+  const status = ['sold', 'active', 'pending'].includes(statusCandidate) ? statusCandidate : 'sold';
+
+  return {
+    id: toTrimmedOrNull(row?.id) || `manual_comp_${index + 1}`,
+    address,
+    price,
+    beds: bedrooms > 0 ? bedrooms : null,
+    baths: bathrooms > 0 ? bathrooms : null,
+    sqft: squareFeet > 0 ? squareFeet : null,
+    status,
+    note: toTrimmedOrNull(row?.note),
+    is_anchor: row?.is_anchor === true || row?.isAnchor === true,
+    manual: true
+  };
+};
+
+const normalizeLightCmaConfig = (input) => {
+  const raw = input && typeof input === 'object' ? input : {};
+  const pricingNotes = toTrimmedOrNull(raw.pricing_notes || raw.pricingNotes) || '';
+  const manualComps = Array.isArray(raw.manual_comps || raw.manualComps)
+    ? (raw.manual_comps || raw.manualComps)
+      .map((row, index) => normalizeLightCmaManualComp(row, index))
+      .filter(Boolean)
+      .slice(0, 8)
+    : [];
+
+  return {
+    pricing_notes: pricingNotes,
+    manual_comps: manualComps
+  };
+};
+
+const parseLightCmaConfigContent = (content) => {
+  if (!content) return normalizeLightCmaConfig({});
+  if (typeof content === 'object') return normalizeLightCmaConfig(content);
+  try {
+    return normalizeLightCmaConfig(JSON.parse(String(content)));
+  } catch (_error) {
+    return normalizeLightCmaConfig({});
+  }
+};
+
+const readListingSourceContent = async ({ listingId, agentIds = [], sourceKey }) => {
+  const normalizedSourceKey = toSourceKey(sourceKey);
+  if (!listingId || !normalizedSourceKey) return null;
+
+  let query = supabaseAdmin
+    .from('listing_sources')
+    .select('*')
+    .eq('listing_id', listingId)
+    .eq('source_key', normalizedSourceKey)
+    .order('updated_at', { ascending: false, nullsFirst: false })
+    .order('created_at', { ascending: false })
+    .limit(1);
+
+  const filteredAgentIds = Array.isArray(agentIds)
+    ? Array.from(new Set(agentIds.map((value) => toTrimmedOrNull(value)).filter(Boolean)))
+    : [toTrimmedOrNull(agentIds)].filter(Boolean);
+
+  if (filteredAgentIds.length === 1) {
+    query = query.eq('agent_id', filteredAgentIds[0]);
+  } else if (filteredAgentIds.length > 1) {
+    query = query.in('agent_id', filteredAgentIds);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    if (/does not exist|listing_sources/i.test(error.message || '')) return null;
+    throw error;
+  }
+  return Array.isArray(data) && data.length > 0 ? data[0] : null;
+};
+
+const upsertListingSourceContent = async ({
+  listingId,
+  agentId,
+  sourceType = 'text',
+  sourceKey,
+  title,
+  content,
+  status = 'trained'
+}) => {
+  const normalizedSourceKey = toSourceKey(sourceKey);
+  if (!listingId || !agentId || !normalizedSourceKey) return null;
+
+  const timestamp = nowIso();
+  const normalizedType = normalizeBrainSourceType(sourceType);
+  const normalizedStatus = normalizeBrainSourceStatus(status);
+  const serializedContent = typeof content === 'string' ? content : JSON.stringify(content || {});
+  const payload = {
+    listing_id: listingId,
+    agent_id: agentId,
+    source_type: normalizedType,
+    source_key: normalizedSourceKey,
+    type: normalizedType,
+    title: title || normalizedSourceKey,
+    content: serializedContent,
+    status: normalizedStatus,
+    updated_at: timestamp,
+    created_at: timestamp
+  };
+
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('listing_sources')
+      .upsert(payload, { onConflict: 'listing_id,source_key' })
+      .select('*')
+      .single();
+    if (error) {
+      if (isMissingListingSourceColumnError(error)) {
+        const fallbackPayload = {
+          listing_id: listingId,
+          agent_id: agentId,
+          source_type: normalizedType,
+          source_key: normalizedSourceKey,
+          created_at: timestamp
+        };
+        const fallback = await supabaseAdmin
+          .from('listing_sources')
+          .upsert(fallbackPayload, { onConflict: 'listing_id,source_key' })
+          .select('*')
+          .single();
+        if (fallback.error) throw fallback.error;
+        return fallback.data || fallbackPayload;
+      }
+      throw error;
+    }
+    return data || payload;
+  } catch (error) {
+    if (/does not exist|listing_sources/i.test(error?.message || '')) {
+      return {
+        ...payload,
+        id: null
+      };
+    }
+    throw error;
+  }
+};
+
+const loadLightCmaConfig = async ({ listingId, agentIds = [] }) => {
+  const row = await readListingSourceContent({
+    listingId,
+    agentIds,
+    sourceKey: LIGHT_CMA_CONFIG_SOURCE_KEY
+  });
+  return parseLightCmaConfigContent(row?.content || row?.text || null);
 };
 
 const ensureUniquePublicSlug = async ({ listingId, title, address }) => {
@@ -3762,16 +7842,28 @@ const mapPublicListingPayload = async (listingRow) => {
 
   const agentId = listingRow.agent_id || listingRow.user_id || null;
   let agentProfile = null;
+  let aiCardProfile = null;
   if (agentId) {
     try {
       const { data } = await supabaseAdmin
         .from('agents')
-        .select('id, first_name, last_name, email, phone, headshot_url')
-        .eq('id', agentId)
+        .select('id, auth_user_id, user_id, first_name, last_name, email, phone, headshot_url')
+        .or(`id.eq.${agentId},auth_user_id.eq.${agentId},user_id.eq.${agentId}`)
         .maybeSingle();
       agentProfile = data || null;
     } catch (_error) {
       agentProfile = null;
+    }
+
+    try {
+      const aiCardUserId =
+        toTrimmedOrNull(agentProfile?.auth_user_id) ||
+        toTrimmedOrNull(agentProfile?.user_id) ||
+        toTrimmedOrNull(listingRow.user_id) ||
+        toTrimmedOrNull(agentId);
+      aiCardProfile = await fetchAiCardProfileForUser(aiCardUserId);
+    } catch (_error) {
+      aiCardProfile = null;
     }
   }
 
@@ -3817,10 +7909,17 @@ const mapPublicListingPayload = async (listingRow) => {
     shareUrl: listingRow.share_url || (listingRow.public_slug ? buildListingShareUrl(listingRow.public_slug) : null),
     agent: {
       id: agentProfile?.id || agentId || 'unknown',
-      name: `${agentProfile?.first_name || ''} ${agentProfile?.last_name || ''}`.trim() || 'HomeListingAI Agent',
-      email: agentProfile?.email || listingRow.contact_email || '',
-      phone: agentProfile?.phone || listingRow.contact_phone || '',
-      headshotUrl: agentProfile?.headshot_url || null
+      name:
+        toTrimmedOrNull(aiCardProfile?.fullName) ||
+        `${agentProfile?.first_name || ''} ${agentProfile?.last_name || ''}`.trim() ||
+        'HomeListingAI Agent',
+      title: toTrimmedOrNull(aiCardProfile?.professionalTitle) || 'Listing Specialist',
+      company: toTrimmedOrNull(aiCardProfile?.company) || 'HomeListingAI',
+      email: toTrimmedOrNull(aiCardProfile?.email) || agentProfile?.email || listingRow.contact_email || '',
+      phone: toTrimmedOrNull(aiCardProfile?.phone) || agentProfile?.phone || listingRow.contact_phone || '',
+      website: toTrimmedOrNull(aiCardProfile?.website) || '',
+      headshotUrl: toTrimmedOrNull(aiCardProfile?.headshot) || agentProfile?.headshot_url || null,
+      brandColor: toTrimmedOrNull(aiCardProfile?.brandColor) || '#28a7e8'
     }
   };
 };
@@ -4701,6 +8800,64 @@ const TERMINAL_APPOINTMENT_STATUSES = new Set(['canceled', 'completed']);
 
 const isMissingAppointmentReminderColumnError = (error, columnName) =>
   /column/i.test(error?.message || '') && new RegExp(columnName, 'i').test(error?.message || '');
+
+const parseMissingSchemaColumnFromError = (error) => {
+  const message = String(error?.message || '');
+  const singleQuotedMatch = message.match(/Could not find the '([^']+)' column/i);
+  if (singleQuotedMatch?.[1]) return singleQuotedMatch[1];
+  const postgresMatch = message.match(/column\s+["']?([a-zA-Z0-9_]+)["']?\s+does not exist/i);
+  if (postgresMatch?.[1]) return postgresMatch[1];
+  return null;
+};
+
+const stripMissingColumn = (payload, missingColumn) => {
+  if (!missingColumn || !payload || typeof payload !== 'object') return payload;
+  if (!Object.prototype.hasOwnProperty.call(payload, missingColumn)) return payload;
+  const next = { ...payload };
+  delete next[missingColumn];
+  return next;
+};
+
+const insertAiConversationWithFallback = async ({ payload, selectColumns }) => {
+  let insertPayload = { ...(payload || {}) };
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const { data, error } = await supabaseAdmin
+      .from('ai_conversations')
+      .insert(insertPayload)
+      .select(selectColumns)
+      .single();
+    if (!error) return data;
+
+    const missingColumn = parseMissingSchemaColumnFromError(error);
+    if (!missingColumn || !Object.prototype.hasOwnProperty.call(insertPayload, missingColumn)) {
+      throw error;
+    }
+    insertPayload = stripMissingColumn(insertPayload, missingColumn);
+  }
+
+  throw new Error('failed_to_insert_ai_conversation');
+};
+
+const updateAiConversationWithFallback = async ({ id, payload, selectColumns }) => {
+  let updatePayload = { ...(payload || {}) };
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const { data, error } = await supabaseAdmin
+      .from('ai_conversations')
+      .update(updatePayload)
+      .eq('id', id)
+      .select(selectColumns)
+      .single();
+    if (!error) return data;
+
+    const missingColumn = parseMissingSchemaColumnFromError(error);
+    if (!missingColumn || !Object.prototype.hasOwnProperty.call(updatePayload, missingColumn)) {
+      throw error;
+    }
+    updatePayload = stripMissingColumn(updatePayload, missingColumn);
+  }
+
+  throw new Error('failed_to_update_ai_conversation');
+};
 
 const normalizeReminderOutcomeValue = (value) => {
   const normalized = String(value || '').trim().toLowerCase();
@@ -6431,7 +10588,7 @@ const processStripeWebhookJob = async (job) => {
   };
 };
 
-const processVideoRenderCreatomateJob = async (job) => {
+const processVideoRenderFfmpegJob = async (job) => {
   const videoId = toTrimmedOrNull(job.payload?.video_id || job.payload?.videoId);
   if (!videoId) return { status: 'skipped', reason: 'video_id_required' };
 
@@ -6451,20 +10608,29 @@ const processVideoRenderCreatomateJob = async (job) => {
   if (currentStatus === 'failed') {
     return { status: 'skipped', reason: 'already_failed' };
   }
+  if (currentStatus === 'rendering') {
+    return { status: 'skipped', reason: 'already_claimed' };
+  }
 
-  if (videoRow.creatomate_render_id && currentStatus !== 'failed') {
-    await supabaseAdmin
+  if (['queued', 'pending'].includes(currentStatus)) {
+    const { data: claimedRow, error: claimError } = await supabaseAdmin
       .from('listing_videos')
       .update({
-        status: currentStatus === 'queued' ? 'rendering' : videoRow.status,
+        status: 'rendering',
         updated_at: nowIso()
       })
-      .eq('id', videoId);
-    return {
-      status: 'skipped',
-      reason: 'render_already_requested',
-      render_id: videoRow.creatomate_render_id
-    };
+      .eq('id', videoId)
+      .eq('status', videoRow.status)
+      .select('*')
+      .maybeSingle();
+
+    if (claimError) {
+      throw claimError;
+    }
+
+    if (!claimedRow?.id) {
+      return { status: 'skipped', reason: 'already_claimed' };
+    }
   }
 
   const ownerId = String(videoRow.agent_id || '').trim();
@@ -6473,376 +10639,111 @@ const processVideoRenderCreatomateJob = async (job) => {
 
   const templateStyle = normalizeVideoTemplateStyle(videoRow.template_style) || 'luxury';
 
-  try {
-    const templateId = resolveCreatomateTemplateIdByStyle(templateStyle);
-    if (!templateId) {
-      throw new Error(`creatomate_template_missing_for_${templateStyle}`);
-    }
+  const { data: listingRow, error: listingError } = await supabaseAdmin
+    .from('properties')
+    .select('*')
+    .eq('id', listingId)
+    .maybeSingle();
+  if (listingError || !listingRow) throw listingError || new Error('listing_not_found_for_video');
 
-    const { data: listingRow, error: listingError } = await supabaseAdmin
-      .from('properties')
-      .select('*')
-      .eq('id', listingId)
-      .maybeSingle();
-    if (listingError || !listingRow) throw listingError || new Error('listing_not_found_for_video');
-
-    let agentRow = null;
-    const { data: possibleAgent } = await supabaseAdmin
-      .from('agents')
-      .select('id, first_name, last_name, headshot_url')
-      .eq('id', ownerId)
-      .maybeSingle();
-    if (possibleAgent) {
-      agentRow = possibleAgent;
-    } else {
-      const { data: byAuth } = await supabaseAdmin
-        .from('agents')
-        .select('id, first_name, last_name, headshot_url')
-        .eq('auth_user_id', ownerId)
-        .maybeSingle();
-      agentRow = byAuth || null;
-    }
-
-    const sourcePhotos = Array.isArray(videoRow.source_photos) && videoRow.source_photos.length > 0
-      ? videoRow.source_photos
-      : [
-        ...(Array.isArray(listingRow.hero_photos) ? listingRow.hero_photos : []),
-        ...(Array.isArray(listingRow.gallery_photos) ? listingRow.gallery_photos : [])
-      ];
-
-    const modifications = buildCreatomateVideoModifications({
-      listingRow,
-      agentRow,
-      sourcePhotos
-    });
-
-    await supabaseAdmin
-      .from('listing_videos')
-      .update({
-        status: 'rendering',
-        creatomate_template_id: templateId,
-        updated_at: nowIso()
-      })
-      .eq('id', videoId);
-
-    const render = await createCreatomateRender({
-      templateId,
-      modifications,
-      metadata: {
-        video_id: videoId,
-        listing_id: listingId,
-        agent_id: ownerId
-      }
-    });
-
-    await supabaseAdmin
-      .from('listing_videos')
-      .update({
-        status: 'rendering',
-        creatomate_template_id: templateId,
-        creatomate_render_id: String(render.id),
-        error_message: null,
-        updated_at: nowIso()
-      })
-      .eq('id', videoId);
-
-    emitListingVideoRealtimeEvent({
-      agentId: ownerId,
-      listingId,
-      videoId,
-      status: 'rendering',
-      templateStyle,
-      durationSeconds: videoRow.duration_seconds
-    });
-
-    return {
-      status: 'rendering',
-      video_id: videoId,
-      render_id: String(render.id),
-      template_style: templateStyle
-    };
-  } catch (error) {
-    const message = String(error?.message || error || '');
-    const isNonRetryable = /creatomate_template_missing_for_|listing_not_found_for_video|creatomate_webhook_secret_missing|creatomate_webhook_url_missing|creatomate_api_key_missing/i.test(message);
-    if (!isNonRetryable) {
-      throw error;
-    }
-
-    await supabaseAdmin
-      .from('listing_videos')
-      .update({
-        status: 'failed',
-        error_message: toTrimmedOrNull(message) || 'video_render_setup_failed',
-        updated_at: nowIso()
-      })
-      .eq('id', videoId);
-
-    const refundedCredits = await listingVideoCreditsService.refundReservedCredit({
-      agentId: ownerId,
-      listingId,
-      amount: 1
-    }).catch((refundError) => {
-      console.warn('[ListingVideos] Failed to refund reserved credit after render setup failure:', refundError?.message || refundError);
-      return null;
-    });
-
-    if (refundedCredits) {
-      emitRealtimeEvent({
-        type: 'listing.video.credits_updated',
-        agentId: ownerId,
-        payload: {
-          listing_id: listingId,
-          included: refundedCredits.included,
-          extra: refundedCredits.extra,
-          used: refundedCredits.used,
-          remaining: refundedCredits.remaining
-        }
-      });
-    }
-
-    emitListingVideoRealtimeEvent({
-      agentId: ownerId,
-      listingId,
-      videoId,
-      status: 'failed',
-      templateStyle: videoRow.template_style,
-      durationSeconds: videoRow.duration_seconds,
-      errorMessage: toTrimmedOrNull(message) || 'video_render_setup_failed'
-    });
-
-    return {
-      status: 'failed',
-      video_id: videoId,
-      reason: 'non_retryable_render_setup_error'
-    };
-  }
-};
-
-const processVideoFinalizeUploadJob = async (job) => {
-  const payload = job.payload?.payload && typeof job.payload.payload === 'object'
-    ? job.payload.payload
-    : (job.payload || {});
-  const normalizedMetadata = normalizeCreatomateMetadata(payload?.metadata);
-  const normalizedStatus = String(payload?.status || job.payload?.status || 'unknown').trim().toLowerCase();
-  const renderId = String(payload?.id || payload?.render_id || job.payload?.render_id || '').trim();
-  const metadataVideoId = String(normalizedMetadata?.video_id || job.payload?.metadata_video_id || '').trim();
-
-  let query = supabaseAdmin.from('listing_videos').select('*').limit(1);
-  if (metadataVideoId) {
-    query = query.eq('id', metadataVideoId);
-  } else if (renderId) {
-    query = query.eq('creatomate_render_id', renderId);
+  let agentRow = null;
+  const { data: possibleAgent } = await supabaseAdmin
+    .from('agents')
+    .select('id, auth_user_id, first_name, last_name, title, email, phone, headshot_url')
+    .eq('id', ownerId)
+    .maybeSingle();
+  if (possibleAgent) {
+    agentRow = possibleAgent;
   } else {
-    return { status: 'skipped', reason: 'video_reference_missing' };
+    const { data: byAuth } = await supabaseAdmin
+      .from('agents')
+      .select('id, auth_user_id, first_name, last_name, title, email, phone, headshot_url')
+      .eq('auth_user_id', ownerId)
+      .maybeSingle();
+    agentRow = byAuth || null;
   }
+  const agentProfileUserId = toTrimmedOrNull(agentRow?.auth_user_id) || ownerId;
+  const aiCardProfile = await fetchAiCardProfileForUser(agentProfileUserId);
 
-  const { data: videoRow, error: videoError } = await query.maybeSingle();
-  if (videoError || !videoRow) {
-    throw videoError || new Error('listing_video_not_found');
-  }
-
-  const ownerId = String(videoRow.agent_id || '').trim();
-  const listingId = String(videoRow.listing_id || '').trim();
-  const videoId = String(videoRow.id || '').trim();
-  if (!ownerId || !listingId || !videoId) throw new Error('video_identity_missing');
-
-  const persistedStatus = String(videoRow.status || '').toLowerCase();
-  if (persistedStatus === 'succeeded') {
-    return { status: 'skipped', reason: 'already_succeeded', video_id: videoId };
-  }
-  if (persistedStatus === 'failed') {
-    return { status: 'skipped', reason: 'already_failed', video_id: videoId };
-  }
-
-  if (['planned', 'queued', 'rendering', 'transcribing'].includes(normalizedStatus)) {
-    await supabaseAdmin
-      .from('listing_videos')
-      .update({
-        status: 'rendering',
-        creatomate_render_id: renderId || videoRow.creatomate_render_id,
-        updated_at: nowIso()
-      })
-      .eq('id', videoId);
-
-    emitListingVideoRealtimeEvent({
-      agentId: ownerId,
-      listingId,
-      videoId,
-      status: 'rendering',
-      templateStyle: videoRow.template_style,
-      durationSeconds: videoRow.duration_seconds
-    });
-    return { status: 'rendering', video_id: videoId };
-  }
-
-  if (normalizedStatus === 'failed') {
-    const errorMessage = toTrimmedOrNull(payload?.error_message || payload?.error || payload?.error_reason || 'creatomate_render_failed');
+  const sourcePhotos = getVideoSourcePhotos({ videoRow, listingRow });
+  if (!sourcePhotos.length) {
     await supabaseAdmin
       .from('listing_videos')
       .update({
         status: 'failed',
-        creatomate_render_id: renderId || videoRow.creatomate_render_id,
-        error_message: errorMessage,
+        error_message: 'photos_required',
         updated_at: nowIso()
       })
       .eq('id', videoId);
+    return {
+      status: 'failed',
+      video_id: videoId,
+      reason: 'photos_required'
+    };
+  }
 
-    let refundedCredits = null;
-    if (String(videoRow.status || '').toLowerCase() !== 'failed') {
-      refundedCredits = await listingVideoCreditsService.refundReservedCredit({
-        agentId: ownerId,
-        listingId,
-        amount: 1
-      }).catch((error) => {
-        console.warn('[ListingVideos] Failed to refund reserved credit:', error?.message || error);
-        return null;
-      });
-    }
-
-    if (refundedCredits) {
-      emitRealtimeEvent({
-        type: 'listing.video.credits_updated',
-        agentId: ownerId,
-        payload: {
-          listing_id: listingId,
-          included: refundedCredits.included,
-          extra: refundedCredits.extra,
-          used: refundedCredits.used,
-          remaining: refundedCredits.remaining
-        }
-      });
-    }
-
+  const ffmpegReady = await isFfmpegAvailable();
+  if (!ffmpegReady) {
+    await supabaseAdmin
+      .from('listing_videos')
+      .update({
+        status: 'failed',
+        error_message: 'ffmpeg_missing',
+        updated_at: nowIso()
+      })
+      .eq('id', videoId);
     emitListingVideoRealtimeEvent({
       agentId: ownerId,
       listingId,
       videoId,
       status: 'failed',
-      templateStyle: videoRow.template_style,
+      templateStyle,
       durationSeconds: videoRow.duration_seconds,
-      errorMessage
+      errorMessage: 'ffmpeg_missing'
     });
-    return { status: 'failed', video_id: videoId };
+    return {
+      status: 'failed',
+      video_id: videoId,
+      reason: 'ffmpeg_missing'
+    };
   }
 
-  if (normalizedStatus !== 'succeeded') {
-    return { status: 'skipped', reason: 'unsupported_status', raw_status: normalizedStatus };
-  }
-
-  let downloadUrl = toTrimmedOrNull(payload?.url);
-  if (!downloadUrl && renderId) {
-    const render = await fetchCreatomateRenderById(renderId);
-    downloadUrl = toTrimmedOrNull(render?.url);
-  }
-  if (!downloadUrl) {
-    throw new Error('creatomate_output_url_missing');
-  }
-
-  const expectedStoragePath = `agent/${ownerId}/listing/${listingId}/${videoId}.mp4`;
-  const storagePath = String(videoRow.storage_path || '').trim() || expectedStoragePath;
-  const fileName = videoRow.file_name || buildListingVideoFileName({
-    listingRow: { id: listingId, public_slug: listingId },
-    templateStyle: videoRow.template_style,
-    durationSeconds: videoRow.duration_seconds || 15
+  console.info('[video.render] ffmpeg_only', {
+    video_id: videoId,
+    listing_id: listingId,
+    count: sourcePhotos.length,
+    first: sourcePhotos[0] || null,
+    last: sourcePhotos[sourcePhotos.length - 1] || null,
+    template_style: templateStyle
   });
 
   try {
-    const response = await axios.get(downloadUrl, {
-      responseType: 'arraybuffer',
-      timeout: 120000
+    const fallbackResult = await generateListingVideoViaFfmpegFallback({
+      videoRow,
+      listingRow,
+      agentRow,
+      aiCardProfile,
+      reason: 'ffmpeg_only'
     });
-    const binary = Buffer.from(response.data);
-
-    const { error: uploadError } = await supabaseAdmin.storage
-      .from(VIDEOS_BUCKET)
-      .upload(storagePath, binary, {
-        contentType: 'video/mp4',
-        upsert: true,
-        cacheControl: '3600'
-      });
-    if (uploadError) throw uploadError;
-
-    await supabaseAdmin
-      .from('listing_videos')
-      .update({
-        status: 'succeeded',
-        storage_bucket: VIDEOS_BUCKET,
-        storage_path: storagePath,
-        file_name: fileName,
-        mime_type: 'video/mp4',
-        creatomate_render_id: renderId || videoRow.creatomate_render_id,
-        error_message: null,
-        updated_at: nowIso()
-      })
-      .eq('id', videoId);
-
-    const credits = await listingVideoCreditsService.getCredits({
-      agentId: ownerId,
-      listingId
-    }).catch(() => null);
-
-    if (credits) {
-      emitRealtimeEvent({
-        type: 'listing.video.credits_updated',
-        agentId: ownerId,
-        payload: {
-          listing_id: listingId,
-          included: credits.included,
-          extra: credits.extra,
-          used: credits.used,
-          remaining: credits.remaining
-        }
-      });
-    }
-
-    emitListingVideoRealtimeEvent({
-      agentId: ownerId,
-      listingId,
-      videoId,
-      status: 'succeeded',
-      templateStyle: videoRow.template_style,
-      durationSeconds: videoRow.duration_seconds,
-      creditsRemaining: credits?.remaining ?? null
-    });
-
     return {
-      status: 'succeeded',
-      video_id: videoId,
-      storage_path: storagePath
+      status: fallbackResult.status || 'succeeded',
+      stage: fallbackResult.stage || 'fallback_succeeded',
+      video_id: videoId
     };
   } catch (error) {
-    const errorMessage = toTrimmedOrNull(error?.message || error || 'video_finalize_failed') || 'video_finalize_failed';
+    const message = String(error?.message || error || 'ffmpeg_render_failed');
+    console.error('[video] ffmpeg_failed', {
+      listing_id: listingId,
+      err: message
+    });
     await supabaseAdmin
       .from('listing_videos')
       .update({
         status: 'failed',
-        error_message: errorMessage,
+        error_message: message,
         updated_at: nowIso()
       })
       .eq('id', videoId);
-
-    const refundedCredits = await listingVideoCreditsService.refundReservedCredit({
-      agentId: ownerId,
-      listingId,
-      amount: 1
-    }).catch((refundError) => {
-      console.warn('[ListingVideos] Failed to refund reserved credit after finalize failure:', refundError?.message || refundError);
-      return null;
-    });
-
-    if (refundedCredits) {
-      emitRealtimeEvent({
-        type: 'listing.video.credits_updated',
-        agentId: ownerId,
-        payload: {
-          listing_id: listingId,
-          included: refundedCredits.included,
-          extra: refundedCredits.extra,
-          used: refundedCredits.used,
-          remaining: refundedCredits.remaining
-        }
-      });
-    }
 
     emitListingVideoRealtimeEvent({
       agentId: ownerId,
@@ -6851,13 +10752,13 @@ const processVideoFinalizeUploadJob = async (job) => {
       status: 'failed',
       templateStyle: videoRow.template_style,
       durationSeconds: videoRow.duration_seconds,
-      errorMessage
+      errorMessage: message
     });
 
     return {
       status: 'failed',
       video_id: videoId,
-      reason: 'video_finalize_failed'
+      reason: 'ffmpeg_failed'
     };
   }
 };
@@ -7089,8 +10990,7 @@ const queueJobHandlers = {
   email_send: processEmailSendJob,
   sms_send: processSmsSendJob,
   voice_reminder_call: processVoiceReminderCallJob,
-  video_render_creatomate: processVideoRenderCreatomateJob,
-  video_finalize_upload: processVideoFinalizeUploadJob,
+  video_render_ffmpeg: processVideoRenderFfmpegJob,
   webhook_vapi_process: processVapiWebhookJob,
   webhook_telnyx_process: processTelnyxWebhookJob,
   webhook_stripe_process: processStripeWebhookJob,
@@ -13407,127 +17307,284 @@ app.post('/api/leads', async (req, res) => {
   }
 });
 
-app.get('/api/public/listings/slug/:publicSlug', async (req, res) => {
+const buildPublicListingResponse = async (listingRow) => {
+  const payload = await mapPublicListingPayload(listingRow);
+  const heroPhotos = Array.isArray(payload?.heroPhotos) ? payload.heroPhotos : [];
+  const galleryPhotos = Array.isArray(payload?.galleryPhotos) ? payload.galleryPhotos : [];
+  let brainSummary = toTrimmedOrNull(payload?.description);
+
   try {
-    const { publicSlug } = req.params;
-    const listingRow = await resolveListingByPublicSlug(publicSlug);
+    const { data: summaryRows, error: summaryError } = await supabaseAdmin
+      .from('listing_sources')
+      .select('content, text, updated_at')
+      .eq('listing_id', listingRow.id)
+      .eq('title', '🤖 AI Summary')
+      .order('updated_at', { ascending: false, nullsFirst: false })
+      .limit(1);
+
+    if (summaryError && !/does not exist|listing_sources/i.test(summaryError.message || '')) {
+      throw summaryError;
+    }
+
+    if (Array.isArray(summaryRows) && summaryRows[0]) {
+      brainSummary = toTrimmedOrNull(summaryRows[0].content || summaryRows[0].text) || brainSummary;
+    }
+  } catch (summaryError) {
+    if (!/does not exist|listing_sources/i.test(summaryError?.message || '')) {
+      console.warn('[PublicListing] Failed to load brain summary:', summaryError?.message || summaryError);
+    }
+  }
+
+  return {
+    success: true,
+    listing: payload,
+    agent_card: {
+      id: payload?.agent?.id || 'unknown',
+      name: payload?.agent?.name || 'HomeListingAI Agent',
+      company: payload?.agent?.company || 'HomeListingAI',
+      title: payload?.agent?.title || 'Listing Specialist',
+      phone: payload?.agent?.phone || '',
+      email: payload?.agent?.email || '',
+      website: payload?.agent?.website || '',
+      headshot_url: payload?.agent?.headshotUrl || null,
+      brand_color: payload?.agent?.brandColor || '#28a7e8'
+    },
+    photos: {
+      hero: heroPhotos,
+      gallery: galleryPhotos,
+      all: [...heroPhotos, ...galleryPhotos]
+    },
+    brain_summary: brainSummary || null
+  };
+};
+
+const resolvePublicListingRowBySlug = async (publicSlug) => {
+  const listingRow = await resolveListingByPublicSlug(publicSlug);
+  if (!listingRow?.id || !isListingPublished(listingRow)) return null;
+  return listingRow;
+};
+
+const sendPublicListingBySlug = async (req, res) => {
+  try {
+    const requestedSlug = String(req.params.slug || req.params.publicSlug || '').trim();
+    const normalizedSlug = slugifyListing(requestedSlug);
+    console.info('[PublicListing][slug_lookup]', {
+      requested_slug: requestedSlug,
+      normalized_slug: normalizedSlug || null
+    });
+
+    const listingRow = await resolveListingByPublicSlug(requestedSlug);
     if (!listingRow || !listingRow.id) {
+      console.info('[PublicListing][slug_lookup] not_found', { requested_slug: requestedSlug });
       return res.status(404).json({ error: 'listing_not_found' });
     }
 
-    if (!listingRow.is_published) {
+    if (!isListingPublished(listingRow)) {
+      console.info('[PublicListing][slug_lookup] not_published', {
+        requested_slug: requestedSlug,
+        listing_id: listingRow.id,
+        status: listingRow.status,
+        is_published: Boolean(listingRow.is_published)
+      });
       return res.status(404).json({ error: 'listing_not_published' });
     }
 
-    const payload = await mapPublicListingPayload(listingRow);
-    return res.json({
-      success: true,
-      listing: payload
-    });
+    return res.json(await buildPublicListingResponse(listingRow));
   } catch (error) {
     console.error('[PublicListing] Failed to load listing by slug:', error);
     return res.status(500).json({ error: 'failed_to_load_public_listing' });
   }
+};
+
+app.get('/api/public/listings/:public_slug/bootstrap', async (req, res) => {
+  try {
+    const publicSlug = String(req.params.public_slug || '').trim();
+    console.info('[PublicListing][bootstrap]', { public_slug: publicSlug || null });
+
+    const listingRow = await resolvePublicListingRowBySlug(publicSlug);
+    if (!listingRow) return res.status(404).json({ error: 'not_found' });
+
+    const payload = await buildPublicListingResponse(listingRow);
+    const listing = payload.listing || {};
+    const photos = payload.photos || {};
+    const agentCard = payload.agent_card || {};
+
+    return res.json({
+      ok: true,
+      listing: {
+        id: listing.id || listingRow.id,
+        public_slug: listing.publicSlug || listingRow.public_slug || publicSlug,
+        address: listing.address || '',
+        price: Number.isFinite(Number(listing.price)) ? Number(listing.price) : null,
+        beds: Number.isFinite(Number(listing.bedrooms)) ? Number(listing.bedrooms) : null,
+        baths: Number.isFinite(Number(listing.bathrooms)) ? Number(listing.bathrooms) : null,
+        sqft: Number.isFinite(Number(listing.squareFeet)) ? Number(listing.squareFeet) : null,
+        primary_photo: listing.imageUrl || photos.all?.[0] || null,
+        photos: Array.isArray(photos.all) ? photos.all : [],
+        status: 'published',
+        share_url: listing.shareUrl || buildListingShareUrl(listingRow.public_slug || publicSlug)
+      },
+      agent: {
+        id: agentCard.id || listingRow.agent_id || listingRow.user_id || 'unknown',
+        full_name: agentCard.name || 'HomeListingAI Agent',
+        company: agentCard.company || 'HomeListingAI',
+        title: agentCard.title || 'Listing Specialist',
+        headshot_url: agentCard.headshot_url || null,
+        phone: toTrimmedOrNull(agentCard.phone) || null,
+        email: toTrimmedOrNull(agentCard.email) || null,
+        website: toTrimmedOrNull(agentCard.website) || null,
+        brand_color: toTrimmedOrNull(agentCard.brand_color) || '#28a7e8'
+      }
+    });
+  } catch (error) {
+    console.error('[PublicListing] Failed bootstrap lookup:', error);
+    return res.status(500).json({ error: 'failed_to_load_bootstrap' });
+  }
 });
 
-app.get('/api/public/listings/:listingId', async (req, res) => {
+app.get('/api/public/listings/:public_slug/open-house-flyer.pdf', async (req, res) => {
+  try {
+    const publicSlug = String(req.params.public_slug || '').trim();
+    console.info('[public.flyer]', { public_slug: publicSlug || null });
+
+    const listingRow = await resolvePublicListingRowBySlug(publicSlug);
+    if (!listingRow) return res.status(404).json({ error: 'not_found' });
+
+    const { pdfBuffer, downloadName } = await buildOpenHouseFlyerPdfBundle({
+      listingRow,
+      fallbackUserId: listingRow.user_id || null
+    });
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${downloadName}"`);
+    return res.send(pdfBuffer);
+  } catch (error) {
+    console.error('[PublicListing] Failed to generate public open house flyer PDF:', error);
+    return res.status(500).json({ error: 'failed_to_generate_public_open_house_flyer_pdf' });
+  }
+});
+
+app.get('/api/public/listings/:slug', sendPublicListingBySlug);
+app.get('/api/public/listings/slug/:publicSlug', sendPublicListingBySlug);
+
+app.get('/api/public/listings/id/:listingId', async (req, res) => {
   try {
     const { listingId } = req.params;
-    const listing = await resolveListingForCapture(listingId);
-    if (!listing || !listing.id) {
-      return res.status(404).json({ error: 'listing_not_found' });
-    }
-
     const { data: listingRow, error } = await supabaseAdmin
       .from('properties')
       .select('*')
       .eq('id', listingId)
       .maybeSingle();
     if (error) throw error;
-    if (!listingRow) return res.status(404).json({ error: 'listing_not_found' });
+    if (!listingRow || !listingRow.id) return res.status(404).json({ error: 'listing_not_found' });
+    if (!isListingPublished(listingRow)) return res.status(404).json({ error: 'listing_not_published' });
 
-    const payload = await mapPublicListingPayload(listingRow);
-    return res.json({
-      success: true,
-      listing: payload
-    });
+    return res.json(await buildPublicListingResponse(listingRow));
   } catch (error) {
     console.error('[PublicListing] Failed to load listing by id:', error);
     return res.status(500).json({ error: 'failed_to_load_public_listing' });
   }
 });
 
-// Bootstrap a visitor session for public listing capture.
-app.post('/api/public/listings/:listingId/session', async (req, res) => {
+// Bootstrap a public listing chat/voice session by slug.
+app.post('/api/public/listings/:publicSlug/session', async (req, res) => {
   try {
-    const { listingId } = req.params;
+    const publicSlug = String(req.params.publicSlug || '').trim();
+    const normalizedChannel = String(req.body?.channel || 'chat').trim().toLowerCase();
+    const channel = normalizedChannel === 'voice' ? 'voice' : 'chat';
     const visitorId = (req.body?.visitor_id || req.headers['x-visitor-id'] || crypto.randomUUID()).toString();
-    const sourceKey = toSourceKey(req.body?.source_key || req.query?.src || req.body?.src);
-    const utmSource = toTrimmedOrNull(req.body?.utm_source || req.query?.utm_source);
-    const utmMedium = toTrimmedOrNull(req.body?.utm_medium || req.query?.utm_medium);
-    const utmCampaign = toTrimmedOrNull(req.body?.utm_campaign || req.query?.utm_campaign);
-    const referrer = toTrimmedOrNull(req.body?.referrer || req.headers.referer || req.headers.referrer);
-    const referrerDomain = toReferrerDomain(referrer);
 
-    const listing = await resolveListingForCapture(listingId);
-    if (!listing) {
-      return res.status(404).json({ error: 'listing_not_found' });
+    let listingRow = await resolvePublicListingRowBySlug(publicSlug);
+    // Backward compatibility: if caller passes a listing ID instead of slug.
+    if (!listingRow && publicSlug) {
+      const { data } = await supabaseAdmin
+        .from('properties')
+        .select('*')
+        .eq('id', publicSlug)
+        .maybeSingle();
+      if (data && isListingPublished(data)) listingRow = data;
     }
 
-    const timestamp = nowIso();
-    const { data: conversation, error } = await supabaseAdmin
-      .from('ai_conversations')
-      .insert({
-        user_id: listing.agentId || DEFAULT_LEAD_USER_ID,
-        agent_id: listing.agentId || DEFAULT_LEAD_USER_ID,
-        listing_id: listingId,
-        visitor_id: visitorId,
-        channel: 'web',
-        scope: 'listing',
-        contact_name: 'Visitor',
-        type: 'chat',
-        status: 'active',
-        started_at: timestamp,
-        last_activity_at: timestamp,
-        last_message_at: timestamp,
-        metadata: {
+    if (!listingRow?.id) {
+      return res.status(404).json({ error: 'not_found' });
+    }
+
+    const listingId = listingRow.id;
+    const agentId = listingRow.agent_id || listingRow.user_id || DEFAULT_LEAD_USER_ID;
+    let sessionPayload = null;
+
+    try {
+      const timestamp = nowIso();
+      const conversation = await insertAiConversationWithFallback({
+        payload: {
+          user_id: agentId,
+          agent_id: agentId,
           listing_id: listingId,
           visitor_id: visitorId,
-          source: 'public_listing',
           channel: 'web',
-          source_key: sourceKey || null,
-          source_type: toSourceType(req.body?.source_type || inferSourceTypeFromKey(sourceKey)),
-          utm_source: utmSource,
-          utm_medium: utmMedium,
-          utm_campaign: utmCampaign,
-          referrer,
-          referrer_domain: referrerDomain,
-          landing_path: toTrimmedOrNull(req.body?.landing_path)
+          scope: 'listing',
+          contact_name: 'Visitor',
+          type: channel,
+          status: 'active',
+          started_at: timestamp,
+          last_activity_at: timestamp,
+          last_message_at: timestamp,
+          metadata: {
+            listing_id: listingId,
+            visitor_id: visitorId,
+            source: 'public_listing',
+            channel,
+            public_slug: listingRow.public_slug || publicSlug
+          },
+          created_at: timestamp,
+          updated_at: timestamp
         },
-        created_at: timestamp,
-        updated_at: timestamp
-      })
-      .select('id')
-      .single();
+        selectColumns: 'id'
+      });
 
-    if (error) throw error;
+      sessionPayload = {
+        conversation_id: conversation?.id || null,
+        channel
+      };
+    } catch (sessionError) {
+      console.error('[PublicListing] Session bootstrap degraded:', {
+        public_slug: publicSlug,
+        listing_id: listingId,
+        channel,
+        error: sessionError?.message || String(sessionError)
+      });
+      return res.json({
+        ok: true,
+        visitor_id: visitorId,
+        listing_id: listingId,
+        public_slug: listingRow.public_slug || publicSlug,
+        agent_id: agentId,
+        session: null,
+        degraded: true,
+        message: 'chat_temporarily_unavailable'
+      });
+    }
 
-    res.json({
-      success: true,
+    return res.json({
+      ok: true,
       visitor_id: visitorId,
-      conversation_id: conversation.id,
       listing_id: listingId,
-      attribution: {
-        source_key: sourceKey,
-        utm_source: utmSource,
-        utm_medium: utmMedium,
-        utm_campaign: utmCampaign,
-        referrer_domain: referrerDomain
-      }
+      public_slug: listingRow.public_slug || publicSlug,
+      agent_id: agentId,
+      session: sessionPayload
     });
   } catch (error) {
     console.error('[LeadCapture] Failed to create public listing session:', error);
-    res.status(500).json({ error: 'failed_to_create_session' });
+    return res.json({
+      ok: true,
+      visitor_id: (req.body?.visitor_id || req.headers['x-visitor-id'] || crypto.randomUUID()).toString(),
+      listing_id: null,
+      public_slug: String(req.params.publicSlug || ''),
+      agent_id: null,
+      session: null,
+      degraded: true,
+      message: 'chat_temporarily_unavailable'
+    });
   }
 });
 
@@ -13599,25 +17656,21 @@ app.post('/api/public/conversations/start', async (req, res) => {
         ...(existingConversation.metadata || {}),
         ...metadataPatch
       };
-      const { data: updatedConversation, error: updateError } = await supabaseAdmin
-        .from('ai_conversations')
-        .update({
+      conversation = await updateAiConversationWithFallback({
+        id: existingConversation.id,
+        payload: {
           metadata: nextMetadata,
           agent_id: agentId,
           user_id: agentId,
           channel: 'web',
           last_activity_at: timestamp,
           updated_at: timestamp
-        })
-        .eq('id', existingConversation.id)
-        .select('id, lead_id')
-        .single();
-      if (updateError) throw updateError;
-      conversation = updatedConversation;
+        },
+        selectColumns: 'id, lead_id'
+      });
     } else {
-      const { data: createdConversation, error: createError } = await supabaseAdmin
-        .from('ai_conversations')
-        .insert({
+      conversation = await insertAiConversationWithFallback({
+        payload: {
           user_id: agentId,
           agent_id: agentId,
           scope: 'listing',
@@ -13636,11 +17689,9 @@ app.post('/api/public/conversations/start', async (req, res) => {
           metadata: metadataPatch,
           created_at: timestamp,
           updated_at: timestamp
-        })
-        .select('id, lead_id')
-        .single();
-      if (createError) throw createError;
-      conversation = createdConversation;
+        },
+        selectColumns: 'id, lead_id'
+      });
     }
 
     const { data: messageRows, error: messageError } = await supabaseAdmin
@@ -13866,7 +17917,7 @@ app.post('/api/leads/capture', async (req, res) => {
       return res.status(400).json({ error: 'phone_or_email_required' });
     }
 
-    if (phoneE164 && consentSms !== true) {
+    if (FEATURE_FLAG_SMS_ENABLED && phoneE164 && consentSms !== true) {
       return res.status(400).json({ error: 'consent_sms_required_when_phone_present' });
     }
 
@@ -14016,8 +18067,8 @@ app.post('/api/leads/capture', async (req, res) => {
         source: effectiveSourceType,
         source_key: effectiveSourceKey,
         source_meta: attributionMeta,
-        consent_sms: !!(phoneE164 && consentSms === true),
-        consent_timestamp: phoneE164 && consentSms === true ? timestamp : null,
+        consent_sms: !!(FEATURE_FLAG_SMS_ENABLED && phoneE164 && consentSms === true),
+        consent_timestamp: FEATURE_FLAG_SMS_ENABLED && phoneE164 && consentSms === true ? timestamp : null,
         status: 'New',
         intent_level: intentLevel,
         timeline: 'unknown',
@@ -14106,7 +18157,7 @@ app.post('/api/leads/capture', async (req, res) => {
       }
     });
 
-    if (phoneE164 && consentSms === true) {
+    if (FEATURE_FLAG_SMS_ENABLED && phoneE164 && consentSms === true) {
       await recordLeadEvent({
         leadId,
         type: 'CONSENT_RECORDED',
@@ -14219,6 +18270,22 @@ app.post('/api/leads/capture', async (req, res) => {
 
 const resolveDashboardOwnerId = (req) =>
   String(req.body?.agentId || req.query.agentId || req.headers['x-user-id'] || req.headers['x-agent-id'] || DEFAULT_LEAD_USER_ID || '');
+
+const resolveBillingAgentId = async (req) => {
+  const requesterUserId = await resolveRequesterUserId(req, { allowDefault: false });
+  if (!requesterUserId) return null;
+
+  try {
+    const agentRecord = await billingEngine.resolveAgentRecord(requesterUserId).catch(() => null);
+    return String(agentRecord?.id || requesterUserId);
+  } catch (error) {
+    console.warn('[Billing] Failed to resolve canonical agent id:', {
+      requesterUserId,
+      error: error?.message || error
+    });
+    return String(requesterUserId);
+  }
+};
 
 app.get('/api/dashboard/onboarding', async (req, res) => {
   try {
@@ -14415,7 +18482,7 @@ app.patch('/api/dashboard/onboarding', async (req, res) => {
 
 app.get('/api/dashboard/billing', async (req, res) => {
   try {
-    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
+    const agentId = await resolveBillingAgentId(req);
     if (!agentId) return res.status(401).json({ error: 'unauthorized' });
 
     const snapshot = await billingEngine.getBillingSnapshot(agentId);
@@ -14439,7 +18506,7 @@ app.get('/api/dashboard/billing', async (req, res) => {
 
 app.get('/api/dashboard/billing/usage', async (req, res) => {
   try {
-    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
+    const agentId = await resolveBillingAgentId(req);
     if (!agentId) return res.status(401).json({ error: 'unauthorized' });
 
     const snapshot = await billingEngine.getBillingSnapshot(agentId);
@@ -14471,7 +18538,7 @@ app.get('/api/dashboard/billing/usage', async (req, res) => {
 
 app.post('/api/billing/checkout-session', async (req, res) => {
   try {
-    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
+    const agentId = await resolveBillingAgentId(req);
     if (!agentId) return res.status(401).json({ error: 'unauthorized' });
 
     const rawPlanId = String(req.body?.plan_id || req.body?.planId || '').trim().toLowerCase();
@@ -14506,7 +18573,7 @@ app.post('/api/billing/checkout-session', async (req, res) => {
 
 app.post('/api/billing/portal-session', async (req, res) => {
   try {
-    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
+    const agentId = await resolveBillingAgentId(req);
     if (!agentId) return res.status(401).json({ error: 'unauthorized' });
 
     const portal = await billingEngine.createPortalSession({
@@ -14627,7 +18694,7 @@ app.post('/api/account/delete', async (req, res) => {
 
 app.post('/api/dashboard/billing/check-entitlement', async (req, res) => {
   try {
-    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
+    const agentId = await resolveBillingAgentId(req);
     if (!agentId) return res.status(401).json({ error: 'unauthorized' });
 
     const feature = String(req.body?.feature || '').trim();
@@ -14657,7 +18724,7 @@ app.post('/api/dashboard/billing/check-entitlement', async (req, res) => {
 
 app.post('/api/dashboard/reports/track-generation', async (req, res) => {
   try {
-    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
+    const agentId = await resolveBillingAgentId(req);
     if (!agentId) return res.status(401).json({ error: 'unauthorized' });
 
     const listingId = toTrimmedOrNull(req.body?.listing_id || req.body?.listingId);
@@ -15912,6 +19979,7 @@ app.patch('/api/dashboard/leads/:leadId/status', async (req, res) => {
       timeline: updates.timeline || undefined,
       financing: updates.financing || undefined,
       working_with_agent: updates.working_with_agent || undefined,
+      notes: updates.notes !== undefined ? updates.notes : undefined,
       updated_at: nowIso()
     };
 
@@ -16050,24 +20118,19 @@ app.get('/api/dashboard/listings', async (req, res) => {
 
 app.get('/api/dashboard/listings/:id', async (req, res) => {
   try {
-    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
-    if (!agentId) return res.status(401).json({ error: 'agent_auth_required' });
+    const requesterUserId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!requesterUserId) return res.status(401).json({ error: 'agent_auth_required' });
 
     const listingId = String(req.params.id || '');
     if (!listingId) return res.status(400).json({ error: 'listing_id_required' });
 
-    const listingRow = await loadListingById({ listingId });
-    if (!listingRow) return res.status(404).json({ error: 'listing_not_found' });
+    const access = await resolveListingAccessContext({ listingId, requesterUserId, accessTag: 'dashboard.listing.get' });
+    if (!access) return res.status(404).json({ error: 'listing_not_found' });
 
-    const ownerId = getListingOwnerId(listingRow);
-    if (!ownerId || ownerId !== String(agentId)) {
-      return res.status(403).json({ error: 'listing_access_denied' });
-    }
-
-    const sources = await listListingBrainSources({ listingId: listingRow.id, agentId: ownerId });
+    const sources = await listListingBrainSources({ listingId: access.listingRow.id, agentId: access.sourceAgentIds });
 
     return res.json({
-      listing: mapListingRowToDashboardPayload(listingRow),
+      listing: mapListingRowToDashboardPayload(access.listingRow),
       brain_sources: sources
     });
   } catch (error) {
@@ -16078,19 +20141,15 @@ app.get('/api/dashboard/listings/:id', async (req, res) => {
 
 app.patch('/api/dashboard/listings/:id', async (req, res) => {
   try {
-    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
-    if (!agentId) return res.status(401).json({ error: 'agent_auth_required' });
+    const requesterUserId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!requesterUserId) return res.status(401).json({ error: 'agent_auth_required' });
 
     const listingId = String(req.params.id || '');
     if (!listingId) return res.status(400).json({ error: 'listing_id_required' });
 
-    const listingRow = await loadListingById({ listingId });
-    if (!listingRow) return res.status(404).json({ error: 'listing_not_found' });
-
-    const ownerId = getListingOwnerId(listingRow);
-    if (!ownerId || ownerId !== String(agentId)) {
-      return res.status(403).json({ error: 'listing_access_denied' });
-    }
+    const access = await resolveListingAccessContext({ listingId, requesterUserId, accessTag: 'dashboard.listing.patch' });
+    if (!access) return res.status(404).json({ error: 'listing_not_found' });
+    const listingRow = access.listingRow;
 
     const updates = {};
     const body = req.body || {};
@@ -16179,7 +20238,7 @@ app.patch('/api/dashboard/listings/:id', async (req, res) => {
         .from('listing_sources')
         .select('id, content')
         .eq('listing_id', listingId)
-        .eq('agent_id', ownerId)
+        .in('agent_id', access.sourceAgentIds)
         .eq('title', 'Price update')
         .gte('created_at', `${noteDate}T00:00:00.000Z`)
         .lte('created_at', `${noteDate}T23:59:59.999Z`);
@@ -16187,7 +20246,7 @@ app.patch('/api/dashboard/listings/:id', async (req, res) => {
       if (!alreadyNoted) {
         await insertListingBrainSource({
           listingId,
-          agentId: ownerId,
+          agentId: access.primaryAgentId,
           type: 'text',
           title: 'Price update',
           content: priceContent,
@@ -16209,21 +20268,16 @@ app.patch('/api/dashboard/listings/:id', async (req, res) => {
 
 app.get('/api/dashboard/listings/:id/sources', async (req, res) => {
   try {
-    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
-    if (!agentId) return res.status(401).json({ error: 'agent_auth_required' });
+    const requesterUserId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!requesterUserId) return res.status(401).json({ error: 'agent_auth_required' });
 
     const listingId = String(req.params.id || '');
     if (!listingId) return res.status(400).json({ error: 'listing_id_required' });
 
-    const listingRow = await loadListingById({ listingId });
-    if (!listingRow) return res.status(404).json({ error: 'listing_not_found' });
+    const access = await resolveListingAccessContext({ listingId, requesterUserId, accessTag: 'dashboard.sources.list' });
+    if (!access) return res.status(404).json({ error: 'listing_not_found' });
 
-    const ownerId = getListingOwnerId(listingRow);
-    if (!ownerId || ownerId !== String(agentId)) {
-      return res.status(403).json({ error: 'listing_access_denied' });
-    }
-
-    const sources = await listListingBrainSources({ listingId, agentId: ownerId });
+    const sources = await listListingBrainSources({ listingId, agentId: access.sourceAgentIds });
     return res.json({ sources });
   } catch (error) {
     console.error('[Dashboard] Failed to list listing sources:', error);
@@ -16233,19 +20287,14 @@ app.get('/api/dashboard/listings/:id/sources', async (req, res) => {
 
 app.post('/api/dashboard/listings/:id/sources', async (req, res) => {
   try {
-    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
-    if (!agentId) return res.status(401).json({ error: 'agent_auth_required' });
+    const requesterUserId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!requesterUserId) return res.status(401).json({ error: 'agent_auth_required' });
 
     const listingId = String(req.params.id || '');
     if (!listingId) return res.status(400).json({ error: 'listing_id_required' });
 
-    const listingRow = await loadListingById({ listingId });
-    if (!listingRow) return res.status(404).json({ error: 'listing_not_found' });
-
-    const ownerId = getListingOwnerId(listingRow);
-    if (!ownerId || ownerId !== String(agentId)) {
-      return res.status(403).json({ error: 'listing_access_denied' });
-    }
+    const access = await resolveListingAccessContext({ listingId, requesterUserId, accessTag: 'dashboard.sources.create' });
+    if (!access) return res.status(404).json({ error: 'listing_not_found' });
 
     const type = normalizeBrainSourceType(req.body?.type);
     const title = toTrimmedOrNull(req.body?.title);
@@ -16253,7 +20302,7 @@ app.post('/api/dashboard/listings/:id/sources', async (req, res) => {
 
     const source = await insertListingBrainSource({
       listingId,
-      agentId: ownerId,
+      agentId: access.primaryAgentId,
       type,
       title,
       content: toTrimmedOrNull(req.body?.text ?? req.body?.content),
@@ -16271,20 +20320,15 @@ app.post('/api/dashboard/listings/:id/sources', async (req, res) => {
 
 app.patch('/api/dashboard/listings/:id/sources/:sourceId', async (req, res) => {
   try {
-    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
-    if (!agentId) return res.status(401).json({ error: 'agent_auth_required' });
+    const requesterUserId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!requesterUserId) return res.status(401).json({ error: 'agent_auth_required' });
 
     const listingId = String(req.params.id || '');
     const sourceId = String(req.params.sourceId || '');
     if (!listingId || !sourceId) return res.status(400).json({ error: 'listing_id_and_source_id_required' });
 
-    const listingRow = await loadListingById({ listingId });
-    if (!listingRow) return res.status(404).json({ error: 'listing_not_found' });
-
-    const ownerId = getListingOwnerId(listingRow);
-    if (!ownerId || ownerId !== String(agentId)) {
-      return res.status(403).json({ error: 'listing_access_denied' });
-    }
+    const access = await resolveListingAccessContext({ listingId, requesterUserId, accessTag: 'dashboard.sources.patch' });
+    if (!access) return res.status(404).json({ error: 'listing_not_found' });
 
     const updatePayload = {};
     if (req.body?.type !== undefined) {
@@ -16325,7 +20369,7 @@ app.patch('/api/dashboard/listings/:id/sources/:sourceId', async (req, res) => {
       .update(updatePayload)
       .eq('id', sourceId)
       .eq('listing_id', listingId)
-      .eq('agent_id', ownerId)
+      .in('agent_id', access.sourceAgentIds)
       .select('*')
       .maybeSingle();
 
@@ -16341,7 +20385,7 @@ app.patch('/api/dashboard/listings/:id/sources/:sourceId', async (req, res) => {
         .update(fallbackPayload)
         .eq('id', sourceId)
         .eq('listing_id', listingId)
-        .eq('agent_id', ownerId)
+        .in('agent_id', access.sourceAgentIds)
         .select('*')
         .maybeSingle();
       if (updateResponse.error) throw updateResponse.error;
@@ -16372,27 +20416,22 @@ app.patch('/api/dashboard/listings/:id/sources/:sourceId', async (req, res) => {
 
 app.delete('/api/dashboard/listings/:id/sources/:sourceId', async (req, res) => {
   try {
-    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
-    if (!agentId) return res.status(401).json({ error: 'agent_auth_required' });
+    const requesterUserId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!requesterUserId) return res.status(401).json({ error: 'agent_auth_required' });
 
     const listingId = String(req.params.id || '');
     const sourceId = String(req.params.sourceId || '');
     if (!listingId || !sourceId) return res.status(400).json({ error: 'listing_id_and_source_id_required' });
 
-    const listingRow = await loadListingById({ listingId });
-    if (!listingRow) return res.status(404).json({ error: 'listing_not_found' });
-
-    const ownerId = getListingOwnerId(listingRow);
-    if (!ownerId || ownerId !== String(agentId)) {
-      return res.status(403).json({ error: 'listing_access_denied' });
-    }
+    const access = await resolveListingAccessContext({ listingId, requesterUserId, accessTag: 'dashboard.sources.delete' });
+    if (!access) return res.status(404).json({ error: 'listing_not_found' });
 
     const { data: deletedRows, error: deleteError } = await supabaseAdmin
       .from('listing_sources')
       .delete()
       .eq('id', sourceId)
       .eq('listing_id', listingId)
-      .eq('agent_id', ownerId)
+      .in('agent_id', access.sourceAgentIds)
       .select('id');
     if (deleteError) throw deleteError;
     if (!Array.isArray(deletedRows) || deletedRows.length === 0) {
@@ -16409,19 +20448,15 @@ app.delete('/api/dashboard/listings/:id/sources/:sourceId', async (req, res) => 
 // ── Quick AI description generator (Essentials tab) ──────────────────────────
 app.post('/api/dashboard/listings/:id/generate-description', async (req, res) => {
   try {
-    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
-    if (!agentId) return res.status(401).json({ error: 'agent_auth_required' });
+    const requesterUserId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!requesterUserId) return res.status(401).json({ error: 'agent_auth_required' });
 
     const listingId = String(req.params.id || '');
     if (!listingId) return res.status(400).json({ error: 'listing_id_required' });
 
-    const listingRow = await loadListingById({ listingId });
-    if (!listingRow) return res.status(404).json({ error: 'listing_not_found' });
-
-    const ownerId = getListingOwnerId(listingRow);
-    if (!ownerId || ownerId !== String(agentId)) {
-      return res.status(403).json({ error: 'listing_access_denied' });
-    }
+    const access = await resolveListingAccessContext({ listingId, requesterUserId, accessTag: 'dashboard.generate_description' });
+    if (!access) return res.status(404).json({ error: 'listing_not_found' });
+    const listingRow = access.listingRow;
 
     // Use values from request body if provided (agent may not have saved yet)
     const body = req.body || {};
@@ -16436,7 +20471,7 @@ app.post('/api/dashboard/listings/:id/generate-description', async (req, res) =>
       : 'price TBD';
 
     // Also pull in any existing brain sources for richer context
-    const sources = await listListingBrainSources({ listingId, agentId: ownerId });
+    const sources = await listListingBrainSources({ listingId, agentId: access.sourceAgentIds });
     const sourceContext = sources
       .map((s) => (s.content || s.text || '').trim())
       .filter((t) => t.length > 0)
@@ -16472,24 +20507,92 @@ app.post('/api/dashboard/listings/:id/generate-description', async (req, res) =>
   }
 });
 
-// ── Upload a document as a brain source ───────────────────────────────────────
+// ── Upload a document as a brain source (storage-backed) ──────────────────────
+app.post('/api/dashboard/listings/:id/sources/upload', (req, res) => {
+  listingBrainUpload.single('file')(req, res, async (multerErr) => {
+    if (multerErr) {
+      if (multerErr.code === 'LIMIT_FILE_SIZE') {
+        return res.status(413).json({ error: 'file_too_large' });
+      }
+      return res.status(400).json({ error: 'invalid_file' });
+    }
+
+    try {
+      const requesterUserId = await resolveRequesterUserId(req, { allowDefault: false });
+      if (!requesterUserId) return res.status(401).json({ error: 'unauthorized' });
+
+      const listingId = String(req.params.id || '');
+      if (!listingId) return res.status(400).json({ error: 'listing_id_required' });
+
+      const file = req.file;
+      if (!file) return res.status(400).json({ error: 'invalid_file' });
+      if (Number(file.size || 0) > LISTING_BRAIN_MAX_FILE_SIZE_BYTES) {
+        return res.status(413).json({ error: 'file_too_large' });
+      }
+      if (!isAllowedListingBrainUpload(file)) {
+        return res.status(400).json({ error: 'invalid_file' });
+      }
+
+      const access = await resolveListingAccessContext({ listingId, requesterUserId, accessTag: 'dashboard.sources.upload' });
+      if (!access) return res.status(404).json({ error: 'listing_not_found' });
+
+      const fileName = String(file.originalname || 'document').trim() || 'document';
+      const sanitizedFileName = sanitizeStorageFileName(fileName);
+      const storagePath = `listing_sources/${listingId}/${Date.now()}_${sanitizedFileName}`;
+
+      await ensureStorageBucketExists(LISTING_BRAIN_UPLOAD_BUCKET);
+
+      const { error: uploadError } = await supabaseAdmin.storage
+        .from(LISTING_BRAIN_UPLOAD_BUCKET)
+        .upload(storagePath, file.buffer, {
+          contentType: file.mimetype || 'application/octet-stream',
+          upsert: false
+        });
+      if (uploadError) {
+        console.error('[Dashboard] Listing source upload failed:', uploadError);
+        return res.status(500).json({ error: 'upload_failed' });
+      }
+
+      const { data: publicUrlData } = supabaseAdmin.storage
+        .from(LISTING_BRAIN_UPLOAD_BUCKET)
+        .getPublicUrl(storagePath);
+      const uploadedUrl = publicUrlData?.publicUrl || null;
+
+      const source = await insertListingBrainSource({
+        listingId,
+        agentId: access.primaryAgentId,
+        type: 'file',
+        title: fileName,
+        url: uploadedUrl,
+        content: null,
+        status: 'needs_retrain'
+      });
+
+      return res.json({ source });
+    } catch (error) {
+      console.error('[Dashboard] Failed to upload listing brain doc:', error);
+      return res.status(500).json({ error: 'upload_failed' });
+    }
+  });
+});
+
+// ── Upload a document as a brain source (legacy text extraction path) ─────────
 app.post('/api/dashboard/listings/:id/sources/upload-file', (req, res) => {
   upload.single('file')(req, res, async (multerErr) => {
     if (multerErr) return res.status(400).json({ error: multerErr.message });
     try {
-      const agentId = await resolveRequesterUserId(req, { allowDefault: false });
-      if (!agentId) return res.status(401).json({ error: 'agent_auth_required' });
+      const requesterUserId = await resolveRequesterUserId(req, { allowDefault: false });
+      if (!requesterUserId) return res.status(401).json({ error: 'agent_auth_required' });
 
       const listingId = String(req.params.id || '');
       if (!listingId) return res.status(400).json({ error: 'listing_id_required' });
 
       if (!req.file) return res.status(400).json({ error: 'no_file_uploaded' });
 
-      const listingRow = await loadListingById({ listingId });
-      if (!listingRow) return res.status(404).json({ error: 'listing_not_found' });
+      const access = await resolveListingAccessContext({ listingId, requesterUserId, accessTag: 'dashboard.sources.upload_legacy' });
+      if (!access) return res.status(404).json({ error: 'listing_not_found' });
 
-      const ownerId = getListingOwnerId(listingRow);
-      if (!ownerId || ownerId !== String(agentId)) {
+      if (!access.primaryAgentId) {
         try { fs.unlinkSync(req.file.path); } catch (_) {}
         return res.status(403).json({ error: 'listing_access_denied' });
       }
@@ -16516,7 +20619,7 @@ app.post('/api/dashboard/listings/:id/sources/upload-file', (req, res) => {
 
       const source = await insertListingBrainSource({
         listingId,
-        agentId: ownerId,
+        agentId: access.primaryAgentId,
         type: 'file',
         title: originalname,
         content: extractedText || `[${originalname}]`,
@@ -16534,21 +20637,17 @@ app.post('/api/dashboard/listings/:id/sources/upload-file', (req, res) => {
 // ── Retrain listing brain with OpenAI ─────────────────────────────────────────
 app.post('/api/dashboard/listings/:id/retrain', async (req, res) => {
   try {
-    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
-    if (!agentId) return res.status(401).json({ error: 'agent_auth_required' });
+    const requesterUserId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!requesterUserId) return res.status(401).json({ error: 'agent_auth_required' });
 
     const listingId = String(req.params.id || '');
     if (!listingId) return res.status(400).json({ error: 'listing_id_required' });
 
-    const listingRow = await loadListingById({ listingId });
-    if (!listingRow) return res.status(404).json({ error: 'listing_not_found' });
+    const access = await resolveListingAccessContext({ listingId, requesterUserId, accessTag: 'dashboard.sources.retrain' });
+    if (!access) return res.status(404).json({ error: 'listing_not_found' });
+    const listingRow = access.listingRow;
 
-    const ownerId = getListingOwnerId(listingRow);
-    if (!ownerId || ownerId !== String(agentId)) {
-      return res.status(403).json({ error: 'listing_access_denied' });
-    }
-
-    const sources = await listListingBrainSources({ listingId, agentId: ownerId });
+    const sources = await listListingBrainSources({ listingId, agentId: access.sourceAgentIds });
     const staleSources = sources.filter((s) => s.status !== 'trained');
 
     if (staleSources.length === 0 && sources.length > 0) {
@@ -16607,7 +20706,7 @@ app.post('/api/dashboard/listings/:id/retrain', async (req, res) => {
             .update({ status: 'trained', trained_at: nowTs, updated_at: nowTs })
             .eq('id', s.id)
             .eq('listing_id', listingId)
-            .eq('agent_id', ownerId)
+            .in('agent_id', access.sourceAgentIds)
         )
       );
     }
@@ -16619,12 +20718,12 @@ app.post('/api/dashboard/listings/:id/retrain', async (req, res) => {
         .from('listing_sources')
         .delete()
         .eq('listing_id', listingId)
-        .eq('agent_id', ownerId)
+        .in('agent_id', access.sourceAgentIds)
         .eq('title', '🤖 AI Summary');
 
       await insertListingBrainSource({
         listingId,
-        agentId: ownerId,
+        agentId: access.primaryAgentId,
         type: 'text',
         title: '🤖 AI Summary',
         content: aiSummary,
@@ -16633,7 +20732,7 @@ app.post('/api/dashboard/listings/:id/retrain', async (req, res) => {
       });
     }
 
-    const refreshed = await listListingBrainSources({ listingId, agentId: ownerId });
+    const refreshed = await listListingBrainSources({ listingId, agentId: access.sourceAgentIds });
     return res.json({ success: true, ai_summary: aiSummary || null, sources: refreshed });
   } catch (error) {
     console.error('[Dashboard] Retrain error:', error);
@@ -16680,16 +20779,13 @@ app.get('/api/dashboard/listings/:listingId/leads', async (req, res) => {
 app.get('/api/dashboard/listings/:listingId/share-kit', async (req, res) => {
   try {
     const { listingId } = req.params;
-    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
-    if (!agentId) return res.status(401).json({ error: 'agent_auth_required' });
+    const requesterUserId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!requesterUserId) return res.status(401).json({ error: 'agent_auth_required' });
+    console.info('[sharekit.bootstrap]', { listingId, ownerId: requesterUserId });
 
-    const listing = await loadListingById({ listingId });
-    if (!listing) return res.status(404).json({ error: 'listing_not_found' });
-
-    const ownerId = getListingOwnerId(listing);
-    if (!ownerId || ownerId !== String(agentId)) {
-      return res.status(403).json({ error: 'listing_access_denied' });
-    }
+    const access = await resolveListingAccessContext({ listingId, requesterUserId, accessTag: 'dashboard.share_kit' });
+    if (!access) return res.status(404).json({ error: 'listing_not_found' });
+    const listing = access.listingRow;
     if (!isListingPublished(listing)) {
       return res.status(409).json({
         error: 'NOT_PUBLISHED',
@@ -16706,7 +20802,7 @@ app.get('/api/dashboard/listings/:listingId/share-kit', async (req, res) => {
 
     const sourceRows = await ensureDefaultListingSources({
       listingId: listing.id,
-      agentId: ownerId
+      agentId: access.primaryAgentId
     });
     const sources = sourceRows.reduce((acc, row) => {
       if (row?.source_key) {
@@ -16725,7 +20821,7 @@ app.get('/api/dashboard/listings/:listingId/share-kit', async (req, res) => {
         .from('listing_videos')
         .select('id, title, caption, file_name, mime_type, status, created_at')
         .eq('listing_id', listing.id)
-        .eq('agent_id', ownerId)
+        .in('agent_id', access.sourceAgentIds)
         .in('status', ['ready', 'completed', 'published', 'succeeded'])
         .order('created_at', { ascending: false })
         .limit(1);
@@ -16768,11 +20864,1006 @@ app.get('/api/dashboard/listings/:listingId/share-kit', async (req, res) => {
   }
 });
 
+// Smoke:
+// curl -sS -L "http://127.0.0.1:3002/api/dashboard/listings/95ead1fb-e9f3-4f3e-b45d-425b5f828ba0/open-house-flyer.pdf?agentId=1c72dde2-b1d2-4426-a2c5-b6277d93c5d7" -H "x-user-id: 1c72dde2-b1d2-4426-a2c5-b6277d93c5d7" -o /tmp/open-house-flyer.pdf
+app.get('/api/dashboard/listings/:listingId/open-house-flyer.pdf', async (req, res) => {
+  try {
+    const { listingId } = req.params;
+    const requesterUserId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!requesterUserId) return res.status(401).json({ error: 'agent_auth_required' });
+    console.info('[sharekit.flyer]', { listingId, ownerId: requesterUserId });
+
+    const access = await resolveListingAccessContext({
+      listingId,
+      requesterUserId,
+      accessTag: 'dashboard.open_house_flyer'
+    });
+    if (!access) return res.status(404).json({ error: 'listing_not_found' });
+    const { pdfBuffer, downloadName } = await buildOpenHouseFlyerPdfBundle({
+      listingRow: access.listingRow,
+      fallbackUserId: access.requesterUserId
+    });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${downloadName}"`);
+    return res.send(pdfBuffer);
+  } catch (error) {
+    console.error('[Dashboard] Failed to generate open house flyer PDF:', error);
+    return res.status(500).json({ error: 'failed_to_generate_open_house_flyer_pdf' });
+  }
+});
+
+app.get('/api/dashboard/listings/:listingId/qr.:format', async (req, res) => {
+  try {
+    const { listingId, format } = req.params;
+    const normalizedFormat = String(format || '').trim().toLowerCase();
+    if (!['png', 'svg'].includes(normalizedFormat)) {
+      return res.status(400).json({ error: 'unsupported_qr_format' });
+    }
+
+    const requesterUserId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!requesterUserId) return res.status(401).json({ error: 'agent_auth_required' });
+
+    const sourceKey = toSourceKey(req.query.sourceKey || req.query.source_key || req.query.source || 'sign') || 'sign';
+    const sourceType = toSourceType(req.query.sourceType || req.query.source_type || inferSourceTypeFromKey(sourceKey) || 'qr');
+    console.info(`[sharekit.${normalizedFormat}]`, { listingId, ownerId: requesterUserId, sourceKey, sourceType });
+
+    const access = await resolveListingAccessContext({
+      listingId,
+      requesterUserId,
+      accessTag: `dashboard.qr_${normalizedFormat}`
+    });
+    if (!access) return res.status(404).json({ error: 'listing_not_found' });
+
+    const listing = access.listingRow;
+    if (!isListingPublished(listing)) {
+      return res.status(409).json({
+        error: 'NOT_PUBLISHED',
+        status: normalizeDashboardListingStatus(listing.status, Boolean(listing.is_published))
+      });
+    }
+
+    const publicSlug = listing.public_slug || await ensureUniquePublicSlug({
+      listingId: listing.id,
+      title: listing.title,
+      address: listing.address
+    });
+    const sourceRow = await ensureListingSource({
+      listingId: listing.id,
+      agentId: access.primaryAgentId || access.requesterUserId,
+      sourceType,
+      sourceKey
+    });
+    const trackedUrl = buildTrackedListingUrl({
+      publicSlug,
+      sourceKey: sourceRow?.source_key || sourceKey,
+      utmSource: sourceRow?.utm_source || null,
+      utmMedium: sourceRow?.utm_medium || null,
+      utmCampaign: sourceRow?.utm_campaign || null
+    });
+    const qrAssets = await generateListingQrAssets(trackedUrl);
+    const fileBase = `${slugifyDownloadName(publicSlug || listing.id)}-${slugifyDownloadName(sourceRow?.source_key || sourceKey, sourceKey)}-qr`;
+
+    if (normalizedFormat === 'svg') {
+      res.setHeader('Content-Type', 'image/svg+xml; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${fileBase}.svg"`);
+      return res.send(qrAssets.qr_code_svg);
+    }
+
+    const { buffer, contentType } = decodeDataUrlToBuffer(qrAssets.qr_code_url);
+    res.setHeader('Content-Type', contentType || 'image/png');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileBase}.png"`);
+    return res.send(buffer);
+  } catch (error) {
+    console.error('[Dashboard] Failed to download listing QR asset:', error);
+    return res.status(500).json({ error: 'failed_to_download_listing_qr_asset' });
+  }
+});
+
+app.get('/api/dashboard/listings/:listingId/sign-rider.pdf', async (req, res) => {
+  let browser = null;
+  try {
+    const { listingId } = req.params;
+    const requesterUserId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!requesterUserId) return res.status(401).json({ error: 'agent_auth_required' });
+    console.info('[sharekit.sign_rider]', { listingId, ownerId: requesterUserId });
+
+    const access = await resolveListingAccessContext({
+      listingId,
+      requesterUserId,
+      accessTag: 'dashboard.sign_rider'
+    });
+    if (!access) return res.status(404).json({ error: 'listing_not_found' });
+
+    const listing = access.listingRow;
+    const publicSlug = listing.public_slug || await ensureUniquePublicSlug({
+      listingId: listing.id,
+      title: listing.title,
+      address: listing.address
+    });
+    const shareUrl = listing.share_url || buildListingShareUrl(publicSlug);
+    const trackedUrl = buildTrackedListingUrl({
+      publicSlug,
+      sourceKey: 'sign'
+    });
+    const chatUrl = `${shareUrl}${shareUrl.includes('?') ? '&' : '?'}action=chat`;
+    const contactUrl = `${shareUrl}${shareUrl.includes('?') ? '&' : '?'}action=contact`;
+    const qrAssets = await generateListingQrAssets(trackedUrl);
+
+    let aiCardUserId = toTrimmedOrNull(listing.user_id) || toTrimmedOrNull(access.requesterUserId);
+    if (!aiCardUserId && listing.agent_id) {
+      const { data: agentOwnerRow } = await supabaseAdmin
+        .from('agents')
+        .select('user_id,auth_user_id')
+        .eq('id', listing.agent_id)
+        .maybeSingle();
+      aiCardUserId = toTrimmedOrNull(agentOwnerRow?.user_id || agentOwnerRow?.auth_user_id);
+    }
+
+    const aiCardProfile = (await fetchAiCardProfileForUser(aiCardUserId)) || DEFAULT_AI_CARD_PROFILE;
+    const logoDataUrl = await readLocalAssetAsDataUrl(path.resolve(__dirname, '../public/newlogo.png'));
+    const headshotSourceUrl = toTrimmedOrNull(aiCardProfile.headshot || aiCardProfile.logo);
+    const agentHeadshotDataUrl = headshotSourceUrl
+      ? await fetchImageAsDataUrl(headshotSourceUrl, {
+        timeoutMs: FLYER_IMAGE_FETCH_TIMEOUT_MS,
+        fallbackDataUrl: null
+      })
+      : null;
+
+    const html = buildSignRiderHtml({
+      logoDataUrl,
+      address: toTrimmedOrNull(listing.address) || 'Listing address',
+      priceLabel: formatFlyerPrice(listing.price),
+      qrDataUrl: qrAssets.qr_code_url,
+      trackedUrl,
+      chatUrl,
+      contactUrl,
+      agentName: toTrimmedOrNull(aiCardProfile.fullName) || 'HomeListingAI Agent',
+      agentTitle: toTrimmedOrNull(aiCardProfile.professionalTitle) || 'Listing Specialist',
+      agentCompany: toTrimmedOrNull(aiCardProfile.company) || 'HomeListingAI',
+      agentHeadshotDataUrl,
+      brandColor: toTrimmedOrNull(aiCardProfile.brandColor) || DEFAULT_AI_CARD_PROFILE.brandColor
+    });
+
+    browser = await launchPdfBrowser();
+    const page = await browser.newPage();
+    await page.setViewport({ width: 1056, height: 816, deviceScaleFactor: 2 });
+    await page.setContent(html, { waitUntil: 'load' });
+    await page.waitForFunction(
+      () => Array.from(document.images).every((img) => img.complete && img.naturalWidth > 0),
+      { timeout: 15000 }
+    );
+
+    const pdfBuffer = await page.pdf({
+      format: 'Letter',
+      landscape: true,
+      printBackground: true,
+      preferCSSPageSize: true,
+      margin: {
+        top: '0in',
+        right: '0in',
+        bottom: '0in',
+        left: '0in'
+      }
+    });
+
+    const downloadName = `${slugifyDownloadName(publicSlug || listing.id)}-sign-rider.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${downloadName}"`);
+    return res.send(pdfBuffer);
+  } catch (error) {
+    console.error('[Dashboard] Failed to generate sign rider PDF:', error);
+    return res.status(500).json({ error: 'failed_to_generate_sign_rider_pdf' });
+  } finally {
+    if (browser) {
+      await browser.close().catch(() => undefined);
+    }
+  }
+});
+
+app.get('/api/dashboard/listings/:listingId/social-asset.png', async (req, res) => {
+  let browser = null;
+  try {
+    const { listingId } = req.params;
+    const requesterUserId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!requesterUserId) return res.status(401).json({ error: 'agent_auth_required' });
+
+    const format = String(req.query.format || 'ig_post').trim().toLowerCase();
+    if (!['ig_post', 'ig_story'].includes(format)) {
+      return res.status(400).json({ error: 'unsupported_social_format' });
+    }
+    console.info('[sharekit.social]', { listingId, ownerId: requesterUserId, format });
+
+    const access = await resolveListingAccessContext({
+      listingId,
+      requesterUserId,
+      accessTag: 'dashboard.social_asset'
+    });
+    if (!access) return res.status(404).json({ error: 'listing_not_found' });
+
+    const listing = access.listingRow;
+    const publicSlug = listing.public_slug || await ensureUniquePublicSlug({
+      listingId: listing.id,
+      title: listing.title,
+      address: listing.address
+    });
+    const shareUrl = listing.share_url || buildListingShareUrl(publicSlug);
+    const trackedUrl = buildTrackedListingUrl({
+      publicSlug,
+      sourceKey: 'social'
+    });
+    const qrAssets = await generateListingQrAssets(trackedUrl);
+
+    const photoUrls = getListingPhotoUrls({
+      hero_photos: listing.hero_photos,
+      gallery_photos: listing.gallery_photos,
+      photos: listing.photos
+    });
+    const propertyImageDataUrl = await fetchImageAsDataUrl(photoUrls[0], {
+      timeoutMs: FLYER_IMAGE_FETCH_TIMEOUT_MS,
+      fallbackDataUrl: buildFlyerPlaceholderDataUrl({
+        label: 'Photo unavailable',
+        sublabel: 'Add a hero image for this asset'
+      })
+    });
+
+    let aiCardUserId = toTrimmedOrNull(listing.user_id) || toTrimmedOrNull(access.requesterUserId);
+    if (!aiCardUserId && listing.agent_id) {
+      const { data: agentOwnerRow } = await supabaseAdmin
+        .from('agents')
+        .select('user_id,auth_user_id')
+        .eq('id', listing.agent_id)
+        .maybeSingle();
+      aiCardUserId = toTrimmedOrNull(agentOwnerRow?.user_id || agentOwnerRow?.auth_user_id);
+    }
+
+    const aiCardProfile = (await fetchAiCardProfileForUser(aiCardUserId)) || DEFAULT_AI_CARD_PROFILE;
+    const logoDataUrl = await readLocalAssetAsDataUrl(path.resolve(__dirname, '../public/newlogo.png'));
+    const headshotSourceUrl = toTrimmedOrNull(aiCardProfile.headshot || aiCardProfile.logo);
+    const agentHeadshotDataUrl = headshotSourceUrl
+      ? await fetchImageAsDataUrl(headshotSourceUrl, {
+        timeoutMs: FLYER_IMAGE_FETCH_TIMEOUT_MS,
+        fallbackDataUrl: null
+      })
+      : null;
+
+    const html = buildSocialAssetHtml({
+      format,
+      logoDataUrl,
+      propertyImageDataUrl,
+      address: toTrimmedOrNull(listing.address) || 'Listing address',
+      priceLabel: formatFlyerPrice(listing.price),
+      beds: formatFlyerMetric(listing.bedrooms),
+      baths: formatFlyerMetric(listing.bathrooms),
+      sqft: formatFlyerMetric(listing.square_feet),
+      qrDataUrl: qrAssets.qr_code_url,
+      shareUrl,
+      agentName: toTrimmedOrNull(aiCardProfile.fullName) || 'HomeListingAI Agent',
+      agentTitle: toTrimmedOrNull(aiCardProfile.professionalTitle) || 'Listing Specialist',
+      agentCompany: toTrimmedOrNull(aiCardProfile.company) || 'HomeListingAI',
+      agentHeadshotDataUrl,
+      brandColor: toTrimmedOrNull(aiCardProfile.brandColor) || DEFAULT_AI_CARD_PROFILE.brandColor
+    });
+
+    browser = await launchPdfBrowser();
+    const page = await browser.newPage();
+    const viewport = format === 'ig_story'
+      ? { width: 1080, height: 1920, deviceScaleFactor: 1 }
+      : { width: 1080, height: 1350, deviceScaleFactor: 1 };
+    await page.setViewport(viewport);
+    await page.setContent(html, { waitUntil: 'load' });
+    await page.waitForFunction(
+      () => Array.from(document.images).every((img) => img.complete && img.naturalWidth > 0),
+      { timeout: 15000 }
+    );
+
+    const imageBuffer = await page.screenshot({
+      type: 'png',
+      fullPage: false,
+      omitBackground: false
+    });
+
+    const downloadName = `${slugifyDownloadName(publicSlug || listing.id)}-${format === 'ig_story' ? 'ig-story' : 'ig-post'}.png`;
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Content-Disposition', `attachment; filename="${downloadName}"`);
+    return res.send(imageBuffer);
+  } catch (error) {
+    console.error('[Dashboard] Failed to generate social asset PNG:', error);
+    return res.status(500).json({ error: 'failed_to_generate_social_asset' });
+  } finally {
+    if (browser) {
+      await browser.close().catch(() => undefined);
+    }
+  }
+});
+
+app.get('/api/dashboard/listings/:listingId/property-report.pdf', async (req, res) => {
+  let browser = null;
+  try {
+    const { listingId } = req.params;
+    const requesterUserId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!requesterUserId) return res.status(401).json({ error: 'agent_auth_required' });
+    console.info('[sharekit.property_report]', { listingId, ownerId: requesterUserId });
+
+    const access = await resolveListingAccessContext({
+      listingId,
+      requesterUserId,
+      accessTag: 'dashboard.property_report'
+    });
+    if (!access) return res.status(404).json({ error: 'listing_not_found' });
+
+    const listing = access.listingRow;
+    const publicSlug = listing.public_slug || await ensureUniquePublicSlug({
+      listingId: listing.id,
+      title: listing.title,
+      address: listing.address
+    });
+    const shareUrl = listing.share_url || buildListingShareUrl(publicSlug);
+    const trackedUrl = buildTrackedListingUrl({
+      publicSlug,
+      sourceKey: 'report'
+    });
+    const chatUrl = `${shareUrl}${shareUrl.includes('?') ? '&' : '?'}action=chat`;
+    const contactUrl = `${shareUrl}${shareUrl.includes('?') ? '&' : '?'}action=contact`;
+    const qrAssets = await generateListingQrAssets(trackedUrl);
+
+    const photoUrls = getListingPhotoUrls({
+      hero_photos: listing.hero_photos,
+      gallery_photos: listing.gallery_photos,
+      photos: listing.photos
+    });
+    const photoFallback = buildFlyerPlaceholderDataUrl();
+    const photoDataUrls = await Promise.all(
+      (photoUrls.length > 0 ? photoUrls.slice(0, FLYER_MAX_PHOTOS) : [photoFallback]).map((photoUrl, index) =>
+        fetchImageAsDataUrl(photoUrl, {
+          timeoutMs: FLYER_IMAGE_FETCH_TIMEOUT_MS,
+          fallbackDataUrl: buildFlyerPlaceholderDataUrl({
+            label: `Photo ${index + 1} unavailable`,
+            sublabel: 'The listing image could not be loaded'
+          })
+        })
+      )
+    );
+    while (photoDataUrls.length < FLYER_MAX_PHOTOS) {
+      photoDataUrls.push(
+        buildFlyerPlaceholderDataUrl({
+          label: `Photo ${photoDataUrls.length + 1} unavailable`,
+          sublabel: 'Add more listing photos for this space'
+        })
+      );
+    }
+
+    let aiCardUserId = toTrimmedOrNull(listing.user_id) || toTrimmedOrNull(access.requesterUserId);
+    if (!aiCardUserId && listing.agent_id) {
+      const { data: agentOwnerRow } = await supabaseAdmin
+        .from('agents')
+        .select('user_id,auth_user_id')
+        .eq('id', listing.agent_id)
+        .maybeSingle();
+      aiCardUserId = toTrimmedOrNull(agentOwnerRow?.user_id || agentOwnerRow?.auth_user_id);
+    }
+
+    const aiCardProfile = (await fetchAiCardProfileForUser(aiCardUserId)) || DEFAULT_AI_CARD_PROFILE;
+    const logoDataUrl = await readLocalAssetAsDataUrl(path.resolve(__dirname, '../public/newlogo.png'));
+    const headshotSourceUrl = toTrimmedOrNull(aiCardProfile.headshot || aiCardProfile.logo);
+    const agentHeadshotDataUrl = headshotSourceUrl
+      ? await fetchImageAsDataUrl(headshotSourceUrl, {
+        timeoutMs: FLYER_IMAGE_FETCH_TIMEOUT_MS,
+        fallbackDataUrl: null
+      })
+      : null;
+
+    const html = buildPropertyReportHtml({
+      logoDataUrl,
+      address: toTrimmedOrNull(listing.address) || 'Listing address',
+      priceLabel: formatFlyerPrice(listing.price),
+      beds: formatFlyerMetric(listing.bedrooms),
+      baths: formatFlyerMetric(listing.bathrooms),
+      sqft: formatFlyerMetric(listing.square_feet),
+      description: extractListingDescription(listing.description),
+      photoDataUrls,
+      qrDataUrl: qrAssets.qr_code_url,
+      shareUrl,
+      trackedUrl,
+      chatUrl,
+      contactUrl,
+      agentName: toTrimmedOrNull(aiCardProfile.fullName) || 'HomeListingAI Agent',
+      agentTitle: toTrimmedOrNull(aiCardProfile.professionalTitle) || 'Listing Specialist',
+      agentCompany: toTrimmedOrNull(aiCardProfile.company) || 'HomeListingAI',
+      agentPhone: toTrimmedOrNull(aiCardProfile.phone),
+      agentEmail: toTrimmedOrNull(aiCardProfile.email),
+      agentHeadshotDataUrl,
+      brandColor: toTrimmedOrNull(aiCardProfile.brandColor) || DEFAULT_AI_CARD_PROFILE.brandColor
+    });
+
+    browser = await launchPdfBrowser();
+    const page = await browser.newPage();
+    await page.setViewport({ width: 816, height: 1056, deviceScaleFactor: 2 });
+    await page.setContent(html, { waitUntil: 'load' });
+    await page.waitForFunction(
+      () => Array.from(document.images).every((img) => img.complete && img.naturalWidth > 0),
+      { timeout: 15000 }
+    );
+
+    const pdfBuffer = await page.pdf({
+      format: 'Letter',
+      printBackground: true,
+      preferCSSPageSize: true,
+      margin: {
+        top: '0in',
+        right: '0in',
+        bottom: '0in',
+        left: '0in'
+      }
+    });
+
+    const downloadName = `${slugifyDownloadName(publicSlug || listing.id)}-property-report.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${downloadName}"`);
+    return res.send(pdfBuffer);
+  } catch (error) {
+    console.error('[Dashboard] Failed to generate property report PDF:', error);
+    return res.status(500).json({ error: 'failed_to_generate_property_report_pdf' });
+  } finally {
+    if (browser) {
+      await browser.close().catch(() => undefined);
+    }
+  }
+});
+
+app.get('/api/dashboard/listings/:listingId/fair-housing-review.pdf', async (req, res) => {
+  let browser = null;
+  try {
+    const { listingId } = req.params;
+    const requesterUserId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!requesterUserId) return res.status(401).json({ error: 'agent_auth_required' });
+    console.info('[sharekit.fair_housing]', { listingId, ownerId: requesterUserId });
+
+    const access = await resolveListingAccessContext({
+      listingId,
+      requesterUserId,
+      accessTag: 'dashboard.fair_housing_review'
+    });
+    if (!access) return res.status(404).json({ error: 'listing_not_found' });
+
+    const listing = access.listingRow;
+    let aiCardUserId = toTrimmedOrNull(listing.user_id) || toTrimmedOrNull(access.requesterUserId);
+    if (!aiCardUserId && listing.agent_id) {
+      const { data: agentOwnerRow } = await supabaseAdmin
+        .from('agents')
+        .select('user_id,auth_user_id')
+        .eq('id', listing.agent_id)
+        .maybeSingle();
+      aiCardUserId = toTrimmedOrNull(agentOwnerRow?.user_id || agentOwnerRow?.auth_user_id);
+    }
+
+    const aiCardProfile = (await fetchAiCardProfileForUser(aiCardUserId)) || DEFAULT_AI_CARD_PROFILE;
+    const logoDataUrl = await readLocalAssetAsDataUrl(path.resolve(__dirname, '../public/newlogo.png'));
+    const scan = buildFairHousingScan(extractListingDescription(listing.description));
+
+    const html = buildFairHousingReportHtml({
+      logoDataUrl,
+      address: toTrimmedOrNull(listing.address) || 'Listing address',
+      scan,
+      brandColor: toTrimmedOrNull(aiCardProfile.brandColor) || DEFAULT_AI_CARD_PROFILE.brandColor
+    });
+
+    browser = await launchPdfBrowser();
+    const page = await browser.newPage();
+    await page.setViewport({ width: 816, height: 1056, deviceScaleFactor: 2 });
+    await page.setContent(html, { waitUntil: 'load' });
+    const pdfBuffer = await page.pdf({
+      format: 'Letter',
+      printBackground: true,
+      preferCSSPageSize: true,
+      margin: {
+        top: '0in',
+        right: '0in',
+        bottom: '0in',
+        left: '0in'
+      }
+    });
+
+    const publicSlug = listing.public_slug || listing.id;
+    const downloadName = `${slugifyDownloadName(publicSlug)}-fair-housing-review.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${downloadName}"`);
+    return res.send(pdfBuffer);
+  } catch (error) {
+    console.error('[Dashboard] Failed to generate fair housing review PDF:', error);
+    return res.status(500).json({ error: 'failed_to_generate_fair_housing_review_pdf' });
+  } finally {
+    if (browser) {
+      await browser.close().catch(() => undefined);
+    }
+  }
+});
+
+app.get('/api/dashboard/listings/:listingId/light-cma/config', async (req, res) => {
+  try {
+    const { listingId } = req.params;
+    const requesterUserId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!requesterUserId) return res.status(401).json({ error: 'agent_auth_required' });
+    console.info('[sharekit.light_cma_config.get]', { listingId, ownerId: requesterUserId });
+
+    const access = await resolveListingAccessContext({
+      listingId,
+      requesterUserId,
+      accessTag: 'dashboard.light_cma_config_get'
+    });
+    if (!access) return res.status(404).json({ error: 'listing_not_found' });
+
+    const config = await loadLightCmaConfig({
+      listingId: access.listingRow.id,
+      agentIds: access.sourceAgentIds
+    });
+
+    return res.json({
+      success: true,
+      listing_id: access.listingRow.id,
+      config
+    });
+  } catch (error) {
+    console.error('[Dashboard] Failed to load light CMA config:', error);
+    return res.status(500).json({ error: 'failed_to_load_light_cma_config' });
+  }
+});
+
+app.put('/api/dashboard/listings/:listingId/light-cma/config', async (req, res) => {
+  try {
+    const { listingId } = req.params;
+    const requesterUserId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!requesterUserId) return res.status(401).json({ error: 'agent_auth_required' });
+    console.info('[sharekit.light_cma_config.put]', { listingId, ownerId: requesterUserId });
+
+    const access = await resolveListingAccessContext({
+      listingId,
+      requesterUserId,
+      accessTag: 'dashboard.light_cma_config_put'
+    });
+    if (!access) return res.status(404).json({ error: 'listing_not_found' });
+
+    const config = normalizeLightCmaConfig(req.body || {});
+    const primaryAgentId =
+      toTrimmedOrNull(access.listingRow.user_id) ||
+      toTrimmedOrNull(Array.isArray(access.sourceAgentIds) ? access.sourceAgentIds[0] : access.sourceAgentIds) ||
+      requesterUserId;
+
+    await upsertListingSourceContent({
+      listingId: access.listingRow.id,
+      agentId: primaryAgentId,
+      sourceType: 'text',
+      sourceKey: LIGHT_CMA_CONFIG_SOURCE_KEY,
+      title: 'Light CMA Config',
+      content: config,
+      status: 'trained'
+    });
+
+    return res.json({
+      success: true,
+      listing_id: access.listingRow.id,
+      config
+    });
+  } catch (error) {
+    console.error('[Dashboard] Failed to save light CMA config:', error);
+    return res.status(500).json({ error: 'failed_to_save_light_cma_config' });
+  }
+});
+
+app.get('/api/dashboard/listings/:listingId/light-cma.pdf', async (req, res) => {
+  let browser = null;
+  try {
+    const { listingId } = req.params;
+    const requesterUserId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!requesterUserId) return res.status(401).json({ error: 'agent_auth_required' });
+    console.info('[sharekit.light_cma]', { listingId, ownerId: requesterUserId });
+
+    const access = await resolveListingAccessContext({
+      listingId,
+      requesterUserId,
+      accessTag: 'dashboard.light_cma'
+    });
+    if (!access) return res.status(404).json({ error: 'listing_not_found' });
+
+    const listing = access.listingRow;
+    const publicSlug = listing.public_slug || await ensureUniquePublicSlug({
+      listingId: listing.id,
+      title: listing.title,
+      address: listing.address
+    });
+    const shareUrl = listing.share_url || buildListingShareUrl(publicSlug);
+    const chatUrl = `${shareUrl}${shareUrl.includes('?') ? '&' : '?'}action=chat`;
+    const contactUrl = `${shareUrl}${shareUrl.includes('?') ? '&' : '?'}action=contact`;
+    const lightCmaConfig = await loadLightCmaConfig({
+      listingId: listing.id,
+      agentIds: access.sourceAgentIds
+    });
+    const marketBundle = await buildMarketAnalysisBundle({
+      listingRow: listing,
+      ownerIds: access.sourceAgentIds,
+      manualComps: lightCmaConfig.manual_comps
+    });
+
+    let aiCardUserId = toTrimmedOrNull(listing.user_id) || toTrimmedOrNull(access.requesterUserId);
+    if (!aiCardUserId && listing.agent_id) {
+      const { data: agentOwnerRow } = await supabaseAdmin
+        .from('agents')
+        .select('user_id,auth_user_id')
+        .eq('id', listing.agent_id)
+        .maybeSingle();
+      aiCardUserId = toTrimmedOrNull(agentOwnerRow?.user_id || agentOwnerRow?.auth_user_id);
+    }
+
+    const aiCardProfile = (await fetchAiCardProfileForUser(aiCardUserId)) || DEFAULT_AI_CARD_PROFILE;
+    const logoDataUrl = await readLocalAssetAsDataUrl(path.resolve(__dirname, '../public/newlogo.png'));
+    const headshotSourceUrl = toTrimmedOrNull(aiCardProfile.headshot || aiCardProfile.logo);
+    const agentHeadshotDataUrl = headshotSourceUrl
+      ? await fetchImageAsDataUrl(headshotSourceUrl, {
+        timeoutMs: FLYER_IMAGE_FETCH_TIMEOUT_MS,
+        fallbackDataUrl: null
+      })
+      : null;
+    const html = buildLightCmaHtml({
+      logoDataUrl,
+      address: toTrimmedOrNull(listing.address) || 'Listing address',
+      priceLabel: formatFlyerPrice(listing.price),
+      beds: formatFlyerMetric(listing.bedrooms),
+      baths: formatFlyerMetric(listing.bathrooms),
+      sqft: formatFlyerMetric(listing.square_feet),
+      estimatedRange: marketBundle.estimatedRange,
+      marketSnapshot: marketBundle.marketSnapshot,
+      soldComps: marketBundle.soldComps,
+      activeComps: marketBundle.activeComps,
+      anchorComp: marketBundle.anchorComp,
+      census: marketBundle.publicData,
+      brandColor: toTrimmedOrNull(aiCardProfile.brandColor) || DEFAULT_AI_CARD_PROFILE.brandColor,
+      pricingNotes: lightCmaConfig.pricing_notes,
+      manualCompCount: lightCmaConfig.manual_comps.length,
+      chatUrl,
+      contactUrl,
+      agentName: toTrimmedOrNull(aiCardProfile.fullName) || 'HomeListingAI Agent',
+      agentTitle: toTrimmedOrNull(aiCardProfile.professionalTitle) || 'Listing Specialist',
+      agentCompany: toTrimmedOrNull(aiCardProfile.company) || 'HomeListingAI',
+      agentPhone: toTrimmedOrNull(aiCardProfile.phone),
+      agentEmail: toTrimmedOrNull(aiCardProfile.email),
+      agentHeadshotDataUrl
+    });
+
+    browser = await launchPdfBrowser();
+    const page = await browser.newPage();
+    await page.setViewport({ width: 816, height: 1056, deviceScaleFactor: 2 });
+    await page.setContent(html, { waitUntil: 'load' });
+    const pdfBuffer = await page.pdf({
+      format: 'Letter',
+      printBackground: true,
+      preferCSSPageSize: true,
+      margin: {
+        top: '0in',
+        right: '0in',
+        bottom: '0in',
+        left: '0in'
+      }
+    });
+
+    const downloadName = `${slugifyDownloadName(publicSlug)}-light-cma.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${downloadName}"`);
+    return res.send(pdfBuffer);
+  } catch (error) {
+    console.error('[Dashboard] Failed to generate light CMA PDF:', error);
+    return res.status(500).json({ error: 'failed_to_generate_light_cma_pdf' });
+  } finally {
+    if (browser) {
+      await browser.close().catch(() => undefined);
+    }
+  }
+});
+
+app.get('/api/demo/sharekit/listings/:listingId/qr.:format', async (req, res) => {
+  try {
+    const { listingId, format } = req.params;
+    const normalizedFormat = String(format || '').trim().toLowerCase();
+    if (!['png', 'svg'].includes(normalizedFormat)) {
+      return res.status(400).json({ error: 'unsupported_qr_format' });
+    }
+
+    const sourceKey = toSourceKey(req.query.sourceKey || req.query.source_key || req.query.source || 'sign') || 'sign';
+    const context = await buildDemoShareKitContext(listingId, sourceKey);
+    const fileBase = `${slugifyDownloadName(context.publicSlug || context.listing.id)}-${slugifyDownloadName(sourceKey, sourceKey)}-qr`;
+
+    if (normalizedFormat === 'svg') {
+      res.setHeader('Content-Type', 'image/svg+xml; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${fileBase}.svg"`);
+      return res.send(context.qrAssets.qr_code_svg);
+    }
+
+    const { buffer, contentType } = decodeDataUrlToBuffer(context.qrAssets.qr_code_url);
+    res.setHeader('Content-Type', contentType || 'image/png');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileBase}.png"`);
+    return res.send(buffer);
+  } catch (error) {
+    console.error('[Demo] Failed to generate demo QR asset:', error);
+    return res.status(500).json({ error: 'failed_to_generate_demo_qr_asset' });
+  }
+});
+
+app.get('/api/demo/sharekit/listings/:listingId/open-house-flyer.pdf', async (req, res) => {
+  let browser = null;
+  try {
+    const context = await buildDemoShareKitContext(req.params.listingId, 'open_house');
+    const html = buildOpenHouseFlyerHtml({
+      logoDataUrl: context.logoDataUrl,
+      address: context.listing.address,
+      priceLabel: formatFlyerPrice(context.listing.price),
+      beds: formatFlyerMetric(context.listing.bedrooms),
+      baths: formatFlyerMetric(context.listing.bathrooms),
+      sqft: formatFlyerMetric(context.listing.square_feet),
+      description: extractListingDescription(context.listing.description),
+      photoDataUrls: context.photoDataUrls,
+      qrDataUrl: context.qrAssets.qr_code_url,
+      shareUrl: context.shareUrl,
+      trackedUrl: context.trackedUrl,
+      chatUrl: context.chatUrl,
+      contactUrl: context.contactUrl,
+      agentName: context.aiCardProfile.fullName,
+      agentTitle: context.aiCardProfile.professionalTitle,
+      agentCompany: context.aiCardProfile.company,
+      agentHeadshotDataUrl: context.agentHeadshotDataUrl,
+      brandColor: context.aiCardProfile.brandColor
+    });
+    browser = await launchPdfBrowser();
+    const page = await browser.newPage();
+    await page.setViewport({ width: 816, height: 1056, deviceScaleFactor: 2 });
+    await page.setContent(html, { waitUntil: 'load' });
+    await page.waitForFunction(() => Array.from(document.images).every((img) => img.complete && img.naturalWidth > 0), { timeout: 15000 });
+    const pdfBuffer = await page.pdf({
+      format: 'Letter',
+      printBackground: true,
+      preferCSSPageSize: true,
+      margin: { top: '0in', right: '0in', bottom: '0in', left: '0in' }
+    });
+    const downloadName = `${slugifyDownloadName(context.publicSlug)}-open-house-flyer.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${downloadName}"`);
+    return res.send(pdfBuffer);
+  } catch (error) {
+    console.error('[Demo] Failed to generate demo open house flyer PDF:', error);
+    return res.status(500).json({ error: 'failed_to_generate_demo_open_house_flyer_pdf' });
+  } finally {
+    if (browser) await browser.close().catch(() => undefined);
+  }
+});
+
+app.get('/api/demo/sharekit/listings/:listingId/sign-rider.pdf', async (req, res) => {
+  let browser = null;
+  try {
+    const context = await buildDemoShareKitContext(req.params.listingId, 'sign');
+    const html = buildSignRiderHtml({
+      logoDataUrl: context.logoDataUrl,
+      address: context.listing.address,
+      priceLabel: formatFlyerPrice(context.listing.price),
+      qrDataUrl: context.qrAssets.qr_code_url,
+      trackedUrl: context.trackedUrl,
+      chatUrl: context.chatUrl,
+      contactUrl: context.contactUrl,
+      agentName: context.aiCardProfile.fullName,
+      agentTitle: context.aiCardProfile.professionalTitle,
+      agentCompany: context.aiCardProfile.company,
+      agentHeadshotDataUrl: context.agentHeadshotDataUrl,
+      brandColor: context.aiCardProfile.brandColor
+    });
+    browser = await launchPdfBrowser();
+    const page = await browser.newPage();
+    await page.setViewport({ width: 1056, height: 816, deviceScaleFactor: 2 });
+    await page.setContent(html, { waitUntil: 'load' });
+    await page.waitForFunction(() => Array.from(document.images).every((img) => img.complete && img.naturalWidth > 0), { timeout: 15000 });
+    const pdfBuffer = await page.pdf({
+      format: 'Letter',
+      landscape: true,
+      printBackground: true,
+      preferCSSPageSize: true,
+      margin: { top: '0in', right: '0in', bottom: '0in', left: '0in' }
+    });
+    const downloadName = `${slugifyDownloadName(context.publicSlug)}-sign-rider.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${downloadName}"`);
+    return res.send(pdfBuffer);
+  } catch (error) {
+    console.error('[Demo] Failed to generate demo sign rider PDF:', error);
+    return res.status(500).json({ error: 'failed_to_generate_demo_sign_rider_pdf' });
+  } finally {
+    if (browser) await browser.close().catch(() => undefined);
+  }
+});
+
+app.get('/api/demo/sharekit/listings/:listingId/social-asset.png', async (req, res) => {
+  let browser = null;
+  try {
+    const format = String(req.query.format || 'ig_post').trim().toLowerCase();
+    if (!['ig_post', 'ig_story'].includes(format)) {
+      return res.status(400).json({ error: 'unsupported_social_format' });
+    }
+    const context = await buildDemoShareKitContext(req.params.listingId, 'social');
+    const html = buildSocialAssetHtml({
+      format,
+      logoDataUrl: context.logoDataUrl,
+      propertyImageDataUrl: context.photoDataUrls[0],
+      address: context.listing.address,
+      priceLabel: formatFlyerPrice(context.listing.price),
+      beds: formatFlyerMetric(context.listing.bedrooms),
+      baths: formatFlyerMetric(context.listing.bathrooms),
+      sqft: formatFlyerMetric(context.listing.square_feet),
+      qrDataUrl: context.qrAssets.qr_code_url,
+      shareUrl: context.shareUrl,
+      agentName: context.aiCardProfile.fullName,
+      agentTitle: context.aiCardProfile.professionalTitle,
+      agentCompany: context.aiCardProfile.company,
+      agentHeadshotDataUrl: context.agentHeadshotDataUrl,
+      brandColor: context.aiCardProfile.brandColor
+    });
+    browser = await launchPdfBrowser();
+    const page = await browser.newPage();
+    const viewport = format === 'ig_story'
+      ? { width: 1080, height: 1920, deviceScaleFactor: 1 }
+      : { width: 1080, height: 1350, deviceScaleFactor: 1 };
+    await page.setViewport(viewport);
+    await page.setContent(html, { waitUntil: 'load' });
+    await page.waitForFunction(() => Array.from(document.images).every((img) => img.complete && img.naturalWidth > 0), { timeout: 15000 });
+    const imageBuffer = await page.screenshot({ type: 'png', fullPage: false, omitBackground: false });
+    const downloadName = `${slugifyDownloadName(context.publicSlug)}-${format === 'ig_story' ? 'ig-story' : 'ig-post'}.png`;
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Content-Disposition', `attachment; filename="${downloadName}"`);
+    return res.send(imageBuffer);
+  } catch (error) {
+    console.error('[Demo] Failed to generate demo social asset:', error);
+    return res.status(500).json({ error: 'failed_to_generate_demo_social_asset' });
+  } finally {
+    if (browser) await browser.close().catch(() => undefined);
+  }
+});
+
+app.get('/api/demo/sharekit/listings/:listingId/property-report.pdf', async (req, res) => {
+  let browser = null;
+  try {
+    const context = await buildDemoShareKitContext(req.params.listingId, 'report');
+    const html = buildPropertyReportHtml({
+      logoDataUrl: context.logoDataUrl,
+      address: context.listing.address,
+      priceLabel: formatFlyerPrice(context.listing.price),
+      beds: formatFlyerMetric(context.listing.bedrooms),
+      baths: formatFlyerMetric(context.listing.bathrooms),
+      sqft: formatFlyerMetric(context.listing.square_feet),
+      description: extractListingDescription(context.listing.description),
+      photoDataUrls: context.photoDataUrls,
+      qrDataUrl: context.qrAssets.qr_code_url,
+      shareUrl: context.shareUrl,
+      trackedUrl: context.trackedUrl,
+      chatUrl: context.chatUrl,
+      contactUrl: context.contactUrl,
+      agentName: context.aiCardProfile.fullName,
+      agentTitle: context.aiCardProfile.professionalTitle,
+      agentCompany: context.aiCardProfile.company,
+      agentPhone: context.aiCardProfile.phone,
+      agentEmail: context.aiCardProfile.email,
+      agentHeadshotDataUrl: context.agentHeadshotDataUrl,
+      brandColor: context.aiCardProfile.brandColor
+    });
+    browser = await launchPdfBrowser();
+    const page = await browser.newPage();
+    await page.setViewport({ width: 816, height: 1056, deviceScaleFactor: 2 });
+    await page.setContent(html, { waitUntil: 'load' });
+    await page.waitForFunction(() => Array.from(document.images).every((img) => img.complete && img.naturalWidth > 0), { timeout: 15000 });
+    const pdfBuffer = await page.pdf({
+      format: 'Letter',
+      printBackground: true,
+      preferCSSPageSize: true,
+      margin: { top: '0in', right: '0in', bottom: '0in', left: '0in' }
+    });
+    const downloadName = `${slugifyDownloadName(context.publicSlug)}-property-report.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${downloadName}"`);
+    return res.send(pdfBuffer);
+  } catch (error) {
+    console.error('[Demo] Failed to generate demo property report PDF:', error);
+    return res.status(500).json({ error: 'failed_to_generate_demo_property_report_pdf' });
+  } finally {
+    if (browser) await browser.close().catch(() => undefined);
+  }
+});
+
+app.get('/api/demo/sharekit/listings/:listingId/fair-housing-review.pdf', async (req, res) => {
+  let browser = null;
+  try {
+    const context = await buildDemoShareKitContext(req.params.listingId, 'sign');
+    const scan = buildFairHousingScan(extractListingDescription(context.listing.description));
+    const html = buildFairHousingReportHtml({
+      logoDataUrl: context.logoDataUrl,
+      address: context.listing.address,
+      scan,
+      brandColor: context.aiCardProfile.brandColor
+    });
+    browser = await launchPdfBrowser();
+    const page = await browser.newPage();
+    await page.setViewport({ width: 816, height: 1056, deviceScaleFactor: 2 });
+    await page.setContent(html, { waitUntil: 'load' });
+    const pdfBuffer = await page.pdf({
+      format: 'Letter',
+      printBackground: true,
+      preferCSSPageSize: true,
+      margin: { top: '0in', right: '0in', bottom: '0in', left: '0in' }
+    });
+    const downloadName = `${slugifyDownloadName(context.publicSlug)}-fair-housing-review.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${downloadName}"`);
+    return res.send(pdfBuffer);
+  } catch (error) {
+    console.error('[Demo] Failed to generate demo fair housing review PDF:', error);
+    return res.status(500).json({ error: 'failed_to_generate_demo_fair_housing_review_pdf' });
+  } finally {
+    if (browser) await browser.close().catch(() => undefined);
+  }
+});
+
+app.get('/api/demo/sharekit/listings/:listingId/light-cma.pdf', async (req, res) => {
+  let browser = null;
+  try {
+    const context = await buildDemoShareKitContext(req.params.listingId, 'report');
+    const lightCmaConfig = getDemoLightCmaConfig(req.params.listingId);
+    const marketBundle = buildDemoMarketAnalysisBundle({
+      listingRow: context.listing,
+      manualComps: lightCmaConfig.manual_comps
+    });
+    const html = buildLightCmaHtml({
+      logoDataUrl: context.logoDataUrl,
+      address: context.listing.address,
+      priceLabel: formatFlyerPrice(context.listing.price),
+      beds: formatFlyerMetric(context.listing.bedrooms),
+      baths: formatFlyerMetric(context.listing.bathrooms),
+      sqft: formatFlyerMetric(context.listing.square_feet),
+      estimatedRange: marketBundle.estimatedRange,
+      marketSnapshot: marketBundle.marketSnapshot,
+      soldComps: marketBundle.soldComps,
+      activeComps: marketBundle.activeComps,
+      anchorComp: marketBundle.anchorComp,
+      census: marketBundle.publicData,
+      brandColor: context.aiCardProfile.brandColor,
+      pricingNotes: lightCmaConfig.pricing_notes,
+      manualCompCount: lightCmaConfig.manual_comps.length,
+      chatUrl: context.chatUrl,
+      contactUrl: context.contactUrl,
+      agentName: context.aiCardProfile.fullName,
+      agentTitle: context.aiCardProfile.professionalTitle,
+      agentCompany: context.aiCardProfile.company,
+      agentPhone: context.aiCardProfile.phone,
+      agentEmail: context.aiCardProfile.email,
+      agentHeadshotDataUrl: context.agentHeadshotDataUrl
+    });
+    browser = await launchPdfBrowser();
+    const page = await browser.newPage();
+    await page.setViewport({ width: 816, height: 1056, deviceScaleFactor: 2 });
+    await page.setContent(html, { waitUntil: 'load' });
+    const pdfBuffer = await page.pdf({
+      format: 'Letter',
+      printBackground: true,
+      preferCSSPageSize: true,
+      margin: { top: '0in', right: '0in', bottom: '0in', left: '0in' }
+    });
+    const downloadName = `${slugifyDownloadName(context.publicSlug)}-light-cma.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${downloadName}"`);
+    return res.send(pdfBuffer);
+  } catch (error) {
+    console.error('[Demo] Failed to generate demo light CMA PDF:', error);
+    return res.status(500).json({ error: 'failed_to_generate_demo_light_cma_pdf' });
+  } finally {
+    if (browser) await browser.close().catch(() => undefined);
+  }
+});
+
 app.get('/api/dashboard/videos/:videoId/signed-url', async (req, res) => {
   try {
     const { videoId } = req.params;
-    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
-    if (!agentId) {
+    const requesterUserId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!requesterUserId) {
       return res.status(401).json({ error: 'agent_auth_required' });
     }
 
@@ -16795,7 +21886,12 @@ app.get('/api/dashboard/videos/:videoId/signed-url', async (req, res) => {
     if (!videoRow) {
       return res.status(404).json({ error: 'video_not_found' });
     }
-    if (String(videoRow.agent_id || '') !== agentId) {
+    const listing = await loadListingForVideoAccess({
+      listingId: videoRow.listing_id,
+      requesterUserId,
+      accessTag: 'video.signed_url'
+    });
+    if (!listing) {
       return res.status(403).json({ error: 'video_access_denied' });
     }
     if (
@@ -16815,7 +21911,8 @@ app.get('/api/dashboard/videos/:videoId/signed-url', async (req, res) => {
     if (bucket !== 'videos') {
       return res.status(409).json({ error: 'video_storage_bucket_invalid' });
     }
-    const expectedPath = `agent/${agentId}/listing/${videoRow.listing_id}/${videoRow.id}.mp4`;
+    const expectedOwnerId = String(videoRow.agent_id || '').trim() || String(requesterUserId || '').trim();
+    const expectedPath = `agent/${expectedOwnerId}/listing/${videoRow.listing_id}/${videoRow.id}.mp4`;
     if (objectPath !== expectedPath) {
       return res.status(409).json({ error: 'video_storage_path_invalid', expected_path: expectedPath });
     }
@@ -16837,36 +21934,136 @@ app.get('/api/dashboard/videos/:videoId/signed-url', async (req, res) => {
   }
 });
 
+const buildListingVideoCreditsResponse = ({ listingId, credits }) => {
+  const included = Number(credits?.included || 0);
+  const extra = Number(credits?.extra || 0);
+  const used = Number(credits?.used || 0);
+  const remaining = Number(credits?.remaining || 0);
+  const limit = Math.max(0, included + extra);
+
+  return {
+    listing_id: listingId,
+    limit,
+    used,
+    remaining,
+    included_credits: included,
+    extra_credits: extra,
+    included,
+    extra
+  };
+};
+
+const buildDisabledVideoCreditsResponse = (listingId) => ({
+  listing_id: String(listingId || ''),
+  included_credits: 999,
+  extra_credits: 0,
+  used_credits: 0,
+  remaining: 999,
+  limit: 999,
+  used: 0,
+  included: 999,
+  extra: 0,
+  credits_disabled: true
+});
+
+const handleGetVideoCredits = async (req, res) => {
+  try {
+    const requesterUserId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!requesterUserId) return res.status(401).json({ error: 'unauthorized' });
+
+    const listingId = String(req.params.listingId || '').trim();
+    if (!listingId) return res.status(400).json({ error: 'listing_id_required' });
+
+    return res.json(buildDisabledVideoCreditsResponse(listingId));
+  } catch (error) {
+    console.error('[Dashboard] Failed to get listing video credits:', error);
+    return res.status(500).json({ error: 'failed_to_get_video_credits' });
+  }
+};
+
+const handlePostFreeTestVideoCredits = async (req, res) => {
+  try {
+    const requesterUserId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!requesterUserId) return res.status(401).json({ error: 'unauthorized' });
+
+    const listingId = String(req.body?.listing_id || '').trim();
+    if (!listingId) return res.status(400).json({ error: 'listing_id_required' });
+
+    const add = Number(req.body?.add ?? 3);
+    if (!Number.isFinite(add) || !Number.isInteger(add) || add <= 0) {
+      return res.status(400).json({ error: 'invalid_add' });
+    }
+    console.info('[video-credits] free-test', {
+      listing_id: listingId,
+      add,
+      user_id: String(requesterUserId)
+    });
+
+    return res.json({
+      ok: true,
+      added: 0,
+      ...buildDisabledVideoCreditsResponse(listingId)
+    });
+  } catch (error) {
+    console.error('[Dashboard] Failed to add free-test video credits:', error);
+    return res.status(500).json({ error: 'failed_to_add_video_credits' });
+  }
+};
+
+// Smoke: curl -i -sS "$BASE_API/api/dashboard/video-credits/$LISTING_ID" -H "x-user-id: $USER_ID"
+// Smoke: curl -i -sS "$BASE_API/api/video-credits/$LISTING_ID" -H "x-user-id: $USER_ID"
+app.get('/api/dashboard/video-credits/:listingId', handleGetVideoCredits);
+app.get('/api/video-credits/:listingId', handleGetVideoCredits);
+
+// Smoke: curl -i -sS -X POST "$BASE_API/api/dashboard/video-credits/free-test" -H "Content-Type: application/json" -H "x-user-id: $USER_ID" -H "x-dev-secret: $VIDEO_TEST_SECRET" -d "{\"listing_id\":\"$LISTING_ID\",\"add\":3}"
+// Smoke: curl -i -sS -X POST "$BASE_API/api/video-credits/free-test" -H "Content-Type: application/json" -H "x-user-id: $USER_ID" -H "x-dev-secret: $VIDEO_TEST_SECRET" -d "{\"listing_id\":\"$LISTING_ID\",\"add\":3}"
+app.post('/api/dashboard/video-credits/free-test', handlePostFreeTestVideoCredits);
+app.post('/api/video-credits/free-test', handlePostFreeTestVideoCredits);
+
 app.get('/api/dashboard/listings/:listingId/videos', async (req, res) => {
   try {
-    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
-    if (!agentId) return res.status(401).json({ error: 'unauthorized' });
+    const requesterUserId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!requesterUserId) return res.status(401).json({ error: 'unauthorized' });
 
     const { listingId } = req.params;
-    const listing = await loadListingByIdForAgent({ listingId, agentId });
+    const templateStyle = normalizeVideoTemplateStyle(req.body?.template_style);
+    console.info('[video] generate request', {
+      listing_id: listingId,
+      user_id: String(requesterUserId),
+      template_style: templateStyle || String(req.body?.template_style || '')
+    });
+    const listing = await loadListingForVideoAccess({
+      listingId,
+      requesterUserId,
+      accessTag: 'video.list'
+    });
     if (!listing) return res.status(404).json({ error: 'listing_not_found' });
 
-    const ownerId = listing.agent_id || listing.user_id || agentId;
-    const billingSnapshot = await billingEngine.getBillingSnapshot(ownerId).catch(() => null);
-    const planId = String(billingSnapshot?.plan?.id || 'free');
+    const requesterAgentId = await resolveAgentIdForRequesterUser(requesterUserId).catch(() => null);
+    const ownerCandidates = Array.from(
+      new Set(
+        [
+          toTrimmedOrNull(requesterAgentId),
+          toTrimmedOrNull(requesterUserId),
+          toTrimmedOrNull(listing.agent_id),
+          toTrimmedOrNull(listing.user_id)
+        ].filter(Boolean)
+      )
+    );
 
-    await listingVideoCreditsService.ensureCreditsRow({
-      agentId: ownerId,
-      listingId: listing.id,
-      planId
-    });
-
-    const credits = await listingVideoCreditsService.getCredits({
-      agentId: ownerId,
-      listingId: listing.id
-    });
-
-    let { data: videos, error: videosError } = await supabaseAdmin
+    let videosQuery = supabaseAdmin
       .from('listing_videos')
       .select('*')
       .eq('listing_id', listing.id)
-      .eq('agent_id', ownerId)
       .order('created_at', { ascending: false });
+
+    if (ownerCandidates.length === 1) {
+      videosQuery = videosQuery.eq('agent_id', ownerCandidates[0]);
+    } else if (ownerCandidates.length > 1) {
+      videosQuery = videosQuery.in('agent_id', ownerCandidates);
+    }
+
+    let { data: videos, error: videosError } = await videosQuery;
     if (videosError) {
       if (/does not exist|relation .*listing_videos|listing_videos/i.test(videosError.message || '')) {
         return res.status(500).json({ error: 'video_tables_missing_run_phase5_1_2_migration' });
@@ -16874,81 +22071,41 @@ app.get('/api/dashboard/listings/:listingId/videos', async (req, res) => {
       throw videosError;
     }
 
-    // Local/dev safety net: poll Creatomate directly so videos do not stay "rendering"
-    // forever when webhook delivery is unavailable.
-    const pendingVideos = (videos || [])
-      .filter((row) => ['queued', 'pending', 'processing', 'rendering'].includes(String(row.status || '').toLowerCase()))
-      .filter((row) => toTrimmedOrNull(row.creatomate_render_id))
-      .slice(0, 3);
-
-    let refreshed = false;
-    for (const row of pendingVideos) {
-      try {
-        const renderId = toTrimmedOrNull(row.creatomate_render_id);
-        if (!renderId) continue;
-        const render = await fetchCreatomateRenderById(renderId);
-        const renderStatus = String(render?.status || '').toLowerCase();
-        const renderUrl = toTrimmedOrNull(render?.url);
-
-        if (['failed', 'canceled'].includes(renderStatus)) {
-          await supabaseAdmin
-            .from('listing_videos')
-            .update({
-              status: 'failed',
-              error_message: toTrimmedOrNull(render?.error_message || render?.error || 'creatomate_render_failed'),
-              updated_at: nowIso()
-            })
-            .eq('id', row.id);
-          refreshed = true;
-          continue;
-        }
-
-        if ((renderStatus === 'succeeded' || renderStatus === 'completed') && renderUrl) {
-          await supabaseAdmin
-            .from('listing_videos')
-            .update({
-              status: 'succeeded',
-              creatomate_url: renderUrl,
-              error_message: null,
-              updated_at: nowIso()
-            })
-            .eq('id', row.id);
-          refreshed = true;
-        }
-      } catch (renderSyncError) {
-        console.warn('[Dashboard] Failed to refresh rendering video status:', renderSyncError?.message || renderSyncError);
-      }
-    }
-
-    if (refreshed) {
-      const reload = await supabaseAdmin
+    // Backward-compat fallback: older/newer rows can carry a different agent_id key.
+    // We already verified listing ownership above, so listing scope is safe here.
+    if (!videosError && (!Array.isArray(videos) || videos.length === 0)) {
+      const fallbackQuery = await supabaseAdmin
         .from('listing_videos')
         .select('*')
         .eq('listing_id', listing.id)
-        .eq('agent_id', ownerId)
         .order('created_at', { ascending: false });
-      if (!reload.error) {
-        videos = reload.data || videos;
+      if (!fallbackQuery.error) {
+        videos = fallbackQuery.data || videos;
       }
     }
 
+    const creditsPayload = buildDisabledVideoCreditsResponse(listing.id);
     return res.json({
+      ...creditsPayload,
       credits: {
-        included: credits.included,
-        extra: credits.extra,
-        used: credits.used,
-        remaining: credits.remaining
+        included: creditsPayload.included,
+        extra: creditsPayload.extra,
+        used: creditsPayload.used,
+        remaining: creditsPayload.remaining
       },
+      credits_remaining: creditsPayload.remaining,
+      credits_total: creditsPayload.limit,
+      credits_used: creditsPayload.used,
       videos: (videos || []).map((row) => ({
         id: row.id,
         listing_id: row.listing_id,
         template_style: row.template_style || 'luxury',
         duration_seconds: Number(row.duration_seconds || 15),
         status: row.status || 'queued',
+        source_photos: normalizePhotoUrls(row.source_photos),
         storage_bucket: row.storage_bucket || 'videos',
         storage_path: row.storage_path || null,
         file_name: row.file_name || null,
-        creatomate_url: row.creatomate_url || null,
         error_message: row.error_message || null,
         created_at: row.created_at || null,
         updated_at: row.updated_at || null
@@ -17031,49 +22188,82 @@ app.post('/api/dev/listings/:id/videos/credits/add', async (req, res) => {
 });
 
 app.post('/api/dashboard/listings/:listingId/videos/generate', async (req, res) => {
-  let creditReserved = false;
-  let creditOwnerId = null;
-  let creditListingId = null;
-
   try {
-    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
-    if (!agentId) return res.status(401).json({ error: 'unauthorized' });
+    const requesterUserId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!requesterUserId) return res.status(401).json({ error: 'unauthorized' });
 
     const { listingId } = req.params;
-    const listing = await loadListingByIdForAgent({ listingId, agentId });
-    if (!listing) return res.status(404).json({ error: 'listing_not_found' });
+    const { data: property, error: propertyError } = await supabaseAdmin
+      .from('properties')
+      .select('id,user_id,agent_id,is_published,status,hero_photos,gallery_photos,title,address')
+      .eq('id', listingId)
+      .maybeSingle();
+    if (propertyError || !property) return res.status(404).json({ error: 'listing_not_found' });
 
-    const ownerId = listing.agent_id || listing.user_id || agentId;
-    const billingSnapshot = await billingEngine.getBillingSnapshot(ownerId).catch(() => null);
-    const planId = String(billingSnapshot?.plan?.id || 'free');
+    let owned = toTrimmedOrNull(property.user_id) === toTrimmedOrNull(requesterUserId);
+    if (!owned && property.agent_id) {
+      const primaryAgentOwnerLookup = await supabaseAdmin
+        .from('agents')
+        .select('id,user_id')
+        .eq('id', property.agent_id)
+        .maybeSingle();
 
-    if (planId !== 'pro') {
-      return res.status(403).json({
-        error: 'PRO_REQUIRED',
-        upgrade_required: true,
-        upgrade_plan_id: 'pro',
-        plan_id: planId
-      });
+      let agentOwnerRow = primaryAgentOwnerLookup.data || null;
+      if (primaryAgentOwnerLookup.error && /column .*user_id.*does not exist|Could not find/i.test(primaryAgentOwnerLookup.error.message || '')) {
+        const fallbackAgentOwnerLookup = await supabaseAdmin
+          .from('agents')
+          .select('id,auth_user_id')
+          .eq('id', property.agent_id)
+          .maybeSingle();
+        if (!fallbackAgentOwnerLookup.error) {
+          agentOwnerRow = fallbackAgentOwnerLookup.data || null;
+        }
+      }
+
+      const linkedUserId = toTrimmedOrNull(agentOwnerRow?.user_id || agentOwnerRow?.auth_user_id);
+      owned = Boolean(linkedUserId && linkedUserId === toTrimmedOrNull(requesterUserId));
+    }
+    if (!owned) return res.status(404).json({ error: 'listing_not_found' });
+
+    // Canonical owner id for listing_videos must always be agents.id.
+    // This keeps generate/list/status paths aligned and prevents stale "rendering" rows.
+    let agentId = await resolveAgentIdForRequesterUser(requesterUserId, { autoCreate: true }).catch(() => null);
+
+    if (!agentId) {
+      const propertyAgentRef = toTrimmedOrNull(property.agent_id);
+      if (propertyAgentRef) {
+        agentId = await resolveAgentIdForRequesterUser(propertyAgentRef).catch(() => null);
+      }
     }
 
-    const templateStyle = normalizeVideoTemplateStyle(req.body?.template_style);
-    if (!templateStyle) {
-      return res.status(400).json({ error: 'invalid_template_style' });
+    if (!agentId) return res.status(400).json({ error: 'agent_profile_missing' });
+
+    const listing = property;
+    const ownerId = agentId;
+    const rawTemplateStyle = String(req.body?.template_style || '').trim();
+    const templateStyle = normalizeVideoTemplateStyle(rawTemplateStyle) || 'luxury';
+    console.info(`[video.generate] style=${templateStyle}`);
+
+    if (!isListingPublished(listing)) {
+      return res.status(400).json({ error: 'not_published' });
     }
 
-    await listingVideoCreditsService.ensureCreditsRow({
-      agentId: ownerId,
-      listingId: listing.id,
-      planId
+    const sourcePhotos = getListingPhotoUrls({
+      hero_photos: listing.hero_photos,
+      gallery_photos: listing.gallery_photos,
+      photos: listing.photos
     });
 
-    const credits = await listingVideoCreditsService.reserveCreditOrFail({
-      agentId: ownerId,
-      listingId: listing.id
+    if (sourcePhotos.length === 0) {
+      return res.status(400).json({ error: 'photos_required' });
+    }
+
+    console.info('[video.generate] photos_selected', {
+      listing_id: listing.id,
+      count: sourcePhotos.length,
+      first: sourcePhotos[0] || null,
+      last: sourcePhotos[sourcePhotos.length - 1] || null
     });
-    creditReserved = true;
-    creditOwnerId = ownerId;
-    creditListingId = listing.id;
 
     const videoId = crypto.randomUUID();
     const durationSeconds = 15;
@@ -17083,12 +22273,6 @@ app.post('/api/dashboard/listings/:listingId/videos/generate', async (req, res) 
       durationSeconds
     });
     const storagePath = `agent/${ownerId}/listing/${listing.id}/${videoId}.mp4`;
-    const sourcePhotos = [
-      ...(Array.isArray(listing.hero_photos) ? listing.hero_photos : []),
-      ...(Array.isArray(listing.gallery_photos) ? listing.gallery_photos : [])
-    ]
-      .filter((photo) => typeof photo === 'string' && photo.trim().length > 0)
-      .slice(0, 24);
 
     const { data: videoRow, error: insertError } = await supabaseAdmin
       .from('listing_videos')
@@ -17110,35 +22294,42 @@ app.post('/api/dashboard/listings/:listingId/videos/generate', async (req, res) 
       .select('id, listing_id, template_style, duration_seconds, status, created_at')
       .single();
     if (insertError) {
-      if (/does not exist|relation .*listing_videos|listing_videos/i.test(insertError.message || '')) {
-        return res.status(500).json({ error: 'video_tables_missing_run_phase5_1_2_migration' });
-      }
       throw insertError;
     }
 
-    await enqueueJob({
-      type: 'video_render_creatomate',
+    try {
+      await enqueueJob({
+        type: 'video_render_ffmpeg',
+        payload: {
+          video_id: videoRow.id,
+          listing_id: listing.id,
+          agent_id: ownerId
+        },
+        idempotencyKey: `video:render:${videoRow.id}`,
+        priority: 4,
+        runAt: nowIso(),
+        maxAttempts: 3
+      });
+    } catch (enqueueError) {
+      console.error('[video] enqueue_failed', {
+        listing_id: listing.id,
+        err: enqueueError?.message || enqueueError
+      });
+      throw enqueueError;
+    }
+
+    void processVideoRenderFfmpegJob({
       payload: {
         video_id: videoRow.id,
         listing_id: listing.id,
         agent_id: ownerId
-      },
-      idempotencyKey: `video:render:${videoRow.id}`,
-      priority: 4,
-      runAt: nowIso(),
-      maxAttempts: 3
-    });
-
-    emitRealtimeEvent({
-      type: 'listing.video.credits_updated',
-      agentId: ownerId,
-      payload: {
-        listing_id: listing.id,
-        included: credits.included,
-        extra: credits.extra,
-        used: credits.used,
-        remaining: credits.remaining
       }
+    }).catch((renderError) => {
+      console.error('[video] inline_render_failed', {
+        listing_id: listing.id,
+        video_id: videoRow.id,
+        err: renderError?.message || renderError
+      });
     });
 
     emitRealtimeEvent({
@@ -17151,56 +22342,136 @@ app.post('/api/dashboard/listings/:listingId/videos/generate', async (req, res) 
         duration_seconds: Number(videoRow.duration_seconds || durationSeconds),
         status: videoRow.status || 'queued',
         created_at: videoRow.created_at || nowIso(),
-        credits_remaining: credits.remaining
+        credits_remaining: 999
       }
     });
 
     return res.json({
       video_id: videoRow.id,
       status: videoRow.status || 'queued',
-      credits_remaining: credits.remaining
+      credits_remaining: 999,
+      credits_disabled: true
     });
   } catch (error) {
-    if (error?.code === 'NO_CREDITS') {
-      return res.status(403).json({ error: 'NO_CREDITS' });
-    }
-    if (billingEngine.isMissingTableError?.(error)) {
-      return res.status(500).json({ error: 'billing_tables_missing_run_phase3_5_migration' });
-    }
-    if (/listing_video_credits|reserve_listing_video_credit|add_listing_video_extra_credits/i.test(error?.message || '')) {
-      return res.status(500).json({ error: 'video_tables_missing_run_phase5_1_2_migration' });
+    const legacyErrorCode = String(
+      error?.error ||
+      error?.code ||
+      error?.message ||
+      ''
+    ).trim().toUpperCase();
+    if (legacyErrorCode === 'PRO_REQUIRED' || legacyErrorCode === 'PAYMENT_REQUIRED') {
+      return res.status(402).json({ error: 'payment_required' });
     }
     console.error('[Dashboard] Failed to queue listing video generation:', error);
-    return res.status(500).json({ error: 'failed_to_queue_video_generation' });
-  } finally {
-    if (creditReserved && creditOwnerId && creditListingId) {
-      // If video row insertion fails after reserving, reimburse the reservation as extra credits.
-      if (res.statusCode >= 400) {
-        listingVideoCreditsService.refundReservedCredit({
-          agentId: creditOwnerId,
-          listingId: creditListingId,
-          amount: 1
-        }).catch((refundError) => {
-          console.warn('[ListingVideos] Failed to reimburse reserved credit:', refundError?.message || refundError);
-        });
+    return res.status(500).json({ error: 'render_failed' });
+  }
+});
+
+app.get('/api/dashboard/videos/:videoId/status', async (req, res) => {
+  try {
+    const requesterUserId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!requesterUserId) return res.status(401).json({ error: 'unauthorized' });
+
+    const videoId = String(req.params.videoId || '').trim();
+    if (!videoId) return res.status(400).json({ error: 'video_id_required' });
+
+    const { data: videoRow, error: videoError } = await supabaseAdmin
+      .from('listing_videos')
+      .select('*')
+      .eq('id', videoId)
+      .maybeSingle();
+    if (videoError || !videoRow) return res.status(404).json({ error: 'video_not_found' });
+
+    const { data: property, error: propertyError } = await supabaseAdmin
+      .from('properties')
+      .select('id,user_id,agent_id')
+      .eq('id', videoRow.listing_id)
+      .maybeSingle();
+    if (propertyError || !property) return res.status(404).json({ error: 'listing_not_found' });
+
+    let owned = toTrimmedOrNull(property.user_id) === toTrimmedOrNull(requesterUserId);
+    if (!owned && property.agent_id) {
+      const primaryAgentLookup = await supabaseAdmin
+        .from('agents')
+        .select('id,user_id,auth_user_id')
+        .eq('id', property.agent_id)
+        .maybeSingle();
+
+      let agentRow = primaryAgentLookup.data || null;
+      if (primaryAgentLookup.error && /column .*user_id.*does not exist|Could not find/i.test(primaryAgentLookup.error.message || '')) {
+        const fallbackAgentLookup = await supabaseAdmin
+          .from('agents')
+          .select('id,auth_user_id')
+          .eq('id', property.agent_id)
+          .maybeSingle();
+        if (!fallbackAgentLookup.error) {
+          agentRow = fallbackAgentLookup.data || null;
+        }
       }
+
+      const linkedUserId = toTrimmedOrNull(agentRow?.user_id || agentRow?.auth_user_id);
+      owned = Boolean(
+        toTrimmedOrNull(property.agent_id) === toTrimmedOrNull(requesterUserId) ||
+        (linkedUserId && linkedUserId === toTrimmedOrNull(requesterUserId))
+      );
     }
+    if (!owned) return res.status(404).json({ error: 'listing_not_found' });
+
+    const persistedStatus = String(videoRow.status || '').toLowerCase();
+    if (persistedStatus === 'succeeded' || persistedStatus === 'failed') {
+      return res.json({
+        video_id: videoRow.id,
+        status: persistedStatus,
+        error_message: videoRow.error_message || null
+      });
+    }
+
+    const ffmpegStatus = ['queued', 'rendering', 'pending', 'processing'].includes(persistedStatus)
+      ? 'rendering'
+      : (persistedStatus || 'queued');
+
+    return res.json({
+      video_id: videoRow.id,
+      status: ffmpegStatus,
+      stage: 'ffmpeg_rendering'
+    });
+  } catch (error) {
+    console.error('[Dashboard] Failed to get video status:', error);
+    return res.status(500).json({ error: 'failed_to_get_video_status' });
+  }
+});
+
+app.get('/api/dev/videos/:videoId', async (req, res) => {
+  try {
+    const isProduction = String(process.env.NODE_ENV || '').toLowerCase() === 'production';
+    if (isProduction) return res.status(404).json({ error: 'not_found' });
+
+    const videoId = String(req.params.videoId || '').trim();
+    if (!videoId) return res.status(400).json({ error: 'video_id_required' });
+
+    const { data: videoRow, error } = await supabaseAdmin
+      .from('listing_videos')
+      .select('*')
+      .eq('id', videoId)
+      .maybeSingle();
+    if (error || !videoRow) return res.status(404).json({ error: 'video_not_found' });
+    return res.json({ ok: true, video: videoRow });
+  } catch (error) {
+    console.error('[Dev] Failed to inspect video row:', error);
+    return res.status(500).json({ error: 'failed_to_inspect_video' });
   }
 });
 
 app.patch('/api/dashboard/listings/:listingId/publish', async (req, res) => {
   try {
     const { listingId } = req.params;
-    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
-    if (!agentId) return res.status(401).json({ error: 'agent_auth_required' });
+    const requesterUserId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!requesterUserId) return res.status(401).json({ error: 'agent_auth_required' });
 
-    const listing = await loadListingById({ listingId });
-    if (!listing) return res.status(404).json({ error: 'listing_not_found' });
-
-    const ownerId = getListingOwnerId(listing);
-    if (!ownerId || ownerId !== String(agentId)) {
-      return res.status(403).json({ error: 'listing_access_denied' });
-    }
+    const access = await resolveListingAccessContext({ listingId, requesterUserId, accessTag: 'dashboard.publish' });
+    if (!access) return res.status(404).json({ error: 'listing_not_found' });
+    const listing = access.listingRow;
+    const ownerId = access.primaryAgentId;
 
     const requestedStatus = toTrimmedOrNull(req.body?.status);
     let nextStatus = 'published';
@@ -17375,16 +22646,18 @@ app.patch('/api/dashboard/listings/:listingId/publish', async (req, res) => {
 app.post('/api/dashboard/listings/:listingId/generate-qr', async (req, res) => {
   try {
     const { listingId } = req.params;
-    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
-    if (!agentId) return res.status(401).json({ error: 'agent_auth_required' });
+    const requesterUserId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!requesterUserId) return res.status(401).json({ error: 'agent_auth_required' });
+    console.info('[sharekit.qr]', { listingId, ownerId: requesterUserId });
 
-    const listing = await loadListingById({ listingId });
-    if (!listing) return res.status(404).json({ error: 'listing_not_found' });
+    const access = await resolveListingAccessContext({
+      listingId,
+      requesterUserId,
+      accessTag: 'dashboard.generate-qr'
+    });
+    if (!access) return res.status(404).json({ error: 'listing_not_found' });
 
-    const ownerId = getListingOwnerId(listing);
-    if (!ownerId || ownerId !== String(agentId)) {
-      return res.status(403).json({ error: 'listing_access_denied' });
-    }
+    const listing = access.listingRow;
     if (!isListingPublished(listing)) {
       return res.status(409).json({
         error: 'NOT_PUBLISHED',
@@ -17405,7 +22678,7 @@ app.post('/api/dashboard/listings/:listingId/generate-qr', async (req, res) => {
 
     const sourceRow = await ensureListingSource({
       listingId: listing.id,
-      agentId: ownerId,
+      agentId: access.primaryAgentId || access.requesterUserId,
       sourceType,
       sourceKey,
       utmSource,
@@ -17455,7 +22728,7 @@ app.post('/api/dashboard/listings/:listingId/generate-qr', async (req, res) => {
 
     emitListingPerformanceUpdated({
       listingId: listing.id,
-      agentId: ownerId
+      agentId: access.primaryAgentId || access.requesterUserId
     });
 
     res.json({
@@ -17477,16 +22750,18 @@ app.post('/api/dashboard/listings/:listingId/generate-qr', async (req, res) => {
 app.post('/api/dashboard/listings/:listingId/test-capture', async (req, res) => {
   try {
     const { listingId } = req.params;
-    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
-    if (!agentId) return res.status(401).json({ error: 'agent_auth_required' });
+    const requesterUserId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!requesterUserId) return res.status(401).json({ error: 'agent_auth_required' });
+    console.info('[sharekit.test_capture]', { listingId, ownerId: requesterUserId });
 
-    const listing = await loadListingById({ listingId });
-    if (!listing) return res.status(404).json({ error: 'listing_not_found' });
+    const access = await resolveListingAccessContext({
+      listingId,
+      requesterUserId,
+      accessTag: 'dashboard.test-capture'
+    });
+    if (!access) return res.status(404).json({ error: 'listing_not_found' });
 
-    const ownerId = getListingOwnerId(listing);
-    if (!ownerId || ownerId !== String(agentId)) {
-      return res.status(403).json({ error: 'listing_access_denied' });
-    }
+    const listing = access.listingRow;
     if (!isListingPublished(listing)) {
       return res.status(409).json({
         error: 'NOT_PUBLISHED',
@@ -17504,7 +22779,7 @@ app.post('/api/dashboard/listings/:listingId/test-capture', async (req, res) => 
     if (!emailLower && !phoneE164) {
       return res.status(400).json({ error: 'phone_or_email_required' });
     }
-    if (phoneE164 && req.body?.consent_sms !== true) {
+    if (FEATURE_FLAG_SMS_ENABLED && phoneE164 && req.body?.consent_sms !== true) {
       return res.status(400).json({ error: 'consent_sms_required_when_phone_present' });
     }
 
@@ -17516,10 +22791,11 @@ app.post('/api/dashboard/listings/:listingId/test-capture', async (req, res) => 
     };
 
     const forwardedProtoRaw = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim().toLowerCase();
+    const host = String(req.headers.host || '').trim();
+    const isLocalHost = /^(127\.0\.0\.1|localhost)(:\d+)?$/i.test(host);
     const protocol = forwardedProtoRaw === 'http' || forwardedProtoRaw === 'https'
       ? forwardedProtoRaw
-      : 'https';
-    const host = String(req.headers.host || '').trim();
+      : (isLocalHost ? 'http' : 'https');
     const captureBaseUrl = host
       ? `${protocol}://${host}`
       : (process.env.APP_BASE_URL || process.env.PUBLIC_BASE_URL || `http://127.0.0.1:${PORT}`);
@@ -17527,7 +22803,7 @@ app.post('/api/dashboard/listings/:listingId/test-capture', async (req, res) => 
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-user-id': ownerId
+        'x-user-id': access.primaryAgentId || access.requesterUserId
       },
       body: JSON.stringify({
         listing_id: listing.id,
@@ -17535,7 +22811,7 @@ app.post('/api/dashboard/listings/:listingId/test-capture', async (req, res) => 
         full_name: fullName,
         phone: phoneE164 || undefined,
         email: emailLower || undefined,
-        consent_sms: phoneE164 ? true : false,
+        consent_sms: FEATURE_FLAG_SMS_ENABLED && phoneE164 ? true : false,
         source_type: sourceType,
         source_key: sourceKey,
         source_meta: sourceMeta,
@@ -17557,7 +22833,7 @@ app.post('/api/dashboard/listings/:listingId/test-capture', async (req, res) => 
     }
 
     await applyOnboardingChecklistPatch({
-      agentId: ownerId,
+      agentId: access.primaryAgentId || null,
       checklistPatch: {
         first_listing_created: true,
         first_listing_id: listing.id,
@@ -17856,6 +23132,27 @@ app.get('/api/dashboard/listings/:listingId/performance', async (req, res) => {
       acc[sourceKey] = (acc[sourceKey] || 0) + 1;
       return acc;
     }, {});
+    const showingRequests = leads.filter((lead) => {
+      const meta = lead?.source_meta && typeof lead.source_meta === 'object' ? lead.source_meta : {};
+      const context = String(
+        meta.context ||
+        lead?.context ||
+        ''
+      ).trim().toLowerCase();
+      if (context === 'showing_requested') return true;
+      return /capture context:\s*showing_requested/i.test(String(lead?.notes || ''));
+    });
+    const showingRequestsBySourceType = showingRequests.reduce((acc, lead) => {
+      const sourceType = toSourceType(lead.source_type || lead.source || 'unknown');
+      acc[sourceType] = (acc[sourceType] || 0) + 1;
+      return acc;
+    }, {});
+    const showingRequestsBySourceKey = showingRequests.reduce((acc, lead) => {
+      const sourceKey = toSourceKey(lead.source_key || '');
+      if (!sourceKey) return acc;
+      acc[sourceKey] = (acc[sourceKey] || 0) + 1;
+      return acc;
+    }, {});
     const lastLeadCapturedAt = leads.length > 0
       ? leads
         .map((row) => row.created_at || row.updated_at || null)
@@ -17878,6 +23175,7 @@ app.get('/api/dashboard/listings/:listingId/performance', async (req, res) => {
         status_breakdown: statusBreakdown,
         qr_usage: qrUsage,
         leads_by_source: leadsBySource,
+        showing_requests_count: showingRequests.length,
         last_lead_captured_at: lastLeadCapturedAt,
         top_source: {
           label: topSourceEntry ? prettifySourceLabel(topSourceEntry[0]) : 'None',
@@ -17887,7 +23185,9 @@ app.get('/api/dashboard/listings/:listingId/performance', async (req, res) => {
       },
       breakdown: {
         by_source_type: Object.entries(leadsBySource).map(([sourceType, total]) => ({ source_type: sourceType, total })),
-        by_source_key: Object.entries(sourceKeyTotals).map(([sourceKey, total]) => ({ source_key: sourceKey, total }))
+        by_source_key: Object.entries(sourceKeyTotals).map(([sourceKey, total]) => ({ source_key: sourceKey, total })),
+        showing_requests_by_source_type: Object.entries(showingRequestsBySourceType).map(([sourceType, total]) => ({ source_type: sourceType, total })),
+        showing_requests_by_source_key: Object.entries(showingRequestsBySourceKey).map(([sourceKey, total]) => ({ source_key: sourceKey, total }))
       }
     });
   } catch (error) {
@@ -21600,6 +26900,8 @@ app.post('/api/ai-card/profile', async (req, res) => {
 // Update AI Card profile
 app.put('/api/ai-card/profile', async (req, res) => {
   try {
+    const { userId, ...profileData } = req.body || {};
+
     // SECURITY: Prefer authenticated user ID from middleware if available
     // req.user might be populated by auth middleware.
     // However, if called from public context (rare for update), we fail.
@@ -21635,7 +26937,7 @@ app.put('/api/ai-card/profile', async (req, res) => {
     res.json(savedProfile);
   } catch (error) {
     console.error('Error updating AI Card profile:', error);
-    res.status(500).json({ error: 'Failed to update AI Card profile' });
+    res.status(500).json({ error: 'Failed to update AI Card profile', details: error?.message || String(error) });
   }
 });
 

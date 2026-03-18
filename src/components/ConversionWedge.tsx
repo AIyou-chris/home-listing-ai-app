@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { getLiveExampleUrl, getSampleReportUrl, openInNewTab, safeNavigate, verifyHomepageCtaTargetsOnce } from '../utils/ctaLinks';
 
 interface ConversionWedgeProps {
     onNavigateToSignUp: () => void;
@@ -6,6 +8,7 @@ interface ConversionWedgeProps {
 }
 
 export const ConversionWedge: React.FC<ConversionWedgeProps> = ({ onNavigateToSignUp, onEnterDemoMode }) => {
+    const navigate = useNavigate();
     // Modal State
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [step, setStep] = useState<1 | 2 | 'success'>(1);
@@ -28,6 +31,10 @@ export const ConversionWedge: React.FC<ConversionWedgeProps> = ({ onNavigateToSi
             setFormContact('');
         }
     }, [isModalOpen]);
+
+    useEffect(() => {
+        verifyHomepageCtaTargetsOnce();
+    }, []);
 
     const handleQuestionClick = (question: string) => {
         setSelectedQuestion(question);
@@ -57,7 +64,7 @@ export const ConversionWedge: React.FC<ConversionWedgeProps> = ({ onNavigateToSi
         setStep('success');
     };
 
-    const handleScrollTo = (id: string) => {
+    const _handleScrollTo = (id: string) => {
         const el = document.getElementById(id);
         if (el) {
             el.scrollIntoView({ behavior: 'smooth' });
@@ -214,18 +221,20 @@ export const ConversionWedge: React.FC<ConversionWedgeProps> = ({ onNavigateToSi
                     >
                         Try it live (10 seconds)
                     </button>
-                    <a
-                        href="#report-demo-section"
+                    <button
+                        type="button"
+                        onClick={() => openInNewTab(getSampleReportUrl())}
                         className="w-full sm:w-auto px-6 py-3.5 bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-white font-semibold rounded-xl text-center transition-colors"
                     >
                         View sample report
-                    </a>
-                    <a
-                        href="#live-listing-demo-section"
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => safeNavigate(navigate, getLiveExampleUrl())}
                         className="w-full sm:w-auto px-6 py-3.5 bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-white font-semibold rounded-xl text-center transition-colors"
                     >
                         See a live example
-                    </a>
+                    </button>
                 </div>
 
                 {/* 3) Three Outcome Cards Underneath */}
@@ -438,7 +447,10 @@ export const ConversionWedge: React.FC<ConversionWedgeProps> = ({ onNavigateToSi
 
                                     <div className="flex flex-col gap-3">
                                         <button
-                                            onClick={() => { setIsModalOpen(false); handleScrollTo('live-listing-demo-section'); }}
+                                            onClick={() => {
+                                                setIsModalOpen(false);
+                                                safeNavigate(navigate, getLiveExampleUrl());
+                                            }}
                                             className="w-full py-3.5 bg-cyan-600 hover:bg-cyan-700 text-white font-bold rounded-xl transition-all shadow-md hover:-translate-y-0.5"
                                         >
                                             See a live example

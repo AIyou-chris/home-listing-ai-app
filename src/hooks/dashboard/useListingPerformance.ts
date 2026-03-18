@@ -11,6 +11,8 @@ export interface ListingPerformanceState {
   breakdown?: {
     by_source_type: Array<{ source_type: string; total: number }>
     by_source_key: Array<{ source_key: string; total: number }>
+    showing_requests_by_source_type?: Array<{ source_type: string; total: number }>
+    showing_requests_by_source_key?: Array<{ source_key: string; total: number }>
   }
 }
 

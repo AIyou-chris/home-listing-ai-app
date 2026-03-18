@@ -50,11 +50,62 @@ const mapProfileToForm = (profile: AgentProfile): FormState => ({
 const textInputClassName =
   'w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100';
 
+const PreviewModalShell: React.FC<{
+  open: boolean;
+  title: string;
+  subtitle: string;
+  onClose: () => void;
+  children: React.ReactNode;
+}> = ({ open, title, subtitle, onClose, children }) => {
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-[120] flex items-end justify-center bg-slate-950/65 p-4 backdrop-blur-sm md:items-center" onClick={onClose}>
+      <div
+        className="w-full max-w-lg rounded-[28px] border border-white/10 bg-[linear-gradient(135deg,rgba(27,41,70,0.92),rgba(11,19,38,0.96))] p-5 text-white shadow-[0_28px_80px_rgba(2,6,23,0.45)]"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">HomeListingAI</p>
+            <h3 className="mt-1 text-2xl font-bold tracking-tight">{title}</h3>
+            <p className="mt-1 text-sm text-slate-300">{subtitle}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full border border-white/10 bg-white/5 p-2 text-white transition hover:bg-white/10"
+            aria-label="Close preview"
+          >
+            <span className="material-symbols-outlined text-[18px]">close</span>
+          </button>
+        </div>
+        <div className="mt-5">{children}</div>
+      </div>
+    </div>
+  );
+};
+
 const AgentBusinessCardEditor: React.FC<AgentBusinessCardEditorProps> = ({ userProfile, onSaveProfile }) => {
   const [form, setForm] = useState<FormState>(() => mapProfileToForm(userProfile));
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [chatPreviewOpen, setChatPreviewOpen] = useState(false);
+  const [contactPreviewOpen, setContactPreviewOpen] = useState(false);
+  const [chatInput, setChatInput] = useState('');
+  const [chatMessages, setChatMessages] = useState<Array<{ id: string; role: 'agent' | 'user'; text: string }>>([
+    {
+      id: 'agent-1',
+      role: 'agent',
+      text: `Hi, I'm ${userProfile.name || 'your AI assistant'}. Ask me anything about this listing.`
+    }
+  ]);
+  const [contactForm, setContactForm] = useState({
+    name: '',
+    email: '',
+    message: `Hi ${userProfile.name || 'there'}, I'd like more information about this property.`
+  });
 
   useEffect(() => {
     setForm(mapProfileToForm(userProfile));
@@ -176,6 +227,28 @@ const AgentBusinessCardEditor: React.FC<AgentBusinessCardEditorProps> = ({ userP
     }
   };
 
+  const handleSendPreviewMessage = () => {
+    const trimmed = chatInput.trim();
+    if (!trimmed) return;
+
+    setChatMessages((prev) => [
+      ...prev,
+      { id: `user-${Date.now()}`, role: 'user', text: trimmed },
+      {
+        id: `agent-${Date.now() + 1}`,
+        role: 'agent',
+        text: `Thanks. This preview chat is wired up. In the live app, this button will open the real listing conversation window.`
+      }
+    ]);
+    setChatInput('');
+  };
+
+  const handleContactPreviewSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    showToast.success('Contact form preview submitted.');
+    setContactPreviewOpen(false);
+  };
+
   return (
     <div className="rounded-[20px] border border-slate-200 bg-white p-5 shadow-[0_10px_30px_rgba(15,23,42,0.06)] md:p-6">
       <div className="mb-5">
@@ -192,12 +265,12 @@ const AgentBusinessCardEditor: React.FC<AgentBusinessCardEditorProps> = ({ userP
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="space-y-4">
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <p className="text-sm font-semibold text-slate-800">Headshot</p>
-            <p className="mt-1 text-xs text-slate-500">Upload an image, or paste a direct image URL below.</p>
+            <p className="text-sm font-semibold text-slate-800">Headshot / Logo</p>
+            <p className="mt-1 text-xs text-slate-500">Upload a headshot or logo, or paste a direct image URL below.</p>
             <div className="mt-3 flex items-center gap-4">
               <div className="h-16 w-16 overflow-hidden rounded-full border border-slate-200 bg-white">
                 {form.headshotUrl ? (
-                  <img src={form.headshotUrl} alt="Headshot preview" className="h-full w-full object-cover" />
+                  <img src={form.headshotUrl} alt="Headshot or logo preview" className="h-full w-full object-cover" />
                 ) : (
                   <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-slate-400">
                     No photo
@@ -211,7 +284,7 @@ const AgentBusinessCardEditor: React.FC<AgentBusinessCardEditorProps> = ({ userP
                   className="hidden"
                   onChange={(event) => void handleHeadshotUpload(event.target.files?.[0] || null)}
                 />
-                {isUploading ? 'Uploading...' : 'Upload headshot'}
+                {isUploading ? 'Uploading...' : 'Upload headshot / logo'}
               </label>
             </div>
           </div>
@@ -346,11 +419,113 @@ const AgentBusinessCardEditor: React.FC<AgentBusinessCardEditorProps> = ({ userP
             email={form.email}
             headshotUrl={form.headshotUrl || null}
             themeColor={normalizeThemeColor(form.themeColor)}
-            onChat={() => console.log('[AgentBusinessCard] Chat clicked')}
-            onContact={() => console.log('[AgentBusinessCard] Contact me clicked')}
+            onChat={() => setChatPreviewOpen(true)}
+            onContact={() => setContactPreviewOpen(true)}
+            showMoreInfo={false}
           />
         </div>
       </div>
+
+      <PreviewModalShell
+        open={chatPreviewOpen}
+        onClose={() => setChatPreviewOpen(false)}
+        title="Chat preview"
+        subtitle="This is the window your Chat With Me button will open."
+      >
+        <div className="rounded-[24px] border border-white/10 bg-slate-950/40 p-4">
+          <div className="max-h-[340px] space-y-3 overflow-y-auto pr-1">
+            {chatMessages.map((message) => (
+              <div key={message.id} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div
+                  className={`max-w-[82%] rounded-[22px] px-4 py-3 text-sm leading-relaxed ${
+                    message.role === 'user'
+                      ? 'bg-gradient-to-r from-[#ff8a1f] to-[#ff5c1f] text-white'
+                      : 'border border-white/10 bg-white/8 text-slate-100'
+                  }`}
+                >
+                  {message.text}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 flex gap-2">
+            <input
+              type="text"
+              value={chatInput}
+              onChange={(event) => setChatInput(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  handleSendPreviewMessage();
+                }
+              }}
+              placeholder="Type a message..."
+              className="flex-1 rounded-[18px] border border-white/10 bg-white/8 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-400 focus:border-white/20"
+            />
+            <button
+              type="button"
+              onClick={handleSendPreviewMessage}
+              className="rounded-[18px] bg-gradient-to-r from-[#ff8a1f] to-[#ff5c1f] px-4 py-3 text-sm font-bold text-white"
+            >
+              Send
+            </button>
+          </div>
+        </div>
+      </PreviewModalShell>
+
+      <PreviewModalShell
+        open={contactPreviewOpen}
+        onClose={() => setContactPreviewOpen(false)}
+        title="Contact form preview"
+        subtitle="This is the form your Contact button will open."
+      >
+        <form onSubmit={handleContactPreviewSubmit} className="space-y-4 rounded-[24px] border border-white/10 bg-slate-950/40 p-4">
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-slate-200">Your name</label>
+            <input
+              type="text"
+              value={contactForm.name}
+              onChange={(event) => setContactForm((prev) => ({ ...prev, name: event.target.value }))}
+              className="w-full rounded-[18px] border border-white/10 bg-white/8 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-400 focus:border-white/20"
+              placeholder="Chris Potter"
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-slate-200">Email</label>
+            <input
+              type="email"
+              value={contactForm.email}
+              onChange={(event) => setContactForm((prev) => ({ ...prev, email: event.target.value }))}
+              className="w-full rounded-[18px] border border-white/10 bg-white/8 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-400 focus:border-white/20"
+              placeholder="you@example.com"
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-slate-200">Message</label>
+            <textarea
+              value={contactForm.message}
+              onChange={(event) => setContactForm((prev) => ({ ...prev, message: event.target.value }))}
+              rows={4}
+              className="w-full rounded-[18px] border border-white/10 bg-white/8 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-400 focus:border-white/20"
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setContactPreviewOpen(false)}
+              className="rounded-[18px] border border-white/10 bg-white/8 px-4 py-3 text-sm font-semibold text-white"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="rounded-[18px] bg-gradient-to-r from-[#1d4ed8] to-[#2563eb] px-4 py-3 text-sm font-bold text-white"
+            >
+              Send message
+            </button>
+          </div>
+        </form>
+      </PreviewModalShell>
     </div>
   );
 };

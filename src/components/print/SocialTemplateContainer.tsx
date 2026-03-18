@@ -9,9 +9,20 @@ export interface SocialTemplateContainerProps {
     beds?: string | number;
     baths?: string | number;
     sqft?: string | number;
+    agentName?: string;
+    agentTitle?: string;
+    agentCompany?: string;
+    agentHeadshotUrl?: string;
+    agentBrandColor?: string;
     slug?: string;
     qrImageUrl?: string;
 }
+
+const getInitials = (name: string) => {
+    const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return 'AG';
+    return parts.slice(0, 2).map((part) => part[0]?.toUpperCase() || '').join('');
+};
 
 export const SocialTemplateContainer: React.FC<SocialTemplateContainerProps> = ({
     templateType = '1',
@@ -22,6 +33,11 @@ export const SocialTemplateContainer: React.FC<SocialTemplateContainerProps> = (
     beds = '4',
     baths = '3',
     sqft = '2,800',
+    agentName = 'HomeListingAI Agent',
+    agentTitle = 'Listing Specialist',
+    agentCompany = 'HomeListingAI',
+    agentHeadshotUrl,
+    agentBrandColor = '#28a7e8',
     slug = '8441-nw-14th',
     qrImageUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=https://homelistingai.com/l/sample-slug',
 }) => {
@@ -36,6 +52,8 @@ export const SocialTemplateContainer: React.FC<SocialTemplateContainerProps> = (
 
     const isStory = format === 'ig_story' || format === 'tiktok_cover';
     const isLandscape = format === 'fb_post';
+    const initials = getInitials(agentName);
+    const accentStyle = { backgroundColor: agentBrandColor };
 
     // TEMPLATE CONTENT MAPPING
     const templates = {
@@ -43,37 +61,31 @@ export const SocialTemplateContainer: React.FC<SocialTemplateContainerProps> = (
             headline: 'JUST LISTED',
             sub: 'Scan / Click for the Property Report',
             cta: 'Get the Report',
-            accent: 'bg-blue-600',
         },
         '2': {
             headline: 'OPEN HOUSE',
             sub: 'Scan for report + showing options',
             cta: 'Scan the QR',
-            accent: 'bg-emerald-600',
         },
         '3': {
             headline: 'PRICE + DETAILS',
             sub: 'Instant answers inside',
             cta: 'Get the Report',
-            accent: 'bg-indigo-600',
         },
         '4': {
             headline: 'SCHEDULE A TOUR',
             sub: 'Pick a time in seconds',
             cta: 'Request a Showing',
-            accent: 'bg-purple-600',
         },
         '5': {
             headline: 'LOCAL MARKET REPORT',
             sub: 'Pricing + trends for this home',
             cta: 'Get the Report',
-            accent: 'bg-slate-900',
         },
         '6': {
             headline: 'LOOKING AFTER HOURS?',
             sub: 'The listing answers instantly',
             cta: 'Click for details',
-            accent: 'bg-rose-600',
         },
     };
 
@@ -124,7 +136,7 @@ export const SocialTemplateContainer: React.FC<SocialTemplateContainerProps> = (
                 {/* Headline Block */}
                 <div className={`${isLandscape ? 'flex-1 mb-4' : 'w-full mb-12 flex flex-col items-center'}`}>
                     {/* Accent pill */}
-                    <div className={`inline-block px-4 py-1.5 rounded-full ${content.accent} text-white font-bold tracking-widest text-sm uppercase mb-4 shadow-xl`}>
+                    <div className="inline-block px-4 py-1.5 rounded-full text-white font-bold tracking-widest text-sm uppercase mb-4 shadow-xl" style={accentStyle}>
                         {templateType === '2' ? 'LIVE NOW' : 'AVAILABLE'}
                     </div>
 
@@ -148,12 +160,30 @@ export const SocialTemplateContainer: React.FC<SocialTemplateContainerProps> = (
 
                     {/* Action Button & Link */}
                     <div className="flex flex-col items-center gap-4 w-full">
-                        <div className={`w-full text-center px-10 py-5 rounded-2xl ${content.accent} shadow-2xl shadow-${content.accent}/50`}>
+                        <div className="w-full text-center px-10 py-5 rounded-2xl shadow-2xl" style={accentStyle}>
                             <span className="text-2xl font-black uppercase tracking-widest drop-shadow-md">{content.cta}</span>
                         </div>
                         <p className="text-xl font-bold font-mono text-white/70 tracking-tight">
                             homelistingai.com/l/{slug}
                         </p>
+                        <div className="mt-2 w-full max-w-md rounded-[28px] border border-white/20 bg-black/35 p-4 shadow-2xl backdrop-blur-xl">
+                            <div className="flex items-center gap-3">
+                                <div className="h-14 w-14 overflow-hidden rounded-full border-2 border-white/20">
+                                    {agentHeadshotUrl ? (
+                                        <img src={agentHeadshotUrl} alt={agentName} className="h-full w-full object-cover" />
+                                    ) : (
+                                        <div className="flex h-full w-full items-center justify-center text-lg font-bold text-white" style={{ backgroundColor: agentBrandColor }}>
+                                            {initials}
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="min-w-0 text-left">
+                                    <p className="truncate text-lg font-bold text-white">{agentName}</p>
+                                    <p className="truncate text-sm font-medium text-white/80">{agentCompany}</p>
+                                    <p className="truncate text-xs text-white/65">{agentTitle}</p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                 </div>

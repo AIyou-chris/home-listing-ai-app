@@ -425,7 +425,7 @@ const demoAppointmentReminders: Record<string, AppointmentReminderRow[]> = Objec
   ])
 )
 
-let demoVideoStateByListing: Record<string, DemoListingVideoState> = {
+const demoVideoStateByListing: Record<string, DemoListingVideoState> = {
   'demo-listing-oak': {
     includedCredits: 3,
     extraCredits: 0,
@@ -454,6 +454,22 @@ const emitDemoVideoUpdate = (listingId: string) => {
 }
 
 const getListingById = (listingId: string) => demoListings.find((listing) => listing.id === listingId) || null
+const getListingBySlug = (slug: string) => demoListings.find((listing) => listing.slug === slug) || null
+
+export const getDemoListingMetas = (): DemoListingMeta[] => clone(demoListings)
+export const getDemoListingMetaById = (listingId: string): DemoListingMeta | null => {
+  const listing = getListingById(listingId)
+  return listing ? clone(listing) : null
+}
+export const getDemoPropertyById = (listingId: string): Property | null => {
+  const property = demoProperties.find((item) => item.id === listingId) || null
+  return property ? clone(property) : null
+}
+export const getDemoPropertyBySlug = (slug: string): Property | null => {
+  const listing = getListingBySlug(slug)
+  if (!listing) return null
+  return getDemoPropertyById(listing.id)
+}
 
 const getShareUrl = (listing: DemoListingMeta) => `https://homelistingai.com/l/${listing.slug}`
 const getQrUrl = (listing: DemoListingMeta, source = 'sign') =>
@@ -594,6 +610,7 @@ export const getDemoLeadDetail = (leadId: string): DashboardLeadDetail => {
       timeline: lead.timeline,
       financing: lead.financing,
       working_with_agent: 'unknown',
+      notes: lead.lead_summary || '', // Map lead_summary to notes for demo
       source_type: lead.source_type,
       listing_id: lead.listing_id
     },
@@ -859,7 +876,7 @@ export const createDemoTestLead = (
 
 export const updateDemoLeadStatusById = (
   leadId: string,
-  payload: { status: string; timeline?: string; financing?: string; working_with_agent?: string }
+  payload: { status: string; timeline?: string; financing?: string; working_with_agent?: string; notes?: string }
 ) => {
   demoLeads = demoLeads.map((lead) =>
     lead.id === leadId
@@ -868,6 +885,7 @@ export const updateDemoLeadStatusById = (
         status: payload.status,
         timeline: payload.timeline || lead.timeline,
         financing: payload.financing || lead.financing,
+        lead_summary: payload.notes || lead.lead_summary, // Using lead_summary as proxy for notes in demo for now
         last_activity_at: new Date().toISOString()
       }
       : lead

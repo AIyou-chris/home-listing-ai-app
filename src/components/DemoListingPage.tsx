@@ -60,7 +60,8 @@ const DemoListingPage: React.FC = () => {
             onExit={() => setOpen(false)}
             showBackButton={false}
             onTalkToHome={() => setTalkToHomeOpen(true)}
-            contactShareUrl={`${window.location.origin}/demo-listing#contact`}
+            publicSlug="demo-123-palm-drive-san-diego"
+            isDemo
           />
           <PublicListingChatModule
             property={demo}

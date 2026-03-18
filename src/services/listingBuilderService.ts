@@ -1,5 +1,6 @@
 import { buildApiUrl } from '../lib/api'
 import { isDemoModeActive } from '../demo/useDemoMode'
+import { getDemoProperties } from '../demo/demoData'
 import { resolveAgentId } from './dashboardCommandService'
 
 export type ListingBrainSourceType = 'text' | 'doc' | 'url'
@@ -121,6 +122,44 @@ const mapSource = (source: ListingSourceApi): ListingBuilderSource => ({
   url: source.url ?? null
 })
 
+const buildDemoListingPayload = (listingId: string): { listing: ListingBuilderRecord; brain_sources: ListingBuilderSource[] } => {
+  const property = getDemoProperties().find((entry) => entry.id === listingId) || getDemoProperties()[0]
+  const description =
+    typeof property.description === 'string'
+      ? property.description
+      : Array.isArray(property.description?.paragraphs)
+        ? property.description.paragraphs.filter((value): value is string => typeof value === 'string').join('\n\n')
+        : ''
+  const photos = [...(property.heroPhotos || []), ...(property.galleryPhotos || [])].filter(
+    (value): value is string => typeof value === 'string' && value.trim().length > 0
+  )
+  return {
+    listing: {
+      id: property.id,
+      status: String(property.status || 'active').toLowerCase(),
+      address: property.address || '',
+      price: Number(property.price || 0),
+      beds: Number(property.bedrooms || 0),
+      baths: Number(property.bathrooms || 0),
+      sqft: Number(property.squareFeet || 0),
+      description,
+      photos
+    },
+    brain_sources: [
+      {
+        id: `${property.id}-source-description`,
+        type: 'text',
+        title: 'Listing narrative',
+        status: 'trained',
+        trained_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        content: description,
+        url: null
+      }
+    ]
+  }
+}
+
 const resolveListingAgent = async (agentIdOverride?: string | null): Promise<string | null> => {
   if (agentIdOverride !== undefined) return agentIdOverride
   if (isDemoModeActive()) return null
@@ -138,6 +177,9 @@ export const createListingDraft = async (input: CreateListingDraftInput = {}, ag
 }
 
 export const fetchListingBuilderPayload = async (listingId: string, agentIdOverride?: string | null) => {
+  if (isDemoModeActive()) {
+    return buildDemoListingPayload(listingId)
+  }
   const agentId = await resolveListingAgent(agentIdOverride)
   const response = await fetch(buildApiUrl(withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}`, agentId)), {
     headers: defaultJsonHeaders(agentId)
@@ -238,18 +280,20 @@ export const generateListingDescription = async (
   return payload.description
 }
 
-export const uploadListingBuilderSourceFile = async (listingId: string, file: File, agentIdOverride?: string | null) => {
+export const uploadListingBrainDoc = async (listingId: string, file: File, agentIdOverride?: string | null) => {
   const agentId = await resolveListingAgent(agentIdOverride)
   const formData = new FormData()
   formData.append('file', file)
 
-  const url = buildApiUrl(withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}/sources/upload-file`, agentId))
+  const url = buildApiUrl(withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}/sources/upload`, agentId))
   const headers: HeadersInit = agentId ? { 'x-user-id': agentId } : {}
 
   const response = await fetch(url, { method: 'POST', headers, body: formData })
   const payload = await parseResponse<{ source: ListingSourceApi }>(response)
   return mapSource(payload.source)
 }
+
+export const uploadListingBuilderSourceFile = uploadListingBrainDoc
 
 export const retrainListingBrain = async (listingId: string, agentIdOverride?: string | null) => {
   const agentId = await resolveListingAgent(agentIdOverride)

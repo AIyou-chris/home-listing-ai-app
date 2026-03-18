@@ -1,4 +1,6 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
+import AgentBusinessCard from '../agent/AgentBusinessCard';
+import { showToast } from '../../utils/toastService';
 
 export type AgentContactInfo = {
   name: string;
@@ -8,169 +10,146 @@ export type AgentContactInfo = {
   email?: string;
   website?: string;
   headshotUrl?: string;
+  brandColor?: string;
 };
 
 interface AgentContactSheetProps {
   open: boolean;
   onClose: () => void;
   agent: AgentContactInfo;
-  shareUrl: string;
+  onOpenChat: () => void;
+  onOpenFlyer: () => void;
 }
 
-const normalizePhone = (value?: string) => {
-  if (!value) return null;
-  const digits = value.replace(/\D/g, '');
-  if (digits.length === 10) return `+1${digits}`;
-  if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`;
-  if (value.trim().startsWith('+')) return value.trim();
-  return digits ? `+${digits}` : null;
-};
+const AgentContactSheet: React.FC<AgentContactSheetProps> = ({
+  open,
+  onClose,
+  agent,
+  onOpenChat,
+  onOpenFlyer
+}) => {
+  const [showContactForm, setShowContactForm] = useState(false);
+  const [contactForm, setContactForm] = useState({
+    name: '',
+    email: '',
+    message: `Hi ${agent.name || 'there'}, I would like more information about this home.`
+  });
 
-const getInitials = (name: string) => {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return 'HA';
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
-};
+  const brandColor = agent.brandColor?.trim() || '#f97316';
+  const safeName = agent.name?.trim() || 'HomeListingAI Agent';
+  const safeCompany = agent.company?.trim() || 'HomeListingAI';
+  const safeTitle = agent.title?.trim() || 'Listing Specialist';
 
-const AgentContactSheet: React.FC<AgentContactSheetProps> = ({ open, onClose, agent, shareUrl }) => {
-  const normalizedPhone = useMemo(() => normalizePhone(agent.phone), [agent.phone]);
-  const smsHref = normalizedPhone ? `sms:${normalizedPhone}` : null;
-  const telHref = normalizedPhone ? `tel:${normalizedPhone}` : null;
-  const emailHref = agent.email ? `mailto:${agent.email}` : null;
-  const initials = useMemo(() => getInitials(agent.name), [agent.name]);
+  const introText = useMemo(() => {
+    if (agent.email?.trim()) {
+      return `This sends a message to ${agent.email.trim()}.`;
+    }
+    return 'This sends a message to the listing agent.';
+  }, [agent.email]);
 
   if (!open) return null;
 
-  const handleShareAgentCard = async () => {
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: `${agent.name} — Agent Card`,
-          text: `Connect with ${agent.name}`,
-          url: shareUrl
-        });
-        return;
-      } catch (_error) {
-        // User canceled native share.
-      }
-    }
-
-    try {
-      await navigator.clipboard.writeText(shareUrl);
-      window.alert('Link copied to clipboard.');
-    } catch (_error) {
-      window.alert('Unable to share right now.');
-    }
-  };
-
-  const handleCopyContactLink = async () => {
-    try {
-      await navigator.clipboard.writeText(shareUrl);
-      window.alert('Contact link copied.');
-    } catch (_error) {
-      window.alert('Unable to copy link right now.');
-    }
-  };
-
-  const ActionButton: React.FC<{
-    label: string;
-    href: string | null;
-    icon: string;
-  }> = ({ label, href, icon }) => {
-    if (!href) {
-      return (
-        <button
-          type="button"
-          disabled
-          className="flex items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/5 px-3 py-2 text-sm font-semibold text-white/45"
-        >
-          <span className="material-symbols-outlined text-[18px]">{icon}</span>
-          {label}
-        </button>
-      );
-    }
-
-    return (
-      <a
-        href={href}
-        className="flex items-center justify-center gap-2 rounded-xl border border-white/30 bg-white/10 px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/20"
-      >
-        <span className="material-symbols-outlined text-[18px]">{icon}</span>
-        {label}
-      </a>
-    );
-  };
-
   return (
-    <div className="fixed inset-0 z-[90] flex items-end justify-center bg-black/55 md:items-stretch md:justify-end" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-[90] flex items-end justify-center bg-black/60 p-4 backdrop-blur-sm md:items-center"
+      onClick={onClose}
+    >
       <section
-        className="w-full max-h-[82dvh] overflow-y-auto rounded-t-3xl border border-white/15 bg-slate-900/95 p-4 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)] text-white shadow-2xl backdrop-blur-xl md:h-full md:max-h-none md:w-[420px] md:rounded-none md:rounded-l-3xl md:p-6"
+        className="w-full max-w-[760px] rounded-[32px] border border-white/12 bg-slate-950/92 p-4 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)] shadow-[0_32px_90px_rgba(2,6,23,0.52)] md:p-5"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="mb-4 flex items-start justify-between gap-3">
-          <div className="flex items-center gap-3">
-            {agent.headshotUrl ? (
-              <img
-                src={agent.headshotUrl}
-                alt={agent.name}
-                className="h-14 w-14 rounded-full border border-white/30 object-cover"
-              />
-            ) : (
-              <div className="flex h-14 w-14 items-center justify-center rounded-full border border-white/30 bg-white/10 text-sm font-bold">
-                {initials}
-              </div>
-            )}
-            <div className="min-w-0">
-              <p className="truncate text-base font-bold">{agent.name}</p>
-              <p className="truncate text-sm text-white/80">{agent.company}</p>
-              <p className="truncate text-xs text-white/65">{agent.title}</p>
-            </div>
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">HomeListingAI</p>
+            <p className="mt-1 text-sm text-slate-300">Contact the listing agent or open the flyer for this home.</p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-full bg-white/10 p-1.5 text-white transition hover:bg-white/20"
+            className="rounded-full border border-white/10 bg-white/5 p-2 text-white transition hover:bg-white/10"
             aria-label="Close contact card"
           >
             <span className="material-symbols-outlined text-[18px]">close</span>
           </button>
         </div>
 
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-          <ActionButton label="Call" href={telHref} icon="call" />
-          <ActionButton label="Text" href={smsHref} icon="sms" />
-          <ActionButton label="Email" href={emailHref} icon="mail" />
-        </div>
+        <AgentBusinessCard
+          fullName={safeName}
+          company={safeCompany}
+          title={safeTitle}
+          phone={agent.phone || ''}
+          email={agent.email || ''}
+          headshotUrl={agent.headshotUrl || null}
+          themeColor={brandColor}
+          onChat={onOpenChat}
+          onContact={() => setShowContactForm(true)}
+          onMoreInfo={onOpenFlyer}
+          showMoreInfo
+        />
 
-        {agent.website ? (
-          <a
-            href={agent.website}
-            target="_blank"
-            rel="noreferrer"
-            className="mt-2 flex items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/5 px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/15"
-          >
-            <span className="material-symbols-outlined text-[18px]">language</span>
-            Visit Website
-          </a>
+        {showContactForm ? (
+          <div className="mt-4 rounded-[28px] border border-white/10 bg-[rgba(7,14,28,0.82)] p-4 shadow-[0_18px_42px_rgba(2,6,23,0.24)] backdrop-blur-xl">
+            <div className="mb-3">
+              <h3 className="text-lg font-bold text-white">Contact {safeName}</h3>
+              <p className="mt-1 text-sm text-slate-300">{introText}</p>
+            </div>
+
+            <form
+              className="space-y-3"
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (agent.email?.trim()) {
+                  const subject = encodeURIComponent(`Question about this listing for ${safeName}`);
+                  const body = encodeURIComponent(
+                    `Name: ${contactForm.name}\nEmail: ${contactForm.email}\n\n${contactForm.message}`
+                  );
+                  showToast.info('Opening your email app...');
+                  window.location.href = `mailto:${agent.email.trim()}?subject=${subject}&body=${body}`;
+                } else {
+                  showToast.error('Agent email is not set yet.');
+                }
+              }}
+            >
+              <input
+                type="text"
+                value={contactForm.name}
+                onChange={(event) => setContactForm((prev) => ({ ...prev, name: event.target.value }))}
+                placeholder="Your name"
+                className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-400 focus:border-white/20"
+              />
+              <input
+                type="email"
+                value={contactForm.email}
+                onChange={(event) => setContactForm((prev) => ({ ...prev, email: event.target.value }))}
+                placeholder="Your email"
+                className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-400 focus:border-white/20"
+              />
+              <textarea
+                value={contactForm.message}
+                onChange={(event) => setContactForm((prev) => ({ ...prev, message: event.target.value }))}
+                placeholder="How can the agent help?"
+                rows={4}
+                className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-400 focus:border-white/20"
+              />
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="submit"
+                  className="rounded-[18px] px-4 py-3 text-sm font-bold text-white shadow-[0_16px_32px_rgba(249,115,22,0.22)] transition hover:brightness-105"
+                  style={{ backgroundColor: brandColor }}
+                >
+                  Send message
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowContactForm(false)}
+                  className="rounded-[18px] border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+                >
+                  Close form
+                </button>
+              </div>
+            </form>
+          </div>
         ) : null}
-
-        <div className="mt-4 space-y-2 border-t border-white/10 pt-4">
-          <button
-            type="button"
-            onClick={() => void handleShareAgentCard()}
-            className="w-full rounded-xl bg-primary-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-primary-700"
-          >
-            Share Agent Card
-          </button>
-          <button
-            type="button"
-            onClick={() => void handleCopyContactLink()}
-            className="w-full rounded-xl border border-white/25 bg-white/5 px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/15"
-          >
-            Copy Contact Link
-          </button>
-        </div>
       </section>
     </div>
   );

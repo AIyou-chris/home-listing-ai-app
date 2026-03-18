@@ -3,12 +3,14 @@ import { useNavigate, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { buildDashboardPath, useDemoMode } from '../../demo/useDemoMode';
 import {
+  fetchListingPerformance,
   fetchListingShareKit,
   publishListingShareKit,
   sendListingTestLeadCapture,
   type ListingShareKitResponse
 } from '../../services/dashboardCommandService';
 import { fetchListingBuilderPayload } from '../../services/listingBuilderService';
+import { listingsService } from '../../services/listingsService';
 import { useDashboardRealtimeStore } from '../../state/useDashboardRealtimeStore';
 import { ShareKitPanel } from '../dashboard/ShareKitPanel';
 import UpgradePromptModal from '../billing/UpgradePromptModal';
@@ -33,7 +35,14 @@ const ListingPerformancePage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [shareKit, setShareKit] = useState<ListingShareKitResponse | null>(null);
   const [listingDetails, setListingDetails] = useState<{
-    address: string; price: number; beds: number; baths: number; description: string;
+    address: string; price: number; beds: number; baths: number; sqft: number; description: string; photos: string[];
+  } | null>(null);
+  const [shareKitStats, setShareKitStats] = useState<{
+    leadsCaptured: number;
+    topSource: string;
+    lastLeadAgo: string;
+    showingRequestsCount: number;
+    showingRequestsBySource: Array<{ label: string; total: number }>;
   } | null>(null);
   const [activeListingWarning, setActiveListingWarning] = useState<string | null>(null);
   const [upgradeLoading, setUpgradeLoading] = useState(false);
@@ -62,18 +71,56 @@ const ListingPerformancePage: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const [, details] = await Promise.all([
+      const [, details, performance] = await Promise.all([
         loadShareKit(),
-        fetchListingBuilderPayload(listingId).catch(() => null)
+        fetchListingBuilderPayload(listingId).catch(() => null),
+        fetchListingPerformance(listingId, { range: '30d' }).catch(() => null)
       ]);
       if (details) {
+        let photos = details.listing.photos || [];
+        if (photos.length === 0) {
+          try {
+            const property = await listingsService.getPropertyById(listingId);
+            const heroPhotos = property?.heroPhotos || [];
+            const galleryPhotos = property?.galleryPhotos || [];
+            photos = [...heroPhotos, ...galleryPhotos].filter(Boolean);
+          } catch (_error) {
+            photos = [];
+          }
+        }
         setListingDetails({
           address: details.listing.address,
           price: details.listing.price,
           beds: details.listing.beds,
           baths: details.listing.baths,
-          description: details.listing.description || ''
+          sqft: details.listing.sqft,
+          description: details.listing.description || '',
+          photos
         });
+      }
+      if (performance?.metrics) {
+        const topSource = performance.metrics.top_source?.label || 'None';
+        const lastLeadAgo = performance.metrics.last_lead_captured_at
+          ? new Date(performance.metrics.last_lead_captured_at).toLocaleString()
+          : 'N/A';
+        const showingRequestsBySource = (performance.breakdown?.showing_requests_by_source_type || [])
+          .map((item) => ({
+            label: item.source_type.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase()),
+            total: Number(item.total || 0)
+          }))
+          .filter((item) => item.total > 0)
+          .sort((left, right) => right.total - left.total)
+          .slice(0, 4);
+
+        setShareKitStats({
+          leadsCaptured: Number(performance.metrics.leads_count || 0),
+          topSource,
+          lastLeadAgo,
+          showingRequestsCount: Number(performance.metrics.showing_requests_count || 0),
+          showingRequestsBySource
+        });
+      } else {
+        setShareKitStats(null);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load listing dashboard.');
@@ -88,8 +135,8 @@ const ListingPerformancePage: React.FC = () => {
 
   useEffect(() => {
     if (!listingRealtimeSignal) return;
-    void loadShareKit();
-  }, [listingRealtimeSignal, loadShareKit]);
+    void loadAll();
+  }, [listingRealtimeSignal, loadAll]);
 
   useEffect(() => {
     let isMounted = true;
@@ -171,10 +218,17 @@ const ListingPerformancePage: React.FC = () => {
           status: shareKit?.is_published ? 'PUBLISHED' : 'DRAFT',
           slug: shareKit?.public_slug || listingId,
           beds: listingDetails?.beds ?? '-',
-          baths: listingDetails?.baths ?? '-'
+          baths: listingDetails?.baths ?? '-',
+          sqft: listingDetails?.sqft ?? '-',
+          photos: listingDetails?.photos || []
         }}
         latestVideo={shareKit?.latest_video || null}
-        listingDescription={listingDetails?.description || ''}
+        shareUrl={shareKit?.share_url || null}
+        qrCodeUrl={shareKit?.qr_code_url || null}
+        qrCodeSvg={shareKit?.qr_code_svg || null}
+        sourceDefaults={shareKit?.source_defaults || {}}
+        stats={shareKitStats || undefined}
+        performanceAnchorId="listing-performance"
         onPublish={onPublish}
         onTestLeadSubmit={async (data) => {
           if (!listingId) return;
@@ -188,7 +242,7 @@ const ListingPerformancePage: React.FC = () => {
               source_key: 'dashboard_test'
             });
             toast.success('Test lead created — open in Leads.');
-            await loadShareKit();
+            await loadAll();
           } catch (err) {
             if (err instanceof BillingLimitError) {
               setUpgradeModal({
@@ -204,7 +258,9 @@ const ListingPerformancePage: React.FC = () => {
           }
         }}
       />
-      <ListingPerformanceWidget listingId={listingId} />
+      <div id="listing-performance">
+        <ListingPerformanceWidget listingId={listingId} />
+      </div>
 
       <UpgradePromptModal
         isOpen={upgradeModal.open}

@@ -12,7 +12,7 @@ import {
   type ListingBuilderSource,
   patchListingBuilder,
   retrainListingBrain,
-  uploadListingBuilderSourceFile
+  uploadListingBrainDoc
 } from '../../services/listingBuilderService'
 import { publishListingShareKit } from '../../services/dashboardCommandService'
 import { getLocalListingDraft, saveLocalListingDraft } from '../../services/listingDraftStorage'
@@ -161,6 +161,8 @@ const ListingEditorPage: React.FC = () => {
   const [sources, setSources] = useState<ListingBuilderSource[]>([])
   const [photoUrlInput, setPhotoUrlInput] = useState('')
   const [sourceBusy, setSourceBusy] = useState(false)
+  const [uploadingDoc, setUploadingDoc] = useState(false)
+  const [docUploadError, setDocUploadError] = useState<string | null>(null)
   const [generatingDesc, setGeneratingDesc] = useState(false)
   const [publishing, setPublishing] = useState(false)
   const [fairHousingOpen, setFairHousingOpen] = useState(false)
@@ -347,6 +349,20 @@ const ListingEditorPage: React.FC = () => {
       type: input.type, title: input.title, status,
       trained_at: status === 'trained' ? ts : null,
       updated_at: ts, content: input.content ?? null, url: input.url ?? null
+    }, ...prev])
+  }
+
+  const appendDocFallbackSource = (file: File) => {
+    const ts = new Date().toISOString()
+    setSources((prev) => [{
+      id: `local_${Date.now()}`,
+      type: 'doc',
+      title: file.name || 'Uploaded document',
+      status: 'needs_retrain',
+      trained_at: null,
+      updated_at: ts,
+      url: null,
+      content: null
     }, ...prev])
   }
 
@@ -722,7 +738,7 @@ const ListingEditorPage: React.FC = () => {
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      onClick={() => setFairHousingOpen(true)}
+                      onClick={openFairHousing}
                       className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
                     >
                       Fair Housing Scan
@@ -889,10 +905,13 @@ const ListingEditorPage: React.FC = () => {
                   <button
                     type="button"
                     disabled={sourceBusy}
-                    onClick={() => docFileRef.current?.click()}
+                    onClick={() => {
+                      setDocUploadError(null)
+                      docFileRef.current?.click()
+                    }}
                     className={outlineBtn}
                   >
-                    📄 Upload Doc
+                    {uploadingDoc ? 'Uploading…' : '📄 Upload Doc'}
                   </button>
                   <button
                     type="button"
@@ -903,6 +922,9 @@ const ListingEditorPage: React.FC = () => {
                     🌐 Scan Website
                   </button>
                 </div>
+                {docUploadError && (
+                  <p className="mt-3 text-xs font-medium text-rose-600">{docUploadError}</p>
+                )}
               </div>
 
               {/* Sources list */}
@@ -966,34 +988,28 @@ const ListingEditorPage: React.FC = () => {
               <input
                 ref={docFileRef}
                 type="file"
-                accept=".pdf,.txt,.md,.csv"
+                accept=".pdf,.doc,.docx,.txt"
                 className="hidden"
                 onChange={async (e) => {
                   const file = e.target.files?.[0]
                   e.target.value = ''
                   if (!file) return
-                  if (demoMode || isLocalOnly) {
-                    // Client-side extraction for local/demo
-                    const ext = file.name.split('.').pop()?.toLowerCase() || ''
-                    if (['txt', 'md', 'csv'].includes(ext)) {
-                      const reader = new FileReader()
-                      reader.onload = () => {
-                        const text = (reader.result as string).slice(0, 50000)
-                        void addLocalSource({ type: 'doc', title: file.name, content: text, status: 'needs_retrain' })
-                      }
-                      reader.readAsText(file)
-                    } else {
-                      addLocalSource({ type: 'doc', title: file.name, content: `[${file.name}]`, status: 'needs_retrain' })
-                    }
-                    return
-                  }
+                  setDocUploadError(null)
+                  setUploadingDoc(true)
                   setSourceBusy(true)
                   try {
-                    const source = await uploadListingBuilderSourceFile(listingId, file)
+                    if (demoMode || isLocalOnly) {
+                      appendDocFallbackSource(file)
+                      return
+                    }
+                    const source = await uploadListingBrainDoc(listingId, file)
                     setSources((prev) => [source, ...prev])
                   } catch (err) {
-                    toast.error(err instanceof Error ? err.message : 'Could not upload file.')
+                    const message = err instanceof Error ? err.message : 'Could not upload file.'
+                    setDocUploadError(`Upload failed: ${message}. Added local source fallback.`)
+                    appendDocFallbackSource(file)
                   } finally {
+                    setUploadingDoc(false)
                     setSourceBusy(false)
                   }
                 }}

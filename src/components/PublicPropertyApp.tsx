@@ -1,21 +1,42 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import ViewingModal from './ViewingModal';
 import { Property, isAIDescription } from '../types';
 import SEO from './SEO';
 import AgentContactSheet, { type AgentContactInfo } from './public/AgentContactSheet';
+import { showToast } from '../utils/toastService';
+import { buildPublicFlyerUrl, openInNewTab } from '../services/listingShareAssetsService';
 
 interface PublicPropertyAppProps {
     property: Property;
     onExit: () => void;
     showBackButton?: boolean;
     onTalkToHome?: () => void;
-    contactShareUrl?: string;
+    publicSlug?: string;
+    isDemo?: boolean;
 }
 
 const FALLBACK_AGENT: AgentContactInfo = {
     name: 'HomeListingAI Agent',
     company: 'HomeListingAI',
     title: 'Listing Specialist'
+};
+
+const hexToRgb = (value: string) => {
+    const normalized = value.replace('#', '').trim();
+    if (!/^[0-9a-f]{6}$/i.test(normalized)) return null;
+    return {
+        r: parseInt(normalized.slice(0, 2), 16),
+        g: parseInt(normalized.slice(2, 4), 16),
+        b: parseInt(normalized.slice(4, 6), 16)
+    };
+};
+
+const adjustColor = (value: string, amount: number) => {
+    const rgb = hexToRgb(value);
+    if (!rgb) return value;
+    const clamp = (channel: number) => Math.max(0, Math.min(255, channel));
+    const toHex = (channel: number) => clamp(channel).toString(16).padStart(2, '0');
+    return `#${toHex(rgb.r + amount)}${toHex(rgb.g + amount)}${toHex(rgb.b + amount)}`;
 };
 
 const ActionPillButton: React.FC<{ icon: string; label: string; onClick: () => void }> = ({ icon, label, onClick }) => (
@@ -37,7 +58,8 @@ const toAgentContactInfo = (property: Property): AgentContactInfo => {
         phone: raw.phone?.trim() || undefined,
         email: raw.email?.trim() || undefined,
         website: raw.website?.trim() || undefined,
-        headshotUrl: raw.headshotUrl?.trim() || undefined
+        headshotUrl: raw.headshotUrl?.trim() || undefined,
+        brandColor: raw.brandColor?.trim() || '#28a7e8'
     };
 };
 
@@ -46,7 +68,8 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({
     onExit,
     showBackButton = true,
     onTalkToHome,
-    contactShareUrl
+    publicSlug,
+    isDemo = false
 }) => {
     const descriptionText = isAIDescription(property.description)
         ? property.description.paragraphs.join(' ')
@@ -59,6 +82,7 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({
     const [galleryIndex, setGalleryIndex] = useState(0);
     const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
     const [contactOpen, setContactOpen] = useState(false);
+    const handledDeepLinkAction = useRef(false);
 
     const heroPhotosArray = useMemo(
         () => (property.heroPhotos?.filter((photo): photo is string => typeof photo === 'string') || []),
@@ -75,13 +99,8 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({
 
     const hasMultiplePhotos = allPhotos.length > 1;
     const agent = useMemo(() => toAgentContactInfo(property), [property]);
-
-    const resolvedContactShareUrl = useMemo(() => {
-        const base = (contactShareUrl && contactShareUrl.trim().length > 0)
-            ? contactShareUrl
-            : window.location.href;
-        return `${base.replace(/#.*$/, '')}#contact`;
-    }, [contactShareUrl]);
+    const talkButtonStart = useMemo(() => adjustColor(agent.brandColor || '#28a7e8', -30), [agent.brandColor]);
+    const talkButtonEnd = useMemo(() => adjustColor(agent.brandColor || '#28a7e8', 18), [agent.brandColor]);
 
     useEffect(() => {
         if (!hasMultiplePhotos || modalSubState.gallery) return;
@@ -93,15 +112,39 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({
         return () => clearInterval(interval);
     }, [allPhotos.length, hasMultiplePhotos, modalSubState.gallery]);
 
+    useEffect(() => {
+        if (handledDeepLinkAction.current || typeof window === 'undefined') return;
+        handledDeepLinkAction.current = true;
+        const action = new URLSearchParams(window.location.search).get('action');
+        if (action === 'contact') {
+            setContactOpen(true);
+            return;
+        }
+        if (action === 'chat') {
+            onTalkToHome?.();
+        }
+    }, [onTalkToHome]);
+
     const backgroundImage = allPhotos[currentPhotoIndex] || property.imageUrl;
 
     const handleFlyer = () => {
-        const mediaUrl = (typeof property.ctaMediaUrl === 'string' ? property.ctaMediaUrl.trim() : '') || '';
+        const mediaUrl =
+            (typeof property.ctaMediaUrl === 'string' ? property.ctaMediaUrl.trim() : '') ||
+            buildPublicFlyerUrl({
+                publicSlug: publicSlug || '',
+                listingId: property.id,
+                demo: isDemo
+            });
         if (mediaUrl) {
-            window.open(mediaUrl, '_blank', 'noopener,noreferrer');
+            const opened = openInNewTab(mediaUrl);
+            if (opened) {
+                showToast.success('Opening flyer');
+            } else {
+                showToast.error('Could not open flyer.');
+            }
             return;
         }
-        alert('Flyer download coming soon for this listing.');
+        showToast.error('Flyer is not ready for this listing.');
     };
 
     const openGallery = () => {
@@ -167,7 +210,10 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({
                     >
                         <button
                             onClick={onTalkToHome}
-                            className="w-full rounded-2xl border border-cyan-300/40 bg-gradient-to-r from-slate-900/80 via-cyan-900/70 to-blue-900/70 px-4 py-3 text-center text-sm font-bold text-white shadow-xl backdrop-blur-xl transition hover:from-slate-900/90 hover:to-blue-800/80"
+                            className="w-full rounded-2xl border border-white/20 px-4 py-3 text-center text-sm font-bold text-white shadow-xl backdrop-blur-xl transition hover:brightness-105"
+                            style={{
+                                backgroundImage: `linear-gradient(90deg, ${talkButtonStart}, ${talkButtonEnd})`
+                            }}
                         >
                             Talk to the Home
                         </button>
@@ -274,7 +320,11 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({
                     open={contactOpen}
                     onClose={() => setContactOpen(false)}
                     agent={agent}
-                    shareUrl={resolvedContactShareUrl}
+                    onOpenChat={() => {
+                        setContactOpen(false);
+                        onTalkToHome?.();
+                    }}
+                    onOpenFlyer={handleFlyer}
                 />
             </div>
         </div>

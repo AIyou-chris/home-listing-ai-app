@@ -65,9 +65,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
     '/appointments': derivedDemoMode || derivedBlueprintMode ? getPath('/appointments') : '/dashboard/appointments',
     '/settings': derivedDemoMode || derivedBlueprintMode ? getPath('/settings') : '/dashboard/settings'
   };
-  const visibleNavItems = derivedDemoMode && !derivedBlueprintMode
-    ? NAV_ITEMS.filter((item) => item.key !== 'settings')
-    : NAV_ITEMS;
+  const visibleNavItems = NAV_ITEMS;
 
   const handleLogoClick = () => {
     onClose();
@@ -140,6 +138,13 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                   <p className="mb-3 text-xs font-medium uppercase tracking-wider text-slate-500">Demo Mode</p>
                   <div className="space-y-2">
+                    <a
+                      href="/demo-dashboard/gallery/demo-listing-oak"
+                      className="flex w-full items-center justify-center gap-2 rounded-lg bg-fuchsia-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-fuchsia-700"
+                    >
+                      <span className="material-symbols-outlined text-lg">gallery_thumbnail</span>
+                      Demo Gallery
+                    </a>
                     <a
                       href="/"
                       className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
