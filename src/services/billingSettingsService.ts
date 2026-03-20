@@ -1,4 +1,5 @@
 import { BillingSettings } from '../types'
+import { AuthService } from './authService'
 
 type BillingResponse = {
   settings?: BillingSettings
@@ -20,52 +21,36 @@ const handleResponse = async (response: Response): Promise<BillingResponse> => {
 
 export const billingSettingsService = {
   async get(userId: string): Promise<BillingSettings> {
-    const response = await fetch(`/api/billing/settings/${encodeURIComponent(userId)}`)
+    const response = await AuthService.getInstance().makeAuthenticatedRequest(
+      `/api/billing/settings/${encodeURIComponent(userId)}`
+    )
     const data = await handleResponse(response)
     return data.settings as BillingSettings
   },
 
   async update(userId: string, updates: Partial<BillingSettings>): Promise<BillingSettings> {
-    const response = await fetch(`/api/billing/settings/${encodeURIComponent(userId)}`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(updates)
-    })
+    const response = await AuthService.getInstance().makeAuthenticatedRequest(
+      `/api/billing/settings/${encodeURIComponent(userId)}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(updates)
+      }
+    )
     const data = await handleResponse(response)
     return data.settings as BillingSettings
   },
 
-  async createCheckoutSession(userId: string, email?: string, plan: 'starter' | 'pro' = 'pro'): Promise<{ url: string }> {
-    const env = (import.meta as unknown as { env?: Record<string, unknown> })?.env || {}
-    const starterPriceId =
-      typeof env.VITE_STRIPE_STARTER_PRICE_ID === 'string' && env.VITE_STRIPE_STARTER_PRICE_ID.trim()
-        ? env.VITE_STRIPE_STARTER_PRICE_ID
-        : null
-    const proPriceId =
-      typeof env.VITE_STRIPE_PRO_PRICE_ID === 'string' && env.VITE_STRIPE_PRO_PRICE_ID.trim()
-        ? env.VITE_STRIPE_PRO_PRICE_ID
-        : null
-    const priceId = plan === 'starter' ? (starterPriceId || proPriceId) : (proPriceId || starterPriceId)
-    if (!priceId) {
-      throw new Error('Missing Stripe price IDs. Set VITE_STRIPE_STARTER_PRICE_ID and VITE_STRIPE_PRO_PRICE_ID.')
-    }
+  async createCheckoutSession(_userId: string, email?: string, plan: 'starter' | 'pro' = 'pro'): Promise<{ url: string }> {
     const appBase = (import.meta as unknown as { env?: Record<string, unknown> })?.env?.VITE_APP_URL
     const baseUrl = typeof appBase === 'string' && appBase.trim() ? appBase : window.location.origin
 
-    const response = await fetch('/api/subscription/checkout', {
+    const response = await AuthService.getInstance().makeAuthenticatedRequest('/api/billing/checkout-session', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
       body: JSON.stringify({
-        userId,
+        plan_id: plan,
         email,
-        priceId,
-        mode: 'subscription',
-        successUrl: `${baseUrl}/dashboard/settings/billing?checkout=success`,
-        cancelUrl: `${baseUrl}/dashboard/settings/billing?checkout=cancelled`
+        success_url: `${baseUrl}/dashboard/settings/billing?checkout=success`,
+        cancel_url: `${baseUrl}/dashboard/settings/billing?checkout=cancelled`
       })
     })
 

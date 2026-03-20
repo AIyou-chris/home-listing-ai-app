@@ -529,16 +529,11 @@ export class AuthService {
                 console.warn('[AuthDebug] Failed to parse local storage token', e);
             }
 
-            // Check for explicit override in headers (e.g. Blueprint/Impersonation Mode)
+            // Keep note of explicit user headers, but do not trust them over the active session.
             const explicitUserId = (options.headers as Record<string, string>)?.['x-user-id'] ||
                 (options.headers instanceof Headers ? options.headers.get('x-user-id') : null);
 
-            if (explicitUserId) {
-                console.log('[AuthDebug] Explicit x-user-id header found. Bypassing session check.', explicitUserId);
-                userId = explicitUserId as string;
-            }
-
-            if (!token && !explicitUserId) {
+            if (!token) {
                 try {
                     // Increased timeout to 10s for better stability
                     const { data } = await withTimeout(supabase.auth.getSession(), 10000, 'Obtain Session');
@@ -553,8 +548,8 @@ export class AuthService {
             // Fallback: getUser (verifies with server, might bypass local storage lock) - 30s timeout
             // (Empty fallback block removed)
 
-            // Fallback: getUser (verifies with server) ONLY if we still don't have a token/user AND no explicit override
-            if (!token && !userId && !explicitUserId) {
+            // Fallback: getUser (verifies with server) ONLY if we still don't have a token/user
+            if (!token && !userId) {
                 try {
                     const { data: userData } = await withTimeout(supabase.auth.getUser(), 10000, 'Obtain User (Fallback)');
                     userId = userData.user?.id;
@@ -592,10 +587,7 @@ export class AuthService {
 
                         if (!token) {
                             console.error('[AuthDebug] CRITICAL: Both session and user retrieval failed/timed out.', fallbackErr);
-                            // allow request to proceed if explicit user id is present, otherwise throw
-                            if (!explicitUserId) {
-                                throw new Error('Unable to verify login session. Please check your internet connection.');
-                            }
+                            throw new Error('Unable to verify login session. Please check your internet connection.');
                         }
                     }
                 }
@@ -614,8 +606,14 @@ export class AuthService {
                 headers.set('Authorization', `Bearer ${token}`);
             }
 
-            if (userId) {
-                headers.set('x-user-id', userId);
+            const sanitizedExplicitUserId = typeof explicitUserId === 'string' ? explicitUserId.trim() : '';
+            if (sanitizedExplicitUserId && userId && sanitizedExplicitUserId !== userId) {
+                console.warn('[AuthDebug] Ignoring mismatched explicit x-user-id header.');
+            }
+
+            const effectiveUserId = userId || (import.meta.env.DEV && sanitizedExplicitUserId ? sanitizedExplicitUserId : undefined);
+            if (effectiveUserId) {
+                headers.set('x-user-id', effectiveUserId);
             }
 
             console.log('[AuthDebug] Executing fetch...');

@@ -90,6 +90,8 @@ const NUDGE_CHECK_WINDOW_MINUTES = 10;
 const APPOINTMENT_CONFIRM_NUDGE_OFFSETS_MINUTES = [24 * 60, 2 * 60];
 const PUBLIC_CHAT_MAX_PER_MINUTE = Number(process.env.PUBLIC_CHAT_MAX_PER_MINUTE || 10);
 const PUBLIC_CHAT_MAX_PER_HOUR = Number(process.env.PUBLIC_CHAT_MAX_PER_HOUR || 60);
+const PUBLIC_LEAD_CAPTURE_MAX_PER_10_MIN = Number(process.env.PUBLIC_LEAD_CAPTURE_MAX_PER_10_MIN || 6);
+const PUBLIC_LEAD_CAPTURE_MAX_PER_HOUR = Number(process.env.PUBLIC_LEAD_CAPTURE_MAX_PER_HOUR || 20);
 const PUBLIC_CHAT_HISTORY_LIMIT = Number(process.env.PUBLIC_CHAT_HISTORY_LIMIT || 20);
 const PUBLIC_CHAT_SUMMARY_BUCKET_SIZE = Number(process.env.PUBLIC_CHAT_SUMMARY_BUCKET_SIZE || 3);
 const OPENAI_CHAT_MODEL = process.env.OPENAI_CHAT_MODEL || 'gpt-4o';
@@ -288,16 +290,79 @@ const checkPublicChatRateLimit = (visitorId) => {
   publicChatRateLimits.set(visitorId, recent);
   return { allowed: true };
 };
+
+const publicLeadCaptureRateLimits = new Map();
+const checkPublicLeadCaptureRateLimit = (key) => {
+  if (!key) return { allowed: false, reason: 'rate_limit_key_required' };
+
+  const now = Date.now();
+  const tenMinutesAgo = now - 10 * 60 * 1000;
+  const oneHourAgo = now - 60 * 60 * 1000;
+  const bucket = publicLeadCaptureRateLimits.get(key) || [];
+  const recent = bucket.filter((ts) => ts > oneHourAgo);
+  const tenMinuteCount = recent.filter((ts) => ts > tenMinutesAgo).length;
+  const hourCount = recent.length;
+
+  if (tenMinuteCount >= PUBLIC_LEAD_CAPTURE_MAX_PER_10_MIN || hourCount >= PUBLIC_LEAD_CAPTURE_MAX_PER_HOUR) {
+    publicLeadCaptureRateLimits.set(key, recent);
+    return {
+      allowed: false,
+      reason: 'rate_limited',
+      retry_after_seconds: tenMinuteCount >= PUBLIC_LEAD_CAPTURE_MAX_PER_10_MIN ? 600 : 3600
+    };
+  }
+
+  recent.push(now);
+  publicLeadCaptureRateLimits.set(key, recent);
+  return { allowed: true };
+};
 const port = process.env.PORT || 3002;
 
-// Middleware
-app.use(cors({
-  origin: true, // Allow all origins (reflects request origin)
+const buildAllowedCorsOrigins = () => {
+  const configuredOrigins = [
+    process.env.FRONTEND_URL,
+    process.env.APP_BASE_URL,
+    process.env.DASHBOARD_BASE_URL
+  ]
+    .map((value) => toTrimmedOrNull(value))
+    .filter(Boolean);
+
+  const defaults = [
+    'https://homelistingai.com',
+    'https://www.homelistingai.com',
+    'https://app.homelistingai.com',
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'http://localhost:3000',
+    'http://127.0.0.1:3000'
+  ];
+
+  return new Set(
+    [...configuredOrigins, ...defaults].map((value) => {
+      try {
+        return new URL(String(value)).origin;
+      } catch (_error) {
+        return null;
+      }
+    }).filter(Boolean)
+  );
+};
+
+const allowedCorsOrigins = buildAllowedCorsOrigins();
+const corsOptions = {
+  origin(origin, callback) {
+    if (!origin) return callback(null, true);
+    if (allowedCorsOrigins.has(origin)) return callback(null, true);
+    return callback(new Error('cors_origin_not_allowed'));
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-user-id', 'x-admin-user-id', 'x-agent-id', 'x-owner-id', 'x-request-id'],
-  exposedHeaders: ['X-Backend-Version', 'X-Debug-Owner'] // ALLOW FRONTEND TO READ THESE
-}));
+  exposedHeaders: ['X-Backend-Version', 'X-Debug-Owner']
+};
+
+// Middleware
+app.use(cors(corsOptions));
 // Middleware: Capture Raw Body for Stripe Webhooks (must be before processing JSON)
 app.use(express.json({
   limit: '50mb',
@@ -306,17 +371,21 @@ app.use(express.json({
   }
 }));
 
-// Enable Global CORS (Fixes "Spinning" / Network Issues on Production)
-app.use(cors({
-  origin: '*', // Allow all origins (Emergency Fix)
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
-}));
-
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(helmet({
   contentSecurityPolicy: false // Disable CSP for demo flexibility
 }));
+
+app.get('/healthz', (_req, res) => {
+  res.status(200).json({
+    ok: true,
+    service: 'home-listing-ai-backend',
+    time: new Date().toISOString()
+  });
+});
+
+// Lock the entire admin surface behind admin auth by default.
+app.use('/api/admin', (req, res, next) => verifyAdmin(req, res, next));
 
 // URL SHORTENER & ANALYTICS (Supabase-based)
 // No local files anymore.
@@ -566,38 +635,10 @@ app.get('/webhooks/telnyx', async (_req, res) => {
 });
 
 // STRIPE CHECKOUT ENDPOINT
-app.post('/api/subscription/checkout', async (req, res) => {
-  try {
-    const { priceId, successUrl, cancelUrl, userId, email, mode = 'subscription' } = req.body;
-
-    // Validate request
-    if (!priceId) return res.status(400).json({ error: 'Missing priceId' });
-
-    // Use the instantiated stripe client (must be init with key)
-    if (!process.env.STRIPE_SECRET_KEY) {
-      console.error('STRIPE_SECRET_KEY missing in server env');
-      return res.status(500).json({ error: 'Stripe configuration error: Secret Key missing' });
-    }
-
-    const sessionPayload = {
-      line_items: [{ price: priceId, quantity: 1 }],
-      mode: mode,
-      success_url: successUrl,
-      cancel_url: cancelUrl,
-      client_reference_id: userId,
-      metadata: { userId: userId },
-    };
-
-    if (email) {
-      sessionPayload.customer_email = email;
-    }
-
-    const session = await stripe.checkout.sessions.create(sessionPayload);
-    res.json({ url: session.url });
-  } catch (error) {
-    console.error('Stripe Checkout Error:', error);
-    res.status(500).json({ error: error.message });
-  }
+app.post('/api/subscription/checkout', async (_req, res) => {
+  res.status(410).json({
+    error: 'legacy_checkout_disabled_use_api_billing_checkout_session'
+  });
 });
 
 
@@ -6657,30 +6698,6 @@ const toTrimmedOrNull = (value) => {
   return next ? next : null;
 };
 
-const resolveRequesterUserId = async (req, { allowDefault = false } = {}) => {
-  const explicitId =
-    req.body?.agentId ||
-    req.body?.userId ||
-    req.query?.agentId ||
-    req.query?.userId ||
-    req.headers['x-user-id'] ||
-    req.headers['x-agent-id'] ||
-    req.headers['x-admin-user-id'];
-
-  if (explicitId) return String(explicitId);
-
-  const authHeader = req.headers.authorization || req.headers.Authorization;
-  if (authHeader && String(authHeader).startsWith('Bearer ')) {
-    const token = String(authHeader).replace('Bearer ', '').trim();
-    if (token) {
-      const { data: authData, error } = await supabaseAdmin.auth.getUser(token);
-      if (!error && authData?.user?.id) return String(authData.user.id);
-    }
-  }
-
-  return allowDefault ? String(DEFAULT_LEAD_USER_ID || '') : null;
-};
-
 const resolveAuthenticatedUserIdFromToken = async (req) => {
   const authHeader = req.headers.authorization || req.headers.Authorization;
   if (!authHeader || !String(authHeader).startsWith('Bearer ')) return null;
@@ -6691,6 +6708,47 @@ const resolveAuthenticatedUserIdFromToken = async (req) => {
   const { data: authData, error } = await supabaseAdmin.auth.getUser(token);
   if (error || !authData?.user?.id) return null;
   return String(authData.user.id);
+};
+
+const collectExplicitRequesterIds = (req) =>
+  [
+    req.body?.agentId,
+    req.body?.userId,
+    req.query?.agentId,
+    req.query?.userId,
+    req.headers['x-user-id'],
+    req.headers['x-agent-id'],
+    req.headers['x-admin-user-id']
+  ]
+    .map((value) => toTrimmedOrNull(value))
+    .filter(Boolean);
+
+const resolveRequesterUserId = async (
+  req,
+  {
+    allowDefault = false,
+    allowExplicitWithoutAuth = process.env.NODE_ENV !== 'production'
+  } = {}
+) => {
+  const explicitIds = Array.from(new Set(collectExplicitRequesterIds(req)));
+  const authedUserId = await resolveAuthenticatedUserIdFromToken(req);
+
+  if (authedUserId) {
+    if (explicitIds.length > 0 && explicitIds.some((value) => value !== authedUserId)) {
+      req.requesterUserIdMismatch = {
+        authedUserId,
+        explicitIds
+      };
+      return null;
+    }
+    return authedUserId;
+  }
+
+  if (explicitIds.length > 0 && allowExplicitWithoutAuth) {
+    return explicitIds[0];
+  }
+
+  return allowDefault ? String(DEFAULT_LEAD_USER_ID || '') : null;
 };
 
 const isIgnorableCleanupError = (error) =>
@@ -14302,7 +14360,18 @@ const verifyAdmin = async (req, res, next) => {
       }
     }
 
+    let adminAgentId = user.id;
+    try {
+      const agentRecord = await billingEngine.resolveAgentRecord?.(user.id).catch(() => null);
+      adminAgentId = String(agentRecord?.id || user.id);
+    } catch (_error) {
+      adminAgentId = String(user.id);
+    }
+
     req.user = user; // Attach user to request
+    req.adminAgentId = adminAgentId;
+    req.headers['x-admin-user-id'] = String(user.id);
+    req.headers['x-user-id'] = adminAgentId;
     next();
   } catch (e) {
     console.error('Admin verification failed:', e);
@@ -15617,6 +15686,20 @@ app.get('/api/admin/leads', async (req, res) => {
 // Webhook for external lead sources
 app.post('/api/webhooks/incoming-lead', async (req, res) => {
   try {
+    const configuredWebhookSecret = toTrimmedOrNull(process.env.INCOMING_LEAD_WEBHOOK_SECRET);
+    const providedWebhookSecret =
+      toTrimmedOrNull(req.headers['x-webhook-secret']) ||
+      toTrimmedOrNull(req.headers['x-incoming-lead-secret']) ||
+      toTrimmedOrNull(req.query?.secret);
+
+    if (!configuredWebhookSecret) {
+      if (process.env.NODE_ENV === 'production') {
+        return res.status(503).json({ success: false, error: 'incoming_lead_webhook_not_configured' });
+      }
+    } else if (providedWebhookSecret !== configuredWebhookSecret) {
+      return res.status(401).json({ success: false, error: 'invalid_incoming_lead_webhook_secret' });
+    }
+
     console.log('🪝 Received webhook lead:', req.body);
     const payload = req.body || {};
 
@@ -15641,7 +15724,10 @@ app.post('/api/webhooks/incoming-lead', async (req, res) => {
     // Default to a system user or specific admin if not provided
     // In a real multi-tenant app, we might need an API key to map to a user.
     // For now, we use the default lead user ID if available, or just the first user.
-    const assignedUserId = payload.userId || payload.user_id || DEFAULT_LEAD_USER_ID;
+    const assignedUserId = toTrimmedOrNull(payload.userId || payload.user_id || DEFAULT_LEAD_USER_ID);
+    if (!assignedUserId || !isUuid(assignedUserId)) {
+      return res.status(400).json({ success: false, error: 'valid_user_id_required' });
+    }
 
     // Insert into Supabase
     const now = new Date().toISOString();
@@ -17919,6 +18005,23 @@ app.post('/api/leads/capture', async (req, res) => {
 
     const phoneE164 = normalizePhoneE164(phone || '');
     const emailLower = normalizeEmailLower(email || '');
+
+    const leadCaptureRateLimitKey = [
+      toTrimmedOrNull(req.ip),
+      toTrimmedOrNull(visitorId),
+      phoneE164,
+      emailLower
+    ]
+      .filter(Boolean)
+      .join('|');
+
+    const leadCaptureRateCheck = checkPublicLeadCaptureRateLimit(leadCaptureRateLimitKey);
+    if (!leadCaptureRateCheck.allowed) {
+      return res.status(429).json({
+        error: 'rate_limited',
+        retry_after_seconds: leadCaptureRateCheck.retry_after_seconds || 600
+      });
+    }
 
     if (!phoneE164 && !emailLower) {
       return res.status(400).json({ error: 'phone_or_email_required' });
@@ -29536,10 +29639,43 @@ const sendOAuthResultPage = (res, payload) => {
    </script></body></html>`);
 };
 
+const resolveAuthorizedSettingsUserId = async (req) => {
+  const requestedUserId = toTrimmedOrNull(req.params?.userId);
+  const authedUserId = await resolveAuthenticatedUserIdFromToken(req);
+  if (!authedUserId) {
+    return { ok: false, code: 401, userId: null };
+  }
+
+  if (!requestedUserId || requestedUserId === authedUserId) {
+    return { ok: true, code: 200, userId: authedUserId };
+  }
+
+  try {
+    const agentRecord = await billingEngine.resolveAgentRecord?.(authedUserId).catch(() => null);
+    const allowedIds = new Set(
+      [authedUserId, agentRecord?.id, agentRecord?.auth_user_id]
+        .filter(Boolean)
+        .map((value) => String(value))
+    );
+
+    if (allowedIds.has(requestedUserId)) {
+      return { ok: true, code: 200, userId: authedUserId };
+    }
+  } catch (_error) {
+    // fall through to forbidden
+  }
+
+  return { ok: false, code: 403, userId: null };
+};
+
 app.get('/api/billing/settings/:userId', async (req, res) => {
   try {
-    const { userId } = req.params
-    const payload = await getBillingSettings(userId, paymentService)
+    const authz = await resolveAuthorizedSettingsUserId(req)
+    if (!authz.ok) {
+      return res.status(authz.code).json({ success: false, error: authz.code === 401 ? 'Unauthorized' : 'Forbidden' })
+    }
+
+    const payload = await getBillingSettings(authz.userId, paymentService)
     res.json({ success: true, ...payload })
   } catch (error) {
     console.error('Error fetching billing settings:', error)
@@ -29549,9 +29685,13 @@ app.get('/api/billing/settings/:userId', async (req, res) => {
 
 app.patch('/api/billing/settings/:userId', async (req, res) => {
   try {
-    const { userId } = req.params
+    const authz = await resolveAuthorizedSettingsUserId(req)
+    if (!authz.ok) {
+      return res.status(authz.code).json({ success: false, error: authz.code === 401 ? 'Unauthorized' : 'Forbidden' })
+    }
+
     const updates = req.body || {}
-    const payload = await updateBillingSettings(userId, updates)
+    const payload = await updateBillingSettings(authz.userId, updates)
     res.json({ success: true, ...payload })
   } catch (error) {
     console.error('Error updating billing settings:', error)
@@ -29561,8 +29701,12 @@ app.patch('/api/billing/settings/:userId', async (req, res) => {
 
 app.get('/api/calendar/settings/:userId', async (req, res) => {
   try {
-    const { userId } = req.params
-    const payload = await getCalendarSettings(userId)
+    const authz = await resolveAuthorizedSettingsUserId(req)
+    if (!authz.ok) {
+      return res.status(authz.code).json({ success: false, error: authz.code === 401 ? 'Unauthorized' : 'Forbidden' })
+    }
+
+    const payload = await getCalendarSettings(authz.userId)
     res.json({ success: true, ...payload })
   } catch (error) {
     console.error('Error fetching calendar settings:', error)
@@ -29572,9 +29716,13 @@ app.get('/api/calendar/settings/:userId', async (req, res) => {
 
 app.patch('/api/calendar/settings/:userId', async (req, res) => {
   try {
-    const { userId } = req.params
+    const authz = await resolveAuthorizedSettingsUserId(req)
+    if (!authz.ok) {
+      return res.status(authz.code).json({ success: false, error: authz.code === 401 ? 'Unauthorized' : 'Forbidden' })
+    }
+
     const updates = req.body || {}
-    const payload = await updateCalendarPreferences(userId, updates)
+    const payload = await updateCalendarPreferences(authz.userId, updates)
     res.json({ success: true, ...payload })
   } catch (error) {
     console.error('Error updating calendar settings:', error)

@@ -17,11 +17,11 @@ const getEnvVar = (key: string): string | undefined => {
   return undefined
 }
 
-const supabaseUrl = getEnvVar('VITE_SUPABASE_URL') || 'https://yocchddxdsaldgsibmmc.supabase.co'
-const supabaseAnonKey = getEnvVar('VITE_SUPABASE_ANON_KEY') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlvY2NoZGR4ZHNhbGRnc2libW1jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY1ODEwNDgsImV4cCI6MjA3MjE1NzA0OH0.02jE3WPLnb-DDexNqSnfIPfmPZldsby1dPOu5-BlSDw'
+const supabaseUrl = getEnvVar('VITE_SUPABASE_URL')
+const supabaseAnonKey = getEnvVar('VITE_SUPABASE_ANON_KEY')
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('❌ Missing Supabase configuration. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env.local')
+  throw new Error('Missing Supabase configuration. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.')
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
@@ -49,7 +49,7 @@ export interface Contact {
   // Lead Scoring V2
   score?: number
   score_tier?: string
-  score_breakdown?: any[]
+  score_breakdown?: unknown[]
   last_behavior_at?: string
 }
 
