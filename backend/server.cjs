@@ -6692,11 +6692,11 @@ const inferSourceTypeFromKey = (sourceKey) => {
   return 'unknown';
 };
 
-const toTrimmedOrNull = (value) => {
+function toTrimmedOrNull(value) {
   if (value === null || value === undefined) return null;
   const next = String(value).trim();
   return next ? next : null;
-};
+}
 
 const resolveAuthenticatedUserIdFromToken = async (req) => {
   const authHeader = req.headers.authorization || req.headers.Authorization;
