@@ -349,13 +349,18 @@ const buildAllowedCorsOrigins = () => {
 };
 
 const allowedCorsOrigins = buildAllowedCorsOrigins();
+const rejectDisallowedOrigins = (req, res, next) => {
+  const origin = toTrimmedOrNull(req.headers.origin);
+  if (!origin) return next();
+  if (allowedCorsOrigins.has(origin)) return next();
+  return res.status(403).json({ error: 'cors_origin_not_allowed' });
+};
+
 const corsOptions = {
   origin(origin, callback) {
     if (!origin) return callback(null, true);
     if (allowedCorsOrigins.has(origin)) return callback(null, true);
-    const corsError = new Error('cors_origin_not_allowed');
-    corsError.status = 403;
-    return callback(corsError);
+    return callback(null, false);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
@@ -364,6 +369,7 @@ const corsOptions = {
 };
 
 // Middleware
+app.use(rejectDisallowedOrigins);
 app.use(cors(corsOptions));
 // Middleware: Capture Raw Body for Stripe Webhooks (must be before processing JSON)
 app.use(express.json({
