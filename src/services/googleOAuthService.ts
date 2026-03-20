@@ -65,22 +65,7 @@ class GoogleOAuthService {
   }
 
   private getEnvValue(key: string): string | undefined {
-    try {
-      const metaEnv = Function('return (typeof import !== "undefined" && import.meta && import.meta.env) ? import.meta.env : undefined;')() as Record<string, unknown> | undefined
-      const metaValue = metaEnv?.[key]
-      if (typeof metaValue === 'string') {
-        return metaValue
-      }
-    } catch (_) {
-      // ignore
-    }
-
-    const processEnv = (globalThis as { process?: { env?: Record<string, unknown> } }).process?.env
-    if (processEnv && typeof processEnv[key] === 'string') {
-      return processEnv[key] as string
-    }
-
-    return undefined
+    return getEnvVar(key)
   }
 
   private loadStoredCredentials(context: OAuthContext): StoredCredentials | null {
@@ -353,3 +338,4 @@ class GoogleOAuthService {
 export const googleOAuthService = new GoogleOAuthService()
 
 export default googleOAuthService
+import { getEnvVar } from '../lib/env'

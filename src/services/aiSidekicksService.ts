@@ -1,4 +1,5 @@
 import { resolveUserId } from './userId';
+import { getEnvVar } from '../lib/env';
 
 export interface Voice {
   id: string;
@@ -94,7 +95,7 @@ export const personalityPresets: Record<string, PersonalityPreset> = {
 };
 
 const getApiBaseUrl = (): string => {
-  const raw = (import.meta as unknown as { env?: Record<string, unknown> })?.env?.VITE_API_BASE_URL;
+  const raw = getEnvVar('VITE_API_BASE_URL');
   if (typeof raw !== 'string' || raw.trim() === '') {
     return '';
   }

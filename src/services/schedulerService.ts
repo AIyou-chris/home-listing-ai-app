@@ -7,6 +7,7 @@ import { emailService } from './emailService'
 import { calendarSettingsService } from './calendarSettingsService'
 import { textingService } from './textingService'
 import type { CalendarSettings } from '../types'
+import { getBooleanEnv } from '../lib/env'
 
 export type AppointmentKind =
   | 'Showing'
@@ -48,26 +49,7 @@ export interface SchedulerResult {
 }
 
 const resolveGoogleIntegrationFlag = (): boolean => {
-  const fromProcess =
-    typeof process !== 'undefined' && process.env
-      ? process.env.VITE_ENABLE_GOOGLE_INTEGRATIONS
-      : undefined
-
-  const fromGlobal =
-    typeof globalThis !== 'undefined' &&
-    (globalThis as Record<string, unknown> | undefined)?.VITE_ENABLE_GOOGLE_INTEGRATIONS
-
-  let fromImportMeta: unknown
-  try {
-    fromImportMeta = new Function(
-      'return typeof import.meta !== "undefined" && import.meta && import.meta.env ? import.meta.env.VITE_ENABLE_GOOGLE_INTEGRATIONS : undefined'
-    )()
-  } catch (error) {
-    fromImportMeta = undefined
-  }
-
-  const candidate = (fromImportMeta ?? fromGlobal ?? fromProcess) as string | undefined
-  return String(candidate || '').toLowerCase() === 'true'
+  return getBooleanEnv('VITE_ENABLE_GOOGLE_INTEGRATIONS')
 }
 
 const ENABLE_GOOGLE_INTEGRATIONS = resolveGoogleIntegrationFlag()

@@ -1,10 +1,11 @@
+import { getEnvVar } from './env'
+
 const normalizeBase = (): string => {
-  const env = import.meta.env || {}
   const raw =
-    env.VITE_BACKEND_URL ||
-    env.VITE_API_BASE_URL ||
-    env.VITE_API_URL ||
-    env.VITE_VOICE_API_BASE_URL
+    getEnvVar('VITE_BACKEND_URL') ||
+    getEnvVar('VITE_API_BASE_URL') ||
+    getEnvVar('VITE_API_URL') ||
+    getEnvVar('VITE_VOICE_API_BASE_URL')
 
   if (typeof raw === 'string' && raw.trim().length) {
     const trimmed = raw.trim()
@@ -34,5 +35,4 @@ export const buildApiUrl = (path: string): string => {
 }
 
 export const getApiBaseUrl = (): string => API_BASE_URL
-
 

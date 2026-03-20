@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { Phone, Mail, Globe, Share2, Facebook, Instagram, Twitter, Linkedin, Youtube, MessageSquare, Send } from 'lucide-react';
 import { getAICardProfile, AICardProfile } from '../services/aiCardService';
+import { getEnvVar } from '../lib/env';
 
 const PublicAICard: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -35,11 +36,6 @@ const PublicAICard: React.FC = () => {
 
         fetchProfile();
     }, [id]);
-
-    const scrollToForm = () => {
-        formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    };
-
     const handleShare = async () => {
         if (navigator.share) {
             try {
@@ -73,7 +69,7 @@ const PublicAICard: React.FC = () => {
         setSubmitStatus('idle');
 
         try {
-            const API_BASE = (import.meta as any).env.VITE_API_BASE_URL || 'https://home-listing-ai-backend.onrender.com';
+            const API_BASE = getEnvVar('VITE_API_BASE_URL') || 'https://home-listing-ai-backend.onrender.com';
             const response = await fetch(`${API_BASE}/api/ai-card/lead`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },

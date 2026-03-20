@@ -1,21 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-
-// Safe environment access for both Vite and Node contexts
-const getEnvVar = (key: string): string | undefined => {
-  try {
-    if (typeof import.meta !== 'undefined' && import.meta.env) {
-      return import.meta.env[key] as string
-    }
-  } catch (e) { /* ignore */ }
-
-  try {
-    if (typeof process !== 'undefined' && process.env) {
-      return process.env[key]
-    }
-  } catch (e) { /* ignore */ }
-
-  return undefined
-}
+import { getEnvVar } from '../lib/env'
 
 const supabaseUrl = getEnvVar('VITE_SUPABASE_URL')
 const supabaseAnonKey = getEnvVar('VITE_SUPABASE_ANON_KEY')

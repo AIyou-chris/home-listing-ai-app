@@ -1,5 +1,6 @@
 import { BillingSettings } from '../types'
 import { AuthService } from './authService'
+import { getEnvVar } from '../lib/env'
 
 type BillingResponse = {
   settings?: BillingSettings
@@ -41,7 +42,7 @@ export const billingSettingsService = {
   },
 
   async createCheckoutSession(_userId: string, email?: string, plan: 'starter' | 'pro' = 'pro'): Promise<{ url: string }> {
-    const appBase = (import.meta as unknown as { env?: Record<string, unknown> })?.env?.VITE_APP_URL
+    const appBase = getEnvVar('VITE_APP_URL')
     const baseUrl = typeof appBase === 'string' && appBase.trim() ? appBase : window.location.origin
 
     const response = await AuthService.getInstance().makeAuthenticatedRequest('/api/billing/checkout-session', {

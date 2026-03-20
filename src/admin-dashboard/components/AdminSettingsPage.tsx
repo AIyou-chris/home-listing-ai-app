@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { getEnvVar } from '../../lib/env'
 import { AdminDeliverabilitySettings } from './AdminDeliverabilitySettings'
 import { AuthService } from '../../services/authService'
 
@@ -116,7 +117,7 @@ const AdminSettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   }>({ code: '', discount_type: 'percent', amount: '', duration: 'once', usage_limit: '' })
 
   const apiBase = useMemo(() => {
-    const base = (import.meta as unknown as { env?: Record<string, string> })?.env?.VITE_API_BASE_URL || ''
+    const base = getEnvVar('VITE_API_BASE_URL') || ''
     return base.replace(/\/$/, '')
   }, [])
 

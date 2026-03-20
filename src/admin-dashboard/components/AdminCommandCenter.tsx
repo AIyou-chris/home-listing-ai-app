@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { getEnvVar } from '../../lib/env'
 import { CampaignStatsWidget } from './CampaignStatsWidget'
 
 
@@ -108,7 +109,7 @@ const Badge: React.FC<{ tone?: 'success' | 'warn' | 'error' | 'neutral'; childre
 
 const AdminCommandCenter: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode }) => {
   const apiBase = useMemo(() => {
-    const base = (import.meta as unknown as { env?: Record<string, string> })?.env?.VITE_API_BASE_URL || ''
+    const base = getEnvVar('VITE_API_BASE_URL') || ''
     return base.replace(/\/$/, '')
   }, [])
 

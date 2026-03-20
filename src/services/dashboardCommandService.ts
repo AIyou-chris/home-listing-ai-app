@@ -803,16 +803,11 @@ export const addFreeTestVideoCredits = async (
   agentIdOverride?: string | null
 ) => {
   const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
-  const headers: HeadersInit = {
-    ...defaultJsonHeaders(agentId),
-    'x-dev-secret': String(import.meta.env.VITE_VIDEO_TEST_SECRET || '').trim()
-  };
-
   const response = await fetch(
     buildApiUrl(withAgentQuery('/api/dashboard/video-credits/free-test', agentId)),
     {
       method: 'POST',
-      headers,
+      headers: defaultJsonHeaders(agentId),
       body: JSON.stringify({ listing_id: listingId, add })
     }
   );

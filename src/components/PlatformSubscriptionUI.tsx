@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { connectService } from '../services/connectService';
+import { getEnvVar } from '../lib/env';
 
 interface PlatformSubscriptionUIProps {
     accountId: string; // The Connected Account ID
@@ -9,7 +10,7 @@ interface PlatformSubscriptionUIProps {
 export const PlatformSubscriptionUI: React.FC<PlatformSubscriptionUIProps> = ({ accountId, currentPlan = 'free' }) => {
     const [loading, setLoading] = useState(false);
 
-    const rawProPriceId = (import.meta as unknown as { env?: Record<string, unknown> })?.env?.VITE_STRIPE_PRO_PRICE_ID;
+    const rawProPriceId = getEnvVar('VITE_STRIPE_PRO_PRICE_ID');
     const PRO_PRICE_ID = typeof rawProPriceId === 'string' && rawProPriceId.trim()
         ? rawProPriceId
         : 'price_PLACEHOLDER_MISSING'; // Must be set in .env

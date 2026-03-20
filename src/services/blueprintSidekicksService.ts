@@ -1,4 +1,5 @@
 import { resolveUserId } from './userId'
+import { getEnvVar } from '../lib/env'
 
 export type BlueprintSidekickId = 'agent' | 'sales_marketing' | 'listing_agent'
 
@@ -32,7 +33,7 @@ const DEFAULT_SIDEKICKS: BlueprintSidekick[] = [
   }
 ]
 
-const apiBase = (import.meta as unknown as { env?: Record<string, string> })?.env?.VITE_API_BASE_URL || ''
+const apiBase = getEnvVar('VITE_API_BASE_URL') || ''
 const API_BASE = apiBase.replace(/\/$/, '')
 
 const persistLocal = (sidekicks: BlueprintSidekick[]) => {

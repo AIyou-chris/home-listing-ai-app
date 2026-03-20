@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { getEnvVar } from '../lib/env';
 
 // Firebase removed. Provide lightweight local auth stubs to keep UI working.
 type User = { uid: string; email?: string; displayName?: string; getIdToken?: () => Promise<string> };
@@ -85,7 +86,7 @@ const getApiBaseUrl = (): string | null => {
         return null;
     }
 
-    const raw = (import.meta as unknown as { env?: Record<string, unknown> })?.env?.VITE_API_BASE_URL
+    const raw = getEnvVar('VITE_API_BASE_URL')
     if (typeof raw !== 'string') {
         return null
     }
