@@ -962,12 +962,14 @@ const createBillingEngine = ({ supabaseAdmin, stripe, enqueueJob, appBaseUrl }) 
       let periodStart = startOfMonthIso();
       let periodEnd = endOfMonthIso();
       let planId = sessionPlanId;
+      let subscriptionStatus = 'active';
 
       if (object.subscription && stripe) {
         try {
           const subscription = await stripe.subscriptions.retrieve(object.subscription);
           const priceId = subscription?.items?.data?.[0]?.price?.id || null;
           planId = await mapPlanIdFromPrice(priceId, sessionPlanId);
+          subscriptionStatus = normalizeSubscriptionStatus(subscription?.status || 'active');
           if (subscription?.current_period_start) {
             periodStart = new Date(subscription.current_period_start * 1000).toISOString();
           }
@@ -982,7 +984,7 @@ const createBillingEngine = ({ supabaseAdmin, stripe, enqueueJob, appBaseUrl }) 
       const updatedSubscription = await upsertSubscription({
         agentId,
         planId,
-        status: 'active',
+        status: subscriptionStatus,
         stripeCustomerId: object.customer || null,
         stripeSubscriptionId: object.subscription || null,
         periodStart,
@@ -994,7 +996,7 @@ const createBillingEngine = ({ supabaseAdmin, stripe, enqueueJob, appBaseUrl }) 
       await syncAgentBillingFields({
         agentId,
         planId,
-        status: 'active',
+        status: subscriptionStatus,
         stripeCustomerId: object.customer || null
       });
 

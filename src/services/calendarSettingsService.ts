@@ -1,4 +1,5 @@
 import { CalendarSettings } from '../types'
+import { AuthService } from './authService'
 
 export interface CalendarConnectionInfo {
   provider: string | null
@@ -31,7 +32,9 @@ const handleResponse = async (response: Response): Promise<CalendarSettingsRespo
 
 const fetchSettings = async (userId: string): Promise<CalendarSettingsResponse> => {
   const safeId = userId || 'default'
-  const response = await fetch(`/api/calendar/settings/${encodeURIComponent(safeId)}`)
+  const response = await AuthService.getInstance().makeAuthenticatedRequest(
+    `/api/calendar/settings/${encodeURIComponent(safeId)}`
+  )
   return handleResponse(response)
 }
 
@@ -40,13 +43,13 @@ const updateSettings = async (
   settings: Partial<CalendarSettings>
 ): Promise<CalendarSettingsResponse> => {
   const safeId = userId || 'default'
-  const response = await fetch(`/api/calendar/settings/${encodeURIComponent(safeId)}`, {
-    method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(settings)
-  })
+  const response = await AuthService.getInstance().makeAuthenticatedRequest(
+    `/api/calendar/settings/${encodeURIComponent(safeId)}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(settings)
+    }
+  )
 
   return handleResponse(response)
 }
@@ -57,5 +60,4 @@ export const calendarSettingsService = {
 }
 
 export default calendarSettingsService
-
 

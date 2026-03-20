@@ -6,6 +6,7 @@ services:
     plan: free
     buildCommand: npm install --include=dev --ignore-scripts && npm run build && cd backend && npm install --omit=dev --ignore-scripts
     startCommand: cd backend && node server.cjs
+    healthCheckPath: /healthz
     envVars:
       - key: NODE_ENV
         value: production
