@@ -353,7 +353,9 @@ const corsOptions = {
   origin(origin, callback) {
     if (!origin) return callback(null, true);
     if (allowedCorsOrigins.has(origin)) return callback(null, true);
-    return callback(new Error('cors_origin_not_allowed'));
+    const corsError = new Error('cors_origin_not_allowed');
+    corsError.status = 403;
+    return callback(corsError);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
