@@ -42,10 +42,10 @@ const ShareTestPage: React.FC = () => {
         return;
       }
       try {
-        const adminEmail = String(import.meta.env.VITE_ADMIN_EMAIL || '').trim().toLowerCase();
+        const adminEmails = ['admin@homelistingai.com', 'us@homelistingai.com'];
         const { data } = await supabase.auth.getUser();
         const userEmail = String(data.user?.email || '').trim().toLowerCase();
-        if (mounted) setIsAuthorized(Boolean(adminEmail && userEmail && adminEmail === userEmail));
+        if (mounted) setIsAuthorized(Boolean(userEmail && adminEmails.includes(userEmail)));
       } catch {
         if (mounted) setIsAuthorized(false);
       }
