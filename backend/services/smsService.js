@@ -45,7 +45,7 @@ const checkSafetyRules = (destination) => {
 };
 
 const validatePhoneNumber = async (phoneNumber) => {
-    const apiKey = process.env.VITE_TELNYX_API_KEY;
+    const apiKey = process.env.TELNYX_API_KEY;
     if (!apiKey) return true; // Skip validation if key missing (dev/local without creds)
 
     const destination = normalizePhoneNumber(phoneNumber);
@@ -93,12 +93,12 @@ const sendSms = async (to, message, mediaUrls = [], userId = null) => {
         return false;
     }
 
-    const apiKey = process.env.VITE_TELNYX_API_KEY;
-    const fromNumber = process.env.VITE_TELNYX_PHONE_NUMBER;
+    const apiKey = process.env.TELNYX_API_KEY;
+    const fromNumber = process.env.TELNYX_PHONE_NUMBER;
     const { supabaseAdmin } = require('./supabase'); // Ensure we have DB access
 
     if (!apiKey) {
-        console.warn('⚠️ [SMS] Telnyx API Key not configured (VITE_TELNYX_API_KEY).');
+        console.warn('⚠️ [SMS] Telnyx API Key not configured (TELNYX_API_KEY).');
         return false;
     }
 
