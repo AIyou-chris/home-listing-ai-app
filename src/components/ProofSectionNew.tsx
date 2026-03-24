@@ -77,8 +77,8 @@ const testimonials = [
         quote: "We used it on social and the conversations got higher quality immediately.",
         tag: "Social",
         outcomes: ["More engaged inquiries", "Better quality leads"],
-        name: "Francis M McLovin (just to see if you're paying attention)",
-        isAnonymous: false
+        name: "Social campaign client",
+        isAnonymous: true
     }
 ];
 

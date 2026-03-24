@@ -1,14 +1,7 @@
 import { supabase } from './services/supabase'
 
 const PATCH_FLAG = '__hlaiProtectedApiFetchInstalled'
-const PROTECTED_PATH_PREFIXES = [
-  '/api/admin/',
-  '/api/billing/settings/',
-  '/api/calendar/settings/',
-  '/api/billing/checkout-session',
-  '/api/billing/portal-session',
-  '/api/account/delete'
-]
+const API_PATH_PREFIX = '/api/'
 
 const resolveAllowedOrigins = (): Set<string> => {
   const origins = new Set<string>()
@@ -44,7 +37,7 @@ const isProtectedRequest = (input: RequestInfo | URL): URL | null => {
     return null
   }
 
-  return PROTECTED_PATH_PREFIXES.some((prefix) => url.pathname.startsWith(prefix)) ? url : null
+  return url.pathname.startsWith(API_PATH_PREFIX) ? url : null
 }
 
 const installProtectedApiFetch = () => {
