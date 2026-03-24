@@ -67,8 +67,8 @@ export const PublicFooter: React.FC<PublicFooterProps> = ({ onNavigateToAdmin })
                     <div>
                         <h3 className="text-sm font-semibold text-white mb-3">Contact</h3>
                         <ul className="space-y-2 text-sm">
-                            <li><a href="mailto:us@homelistingai.com" className="hover:text-white transition-colors">us@homelistingai.com</a></li>
-                            <li><span className="text-slate-300">Seattle, WA</span></li>
+                            <li><a href="mailto:homelistingai@gmail.com" className="hover:text-white transition-colors">Email</a></li>
+                            <li><a href="tel:9495994013" className="hover:text-white transition-colors">949-599-4013</a></li>
                         </ul>
                     </div>
                 </div>
