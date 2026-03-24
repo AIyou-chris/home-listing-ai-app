@@ -29761,7 +29761,7 @@ app.post('/api/payments/checkout-session', async (req, res) => {
 
     const { data: agent, error: agentError } = await supabaseAdmin
       .from('agents')
-      .select('email, slug, status, payment_status, stripe_account_id')
+      .select('email, slug, status, payment_status, stripe_customer_id')
       .eq('slug', slug)
       .maybeSingle()
 
@@ -29855,7 +29855,7 @@ app.post('/api/payments/checkout-session', async (req, res) => {
     const session = await paymentService.createCheckoutSession({
       slug,
       email: agent.email,
-      customerId: agent.stripe_account_id, // Pass existing customer ID if we have it
+      customerId: agent.stripe_customer_id, // Pass existing customer ID if we have it
       provider,
       amountCents: 4900, // This is ignored by subscription mode in favor of priceId, but kept for signature
       trialPeriodDays: trialDays,
