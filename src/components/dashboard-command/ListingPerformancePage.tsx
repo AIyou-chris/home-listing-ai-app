@@ -32,6 +32,7 @@ const ListingPerformancePage: React.FC = () => {
   );
 
   const [loading, setLoading] = useState(true);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [shareKit, setShareKit] = useState<ListingShareKitResponse | null>(null);
   const [listingDetails, setListingDetails] = useState<{
@@ -68,7 +69,7 @@ const ListingPerformancePage: React.FC = () => {
 
   const loadAll = useCallback(async () => {
     if (!listingId) return;
-    setLoading(true);
+    setLoading((current) => current || !hasLoadedOnce);
     setError(null);
     try {
       const [, details, performance] = await Promise.all([
@@ -125,9 +126,10 @@ const ListingPerformancePage: React.FC = () => {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load listing dashboard.');
     } finally {
+      setHasLoadedOnce(true);
       setLoading(false);
     }
-  }, [listingId, loadShareKit]);
+  }, [hasLoadedOnce, listingId, loadShareKit]);
 
   useEffect(() => {
     void loadAll();
@@ -182,7 +184,7 @@ const ListingPerformancePage: React.FC = () => {
     }
   };
 
-  if (loading) {
+  if (loading && !hasLoadedOnce) {
     return (
       <div className="mx-auto max-w-6xl px-4 py-6 md:px-8">
         <div className="rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-500">Loading listing performance…</div>
