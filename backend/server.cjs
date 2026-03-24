@@ -29754,10 +29754,6 @@ app.get('/api/payments/providers', (_req, res) => {
 
 app.post('/api/payments/checkout-session', async (req, res) => {
   try {
-    if (!paymentService?.isConfigured?.()) {
-      return res.status(503).json({ success: false, error: 'Payment processing is not configured.' })
-    }
-
     const { slug, provider, amountCents, promoCode } = req.body || {}
     if (!slug || typeof slug !== 'string') {
       return res.status(400).json({ success: false, error: 'Agent slug is required.' })
@@ -29806,13 +29802,19 @@ app.post('/api/payments/checkout-session', async (req, res) => {
         return res.json({
           success: true,
           session: {
-            url: `${appBaseUrl}/checkout/${slug}?status=success`
+            id: `promo_${normalizedPromoCode.toLowerCase()}`,
+            provider: 'promo_code',
+            url: `${appBaseUrl}/dashboard/today?upgraded=true&promo=${encodeURIComponent(normalizedPromoCode.toLowerCase())}`
           }
         });
       } catch (err) {
         console.error('Promo code error:', err);
         return res.status(500).json({ success: false, error: `Failed to apply promo code: ${err.message}` });
       }
+    }
+
+    if (!paymentService?.isConfigured?.()) {
+      return res.status(503).json({ success: false, error: 'Payment processing is not configured.' })
     }
 
     // 2. 3-DAY OFFER ($10 Immediate / No Trial)
