@@ -15,7 +15,7 @@ import {
 } from '../../services/dashboardCommandService'
 import { fetchDashboardBilling, createBillingCheckoutSession, type DashboardBillingSnapshot } from '../../services/dashboardBillingService'
 import { PENDING_PLAN_KEY } from '../ComparePlansModal'
-import { fetchOnboardingState, type OnboardingState } from '../../services/onboardingService'
+import { fetchOnboardingState, resendWelcomeEmail, type OnboardingState } from '../../services/onboardingService'
 import { listingsService } from '../../services/listingsService'
 import { useDashboardRealtimeStore } from '../../state/useDashboardRealtimeStore'
 import { showToast } from '../../utils/toastService'
@@ -125,6 +125,7 @@ const TodayDashboardPage: React.FC = () => {
   // sessionStorage plan intent set by ComparePlansModal → prompt user to complete upgrade
   const [pendingPlan, setPendingPlan] = useState<'starter' | 'pro' | null>(null)
   const [isStartingCheckout, setIsStartingCheckout] = useState(false)
+  const [isResendingWelcomeEmail, setIsResendingWelcomeEmail] = useState(false)
 
   useEffect(() => {
     // Only show upgrade banners in real authenticated dashboard
@@ -158,6 +159,19 @@ const TodayDashboardPage: React.FC = () => {
   const dismissPendingPlan = () => {
     try { sessionStorage.removeItem(PENDING_PLAN_KEY) } catch (_) { /* ignore */ }
     setPendingPlan(null)
+  }
+
+  const handleResendWelcomeEmail = async () => {
+    if (isResendingWelcomeEmail) return
+    setIsResendingWelcomeEmail(true)
+    try {
+      const result = await resendWelcomeEmail()
+      showToast.success(`Welcome email sent to ${result.email}.`)
+    } catch (error) {
+      showToast.error(error instanceof Error ? error.message : 'Failed to resend welcome email.')
+    } finally {
+      setIsResendingWelcomeEmail(false)
+    }
   }
 
   const load = useCallback(async () => {
@@ -463,6 +477,14 @@ const TodayDashboardPage: React.FC = () => {
                 >
                   View setup checklist
                 </a>
+                <button
+                  type="button"
+                  onClick={handleResendWelcomeEmail}
+                  disabled={isResendingWelcomeEmail}
+                  className="rounded-md border border-primary-200 bg-primary-100 px-4 py-2 text-sm font-semibold text-primary-800 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isResendingWelcomeEmail ? 'Sending welcome email…' : 'Resend welcome email'}
+                </button>
               </div>
             </div>
             {/* Quick way to see what a full dashboard looks like */}

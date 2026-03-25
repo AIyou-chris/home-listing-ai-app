@@ -451,6 +451,39 @@ module.exports = ({ supabaseAdmin, emailService, dashboardBaseUrl }) => {
     return data?.[0] || null;
   };
 
+  const getAgentByUserId = async (userId) => {
+    const scopedUserId = String(userId || '').trim();
+    if (!scopedUserId) return null;
+
+    const { data, error } = await supabaseAdmin
+      .from('agents')
+      .select('*')
+      .or(`id.eq.${scopedUserId},auth_user_id.eq.${scopedUserId}`)
+      .limit(1);
+
+    if (error) throw error;
+    return data?.[0] || null;
+  };
+
+  const resendWelcomeEmailForUser = async ({ userId }) => {
+    const agent = await getAgentByUserId(userId);
+    if (!agent?.email) {
+      throw new Error('Agent email not found.');
+    }
+
+    await emailService.sendWelcomeEmail({
+      to: agent.email,
+      firstName: agent.first_name || agent.email.split('@')[0] || 'there',
+      dashboardUrl: dashboardTodayUrl,
+      billingUrl: billingSettingsUrl
+    });
+
+    return {
+      sent: true,
+      email: agent.email
+    };
+  };
+
   const registerAgent = async ({ firstName, lastName, email }) => {
     if (!firstName || !lastName || !email) {
       throw new Error('Missing required fields for agent registration');
@@ -674,6 +707,7 @@ module.exports = ({ supabaseAdmin, emailService, dashboardBaseUrl }) => {
   return {
     registerAgent,
     getAgentBySlug,
+    resendWelcomeEmailForUser,
     handlePaymentSuccess,
     handleAgentDeletion
   };

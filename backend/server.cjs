@@ -18598,6 +18598,23 @@ app.patch('/api/dashboard/onboarding', async (req, res) => {
   }
 });
 
+app.post('/api/dashboard/onboarding/resend-welcome-email', async (req, res) => {
+  try {
+    const requesterUserId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!requesterUserId) return res.status(401).json({ error: 'unauthorized' });
+
+    const result = await agentOnboardingService.resendWelcomeEmailForUser({ userId: requesterUserId });
+    return res.json({
+      success: true,
+      sent: true,
+      email: result.email
+    });
+  } catch (error) {
+    console.error('[Onboarding] Failed to resend welcome email:', error);
+    return res.status(500).json({ error: error.message || 'failed_to_resend_welcome_email' });
+  }
+});
+
 app.get('/api/dashboard/billing', async (req, res) => {
   try {
     const agentId = await resolveBillingAgentId(req);

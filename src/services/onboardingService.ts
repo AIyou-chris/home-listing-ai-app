@@ -96,3 +96,17 @@ export const patchOnboardingState = async (
   });
   return parseResponse<OnboardingState>(response);
 };
+
+export const resendWelcomeEmail = async (agentIdOverride?: string | null) => {
+  if (isDemoModeActive()) {
+    return { success: true, sent: true, email: 'demo@example.com' };
+  }
+
+  const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
+  const response = await fetch(buildApiUrl('/api/dashboard/onboarding/resend-welcome-email'), {
+    method: 'POST',
+    headers: defaultHeaders(agentId),
+    body: JSON.stringify({ agentId })
+  });
+  return parseResponse<{ success: boolean; sent: boolean; email: string }>(response);
+};
