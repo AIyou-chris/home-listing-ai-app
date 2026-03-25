@@ -22248,11 +22248,9 @@ app.get('/api/dashboard/listings/:listingId/videos', async (req, res) => {
     if (!requesterUserId) return res.status(401).json({ error: 'unauthorized' });
 
     const { listingId } = req.params;
-    const templateStyle = normalizeVideoTemplateStyle(req.body?.template_style);
-    console.info('[video] generate request', {
+    console.info('[video] list request', {
       listing_id: listingId,
-      user_id: String(requesterUserId),
-      template_style: templateStyle || String(req.body?.template_style || '')
+      user_id: String(requesterUserId)
     });
     const listing = await loadListingForVideoAccess({
       listingId,
@@ -23179,7 +23177,7 @@ const queryRoiConfirmationEvents = async ({ fromIso, toIso }) => {
     .lte('created_at', toIso);
 
   if (eventRes.error) {
-    if (/does not exist/i.test(eventRes.error.message || '')) return [];
+    if (isMissingSupabaseRelationError(eventRes.error)) return [];
     throw eventRes.error;
   }
 

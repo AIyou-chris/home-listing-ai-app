@@ -93,6 +93,7 @@ export default function SocialVideoWidget({ listingId, listingAddress, listingLi
   const canShare = useMemo(() => isNativeShareAvailable(), [])
   const localVideoBypass = isLocalVideoBypassEnabled()
   const kickRef = useRef<Record<string, number>>({})
+  const generateLockRef = useRef(false)
   const debugMode = useMemo(
     () => (typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('debug') === '1' : false),
     []
@@ -267,28 +268,30 @@ export default function SocialVideoWidget({ listingId, listingAddress, listingLi
   }, [demoMode, listingRealtimeSignal, loadVideoData])
 
   const handleGenerate = async () => {
+    if (generateLockRef.current) return
+    generateLockRef.current = true
     setActionError(null)
     setLatestErrorMessage(null)
     setStatusRefreshWarning(null)
-    if (localVideoBypass) {
+    try {
+      if (localVideoBypass) {
+        setStatus('rendering')
+        setStageLabel('Rendering...')
+        window.setTimeout(() => {
+          const nextVideoId = `local-${Date.now()}`
+          setVideoId(nextVideoId)
+          setVideoUrl(LOCAL_SAMPLE_VIDEO_URL)
+          window.localStorage.setItem(
+            `${LOCAL_MOCK_VIDEO_KEY_PREFIX}${listingId}`,
+            JSON.stringify({ id: nextVideoId, url: LOCAL_SAMPLE_VIDEO_URL })
+          )
+          setStatus('ready')
+        }, 1000)
+        return
+      }
+
       setStatus('rendering')
       setStageLabel('Rendering...')
-      window.setTimeout(() => {
-        const nextVideoId = `local-${Date.now()}`
-        setVideoId(nextVideoId)
-        setVideoUrl(LOCAL_SAMPLE_VIDEO_URL)
-        window.localStorage.setItem(
-          `${LOCAL_MOCK_VIDEO_KEY_PREFIX}${listingId}`,
-          JSON.stringify({ id: nextVideoId, url: LOCAL_SAMPLE_VIDEO_URL })
-        )
-        setStatus('ready')
-      }, 1000)
-      return
-    }
-
-    setStatus('rendering')
-    setStageLabel('Rendering...')
-    try {
       const resolvedTemplateStyle = DEFAULT_TEMPLATE_STYLE
       setTemplateStyle(resolvedTemplateStyle)
       const generated = await generateListingVideo(listingId, { template_style: resolvedTemplateStyle })
@@ -389,6 +392,8 @@ export default function SocialVideoWidget({ listingId, listingAddress, listingLi
       setStatus('failed')
       setActionError('Could not generate video.')
       showToast.error('Could not generate video.')
+    } finally {
+      generateLockRef.current = false
     }
   }
 
