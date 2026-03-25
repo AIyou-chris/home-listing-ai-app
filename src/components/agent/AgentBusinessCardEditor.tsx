@@ -262,7 +262,7 @@ const AgentBusinessCardEditor: React.FC<AgentBusinessCardEditorProps> = ({ userP
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="space-y-6">
         <div className="space-y-4">
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
             <p className="text-sm font-semibold text-slate-800">Headshot / Logo</p>
@@ -407,23 +407,26 @@ const AgentBusinessCardEditor: React.FC<AgentBusinessCardEditorProps> = ({ userP
               {isSaving ? 'Saving...' : 'Save'}
             </button>
           </div>
+
+          <div className="pt-2">
+            <p className="mb-3 text-sm font-semibold text-slate-700">Live preview</p>
+            <div className="flex justify-center lg:justify-start">
+              <AgentBusinessCard
+                fullName={form.fullName}
+                company={form.company}
+                title={form.title}
+                phone={form.phone}
+                email={form.email}
+                headshotUrl={form.headshotUrl || null}
+                themeColor={normalizeThemeColor(form.themeColor)}
+                onChat={() => setChatPreviewOpen(true)}
+                onContact={() => setContactPreviewOpen(true)}
+                showMoreInfo={false}
+              />
+            </div>
+          </div>
         </div>
 
-        <div className="lg:sticky lg:top-6 lg:self-start">
-          <p className="mb-3 text-sm font-semibold text-slate-700">Live preview</p>
-          <AgentBusinessCard
-            fullName={form.fullName}
-            company={form.company}
-            title={form.title}
-            phone={form.phone}
-            email={form.email}
-            headshotUrl={form.headshotUrl || null}
-            themeColor={normalizeThemeColor(form.themeColor)}
-            onChat={() => setChatPreviewOpen(true)}
-            onContact={() => setContactPreviewOpen(true)}
-            showMoreInfo={false}
-          />
-        </div>
       </div>
 
       <PreviewModalShell
