@@ -675,7 +675,7 @@ const AICardPage: React.FC<{ isDemoMode?: boolean; isBlueprintMode?: boolean }> 
     );
   };
 
-  const AICardPreview: React.FC<{ onChatClick?: () => void }> = ({ onChatClick }) => {
+  const AICardPreview: React.FC<{ onChatClick?: () => void }> = () => {
     const [showContact, setShowContact] = useState(false);
     const [showAgentSidekick, setShowAgentSidekick] = useState(false);
 
@@ -998,11 +998,20 @@ const AICardPage: React.FC<{ isDemoMode?: boolean; isBlueprintMode?: boolean }> 
       {/* Main Content */}
       <div className="flex-1 p-0 sm:p-6">
         {activeTab === 'edit' ? (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
-            {/* Left Side - Form */}
+          <div className="space-y-6 lg:space-y-8">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
+              <h2 className="text-lg sm:text-xl font-semibold text-gray-900 mb-4 sm:mb-6 text-center">
+                ✨ Live Preview
+              </h2>
+              <div className="flex justify-center">
+                <div className="w-full flex justify-center">
+                  <AICardPreview onChatClick={() => setIsChatOpen(true)} />
+                </div>
+              </div>
+            </div>
+
+            {/* Form */}
             <div className="space-y-6 lg:space-y-8">
-
-
 
               {/* Basic Information */}
               <CollapsibleSection title="Basic Information" sectionKey="basic" icon="person">
@@ -1315,20 +1324,6 @@ const AICardPage: React.FC<{ isDemoMode?: boolean; isBlueprintMode?: boolean }> 
                   </div>
                 </div>
               </CollapsibleSection>
-            </div>
-
-            {/* Right Side - Live Preview */}
-            <div className="lg:sticky lg:top-6">
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
-                <h2 className="text-lg sm:text-xl font-semibold text-gray-900 mb-4 sm:mb-6 text-center">
-                  ✨ Live Preview
-                </h2>
-                <div className="flex justify-center">
-                  <div className="w-full flex justify-center">
-                    <AICardPreview onChatClick={() => setIsChatOpen(true)} />
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
         ) : activeTab === 'preview' ? (
