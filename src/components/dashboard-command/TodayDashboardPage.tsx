@@ -484,6 +484,31 @@ const TodayDashboardPage: React.FC = () => {
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <div className="space-y-4">
+          {!blueprintMode && !demoMode && onboarding && !onboarding.onboarding_checklist.brand_profile && (
+            <article className="rounded-2xl border border-sky-200 bg-sky-50 p-5 shadow-sm">
+              <p className="text-sm font-bold text-sky-900">Finish your AI Card in Settings</p>
+              <p className="mt-1 text-sm text-sky-800">
+                This is your main profile. It is used throughout the app for your branding, contact info, listings, share pages, flyers, and lead capture.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => navTo('/settings')}
+                  className="rounded-md bg-sky-600 px-3 py-1.5 text-xs font-semibold text-white"
+                >
+                  Open Settings
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navTo('/onboarding?step=1')}
+                  className="rounded-md border border-sky-300 bg-white px-3 py-1.5 text-xs font-semibold text-sky-900"
+                >
+                  Finish setup
+                </button>
+              </div>
+            </article>
+          )}
+
           <article className={containerCardClass}>
             <button
               type="button"

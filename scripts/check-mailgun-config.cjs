@@ -15,8 +15,13 @@ for (const candidate of dotenvPathCandidates) {
   }
 }
 
-const requiredVars = ['MAILGUN_API_KEY', 'MAILGUN_DOMAIN', 'MAILGUN_FROM_EMAIL']
-const missingVars = requiredVars.filter((key) => !process.env[key])
+const hasSenderEmail = Boolean(process.env.MAILGUN_FROM_EMAIL || process.env.FROM_EMAIL)
+const missingVars = ['MAILGUN_API_KEY', 'MAILGUN_DOMAIN']
+  .filter((key) => !process.env[key])
+
+if (!hasSenderEmail) {
+  missingVars.push('MAILGUN_FROM_EMAIL or FROM_EMAIL')
+}
 const isCi = process.env.CI === 'true' || process.env.NETLIFY === 'true'
 
 if (missingVars.length > 0) {
@@ -30,7 +35,6 @@ if (missingVars.length > 0) {
 } else {
   console.log('[Mailgun] Environment configuration looks good.')
 }
-
 
 
 

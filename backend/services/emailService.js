@@ -26,6 +26,9 @@ const buildWelcomeHtml = (firstName, dashboardUrl, password, billingUrl) => `
       .btn { background-color: #4f46e5; color: white; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px; display: inline-block; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3); }
       .btn-secondary { background-color: white; color: #1e40af; border: 1px solid #bfdbfe; padding: 12px 20px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 14px; display: inline-block; }
       .section-title { font-size: 18px; font-weight: bold; color: #0f172a; margin-top: 32px; margin-bottom: 16px; border-bottom: 2px solid #f1f5f9; padding-bottom: 8px; }
+      .setup-box { background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 18px; margin: 24px 0; }
+      .setup-title { font-size: 15px; font-weight: 700; color: #0f172a; margin-bottom: 6px; }
+      .setup-text { font-size: 14px; line-height: 1.6; color: #475569; margin: 0; }
       .feature-list { list-style: none; padding: 0; margin: 0; }
       .feature-item { display: flex; align-items: flex-start; margin-bottom: 16px; }
       .feature-icon { background-color: #e0e7ff; color: #4338ca; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 12px; flex-shrink: 0; font-size: 14px; font-weight: bold; }
@@ -71,13 +74,20 @@ const buildWelcomeHtml = (firstName, dashboardUrl, password, billingUrl) => `
             ${billingUrl ? `<div style="margin-top: 12px;"><a href="${billingUrl}" class="btn-secondary">View plans</a></div>` : ''}
           </div>
 
+          <div class="setup-box">
+            <div class="setup-title">First thing to do</div>
+            <p class="setup-text">
+              Go to <strong>Settings</strong> and finish your <strong>AI Card</strong> profile. This is the main profile used throughout the app for your branding, contact details, listings, share pages, flyers, and lead capture experience.
+            </p>
+          </div>
+
           <h3 class="section-title">🚀 What You Can Do Now</h3>
           <ul class="feature-list">
             <li class="feature-item">
               <div class="feature-icon">✨</div>
               <div class="feature-text">
-                <span class="feature-title">Deploy Your AI Sidekicks</span>
-                 Activate your specialized agents: Listing Agent (for property details), Sales Agent (for lead qualification), and Helper (for coaching).
+                <span class="feature-title">Set Up Your AI Card In Settings</span>
+                Add your headshot, contact details, brokerage, and brand. This profile powers the experience your leads see across the platform.
               </div>
             </li>
             <li class="feature-item">
@@ -293,8 +303,14 @@ const buildTrialHtml = (firstName, day, dashboardUrl) => {
 module.exports = (supabaseAdmin) => {
   const mailgunKey = process.env.MAILGUN_API_KEY;
   const mailgunDomain = process.env.MAILGUN_DOMAIN || 'mg.homelistingai.com';
-  const mailgunFromEmail = process.env.MAILGUN_FROM_EMAIL || 'notifications@mg.homelistingai.com';
-  const mailgunFromName = process.env.MAILGUN_FROM_NAME || 'HomeListingAI';
+  const mailgunFromEmail =
+    process.env.MAILGUN_FROM_EMAIL ||
+    process.env.FROM_EMAIL ||
+    'notifications@mg.homelistingai.com';
+  const mailgunFromName =
+    process.env.MAILGUN_FROM_NAME ||
+    process.env.FROM_NAME ||
+    'HomeListingAI';
   const fallbackSupportEmail = process.env.MAILGUN_REPLYTO_FALLBACK || 'support@homelistingai.com';
   const fromAddress = `${mailgunFromName} <${mailgunFromEmail}>`;
 

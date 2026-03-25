@@ -415,9 +415,12 @@ const OnboardingCommandPage: React.FC = () => {
 
       {currentStep === 1 && (
         <section className={cardClass}>
-          <h2 className="text-xl font-semibold text-slate-900">Add your agent profile</h2>
-          <p className="mt-1 text-sm text-slate-600">This is what buyers see when they request a showing or report.</p>
-          <p className="mt-2 text-xs font-medium text-slate-500">Why this matters: trust goes up when buyers see a real face and contact info.</p>
+          <h2 className="text-xl font-semibold text-slate-900">Set up your AI Card profile</h2>
+          <p className="mt-1 text-sm text-slate-600">This is your main profile. It is used throughout the app for your branding, contact info, listings, share pages, and lead capture.</p>
+          <p className="mt-2 text-xs font-medium text-slate-500">Why this matters: trust goes up when buyers see a real face and contact info, and the rest of the app stays consistent.</p>
+          <div className="mt-4 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">
+            You can fill this out here now, and you can always edit it later in Settings.
+          </div>
           <div className="mt-5 grid gap-3 md:grid-cols-2">
             <input value={brandForm.full_name} onChange={(e) => setBrandForm((prev) => ({ ...prev, full_name: e.target.value }))} placeholder="Full name" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
             <input value={brandForm.phone} onChange={(e) => setBrandForm((prev) => ({ ...prev, phone: e.target.value }))} placeholder="Phone" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
@@ -431,6 +434,9 @@ const OnboardingCommandPage: React.FC = () => {
           <div className="mt-5 flex flex-wrap gap-3">
             <button type="button" onClick={() => void handleBrandSave()} disabled={saving} className="rounded-xl bg-primary-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
               Save & Continue
+            </button>
+            <button type="button" onClick={() => navigate(buildDashboardPath('/settings', demoMode))} className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700">
+              Open Settings
             </button>
             <button type="button" onClick={() => void handleSkip()} disabled={saving} className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50">
               Skip for now
