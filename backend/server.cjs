@@ -22605,40 +22605,12 @@ app.get('/api/dashboard/videos/:videoId/status', async (req, res) => {
       .maybeSingle();
     if (videoError || !videoRow) return res.status(404).json({ error: 'video_not_found' });
 
-    const { data: property, error: propertyError } = await supabaseAdmin
-      .from('properties')
-      .select('id,user_id,agent_id')
-      .eq('id', videoRow.listing_id)
-      .maybeSingle();
-    if (propertyError || !property) return res.status(404).json({ error: 'listing_not_found' });
-
-    let owned = toTrimmedOrNull(property.user_id) === toTrimmedOrNull(requesterUserId);
-    if (!owned && property.agent_id) {
-      const primaryAgentLookup = await supabaseAdmin
-        .from('agents')
-        .select('id,user_id,auth_user_id')
-        .eq('id', property.agent_id)
-        .maybeSingle();
-
-      let agentRow = primaryAgentLookup.data || null;
-      if (primaryAgentLookup.error && /column .*user_id.*does not exist|Could not find/i.test(primaryAgentLookup.error.message || '')) {
-        const fallbackAgentLookup = await supabaseAdmin
-          .from('agents')
-          .select('id,auth_user_id')
-          .eq('id', property.agent_id)
-          .maybeSingle();
-        if (!fallbackAgentLookup.error) {
-          agentRow = fallbackAgentLookup.data || null;
-        }
-      }
-
-      const linkedUserId = toTrimmedOrNull(agentRow?.user_id || agentRow?.auth_user_id);
-      owned = Boolean(
-        toTrimmedOrNull(property.agent_id) === toTrimmedOrNull(requesterUserId) ||
-        (linkedUserId && linkedUserId === toTrimmedOrNull(requesterUserId))
-      );
-    }
-    if (!owned) return res.status(404).json({ error: 'listing_not_found' });
+    const listing = await loadListingForVideoAccess({
+      listingId: videoRow.listing_id,
+      requesterUserId,
+      accessTag: 'video.status'
+    });
+    if (!listing) return res.status(404).json({ error: 'listing_not_found' });
 
     const persistedStatus = String(videoRow.status || '').toLowerCase();
     if (persistedStatus === 'succeeded' || persistedStatus === 'failed') {
