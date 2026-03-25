@@ -2,7 +2,6 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import { HelmetProvider } from 'react-helmet-async'
-import { registerSW } from 'virtual:pwa-register'
 import './index.css'
 import './installProtectedApiFetch'
 import App from './App'
@@ -13,15 +12,15 @@ import { ImpersonationProvider } from './context/ImpersonationContext'
 const rootElement = document.getElementById('root')!
 const root = createRoot(rootElement)
 
-if (import.meta.env.PROD) {
-  registerSW({
-    immediate: true,
-    onNeedRefresh() {
-      window.location.reload()
-    },
-    onOfflineReady() {
+if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+  // The app is currently web-first. Remove old service workers so stale cached
+  // shells cannot trap users on auth handoff routes after deploys.
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.getRegistrations().then((registrations) => {
+      void Promise.all(registrations.map((registration) => registration.unregister()))
+    }).catch(() => {
       // no-op
-    }
+    })
   })
 }
 
