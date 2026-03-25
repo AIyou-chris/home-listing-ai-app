@@ -5,11 +5,16 @@
 [build.environment]
   NODE_ENV = "production"
   NPM_CONFIG_PRODUCTION = "false"
-  VITE_API_BASE_URL = "https://home-listing-ai-backend.onrender.com"
 
 [[redirects]]
   from = "/api/ai-card/*"
   to = "/.netlify/functions/ai-card/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/*"
+  to = "https://home-listing-ai-backend.onrender.com/api/:splat"
   status = 200
   force = true
 

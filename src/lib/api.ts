@@ -7,18 +7,18 @@ const normalizeBase = (): string => {
     getEnvVar('VITE_API_URL') ||
     getEnvVar('VITE_VOICE_API_BASE_URL')
 
-  if (typeof raw === 'string' && raw.trim().length) {
-    const trimmed = raw.trim()
-    return trimmed.endsWith('/') ? trimmed.slice(0, -1) : trimmed
-  }
-
-  // In production/staging, default to same-origin API host when no explicit env is set.
   if (typeof window !== 'undefined') {
     const host = String(window.location.hostname || '').toLowerCase()
     const isLocalHost = host === 'localhost' || host === '127.0.0.1' || host.endsWith('.local')
+
     if (!isLocalHost) {
       return window.location.origin.replace(/\/+$/, '')
     }
+  }
+
+  if (typeof raw === 'string' && raw.trim().length) {
+    const trimmed = raw.trim()
+    return trimmed.endsWith('/') ? trimmed.slice(0, -1) : trimmed
   }
 
   // Local development fallback.
@@ -35,4 +35,3 @@ export const buildApiUrl = (path: string): string => {
 }
 
 export const getApiBaseUrl = (): string => API_BASE_URL
-
