@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { supabase } from '../services/supabase';
 import { PublicHeader } from './layout/PublicHeader';
 import { PublicFooter } from './layout/PublicFooter';
@@ -14,7 +13,6 @@ interface SignInPageProps {
 }
 
 const SignInPage: React.FC<SignInPageProps> = ({ onNavigateToSignUp, onNavigateToLanding: _onNavigateToLanding, onEnterDemoMode, onNavigateToAdmin }) => {
-    const navigate = useNavigate();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
@@ -53,7 +51,7 @@ const SignInPage: React.FC<SignInPageProps> = ({ onNavigateToSignUp, onNavigateT
                 throw result.error;
             }
 
-            navigate('/post-auth', { replace: true });
+            window.location.replace('/dashboard/today');
 
         } catch (err: unknown) {
             const message = err instanceof Error ? err.message : 'An unexpected error occurred';

@@ -240,6 +240,9 @@ const DashboardRouteGate = () => {
     return <Navigate to="/dashboard/today" replace />;
 };
 
+const resolveSignedInHomePath = (role: AppRole, roleReady: boolean) =>
+    roleReady && role === 'admin' ? '/admin/overview' : '/dashboard/today';
+
 const resolveDashboardPageTitle = (pathname: string) => {
     if (pathname.includes('/command-center')) return 'Command Center';
     if (pathname.includes('/listings')) return 'Listings';
@@ -1051,9 +1054,10 @@ const App: React.FC = () => {
         const path = location.pathname;
         const isAuthPage = path === '/signin' || path === '/signup' || path === '/';
         const isPostAuthPage = path === '/post-auth';
+        const signedInHomePath = resolveSignedInHomePath(role, roleReady);
 
         if (isAuthPage) {
-            navigate('/post-auth', { replace: true });
+            navigate(signedInHomePath, { replace: true });
             return;
         }
 
@@ -1386,7 +1390,7 @@ const App: React.FC = () => {
                     <Route path="/" element={
                         !authReady ? <LoadingSpinner /> :
                         isDemoMode ? <Navigate to="/demo-dashboard/today" replace /> :
-                        session ? <Navigate to="/post-auth" replace /> :
+                        session ? <Navigate to={resolveSignedInHomePath(role, roleReady)} replace /> :
                             <Suspense fallback={<LoadingSpinner />}>
                                 <LandingPage
                                     onNavigateToSignUp={handleNavigateToSignUp}
@@ -1403,7 +1407,7 @@ const App: React.FC = () => {
                     <Route path="/landing" element={<Navigate to="/" replace />} />
                     <Route path="/signin" element={
                         session && roleReady ? (
-                            <Navigate to="/post-auth" replace />
+                            <Navigate to={resolveSignedInHomePath(role, roleReady)} replace />
                         ) : (
                             <Suspense fallback={<LoadingSpinner />}>
                                 <SignInPage
@@ -1431,7 +1435,7 @@ const App: React.FC = () => {
                     } />
                     <Route path="/signup" element={
                         session && roleReady ? (
-                            <Navigate to="/post-auth" replace />
+                            <Navigate to={resolveSignedInHomePath(role, roleReady)} replace />
                         ) : (
                             <Suspense fallback={<LoadingSpinner />}>
                                 <SignUpPage

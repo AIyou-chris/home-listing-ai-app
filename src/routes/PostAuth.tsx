@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 
@@ -13,14 +13,26 @@ interface PostAuthProps {
 
 const PostAuth: React.FC<PostAuthProps> = ({ authReady, session, role, roleReady }) => {
   const navigate = useNavigate();
+  const fallbackTimerRef = useRef<number | null>(null);
   const nextPath = role === 'admin' ? '/admin/overview' : '/dashboard/today';
 
   useEffect(() => {
-    if (!authReady || !session || !roleReady) {
+    if (!authReady || !session) return;
+
+    if (roleReady) {
+      navigate(nextPath, { replace: true });
       return;
     }
 
-    navigate(nextPath, { replace: true });
+    fallbackTimerRef.current = window.setTimeout(() => {
+      navigate('/dashboard/today', { replace: true });
+    }, 1500);
+
+    return () => {
+      if (fallbackTimerRef.current) {
+        window.clearTimeout(fallbackTimerRef.current);
+      }
+    };
   }, [authReady, session, roleReady, navigate, nextPath]);
 
   if (!authReady) {
