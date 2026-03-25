@@ -1052,8 +1052,12 @@ const App: React.FC = () => {
         const isAuthPage = path === '/signin' || path === '/signup' || path === '/';
         const isPostAuthPage = path === '/post-auth';
 
-        if (isAuthPage || isPostAuthPage) {
+        if (isAuthPage) {
             navigate('/post-auth', { replace: true });
+            return;
+        }
+
+        if (isPostAuthPage) {
             return;
         }
 
