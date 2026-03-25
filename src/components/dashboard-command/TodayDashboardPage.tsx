@@ -93,10 +93,14 @@ const TodayDashboardPage: React.FC = () => {
   const blueprintMode = useBlueprintMode()
 
   // Unified nav helper — routes to the correct base path regardless of mode
+  const resolveDashboardPath = useCallback((path: string) => {
+    if (blueprintMode) return buildBlueprintPath(path)
+    return buildDashboardPath(path, demoMode)
+  }, [blueprintMode, demoMode])
+
   const navTo = useCallback((path: string) => {
-    if (blueprintMode) navigate(buildBlueprintPath(path))
-    else navigate(buildDashboardPath(path, demoMode))
-  }, [blueprintMode, demoMode, navigate])
+    navigate(resolveDashboardPath(path))
+  }, [navigate, resolveDashboardPath])
   const leadsById = useDashboardRealtimeStore((state) => state.leadsById)
   const appointmentsById = useDashboardRealtimeStore((state) => state.appointmentsById)
   const setInitialLeads = useDashboardRealtimeStore((state) => state.setInitialLeads)
@@ -447,20 +451,18 @@ const TodayDashboardPage: React.FC = () => {
                 You're {onboarding.progress.total_items - onboarding.progress.completed_items} steps away from capturing your first lead.
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => navTo('/listings')}
+                <a
+                  href={resolveDashboardPath('/listings')}
                   className="rounded-md bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
                 >
                   Create your first listing
-                </button>
-                <button
-                  type="button"
-                  onClick={() => navTo('/onboarding')}
+                </a>
+                <a
+                  href={resolveDashboardPath('/onboarding')}
                   className="rounded-md border border-primary-300 bg-white px-4 py-2 text-sm font-semibold text-primary-700"
                 >
                   View setup checklist
-                </button>
+                </a>
               </div>
             </div>
             {/* Quick way to see what a full dashboard looks like */}
