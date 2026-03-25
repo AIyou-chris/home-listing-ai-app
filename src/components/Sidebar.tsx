@@ -97,14 +97,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
             className="group rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
           >
             <LogoWithName />
-            {!derivedDemoMode && !derivedBlueprintMode && (
-              <div className="mt-2 flex items-center gap-2">
-                <span className="rounded-full border border-blue-100 bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-tight text-blue-600">
-                  Trial Mode
-                </span>
-                <span className="text-[10px] font-medium text-slate-400">Active Trial</span>
-              </div>
-            )}
           </a>
           <button onClick={onClose} className="rounded-full p-1 text-slate-500 hover:bg-slate-100 lg:hidden" aria-label="Close navigation">
             <Icon name="close" />
