@@ -1,8 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { useDemoMode } from '../../demo/useDemoMode'
 import { fetchListingShareKit } from '../../services/dashboardCommandService'
+import { subscribeDashboardInvalidation } from '../../services/dashboardInvalidation'
 import { createListingDraft } from '../../services/listingBuilderService'
 import { listingsService } from '../../services/listingsService'
 import { listLocalListingDrafts, saveLocalListingDraft } from '../../services/listingDraftStorage'
@@ -102,91 +103,85 @@ const ListingsCommandPage: React.FC = () => {
     navigate(buildListingPath(`/listings/${draftId}/edit`))
   }
 
-  useEffect(() => {
-    let cancelled = false
-    const load = async () => {
-      setLoading(true)
-      setError(null)
-      try {
-        const properties = await listingsService.listProperties()
-        const preview = properties.slice(0, 20)
-        const kits = await Promise.all(
-          preview.map(async (property): Promise<ListingRow> => {
-            const shareKit = await fetchListingShareKit(property.id).catch(() => null)
-            const heroPhoto = property.heroPhotos.find((photo): photo is string => typeof photo === 'string') || null
-            const statusValue = String(property.status || '').toLowerCase()
-            const isPublished = Boolean(shareKit?.is_published) || ['active', 'published', 'sold'].includes(statusValue)
-            const statusLabel: ListingRow['statusLabel'] = isPublished ? 'Published' : 'Draft'
-            return {
-              id: property.id,
-              title: property.title || 'Draft Listing',
-              address: property.address || property.title || 'Listing',
-              price: Number(property.price) || 0,
-              bedrooms: Number(property.bedrooms) || 0,
-              bathrooms: Number(property.bathrooms) || 0,
-              squareFeet: Number(property.squareFeet) || 0,
-              heroPhoto,
-              isPublished,
-              statusLabel,
-              shareUrl: shareKit?.share_url || null
-            }
-          })
-        )
-        const localDraftRows: ListingRow[] = listLocalListingDrafts().map((draft) => ({
-          id: draft.id,
-          title: draft.title || 'Draft Listing',
-          address: draft.address || DEFAULT_LISTING_ADDRESS,
-          price: draft.price,
-          bedrooms: draft.bedrooms,
-          bathrooms: draft.bathrooms,
-          squareFeet: draft.squareFeet,
-          heroPhoto: draft.photos[0] || null,
-          isPublished: false,
-          statusLabel: 'Draft',
-          shareUrl: null
-        }))
-        const merged = [...localDraftRows, ...kits].reduce<ListingRow[]>((acc, row) => {
-          if (acc.some((item) => item.id === row.id)) return acc
-          acc.push(row)
-          return acc
-        }, [])
-        if (!cancelled) {
-          const emptyStateRows = demoMode ? DEMO_ROWS : []
-          setRows(merged.length > 0 ? merged : emptyStateRows)
-        }
-      } catch (loadError) {
-        if (cancelled) return
-        const fallbackRows: ListingRow[] = listLocalListingDrafts().map((draft) => ({
-          id: draft.id,
-          title: draft.title || 'Draft Listing',
-          address: draft.address || DEFAULT_LISTING_ADDRESS,
-          price: draft.price,
-          bedrooms: draft.bedrooms,
-          bathrooms: draft.bathrooms,
-          squareFeet: draft.squareFeet,
-          heroPhoto: draft.photos[0] || null,
-          isPublished: false,
-          statusLabel: 'Draft',
-          shareUrl: null
-        }))
-        const emergencyFallbackRows = fallbackRows.length > 0
-          ? fallbackRows
-          : (demoMode ? DEMO_ROWS : [])
-        setRows(emergencyFallbackRows)
-        setError(
-          demoMode
-            ? 'Live listings are unavailable right now. Showing local demo data.'
-            : 'Live listings are unavailable right now. Please try again in a moment.'
-        )
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    }
-    void load()
-    return () => {
-      cancelled = true
+  const loadRows = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const properties = await listingsService.listProperties()
+      const preview = properties.slice(0, 20)
+      const kits = await Promise.all(
+        preview.map(async (property): Promise<ListingRow> => {
+          const shareKit = await fetchListingShareKit(property.id).catch(() => null)
+          const heroPhoto = property.heroPhotos.find((photo): photo is string => typeof photo === 'string') || null
+          const statusValue = String(property.status || '').toLowerCase()
+          const isPublished = Boolean(shareKit?.is_published) || ['active', 'published', 'sold'].includes(statusValue)
+          const statusLabel: ListingRow['statusLabel'] = isPublished ? 'Published' : 'Draft'
+          return {
+            id: property.id,
+            title: property.title || 'Draft Listing',
+            address: property.address || property.title || 'Listing',
+            price: Number(property.price) || 0,
+            bedrooms: Number(property.bedrooms) || 0,
+            bathrooms: Number(property.bathrooms) || 0,
+            squareFeet: Number(property.squareFeet) || 0,
+            heroPhoto,
+            isPublished,
+            statusLabel,
+            shareUrl: shareKit?.share_url || null
+          }
+        })
+      )
+      const localDraftRows: ListingRow[] = listLocalListingDrafts().map((draft) => ({
+        id: draft.id,
+        title: draft.title || 'Draft Listing',
+        address: draft.address || DEFAULT_LISTING_ADDRESS,
+        price: draft.price,
+        bedrooms: draft.bedrooms,
+        bathrooms: draft.bathrooms,
+        squareFeet: draft.squareFeet,
+        heroPhoto: draft.photos[0] || null,
+        isPublished: false,
+        statusLabel: 'Draft',
+        shareUrl: null
+      }))
+      const merged = [...localDraftRows, ...kits].reduce<ListingRow[]>((acc, row) => {
+        if (acc.some((item) => item.id === row.id)) return acc
+        acc.push(row)
+        return acc
+      }, [])
+      const emptyStateRows = demoMode ? DEMO_ROWS : []
+      setRows(merged.length > 0 ? merged : emptyStateRows)
+    } catch (loadError) {
+      const fallbackRows: ListingRow[] = listLocalListingDrafts().map((draft) => ({
+        id: draft.id,
+        title: draft.title || 'Draft Listing',
+        address: draft.address || DEFAULT_LISTING_ADDRESS,
+        price: draft.price,
+        bedrooms: draft.bedrooms,
+        bathrooms: draft.bathrooms,
+        squareFeet: draft.squareFeet,
+        heroPhoto: draft.photos[0] || null,
+        isPublished: false,
+        statusLabel: 'Draft',
+        shareUrl: null
+      }))
+      const emergencyFallbackRows = fallbackRows.length > 0
+        ? fallbackRows
+        : (demoMode ? DEMO_ROWS : [])
+      setRows(emergencyFallbackRows)
+      setError(
+        demoMode
+          ? 'Live listings are unavailable right now. Showing local demo data.'
+          : 'Live listings are unavailable right now. Please try again in a moment.'
+      )
+    } finally {
+      setLoading(false)
     }
   }, [demoMode])
+
+  useEffect(() => {
+    void loadRows()
+  }, [loadRows])
 
   const sortedRows = useMemo(
     () =>
@@ -209,6 +204,13 @@ const ListingsCommandPage: React.FC = () => {
   )
 
   const buildListingPath = (pathSuffix: string) => `${dashboardRoot}${pathSuffix}${appendDemoQuery}`
+
+  useEffect(() => {
+    if (demoMode) return
+    return subscribeDashboardInvalidation(() => {
+      void loadRows()
+    })
+  }, [demoMode, loadRows])
 
   const handleCreateDraft = async () => {
     setCreatingDraft(true)

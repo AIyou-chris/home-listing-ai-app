@@ -69,6 +69,14 @@ const normalizeErrorCode = (error: unknown): string => {
   return message.trim().toLowerCase()
 }
 
+const formatVideoFailureHint = (value: string | null) => {
+  const normalized = String(value || '').trim().toLowerCase()
+  if (normalized === 'render_timeout') return 'This render got stuck. Start a fresh one.'
+  if (normalized === 'photos_required') return 'Add at least one photo, then try again.'
+  if (normalized === 'ffmpeg_missing') return 'Video service is unavailable right now.'
+  return 'Try again in a moment.'
+}
+
 export default function SocialVideoWidget({ listingId, listingAddress, listingLink }: SocialVideoWidgetProps) {
   const demoMode = useDemoMode()
   const [status, setStatus] = useState<WidgetStatus>('default')
@@ -560,7 +568,7 @@ export default function SocialVideoWidget({ listingId, listingAddress, listingLi
       {status === 'failed' && (
         <div className="mt-6 rounded-xl border border-rose-500/20 bg-rose-500/10 p-5 text-center">
           <p className="mb-1 text-sm font-bold tracking-wide text-rose-500">Video failed to render.</p>
-          <p className="mb-5 text-xs text-rose-300/70">Try again in a moment.</p>
+          <p className="mb-5 text-xs text-rose-300/70">{formatVideoFailureHint(latestErrorMessage)}</p>
           {debugMode && latestErrorMessage && (
             <p className="mb-3 text-[11px] text-slate-400">{latestErrorMessage}</p>
           )}

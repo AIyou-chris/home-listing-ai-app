@@ -2,6 +2,7 @@ import { buildApiUrl } from '../lib/api';
 import { getDemoBillingSnapshot, getDemoBillingUsage } from '../demo/demoData';
 import { isDemoModeActive } from '../demo/useDemoMode';
 import { supabase } from './supabase';
+import { waitForAuthenticatedUserId } from './authSession';
 
 export type PlanId = 'free' | 'starter' | 'pro';
 
@@ -82,8 +83,7 @@ const defaultModal: LimitModalPayload = {
 
 const resolveAgentId = async (): Promise<string | null> => {
   if (isDemoModeActive()) return 'demo-agent-busy';
-  const { data } = await supabase.auth.getUser();
-  return data.user?.id || null;
+  return waitForAuthenticatedUserId();
 };
 
 const withAgentQuery = (path: string, agentId: string | null): string => {

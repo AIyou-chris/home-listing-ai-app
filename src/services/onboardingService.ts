@@ -1,7 +1,8 @@
 import { buildApiUrl } from '../lib/api';
 import { getDemoOnboardingState } from '../demo/demoData';
 import { isDemoModeActive } from '../demo/useDemoMode';
-import { supabase } from './supabase';
+import { waitForAuthenticatedUserId } from './authSession';
+import { emitDashboardInvalidation } from './dashboardInvalidation';
 
 export interface OnboardingChecklistState {
   brand_profile: boolean;
@@ -61,8 +62,7 @@ const parseResponse = async <T>(response: Response): Promise<T> => {
 
 const resolveAgentId = async () => {
   if (isDemoModeActive()) return 'demo-agent-busy';
-  const { data } = await supabase.auth.getUser();
-  return data.user?.id || null;
+  return waitForAuthenticatedUserId();
 };
 
 export const fetchOnboardingState = async (agentIdOverride?: string | null) => {
@@ -94,7 +94,9 @@ export const patchOnboardingState = async (
       agentId
     })
   });
-  return parseResponse<OnboardingState>(response);
+  const nextState = await parseResponse<OnboardingState>(response);
+  emitDashboardInvalidation({ reason: 'onboarding_updated' });
+  return nextState;
 };
 
 export const resendWelcomeEmail = async (agentIdOverride?: string | null) => {

@@ -2,6 +2,7 @@ import { buildApiUrl } from '../lib/api'
 import { isDemoModeActive } from '../demo/useDemoMode'
 import { getDemoProperties } from '../demo/demoData'
 import { resolveAgentId } from './dashboardCommandService'
+import { emitDashboardInvalidation } from './dashboardInvalidation'
 
 export type ListingBrainSourceType = 'text' | 'doc' | 'url'
 export type ListingBrainSourceStatus = 'trained' | 'needs_retrain'
@@ -173,7 +174,12 @@ export const createListingDraft = async (input: CreateListingDraftInput = {}, ag
     headers: defaultJsonHeaders(agentId),
     body: JSON.stringify(input)
   })
-  return parseResponse<ListingPayloadResponse>(response)
+  const payload = await parseResponse<ListingPayloadResponse>(response)
+  emitDashboardInvalidation({
+    reason: 'listing_draft_created',
+    listingId: payload.listing?.id || null
+  })
+  return payload
 }
 
 export const fetchListingBuilderPayload = async (listingId: string, agentIdOverride?: string | null) => {
@@ -198,7 +204,9 @@ export const patchListingBuilder = async (listingId: string, input: PatchListing
     headers: defaultJsonHeaders(agentId),
     body: JSON.stringify(input)
   })
-  return parseResponse<{ listing: { id: string; status: string } }>(response)
+  const payload = await parseResponse<{ listing: { id: string; status: string } }>(response)
+  emitDashboardInvalidation({ reason: 'listing_builder_saved', listingId })
+  return payload
 }
 
 export const listListingBuilderSources = async (listingId: string, agentIdOverride?: string | null) => {

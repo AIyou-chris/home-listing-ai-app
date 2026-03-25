@@ -24,8 +24,9 @@ import {
   updateDemoLeadStatusById
 } from '../demo/demoData'
 import { isDemoModeActive } from '../demo/useDemoMode'
-import { supabase } from './supabase';
 import { BillingLimitError } from './dashboardBillingService';
+import { waitForAuthenticatedUserId } from './authSession';
+import { emitDashboardInvalidation } from './dashboardInvalidation';
 
 export type LeadIntentLevel = 'Hot' | 'Warm' | 'Cold';
 
@@ -395,8 +396,7 @@ const parseResponse = async <T>(response: Response): Promise<T> => {
 
 export const resolveAgentId = async (): Promise<string | null> => {
   if (isDemoModeActive()) return 'demo-agent-busy';
-  const { data } = await supabase.auth.getUser();
-  return data.user?.id || null;
+  return waitForAuthenticatedUserId();
 };
 
 const withAgentQuery = (path: string, agentId: string | null): string => {
@@ -899,7 +899,12 @@ export const publishListingShareKit = async (listingId: string, isPublished = tr
       body: JSON.stringify({ is_published: isPublished, agentId })
     }
   );
-  return parseResponse<ListingShareKitResponse>(response);
+  const payload = await parseResponse<ListingShareKitResponse>(response);
+  emitDashboardInvalidation({
+    reason: isPublished ? 'listing_published' : 'listing_unpublished',
+    listingId
+  });
+  return payload;
 };
 
 export const generateListingQrCode = async (

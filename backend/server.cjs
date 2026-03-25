@@ -2816,6 +2816,7 @@ const slugifyListing = (value) =>
 const VIDEO_TEMPLATE_STYLES = new Set(['luxury', 'country', 'fixer', 'story']);
 const MAX_VIDEO_PHOTOS = 10;
 const VIDEO_FFMPEG_BIN = String(process.env.FFMPEG_BIN || 'ffmpeg').trim() || 'ffmpeg';
+const VIDEO_RENDER_STALE_MS = 10 * 60 * 1000;
 const VIDEO_FFMPEG_FONT_FILE = [
   '/System/Library/Fonts/Supplemental/Arial.ttf',
   '/Library/Fonts/Arial Unicode.ttf'
@@ -2832,6 +2833,12 @@ const normalizeVideoTemplateStyle = (value) => {
     .trim()
     .toLowerCase();
   return VIDEO_TEMPLATE_STYLES.has(normalized) ? normalized : null;
+};
+
+const isVideoRenderStale = (videoRow, staleMs = VIDEO_RENDER_STALE_MS) => {
+  const updatedAt = Date.parse(String(videoRow?.updated_at || videoRow?.created_at || ''));
+  if (!Number.isFinite(updatedAt)) return false;
+  return Date.now() - updatedAt >= staleMs;
 };
 
 const buildListingVideoFileName = ({ listingRow, templateStyle, durationSeconds = 15 }) => {
@@ -4039,12 +4046,7 @@ const buildDemoShareKitContext = async (listingId, sourceKey = 'sign') => {
 
 const buildOpenHouseFlyerPdfBundle = async ({ listingRow, fallbackUserId = null }) => {
   const listing = listingRow;
-  const publicSlug = listing.public_slug || await ensureUniquePublicSlug({
-    listingId: listing.id,
-    title: listing.title,
-    address: listing.address
-  });
-  const shareUrl = listing.share_url || buildListingShareUrl(publicSlug);
+  const { publicSlug, shareUrl } = await ensureListingShareIdentity(listing);
   const trackedUrl = buildTrackedListingUrl({
     publicSlug,
     sourceKey: 'open_house'
@@ -7778,7 +7780,7 @@ const loadLightCmaConfig = async ({ listingId, agentIds = [] }) => {
 };
 
 const ensureUniquePublicSlug = async ({ listingId, title, address }) => {
-  const baseSeed = slugifyListing(title || address || `listing-${listingId}`) || `listing-${String(listingId).slice(0, 8)}`;
+  const baseSeed = chooseListingSlugSeed({ listingId, title, address });
   let candidate = baseSeed;
   let suffix = 1;
 
@@ -7797,6 +7799,97 @@ const ensureUniquePublicSlug = async ({ listingId, title, address }) => {
   }
 
   return `${baseSeed}-${Date.now()}`;
+};
+
+const PLACEHOLDER_LISTING_VALUE_PATTERNS = [
+  /^draft$/,
+  /^draft-listing(?:-\d+)?$/,
+  /^draft listing(?: \d+)?$/,
+  /^listing$/,
+  /^new listing$/,
+  /^my first listing$/,
+  /^untitled$/,
+  /^address coming soon$/
+];
+
+const isPlaceholderListingValue = (value) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (!normalized) return true;
+  return PLACEHOLDER_LISTING_VALUE_PATTERNS.some((pattern) => pattern.test(normalized));
+};
+
+const chooseListingSlugSeed = ({ listingId, title, address }) => {
+  const preferredAddress = isPlaceholderListingValue(address) ? '' : String(address || '').trim();
+  const preferredTitle = isPlaceholderListingValue(title) ? '' : String(title || '').trim();
+  return (
+    slugifyListing(preferredAddress) ||
+    slugifyListing(preferredTitle) ||
+    `listing-${String(listingId).slice(0, 8)}`
+  );
+};
+
+const shouldRegeneratePublicSlug = ({ publicSlug, title, address, listingId }) => {
+  const normalizedSlug = slugifyListing(publicSlug || '');
+  if (!normalizedSlug) return true;
+  const canonicalSeed = chooseListingSlugSeed({ listingId, title, address });
+  return isPlaceholderListingValue(normalizedSlug) && canonicalSeed !== normalizedSlug;
+};
+
+const ensureListingShareIdentity = async (listingRow, { persist = true } = {}) => {
+  if (!listingRow?.id) {
+    throw new Error('listing_id_required_for_share_identity');
+  }
+
+  const existingSlug = toTrimmedOrNull(listingRow.public_slug);
+  const nextPublicSlug = shouldRegeneratePublicSlug({
+    publicSlug: existingSlug,
+    title: listingRow.title,
+    address: listingRow.address,
+    listingId: listingRow.id
+  })
+    ? await ensureUniquePublicSlug({
+      listingId: listingRow.id,
+      title: listingRow.title,
+      address: listingRow.address
+    })
+    : existingSlug;
+  const publicSlug = nextPublicSlug || await ensureUniquePublicSlug({
+    listingId: listingRow.id,
+    title: listingRow.title,
+    address: listingRow.address
+  });
+  const shareUrl = buildListingShareUrl(publicSlug);
+  const existingShareUrl = toTrimmedOrNull(listingRow.share_url);
+
+  if (!persist || (existingSlug === publicSlug && existingShareUrl === shareUrl)) {
+    return {
+      listingRow,
+      publicSlug,
+      shareUrl
+    };
+  }
+
+  const { data: updatedListingRow, error: updateError } = await supabaseAdmin
+    .from('properties')
+    .update({
+      public_slug: publicSlug,
+      share_url: shareUrl,
+      updated_at: nowIso()
+    })
+    .eq('id', listingRow.id)
+    .select('*')
+    .single();
+  if (updateError) throw updateError;
+
+  return {
+    listingRow: updatedListingRow || {
+      ...listingRow,
+      public_slug: publicSlug,
+      share_url: shareUrl
+    },
+    publicSlug,
+    shareUrl
+  };
 };
 
 const buildListingRealtimePayload = (listingRow) => ({
@@ -10675,21 +10768,23 @@ const processVideoRenderFfmpegJob = async (job) => {
   }
 
   const currentStatus = String(videoRow.status || '').toLowerCase();
+  const renderingIsStale = currentStatus === 'rendering' && isVideoRenderStale(videoRow);
   if (currentStatus === 'succeeded') {
     return { status: 'skipped', reason: 'already_succeeded' };
   }
   if (currentStatus === 'failed') {
     return { status: 'skipped', reason: 'already_failed' };
   }
-  if (currentStatus === 'rendering') {
+  if (currentStatus === 'rendering' && !renderingIsStale) {
     return { status: 'skipped', reason: 'already_claimed' };
   }
 
-  if (['queued', 'pending'].includes(currentStatus)) {
+  if (['queued', 'pending', 'processing'].includes(currentStatus) || renderingIsStale) {
     const { data: claimedRow, error: claimError } = await supabaseAdmin
       .from('listing_videos')
       .update({
         status: 'rendering',
+        error_message: null,
         updated_at: nowIso()
       })
       .eq('id', videoId)
@@ -20204,6 +20299,22 @@ app.post('/api/dashboard/listings', async (req, res) => {
       .single();
     if (insertError) throw insertError;
 
+    emitListingRealtimeEvent({
+      type: 'listing.updated',
+      listingRow
+    });
+
+    await applyOnboardingChecklistPatch({
+      agentId,
+      checklistPatch: {
+        first_listing_created: true,
+        first_listing_id: listingRow.id
+      },
+      onboardingStep: 2
+    }).catch((error) => {
+      console.warn('[Onboarding] Failed to patch checklist after dashboard draft create:', error?.message || error);
+    });
+
     return res.json({
       listing: mapListingRowToDashboardPayload(listingRow)
     });
@@ -20363,6 +20474,11 @@ app.patch('/api/dashboard/listings/:id', async (req, res) => {
       .select('*')
       .single();
     if (updateError) throw updateError;
+
+    emitListingRealtimeEvent({
+      type: 'listing.updated',
+      listingRow: updatedRow
+    });
 
     if (nextPrice !== undefined && Number(nextPrice) !== previousPrice) {
       const noteDate = new Date().toISOString().slice(0, 10);
@@ -20928,12 +21044,7 @@ app.get('/api/dashboard/listings/:listingId/share-kit', async (req, res) => {
       });
     }
 
-    const publicSlug = listing.public_slug || await ensureUniquePublicSlug({
-      listingId: listing.id,
-      title: listing.title,
-      address: listing.address
-    });
-    const shareUrl = listing.share_url || buildListingShareUrl(publicSlug);
+    const { publicSlug, shareUrl } = await ensureListingShareIdentity(listing);
 
     const sourceRows = await ensureDefaultListingSources({
       listingId: listing.id,
@@ -21057,11 +21168,7 @@ app.get('/api/dashboard/listings/:listingId/qr.:format', async (req, res) => {
       });
     }
 
-    const publicSlug = listing.public_slug || await ensureUniquePublicSlug({
-      listingId: listing.id,
-      title: listing.title,
-      address: listing.address
-    });
+    const { publicSlug } = await ensureListingShareIdentity(listing);
     const sourceRow = await ensureListingSource({
       listingId: listing.id,
       agentId: access.primaryAgentId || access.requesterUserId,
@@ -21110,12 +21217,7 @@ app.get('/api/dashboard/listings/:listingId/sign-rider.pdf', async (req, res) =>
     if (!access) return res.status(404).json({ error: 'listing_not_found' });
 
     const listing = access.listingRow;
-    const publicSlug = listing.public_slug || await ensureUniquePublicSlug({
-      listingId: listing.id,
-      title: listing.title,
-      address: listing.address
-    });
-    const shareUrl = listing.share_url || buildListingShareUrl(publicSlug);
+    const { publicSlug, shareUrl } = await ensureListingShareIdentity(listing);
     const trackedUrl = buildTrackedListingUrl({
       publicSlug,
       sourceKey: 'sign'
@@ -21216,12 +21318,7 @@ app.get('/api/dashboard/listings/:listingId/social-asset.png', async (req, res) 
     if (!access) return res.status(404).json({ error: 'listing_not_found' });
 
     const listing = access.listingRow;
-    const publicSlug = listing.public_slug || await ensureUniquePublicSlug({
-      listingId: listing.id,
-      title: listing.title,
-      address: listing.address
-    });
-    const shareUrl = listing.share_url || buildListingShareUrl(publicSlug);
+    const { publicSlug, shareUrl } = await ensureListingShareIdentity(listing);
     const trackedUrl = buildTrackedListingUrl({
       publicSlug,
       sourceKey: 'social'
@@ -21327,12 +21424,7 @@ app.get('/api/dashboard/listings/:listingId/property-report.pdf', async (req, re
     if (!access) return res.status(404).json({ error: 'listing_not_found' });
 
     const listing = access.listingRow;
-    const publicSlug = listing.public_slug || await ensureUniquePublicSlug({
-      listingId: listing.id,
-      title: listing.title,
-      address: listing.address
-    });
-    const shareUrl = listing.share_url || buildListingShareUrl(publicSlug);
+    const { publicSlug, shareUrl } = await ensureListingShareIdentity(listing);
     const trackedUrl = buildTrackedListingUrl({
       publicSlug,
       sourceKey: 'report'
@@ -21600,12 +21692,7 @@ app.get('/api/dashboard/listings/:listingId/light-cma.pdf', async (req, res) => 
     if (!access) return res.status(404).json({ error: 'listing_not_found' });
 
     const listing = access.listingRow;
-    const publicSlug = listing.public_slug || await ensureUniquePublicSlug({
-      listingId: listing.id,
-      title: listing.title,
-      address: listing.address
-    });
-    const shareUrl = listing.share_url || buildListingShareUrl(publicSlug);
+    const { publicSlug, shareUrl } = await ensureListingShareIdentity(listing);
     const chatUrl = `${shareUrl}${shareUrl.includes('?') ? '&' : '?'}action=chat`;
     const contactUrl = `${shareUrl}${shareUrl.includes('?') ? '&' : '?'}action=contact`;
     const lightCmaConfig = await loadLightCmaConfig({
@@ -22557,7 +22644,38 @@ app.get('/api/dashboard/videos/:videoId/status', async (req, res) => {
       return res.json({
         video_id: videoRow.id,
         status: persistedStatus,
+        stage: persistedStatus === 'failed' ? 'failed' : undefined,
         error_message: videoRow.error_message || null
+      });
+    }
+
+    if (['queued', 'pending', 'processing', 'rendering'].includes(persistedStatus) && isVideoRenderStale(videoRow)) {
+      const errorMessage = 'render_timeout';
+      await supabaseAdmin
+        .from('listing_videos')
+        .update({
+          status: 'failed',
+          error_message: errorMessage,
+          updated_at: nowIso()
+        })
+        .eq('id', videoRow.id)
+        .neq('status', 'succeeded');
+
+      emitListingVideoRealtimeEvent({
+        agentId: toTrimmedOrNull(videoRow.agent_id),
+        listingId: toTrimmedOrNull(videoRow.listing_id),
+        videoId: videoRow.id,
+        status: 'failed',
+        templateStyle: videoRow.template_style,
+        durationSeconds: videoRow.duration_seconds,
+        errorMessage
+      });
+
+      return res.json({
+        video_id: videoRow.id,
+        status: 'failed',
+        stage: 'failed',
+        error_message: errorMessage
       });
     }
 
@@ -22568,7 +22686,9 @@ app.get('/api/dashboard/videos/:videoId/status', async (req, res) => {
     return res.json({
       video_id: videoRow.id,
       status: ffmpegStatus,
-      stage: 'ffmpeg_rendering'
+      stage: 'ffmpeg_rendering',
+      updated_at: videoRow.updated_at || videoRow.created_at || null,
+      stale_after_ms: VIDEO_RENDER_STALE_MS
     });
   } catch (error) {
     console.error('[Dashboard] Failed to get video status:', error);
@@ -22643,12 +22763,7 @@ app.patch('/api/dashboard/listings/:listingId/publish', async (req, res) => {
       }
     }
 
-    const publicSlug = listing.public_slug || await ensureUniquePublicSlug({
-      listingId: listing.id,
-      title: listing.title,
-      address: listing.address
-    });
-    const shareUrl = buildListingShareUrl(publicSlug);
+    const { publicSlug, shareUrl } = await ensureListingShareIdentity(listing, { persist: false });
     const timestamp = nowIso();
 
     const patchPayload = {
@@ -22800,11 +22915,7 @@ app.post('/api/dashboard/listings/:listingId/generate-qr', async (req, res) => {
       });
     }
 
-    const publicSlug = listing.public_slug || await ensureUniquePublicSlug({
-      listingId: listing.id,
-      title: listing.title,
-      address: listing.address
-    });
+    const { publicSlug } = await ensureListingShareIdentity(listing);
     const sourceType = toSourceType(req.body?.source_type || inferSourceTypeFromKey(req.body?.source_key) || 'qr');
     const sourceKey = toSourceKey(req.body?.source_key) || `${sourceType}_${Date.now().toString(36).slice(-4)}`;
     const utmSource = toTrimmedOrNull(req.body?.utm_source);

@@ -4,6 +4,8 @@ import { SAMPLE_AGENT } from '../constants'
 import { buildApiUrl } from '../lib/api'
 import { getDemoProperties } from '../demo/demoData'
 import { isDemoModeActive } from '../demo/useDemoMode'
+import { waitForAuthenticatedSession, waitForAuthenticatedUserId } from './authSession'
+import { emitDashboardInvalidation } from './dashboardInvalidation'
 
 const PROPERTIES_TABLE = 'properties'
 
@@ -224,6 +226,16 @@ const buildRowPayload = (input: Partial<CreatePropertyInput>): Record<string, un
   return payload
 }
 
+const resolveLegacyAuthHeaders = async (): Promise<Record<string, string>> => {
+  const { userId, accessToken } = await waitForAuthenticatedSession()
+
+  return {
+    'Content-Type': 'application/json',
+    ...(userId ? { 'x-user-id': userId, 'x-agent-id': userId } : {}),
+    ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {})
+  }
+}
+
 export const listingsService = {
   async listProperties(agentId?: string): Promise<Property[]> {
     if (isDemoModeActive()) {
@@ -232,15 +244,17 @@ export const listingsService = {
 
     let effectiveAgentId = agentId
     if (!effectiveAgentId) {
-      const { data } = await supabase.auth.getUser()
-      // Fallback to demo ID if strict auth fails, to allow seeing demo listings
-      effectiveAgentId = data?.user?.id || '3d16b4d9-a7cd-4820-af02-e58fa8bab4de'
+      effectiveAgentId = await waitForAuthenticatedUserId()
+    }
+
+    if (!effectiveAgentId) {
+      return []
     }
 
     const query = supabase
       .from(PROPERTIES_TABLE)
       .select('*')
-      .eq('agent_id', effectiveAgentId)
+      .or(`agent_id.eq.${effectiveAgentId},user_id.eq.${effectiveAgentId}`)
       .order('created_at', { ascending: false })
 
     const { data, error } = await query
@@ -284,16 +298,11 @@ export const listingsService = {
       status: input.status ?? 'active'
     })
 
-    const { data: userData } = await supabase.auth.getUser()
-    // Fallback ID for demo/blueprint testing if not signed in
-    const agentId = userData?.user?.id || '3d16b4d9-a7cd-4820-af02-e58fa8bab4de'
+    const headers = await resolveLegacyAuthHeaders()
 
     const response = await fetch(buildApiUrl('/api/properties'), {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-agent-id': agentId
-      },
+      headers,
       body: JSON.stringify(payload)
     })
 
@@ -307,6 +316,7 @@ export const listingsService = {
       throw new Error('Failed to create property: missing response data')
     }
 
+    emitDashboardInvalidation({ reason: 'property_created', listingId: result.property.id })
     return mapRowToProperty(result.property as PropertyRow)
   },
 
@@ -319,16 +329,11 @@ export const listingsService = {
       agentSnapshot: 'agent' in input ? input.agent : (input as CreatePropertyInput).agentSnapshot
     })
 
-    const { data: userData } = await supabase.auth.getUser()
-    // Fallback ID for demo/blueprint testing if not signed in
-    const agentId = userData?.user?.id || '3d16b4d9-a7cd-4820-af02-e58fa8bab4de'
+    const headers = await resolveLegacyAuthHeaders()
 
     const response = await fetch(buildApiUrl(`/api/properties/${id}`), {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-agent-id': agentId
-      },
+      headers,
       body: JSON.stringify(payload)
     })
 
@@ -342,17 +347,14 @@ export const listingsService = {
       throw new Error('Failed to update property: missing response data')
     }
 
+    emitDashboardInvalidation({ reason: 'property_updated', listingId: id })
     return mapRowToProperty(result.property as PropertyRow)
   },
 
   async deleteProperty(id: string): Promise<void> {
     // Use backend API with service role instead of client-side Supabase
     // This bypasses RLS restrictions
-    const { data: userData } = await supabase.auth.getUser()
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-    if (userData?.user?.id) {
-      headers['x-agent-id'] = userData.user.id
-    }
+    const headers = await resolveLegacyAuthHeaders()
 
     const response = await fetch(buildApiUrl(`/api/listings/${id}`), {
       method: 'DELETE',
@@ -363,6 +365,8 @@ export const listingsService = {
       const errorData = await response.json().catch(() => ({}))
       throw new Error(errorData.error || errorData.details || 'Failed to delete property')
     }
+
+    emitDashboardInvalidation({ reason: 'property_deleted', listingId: id })
   },
 
   async generateDescription(input: {

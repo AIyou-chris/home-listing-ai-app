@@ -218,7 +218,7 @@ const ListingPerformancePage: React.FC = () => {
             ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(listingDetails.price)
             : '',
           status: shareKit?.is_published ? 'PUBLISHED' : 'DRAFT',
-          slug: shareKit?.public_slug || listingId,
+          slug: shareKit?.public_slug || '',
           beds: listingDetails?.beds ?? '-',
           baths: listingDetails?.baths ?? '-',
           sqft: listingDetails?.sqft ?? '-',

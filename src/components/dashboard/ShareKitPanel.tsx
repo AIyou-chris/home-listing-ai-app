@@ -113,15 +113,16 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
 
   const isDraft = listing.status === 'DRAFT';
   const baseUrl = 'https://homelistingai.com/l/';
-  const resolvedShareUrl = String(shareUrl || '').trim() || `${baseUrl}${listing.slug}`;
+  const resolvedShareUrl = isDraft ? '' : (String(shareUrl || '').trim() || `${baseUrl}${listing.slug}`);
+  const displayShareUrl = resolvedShareUrl || 'Publish listing to unlock live link';
   const propertyImageUrl = useMemo(() => {
     const photos = Array.isArray(listing.photos) ? listing.photos.filter(Boolean) : [];
     return photos[0] || FALLBACK_PROPERTY_IMAGE;
   }, [listing.photos]);
   const flyerFileBase = useMemo(() => String(listing.slug || listing.id || 'listing').trim() || 'listing', [listing.id, listing.slug]);
   const activeQrAsset = qrAssetsBySource[qrSource];
-  const trackedQrLink = activeQrAsset?.tracked_url || `${resolvedShareUrl}?src=${qrSource}`;
-  const activeQrImageUrl = activeQrAsset?.qr_code_url || `https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(trackedQrLink)}`;
+  const trackedQrLink = activeQrAsset?.tracked_url || (resolvedShareUrl ? `${resolvedShareUrl}?src=${qrSource}` : 'Publish listing to unlock tracked QR links');
+  const activeQrImageUrl = activeQrAsset?.qr_code_url || `https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(resolvedShareUrl ? trackedQrLink : 'Publish listing to unlock QR')}`;
   const activeQrSourceKey = activeQrAsset?.source_key || qrSource;
   const _activeQrSourceType = activeQrAsset?.source_type || sourceTypeForKey(qrSource);
   const qrSourceLabel = qrSource === 'open_house' ? 'Open House' : qrSource === 'social' ? 'Social' : 'Sign';
@@ -131,7 +132,7 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
       .replace(/_/g, ' ')
       .replace(/\b\w/g, (char) => char.toUpperCase());
   }, [qrSource, trackedQrLink]);
-  const captionTemplate = `Just listed: ${listing.address} 🏡✨\nPrice: ${listing.price} | ${listing.beds} Beds | ${listing.baths} Baths\n\nGet the instant 1-page property report + request a showing right here: ${resolvedShareUrl}`;
+  const captionTemplate = `Just listed: ${listing.address} 🏡✨\nPrice: ${listing.price} | ${listing.beds} Beds | ${listing.baths} Baths\n\nGet the instant 1-page property report + request a showing right here: ${resolvedShareUrl || 'Live link unlocks after publish.'}`;
   const effectiveVideoCaption = latestVideo?.caption?.trim() || captionTemplate;
   const shareLinkHostname = useMemo(() => {
     try {
@@ -614,7 +615,7 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
               <input
                 type="text"
                 readOnly
-                value={resolvedShareUrl}
+                value={displayShareUrl}
                 className="flex-1 bg-transparent text-slate-300 px-4 py-3 outline-none font-mono text-sm"
               />
               <button

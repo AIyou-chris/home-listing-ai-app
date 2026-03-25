@@ -17,6 +17,7 @@ import { fetchDashboardBilling, createBillingCheckoutSession, type DashboardBill
 import { PENDING_PLAN_KEY } from '../ComparePlansModal'
 import { fetchOnboardingState, resendWelcomeEmail, type OnboardingState } from '../../services/onboardingService'
 import { listingsService } from '../../services/listingsService'
+import { subscribeDashboardInvalidation } from '../../services/dashboardInvalidation'
 import { useDashboardRealtimeStore } from '../../state/useDashboardRealtimeStore'
 import { showToast } from '../../utils/toastService'
 import { getLiveExampleUrl, openInNewTab } from '../../utils/ctaLinks'
@@ -177,7 +178,7 @@ const TodayDashboardPage: React.FC = () => {
   const load = useCallback(async () => {
     if (fetchInFlightRef.current) return
     fetchInFlightRef.current = true
-    setLoading(true)
+    setLoading((current) => current || !hasFetchedInitialStateRef.current)
     setError(null)
     try {
       const [leadRes, appointmentRes, listings, onboardingState, billingSnapshot] = await Promise.all([
@@ -260,6 +261,13 @@ const TodayDashboardPage: React.FC = () => {
       isMountedRef.current = false
     }
   }, [])
+
+  useEffect(() => {
+    if (demoMode || blueprintMode) return
+    return subscribeDashboardInvalidation(() => {
+      void load()
+    })
+  }, [blueprintMode, demoMode, load])
 
   useEffect(() => {
     if (!recentListing?.id) return
