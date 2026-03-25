@@ -2816,7 +2816,7 @@ const slugifyListing = (value) =>
 const VIDEO_TEMPLATE_STYLES = new Set(['luxury', 'country', 'fixer', 'story']);
 const MAX_VIDEO_PHOTOS = 10;
 const VIDEO_FFMPEG_BIN = String(process.env.FFMPEG_BIN || 'ffmpeg').trim() || 'ffmpeg';
-const VIDEO_RENDER_STALE_MS = 10 * 60 * 1000;
+const VIDEO_RENDER_STALE_MS = 3 * 60 * 1000;
 const VIDEO_FFMPEG_FONT_FILE = [
   '/System/Library/Fonts/Supplemental/Arial.ttf',
   '/Library/Fonts/Arial Unicode.ttf'
@@ -3212,9 +3212,12 @@ const generateListingVideoViaFfmpegFallback = async ({
         responseType: 'arraybuffer',
         timeout: 25000
       });
-      const ext = detectImageExtension(photoUrl, index);
-      const imagePath = path.join(tempDir, `frame-${String(index + 1).padStart(2, '0')}${ext}`);
-      await fs.promises.writeFile(imagePath, Buffer.from(response.data));
+      const imagePath = path.join(tempDir, `frame-${String(index + 1).padStart(2, '0')}.jpg`);
+      await sharp(Buffer.from(response.data))
+        .rotate()
+        .resize(1080, 1920, { fit: 'cover', position: 'attention' })
+        .jpeg({ quality: 82, mozjpeg: true })
+        .toFile(imagePath);
       downloadedImages.push(imagePath);
     }
 
