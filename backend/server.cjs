@@ -26,9 +26,13 @@ const QRCode = require('qrcode');
 const puppeteer = require('puppeteer');
 // Initialize Stripe with V2 Preview API
 const Stripe = require('stripe');
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+const STRIPE_SECRET_KEY = String(process.env.STRIPE_SECRET_KEY || '').trim();
+const stripe = STRIPE_SECRET_KEY ? new Stripe(STRIPE_SECRET_KEY, {
   apiVersion: '2025-08-27.preview',
-});
+}) : null;
+if (!stripe) {
+  console.warn('[Startup] Stripe disabled: STRIPE_SECRET_KEY is missing. Billing routes will reject requests until it is configured.');
+}
 const { createClient } = require('@supabase/supabase-js');
 const { google } = require('googleapis');
 const crypto = require('crypto');
