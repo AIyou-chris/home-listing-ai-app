@@ -74,8 +74,15 @@ const formatVideoFailureHint = (value: string | null) => {
   if (normalized === 'render_timeout') return 'This render got stuck. Start a fresh one.'
   if (normalized === 'photos_required') return 'Add at least one photo, then try again.'
   if (normalized === 'ffmpeg_missing') return 'Video service is unavailable right now.'
+  if (normalized === 'backend_unavailable') return 'The video server restarted. Wait a minute, then try again.'
   return 'Try again in a moment.'
 }
+
+const isBackendUnavailableCode = (value: string) =>
+  value === 'http_502' ||
+  value === 'http_503' ||
+  value === 'failed_to_get_video_status' ||
+  value === 'failed_to_load_listing_videos'
 
 export default function SocialVideoWidget({ listingId, listingAddress, listingLink }: SocialVideoWidgetProps) {
   const demoMode = useDemoMode()
@@ -203,6 +210,7 @@ export default function SocialVideoWidget({ listingId, listingAddress, listingLi
       setStatus('default')
     } catch (error) {
       console.error('Failed to load listing video data:', error)
+      const code = normalizeErrorCode(error)
       if (localVideoBypass) {
         const cached = window.localStorage.getItem(`${LOCAL_MOCK_VIDEO_KEY_PREFIX}${listingId}`)
         if (cached) {
@@ -220,6 +228,10 @@ export default function SocialVideoWidget({ listingId, listingAddress, listingLi
         }
         setStatus('default')
         return
+      }
+      if (isBackendUnavailableCode(code)) {
+        setLatestErrorMessage('backend_unavailable')
+        setActionError('Video service is temporarily unavailable. Try again in a minute.')
       }
       setStatus('failed')
     }
@@ -310,6 +322,7 @@ export default function SocialVideoWidget({ listingId, listingAddress, listingLi
         return
       }
       let pollBackoffIndex = 0
+      let consecutiveBackendFailures = 0
 
       while (Date.now() - startTime < POLL_TIMEOUT_MS) {
         let statusPayload: Awaited<ReturnType<typeof fetchDashboardVideoStatus>>
@@ -317,12 +330,25 @@ export default function SocialVideoWidget({ listingId, listingAddress, listingLi
           statusPayload = await fetchDashboardVideoStatus(pollVideoId)
           setStatusRefreshWarning(null)
           pollBackoffIndex = 0
+          consecutiveBackendFailures = 0
         } catch (pollError) {
+          const pollCode = normalizeErrorCode(pollError)
           const nextDelay = POLL_BACKOFF_STEPS_MS[Math.min(pollBackoffIndex, POLL_BACKOFF_STEPS_MS.length - 1)]
           pollBackoffIndex = Math.min(pollBackoffIndex + 1, POLL_BACKOFF_STEPS_MS.length - 1)
           setStatus('rendering')
           setStageLabel('Rendering...')
-          setStatusRefreshWarning('Having trouble refreshing status... retrying')
+          if (isBackendUnavailableCode(pollCode)) {
+            consecutiveBackendFailures += 1
+            setStatusRefreshWarning('Video server is restarting... retrying')
+            if (consecutiveBackendFailures >= 3) {
+              setLatestErrorMessage('backend_unavailable')
+              setActionError('Video service is temporarily unavailable. Try again in a minute.')
+              setStatus('failed')
+              return
+            }
+          } else {
+            setStatusRefreshWarning('Having trouble refreshing status... retrying')
+          }
           await new Promise((resolve) => window.setTimeout(resolve, nextDelay))
           continue
         }
@@ -387,6 +413,13 @@ export default function SocialVideoWidget({ listingId, listingAddress, listingLi
         setStatus('failed')
         setActionError('Render failed — please try again.')
         showToast.error('Render failed — please try again.')
+        return
+      }
+      if (isBackendUnavailableCode(code)) {
+        setLatestErrorMessage('backend_unavailable')
+        setStatus('failed')
+        setActionError('Video service is temporarily unavailable. Try again in a minute.')
+        showToast.error('Video service is temporarily unavailable. Try again in a minute.')
         return
       }
       setStatus('failed')

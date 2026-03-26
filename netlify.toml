@@ -5,6 +5,7 @@
 [build.environment]
   NODE_ENV = "production"
   NPM_CONFIG_PRODUCTION = "false"
+  VITE_REALTIME_WS_BASE_URL = "wss://home-listing-ai-backend.onrender.com"
 
 [[redirects]]
   from = "/api/ai-card/*"

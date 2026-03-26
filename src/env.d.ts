@@ -6,6 +6,7 @@ declare global {
     readonly VITE_API_URL?: string
     readonly VITE_APP_URL?: string
     readonly VITE_BACKEND_URL?: string
+    readonly VITE_REALTIME_WS_BASE_URL?: string
     readonly VITE_VOICE_API_BASE_URL?: string
     readonly VITE_SUPABASE_URL?: string
     readonly VITE_SUPABASE_ANON_KEY?: string

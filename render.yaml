@@ -12,3 +12,23 @@ services:
         value: production
       - key: PORT
         value: 10000
+      - key: APP_RUNTIME_MODE
+        value: web
+      - key: JOB_WORKER_ENABLED
+        value: false
+  - type: worker
+    name: home-listing-ai-worker
+    runtime: node
+    region: oregon
+    plan: starter
+    buildCommand: npm install --include=dev --ignore-scripts && npm run build && cd backend && npm install --omit=dev --ignore-scripts
+    startCommand: cd backend && node server.cjs
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: APP_RUNTIME_MODE
+        value: worker
+      - key: JOB_WORKER_ENABLED
+        value: true
+      - key: JOB_WORKER_BATCH_SIZE
+        value: 1

@@ -11,6 +11,8 @@ const readViteEnvVar = (key: string): string | undefined => {
       return asString(import.meta.env.VITE_APP_URL)
     case 'VITE_BACKEND_URL':
       return asString(import.meta.env.VITE_BACKEND_URL)
+    case 'VITE_REALTIME_WS_BASE_URL':
+      return asString(import.meta.env.VITE_REALTIME_WS_BASE_URL)
     case 'VITE_VOICE_API_BASE_URL':
       return asString(import.meta.env.VITE_VOICE_API_BASE_URL)
     case 'VITE_SUPABASE_URL':

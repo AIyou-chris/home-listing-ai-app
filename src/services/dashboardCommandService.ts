@@ -394,6 +394,19 @@ const parseResponse = async <T>(response: Response): Promise<T> => {
   return response.json() as Promise<T>;
 };
 
+const parseVideoResponse = async <T>(response: Response): Promise<T> => {
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+    const code = typeof payload.error === 'string' && payload.error.trim()
+      ? payload.error.trim()
+      : `http_${response.status}`;
+    const error = new Error(code) as Error & { status?: number };
+    error.status = response.status;
+    throw error;
+  }
+  return response.json() as Promise<T>;
+};
+
 export const resolveAgentId = async (): Promise<string | null> => {
   if (isDemoModeActive()) return 'demo-agent-busy';
   return waitForAuthenticatedUserId();
@@ -740,7 +753,7 @@ export const fetchListingVideos = async (listingId: string, agentIdOverride?: st
   const response = await fetch(buildApiUrl(withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}/videos`, agentId)), {
     headers: defaultJsonHeaders(agentId)
   });
-  return parseResponse<{
+  return parseVideoResponse<{
     credits_remaining: number;
     credits_total?: number;
     credits_used?: number;
@@ -772,7 +785,7 @@ export const fetchDashboardVideoStatus = async (videoId: string, agentIdOverride
     { headers: defaultJsonHeaders(agentId) }
   );
 
-  return parseResponse<{
+  return parseVideoResponse<{
     video_id: string;
     status: string;
     stage?: 'ffmpeg_rendering' | 'rendering' | 'finalizing' | 'failed' | string;
@@ -844,7 +857,7 @@ export const generateListingVideo = async (
     headers: defaultJsonHeaders(agentId),
     body: JSON.stringify(payload)
   });
-  return parseResponse<{
+  return parseVideoResponse<{
     success: boolean;
     video_id?: string;
     status?: string;

@@ -1,5 +1,6 @@
 import { toast } from 'react-hot-toast'
 import { getApiBaseUrl } from '../lib/api'
+import { getEnvVar } from '../lib/env'
 import { fetchCommandCenterSnapshot } from './dashboardCommandService'
 import { supabase } from './supabase'
 import { useDashboardRealtimeStore, type DashboardRealtimeEventEnvelope } from '../state/useDashboardRealtimeStore'
@@ -16,11 +17,27 @@ let commandCenterRefreshPending = false
 const seenEventKeys = new Map<string, number>()
 const EVENT_KEY_TTL_MS = 2 * 60 * 1000
 
+const toWsBaseUrl = (value: string) => {
+  const trimmed = String(value || '').trim().replace(/\/+$/, '')
+  if (!trimmed) return ''
+  if (trimmed.startsWith('wss://') || trimmed.startsWith('ws://')) return trimmed
+  if (trimmed.startsWith('https://')) return trimmed.replace('https://', 'wss://')
+  if (trimmed.startsWith('http://')) return trimmed.replace('http://', 'ws://')
+  return trimmed
+}
+
 const buildWsBaseUrl = () => {
+  const explicitBase =
+    getEnvVar('VITE_REALTIME_WS_BASE_URL') ||
+    getEnvVar('VITE_BACKEND_URL') ||
+    getEnvVar('VITE_API_BASE_URL') ||
+    getEnvVar('VITE_API_URL') ||
+    getEnvVar('VITE_VOICE_API_BASE_URL')
+  const normalizedExplicitBase = toWsBaseUrl(explicitBase || '')
+  if (normalizedExplicitBase) return normalizedExplicitBase
+
   const apiBase = getApiBaseUrl()
-  if (apiBase.startsWith('https://')) return apiBase.replace('https://', 'wss://')
-  if (apiBase.startsWith('http://')) return apiBase.replace('http://', 'ws://')
-  return apiBase
+  return toWsBaseUrl(apiBase)
 }
 
 const pruneSeenEventKeys = () => {

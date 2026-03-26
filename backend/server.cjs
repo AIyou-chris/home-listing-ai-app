@@ -79,6 +79,11 @@ const APPOINTMENT_REMINDER_TIMEZONE = process.env.APPOINTMENT_REMINDER_TIMEZONE 
 const APPOINTMENT_REMINDER_OFFSETS_MINUTES = [24 * 60, 2 * 60];
 const REMINDER_EXECUTION_BATCH_SIZE = 50;
 const JOB_WORKER_ENABLED = String(process.env.JOB_WORKER_ENABLED || 'true').toLowerCase() !== 'false';
+const APP_RUNTIME_MODE_RAW = String(process.env.APP_RUNTIME_MODE || 'all').trim().toLowerCase();
+const APP_RUNTIME_MODE = ['all', 'web', 'worker'].includes(APP_RUNTIME_MODE_RAW) ? APP_RUNTIME_MODE_RAW : 'all';
+const RUN_HTTP_SERVER = APP_RUNTIME_MODE !== 'worker';
+const RUN_BACKGROUND_TASKS = APP_RUNTIME_MODE !== 'web';
+const RUN_JOB_WORKER = JOB_WORKER_ENABLED && RUN_BACKGROUND_TASKS;
 const JOB_WORKER_POLL_MS = Number(process.env.JOB_WORKER_POLL_MS || 3000);
 const JOB_WORKER_BATCH_SIZE = Number(process.env.JOB_WORKER_BATCH_SIZE || 15);
 const JOB_REAPER_MINUTES = Number(process.env.JOB_REAPER_MINUTES || 10);
@@ -94,6 +99,16 @@ const PUBLIC_LEAD_CAPTURE_MAX_PER_10_MIN = Number(process.env.PUBLIC_LEAD_CAPTUR
 const PUBLIC_LEAD_CAPTURE_MAX_PER_HOUR = Number(process.env.PUBLIC_LEAD_CAPTURE_MAX_PER_HOUR || 20);
 const PUBLIC_CHAT_HISTORY_LIMIT = Number(process.env.PUBLIC_CHAT_HISTORY_LIMIT || 20);
 const PUBLIC_CHAT_SUMMARY_BUCKET_SIZE = Number(process.env.PUBLIC_CHAT_SUMMARY_BUCKET_SIZE || 3);
+if (APP_RUNTIME_MODE_RAW !== APP_RUNTIME_MODE) {
+  console.warn(`[Startup] Invalid APP_RUNTIME_MODE="${APP_RUNTIME_MODE_RAW}". Falling back to "${APP_RUNTIME_MODE}".`);
+}
+console.log('[Startup] Runtime mode', {
+  app_runtime_mode: APP_RUNTIME_MODE,
+  run_http_server: RUN_HTTP_SERVER,
+  run_background_tasks: RUN_BACKGROUND_TASKS,
+  job_worker_enabled: JOB_WORKER_ENABLED,
+  run_job_worker: RUN_JOB_WORKER
+});
 const OPENAI_CHAT_MODEL = process.env.OPENAI_CHAT_MODEL || 'gpt-4o';
 const VIDEOS_BUCKET = String(process.env.VIDEOS_BUCKET || 'videos').trim() || 'videos';
 const VIDEO_TEST_SECRET = String(process.env.VIDEO_TEST_SECRET || '').trim();
@@ -388,7 +403,11 @@ app.get('/healthz', (_req, res) => {
   res.status(200).json({
     ok: true,
     service: 'home-listing-ai-backend',
-    time: new Date().toISOString()
+    time: new Date().toISOString(),
+    app_runtime_mode: APP_RUNTIME_MODE,
+    run_http_server: RUN_HTTP_SERVER,
+    run_background_tasks: RUN_BACKGROUND_TASKS,
+    run_job_worker: RUN_JOB_WORKER
   });
 });
 
@@ -11170,7 +11189,7 @@ const queueJobHandlers = {
 
 let jobWorkerRunning = false;
 const runJobWorkerTick = async () => {
-  if (!JOB_WORKER_ENABLED || jobWorkerRunning) return;
+  if (!RUN_JOB_WORKER || jobWorkerRunning) return;
   jobWorkerRunning = true;
   try {
     await processJobBatch({
@@ -22540,19 +22559,12 @@ app.post('/api/dashboard/listings/:listingId/videos/generate', async (req, res) 
       });
       throw enqueueError;
     }
-
-    void processVideoRenderFfmpegJob({
-      payload: {
-        video_id: videoRow.id,
-        listing_id: listing.id,
-        agent_id: ownerId
-      }
-    }).catch((renderError) => {
-      console.error('[video] inline_render_failed', {
-        listing_id: listing.id,
-        video_id: videoRow.id,
-        err: renderError?.message || renderError
-      });
+    console.info('[video] queued', {
+      listing_id: listing.id,
+      video_id: videoRow.id,
+      agent_id: ownerId,
+      app_runtime_mode: APP_RUNTIME_MODE,
+      run_job_worker: RUN_JOB_WORKER
     });
 
     emitRealtimeEvent({
@@ -22591,11 +22603,13 @@ app.post('/api/dashboard/listings/:listingId/videos/generate', async (req, res) 
 });
 
 app.get('/api/dashboard/videos/:videoId/status', async (req, res) => {
+  let requesterUserId = null;
+  let videoId = '';
   try {
-    const requesterUserId = await resolveRequesterUserId(req, { allowDefault: false });
+    requesterUserId = await resolveRequesterUserId(req, { allowDefault: false });
     if (!requesterUserId) return res.status(401).json({ error: 'unauthorized' });
 
-    const videoId = String(req.params.videoId || '').trim();
+    videoId = String(req.params.videoId || '').trim();
     if (!videoId) return res.status(400).json({ error: 'video_id_required' });
 
     const { data: videoRow, error: videoError } = await supabaseAdmin
@@ -22664,7 +22678,12 @@ app.get('/api/dashboard/videos/:videoId/status', async (req, res) => {
       stale_after_ms: VIDEO_RENDER_STALE_MS
     });
   } catch (error) {
-    console.error('[Dashboard] Failed to get video status:', error);
+    console.error('[Dashboard] Failed to get video status:', {
+      video_id: videoId || null,
+      requester_user_id: requesterUserId || null,
+      app_runtime_mode: APP_RUNTIME_MODE,
+      err: error?.message || error
+    });
     return res.status(500).json({ error: 'failed_to_get_video_status' });
   }
 });
@@ -29472,88 +29491,93 @@ app.post(['/api/voice/hume/connect', '/api/voice/telnyx/events'], async (req, re
   res.status(410).json({ error: 'Legacy Hume/Telnyx bridge is removed. Use /api/voice/vapi/webhook.' });
 });
 
-const server = app.listen(port, '0.0.0.0', () => {
-  console.log(`🚀 AI Server running on http://0.0.0.0:${port}`);
-  console.log('📝 Available endpoints:');
-  console.log('   POST /api/continue-conversation');
-  console.log('   POST /api/generate-speech');
-  console.log('   POST /api/realtime/offer');
-  console.log('   GET  /api/admin/dashboard-metrics');
-  console.log('   GET  /api/admin/users');
-  console.log('   POST /api/admin/users');
-  console.log('   PUT  /api/admin/users/:userId');
-  console.log('   DELETE /api/admin/users/:userId');
-  console.log('   POST /api/admin/broadcast');
-  console.log('   GET  /api/admin/broadcast-history');
-  console.log('   GET  /api/admin/performance');
-  console.log('   GET  /api/admin/settings');
-  console.log('   POST /api/admin/settings');
-  console.log('   GET  /api/admin/alerts');
-  console.log('   POST /api/admin/alerts/:alertId/acknowledge');
-  console.log('   POST /api/training/feedback');
-  console.log('   GET  /api/training/feedback/:sidekick');
-  console.log('   GET  /api/training/insights/:sidekick');
-  console.log('   POST /api/admin/maintenance');
-  console.log('   GET  /api/admin/ai-model');
-  console.log('   POST /api/admin/ai-model');
-  console.log('   GET  /api/admin/leads');
-  console.log('   POST /api/admin/leads');
-  console.log('   PUT  /api/admin/leads/:leadId');
-  console.log('   DELETE /api/admin/leads/:leadId');
-  console.log('   GET  /api/admin/leads/stats');
-  console.log('   GET  /api/admin/marketing/sequences');
-  console.log('   POST /api/admin/marketing/sequences');
-  console.log('   PUT  /api/admin/marketing/sequences/:sequenceId');
-  console.log('   DELETE /api/admin/marketing/sequences/:sequenceId');
-  console.log('   GET  /api/admin/marketing/active-followups');
-  console.log('   GET  /api/admin/marketing/qr-codes');
-  console.log('   POST /api/admin/marketing/qr-codes');
-  console.log('   PUT  /api/admin/marketing/qr-codes/:qrCodeId');
-  console.log('   DELETE /api/admin/marketing/qr-codes/:qrCodeId');
-  console.log('   GET  /api/blog');
-  console.log('   GET  /api/blog/:slug');
-  console.log('   POST /api/blog');
-  console.log('   🎯 LEAD SCORING ENDPOINTS:');
-  console.log('   POST /api/leads/:leadId/score');
-  console.log('   GET  /api/leads/:leadId/score');
-  console.log('   POST /api/leads/score-all');
-  console.log('   GET  /api/leads/scoring-rules');
-  console.log('   💬 CONVERSATION ENDPOINTS:');
-  console.log('   POST /api/conversations');
-  console.log('   GET  /api/conversations');
-  console.log('   GET  /api/conversations/:conversationId/messages');
-  console.log('   POST /api/conversations/:conversationId/messages');
-  console.log('   PUT  /api/conversations/:conversationId');
-  console.log('   GET  /api/conversations/export/csv');
-  console.log('   🎴 AI CARD ENDPOINTS:');
-  console.log('   GET  /api/ai-card/profile');
-  console.log('   POST /api/ai-card/profile');
-  console.log('   PUT  /api/ai-card/profile');
-  console.log('   POST /api/ai-card/generate-qr');
-  console.log('   POST /api/ai-card/share');
-  console.log('   GET  /api/ai-card/qr-codes');
-  console.log('   POST /api/ai-card/qr-codes');
-  console.log('   PUT  /api/ai-card/qr-codes/:qrId');
-  console.log('   DELETE /api/ai-card/qr-codes/:qrId');
-  console.log('   DELETE /api/conversations/:conversationId');
-  console.log('   📅 APPOINTMENT ENDPOINTS:');
-  console.log('   GET  /api/appointments');
-  console.log('   POST /api/appointments');
-  console.log('   PUT  /api/appointments/:appointmentId');
-  console.log('   DELETE /api/appointments/:appointmentId');
-  console.log('   🏠 LISTING ENDPOINTS:');
-  console.log('   GET  /api/listings');
-  console.log('   POST /api/listings');
-  console.log('   PUT  /api/listings/:listingId');
-  console.log('   DELETE /api/listings/:listingId');
-  console.log('   GET  /api/listings/:listingId/marketing');
-  console.log('   👮 ADMIN LISTINGS ENDPOINTS:');
-  console.log('   GET  /api/admin/listings');
-  console.log('   POST /api/admin/listings');
-  console.log('   DELETE /api/admin/listings/:id');
-});
+let server = null;
+if (RUN_HTTP_SERVER) {
+  server = app.listen(port, '0.0.0.0', () => {
+    console.log(`🚀 AI Server running on http://0.0.0.0:${port}`);
+    console.log('📝 Available endpoints:');
+    console.log('   POST /api/continue-conversation');
+    console.log('   POST /api/generate-speech');
+    console.log('   POST /api/realtime/offer');
+    console.log('   GET  /api/admin/dashboard-metrics');
+    console.log('   GET  /api/admin/users');
+    console.log('   POST /api/admin/users');
+    console.log('   PUT  /api/admin/users/:userId');
+    console.log('   DELETE /api/admin/users/:userId');
+    console.log('   POST /api/admin/broadcast');
+    console.log('   GET  /api/admin/broadcast-history');
+    console.log('   GET  /api/admin/performance');
+    console.log('   GET  /api/admin/settings');
+    console.log('   POST /api/admin/settings');
+    console.log('   GET  /api/admin/alerts');
+    console.log('   POST /api/admin/alerts/:alertId/acknowledge');
+    console.log('   POST /api/training/feedback');
+    console.log('   GET  /api/training/feedback/:sidekick');
+    console.log('   GET  /api/training/insights/:sidekick');
+    console.log('   POST /api/admin/maintenance');
+    console.log('   GET  /api/admin/ai-model');
+    console.log('   POST /api/admin/ai-model');
+    console.log('   GET  /api/admin/leads');
+    console.log('   POST /api/admin/leads');
+    console.log('   PUT  /api/admin/leads/:leadId');
+    console.log('   DELETE /api/admin/leads/:leadId');
+    console.log('   GET  /api/admin/leads/stats');
+    console.log('   GET  /api/admin/marketing/sequences');
+    console.log('   POST /api/admin/marketing/sequences');
+    console.log('   PUT  /api/admin/marketing/sequences/:sequenceId');
+    console.log('   DELETE /api/admin/marketing/sequences/:sequenceId');
+    console.log('   GET  /api/admin/marketing/active-followups');
+    console.log('   GET  /api/admin/marketing/qr-codes');
+    console.log('   POST /api/admin/marketing/qr-codes');
+    console.log('   PUT  /api/admin/marketing/qr-codes/:qrCodeId');
+    console.log('   DELETE /api/admin/marketing/qr-codes/:qrCodeId');
+    console.log('   GET  /api/blog');
+    console.log('   GET  /api/blog/:slug');
+    console.log('   POST /api/blog');
+    console.log('   🎯 LEAD SCORING ENDPOINTS:');
+    console.log('   POST /api/leads/:leadId/score');
+    console.log('   GET  /api/leads/:leadId/score');
+    console.log('   POST /api/leads/score-all');
+    console.log('   GET  /api/leads/scoring-rules');
+    console.log('   💬 CONVERSATION ENDPOINTS:');
+    console.log('   POST /api/conversations');
+    console.log('   GET  /api/conversations');
+    console.log('   GET  /api/conversations/:conversationId/messages');
+    console.log('   POST /api/conversations/:conversationId/messages');
+    console.log('   PUT  /api/conversations/:conversationId');
+    console.log('   GET  /api/conversations/export/csv');
+    console.log('   🎴 AI CARD ENDPOINTS:');
+    console.log('   GET  /api/ai-card/profile');
+    console.log('   POST /api/ai-card/profile');
+    console.log('   PUT  /api/ai-card/profile');
+    console.log('   POST /api/ai-card/generate-qr');
+    console.log('   POST /api/ai-card/share');
+    console.log('   GET  /api/ai-card/qr-codes');
+    console.log('   POST /api/ai-card/qr-codes');
+    console.log('   PUT  /api/ai-card/qr-codes/:qrId');
+    console.log('   DELETE /api/ai-card/qr-codes/:qrId');
+    console.log('   DELETE /api/conversations/:conversationId');
+    console.log('   📅 APPOINTMENT ENDPOINTS:');
+    console.log('   GET  /api/appointments');
+    console.log('   POST /api/appointments');
+    console.log('   PUT  /api/appointments/:appointmentId');
+    console.log('   DELETE /api/appointments/:appointmentId');
+    console.log('   🏠 LISTING ENDPOINTS:');
+    console.log('   GET  /api/listings');
+    console.log('   POST /api/listings');
+    console.log('   PUT  /api/listings/:listingId');
+    console.log('   DELETE /api/listings/:listingId');
+    console.log('   GET  /api/listings/:listingId/marketing');
+    console.log('   👮 ADMIN LISTINGS ENDPOINTS:');
+    console.log('   GET  /api/admin/listings');
+    console.log('   POST /api/admin/listings');
+    console.log('   DELETE /api/admin/listings/:id');
+  });
+} else {
+  console.log('[Startup] Worker mode active. HTTP server disabled.');
+}
 
-const wsServer = new WebSocketServer({ server, path: '/ws' });
+const wsServer = server ? new WebSocketServer({ server, path: '/ws' }) : null;
 
 const resolveWsToken = (request) => {
   try {
@@ -29571,52 +29595,54 @@ const resolveWsToken = (request) => {
   return null;
 };
 
-wsServer.on('connection', async (socket, request) => {
-  try {
-    const token = resolveWsToken(request);
-    if (!token) {
-      socket.close(1008, 'missing_token');
-      return;
-    }
-
-    const { data: authData, error: authError } = await supabase.auth.getUser(token);
-    const user = authData?.user || null;
-    if (authError || !user?.id) {
-      socket.close(1008, 'invalid_token');
-      return;
-    }
-
-    const agentId = user.id;
-    addRealtimeSocket(agentId, socket);
-
-    emitToAgent(agentId, createRealtimeEvent({
-      type: 'system.ready',
-      agentId,
-      payload: { channel: `agent:${agentId}` }
-    }));
-
-    socket.on('close', () => removeRealtimeSocket(socket));
-    socket.on('error', () => removeRealtimeSocket(socket));
-
-    socket.on('message', (raw) => {
-      try {
-        const parsed = JSON.parse(raw.toString());
-        if (parsed?.type === 'ping') {
-          socket.send(JSON.stringify({ type: 'pong', ts: nowIso() }));
-        }
-      } catch (_) {
-        // ignore invalid messages
-      }
-    });
-  } catch (error) {
+if (wsServer) {
+  wsServer.on('connection', async (socket, request) => {
     try {
-      socket.close(1011, 'ws_init_failed');
-    } catch (_) {
-      // no-op
+      const token = resolveWsToken(request);
+      if (!token) {
+        socket.close(1008, 'missing_token');
+        return;
+      }
+
+      const { data: authData, error: authError } = await supabase.auth.getUser(token);
+      const user = authData?.user || null;
+      if (authError || !user?.id) {
+        socket.close(1008, 'invalid_token');
+        return;
+      }
+
+      const agentId = user.id;
+      addRealtimeSocket(agentId, socket);
+
+      emitToAgent(agentId, createRealtimeEvent({
+        type: 'system.ready',
+        agentId,
+        payload: { channel: `agent:${agentId}` }
+      }));
+
+      socket.on('close', () => removeRealtimeSocket(socket));
+      socket.on('error', () => removeRealtimeSocket(socket));
+
+      socket.on('message', (raw) => {
+        try {
+          const parsed = JSON.parse(raw.toString());
+          if (parsed?.type === 'ping') {
+            socket.send(JSON.stringify({ type: 'pong', ts: nowIso() }));
+          }
+        } catch (_) {
+          // ignore invalid messages
+        }
+      });
+    } catch (error) {
+      try {
+        socket.close(1011, 'ws_init_failed');
+      } catch (_) {
+        // no-op
+      }
+      console.warn('[Realtime] WS connection failed:', error?.message || error);
     }
-    console.warn('[Realtime] WS connection failed:', error?.message || error);
-  }
-});
+  });
+}
 
 app.get('/api/email/settings/:userId', async (req, res) => {
   try {
@@ -30607,18 +30633,20 @@ const runDailyDigestSchedulerTick = async () => {
   }
 };
 
-// Start Scheduler (Every 60 seconds)
-setInterval(() => {
-  checkTrialWarnings();
-  checkExpiredTrials();
-  runDailyDigestSchedulerTick().catch((error) => {
-    console.warn('[Digest] Scheduler tick failed:', error?.message || error);
-  });
-  // checkLeadScores(); // DISABLED: Using V2 Event-Driven Scoring (LeadScoringService)
-  funnelService.processBatch().catch((err) => console.error('Funnel Engine Loop Error:', err));
-}, 60 * 1000);
+if (RUN_BACKGROUND_TASKS) {
+  // Start Scheduler (Every 60 seconds)
+  setInterval(() => {
+    checkTrialWarnings();
+    checkExpiredTrials();
+    runDailyDigestSchedulerTick().catch((error) => {
+      console.warn('[Digest] Scheduler tick failed:', error?.message || error);
+    });
+    // checkLeadScores(); // DISABLED: Using V2 Event-Driven Scoring (LeadScoringService)
+    funnelService.processBatch().catch((err) => console.error('Funnel Engine Loop Error:', err));
+  }, 60 * 1000);
+}
 
-if (JOB_WORKER_ENABLED) {
+if (RUN_JOB_WORKER) {
   setInterval(() => {
     runJobWorkerTick().catch((error) => {
       if (!isJobQueueMissingTableError(error)) {
