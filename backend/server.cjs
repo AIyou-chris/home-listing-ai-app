@@ -3039,7 +3039,14 @@ const getAgentVideoEndCardProfile = ({ agentRow, aiCardProfile }) => {
   };
 };
 
-const buildFfmpegEndCardSvg = ({ agentRow, aiCardProfile }) => {
+const buildVideoEndCardContactUrl = (listingRow) => {
+  const directUrl = toTrimmedOrNull(listingRow?.share_url);
+  if (directUrl) return directUrl;
+  const publicSlug = toTrimmedOrNull(listingRow?.public_slug);
+  return publicSlug ? buildListingShareUrl(publicSlug) : 'homelistingai.com';
+};
+
+const buildFfmpegEndCardSvg = ({ agentRow, aiCardProfile, listingRow }) => {
   const profile = getAgentVideoEndCardProfile({ agentRow, aiCardProfile });
   const agentName = escapeSvgText(profile.fullName);
   const companyText = escapeSvgText(profile.company);
@@ -3047,6 +3054,13 @@ const buildFfmpegEndCardSvg = ({ agentRow, aiCardProfile }) => {
   const initialsText = escapeSvgText(profile.initials);
   const brandColor = escapeSvgText(profile.brandColor);
   const showInitialsAvatar = !profile.headshotUrl;
+  const phoneText = escapeSvgText(profile.phone);
+  const emailText = escapeSvgText(profile.email);
+  const ctaUrlText = escapeSvgText(
+    buildVideoEndCardContactUrl(listingRow)
+      .replace(/^https?:\/\//i, '')
+      .replace(/\/+$/g, '')
+  );
 
   return `
     <svg width="1080" height="1920" viewBox="0 0 1080 1920" xmlns="http://www.w3.org/2000/svg">
@@ -3071,14 +3085,14 @@ const buildFfmpegEndCardSvg = ({ agentRow, aiCardProfile }) => {
       <text x="540" y="1086" text-anchor="middle" fill="#ffffff" font-size="58" font-family="Arial, Helvetica, sans-serif" font-weight="700">${agentName}</text>
       <text x="540" y="1132" text-anchor="middle" fill="rgba(255,255,255,0.92)" font-size="26" font-family="Arial, Helvetica, sans-serif" font-weight="700">${titleText}</text>
       <text x="540" y="1172" text-anchor="middle" fill="rgba(255,255,255,0.72)" font-size="24" font-family="Arial, Helvetica, sans-serif" font-weight="600">${companyText}</text>
-      <rect x="178" y="1218" width="354" height="72" rx="24" fill="${brandColor}"/>
-      <text x="355" y="1264" text-anchor="middle" fill="#ffffff" font-size="28" font-family="Arial, Helvetica, sans-serif" font-weight="700">Chat With Me</text>
-      <rect x="548" y="1218" width="354" height="72" rx="24" fill="rgba(37,99,235,0.94)"/>
-      <text x="725" y="1264" text-anchor="middle" fill="#ffffff" font-size="28" font-family="Arial, Helvetica, sans-serif" font-weight="700">Contact</text>
-      <rect x="276" y="1308" width="528" height="66" rx="24" fill="rgba(10,17,30,0.70)" stroke="rgba(255,255,255,0.16)" stroke-width="2"/>
-      <circle cx="344" cy="1341" r="22" fill="rgba(255,255,255,0.12)"/>
-      <text x="344" y="1350" text-anchor="middle" fill="#ffffff" font-size="28" font-family="Arial, Helvetica, sans-serif" font-weight="700">i</text>
-      <text x="580" y="1350" text-anchor="middle" fill="#ffffff" font-size="28" font-family="Arial, Helvetica, sans-serif" font-weight="700">Get More Info</text>
+      <text x="540" y="1226" text-anchor="middle" fill="rgba(255,255,255,0.96)" font-size="36" font-family="Arial, Helvetica, sans-serif" font-weight="700">Stay on this screen to contact the agent</text>
+      <rect x="170" y="1268" width="740" height="96" rx="28" fill="${brandColor}" opacity="0.96"/>
+      <text x="540" y="1328" text-anchor="middle" fill="#ffffff" font-size="38" font-family="Arial, Helvetica, sans-serif" font-weight="800">Call or Text: ${phoneText}</text>
+      <rect x="170" y="1386" width="740" height="88" rx="28" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.18)" stroke-width="2"/>
+      <text x="540" y="1442" text-anchor="middle" fill="#ffffff" font-size="34" font-family="Arial, Helvetica, sans-serif" font-weight="700">${emailText}</text>
+      <rect x="138" y="1506" width="804" height="84" rx="28" fill="rgba(10,17,30,0.82)" stroke="rgba(255,255,255,0.16)" stroke-width="2"/>
+      <text x="540" y="1562" text-anchor="middle" fill="#ffffff" font-size="30" font-family="Arial, Helvetica, sans-serif" font-weight="700">${ctaUrlText}</text>
+      <text x="540" y="1630" text-anchor="middle" fill="rgba(255,255,255,0.78)" font-size="28" font-family="Arial, Helvetica, sans-serif" font-weight="600">Open the listing page for photos, details, and showing request</text>
     </svg>
   `.trim();
 };
@@ -3095,9 +3109,9 @@ const buildRoundedRectMaskSvg = (size, radius) => `
   </svg>
 `.trim();
 
-const buildFfmpegEndCardPngBuffer = async ({ agentRow, aiCardProfile }) => {
+const buildFfmpegEndCardPngBuffer = async ({ agentRow, aiCardProfile, listingRow }) => {
   const profile = getAgentVideoEndCardProfile({ agentRow, aiCardProfile });
-  const baseBuffer = await sharp(Buffer.from(buildFfmpegEndCardSvg({ agentRow, aiCardProfile }))).png().toBuffer();
+  const baseBuffer = await sharp(Buffer.from(buildFfmpegEndCardSvg({ agentRow, aiCardProfile, listingRow }))).png().toBuffer();
 
   if (!profile.headshotUrl) {
     return baseBuffer;
@@ -3165,7 +3179,8 @@ const createFfmpegFilterGraph = ({ inputCount, totalDurationSeconds }) => {
   const slideDuration = Math.max(1.8, totalDurationSeconds / Math.max(1, inputCount));
   const perSlideFrames = Math.max(36, Math.round(slideDuration * fps));
   const filters = [];
-  const endCardStart = Math.max(8, totalDurationSeconds - 2.8);
+  const endCardDuration = Math.min(5.4, Math.max(4.4, totalDurationSeconds * 0.3));
+  const endCardStart = Math.max(6.5, totalDurationSeconds - endCardDuration);
   const specialStart = 2.2;
   const specialEnd = Math.max(specialStart + 2.5, endCardStart - 0.6);
 
@@ -3335,7 +3350,7 @@ const generateListingVideoViaFfmpegFallback = async ({
         }
       }).png().toFile(specialSpotlightPath);
     }
-    await sharp(await buildFfmpegEndCardPngBuffer({ agentRow, aiCardProfile }))
+    await sharp(await buildFfmpegEndCardPngBuffer({ agentRow, aiCardProfile, listingRow }))
       .resize(VIDEO_RENDER_WIDTH, VIDEO_RENDER_HEIGHT)
       .png()
       .toFile(endCardPath);
