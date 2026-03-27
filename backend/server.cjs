@@ -2840,6 +2840,9 @@ const VIDEO_TEMPLATE_STYLES = new Set(['luxury', 'country', 'fixer', 'story']);
 const MAX_VIDEO_PHOTOS = 10;
 const VIDEO_FFMPEG_BIN = String(process.env.FFMPEG_BIN || 'ffmpeg').trim() || 'ffmpeg';
 const VIDEO_RENDER_STALE_MS = 3 * 60 * 1000;
+const VIDEO_RENDER_WIDTH = Math.max(480, Number.parseInt(process.env.VIDEO_RENDER_WIDTH || '720', 10) || 720);
+const VIDEO_RENDER_HEIGHT = Math.max(854, Number.parseInt(process.env.VIDEO_RENDER_HEIGHT || '1280', 10) || 1280);
+const VIDEO_RENDER_FPS = Math.max(12, Number.parseInt(process.env.VIDEO_RENDER_FPS || '24', 10) || 24);
 const VIDEO_FFMPEG_FONT_FILE = [
   '/System/Library/Fonts/Supplemental/Arial.ttf',
   '/Library/Fonts/Arial Unicode.ttf'
@@ -3151,10 +3154,10 @@ const buildFfmpegSpecialSpotlightSvg = ({ listingRow }) => {
 };
 
 const createFfmpegFilterGraph = ({ inputCount, totalDurationSeconds }) => {
-  const fps = 30;
+  const fps = VIDEO_RENDER_FPS;
   const xfadeDuration = 0.35;
   const slideDuration = Math.max(1.8, totalDurationSeconds / Math.max(1, inputCount));
-  const perSlideFrames = Math.max(45, Math.round(slideDuration * fps));
+  const perSlideFrames = Math.max(36, Math.round(slideDuration * fps));
   const filters = [];
   const endCardStart = Math.max(8, totalDurationSeconds - 2.8);
   const specialStart = 2.2;
@@ -3162,8 +3165,9 @@ const createFfmpegFilterGraph = ({ inputCount, totalDurationSeconds }) => {
 
   for (let index = 0; index < inputCount; index += 1) {
     filters.push(
-      `[${index}:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,` +
-      `zoompan=z='min(zoom+0.0006,1.12)':d=${perSlideFrames}:s=1080x1920:fps=${fps},` +
+      `[${index}:v]scale=${VIDEO_RENDER_WIDTH}:${VIDEO_RENDER_HEIGHT}:force_original_aspect_ratio=increase,` +
+      `crop=${VIDEO_RENDER_WIDTH}:${VIDEO_RENDER_HEIGHT},` +
+      `zoompan=z='min(zoom+0.00045,1.08)':d=${perSlideFrames}:s=${VIDEO_RENDER_WIDTH}x${VIDEO_RENDER_HEIGHT}:fps=${fps},` +
       `trim=duration=${slideDuration.toFixed(3)},setpts=PTS-STARTPTS[v${index}]`
     );
   }
@@ -3264,7 +3268,7 @@ const generateListingVideoViaFfmpegFallback = async ({
       try {
         await sharp(Buffer.from(response.data))
           .rotate()
-          .resize(1080, 1920, { fit: 'cover', position: 'attention' })
+          .resize(VIDEO_RENDER_WIDTH, VIDEO_RENDER_HEIGHT, { fit: 'cover', position: 'attention' })
           .jpeg({ quality: 82, mozjpeg: true })
           .toFile(imagePath);
       } catch (error) {
@@ -3305,21 +3309,30 @@ const generateListingVideoViaFfmpegFallback = async ({
       video_id: videoId,
       listing_id: listingId
     });
-    await sharp(Buffer.from(buildFfmpegLowerThirdSvg({ listingRow }))).png().toFile(lowerThirdPath);
+    await sharp(Buffer.from(buildFfmpegLowerThirdSvg({ listingRow })))
+      .resize(VIDEO_RENDER_WIDTH, VIDEO_RENDER_HEIGHT)
+      .png()
+      .toFile(lowerThirdPath);
     const specialSpotlightSvg = buildFfmpegSpecialSpotlightSvg({ listingRow });
     if (specialSpotlightSvg) {
-      await sharp(Buffer.from(specialSpotlightSvg)).png().toFile(specialSpotlightPath);
+      await sharp(Buffer.from(specialSpotlightSvg))
+        .resize(VIDEO_RENDER_WIDTH, VIDEO_RENDER_HEIGHT)
+        .png()
+        .toFile(specialSpotlightPath);
     } else {
       await sharp({
         create: {
-          width: 1080,
-          height: 1920,
+          width: VIDEO_RENDER_WIDTH,
+          height: VIDEO_RENDER_HEIGHT,
           channels: 4,
           background: { r: 0, g: 0, b: 0, alpha: 0 }
         }
       }).png().toFile(specialSpotlightPath);
     }
-    await sharp(await buildFfmpegEndCardPngBuffer({ agentRow, aiCardProfile })).png().toFile(endCardPath);
+    await sharp(await buildFfmpegEndCardPngBuffer({ agentRow, aiCardProfile }))
+      .resize(VIDEO_RENDER_WIDTH, VIDEO_RENDER_HEIGHT)
+      .png()
+      .toFile(endCardPath);
     console.info('[video.fallback] overlay_build_done', {
       video_id: videoId,
       lower_third_path: lowerThirdPath,
@@ -3336,13 +3349,24 @@ const generateListingVideoViaFfmpegFallback = async ({
     });
 
     ffmpegArgs.push(
+      '-hide_banner',
+      '-loglevel',
+      'error',
       '-filter_complex',
       filterGraph.filter,
       '-map',
       `[${filterGraph.outputLabel}]`,
       '-an',
-      '-r',
+      '-c:v',
+      'libx264',
+      '-preset',
+      'ultrafast',
+      '-crf',
       '30',
+      '-threads',
+      '1',
+      '-r',
+      String(VIDEO_RENDER_FPS),
       '-pix_fmt',
       'yuv420p',
       '-movflags',
@@ -3357,9 +3381,22 @@ const generateListingVideoViaFfmpegFallback = async ({
       video_id: videoId,
       input_count: downloadedImages.length,
       output_path: outputPath,
-      target_duration: Math.max(10, durationSeconds)
+      target_duration: Math.max(10, durationSeconds),
+      width: VIDEO_RENDER_WIDTH,
+      height: VIDEO_RENDER_HEIGHT,
+      fps: VIDEO_RENDER_FPS
     });
-    await execFileAsync(VIDEO_FFMPEG_BIN, ffmpegArgs, { timeout: 180000, maxBuffer: 1024 * 1024 * 4 });
+    try {
+      await execFileAsync(VIDEO_FFMPEG_BIN, ffmpegArgs, { timeout: 180000, maxBuffer: 1024 * 1024 * 4 });
+    } catch (error) {
+      console.error('[video.fallback] ffmpeg_failed', {
+        video_id: videoId,
+        err: error?.message || error,
+        stderr: String(error?.stderr || '').slice(-2000),
+        stdout: String(error?.stdout || '').slice(-1000)
+      });
+      throw error;
+    }
     console.info('[video.fallback] ffmpeg_done', {
       video_id: videoId,
       output_path: outputPath
