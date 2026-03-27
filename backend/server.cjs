@@ -3226,22 +3226,64 @@ const generateListingVideoViaFfmpegFallback = async ({
     throw new Error('no_photos');
   }
 
+  console.info('[video.fallback] start', {
+    video_id: videoId,
+    listing_id: listingId,
+    photo_count: sourcePhotos.length,
+    reason
+  });
+
   const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'hlai-video-fallback-'));
   const downloadedImages = [];
   try {
     for (let index = 0; index < sourcePhotos.length; index += 1) {
       const photoUrl = sourcePhotos[index];
-      const response = await axios.get(photoUrl, {
-        responseType: 'arraybuffer',
-        timeout: 25000
+      console.info('[video.fallback] photo_download_start', {
+        video_id: videoId,
+        index: index + 1,
+        total: sourcePhotos.length,
+        url: photoUrl
       });
+      let response;
+      try {
+        response = await axios.get(photoUrl, {
+          responseType: 'arraybuffer',
+          timeout: 25000
+        });
+      } catch (error) {
+        console.error('[video.fallback] photo_download_failed', {
+          video_id: videoId,
+          index: index + 1,
+          total: sourcePhotos.length,
+          url: photoUrl,
+          err: error?.message || error
+        });
+        throw error;
+      }
       const imagePath = path.join(tempDir, `frame-${String(index + 1).padStart(2, '0')}.jpg`);
-      await sharp(Buffer.from(response.data))
-        .rotate()
-        .resize(1080, 1920, { fit: 'cover', position: 'attention' })
-        .jpeg({ quality: 82, mozjpeg: true })
-        .toFile(imagePath);
+      try {
+        await sharp(Buffer.from(response.data))
+          .rotate()
+          .resize(1080, 1920, { fit: 'cover', position: 'attention' })
+          .jpeg({ quality: 82, mozjpeg: true })
+          .toFile(imagePath);
+      } catch (error) {
+        console.error('[video.fallback] photo_transform_failed', {
+          video_id: videoId,
+          index: index + 1,
+          total: sourcePhotos.length,
+          url: photoUrl,
+          err: error?.message || error
+        });
+        throw error;
+      }
       downloadedImages.push(imagePath);
+      console.info('[video.fallback] photo_ready', {
+        video_id: videoId,
+        index: index + 1,
+        total: sourcePhotos.length,
+        image_path: imagePath
+      });
     }
 
     if (!downloadedImages.length) {
@@ -3259,6 +3301,10 @@ const generateListingVideoViaFfmpegFallback = async ({
     const lowerThirdPath = path.join(tempDir, 'overlay-lower-third.png');
     const specialSpotlightPath = path.join(tempDir, 'overlay-special-spotlight.png');
     const endCardPath = path.join(tempDir, 'overlay-end-card.png');
+    console.info('[video.fallback] overlay_build_start', {
+      video_id: videoId,
+      listing_id: listingId
+    });
     await sharp(Buffer.from(buildFfmpegLowerThirdSvg({ listingRow }))).png().toFile(lowerThirdPath);
     const specialSpotlightSvg = buildFfmpegSpecialSpotlightSvg({ listingRow });
     if (specialSpotlightSvg) {
@@ -3274,6 +3320,12 @@ const generateListingVideoViaFfmpegFallback = async ({
       }).png().toFile(specialSpotlightPath);
     }
     await sharp(await buildFfmpegEndCardPngBuffer({ agentRow, aiCardProfile })).png().toFile(endCardPath);
+    console.info('[video.fallback] overlay_build_done', {
+      video_id: videoId,
+      lower_third_path: lowerThirdPath,
+      special_spotlight_path: specialSpotlightPath,
+      end_card_path: endCardPath
+    });
     ffmpegArgs.push('-loop', '1', '-t', String(Math.max(10, durationSeconds)), '-i', lowerThirdPath);
     ffmpegArgs.push('-loop', '1', '-t', String(Math.max(10, durationSeconds)), '-i', specialSpotlightPath);
     ffmpegArgs.push('-loop', '1', '-t', String(Math.max(10, durationSeconds)), '-i', endCardPath);
@@ -3301,7 +3353,17 @@ const generateListingVideoViaFfmpegFallback = async ({
       outputPath
     );
 
+    console.info('[video.fallback] ffmpeg_start', {
+      video_id: videoId,
+      input_count: downloadedImages.length,
+      output_path: outputPath,
+      target_duration: Math.max(10, durationSeconds)
+    });
     await execFileAsync(VIDEO_FFMPEG_BIN, ffmpegArgs, { timeout: 180000, maxBuffer: 1024 * 1024 * 4 });
+    console.info('[video.fallback] ffmpeg_done', {
+      video_id: videoId,
+      output_path: outputPath
+    });
 
     await ensureStorageBucketExists(VIDEOS_BUCKET);
     const binary = await fs.promises.readFile(outputPath);
@@ -3312,6 +3374,13 @@ const generateListingVideoViaFfmpegFallback = async ({
       durationSeconds: videoRow.duration_seconds || 15
     });
 
+    console.info('[video.fallback] upload_start', {
+      video_id: videoId,
+      bucket: VIDEOS_BUCKET,
+      storage_path: storagePath,
+      file_name: fileName,
+      bytes: binary.length
+    });
     const { error: uploadError } = await supabaseAdmin.storage
       .from(VIDEOS_BUCKET)
       .upload(storagePath, binary, {
@@ -3320,7 +3389,15 @@ const generateListingVideoViaFfmpegFallback = async ({
         cacheControl: '3600'
       });
     if (uploadError) throw uploadError;
+    console.info('[video.fallback] upload_done', {
+      video_id: videoId,
+      bucket: VIDEOS_BUCKET,
+      storage_path: storagePath
+    });
 
+    console.info('[video.fallback] db_update_start', {
+      video_id: videoId
+    });
     const { data: updatedVideo, error: updateError } = await supabaseAdmin
       .from('listing_videos')
       .update({
@@ -3338,6 +3415,10 @@ const generateListingVideoViaFfmpegFallback = async ({
     if (updateError || !updatedVideo?.id) {
       throw updateError || new Error('listing_video_update_failed');
     }
+    console.info('[video.fallback] db_update_done', {
+      video_id: videoId,
+      status: updatedVideo.status
+    });
 
     emitListingVideoRealtimeEvent({
       agentId: ownerId,
