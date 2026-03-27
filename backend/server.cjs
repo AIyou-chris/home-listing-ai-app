@@ -86,8 +86,8 @@ const JOB_WORKER_ENABLED = String(process.env.JOB_WORKER_ENABLED || 'true').toLo
 const APP_RUNTIME_MODE_RAW = String(process.env.APP_RUNTIME_MODE || 'all').trim().toLowerCase();
 const APP_RUNTIME_MODE = ['all', 'web', 'worker'].includes(APP_RUNTIME_MODE_RAW) ? APP_RUNTIME_MODE_RAW : 'all';
 const RUN_HTTP_SERVER = APP_RUNTIME_MODE !== 'worker';
-const RUN_BACKGROUND_TASKS = APP_RUNTIME_MODE !== 'web';
-const RUN_JOB_WORKER = JOB_WORKER_ENABLED && RUN_BACKGROUND_TASKS;
+const RUN_BACKGROUND_TASKS = APP_RUNTIME_MODE === 'all';
+const RUN_JOB_WORKER = JOB_WORKER_ENABLED && (APP_RUNTIME_MODE === 'all' || APP_RUNTIME_MODE === 'worker');
 const JOB_WORKER_POLL_MS = Number(process.env.JOB_WORKER_POLL_MS || 3000);
 const JOB_WORKER_BATCH_SIZE = Number(process.env.JOB_WORKER_BATCH_SIZE || 15);
 const JOB_REAPER_MINUTES = Number(process.env.JOB_REAPER_MINUTES || 10);
