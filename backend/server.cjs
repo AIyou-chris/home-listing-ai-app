@@ -3090,8 +3090,8 @@ const buildFfmpegEndCardSvg = ({ agentRow, aiCardProfile, listingRow }) => {
       <text x="540" y="1328" text-anchor="middle" fill="#ffffff" font-size="38" font-family="Arial, Helvetica, sans-serif" font-weight="800">Call or Text: ${phoneText}</text>
       <rect x="170" y="1386" width="740" height="88" rx="28" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.18)" stroke-width="2"/>
       <text x="540" y="1442" text-anchor="middle" fill="#ffffff" font-size="34" font-family="Arial, Helvetica, sans-serif" font-weight="700">${emailText}</text>
-      <rect x="138" y="1506" width="804" height="84" rx="28" fill="rgba(10,17,30,0.82)" stroke="rgba(255,255,255,0.16)" stroke-width="2"/>
-      <text x="540" y="1562" text-anchor="middle" fill="#ffffff" font-size="30" font-family="Arial, Helvetica, sans-serif" font-weight="700">${ctaUrlText}</text>
+      <rect x="138" y="1506" width="804" height="84" rx="28" fill="rgba(37,99,235,0.92)" stroke="rgba(147,197,253,0.95)" stroke-width="2.5"/>
+      <text x="540" y="1562" text-anchor="middle" fill="#ffffff" font-size="32" font-family="Arial, Helvetica, sans-serif" font-weight="800">${ctaUrlText}</text>
       <text x="540" y="1630" text-anchor="middle" fill="rgba(255,255,255,0.78)" font-size="28" font-family="Arial, Helvetica, sans-serif" font-weight="600">Open the listing page for photos, details, and showing request</text>
     </svg>
   `.trim();
