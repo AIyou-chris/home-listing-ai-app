@@ -49,7 +49,8 @@ const LOCAL_SAMPLE_VIDEO_URL = 'https://interactive-examples.mdn.mozilla.net/med
 const DEFAULT_TEMPLATE_STYLE = 'luxury'
 const POLL_TIMEOUT_MS = 120000
 const RENDERING_KICK_DELAY_MS = 20000
-const POLL_BACKOFF_STEPS_MS = [3000, 5000, 8000, 10000]
+const POLL_BACKOFF_STEPS_MS = [2000, 3000, 4000, 5000]
+const FINALIZING_POLL_INTERVAL_MS = 1000
 
 const normalizeStyle = (value: unknown): string => {
   const normalized = String(value || '').trim().toLowerCase()
@@ -110,6 +111,22 @@ export default function SocialVideoWidget({ listingId, listingAddress, listingLi
     () => `Just listed: ${listingAddress}. Get the 1-page report + showing options: ${listingLink}`,
     [listingAddress, listingLink]
   )
+
+  const resolveReadyVideo = useCallback(async (nextVideoId: string) => {
+    try {
+      const signed = await fetchDashboardVideoSignedUrl(nextVideoId)
+      if (signed?.signedUrl) {
+        setVideoId(nextVideoId)
+        setVideoUrl(signed.signedUrl)
+        setStatusRefreshWarning(null)
+        setStatus('ready')
+        return true
+      }
+    } catch {
+      // fall through to slower refresh path
+    }
+    return false
+  }, [])
 
   const loadVideoData = useCallback(async () => {
     if (localVideoBypass) {
@@ -373,11 +390,16 @@ export default function SocialVideoWidget({ listingId, listingAddress, listingLi
         }
 
         if (normalizedStatus === 'succeeded') {
-          await loadVideoData()
+          const resolved = await resolveReadyVideo(pollVideoId)
+          if (!resolved) {
+            await loadVideoData()
+          }
           return
         }
 
-        const nextDelay = POLL_BACKOFF_STEPS_MS[Math.min(pollBackoffIndex, POLL_BACKOFF_STEPS_MS.length - 1)]
+        const nextDelay = normalizedStage === 'finalizing'
+          ? FINALIZING_POLL_INTERVAL_MS
+          : POLL_BACKOFF_STEPS_MS[Math.min(pollBackoffIndex, POLL_BACKOFF_STEPS_MS.length - 1)]
         await new Promise((resolve) => window.setTimeout(resolve, nextDelay))
       }
 
