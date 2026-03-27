@@ -4,7 +4,7 @@ services:
     runtime: node
     region: oregon
     plan: free
-    buildCommand: npm install --include=dev --ignore-scripts && npm run build && cd backend && npm install --omit=dev --ignore-scripts
+    buildCommand: npm install --include=dev --ignore-scripts && npm run build && cd backend && npm install --omit=dev --ignore-scripts && npx puppeteer browsers install chrome
     startCommand: cd backend && node server.cjs
     healthCheckPath: /healthz
     envVars:
