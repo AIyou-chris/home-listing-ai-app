@@ -2846,9 +2846,9 @@ const VIDEO_TEMPLATE_STYLES = new Set(['luxury', 'country', 'fixer', 'story']);
 const MAX_VIDEO_PHOTOS = 10;
 const VIDEO_FFMPEG_BIN = String(process.env.FFMPEG_BIN || 'ffmpeg').trim() || 'ffmpeg';
 const VIDEO_RENDER_STALE_MS = 3 * 60 * 1000;
-const VIDEO_RENDER_WIDTH = Math.max(480, Number.parseInt(process.env.VIDEO_RENDER_WIDTH || '720', 10) || 720);
-const VIDEO_RENDER_HEIGHT = Math.max(854, Number.parseInt(process.env.VIDEO_RENDER_HEIGHT || '1280', 10) || 1280);
-const VIDEO_RENDER_FPS = Math.max(12, Number.parseInt(process.env.VIDEO_RENDER_FPS || '24', 10) || 24);
+const VIDEO_RENDER_WIDTH = Math.max(360, Number.parseInt(process.env.VIDEO_RENDER_WIDTH || '480', 10) || 480);
+const VIDEO_RENDER_HEIGHT = Math.max(640, Number.parseInt(process.env.VIDEO_RENDER_HEIGHT || '854', 10) || 854);
+const VIDEO_RENDER_FPS = Math.max(10, Number.parseInt(process.env.VIDEO_RENDER_FPS || '12', 10) || 12);
 const VIDEO_FFMPEG_FONT_FILE = [
   '/System/Library/Fonts/Supplemental/Arial.ttf',
   '/Library/Fonts/Arial Unicode.ttf'
