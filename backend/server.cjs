@@ -1343,12 +1343,14 @@ console.log('[server] has service role?', Boolean(process.env.SUPABASE_SERVICE_R
 
 const emailService = createEmailService(supabaseAdmin);
 
-// Initialize Scheduler (Reminders)
-try {
-  const schedulerService = require('./services/schedulerService');
-  schedulerService(supabaseAdmin, emailService);
-} catch (schedErr) {
-  console.error('⚠️ Failed to start Scheduler:', schedErr);
+// Keep dedicated workers focused on queue jobs, not scheduler cron loops.
+if (APP_RUNTIME_MODE !== 'worker') {
+  try {
+    const schedulerService = require('./services/schedulerService');
+    schedulerService(supabaseAdmin, emailService);
+  } catch (schedErr) {
+    console.error('⚠️ Failed to start Scheduler:', schedErr);
+  }
 }
 const agentOnboardingService = createAgentOnboardingService({
   supabaseAdmin,
@@ -1459,7 +1461,9 @@ async function ensureDefaultFunnels() {
 }
 
 // Run Seed on Start (Non-blocking)
-ensureDefaultFunnels().catch(err => console.error('❌ [SEED ERROR]', err));
+if (APP_RUNTIME_MODE !== 'worker') {
+  ensureDefaultFunnels().catch(err => console.error('❌ [SEED ERROR]', err));
+}
 
 // ENROLL LEAD IN FUNNEL
 app.post('/api/funnels/assign', async (req, res) => {
@@ -1487,7 +1491,9 @@ app.post('/api/funnels/assign', async (req, res) => {
   }
 });
 
-console.log('⚡ [Funnel Engine] Registered on shared scheduler loop.');
+if (APP_RUNTIME_MODE !== 'worker') {
+  console.log('⚡ [Funnel Engine] Registered on shared scheduler loop.');
+}
 
 // Agent Onboarding Endpoints
 app.post('/api/agents/register', async (req, res) => {
@@ -11775,13 +11781,15 @@ const buildLeadStats = () => ({
   lost: leads.filter((l) => l.status === 'Lost').length
 });
 
-refreshLeadsCache()
-  .then(() => {
-    console.log(`[Leads] Cache primed with ${leads.length} record(s).`);
-  })
-  .catch((error) => {
-    console.warn('[Leads] Failed to prime cache:', error.message);
-  });
+if (APP_RUNTIME_MODE !== 'worker') {
+  refreshLeadsCache()
+    .then(() => {
+      console.log(`[Leads] Cache primed with ${leads.length} record(s).`);
+    })
+    .catch((error) => {
+      console.warn('[Leads] Failed to prime cache:', error.message);
+    });
+}
 
 const mapPhoneLogFromRow = (row) =>
   !row
