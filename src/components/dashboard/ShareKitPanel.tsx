@@ -7,6 +7,7 @@ import {
   fetchLightCmaConfig,
   fetchOpenHouseFlyerConfig,
   fetchPropertyReportConfig,
+  previewLightCma,
   previewOpenHouseFlyer,
   previewPropertyReport,
   generateListingQrCode,
@@ -15,6 +16,7 @@ import {
   savePropertyReportConfig,
   type LightCmaConfig,
   type LightCmaManualComp,
+  type LightCmaStrategy,
   type ListingSourceDefault,
   type OpenHouseFlyerConfig,
   type OpenHouseFlyerContactMethod,
@@ -109,6 +111,21 @@ const createEmptyPropertyReportConfig = (): PropertyReportConfig => ({
   }
 });
 
+const createEmptyLightCmaConfig = (): LightCmaConfig => ({
+  pricing_notes: '',
+  seller_goal: '',
+  cta: '',
+  pricing_strategy: 'balanced',
+  ai_enabled: true,
+  preview: {
+    headline: '',
+    summary: '',
+    bullets: [],
+    cta: ''
+  },
+  manual_comps: []
+});
+
 const createEmptyOpenHouseFlyerConfig = (): OpenHouseFlyerConfig => ({
   event_date: '',
   start_time: '',
@@ -152,6 +169,12 @@ const openHouseFlyerContactLabels: Record<OpenHouseFlyerContactMethod, string> =
   email: 'Email'
 };
 
+const lightCmaStrategyLabels: Record<LightCmaStrategy, string> = {
+  balanced: 'Balanced',
+  competitive: 'Competitive',
+  premium: 'Premium'
+};
+
 export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
   listing,
   onPublish,
@@ -177,9 +200,11 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
   const [qrAssetsBySource, setQrAssetsBySource] = useState<Partial<Record<ShareQrSource, ListingQrAsset>>>({});
   const [exportingKey, setExportingKey] = useState<string | null>(null);
   const [actionNotice, setActionNotice] = useState<{ tone: 'info' | 'success' | 'error'; text: string } | null>(null);
-  const [lightCmaConfig, setLightCmaConfig] = useState<LightCmaConfig>({ pricing_notes: '', manual_comps: [] });
+  const [lightCmaConfig, setLightCmaConfig] = useState<LightCmaConfig>(createEmptyLightCmaConfig());
   const [lightCmaLoading, setLightCmaLoading] = useState(false);
+  const [lightCmaPreviewing, setLightCmaPreviewing] = useState(false);
   const [lightCmaSaving, setLightCmaSaving] = useState(false);
+  const [isLightCmaModalOpen, setIsLightCmaModalOpen] = useState(false);
   const [isPropertyReportModalOpen, setIsPropertyReportModalOpen] = useState(false);
   const [propertyReportConfig, setPropertyReportConfig] = useState<PropertyReportConfig>(createEmptyPropertyReportConfig());
   const [propertyReportLoading, setPropertyReportLoading] = useState(false);
@@ -243,6 +268,11 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
   );
   const propertyReportPreviewReady =
     Boolean(propertyReportConfig.preview.summary.trim()) || propertyReportConfig.preview.bullets.length > 0;
+  const lightCmaPreviewReady =
+    Boolean(lightCmaConfig.preview.headline.trim()) ||
+    Boolean(lightCmaConfig.preview.summary.trim()) ||
+    lightCmaConfig.preview.bullets.length > 0 ||
+    Boolean(lightCmaConfig.preview.cta.trim());
   const openHouseFlyerPreviewReady =
     Boolean(openHouseFlyerConfig.preview.headline.trim()) ||
     Boolean(openHouseFlyerConfig.preview.schedule_line.trim()) ||
@@ -350,7 +380,7 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
     void fetchLightCmaConfig(listing.id)
       .then((response) => {
         if (!active) return;
-        setLightCmaConfig(response.config || { pricing_notes: '', manual_comps: [] });
+        setLightCmaConfig(response.config || createEmptyLightCmaConfig());
       })
       .catch((error) => {
         console.error('Failed to load Light CMA config', error);
@@ -463,6 +493,10 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
     setIsOpenHouseFlyerModalOpen(true);
   };
 
+  const handleOpenLightCmaModal = () => {
+    setIsLightCmaModalOpen(true);
+  };
+
   const handleDownloadSignRider = async () => {
     const fileName = `${flyerFileBase}-sign-rider.pdf`;
     try {
@@ -511,6 +545,16 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
     }));
   };
 
+  const handleLightCmaFieldChange = <K extends keyof LightCmaConfig>(
+    field: K,
+    value: LightCmaConfig[K]
+  ) => {
+    setLightCmaConfig((current) => ({
+      ...current,
+      [field]: value
+    }));
+  };
+
   const handlePropertyReportPreview = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
     try {
       setPropertyReportPreviewing(true);
@@ -550,6 +594,41 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
       setOpenHouseFlyerPreviewing(false);
     }
   }, [listing.id, openHouseFlyerConfig, setTransientNotice]);
+
+  const handleLightCmaPreview = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
+    try {
+      setLightCmaPreviewing(true);
+      const response = await previewLightCma(listing.id, lightCmaConfig);
+      setLightCmaConfig(response.config || lightCmaConfig);
+      if (!silent) {
+        setTransientNotice('success', 'Light CMA preview refreshed.');
+      }
+    } catch (error) {
+      console.error('Failed to preview Light CMA', error);
+      const errorCode = error instanceof Error ? error.message : 'light_cma_preview_failed';
+      if (!silent) {
+        setTransientNotice('error', `Could not refresh CMA preview (${errorCode}).`);
+        showToast.error(`Could not preview (${errorCode}).`);
+      }
+    } finally {
+      setLightCmaPreviewing(false);
+    }
+  }, [lightCmaConfig, listing.id, setTransientNotice]);
+
+  useEffect(() => {
+    if (!isLightCmaModalOpen) return;
+    if (lightCmaLoading || lightCmaPreviewing || lightCmaSaving) return;
+    if (lightCmaPreviewReady) return;
+
+    void handleLightCmaPreview({ silent: true });
+  }, [
+    handleLightCmaPreview,
+    isLightCmaModalOpen,
+    lightCmaLoading,
+    lightCmaPreviewReady,
+    lightCmaPreviewing,
+    lightCmaSaving
+  ]);
 
   useEffect(() => {
     if (!isPropertyReportModalOpen) return;
@@ -598,6 +677,26 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
       showToast.error(`Could not save (${errorCode}).`);
     } finally {
       setPropertyReportSaving(false);
+    }
+  };
+
+  const handleSaveLightCma = async () => {
+    try {
+      setLightCmaSaving(true);
+      const payload = lightCmaPreviewReady
+        ? lightCmaConfig
+        : (await previewLightCma(listing.id, lightCmaConfig)).config;
+      const response = await saveLightCmaConfig(listing.id, payload);
+      setLightCmaConfig(response.config || payload);
+      setTransientNotice('success', 'Saved Light CMA settings.');
+      showToast.success('Saved');
+    } catch (error) {
+      console.error('Failed to save Light CMA config', error);
+      const errorCode = error instanceof Error ? error.message : 'light_cma_config_failed';
+      setTransientNotice('error', `Could not save Light CMA settings (${errorCode}).`);
+      showToast.error(`Could not save (${errorCode}).`);
+    } finally {
+      setLightCmaSaving(false);
     }
   };
 
@@ -687,6 +786,39 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
     }
   };
 
+  const handleCreateLightCmaPdf = async () => {
+    const fileName = `${flyerFileBase}-light-cma.pdf`;
+    try {
+      setLightCmaSaving(true);
+      setExportingKey(fileName);
+      setTransientNotice('info', `Building ${fileName}...`);
+      const preparedConfig = lightCmaPreviewReady
+        ? lightCmaConfig
+        : (await previewLightCma(listing.id, lightCmaConfig)).config;
+      const saveResponse = await saveLightCmaConfig(listing.id, preparedConfig);
+      const finalConfig = saveResponse.config || preparedConfig;
+      setLightCmaConfig(finalConfig);
+      const { blob, fileName: resolvedFileName } = await listingShareKitService.getFlyerPdf(listing.id, 'light_cma');
+      listingShareKitService.saveBlobDownload(blob, resolvedFileName || fileName);
+      setTransientNotice('success', `${resolvedFileName || fileName} download started.`);
+      showToast.success('Downloaded');
+      setIsLightCmaModalOpen(false);
+    } catch (error) {
+      console.error('Failed to create Light CMA PDF', error);
+      const errorCode = error instanceof Error ? error.message : 'light_cma_failed';
+      if (errorCode === 'demo_export_unavailable_use_real_listing') {
+        setTransientNotice('info', 'Demo page is for layout only. Use your real listing page to download files.');
+        showToast.error('Use the real listing page for downloads.');
+      } else {
+        setTransientNotice('error', `Could not create ${fileName} (${errorCode}).`);
+        showToast.error(`Could not create PDF (${errorCode}).`);
+      }
+    } finally {
+      setLightCmaSaving(false);
+      setExportingKey(null);
+    }
+  };
+
   const handleDownloadFairHousingReview = async () => {
     const fileName = `${flyerFileBase}-fair-housing-review.pdf`;
     try {
@@ -699,30 +831,6 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
     } catch (error) {
       console.error('Failed to create Fair Housing Review PDF', error);
       const errorCode = error instanceof Error ? error.message : 'fair_housing_review_failed';
-      if (errorCode === 'demo_export_unavailable_use_real_listing') {
-        setTransientNotice('info', 'Demo page is for layout only. Use your real listing page to download files.');
-        showToast.error('Use the real listing page for downloads.');
-      } else {
-        setTransientNotice('error', `Could not create ${fileName} (${errorCode}).`);
-        showToast.error(`Could not create PDF (${errorCode}).`);
-      }
-    } finally {
-      setExportingKey(null);
-    }
-  };
-
-  const handleDownloadLightCma = async () => {
-    const fileName = `${flyerFileBase}-light-cma.pdf`;
-    try {
-      setExportingKey(fileName);
-      setTransientNotice('info', `Building ${fileName}...`);
-      const { blob, fileName: resolvedFileName } = await listingShareKitService.getFlyerPdf(listing.id, 'light_cma');
-      listingShareKitService.saveBlobDownload(blob, resolvedFileName || fileName);
-      setTransientNotice('success', `${resolvedFileName || fileName} download started.`);
-      showToast.success('Downloaded');
-    } catch (error) {
-      console.error('Failed to create Light CMA PDF', error);
-      const errorCode = error instanceof Error ? error.message : 'light_cma_failed';
       if (errorCode === 'demo_export_unavailable_use_real_listing') {
         setTransientNotice('info', 'Demo page is for layout only. Use your real listing page to download files.');
         showToast.error('Use the real listing page for downloads.');
@@ -775,27 +883,6 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
         is_anchor: comp.id === compId
       }))
     }));
-  };
-
-  const handleSaveLightCmaConfig = async () => {
-    try {
-      setLightCmaSaving(true);
-      const payload: LightCmaConfig = {
-        pricing_notes: lightCmaConfig.pricing_notes,
-        manual_comps: lightCmaConfig.manual_comps.filter((comp) => comp.address.trim())
-      };
-      const response = await saveLightCmaConfig(listing.id, payload);
-      setLightCmaConfig(response.config || payload);
-      setTransientNotice('success', 'Saved pricing notes and manual comps.');
-      showToast.success('Saved');
-    } catch (error) {
-      console.error('Failed to save Light CMA config', error);
-      const errorCode = error instanceof Error ? error.message : 'light_cma_config_failed';
-      setTransientNotice('error', `Could not save Light CMA settings (${errorCode}).`);
-      showToast.error(`Could not save (${errorCode}).`);
-    } finally {
-      setLightCmaSaving(false);
-    }
   };
 
   const handleTestSubmit = async (e: React.FormEvent) => {
@@ -1034,11 +1121,11 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
                   {propertyReportLoading ? 'Loading...' : exportingKey === `${flyerFileBase}-property-report.pdf` ? 'Creating...' : 'Create Property Report (PDF)'}
                 </button>
                 <button
-                  onClick={() => void handleDownloadLightCma()}
-                  disabled={Boolean(exportingKey)}
+                  onClick={handleOpenLightCmaModal}
+                  disabled={Boolean(exportingKey) || lightCmaLoading}
                   className="px-4 py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-lg transition-colors text-sm text-center border border-slate-700 disabled:opacity-60"
                 >
-                  {exportingKey === `${flyerFileBase}-light-cma.pdf` ? 'Creating...' : 'Create Light CMA (PDF)'}
+                  {lightCmaLoading ? 'Loading...' : exportingKey === `${flyerFileBase}-light-cma.pdf` ? 'Creating...' : 'Create Light CMA (PDF)'}
                 </button>
                 <button
                   onClick={handleOpenOpenHouseFlyerModal}
@@ -1060,169 +1147,17 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
               <div className="mt-5 rounded-xl border border-slate-800 bg-[#0B1121] p-4">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <p className="text-sm font-bold text-white">Light CMA controls</p>
-                    <p className="text-xs text-slate-400">Save pricing notes and your own comps before exporting the Light CMA PDF.</p>
+                    <p className="text-sm font-bold text-white">Light CMA setup</p>
+                    <p className="text-xs text-slate-400">Open a guided sheet for pricing strategy, AI summary, and manual comps.</p>
                   </div>
                   <button
-                    onClick={() => void handleSaveLightCmaConfig()}
-                    disabled={lightCmaSaving || lightCmaLoading}
+                    type="button"
+                    onClick={handleOpenLightCmaModal}
+                    disabled={lightCmaLoading}
                     className="rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-slate-800 disabled:opacity-60"
                   >
-                    {lightCmaSaving ? 'Saving...' : 'Save CMA Notes'}
+                    {lightCmaLoading ? 'Loading...' : 'Open Light CMA Setup'}
                   </button>
-                </div>
-
-                <div className="mt-4 grid gap-4 xl:grid-cols-[1.05fr,1.35fr]">
-                  <div>
-                    <label className="mb-2 block text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Pricing notes</label>
-                    <textarea
-                      value={lightCmaConfig.pricing_notes}
-                      onChange={(e) => setLightCmaConfig((current) => ({ ...current, pricing_notes: e.target.value }))}
-                      rows={6}
-                      placeholder="Example: Start at $549k to create room for a negotiated close. Manual sold comp on Maple justifies the high end if updates are emphasized."
-                      className="w-full rounded-xl border border-slate-700 bg-[#040814] px-4 py-3 text-sm text-slate-200 outline-none placeholder:text-slate-500 focus:border-blue-500"
-                    />
-                    <div className="mt-3 rounded-xl border border-slate-800 bg-slate-950/70 p-4">
-                      <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">Pricing notes preview</p>
-                      <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-300">
-                        {lightCmaConfig.pricing_notes.trim() || 'Your seller-facing pricing guidance will preview here once you add notes.'}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="mb-2 flex items-center justify-between gap-3">
-                      <label className="block text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Manual comp overrides</label>
-                      <button
-                        onClick={handleAddManualComp}
-                        disabled={lightCmaConfig.manual_comps.length >= 8}
-                        className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-slate-800 disabled:opacity-60"
-                      >
-                        Add comp
-                      </button>
-                    </div>
-                    <div className="space-y-3">
-                      {lightCmaLoading ? (
-                        <div className="rounded-xl border border-slate-800 bg-[#040814] px-4 py-5 text-sm text-slate-400">Loading CMA settings...</div>
-                      ) : lightCmaConfig.manual_comps.length === 0 ? (
-                        <div className="rounded-xl border border-dashed border-slate-700 bg-[#040814] px-4 py-5 text-sm text-slate-400">
-                          No manual comps yet. Add 1 to 3 hand-picked comps when the automatic set needs more context.
-                        </div>
-                      ) : (
-                        <div className="overflow-hidden rounded-xl border border-slate-800 bg-[#040814]">
-                          <div className="overflow-x-auto">
-                            <table className="min-w-[980px] w-full text-sm">
-                              <thead className="bg-slate-950/90">
-                                <tr className="text-left text-[11px] uppercase tracking-[0.18em] text-slate-500">
-                                  <th className="px-3 py-3 font-black">Anchor</th>
-                                  <th className="px-3 py-3 font-black">Address</th>
-                                  <th className="px-3 py-3 font-black">Price</th>
-                                  <th className="px-3 py-3 font-black">Beds</th>
-                                  <th className="px-3 py-3 font-black">Baths</th>
-                                  <th className="px-3 py-3 font-black">Sq Ft</th>
-                                  <th className="px-3 py-3 font-black">Status</th>
-                                  <th className="px-3 py-3 font-black">Comp note</th>
-                                  <th className="px-3 py-3 font-black">Action</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {lightCmaConfig.manual_comps.map((comp) => (
-                                  <tr key={comp.id} className="border-t border-slate-800 align-top">
-                                    <td className="px-3 py-3">
-                                      <button
-                                        type="button"
-                                        onClick={() => handleSetAnchorComp(comp.id)}
-                                        className={`rounded-full border px-3 py-1 text-[11px] font-bold transition-colors ${
-                                          comp.is_anchor
-                                            ? 'border-amber-400/60 bg-amber-400/15 text-amber-200'
-                                            : 'border-slate-700 bg-slate-950 text-slate-400 hover:border-slate-600 hover:text-slate-200'
-                                        }`}
-                                      >
-                                        {comp.is_anchor ? 'Anchor' : 'Set anchor'}
-                                      </button>
-                                    </td>
-                                    <td className="px-3 py-3">
-                                      <input
-                                        type="text"
-                                        value={comp.address}
-                                        onChange={(e) => handleManualCompChange(comp.id, 'address', e.target.value)}
-                                        placeholder="123 Main St"
-                                        className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-200 outline-none placeholder:text-slate-500 focus:border-blue-500"
-                                      />
-                                    </td>
-                                    <td className="px-3 py-3">
-                                      <input
-                                        type="number"
-                                        value={comp.price ?? ''}
-                                        onChange={(e) => handleManualCompChange(comp.id, 'price', e.target.value)}
-                                        placeholder="550000"
-                                        className="w-28 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-200 outline-none placeholder:text-slate-500 focus:border-blue-500"
-                                      />
-                                    </td>
-                                    <td className="px-3 py-3">
-                                      <input
-                                        type="number"
-                                        value={comp.beds ?? ''}
-                                        onChange={(e) => handleManualCompChange(comp.id, 'beds', e.target.value)}
-                                        placeholder="3"
-                                        className="w-20 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-200 outline-none placeholder:text-slate-500 focus:border-blue-500"
-                                      />
-                                    </td>
-                                    <td className="px-3 py-3">
-                                      <input
-                                        type="number"
-                                        value={comp.baths ?? ''}
-                                        onChange={(e) => handleManualCompChange(comp.id, 'baths', e.target.value)}
-                                        placeholder="2"
-                                        className="w-20 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-200 outline-none placeholder:text-slate-500 focus:border-blue-500"
-                                      />
-                                    </td>
-                                    <td className="px-3 py-3">
-                                      <input
-                                        type="number"
-                                        value={comp.sqft ?? ''}
-                                        onChange={(e) => handleManualCompChange(comp.id, 'sqft', e.target.value)}
-                                        placeholder="2450"
-                                        className="w-24 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-200 outline-none placeholder:text-slate-500 focus:border-blue-500"
-                                      />
-                                    </td>
-                                    <td className="px-3 py-3">
-                                      <select
-                                        value={comp.status}
-                                        onChange={(e) => handleManualCompChange(comp.id, 'status', e.target.value)}
-                                        className="w-28 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-200 outline-none focus:border-blue-500"
-                                      >
-                                        <option value="sold">Sold</option>
-                                        <option value="active">Active</option>
-                                        <option value="pending">Pending</option>
-                                      </select>
-                                    </td>
-                                    <td className="px-3 py-3">
-                                      <textarea
-                                        value={comp.note || ''}
-                                        onChange={(e) => handleManualCompChange(comp.id, 'note', e.target.value)}
-                                        rows={2}
-                                        placeholder="Renovated kitchen, larger lot, stronger finishes..."
-                                        className="min-w-[260px] rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-200 outline-none placeholder:text-slate-500 focus:border-blue-500"
-                                      />
-                                    </td>
-                                    <td className="px-3 py-3">
-                                      <button
-                                        onClick={() => handleRemoveManualComp(comp.id)}
-                                        className="rounded-lg border border-rose-700/50 bg-rose-950/30 px-3 py-2 text-xs font-bold text-rose-200 transition-colors hover:bg-rose-900/40"
-                                      >
-                                        Remove
-                                      </button>
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
                 </div>
               </div>
             </div>
@@ -1362,6 +1297,315 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
             ) : null}
           </div>
         </div>
+
+        {isLightCmaModalOpen && typeof document !== 'undefined' && createPortal((
+          <div className="fixed inset-0 z-[140] bg-black/80 backdrop-blur-sm">
+            <div className="flex h-full w-full items-end justify-center sm:items-center sm:p-4">
+              <div className="flex h-[100dvh] w-full flex-col overflow-hidden border border-slate-800 bg-[#0B1121] shadow-2xl sm:h-auto sm:max-h-[min(92vh,960px)] sm:w-[min(1080px,calc(100vw-3rem))] sm:max-w-[calc(100vw-3rem)] sm:rounded-2xl">
+                <div className="sticky top-0 z-10 border-b border-slate-800 bg-[#0B1121]/95 px-4 py-4 backdrop-blur sm:px-6">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-black uppercase tracking-[0.2em] text-blue-300">Light CMA</p>
+                      <h3 className="mt-1 text-xl font-black text-white sm:text-2xl">Create Light CMA</h3>
+                      <p className="mt-2 max-w-2xl text-sm text-slate-400">
+                        Keep it simple. Pick the pricing angle, add a seller note, and let AI tighten the pricing story before export.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsLightCmaModalOpen(false)}
+                      className="inline-flex flex-shrink-0 items-center gap-1 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm font-bold text-slate-200 transition-colors hover:bg-slate-800 hover:text-white"
+                    >
+                      <span className="material-symbols-outlined text-[18px]">close</span>
+                      <span>Close</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6">
+                  <div className="grid gap-6 xl:grid-cols-[0.98fr,1.02fr]">
+                    <div className="space-y-5">
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div>
+                          <label className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-white">Pricing strategy</label>
+                          <select
+                            value={lightCmaConfig.pricing_strategy}
+                            onChange={(e) => handleLightCmaFieldChange('pricing_strategy', e.target.value as LightCmaStrategy)}
+                            className="w-full rounded-xl border border-slate-700 bg-[#040814] px-4 py-3 text-sm font-semibold text-slate-200 outline-none focus:border-blue-500"
+                          >
+                            <option value="balanced">Balanced</option>
+                            <option value="competitive">Competitive</option>
+                            <option value="premium">Premium</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-white">Call to action</label>
+                          <input
+                            type="text"
+                            value={lightCmaConfig.cta}
+                            onChange={(e) => handleLightCmaFieldChange('cta', e.target.value)}
+                            maxLength={90}
+                            placeholder="Walk the seller through the target range and next step."
+                            className="w-full rounded-xl border border-slate-700 bg-[#040814] px-4 py-3 text-sm text-slate-200 outline-none placeholder:text-slate-500 focus:border-blue-500"
+                          />
+                          <p className="mt-2 text-xs text-slate-500">{lightCmaConfig.cta.length}/90</p>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-white">Seller goal</label>
+                        <textarea
+                          value={lightCmaConfig.seller_goal}
+                          onChange={(e) => handleLightCmaFieldChange('seller_goal', e.target.value)}
+                          rows={3}
+                          maxLength={220}
+                          placeholder="Example: Seller wants a clean launch, strong first-week traffic, and room to negotiate if needed."
+                          className="w-full rounded-xl border border-slate-700 bg-[#040814] px-4 py-3 text-sm text-slate-200 outline-none placeholder:text-slate-500 focus:border-blue-500"
+                        />
+                        <p className="mt-2 text-xs text-slate-500">{lightCmaConfig.seller_goal.length}/220</p>
+                      </div>
+
+                      <div>
+                        <label className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-white">Pricing notes</label>
+                        <textarea
+                          value={lightCmaConfig.pricing_notes}
+                          onChange={(e) => handleLightCmaFieldChange('pricing_notes', e.target.value)}
+                          rows={6}
+                          maxLength={500}
+                          placeholder="Example: Start near the middle of the range. The anchor comp on Maple supports the upside if condition and yard are positioned clearly."
+                          className="w-full rounded-xl border border-slate-700 bg-[#040814] px-4 py-3 text-sm text-slate-200 outline-none placeholder:text-slate-500 focus:border-blue-500"
+                        />
+                        <p className="mt-2 text-xs text-slate-500">{lightCmaConfig.pricing_notes.length}/500</p>
+                      </div>
+
+                      <label className="flex items-start gap-3 rounded-xl border border-slate-800 bg-[#040814] p-4">
+                        <input
+                          type="checkbox"
+                          checked={lightCmaConfig.ai_enabled}
+                          onChange={(e) => handleLightCmaFieldChange('ai_enabled', e.target.checked)}
+                          className="mt-1 h-4 w-4 rounded border-slate-600 bg-slate-900 text-blue-500"
+                        />
+                        <div>
+                          <p className="text-sm font-bold text-white">AI polish this CMA</p>
+                          <p className="mt-1 text-xs text-slate-400">
+                            The app turns your notes into a short seller-facing pricing story that fits cleanly on the PDF.
+                          </p>
+                        </div>
+                      </label>
+
+                      <div className="rounded-2xl border border-slate-800 bg-[#040814] p-4 sm:p-5">
+                        <div className="mb-2 flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-black uppercase tracking-[0.2em] text-white">Manual comps</p>
+                            <p className="mt-2 text-sm text-slate-400">Add 1 to 3 hand-picked comps only when the automatic set needs context.</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={handleAddManualComp}
+                            disabled={lightCmaConfig.manual_comps.length >= 8}
+                            className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-slate-800 disabled:opacity-60"
+                          >
+                            Add comp
+                          </button>
+                        </div>
+                        <div className="space-y-3">
+                          {lightCmaLoading ? (
+                            <div className="rounded-xl border border-slate-800 bg-slate-950/70 px-4 py-5 text-sm text-slate-400">Loading CMA settings...</div>
+                          ) : lightCmaConfig.manual_comps.length === 0 ? (
+                            <div className="rounded-xl border border-dashed border-slate-700 bg-slate-950/70 px-4 py-5 text-sm text-slate-400">
+                              No manual comps yet. Add the strongest comp only if it sharpens the pricing story.
+                            </div>
+                          ) : (
+                            <div className="space-y-3">
+                              {lightCmaConfig.manual_comps.map((comp) => (
+                                <div key={comp.id} className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+                                  <div className="grid gap-3 lg:grid-cols-[1.4fr,0.8fr,0.6fr,0.6fr,0.7fr,0.75fr]">
+                                    <input
+                                      type="text"
+                                      value={comp.address}
+                                      onChange={(e) => handleManualCompChange(comp.id, 'address', e.target.value)}
+                                      placeholder="123 Main St"
+                                      className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-200 outline-none placeholder:text-slate-500 focus:border-blue-500"
+                                    />
+                                    <input
+                                      type="number"
+                                      value={comp.price ?? ''}
+                                      onChange={(e) => handleManualCompChange(comp.id, 'price', e.target.value)}
+                                      placeholder="550000"
+                                      className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-200 outline-none placeholder:text-slate-500 focus:border-blue-500"
+                                    />
+                                    <input
+                                      type="number"
+                                      value={comp.beds ?? ''}
+                                      onChange={(e) => handleManualCompChange(comp.id, 'beds', e.target.value)}
+                                      placeholder="Beds"
+                                      className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-200 outline-none placeholder:text-slate-500 focus:border-blue-500"
+                                    />
+                                    <input
+                                      type="number"
+                                      value={comp.baths ?? ''}
+                                      onChange={(e) => handleManualCompChange(comp.id, 'baths', e.target.value)}
+                                      placeholder="Baths"
+                                      className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-200 outline-none placeholder:text-slate-500 focus:border-blue-500"
+                                    />
+                                    <input
+                                      type="number"
+                                      value={comp.sqft ?? ''}
+                                      onChange={(e) => handleManualCompChange(comp.id, 'sqft', e.target.value)}
+                                      placeholder="Sq Ft"
+                                      className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-200 outline-none placeholder:text-slate-500 focus:border-blue-500"
+                                    />
+                                    <select
+                                      value={comp.status}
+                                      onChange={(e) => handleManualCompChange(comp.id, 'status', e.target.value)}
+                                      className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-200 outline-none focus:border-blue-500"
+                                    >
+                                      <option value="sold">Sold</option>
+                                      <option value="active">Active</option>
+                                      <option value="pending">Pending</option>
+                                    </select>
+                                  </div>
+                                  <textarea
+                                    value={comp.note || ''}
+                                    onChange={(e) => handleManualCompChange(comp.id, 'note', e.target.value)}
+                                    rows={2}
+                                    placeholder="Why this comp matters..."
+                                    className="mt-3 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-200 outline-none placeholder:text-slate-500 focus:border-blue-500"
+                                  />
+                                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleSetAnchorComp(comp.id)}
+                                      className={`rounded-full border px-3 py-1.5 text-[11px] font-bold transition-colors ${
+                                        comp.is_anchor
+                                          ? 'border-amber-400/60 bg-amber-400/15 text-amber-200'
+                                          : 'border-slate-700 bg-slate-950 text-slate-400 hover:border-slate-600 hover:text-slate-200'
+                                      }`}
+                                    >
+                                      {comp.is_anchor ? 'Anchor comp' : 'Set as anchor'}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveManualComp(comp.id)}
+                                      className="rounded-lg border border-rose-700/50 bg-rose-950/30 px-3 py-2 text-xs font-bold text-rose-200 transition-colors hover:bg-rose-900/40"
+                                    >
+                                      Remove
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-5">
+                      <div className="rounded-2xl border border-slate-800 bg-[#040814] p-4 sm:p-5">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-black uppercase tracking-[0.2em] text-white">Preview summary</p>
+                            <p className="mt-2 text-sm text-slate-400">
+                              This is the short seller-facing pricing story that goes on the PDF.
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => void handleLightCmaPreview()}
+                            disabled={lightCmaPreviewing}
+                            className="rounded-lg border border-blue-500/40 bg-blue-500/10 px-4 py-2 text-sm font-bold text-blue-200 transition-colors hover:bg-blue-500/20 disabled:opacity-60"
+                          >
+                            {lightCmaPreviewing ? 'Refreshing...' : 'Refresh AI'}
+                          </button>
+                        </div>
+
+                        <div className="mt-5 space-y-4">
+                          <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+                            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-white">Headline</p>
+                            <p className="mt-2 text-lg font-black text-white">
+                              {lightCmaConfig.preview.headline || `${lightCmaStrategyLabels[lightCmaConfig.pricing_strategy]} pricing story will show here.`}
+                            </p>
+                          </div>
+
+                          <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+                            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-white">Summary</p>
+                            <p className="mt-2 text-sm leading-6 text-slate-300">
+                              {lightCmaConfig.preview.summary || 'Your short seller-facing pricing summary will show here.'}
+                            </p>
+                          </div>
+
+                          <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+                            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-white">Bullets</p>
+                            {lightCmaConfig.preview.bullets.length > 0 ? (
+                              <ul className="mt-3 space-y-2">
+                                {lightCmaConfig.preview.bullets.map((bullet) => (
+                                  <li key={bullet} className="flex items-start gap-2 text-sm text-slate-300">
+                                    <span className="mt-1 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-blue-400" />
+                                    <span>{bullet}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p className="mt-2 text-sm text-slate-400">Your AI pricing bullets will land here.</p>
+                            )}
+                          </div>
+
+                          <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+                            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-white">CTA</p>
+                            <p className="mt-2 text-sm font-semibold text-slate-200">
+                              {lightCmaConfig.preview.cta || 'Your pricing CTA will show here.'}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="rounded-2xl border border-slate-800 bg-[#040814] p-4 sm:p-5">
+                        <p className="text-xs font-black uppercase tracking-[0.2em] text-white">How this works</p>
+                        <ol className="mt-3 space-y-2 text-sm text-slate-300">
+                          <li>1. Pick the pricing angle.</li>
+                          <li>2. Add only the seller note that matters.</li>
+                          <li>3. AI turns it into a short pricing story.</li>
+                          <li>4. Create the PDF when it looks right.</li>
+                        </ol>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="sticky bottom-0 z-10 border-t border-slate-800 bg-[#0B1121]/95 px-4 py-4 backdrop-blur sm:px-6">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-xs text-slate-500">Saved to this listing only. You can reopen and edit it any time.</p>
+                    <div className="grid grid-cols-1 gap-3 sm:flex sm:flex-row">
+                      <button
+                        type="button"
+                        onClick={() => setIsLightCmaModalOpen(false)}
+                        className="rounded-lg border border-slate-700 bg-slate-900 px-4 py-3 text-sm font-bold text-slate-200 transition-colors hover:bg-slate-800"
+                      >
+                        Close
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleSaveLightCma()}
+                        disabled={lightCmaSaving || lightCmaPreviewing}
+                        className="rounded-lg border border-slate-700 bg-slate-900 px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-slate-800 disabled:opacity-60"
+                      >
+                        {lightCmaSaving && !exportingKey ? 'Saving...' : 'Save settings'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleCreateLightCmaPdf()}
+                        disabled={lightCmaSaving || lightCmaPreviewing || Boolean(exportingKey)}
+                        className="rounded-lg bg-blue-600 px-5 py-3 text-sm font-black text-white transition-colors hover:bg-blue-500 disabled:opacity-60"
+                      >
+                        {exportingKey === `${flyerFileBase}-light-cma.pdf` ? 'Creating PDF...' : 'Create PDF'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ), document.body)}
 
         {isPropertyReportModalOpen && typeof document !== 'undefined' && createPortal((
           <div className="fixed inset-0 z-[140] bg-black/80 backdrop-blur-sm">

@@ -6450,6 +6450,7 @@ const buildLightCmaHtml = ({
   census,
   brandColor,
   pricingNotes = '',
+  pricingPreview = null,
   manualCompCount = 0,
   chatUrl = '#',
   contactUrl = '#',
@@ -6494,6 +6495,7 @@ const buildLightCmaHtml = ({
           </tr>
         `).join('')
       : `<tr><td colspan="7">No comparable homes were found inside this account scope yet.</td></tr>`;
+  const normalizedPreview = normalizeLightCmaPreview(pricingPreview);
 
   return `
 <!doctype html>
@@ -6723,6 +6725,42 @@ const buildLightCmaHtml = ({
         color: #475569;
         white-space: pre-wrap;
       }
+      .pricing-preview-card {
+        margin-top: 0.16in;
+        border-radius: 0.24in;
+        background: #0f172a;
+        color: white;
+        padding: 0.16in;
+        box-shadow: 0 14px 32px rgba(15,23,42,0.18);
+      }
+      .pricing-preview-card h2 {
+        margin: 0.08in 0 0;
+        font-size: 0.24in;
+        line-height: 1.05;
+        font-weight: 900;
+      }
+      .pricing-preview-card p {
+        margin: 0.08in 0 0;
+        font-size: 0.13in;
+        line-height: 1.48;
+        color: rgba(255,255,255,0.84);
+      }
+      .pricing-preview-card ul {
+        margin: 0.12in 0 0;
+        padding: 0 0 0 0.16in;
+      }
+      .pricing-preview-card li {
+        margin: 0 0 0.05in;
+        font-size: 0.12in;
+        line-height: 1.38;
+        color: rgba(255,255,255,0.88);
+      }
+      .pricing-preview-card .cta {
+        margin-top: 0.12in;
+        font-size: 0.12in;
+        font-weight: 900;
+        color: #fff2e8;
+      }
       .agent-card {
         margin-top: 0.16in;
         border-radius: 0.26in;
@@ -6834,6 +6872,17 @@ const buildLightCmaHtml = ({
           <div class="stat"><div class="label">Sq Ft</div><div class="value">${escapeHtml(sqft)}</div></div>
           <div class="stat"><div class="label">Avg $ / Sq Ft</div><div class="value">${formatPpsf(marketSnapshot.avgPricePerSqft)}</div></div>
           <div class="stat"><div class="label">Median DOM</div><div class="value">${escapeHtml(String(marketSnapshot.medianDom || 0))}</div></div>
+        </div>
+        <div class="pricing-preview-card">
+          <div class="kicker" style="color:rgba(255,255,255,0.62);">Seller guidance</div>
+          <h2>${escapeHtml(normalizedPreview.headline || 'Pricing guidance for the seller')}</h2>
+          <p>${escapeHtml(normalizedPreview.summary || 'Use the suggested range and strongest comps to guide the seller conversation.')}</p>
+          ${
+            normalizedPreview.bullets.length > 0
+              ? `<ul>${normalizedPreview.bullets.map((bullet) => `<li>${escapeHtml(bullet)}</li>`).join('')}</ul>`
+              : ''
+          }
+          <div class="cta">${escapeHtml(normalizedPreview.cta || 'Use this range to frame the list-price conversation clearly.')}</div>
         </div>
         <div class="notes-card">
           <div class="kicker">Pricing notes</div>
@@ -7889,6 +7938,30 @@ const PROPERTY_REPORT_LENGTH_LIMITS = {
   }
 };
 
+const LIGHT_CMA_PREVIEW_LIMITS = {
+  summaryWords: 58,
+  bulletCount: 3,
+  bulletWords: 9
+};
+
+const normalizeLightCmaStrategy = (value) => {
+  const candidate = String(value || '').trim().toLowerCase();
+  if (candidate === 'competitive' || candidate === 'premium') return candidate;
+  return 'balanced';
+};
+
+const normalizeLightCmaPreview = (input) => {
+  const raw = input && typeof input === 'object' ? input : {};
+  return {
+    headline: truncateText(raw.headline, 86),
+    summary: normalizeWordLimitedText(raw.summary, LIGHT_CMA_PREVIEW_LIMITS.summaryWords),
+    bullets: normalizeFeatureList(raw.bullets)
+      .slice(0, LIGHT_CMA_PREVIEW_LIMITS.bulletCount)
+      .map((item) => normalizeWordLimitedText(item, LIGHT_CMA_PREVIEW_LIMITS.bulletWords)),
+    cta: truncateText(raw.cta, 90)
+  };
+};
+
 const normalizeLightCmaManualComp = (row, index = 0) => {
   const address = toTrimmedOrNull(row?.address);
   if (!address) return null;
@@ -7917,6 +7990,8 @@ const normalizeLightCmaManualComp = (row, index = 0) => {
 const normalizeLightCmaConfig = (input) => {
   const raw = input && typeof input === 'object' ? input : {};
   const pricingNotes = toTrimmedOrNull(raw.pricing_notes || raw.pricingNotes) || '';
+  const sellerGoal = toTrimmedOrNull(raw.seller_goal || raw.sellerGoal) || '';
+  const cta = toTrimmedOrNull(raw.cta) || '';
   const manualComps = Array.isArray(raw.manual_comps || raw.manualComps)
     ? (raw.manual_comps || raw.manualComps)
       .map((row, index) => normalizeLightCmaManualComp(row, index))
@@ -7926,6 +8001,11 @@ const normalizeLightCmaConfig = (input) => {
 
   return {
     pricing_notes: pricingNotes,
+    seller_goal: sellerGoal,
+    cta,
+    pricing_strategy: normalizeLightCmaStrategy(raw.pricing_strategy || raw.pricingStrategy),
+    ai_enabled: raw.ai_enabled !== false && raw.aiEnabled !== false,
+    preview: normalizeLightCmaPreview(raw.preview),
     manual_comps: manualComps
   };
 };
@@ -8227,6 +8307,60 @@ const buildOpenHouseFlyerFallbackPreview = ({ listingRow, config, agentProfile }
   };
 };
 
+const buildLightCmaFallbackPreview = ({ listingRow, config, agentProfile, marketBundle }) => {
+  const normalizedConfig = normalizeLightCmaConfig(config);
+  const address = toTrimmedOrNull(listingRow?.address) || 'This listing';
+  const strategyLabel =
+    normalizedConfig.pricing_strategy === 'competitive'
+      ? 'Competitive launch'
+      : normalizedConfig.pricing_strategy === 'premium'
+        ? 'Premium pricing'
+        : 'Balanced pricing';
+  const range = marketBundle?.estimatedRange || { low: 0, suggested: 0, high: 0 };
+  const suggestedRangeLine = Number(range.suggested) > 0
+    ? `Suggested range ${formatFlyerPrice(range.low)} to ${formatFlyerPrice(range.high)} with a target near ${formatFlyerPrice(range.suggested)}.`
+    : 'Suggested range is based on recent comparables in this account scope.';
+  const listingDescription = extractListingDescription(listingRow?.description);
+  const anchorAddress = toTrimmedOrNull(marketBundle?.anchorComp?.address);
+  const avgPpsf = safeNumber(marketBundle?.marketSnapshot?.avgPricePerSqft);
+  const cta = truncateText(
+    normalizedConfig.cta ||
+      `Review the range with ${toTrimmedOrNull(agentProfile?.fullName) || 'the seller'} and choose the strongest list-price story.`,
+    90
+  );
+
+  const summary = normalizeWordLimitedText(
+    [
+      normalizedConfig.seller_goal,
+      normalizedConfig.pricing_notes,
+      suggestedRangeLine,
+      listingDescription
+    ]
+      .map((value) => String(value || '').trim())
+      .filter(Boolean)
+      .join(' ') ||
+      'Use the suggested range and closest comps to explain a confident list-price strategy for the seller.',
+    LIGHT_CMA_PREVIEW_LIMITS.summaryWords
+  );
+
+  const bullets = normalizeFeatureList([
+    `${strategyLabel} strategy`,
+    Number(range.suggested) > 0 ? `Target ${formatFlyerPrice(range.suggested)}` : null,
+    avgPpsf > 0 ? `Avg ${avgPpsf.toFixed(0)}/sf in scope` : null,
+    anchorAddress ? `Anchor comp: ${anchorAddress}` : null,
+    normalizedConfig.manual_comps.length > 0 ? `${normalizedConfig.manual_comps.length} manual comp overrides` : null
+  ])
+    .slice(0, LIGHT_CMA_PREVIEW_LIMITS.bulletCount)
+    .map((item) => normalizeWordLimitedText(item, LIGHT_CMA_PREVIEW_LIMITS.bulletWords));
+
+  return {
+    headline: truncateText(normalizedConfig.seller_goal || `${strategyLabel} plan for ${address}`, 86),
+    summary,
+    bullets,
+    cta
+  };
+};
+
 const buildPropertyReportFallbackPreview = ({ listingRow, config, agentProfile }) => {
   const normalizedConfig = normalizePropertyReportConfig(config);
   const lengthMode = normalizePropertyReportLengthMode(normalizedConfig.length_mode);
@@ -8288,6 +8422,84 @@ const buildPropertyReportFallbackPreview = ({ listingRow, config, agentProfile }
     bullets,
     cta
   };
+};
+
+const generateLightCmaPreview = async ({ listingRow, config, agentProfile, marketBundle }) => {
+  const normalizedConfig = normalizeLightCmaConfig(config);
+  const fallback = buildLightCmaFallbackPreview({
+    listingRow,
+    config: normalizedConfig,
+    agentProfile,
+    marketBundle
+  });
+
+  if (!normalizedConfig.ai_enabled || !process.env.OPENAI_API_KEY) {
+    return fallback;
+  }
+
+  const address = toTrimmedOrNull(listingRow?.address) || 'Listing address';
+  const price = Number(listingRow?.price || 0);
+  const priceLabel = price > 0
+    ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(price)
+    : 'Price on request';
+  const range = marketBundle?.estimatedRange || { low: 0, suggested: 0, high: 0 };
+  const avgPpsf = safeNumber(marketBundle?.marketSnapshot?.avgPricePerSqft);
+  const medianDom = safeNumber(marketBundle?.marketSnapshot?.medianDom);
+
+  const prompt = [
+    'You are writing a short seller-facing pricing summary for a light CMA PDF.',
+    'Return only valid JSON.',
+    '',
+    'Required JSON shape:',
+    '{"headline":"", "summary":"", "bullets":[""], "cta":""}',
+    '',
+    'Rules:',
+    '- headline: max 86 chars',
+    `- summary: max ${LIGHT_CMA_PREVIEW_LIMITS.summaryWords} words`,
+    `- bullets: ${LIGHT_CMA_PREVIEW_LIMITS.bulletCount} bullets max`,
+    `- each bullet: max ${LIGHT_CMA_PREVIEW_LIMITS.bulletWords} words`,
+    '- cta: max 90 chars',
+    '- Write for a seller, not a buyer.',
+    '- Keep it practical, print-safe, and specific.',
+    '- Do not invent facts.',
+    '',
+    `Address: ${address}`,
+    `Current list price: ${priceLabel}`,
+    Number(range.low) > 0 ? `Estimated low: ${formatFlyerPrice(range.low)}` : null,
+    Number(range.suggested) > 0 ? `Estimated suggested: ${formatFlyerPrice(range.suggested)}` : null,
+    Number(range.high) > 0 ? `Estimated high: ${formatFlyerPrice(range.high)}` : null,
+    avgPpsf > 0 ? `Average price per square foot in scope: ${avgPpsf.toFixed(0)}` : null,
+    medianDom > 0 ? `Median days on market: ${medianDom}` : null,
+    normalizedConfig.pricing_strategy ? `Pricing strategy: ${normalizedConfig.pricing_strategy}` : null,
+    normalizedConfig.seller_goal ? `Seller goal: ${normalizedConfig.seller_goal}` : null,
+    normalizedConfig.pricing_notes ? `Pricing notes: ${normalizedConfig.pricing_notes}` : null,
+    normalizedConfig.cta ? `CTA preference: ${normalizedConfig.cta}` : null,
+    marketBundle?.anchorComp?.address ? `Anchor comp: ${marketBundle.anchorComp.address}` : null
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: OPENAI_CHAT_MODEL,
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.35,
+      max_tokens: 280
+    });
+    const content = completion?.choices?.[0]?.message?.content || '';
+    const parsed = parseJsonObjectFromModel(content);
+    if (!parsed || typeof parsed !== 'object') return fallback;
+    const normalized = normalizeLightCmaPreview(parsed);
+    return {
+      headline: normalized.headline || fallback.headline,
+      summary: normalized.summary || fallback.summary,
+      bullets: normalized.bullets.length > 0 ? normalized.bullets : fallback.bullets,
+      cta: normalized.cta || fallback.cta
+    };
+  } catch (error) {
+    console.warn('[LightCma] AI preview failed, falling back:', error?.message || error);
+    return fallback;
+  }
 };
 
 const parseJsonObjectFromModel = (value) => {
@@ -22615,6 +22827,60 @@ app.put('/api/dashboard/listings/:listingId/light-cma/config', async (req, res) 
   }
 });
 
+app.post('/api/dashboard/listings/:listingId/light-cma/preview', async (req, res) => {
+  try {
+    const { listingId } = req.params;
+    const requesterUserId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!requesterUserId) return res.status(401).json({ error: 'agent_auth_required' });
+    console.info('[sharekit.light_cma_preview.post]', { listingId, ownerId: requesterUserId });
+
+    const access = await resolveListingAccessContext({
+      listingId,
+      requesterUserId,
+      accessTag: 'dashboard.light_cma_preview'
+    });
+    if (!access) return res.status(404).json({ error: 'listing_not_found' });
+
+    const listing = access.listingRow;
+    let aiCardUserId = toTrimmedOrNull(listing.user_id) || toTrimmedOrNull(access.requesterUserId);
+    if (!aiCardUserId && listing.agent_id) {
+      const { data: agentOwnerRow } = await supabaseAdmin
+        .from('agents')
+        .select('user_id,auth_user_id')
+        .eq('id', listing.agent_id)
+        .maybeSingle();
+      aiCardUserId = toTrimmedOrNull(agentOwnerRow?.user_id || agentOwnerRow?.auth_user_id);
+    }
+
+    const aiCardProfile = (await fetchAiCardProfileForUser(aiCardUserId)) || DEFAULT_AI_CARD_PROFILE;
+    const config = normalizeLightCmaConfig(req.body || {});
+    const marketBundle = await buildMarketAnalysisBundle({
+      listingRow: listing,
+      ownerIds: access.sourceAgentIds,
+      manualComps: config.manual_comps
+    });
+    const preview = await generateLightCmaPreview({
+      listingRow: listing,
+      config,
+      agentProfile: aiCardProfile,
+      marketBundle
+    });
+
+    return res.json({
+      success: true,
+      listing_id: listing.id,
+      config: {
+        ...config,
+        preview
+      },
+      preview
+    });
+  } catch (error) {
+    console.error('[Dashboard] Failed to build light CMA preview:', error);
+    return res.status(500).json({ error: 'failed_to_build_light_cma_preview' });
+  }
+});
+
 app.get('/api/dashboard/listings/:listingId/light-cma.pdf', async (req, res) => {
   let browser = null;
   try {
@@ -22663,6 +22929,19 @@ app.get('/api/dashboard/listings/:listingId/light-cma.pdf', async (req, res) => 
         fallbackDataUrl: null
       })
       : null;
+    const hasSavedLightCmaPreview =
+      Boolean(toTrimmedOrNull(lightCmaConfig.preview?.headline)) ||
+      Boolean(toTrimmedOrNull(lightCmaConfig.preview?.summary)) ||
+      (Array.isArray(lightCmaConfig.preview?.bullets) && lightCmaConfig.preview.bullets.length > 0) ||
+      Boolean(toTrimmedOrNull(lightCmaConfig.preview?.cta));
+    const lightCmaPreview = hasSavedLightCmaPreview
+      ? normalizeLightCmaPreview(lightCmaConfig.preview)
+      : buildLightCmaFallbackPreview({
+        listingRow: listing,
+        config: lightCmaConfig,
+        agentProfile: aiCardProfile,
+        marketBundle
+      });
     const html = buildLightCmaHtml({
       logoDataUrl,
       address: toTrimmedOrNull(listing.address) || 'Listing address',
@@ -22678,6 +22957,7 @@ app.get('/api/dashboard/listings/:listingId/light-cma.pdf', async (req, res) => 
       census: marketBundle.publicData,
       brandColor: toTrimmedOrNull(aiCardProfile.brandColor) || DEFAULT_AI_CARD_PROFILE.brandColor,
       pricingNotes: lightCmaConfig.pricing_notes,
+      pricingPreview: lightCmaPreview,
       manualCompCount: lightCmaConfig.manual_comps.length,
       chatUrl,
       contactUrl,
@@ -22973,6 +23253,7 @@ app.get('/api/demo/sharekit/listings/:listingId/light-cma.pdf', async (req, res)
       listingRow: context.listing,
       manualComps: lightCmaConfig.manual_comps
     });
+    const lightCmaPreview = normalizeLightCmaPreview(lightCmaConfig.preview);
     const html = buildLightCmaHtml({
       logoDataUrl: context.logoDataUrl,
       address: context.listing.address,
@@ -22988,6 +23269,15 @@ app.get('/api/demo/sharekit/listings/:listingId/light-cma.pdf', async (req, res)
       census: marketBundle.publicData,
       brandColor: context.aiCardProfile.brandColor,
       pricingNotes: lightCmaConfig.pricing_notes,
+      pricingPreview:
+        lightCmaPreview.headline || lightCmaPreview.summary || lightCmaPreview.bullets.length > 0 || lightCmaPreview.cta
+          ? lightCmaPreview
+          : buildLightCmaFallbackPreview({
+            listingRow: context.listing,
+            config: lightCmaConfig,
+            agentProfile: context.aiCardProfile,
+            marketBundle
+          }),
       manualCompCount: lightCmaConfig.manual_comps.length,
       chatUrl: context.chatUrl,
       contactUrl: context.contactUrl,

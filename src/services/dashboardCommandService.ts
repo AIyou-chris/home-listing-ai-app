@@ -308,8 +308,22 @@ export interface LightCmaManualComp {
   is_anchor?: boolean;
 }
 
+export type LightCmaStrategy = 'balanced' | 'competitive' | 'premium';
+
+export interface LightCmaPreview {
+  headline: string;
+  summary: string;
+  bullets: string[];
+  cta: string;
+}
+
 export interface LightCmaConfig {
   pricing_notes: string;
+  seller_goal: string;
+  cta: string;
+  pricing_strategy: LightCmaStrategy;
+  ai_enabled: boolean;
+  preview: LightCmaPreview;
   manual_comps: LightCmaManualComp[];
 }
 
@@ -681,10 +695,7 @@ export const fetchLightCmaConfig = async (listingId: string, agentIdOverride?: s
     return {
       success: true,
       listing_id: listingId,
-      config: {
-        pricing_notes: '',
-        manual_comps: []
-      } as LightCmaConfig
+      config: normalizeLightCmaConfig({})
     };
   }
 
@@ -693,7 +704,48 @@ export const fetchLightCmaConfig = async (listingId: string, agentIdOverride?: s
     buildApiUrl(withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}/light-cma/config`, agentId)),
     { headers: defaultJsonHeaders(agentId) }
   );
-  return parseResponse<{ success: boolean; listing_id: string; config: LightCmaConfig }>(response);
+  const payload = await parseResponse<{ success: boolean; listing_id: string; config: LightCmaConfig }>(response);
+  return {
+    ...payload,
+    config: normalizeLightCmaConfig(payload.config)
+  };
+};
+
+const normalizeLightCmaStrategy = (value: unknown): LightCmaStrategy => {
+  if (value === 'competitive' || value === 'premium') return value;
+  return 'balanced';
+};
+
+const normalizeLightCmaConfig = (input?: Partial<LightCmaConfig> | null): LightCmaConfig => {
+  const raw = input && typeof input === 'object' ? input : {};
+  return {
+    pricing_notes: typeof raw.pricing_notes === 'string' ? raw.pricing_notes : '',
+    seller_goal: typeof raw.seller_goal === 'string' ? raw.seller_goal : '',
+    cta: typeof raw.cta === 'string' ? raw.cta : '',
+    pricing_strategy: normalizeLightCmaStrategy(raw.pricing_strategy),
+    ai_enabled: raw.ai_enabled !== false,
+    preview: {
+      headline: typeof raw.preview?.headline === 'string' ? raw.preview.headline : '',
+      summary: typeof raw.preview?.summary === 'string' ? raw.preview.summary : '',
+      bullets: Array.isArray(raw.preview?.bullets)
+        ? raw.preview.bullets.filter((item): item is string => typeof item === 'string')
+        : [],
+      cta: typeof raw.preview?.cta === 'string' ? raw.preview.cta : ''
+    },
+    manual_comps: Array.isArray(raw.manual_comps)
+      ? raw.manual_comps.map((comp) => ({
+          ...comp,
+          address: typeof comp.address === 'string' ? comp.address : '',
+          price: typeof comp.price === 'number' ? comp.price : null,
+          beds: typeof comp.beds === 'number' ? comp.beds : null,
+          baths: typeof comp.baths === 'number' ? comp.baths : null,
+          sqft: typeof comp.sqft === 'number' ? comp.sqft : null,
+          status: comp.status === 'active' || comp.status === 'pending' ? comp.status : 'sold',
+          note: typeof comp.note === 'string' ? comp.note : '',
+          is_anchor: comp.is_anchor === true
+        }))
+      : []
+  };
 };
 
 const normalizePropertyReportLengthMode = (value: unknown): PropertyReportLengthMode => {
@@ -939,7 +991,7 @@ export const saveLightCmaConfig = async (
     return {
       success: true,
       listing_id: listingId,
-      config
+      config: normalizeLightCmaConfig(config)
     };
   }
 
@@ -952,7 +1004,48 @@ export const saveLightCmaConfig = async (
       body: JSON.stringify(config)
     }
   );
-  return parseResponse<{ success: boolean; listing_id: string; config: LightCmaConfig }>(response);
+  const payload = await parseResponse<{ success: boolean; listing_id: string; config: LightCmaConfig }>(response);
+  return {
+    ...payload,
+    config: normalizeLightCmaConfig(payload.config)
+  };
+};
+
+export const previewLightCma = async (
+  listingId: string,
+  config: LightCmaConfig,
+  agentIdOverride?: string | null
+) => {
+  if (isDemoModeActive()) {
+    const normalized = normalizeLightCmaConfig(config);
+    return {
+      success: true,
+      listing_id: listingId,
+      config: normalized,
+      preview: normalized.preview
+    };
+  }
+
+  const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
+  const response = await fetch(
+    buildApiUrl(withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}/light-cma/preview`, agentId)),
+    {
+      method: 'POST',
+      headers: defaultJsonHeaders(agentId),
+      body: JSON.stringify(config)
+    }
+  );
+  const payload = await parseResponse<{
+    success: boolean;
+    listing_id: string;
+    config: LightCmaConfig;
+    preview: LightCmaPreview;
+  }>(response);
+  return {
+    ...payload,
+    config: normalizeLightCmaConfig(payload.config),
+    preview: normalizeLightCmaConfig({ preview: payload.preview }).preview
+  };
 };
 
 export const fetchListingShareKit = async (listingId: string, agentIdOverride?: string | null) => {
