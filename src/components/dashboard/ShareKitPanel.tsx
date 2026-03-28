@@ -4,11 +4,17 @@ import SocialVideoWidget from '../dashboard-widgets/SocialVideoWidget';
 import { showToast } from '../../utils/toastService';
 import {
   fetchLightCmaConfig,
+  fetchPropertyReportConfig,
+  previewPropertyReport,
   generateListingQrCode,
   saveLightCmaConfig,
+  savePropertyReportConfig,
   type LightCmaConfig,
   type LightCmaManualComp,
-  type ListingSourceDefault
+  type ListingSourceDefault,
+  type PropertyReportConfig,
+  type PropertyReportContactMethod,
+  type PropertyReportLengthMode
 } from '../../services/dashboardCommandService';
 import { getAgentProfile, type AgentProfile } from '../../services/agentProfileService';
 import { copyToClipboard, listingShareKitService } from '../../services/listingShareAssetsService';
@@ -80,6 +86,42 @@ const createEmptyManualComp = (): LightCmaManualComp => ({
   is_anchor: false
 });
 
+const createEmptyPropertyReportConfig = (): PropertyReportConfig => ({
+  headline: '',
+  buyer_notes: '',
+  top_features: [],
+  neighborhood_notes: '',
+  cta: '',
+  contact_method: 'call',
+  ai_enabled: true,
+  length_mode: 'standard',
+  preview: {
+    headline: '',
+    summary: '',
+    bullets: [],
+    cta: ''
+  }
+});
+
+const parsePropertyFeatureInput = (value: string) =>
+  value
+    .split(/[\n,]+/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(0, 8);
+
+const propertyReportLengthLabels: Record<PropertyReportLengthMode, string> = {
+  tight: 'Tight',
+  standard: 'Standard',
+  premium: 'Premium'
+};
+
+const propertyReportContactLabels: Record<PropertyReportContactMethod, string> = {
+  call: 'Call',
+  text: 'Text',
+  email: 'Email'
+};
+
 export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
   listing,
   onPublish,
@@ -108,6 +150,11 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
   const [lightCmaConfig, setLightCmaConfig] = useState<LightCmaConfig>({ pricing_notes: '', manual_comps: [] });
   const [lightCmaLoading, setLightCmaLoading] = useState(false);
   const [lightCmaSaving, setLightCmaSaving] = useState(false);
+  const [isPropertyReportModalOpen, setIsPropertyReportModalOpen] = useState(false);
+  const [propertyReportConfig, setPropertyReportConfig] = useState<PropertyReportConfig>(createEmptyPropertyReportConfig());
+  const [propertyReportLoading, setPropertyReportLoading] = useState(false);
+  const [propertyReportPreviewing, setPropertyReportPreviewing] = useState(false);
+  const [propertyReportSaving, setPropertyReportSaving] = useState(false);
 
   const noticeTimeoutRef = useRef<number | null>(null);
 
@@ -155,6 +202,12 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
     { label: 'Showings', value: String(stats.showingRequestsCount || 0) },
     { label: 'Top source', value: stats.topSource || 'None' }
   ];
+  const propertyReportFeatureInput = useMemo(
+    () => propertyReportConfig.top_features.join(', '),
+    [propertyReportConfig.top_features]
+  );
+  const propertyReportPreviewReady =
+    Boolean(propertyReportConfig.preview.summary.trim()) || propertyReportConfig.preview.bullets.length > 0;
 
   const setTransientNotice = useCallback((tone: 'info' | 'success' | 'error', text: string) => {
     setActionNotice({ tone, text });
@@ -270,6 +323,25 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
     };
   }, [listing.id]);
 
+  useEffect(() => {
+    let active = true;
+    setPropertyReportLoading(true);
+    void fetchPropertyReportConfig(listing.id)
+      .then((response) => {
+        if (!active) return;
+        setPropertyReportConfig(response.config || createEmptyPropertyReportConfig());
+      })
+      .catch((error) => {
+        console.error('Failed to load Property Report config', error);
+      })
+      .finally(() => {
+        if (active) setPropertyReportLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [listing.id]);
+
   const handleCopy = async (text: string, setCopiedState: (v: boolean) => void) => {
     try {
       await copyToClipboard(text);
@@ -376,15 +448,73 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
     }
   };
 
-  const handleDownloadPropertyReport = async () => {
+  const handleOpenPropertyReportModal = () => {
+    setIsPropertyReportModalOpen(true);
+  };
+
+  const handlePropertyReportFieldChange = <K extends keyof PropertyReportConfig>(
+    field: K,
+    value: PropertyReportConfig[K]
+  ) => {
+    setPropertyReportConfig((current) => ({
+      ...current,
+      [field]: value
+    }));
+  };
+
+  const handlePropertyReportPreview = async () => {
+    try {
+      setPropertyReportPreviewing(true);
+      const response = await previewPropertyReport(listing.id, propertyReportConfig);
+      setPropertyReportConfig(response.config || propertyReportConfig);
+      setTransientNotice('success', 'Preview refreshed.');
+    } catch (error) {
+      console.error('Failed to preview Property Report', error);
+      const errorCode = error instanceof Error ? error.message : 'property_report_preview_failed';
+      setTransientNotice('error', `Could not refresh preview (${errorCode}).`);
+      showToast.error(`Could not preview (${errorCode}).`);
+    } finally {
+      setPropertyReportPreviewing(false);
+    }
+  };
+
+  const handleSavePropertyReport = async () => {
+    try {
+      setPropertyReportSaving(true);
+      const payload = propertyReportPreviewReady
+        ? propertyReportConfig
+        : (await previewPropertyReport(listing.id, propertyReportConfig)).config;
+      const response = await savePropertyReportConfig(listing.id, payload);
+      setPropertyReportConfig(response.config || payload);
+      setTransientNotice('success', 'Saved property report settings.');
+      showToast.success('Saved');
+    } catch (error) {
+      console.error('Failed to save Property Report config', error);
+      const errorCode = error instanceof Error ? error.message : 'property_report_config_failed';
+      setTransientNotice('error', `Could not save property report settings (${errorCode}).`);
+      showToast.error(`Could not save (${errorCode}).`);
+    } finally {
+      setPropertyReportSaving(false);
+    }
+  };
+
+  const handleCreatePropertyReportPdf = async () => {
     const fileName = `${flyerFileBase}-property-report.pdf`;
     try {
+      setPropertyReportSaving(true);
       setExportingKey(fileName);
       setTransientNotice('info', `Building ${fileName}...`);
+      const preparedConfig = propertyReportPreviewReady
+        ? propertyReportConfig
+        : (await previewPropertyReport(listing.id, propertyReportConfig)).config;
+      const saveResponse = await savePropertyReportConfig(listing.id, preparedConfig);
+      const finalConfig = saveResponse.config || preparedConfig;
+      setPropertyReportConfig(finalConfig);
       const { blob, fileName: resolvedFileName } = await listingShareKitService.getFlyerPdf(listing.id, 'property_report');
       listingShareKitService.saveBlobDownload(blob, resolvedFileName || fileName);
       setTransientNotice('success', `${resolvedFileName || fileName} download started.`);
       showToast.success('Downloaded');
+      setIsPropertyReportModalOpen(false);
     } catch (error) {
       console.error('Failed to create Property Report PDF', error);
       const errorCode = error instanceof Error ? error.message : 'property_report_failed';
@@ -396,6 +526,7 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
         showToast.error(`Could not create PDF (${errorCode}).`);
       }
     } finally {
+      setPropertyReportSaving(false);
       setExportingKey(null);
     }
   };
@@ -740,11 +871,11 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
 
               <div className="grid grid-cols-1 gap-4 mb-4 sm:grid-cols-2 xl:grid-cols-2">
                 <button
-                  onClick={() => void handleDownloadPropertyReport()}
-                  disabled={Boolean(exportingKey)}
+                  onClick={handleOpenPropertyReportModal}
+                  disabled={Boolean(exportingKey) || propertyReportLoading}
                   className="px-4 py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-lg transition-colors text-sm text-center border border-slate-700 disabled:opacity-60"
                 >
-                  {exportingKey === `${flyerFileBase}-property-report.pdf` ? 'Creating...' : 'Create Property Report (PDF)'}
+                  {propertyReportLoading ? 'Loading...' : exportingKey === `${flyerFileBase}-property-report.pdf` ? 'Creating...' : 'Create Property Report (PDF)'}
                 </button>
                 <button
                   onClick={() => void handleDownloadLightCma()}
@@ -1075,6 +1206,239 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
             ) : null}
           </div>
         </div>
+
+        {isPropertyReportModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+            <div className="max-h-[92vh] w-full max-w-5xl overflow-hidden rounded-2xl border border-slate-800 bg-[#0B1121] shadow-2xl">
+              <div className="flex items-start justify-between gap-4 border-b border-slate-800 p-6">
+                <div>
+                  <h3 className="text-2xl font-black text-white">Create Property Report</h3>
+                  <p className="mt-2 text-sm text-slate-400">
+                    Use the listing as the base. Add only the extra notes you want on this PDF. AI keeps the copy short for print.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsPropertyReportModalOpen(false)}
+                  className="text-slate-400 transition-colors hover:text-white"
+                >
+                  <span className="material-symbols-outlined">close</span>
+                </button>
+              </div>
+
+              <div className="grid max-h-[calc(92vh-88px)] gap-6 overflow-y-auto p-6 xl:grid-cols-[1.05fr,0.95fr]">
+                <div className="space-y-5">
+                  <div>
+                    <label className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-slate-500">Headline</label>
+                    <input
+                      type="text"
+                      value={propertyReportConfig.headline}
+                      onChange={(e) => handlePropertyReportFieldChange('headline', e.target.value)}
+                      maxLength={80}
+                      placeholder="Modern home with bright living spaces and a clean layout"
+                      className="w-full rounded-xl border border-slate-700 bg-[#040814] px-4 py-3 text-sm text-slate-200 outline-none placeholder:text-slate-500 focus:border-blue-500"
+                    />
+                    <p className="mt-2 text-xs text-slate-500">{propertyReportConfig.headline.length}/80</p>
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-slate-500">Buyer notes</label>
+                    <textarea
+                      value={propertyReportConfig.buyer_notes}
+                      onChange={(e) => handlePropertyReportFieldChange('buyer_notes', e.target.value)}
+                      rows={6}
+                      maxLength={500}
+                      placeholder="Add the human angle here. Talk about flow, updates, lot, views, lifestyle, or anything buyers should feel right away."
+                      className="w-full rounded-xl border border-slate-700 bg-[#040814] px-4 py-3 text-sm text-slate-200 outline-none placeholder:text-slate-500 focus:border-blue-500"
+                    />
+                    <p className="mt-2 text-xs text-slate-500">{propertyReportConfig.buyer_notes.length}/500</p>
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-slate-500">Top features</label>
+                    <input
+                      type="text"
+                      value={propertyReportFeatureInput}
+                      onChange={(e) => handlePropertyReportFieldChange('top_features', parsePropertyFeatureInput(e.target.value))}
+                      placeholder="Pool, office, cul-de-sac, new roof, oversized yard"
+                      className="w-full rounded-xl border border-slate-700 bg-[#040814] px-4 py-3 text-sm text-slate-200 outline-none placeholder:text-slate-500 focus:border-blue-500"
+                    />
+                    <p className="mt-2 text-xs text-slate-500">Use commas. Up to 8 features.</p>
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-slate-500">Neighborhood notes</label>
+                    <textarea
+                      value={propertyReportConfig.neighborhood_notes}
+                      onChange={(e) => handlePropertyReportFieldChange('neighborhood_notes', e.target.value)}
+                      rows={3}
+                      maxLength={220}
+                      placeholder="Near parks, quiet streets, trails, shopping, commuter routes, or the part of town buyers ask about."
+                      className="w-full rounded-xl border border-slate-700 bg-[#040814] px-4 py-3 text-sm text-slate-200 outline-none placeholder:text-slate-500 focus:border-blue-500"
+                    />
+                    <p className="mt-2 text-xs text-slate-500">{propertyReportConfig.neighborhood_notes.length}/220</p>
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-slate-500">Call to action</label>
+                    <input
+                      type="text"
+                      value={propertyReportConfig.cta}
+                      onChange={(e) => handlePropertyReportFieldChange('cta', e.target.value)}
+                      maxLength={90}
+                      placeholder="Schedule your private showing today"
+                      className="w-full rounded-xl border border-slate-700 bg-[#040814] px-4 py-3 text-sm text-slate-200 outline-none placeholder:text-slate-500 focus:border-blue-500"
+                    />
+                    <p className="mt-2 text-xs text-slate-500">{propertyReportConfig.cta.length}/90</p>
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div>
+                      <label className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-slate-500">Preferred contact</label>
+                      <select
+                        value={propertyReportConfig.contact_method}
+                        onChange={(e) => handlePropertyReportFieldChange('contact_method', e.target.value as PropertyReportContactMethod)}
+                        className="w-full rounded-xl border border-slate-700 bg-[#040814] px-4 py-3 text-sm font-semibold text-slate-200 outline-none focus:border-blue-500"
+                      >
+                        <option value="call">Call first</option>
+                        <option value="text">Text first</option>
+                        <option value="email">Email first</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-slate-500">Length</label>
+                      <select
+                        value={propertyReportConfig.length_mode}
+                        onChange={(e) => handlePropertyReportFieldChange('length_mode', e.target.value as PropertyReportLengthMode)}
+                        className="w-full rounded-xl border border-slate-700 bg-[#040814] px-4 py-3 text-sm font-semibold text-slate-200 outline-none focus:border-blue-500"
+                      >
+                        <option value="tight">Tight</option>
+                        <option value="standard">Standard</option>
+                        <option value="premium">Premium</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <label className="flex items-start gap-3 rounded-xl border border-slate-800 bg-[#040814] p-4">
+                    <input
+                      type="checkbox"
+                      checked={propertyReportConfig.ai_enabled}
+                      onChange={(e) => handlePropertyReportFieldChange('ai_enabled', e.target.checked)}
+                      className="mt-1 h-4 w-4 rounded border-slate-600 bg-slate-900 text-blue-500"
+                    />
+                    <div>
+                      <p className="text-sm font-bold text-white">AI polish this report</p>
+                      <p className="mt-1 text-xs text-slate-400">
+                        The app rewrites your notes into a shorter buyer-facing summary and bullet list that fits the PDF cleanly.
+                      </p>
+                    </div>
+                  </label>
+                </div>
+
+                <div className="space-y-5">
+                  <div className="rounded-2xl border border-slate-800 bg-[#040814] p-5">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">Preview summary</p>
+                        <p className="mt-2 text-sm text-slate-400">
+                          This is the short content block that goes onto the PDF. It stays within the {propertyReportLengthLabels[propertyReportConfig.length_mode].toLowerCase()} print limit.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void handlePropertyReportPreview()}
+                        disabled={propertyReportPreviewing}
+                        className="rounded-lg border border-blue-500/40 bg-blue-500/10 px-4 py-2 text-sm font-bold text-blue-200 transition-colors hover:bg-blue-500/20 disabled:opacity-60"
+                      >
+                        {propertyReportPreviewing ? 'Refreshing...' : 'Refresh AI'}
+                      </button>
+                    </div>
+
+                    <div className="mt-5 space-y-4">
+                      <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+                        <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">Headline</p>
+                        <p className="mt-2 text-lg font-black text-white">
+                          {propertyReportConfig.preview.headline || 'Your generated headline will show up here.'}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+                        <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">Summary</p>
+                        <p className="mt-2 text-sm leading-6 text-slate-300">
+                          {propertyReportConfig.preview.summary || 'Preview the short buyer summary before you export.'}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+                        <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">Bullets</p>
+                        {propertyReportConfig.preview.bullets.length > 0 ? (
+                          <ul className="mt-3 space-y-2">
+                            {propertyReportConfig.preview.bullets.map((bullet) => (
+                              <li key={bullet} className="flex items-start gap-2 text-sm text-slate-300">
+                                <span className="mt-1 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-blue-400" />
+                                <span>{bullet}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="mt-2 text-sm text-slate-400">Your AI bullet highlights will land here.</p>
+                        )}
+                      </div>
+
+                      <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+                        <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">CTA</p>
+                        <p className="mt-2 text-sm font-semibold text-slate-200">
+                          {propertyReportConfig.preview.cta || `${propertyReportContactLabels[propertyReportConfig.contact_method]} instructions will show here after preview.`}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-800 bg-[#040814] p-5">
+                    <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">How this works</p>
+                    <ol className="mt-3 space-y-2 text-sm text-slate-300">
+                      <li>1. The listing description stays the base.</li>
+                      <li>2. Your notes tell the PDF what to emphasize.</li>
+                      <li>3. AI shortens the copy so the page stays clean.</li>
+                      <li>4. Your settings save to this listing for next time.</li>
+                    </ol>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-3 border-t border-slate-800 p-6 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-xs text-slate-500">
+                  Saved to this listing only. You can reopen and edit it any time.
+                </p>
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <button
+                    type="button"
+                    onClick={() => setIsPropertyReportModalOpen(false)}
+                    className="rounded-lg border border-slate-700 bg-slate-900 px-4 py-2.5 text-sm font-bold text-slate-200 transition-colors hover:bg-slate-800"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleSavePropertyReport()}
+                    disabled={propertyReportSaving || propertyReportPreviewing}
+                    className="rounded-lg border border-slate-700 bg-slate-900 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-slate-800 disabled:opacity-60"
+                  >
+                    {propertyReportSaving && !exportingKey ? 'Saving...' : 'Save settings'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleCreatePropertyReportPdf()}
+                    disabled={propertyReportSaving || propertyReportPreviewing || Boolean(exportingKey)}
+                    className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-black text-white transition-colors hover:bg-blue-500 disabled:opacity-60"
+                  >
+                    {exportingKey === `${flyerFileBase}-property-report.pdf` ? 'Creating PDF...' : 'Create PDF'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {isTestModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">

@@ -352,6 +352,8 @@ const buildAllowedCorsOrigins = () => {
     'https://app.homelistingai.com',
     'http://localhost:5173',
     'http://127.0.0.1:5173',
+    'http://localhost:5175',
+    'http://127.0.0.1:5175',
     'http://localhost:3000',
     'http://127.0.0.1:3000'
   ];
@@ -5566,6 +5568,10 @@ const buildPropertyReportHtml = ({
   baths,
   sqft,
   description,
+  reportHeadline,
+  reportSummary,
+  reportBullets,
+  reportCta,
   photoDataUrls,
   qrDataUrl,
   shareUrl,
@@ -5591,6 +5597,14 @@ const buildPropertyReportHtml = ({
     .map((part) => part[0]?.toUpperCase() || '')
     .join('') || 'AG';
   const teaser = escapeHtml(description || 'Property highlights, pricing snapshot, and direct showing options.');
+  const summary = escapeHtml(reportSummary || description || 'Property highlights, pricing snapshot, and direct showing options.');
+  const headline = escapeHtml(reportHeadline || 'Property details that convert');
+  const bulletMarkup = Array.isArray(reportBullets) && reportBullets.length > 0
+    ? reportBullets
+      .map((item) => `<li>${escapeHtml(item)}</li>`)
+      .join('')
+    : `<li>${escapeHtml(priceLabel)}</li><li>${escapeHtml(beds)} beds</li><li>${escapeHtml(baths)} baths</li>`;
+  const cta = escapeHtml(reportCta || 'Open the listing, chat with the home, or request a showing right away.');
 
   return `
 <!doctype html>
@@ -5677,12 +5691,11 @@ const buildPropertyReportHtml = ({
       }
       .hero-copy h1 {
         margin: 0;
-        font-size: 0.56in;
+        font-size: 0.44in;
         line-height: 0.92;
         letter-spacing: -0.05em;
         font-weight: 900;
         color: #0f172a;
-        text-transform: uppercase;
       }
       .hero-copy h1 .accent { color: ${safeBrandColor}; }
       .hero-copy p {
@@ -5934,6 +5947,17 @@ const buildPropertyReportHtml = ({
         line-height: 1.45;
         color: #475569;
       }
+      .summary-card ul {
+        margin: 0.14in 0 0;
+        padding-left: 0.18in;
+        color: #334155;
+      }
+      .summary-card li {
+        margin: 0.05in 0;
+        font-size: 0.135in;
+        line-height: 1.3;
+        font-weight: 700;
+      }
       .cta-card {
         background: linear-gradient(180deg, #0f172a 0%, #111827 100%);
         color: white;
@@ -5957,8 +5981,8 @@ const buildPropertyReportHtml = ({
         <div class="hero">
           <div class="hero-copy">
             <div class="kicker">HomeListingAI Report</div>
-            <h1>Property <span class="accent">details</span><br />that convert</h1>
-            <p>${teaser}</p>
+            <h1>${headline}</h1>
+            <p>${summary}</p>
           </div>
           <div class="snapshot">
             <div class="small">Listing snapshot</div>
@@ -6027,11 +6051,12 @@ const buildPropertyReportHtml = ({
         <div class="summary-strip">
           <div class="summary-card">
             <div class="gallery-title">What makes this home special</div>
-            <p>${teaser}</p>
+            <p>${summary}</p>
+            <ul>${bulletMarkup}</ul>
           </div>
           <div class="cta-card">
             <div class="gallery-title" style="color:rgba(255,255,255,0.62);">Next step</div>
-            <p>Open the listing, chat with the home, or request a showing right away from the live property page.</p>
+            <p>${cta}</p>
             <p style="margin-top:0.14in;"><a href="${escapeHtml(trackedUrl)}" style="color:white; text-decoration:none; font-weight:800;">${escapeHtml(shareUrl)}</a></p>
           </div>
         </div>
@@ -7786,6 +7811,24 @@ const ensureDefaultListingSources = async ({ listingId, agentId }) => {
 };
 
 const LIGHT_CMA_CONFIG_SOURCE_KEY = 'light_cma_config';
+const PROPERTY_REPORT_CONFIG_SOURCE_KEY = 'property_report_config';
+const PROPERTY_REPORT_LENGTH_LIMITS = {
+  tight: {
+    summaryWords: 45,
+    bulletCount: 3,
+    bulletWords: 6
+  },
+  standard: {
+    summaryWords: 70,
+    bulletCount: 4,
+    bulletWords: 8
+  },
+  premium: {
+    summaryWords: 95,
+    bulletCount: 5,
+    bulletWords: 10
+  }
+};
 
 const normalizeLightCmaManualComp = (row, index = 0) => {
   const address = toTrimmedOrNull(row?.address);
@@ -7826,6 +7869,88 @@ const normalizeLightCmaConfig = (input) => {
     pricing_notes: pricingNotes,
     manual_comps: manualComps
   };
+};
+
+const truncateText = (value, maxChars = 500) =>
+  String(value || '').trim().slice(0, Math.max(0, maxChars));
+
+const normalizeFeatureList = (value) => {
+  const rawItems = Array.isArray(value)
+    ? value
+    : String(value || '')
+      .split(/[\n,]+/);
+
+  const seen = new Set();
+  const normalized = [];
+
+  for (const item of rawItems) {
+    const text = truncateText(item, 40);
+    if (!text) continue;
+    const key = text.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    normalized.push(text);
+    if (normalized.length >= 8) break;
+  }
+
+  return normalized;
+};
+
+const normalizePropertyReportLengthMode = (value) => {
+  const candidate = String(value || '').trim().toLowerCase();
+  if (candidate === 'tight' || candidate === 'premium') return candidate;
+  return 'standard';
+};
+
+const normalizePropertyReportContactMethod = (value) => {
+  const candidate = String(value || '').trim().toLowerCase();
+  if (candidate === 'text' || candidate === 'email') return candidate;
+  return 'call';
+};
+
+const normalizePropertyReportPreview = (input, lengthMode = 'standard') => {
+  const limits = PROPERTY_REPORT_LENGTH_LIMITS[normalizePropertyReportLengthMode(lengthMode)];
+  const raw = input && typeof input === 'object' ? input : {};
+  const headline = truncateText(raw.headline, 80);
+  const summary = normalizeWordLimitedText(raw.summary, limits.summaryWords);
+  const bullets = normalizeFeatureList(raw.bullets).slice(0, limits.bulletCount).map((item) =>
+    normalizeWordLimitedText(item, limits.bulletWords)
+  );
+  const cta = truncateText(raw.cta, 90);
+
+  return {
+    headline,
+    summary,
+    bullets,
+    cta
+  };
+};
+
+const normalizePropertyReportConfig = (input) => {
+  const raw = input && typeof input === 'object' ? input : {};
+  const lengthMode = normalizePropertyReportLengthMode(raw.length_mode || raw.lengthMode);
+
+  return {
+    headline: truncateText(raw.headline, 80),
+    buyer_notes: truncateText(raw.buyer_notes || raw.buyerNotes, 500),
+    top_features: normalizeFeatureList(raw.top_features || raw.topFeatures),
+    neighborhood_notes: truncateText(raw.neighborhood_notes || raw.neighborhoodNotes, 220),
+    cta: truncateText(raw.cta, 90),
+    contact_method: normalizePropertyReportContactMethod(raw.contact_method || raw.contactMethod),
+    ai_enabled: raw.ai_enabled !== false && raw.aiEnabled !== false,
+    length_mode: lengthMode,
+    preview: normalizePropertyReportPreview(raw.preview, lengthMode)
+  };
+};
+
+const parsePropertyReportConfigContent = (content) => {
+  if (!content) return normalizePropertyReportConfig({});
+  if (typeof content === 'object') return normalizePropertyReportConfig(content);
+  try {
+    return normalizePropertyReportConfig(JSON.parse(String(content)));
+  } catch (_error) {
+    return normalizePropertyReportConfig({});
+  }
 };
 
 const parseLightCmaConfigContent = (content) => {
@@ -7942,6 +8067,171 @@ const loadLightCmaConfig = async ({ listingId, agentIds = [] }) => {
     sourceKey: LIGHT_CMA_CONFIG_SOURCE_KEY
   });
   return parseLightCmaConfigContent(row?.content || row?.text || null);
+};
+
+const loadPropertyReportConfig = async ({ listingId, agentIds = [] }) => {
+  const row = await readListingSourceContent({
+    listingId,
+    agentIds,
+    sourceKey: PROPERTY_REPORT_CONFIG_SOURCE_KEY
+  });
+  return parsePropertyReportConfigContent(row?.content || row?.text || null);
+};
+
+const buildPropertyReportFallbackPreview = ({ listingRow, config, agentProfile }) => {
+  const normalizedConfig = normalizePropertyReportConfig(config);
+  const lengthMode = normalizePropertyReportLengthMode(normalizedConfig.length_mode);
+  const limits = PROPERTY_REPORT_LENGTH_LIMITS[lengthMode];
+  const address = toTrimmedOrNull(listingRow?.address) || 'This listing';
+  const beds = safeNumber(listingRow?.bedrooms);
+  const baths = safeNumber(listingRow?.bathrooms);
+  const sqft = safeNumber(listingRow?.square_feet);
+  const contactMethodLabel =
+    normalizedConfig.contact_method === 'text'
+      ? 'Text'
+      : normalizedConfig.contact_method === 'email'
+        ? 'Email'
+        : 'Call';
+
+  const metricParts = [
+    beds > 0 ? `${beds} bed` : null,
+    baths > 0 ? `${baths} bath` : null,
+    sqft > 0 ? `${sqft.toLocaleString('en-US')} sqft` : null
+  ].filter(Boolean);
+  const listingDescription = extractListingDescription(listingRow?.description);
+
+  const headline =
+    normalizedConfig.headline ||
+    truncateText(metricParts.length > 0 ? `${address} | ${metricParts.join(' | ')}` : address, 80);
+
+  const summarySource = [
+    normalizedConfig.buyer_notes,
+    normalizedConfig.neighborhood_notes,
+    listingDescription
+  ]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean)
+    .join(' ');
+
+  const summary = normalizeWordLimitedText(
+    summarySource || 'A clean, buyer-friendly snapshot of the home, its standout features, and the best way to connect for a showing.',
+    limits.summaryWords
+  );
+
+  const bullets = normalizeFeatureList([
+    ...normalizedConfig.top_features,
+    metricParts.join(' | '),
+    toTrimmedOrNull(agentProfile?.company) ? `Listed by ${agentProfile.company}` : null
+  ])
+    .slice(0, limits.bulletCount)
+    .map((item) => normalizeWordLimitedText(item, limits.bulletWords));
+
+  const cta =
+    truncateText(
+      normalizedConfig.cta ||
+      `${contactMethodLabel} ${toTrimmedOrNull(agentProfile?.fullName) || 'the listing agent'} for current details and a private tour.`,
+      90
+    );
+
+  return {
+    headline,
+    summary,
+    bullets,
+    cta
+  };
+};
+
+const parseJsonObjectFromModel = (value) => {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  const fenced = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim();
+  try {
+    return JSON.parse(fenced);
+  } catch (_error) {
+    const match = fenced.match(/\{[\s\S]*\}/);
+    if (!match) return null;
+    try {
+      return JSON.parse(match[0]);
+    } catch (_secondError) {
+      return null;
+    }
+  }
+};
+
+const generatePropertyReportPreview = async ({ listingRow, config, agentProfile }) => {
+  const normalizedConfig = normalizePropertyReportConfig(config);
+  const fallback = buildPropertyReportFallbackPreview({
+    listingRow,
+    config: normalizedConfig,
+    agentProfile
+  });
+
+  if (!normalizedConfig.ai_enabled || !process.env.OPENAI_API_KEY) {
+    return fallback;
+  }
+
+  const address = toTrimmedOrNull(listingRow?.address) || 'Listing address';
+  const price = Number(listingRow?.price || 0);
+  const priceLabel = price > 0
+    ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(price)
+    : 'Price on request';
+  const beds = safeNumber(listingRow?.bedrooms);
+  const baths = safeNumber(listingRow?.bathrooms);
+  const sqft = safeNumber(listingRow?.square_feet);
+  const limits = PROPERTY_REPORT_LENGTH_LIMITS[normalizedConfig.length_mode];
+
+  const prompt = [
+    'You are writing a short buyer-facing property report for a print PDF.',
+    'Return only valid JSON.',
+    '',
+    'Required JSON shape:',
+    '{"headline":"", "summary":"", "bullets":[""], "cta":""}',
+    '',
+    'Rules:',
+    `- headline: max 80 chars`,
+    `- summary: max ${limits.summaryWords} words`,
+    `- bullets: ${limits.bulletCount} bullets max`,
+    `- each bullet: max ${limits.bulletWords} words`,
+    '- cta: max 90 chars',
+    '- Do not invent facts.',
+    '- Do not repeat the exact same detail in multiple places.',
+    '- Keep it clean, print-friendly, and specific.',
+    '',
+    `Address: ${address}`,
+    `Price: ${priceLabel}`,
+    beds > 0 ? `Beds: ${beds}` : null,
+    baths > 0 ? `Baths: ${baths}` : null,
+    sqft > 0 ? `Sq Ft: ${sqft.toLocaleString('en-US')}` : null,
+    normalizedConfig.headline ? `Agent headline: ${normalizedConfig.headline}` : null,
+    normalizedConfig.buyer_notes ? `Buyer notes: ${normalizedConfig.buyer_notes}` : null,
+    normalizedConfig.top_features.length ? `Top features: ${normalizedConfig.top_features.join(', ')}` : null,
+    normalizedConfig.neighborhood_notes ? `Neighborhood notes: ${normalizedConfig.neighborhood_notes}` : null,
+    normalizedConfig.cta ? `CTA preference: ${normalizedConfig.cta}` : null
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: OPENAI_CHAT_MODEL,
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.35,
+      max_tokens: 360
+    });
+    const content = completion?.choices?.[0]?.message?.content || '';
+    const parsed = parseJsonObjectFromModel(content);
+    if (!parsed || typeof parsed !== 'object') return fallback;
+    const normalized = normalizePropertyReportPreview(parsed, normalizedConfig.length_mode);
+    return {
+      headline: normalized.headline || fallback.headline,
+      summary: normalized.summary || fallback.summary,
+      bullets: normalized.bullets.length > 0 ? normalized.bullets : fallback.bullets,
+      cta: normalized.cta || fallback.cta
+    };
+  } catch (error) {
+    console.warn('[PropertyReport] AI preview failed, falling back:', error?.message || error);
+    return fallback;
+  }
 };
 
 const ensureUniquePublicSlug = async ({ listingId, title, address }) => {
@@ -21591,6 +21881,10 @@ app.get('/api/dashboard/listings/:listingId/property-report.pdf', async (req, re
     if (!access) return res.status(404).json({ error: 'listing_not_found' });
 
     const listing = access.listingRow;
+    const propertyReportConfig = await loadPropertyReportConfig({
+      listingId: listing.id,
+      agentIds: access.sourceAgentIds
+    });
     const { publicSlug, shareUrl } = await ensureListingShareIdentity(listing);
     const trackedUrl = buildTrackedListingUrl({
       publicSlug,
@@ -21645,6 +21939,13 @@ app.get('/api/dashboard/listings/:listingId/property-report.pdf', async (req, re
         fallbackDataUrl: null
       })
       : null;
+    const propertyReportPreview = propertyReportConfig.preview?.summary
+      ? normalizePropertyReportPreview(propertyReportConfig.preview, propertyReportConfig.length_mode)
+      : await generatePropertyReportPreview({
+        listingRow: listing,
+        config: propertyReportConfig,
+        agentProfile: aiCardProfile
+      });
 
     const html = buildPropertyReportHtml({
       logoDataUrl,
@@ -21654,6 +21955,10 @@ app.get('/api/dashboard/listings/:listingId/property-report.pdf', async (req, re
       baths: formatFlyerMetric(listing.bathrooms),
       sqft: formatFlyerMetric(listing.square_feet),
       description: extractListingDescription(listing.description),
+      reportHeadline: propertyReportPreview.headline,
+      reportSummary: propertyReportPreview.summary,
+      reportBullets: propertyReportPreview.bullets,
+      reportCta: propertyReportPreview.cta,
       photoDataUrls,
       qrDataUrl: qrAssets.qr_code_url,
       shareUrl,
@@ -21701,6 +22006,125 @@ app.get('/api/dashboard/listings/:listingId/property-report.pdf', async (req, re
     if (browser) {
       await browser.close().catch(() => undefined);
     }
+  }
+});
+
+app.get('/api/dashboard/listings/:listingId/property-report/config', async (req, res) => {
+  try {
+    const { listingId } = req.params;
+    const requesterUserId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!requesterUserId) return res.status(401).json({ error: 'agent_auth_required' });
+    console.info('[sharekit.property_report_config.get]', { listingId, ownerId: requesterUserId });
+
+    const access = await resolveListingAccessContext({
+      listingId,
+      requesterUserId,
+      accessTag: 'dashboard.property_report_config_get'
+    });
+    if (!access) return res.status(404).json({ error: 'listing_not_found' });
+
+    const config = await loadPropertyReportConfig({
+      listingId: access.listingRow.id,
+      agentIds: access.sourceAgentIds
+    });
+
+    return res.json({
+      success: true,
+      listing_id: access.listingRow.id,
+      config
+    });
+  } catch (error) {
+    console.error('[Dashboard] Failed to load property report config:', error);
+    return res.status(500).json({ error: 'failed_to_load_property_report_config' });
+  }
+});
+
+app.put('/api/dashboard/listings/:listingId/property-report/config', async (req, res) => {
+  try {
+    const { listingId } = req.params;
+    const requesterUserId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!requesterUserId) return res.status(401).json({ error: 'agent_auth_required' });
+    console.info('[sharekit.property_report_config.put]', { listingId, ownerId: requesterUserId });
+
+    const access = await resolveListingAccessContext({
+      listingId,
+      requesterUserId,
+      accessTag: 'dashboard.property_report_config_put'
+    });
+    if (!access) return res.status(404).json({ error: 'listing_not_found' });
+
+    const config = normalizePropertyReportConfig(req.body || {});
+    const primaryAgentId =
+      toTrimmedOrNull(access.listingRow.user_id) ||
+      toTrimmedOrNull(Array.isArray(access.sourceAgentIds) ? access.sourceAgentIds[0] : access.sourceAgentIds) ||
+      requesterUserId;
+
+    await upsertListingSourceContent({
+      listingId: access.listingRow.id,
+      agentId: primaryAgentId,
+      sourceType: 'text',
+      sourceKey: PROPERTY_REPORT_CONFIG_SOURCE_KEY,
+      title: 'Property Report Config',
+      content: config,
+      status: 'trained'
+    });
+
+    return res.json({
+      success: true,
+      listing_id: access.listingRow.id,
+      config
+    });
+  } catch (error) {
+    console.error('[Dashboard] Failed to save property report config:', error);
+    return res.status(500).json({ error: 'failed_to_save_property_report_config' });
+  }
+});
+
+app.post('/api/dashboard/listings/:listingId/property-report/preview', async (req, res) => {
+  try {
+    const { listingId } = req.params;
+    const requesterUserId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!requesterUserId) return res.status(401).json({ error: 'agent_auth_required' });
+    console.info('[sharekit.property_report_preview.post]', { listingId, ownerId: requesterUserId });
+
+    const access = await resolveListingAccessContext({
+      listingId,
+      requesterUserId,
+      accessTag: 'dashboard.property_report_preview'
+    });
+    if (!access) return res.status(404).json({ error: 'listing_not_found' });
+
+    const listing = access.listingRow;
+    let aiCardUserId = toTrimmedOrNull(listing.user_id) || toTrimmedOrNull(access.requesterUserId);
+    if (!aiCardUserId && listing.agent_id) {
+      const { data: agentOwnerRow } = await supabaseAdmin
+        .from('agents')
+        .select('user_id,auth_user_id')
+        .eq('id', listing.agent_id)
+        .maybeSingle();
+      aiCardUserId = toTrimmedOrNull(agentOwnerRow?.user_id || agentOwnerRow?.auth_user_id);
+    }
+
+    const aiCardProfile = (await fetchAiCardProfileForUser(aiCardUserId)) || DEFAULT_AI_CARD_PROFILE;
+    const config = normalizePropertyReportConfig(req.body || {});
+    const preview = await generatePropertyReportPreview({
+      listingRow: listing,
+      config,
+      agentProfile: aiCardProfile
+    });
+
+    return res.json({
+      success: true,
+      listing_id: listing.id,
+      config: {
+        ...config,
+        preview
+      },
+      preview
+    });
+  } catch (error) {
+    console.error('[Dashboard] Failed to build property report preview:', error);
+    return res.status(500).json({ error: 'failed_to_build_property_report_preview' });
   }
 });
 

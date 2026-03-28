@@ -313,6 +313,28 @@ export interface LightCmaConfig {
   manual_comps: LightCmaManualComp[];
 }
 
+export type PropertyReportLengthMode = 'tight' | 'standard' | 'premium';
+export type PropertyReportContactMethod = 'call' | 'text' | 'email';
+
+export interface PropertyReportPreview {
+  headline: string;
+  summary: string;
+  bullets: string[];
+  cta: string;
+}
+
+export interface PropertyReportConfig {
+  headline: string;
+  buyer_notes: string;
+  top_features: string[];
+  neighborhood_notes: string;
+  cta: string;
+  contact_method: PropertyReportContactMethod;
+  ai_enabled: boolean;
+  length_mode: PropertyReportLengthMode;
+  preview: PropertyReportPreview;
+}
+
 export interface ListingSourceDefault {
   id: string | null;
   source_type: string;
@@ -651,6 +673,127 @@ export const fetchLightCmaConfig = async (listingId: string, agentIdOverride?: s
     { headers: defaultJsonHeaders(agentId) }
   );
   return parseResponse<{ success: boolean; listing_id: string; config: LightCmaConfig }>(response);
+};
+
+const normalizePropertyReportLengthMode = (value: unknown): PropertyReportLengthMode => {
+  if (value === 'tight' || value === 'premium') return value;
+  return 'standard';
+};
+
+const normalizePropertyReportContactMethod = (value: unknown): PropertyReportContactMethod => {
+  if (value === 'text' || value === 'email') return value;
+  return 'call';
+};
+
+const normalizePropertyReportConfig = (input?: Partial<PropertyReportConfig> | null): PropertyReportConfig => {
+  const raw = input && typeof input === 'object' ? input : {};
+  return {
+    headline: typeof raw.headline === 'string' ? raw.headline : '',
+    buyer_notes: typeof raw.buyer_notes === 'string' ? raw.buyer_notes : '',
+    top_features: Array.isArray(raw.top_features)
+      ? raw.top_features.filter((item): item is string => typeof item === 'string')
+      : [],
+    neighborhood_notes: typeof raw.neighborhood_notes === 'string' ? raw.neighborhood_notes : '',
+    cta: typeof raw.cta === 'string' ? raw.cta : '',
+    contact_method: normalizePropertyReportContactMethod(raw.contact_method),
+    ai_enabled: raw.ai_enabled !== false,
+    length_mode: normalizePropertyReportLengthMode(raw.length_mode),
+    preview: {
+      headline: typeof raw.preview?.headline === 'string' ? raw.preview.headline : '',
+      summary: typeof raw.preview?.summary === 'string' ? raw.preview.summary : '',
+      bullets: Array.isArray(raw.preview?.bullets)
+        ? raw.preview.bullets.filter((item): item is string => typeof item === 'string')
+        : [],
+      cta: typeof raw.preview?.cta === 'string' ? raw.preview.cta : ''
+    }
+  };
+};
+
+export const fetchPropertyReportConfig = async (listingId: string, agentIdOverride?: string | null) => {
+  if (isDemoModeActive()) {
+    return {
+      success: true,
+      listing_id: listingId,
+      config: normalizePropertyReportConfig({})
+    };
+  }
+
+  const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
+  const response = await fetch(
+    buildApiUrl(withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}/property-report/config`, agentId)),
+    { headers: defaultJsonHeaders(agentId) }
+  );
+  const payload = await parseResponse<{ success: boolean; listing_id: string; config: PropertyReportConfig }>(response);
+  return {
+    ...payload,
+    config: normalizePropertyReportConfig(payload.config)
+  };
+};
+
+export const savePropertyReportConfig = async (
+  listingId: string,
+  config: PropertyReportConfig,
+  agentIdOverride?: string | null
+) => {
+  if (isDemoModeActive()) {
+    return {
+      success: true,
+      listing_id: listingId,
+      config: normalizePropertyReportConfig(config)
+    };
+  }
+
+  const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
+  const response = await fetch(
+    buildApiUrl(withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}/property-report/config`, agentId)),
+    {
+      method: 'PUT',
+      headers: defaultJsonHeaders(agentId),
+      body: JSON.stringify(config)
+    }
+  );
+  const payload = await parseResponse<{ success: boolean; listing_id: string; config: PropertyReportConfig }>(response);
+  return {
+    ...payload,
+    config: normalizePropertyReportConfig(payload.config)
+  };
+};
+
+export const previewPropertyReport = async (
+  listingId: string,
+  config: PropertyReportConfig,
+  agentIdOverride?: string | null
+) => {
+  if (isDemoModeActive()) {
+    const normalized = normalizePropertyReportConfig(config);
+    return {
+      success: true,
+      listing_id: listingId,
+      config: normalized,
+      preview: normalized.preview
+    };
+  }
+
+  const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
+  const response = await fetch(
+    buildApiUrl(withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}/property-report/preview`, agentId)),
+    {
+      method: 'POST',
+      headers: defaultJsonHeaders(agentId),
+      body: JSON.stringify(config)
+    }
+  );
+  const payload = await parseResponse<{
+    success: boolean;
+    listing_id: string;
+    config: PropertyReportConfig;
+    preview: PropertyReportPreview;
+  }>(response);
+  return {
+    ...payload,
+    config: normalizePropertyReportConfig(payload.config),
+    preview: normalizePropertyReportConfig({ preview: payload.preview }).preview
+  };
 };
 
 export const saveLightCmaConfig = async (
