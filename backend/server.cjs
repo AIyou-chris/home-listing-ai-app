@@ -5821,8 +5821,9 @@ const buildPropertyReportHtml = ({
       }
       .agent-contact {
         margin-top: 0.12in;
-        font-size: 0.14in;
-        color: rgba(255,255,255,0.72);
+        font-size: 0.16in;
+        font-weight: 800;
+        color: rgba(255,255,255,0.88);
         line-height: 1.45;
       }
       .agent-actions {
