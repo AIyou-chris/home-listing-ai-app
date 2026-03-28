@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import VideoShareActions from './VideoShareActions';
 import SocialVideoWidget from '../dashboard-widgets/SocialVideoWidget';
 import { showToast } from '../../utils/toastService';
@@ -1207,10 +1208,10 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
           </div>
         </div>
 
-        {isPropertyReportModalOpen && (
-          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm">
+        {isPropertyReportModalOpen && typeof document !== 'undefined' && createPortal((
+          <div className="fixed inset-0 z-[140] bg-black/80 backdrop-blur-sm">
             <div className="flex h-full w-full items-end justify-center sm:items-center sm:p-4">
-              <div className="flex h-[100dvh] w-full flex-col overflow-hidden border border-slate-800 bg-[#0B1121] shadow-2xl sm:h-auto sm:max-h-[min(92vh,960px)] sm:max-w-4xl sm:rounded-2xl">
+              <div className="flex h-[100dvh] w-full flex-col overflow-hidden border border-slate-800 bg-[#0B1121] shadow-2xl sm:h-auto sm:max-h-[min(92vh,960px)] sm:w-[min(1000px,calc(100vw-3rem))] sm:max-w-[calc(100vw-3rem)] sm:rounded-2xl">
                 <div className="sticky top-0 z-10 border-b border-slate-800 bg-[#0B1121]/95 px-4 py-4 backdrop-blur sm:px-6">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -1240,7 +1241,7 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
                   <div className="grid gap-6 lg:grid-cols-[1.02fr,0.98fr]">
                 <div className="space-y-5">
                   <div>
-                    <label className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-slate-500">Headline</label>
+                    <label className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-white">Headline</label>
                     <input
                       type="text"
                       value={propertyReportConfig.headline}
@@ -1253,7 +1254,7 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
                   </div>
 
                   <div>
-                    <label className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-slate-500">Buyer notes</label>
+                    <label className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-white">Buyer notes</label>
                     <textarea
                       value={propertyReportConfig.buyer_notes}
                       onChange={(e) => handlePropertyReportFieldChange('buyer_notes', e.target.value)}
@@ -1266,7 +1267,7 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
                   </div>
 
                   <div>
-                    <label className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-slate-500">Top features</label>
+                    <label className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-white">Top features</label>
                     <input
                       type="text"
                       value={propertyReportFeatureInput}
@@ -1278,7 +1279,7 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
                   </div>
 
                   <div>
-                    <label className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-slate-500">Neighborhood notes</label>
+                    <label className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-white">Neighborhood notes</label>
                     <textarea
                       value={propertyReportConfig.neighborhood_notes}
                       onChange={(e) => handlePropertyReportFieldChange('neighborhood_notes', e.target.value)}
@@ -1291,7 +1292,7 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
                   </div>
 
                   <div>
-                    <label className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-slate-500">Call to action</label>
+                    <label className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-white">Call to action</label>
                     <input
                       type="text"
                       value={propertyReportConfig.cta}
@@ -1305,7 +1306,7 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
 
                   <div className="grid gap-4 md:grid-cols-2">
                     <div>
-                      <label className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-slate-500">Preferred contact</label>
+                      <label className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-white">Preferred contact</label>
                       <select
                         value={propertyReportConfig.contact_method}
                         onChange={(e) => handlePropertyReportFieldChange('contact_method', e.target.value as PropertyReportContactMethod)}
@@ -1317,7 +1318,7 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
                       </select>
                     </div>
                     <div>
-                      <label className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-slate-500">Length</label>
+                      <label className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-white">Length</label>
                       <select
                         value={propertyReportConfig.length_mode}
                         onChange={(e) => handlePropertyReportFieldChange('length_mode', e.target.value as PropertyReportLengthMode)}
@@ -1350,7 +1351,7 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
                       <div className="rounded-2xl border border-slate-800 bg-[#040814] p-4 sm:p-5">
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">Preview summary</p>
+                        <p className="text-xs font-black uppercase tracking-[0.2em] text-white">Preview summary</p>
                         <p className="mt-2 text-sm text-slate-400">
                           This is the short content block that goes onto the PDF. It stays within the {propertyReportLengthLabels[propertyReportConfig.length_mode].toLowerCase()} print limit.
                         </p>
@@ -1367,21 +1368,21 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
 
                     <div className="mt-5 space-y-4">
                       <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
-                        <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">Headline</p>
+                        <p className="text-[11px] font-black uppercase tracking-[0.2em] text-white">Headline</p>
                         <p className="mt-2 text-lg font-black text-white">
                           {propertyReportConfig.preview.headline || 'Your generated headline will show up here.'}
                         </p>
                       </div>
 
                       <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
-                        <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">Summary</p>
+                        <p className="text-[11px] font-black uppercase tracking-[0.2em] text-white">Summary</p>
                         <p className="mt-2 text-sm leading-6 text-slate-300">
                           {propertyReportConfig.preview.summary || 'Preview the short buyer summary before you export.'}
                         </p>
                       </div>
 
                       <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
-                        <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">Bullets</p>
+                        <p className="text-[11px] font-black uppercase tracking-[0.2em] text-white">Bullets</p>
                         {propertyReportConfig.preview.bullets.length > 0 ? (
                           <ul className="mt-3 space-y-2">
                             {propertyReportConfig.preview.bullets.map((bullet) => (
@@ -1397,7 +1398,7 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
                       </div>
 
                       <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
-                        <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">CTA</p>
+                        <p className="text-[11px] font-black uppercase tracking-[0.2em] text-white">CTA</p>
                         <p className="mt-2 text-sm font-semibold text-slate-200">
                           {propertyReportConfig.preview.cta || `${propertyReportContactLabels[propertyReportConfig.contact_method]} instructions will show here after preview.`}
                         </p>
@@ -1406,7 +1407,7 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
                   </div>
 
                       <div className="rounded-2xl border border-slate-800 bg-[#040814] p-4 sm:p-5">
-                        <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">How this works</p>
+                        <p className="text-xs font-black uppercase tracking-[0.2em] text-white">How this works</p>
                         <ol className="mt-3 space-y-2 text-sm text-slate-300">
                           <li>1. Edit your notes on the left.</li>
                           <li>2. Tap refresh if you want AI to rewrite it.</li>
@@ -1453,7 +1454,7 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
               </div>
             </div>
           </div>
-        )}
+        ), document.body)}
 
         {isTestModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
