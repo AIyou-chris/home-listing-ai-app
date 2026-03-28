@@ -4211,7 +4211,7 @@ const buildDemoShareKitContext = async (listingId, sourceKey = 'sign') => {
   };
 };
 
-const buildOpenHouseFlyerPdfBundle = async ({ listingRow, fallbackUserId = null }) => {
+const buildOpenHouseFlyerPdfBundle = async ({ listingRow, fallbackUserId = null, sourceAgentIds = [] }) => {
   const listing = listingRow;
   const { publicSlug, shareUrl } = await ensureListingShareIdentity(listing);
   const trackedUrl = buildTrackedListingUrl({
@@ -4260,6 +4260,28 @@ const buildOpenHouseFlyerPdfBundle = async ({ listingRow, fallbackUserId = null 
   }
 
   const aiCardProfile = (await fetchAiCardProfileForUser(aiCardUserId)) || DEFAULT_AI_CARD_PROFILE;
+  const openHouseFlyerConfig = await loadOpenHouseFlyerConfig({
+    listingId: listing.id,
+    agentIds: [
+      ...new Set(
+        [listing.user_id, fallbackUserId, ...(Array.isArray(sourceAgentIds) ? sourceAgentIds : [sourceAgentIds])]
+          .map((value) => toTrimmedOrNull(value))
+          .filter(Boolean)
+      )
+    ]
+  });
+  const hasSavedOpenHouseFlyerPreview =
+    Boolean(toTrimmedOrNull(openHouseFlyerConfig.preview?.headline)) ||
+    Boolean(toTrimmedOrNull(openHouseFlyerConfig.preview?.schedule_line)) ||
+    Boolean(toTrimmedOrNull(openHouseFlyerConfig.preview?.detail)) ||
+    Boolean(toTrimmedOrNull(openHouseFlyerConfig.preview?.cta));
+  const openHouseFlyerPreview = hasSavedOpenHouseFlyerPreview
+    ? normalizeOpenHouseFlyerPreview(openHouseFlyerConfig.preview)
+    : buildOpenHouseFlyerFallbackPreview({
+      listingRow: listing,
+      config: openHouseFlyerConfig,
+      agentProfile: aiCardProfile
+    });
   const logoDataUrl = await readLocalAssetAsDataUrl(path.resolve(__dirname, '../public/newlogo.png'));
   const headshotSourceUrl = toTrimmedOrNull(aiCardProfile.headshot || aiCardProfile.logo);
   const agentHeadshotDataUrl = headshotSourceUrl
@@ -4277,15 +4299,26 @@ const buildOpenHouseFlyerPdfBundle = async ({ listingRow, fallbackUserId = null 
     baths: formatFlyerMetric(listing.bathrooms),
     sqft: formatFlyerMetric(listing.square_feet),
     description: extractListingDescription(listing.description),
+    flyerHeadline: openHouseFlyerPreview.headline,
+    flyerScheduleLine: openHouseFlyerPreview.schedule_line,
+    flyerDetail: openHouseFlyerPreview.detail,
+    flyerCta: openHouseFlyerPreview.cta,
     photoDataUrls,
     qrDataUrl: qrAssets.qr_code_url,
     shareUrl,
     trackedUrl,
     chatUrl,
     contactUrl,
+    contactActionLabel:
+      openHouseFlyerConfig.contact_method === 'text'
+        ? 'Text'
+        : openHouseFlyerConfig.contact_method === 'email'
+          ? 'Email'
+          : 'Call',
     agentName: toTrimmedOrNull(aiCardProfile.fullName) || 'HomeListingAI Agent',
     agentTitle: toTrimmedOrNull(aiCardProfile.professionalTitle) || 'Listing Specialist',
     agentCompany: toTrimmedOrNull(aiCardProfile.company) || 'HomeListingAI',
+    hostNote: toTrimmedOrNull(openHouseFlyerConfig.host_note),
     agentHeadshotDataUrl,
     brandColor: toTrimmedOrNull(aiCardProfile.brandColor) || DEFAULT_AI_CARD_PROFILE.brandColor
   });
@@ -4332,15 +4365,21 @@ const buildOpenHouseFlyerHtml = ({
   baths,
   sqft,
   description,
+  flyerHeadline,
+  flyerScheduleLine,
+  flyerDetail,
+  flyerCta,
   photoDataUrls,
   qrDataUrl,
   shareUrl,
   trackedUrl,
   chatUrl,
   contactUrl,
+  contactActionLabel,
   agentName,
   agentTitle,
   agentCompany,
+  hostNote,
   agentHeadshotDataUrl,
   brandColor
 }) => {
@@ -4354,7 +4393,9 @@ const buildOpenHouseFlyerHtml = ({
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase() || '')
     .join('') || 'AG';
-  const teaser = escapeHtml(description || 'Instant pricing insight, local trends, and showing options in one simple scan.');
+  const teaser = escapeHtml(flyerDetail || description || 'Walk through the home in person and scan for full listing details.');
+  const safeScheduleLine = escapeHtml(flyerScheduleLine || 'Open house details coming soon');
+  const safeHostNote = escapeHtml(hostNote || '');
 
   return `
 <!doctype html>
@@ -4490,6 +4531,15 @@ const buildOpenHouseFlyerHtml = ({
         font-size: 0.145in;
         line-height: 1.4;
         color: #475569;
+      }
+      .event-line {
+        margin-top: 0.14in;
+        border-radius: 0.18in;
+        background: #fff2e8;
+        padding: 0.11in 0.12in;
+        font-size: 0.13in;
+        font-weight: 900;
+        color: ${darkerBrandColor};
       }
       .content {
         display: grid;
@@ -4669,6 +4719,12 @@ const buildOpenHouseFlyerHtml = ({
         font-size: 0.115in;
         color: rgba(255,255,255,0.82);
       }
+      .agent-host-note {
+        margin-top: 0.08in;
+        font-size: 0.105in;
+        line-height: 1.35;
+        color: rgba(255,255,255,0.74);
+      }
       .agent-actions {
         margin-top: 0.14in;
         display: grid;
@@ -4780,13 +4836,12 @@ const buildOpenHouseFlyerHtml = ({
         <div class="headline">
           <div>
             <div class="kicker">HomeListingAI Report</div>
-            <h1>
-              Scan for<br />the<br /><span class="accent">Property</span><br /><span class="accent">Report</span>
-            </h1>
+            <h1>${escapeHtml(flyerHeadline || 'Open House')}</h1>
+            <div class="headline-copy">${teaser}</div>
           </div>
 
           <div class="hero-summary">
-            <div class="label">Property Snapshot</div>
+            <div class="label">Open House Details</div>
             <div class="address">${escapeHtml(address)}</div>
             <div class="price">${escapeHtml(priceLabel)}</div>
             <div class="metrics">
@@ -4794,6 +4849,7 @@ const buildOpenHouseFlyerHtml = ({
               <div class="metric"><div class="metric-label">Baths</div><div class="metric-value">${escapeHtml(baths)}</div></div>
               <div class="metric"><div class="metric-label">Sq Ft</div><div class="metric-value">${escapeHtml(sqft)}</div></div>
             </div>
+            <div class="event-line">${safeScheduleLine}</div>
             <div class="hero-summary-copy">${teaser}</div>
           </div>
         </div>
@@ -4822,11 +4878,12 @@ const buildOpenHouseFlyerHtml = ({
                   <div class="agent-kicker">HomeListingAI</div>
                   <div class="agent-name">${escapeHtml(agentName)}</div>
                   <div class="agent-meta">${escapeHtml(agentTitle)}<br />${escapeHtml(agentCompany)}</div>
+                  ${safeHostNote ? `<div class="agent-host-note">${safeHostNote}</div>` : ''}
                 </div>
               </div>
               <div class="agent-actions">
                 <a class="agent-action chat" href="${escapeHtml(chatUrl)}">Chat With Me</a>
-                <a class="agent-action contact" href="${escapeHtml(contactUrl)}">Contact</a>
+                <a class="agent-action contact" href="${escapeHtml(contactUrl)}">${escapeHtml(contactActionLabel || 'Contact')}</a>
               </div>
             </div>
           </div>
@@ -4835,14 +4892,14 @@ const buildOpenHouseFlyerHtml = ({
             <div class="qr-head">
               <div>
                 <div class="qr-kicker">Scan Destination</div>
-                <div class="qr-title">Property details +<br />showing request</div>
+                <div class="qr-title">Full listing +<br />showing request</div>
               </div>
               <div class="qr-badge">Scan now</div>
             </div>
             <div class="qr-image-wrap">
               <img src="${qrDataUrl}" alt="Listing QR code" />
             </div>
-            <div class="qr-caption">Scan to open the live listing with price, photos, home highlights, agent chat, and a showing request for this home.</div>
+            <div class="qr-caption">${escapeHtml(flyerCta || 'Scan to open the live listing, see the property details, and request a showing.')}</div>
             <a class="footer-link" href="${escapeHtml(trackedUrl)}">${escapeHtml(shareUrl)}</a>
           </div>
         </div>
@@ -7812,6 +7869,7 @@ const ensureDefaultListingSources = async ({ listingId, agentId }) => {
 };
 
 const LIGHT_CMA_CONFIG_SOURCE_KEY = 'light_cma_config';
+const OPEN_HOUSE_FLYER_CONFIG_SOURCE_KEY = 'open_house_flyer_config';
 const PROPERTY_REPORT_CONFIG_SOURCE_KEY = 'property_report_config';
 const PROPERTY_REPORT_LENGTH_LIMITS = {
   tight: {
@@ -7944,6 +8002,32 @@ const normalizePropertyReportConfig = (input) => {
   };
 };
 
+const normalizeOpenHouseFlyerPreview = (input) => {
+  const raw = input && typeof input === 'object' ? input : {};
+  return {
+    headline: truncateText(raw.headline, 90),
+    schedule_line: truncateText(raw.schedule_line || raw.scheduleLine, 80),
+    detail: normalizeWordLimitedText(raw.detail, 42),
+    cta: truncateText(raw.cta, 90)
+  };
+};
+
+const normalizeOpenHouseFlyerConfig = (input) => {
+  const raw = input && typeof input === 'object' ? input : {};
+  return {
+    event_date: truncateText(raw.event_date || raw.eventDate, 40),
+    start_time: truncateText(raw.start_time || raw.startTime, 30),
+    end_time: truncateText(raw.end_time || raw.endTime, 30),
+    headline: truncateText(raw.headline, 90),
+    event_note: truncateText(raw.event_note || raw.eventNote, 320),
+    host_note: truncateText(raw.host_note || raw.hostNote, 160),
+    cta: truncateText(raw.cta, 90),
+    contact_method: normalizePropertyReportContactMethod(raw.contact_method || raw.contactMethod),
+    ai_enabled: raw.ai_enabled !== false && raw.aiEnabled !== false,
+    preview: normalizeOpenHouseFlyerPreview(raw.preview)
+  };
+};
+
 const parsePropertyReportConfigContent = (content) => {
   if (!content) return normalizePropertyReportConfig({});
   if (typeof content === 'object') return normalizePropertyReportConfig(content);
@@ -7951,6 +8035,16 @@ const parsePropertyReportConfigContent = (content) => {
     return normalizePropertyReportConfig(JSON.parse(String(content)));
   } catch (_error) {
     return normalizePropertyReportConfig({});
+  }
+};
+
+const parseOpenHouseFlyerConfigContent = (content) => {
+  if (!content) return normalizeOpenHouseFlyerConfig({});
+  if (typeof content === 'object') return normalizeOpenHouseFlyerConfig(content);
+  try {
+    return normalizeOpenHouseFlyerConfig(JSON.parse(String(content)));
+  } catch (_error) {
+    return normalizeOpenHouseFlyerConfig({});
   }
 };
 
@@ -8070,6 +8164,15 @@ const loadLightCmaConfig = async ({ listingId, agentIds = [] }) => {
   return parseLightCmaConfigContent(row?.content || row?.text || null);
 };
 
+const loadOpenHouseFlyerConfig = async ({ listingId, agentIds = [] }) => {
+  const row = await readListingSourceContent({
+    listingId,
+    agentIds,
+    sourceKey: OPEN_HOUSE_FLYER_CONFIG_SOURCE_KEY
+  });
+  return parseOpenHouseFlyerConfigContent(row?.content || row?.text || null);
+};
+
 const loadPropertyReportConfig = async ({ listingId, agentIds = [] }) => {
   const row = await readListingSourceContent({
     listingId,
@@ -8077,6 +8180,51 @@ const loadPropertyReportConfig = async ({ listingId, agentIds = [] }) => {
     sourceKey: PROPERTY_REPORT_CONFIG_SOURCE_KEY
   });
   return parsePropertyReportConfigContent(row?.content || row?.text || null);
+};
+
+const buildOpenHouseFlyerScheduleLine = (config) => {
+  const normalizedConfig = normalizeOpenHouseFlyerConfig(config);
+  const parts = [
+    toTrimmedOrNull(normalizedConfig.event_date),
+    [
+      toTrimmedOrNull(normalizedConfig.start_time),
+      toTrimmedOrNull(normalizedConfig.end_time)
+    ].filter(Boolean).join(' - ')
+  ].filter(Boolean);
+  return truncateText(parts.join(' • '), 80);
+};
+
+const buildOpenHouseFlyerFallbackPreview = ({ listingRow, config, agentProfile }) => {
+  const normalizedConfig = normalizeOpenHouseFlyerConfig(config);
+  const address = toTrimmedOrNull(listingRow?.address) || 'This home';
+  const contactLabel =
+    normalizedConfig.contact_method === 'text'
+      ? 'Text'
+      : normalizedConfig.contact_method === 'email'
+        ? 'Email'
+        : 'Call';
+  const scheduleLine = buildOpenHouseFlyerScheduleLine(normalizedConfig);
+  const detail = normalizeWordLimitedText(
+    normalizedConfig.event_note ||
+      normalizedConfig.host_note ||
+      extractListingDescription(listingRow?.description) ||
+      'Tour the home in person, walk the rooms, and ask questions about the property and next steps.',
+    42
+  );
+
+  return {
+    headline: truncateText(
+      normalizedConfig.headline || `Open House at ${address}`,
+      90
+    ),
+    schedule_line: scheduleLine || 'Open house details coming soon',
+    detail,
+    cta: truncateText(
+      normalizedConfig.cta ||
+        `${contactLabel} ${toTrimmedOrNull(agentProfile?.fullName) || 'the listing agent'} for details or a private showing.`,
+      90
+    )
+  };
 };
 
 const buildPropertyReportFallbackPreview = ({ listingRow, config, agentProfile }) => {
@@ -8231,6 +8379,80 @@ const generatePropertyReportPreview = async ({ listingRow, config, agentProfile 
     };
   } catch (error) {
     console.warn('[PropertyReport] AI preview failed, falling back:', error?.message || error);
+    return fallback;
+  }
+};
+
+const generateOpenHouseFlyerPreview = async ({ listingRow, config, agentProfile }) => {
+  const normalizedConfig = normalizeOpenHouseFlyerConfig(config);
+  const fallback = buildOpenHouseFlyerFallbackPreview({
+    listingRow,
+    config: normalizedConfig,
+    agentProfile
+  });
+
+  if (!normalizedConfig.ai_enabled || !process.env.OPENAI_API_KEY) {
+    return fallback;
+  }
+
+  const address = toTrimmedOrNull(listingRow?.address) || 'Listing address';
+  const price = Number(listingRow?.price || 0);
+  const priceLabel = price > 0
+    ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(price)
+    : 'Price on request';
+  const beds = safeNumber(listingRow?.bedrooms);
+  const baths = safeNumber(listingRow?.bathrooms);
+  const sqft = safeNumber(listingRow?.square_feet);
+  const scheduleLine = buildOpenHouseFlyerScheduleLine(normalizedConfig);
+
+  const prompt = [
+    'You are writing short print-safe open house flyer copy for a real estate agent.',
+    'Return only valid JSON.',
+    '',
+    'Required JSON shape:',
+    '{"headline":"", "schedule_line":"", "detail":"", "cta":""}',
+    '',
+    'Rules:',
+    '- headline: max 90 chars',
+    '- schedule_line: max 80 chars',
+    '- detail: max 42 words',
+    '- cta: max 90 chars',
+    '- Keep it simple, local, and useful.',
+    '- Do not invent facts.',
+    '',
+    `Address: ${address}`,
+    `Price: ${priceLabel}`,
+    beds > 0 ? `Beds: ${beds}` : null,
+    baths > 0 ? `Baths: ${baths}` : null,
+    sqft > 0 ? `Sq Ft: ${sqft.toLocaleString('en-US')}` : null,
+    scheduleLine ? `Open house schedule: ${scheduleLine}` : null,
+    normalizedConfig.headline ? `Agent headline: ${normalizedConfig.headline}` : null,
+    normalizedConfig.event_note ? `Event note: ${normalizedConfig.event_note}` : null,
+    normalizedConfig.host_note ? `Host note: ${normalizedConfig.host_note}` : null,
+    normalizedConfig.cta ? `CTA preference: ${normalizedConfig.cta}` : null
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: OPENAI_CHAT_MODEL,
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.35,
+      max_tokens: 260
+    });
+    const content = completion?.choices?.[0]?.message?.content || '';
+    const parsed = parseJsonObjectFromModel(content);
+    if (!parsed || typeof parsed !== 'object') return fallback;
+    const normalized = normalizeOpenHouseFlyerPreview(parsed);
+    return {
+      headline: normalized.headline || fallback.headline,
+      schedule_line: normalized.schedule_line || fallback.schedule_line,
+      detail: normalized.detail || fallback.detail,
+      cta: normalized.cta || fallback.cta
+    };
+  } catch (error) {
+    console.warn('[OpenHouseFlyer] AI preview failed, falling back:', error?.message || error);
     return fallback;
   }
 };
@@ -21585,7 +21807,8 @@ app.get('/api/dashboard/listings/:listingId/open-house-flyer.pdf', async (req, r
     if (!access) return res.status(404).json({ error: 'listing_not_found' });
     const { pdfBuffer, downloadName } = await buildOpenHouseFlyerPdfBundle({
       listingRow: access.listingRow,
-      fallbackUserId: access.requesterUserId
+      fallbackUserId: access.requesterUserId,
+      sourceAgentIds: access.sourceAgentIds
     });
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${downloadName}"`);
@@ -21593,6 +21816,125 @@ app.get('/api/dashboard/listings/:listingId/open-house-flyer.pdf', async (req, r
   } catch (error) {
     console.error('[Dashboard] Failed to generate open house flyer PDF:', error);
     return res.status(500).json({ error: 'failed_to_generate_open_house_flyer_pdf' });
+  }
+});
+
+app.get('/api/dashboard/listings/:listingId/open-house-flyer/config', async (req, res) => {
+  try {
+    const { listingId } = req.params;
+    const requesterUserId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!requesterUserId) return res.status(401).json({ error: 'agent_auth_required' });
+    console.info('[sharekit.open_house_flyer_config.get]', { listingId, ownerId: requesterUserId });
+
+    const access = await resolveListingAccessContext({
+      listingId,
+      requesterUserId,
+      accessTag: 'dashboard.open_house_flyer_config_get'
+    });
+    if (!access) return res.status(404).json({ error: 'listing_not_found' });
+
+    const config = await loadOpenHouseFlyerConfig({
+      listingId: access.listingRow.id,
+      agentIds: access.sourceAgentIds
+    });
+
+    return res.json({
+      success: true,
+      listing_id: access.listingRow.id,
+      config
+    });
+  } catch (error) {
+    console.error('[Dashboard] Failed to load open house flyer config:', error);
+    return res.status(500).json({ error: 'failed_to_load_open_house_flyer_config' });
+  }
+});
+
+app.put('/api/dashboard/listings/:listingId/open-house-flyer/config', async (req, res) => {
+  try {
+    const { listingId } = req.params;
+    const requesterUserId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!requesterUserId) return res.status(401).json({ error: 'agent_auth_required' });
+    console.info('[sharekit.open_house_flyer_config.put]', { listingId, ownerId: requesterUserId });
+
+    const access = await resolveListingAccessContext({
+      listingId,
+      requesterUserId,
+      accessTag: 'dashboard.open_house_flyer_config_put'
+    });
+    if (!access) return res.status(404).json({ error: 'listing_not_found' });
+
+    const config = normalizeOpenHouseFlyerConfig(req.body || {});
+    const primaryAgentId =
+      toTrimmedOrNull(access.listingRow.user_id) ||
+      toTrimmedOrNull(Array.isArray(access.sourceAgentIds) ? access.sourceAgentIds[0] : access.sourceAgentIds) ||
+      requesterUserId;
+
+    await upsertListingSourceContent({
+      listingId: access.listingRow.id,
+      agentId: primaryAgentId,
+      sourceType: 'text',
+      sourceKey: OPEN_HOUSE_FLYER_CONFIG_SOURCE_KEY,
+      title: 'Open House Flyer Config',
+      content: config,
+      status: 'trained'
+    });
+
+    return res.json({
+      success: true,
+      listing_id: access.listingRow.id,
+      config
+    });
+  } catch (error) {
+    console.error('[Dashboard] Failed to save open house flyer config:', error);
+    return res.status(500).json({ error: 'failed_to_save_open_house_flyer_config' });
+  }
+});
+
+app.post('/api/dashboard/listings/:listingId/open-house-flyer/preview', async (req, res) => {
+  try {
+    const { listingId } = req.params;
+    const requesterUserId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!requesterUserId) return res.status(401).json({ error: 'agent_auth_required' });
+    console.info('[sharekit.open_house_flyer_preview.post]', { listingId, ownerId: requesterUserId });
+
+    const access = await resolveListingAccessContext({
+      listingId,
+      requesterUserId,
+      accessTag: 'dashboard.open_house_flyer_preview'
+    });
+    if (!access) return res.status(404).json({ error: 'listing_not_found' });
+
+    const listing = access.listingRow;
+    let aiCardUserId = toTrimmedOrNull(listing.user_id) || toTrimmedOrNull(access.requesterUserId);
+    if (!aiCardUserId && listing.agent_id) {
+      const { data: agentOwnerRow } = await supabaseAdmin
+        .from('agents')
+        .select('user_id,auth_user_id')
+        .eq('id', listing.agent_id)
+        .maybeSingle();
+      aiCardUserId = toTrimmedOrNull(agentOwnerRow?.user_id || agentOwnerRow?.auth_user_id);
+    }
+
+    const aiCardProfile = (await fetchAiCardProfileForUser(aiCardUserId)) || DEFAULT_AI_CARD_PROFILE;
+    const config = normalizeOpenHouseFlyerConfig(req.body || {});
+    const preview = await generateOpenHouseFlyerPreview({
+      listingRow: listing,
+      config,
+      agentProfile: aiCardProfile
+    });
+
+    return res.json({
+      success: true,
+      listing_id: listing.id,
+      config: {
+        ...config,
+        preview
+      },
+      preview
+    });
+  } catch (error) {
+    console.error('[Dashboard] Failed to build open house flyer preview:', error);
+    return res.status(500).json({ error: 'failed_to_build_open_house_flyer_preview' });
   }
 });
 

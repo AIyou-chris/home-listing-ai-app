@@ -315,6 +315,7 @@ export interface LightCmaConfig {
 
 export type PropertyReportLengthMode = 'tight' | 'standard' | 'premium';
 export type PropertyReportContactMethod = 'call' | 'text' | 'email';
+export type OpenHouseFlyerContactMethod = 'call' | 'text' | 'email';
 
 export interface PropertyReportPreview {
   headline: string;
@@ -333,6 +334,26 @@ export interface PropertyReportConfig {
   ai_enabled: boolean;
   length_mode: PropertyReportLengthMode;
   preview: PropertyReportPreview;
+}
+
+export interface OpenHouseFlyerPreview {
+  headline: string;
+  schedule_line: string;
+  detail: string;
+  cta: string;
+}
+
+export interface OpenHouseFlyerConfig {
+  event_date: string;
+  start_time: string;
+  end_time: string;
+  headline: string;
+  event_note: string;
+  host_note: string;
+  cta: string;
+  contact_method: OpenHouseFlyerContactMethod;
+  ai_enabled: boolean;
+  preview: OpenHouseFlyerPreview;
 }
 
 export interface ListingSourceDefault {
@@ -685,6 +706,11 @@ const normalizePropertyReportContactMethod = (value: unknown): PropertyReportCon
   return 'call';
 };
 
+const normalizeOpenHouseFlyerContactMethod = (value: unknown): OpenHouseFlyerContactMethod => {
+  if (value === 'text' || value === 'email') return value;
+  return 'call';
+};
+
 const normalizePropertyReportConfig = (input?: Partial<PropertyReportConfig> | null): PropertyReportConfig => {
   const raw = input && typeof input === 'object' ? input : {};
   return {
@@ -709,6 +735,27 @@ const normalizePropertyReportConfig = (input?: Partial<PropertyReportConfig> | n
   };
 };
 
+const normalizeOpenHouseFlyerConfig = (input?: Partial<OpenHouseFlyerConfig> | null): OpenHouseFlyerConfig => {
+  const raw = input && typeof input === 'object' ? input : {};
+  return {
+    event_date: typeof raw.event_date === 'string' ? raw.event_date : '',
+    start_time: typeof raw.start_time === 'string' ? raw.start_time : '',
+    end_time: typeof raw.end_time === 'string' ? raw.end_time : '',
+    headline: typeof raw.headline === 'string' ? raw.headline : '',
+    event_note: typeof raw.event_note === 'string' ? raw.event_note : '',
+    host_note: typeof raw.host_note === 'string' ? raw.host_note : '',
+    cta: typeof raw.cta === 'string' ? raw.cta : '',
+    contact_method: normalizeOpenHouseFlyerContactMethod(raw.contact_method),
+    ai_enabled: raw.ai_enabled !== false,
+    preview: {
+      headline: typeof raw.preview?.headline === 'string' ? raw.preview.headline : '',
+      schedule_line: typeof raw.preview?.schedule_line === 'string' ? raw.preview.schedule_line : '',
+      detail: typeof raw.preview?.detail === 'string' ? raw.preview.detail : '',
+      cta: typeof raw.preview?.cta === 'string' ? raw.preview.cta : ''
+    }
+  };
+};
+
 export const fetchPropertyReportConfig = async (listingId: string, agentIdOverride?: string | null) => {
   if (isDemoModeActive()) {
     return {
@@ -727,6 +774,27 @@ export const fetchPropertyReportConfig = async (listingId: string, agentIdOverri
   return {
     ...payload,
     config: normalizePropertyReportConfig(payload.config)
+  };
+};
+
+export const fetchOpenHouseFlyerConfig = async (listingId: string, agentIdOverride?: string | null) => {
+  if (isDemoModeActive()) {
+    return {
+      success: true,
+      listing_id: listingId,
+      config: normalizeOpenHouseFlyerConfig({})
+    };
+  }
+
+  const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
+  const response = await fetch(
+    buildApiUrl(withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}/open-house-flyer/config`, agentId)),
+    { headers: defaultJsonHeaders(agentId) }
+  );
+  const payload = await parseResponse<{ success: boolean; listing_id: string; config: OpenHouseFlyerConfig }>(response);
+  return {
+    ...payload,
+    config: normalizeOpenHouseFlyerConfig(payload.config)
   };
 };
 
@@ -756,6 +824,35 @@ export const savePropertyReportConfig = async (
   return {
     ...payload,
     config: normalizePropertyReportConfig(payload.config)
+  };
+};
+
+export const saveOpenHouseFlyerConfig = async (
+  listingId: string,
+  config: OpenHouseFlyerConfig,
+  agentIdOverride?: string | null
+) => {
+  if (isDemoModeActive()) {
+    return {
+      success: true,
+      listing_id: listingId,
+      config: normalizeOpenHouseFlyerConfig(config)
+    };
+  }
+
+  const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
+  const response = await fetch(
+    buildApiUrl(withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}/open-house-flyer/config`, agentId)),
+    {
+      method: 'PUT',
+      headers: defaultJsonHeaders(agentId),
+      body: JSON.stringify(config)
+    }
+  );
+  const payload = await parseResponse<{ success: boolean; listing_id: string; config: OpenHouseFlyerConfig }>(response);
+  return {
+    ...payload,
+    config: normalizeOpenHouseFlyerConfig(payload.config)
   };
 };
 
@@ -793,6 +890,43 @@ export const previewPropertyReport = async (
     ...payload,
     config: normalizePropertyReportConfig(payload.config),
     preview: normalizePropertyReportConfig({ preview: payload.preview }).preview
+  };
+};
+
+export const previewOpenHouseFlyer = async (
+  listingId: string,
+  config: OpenHouseFlyerConfig,
+  agentIdOverride?: string | null
+) => {
+  if (isDemoModeActive()) {
+    const normalized = normalizeOpenHouseFlyerConfig(config);
+    return {
+      success: true,
+      listing_id: listingId,
+      config: normalized,
+      preview: normalized.preview
+    };
+  }
+
+  const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
+  const response = await fetch(
+    buildApiUrl(withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}/open-house-flyer/preview`, agentId)),
+    {
+      method: 'POST',
+      headers: defaultJsonHeaders(agentId),
+      body: JSON.stringify(config)
+    }
+  );
+  const payload = await parseResponse<{
+    success: boolean;
+    listing_id: string;
+    config: OpenHouseFlyerConfig;
+    preview: OpenHouseFlyerPreview;
+  }>(response);
+  return {
+    ...payload,
+    config: normalizeOpenHouseFlyerConfig(payload.config),
+    preview: normalizeOpenHouseFlyerConfig({ preview: payload.preview }).preview
   };
 };
 

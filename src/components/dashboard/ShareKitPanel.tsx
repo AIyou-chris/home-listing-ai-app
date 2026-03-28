@@ -5,14 +5,19 @@ import SocialVideoWidget from '../dashboard-widgets/SocialVideoWidget';
 import { showToast } from '../../utils/toastService';
 import {
   fetchLightCmaConfig,
+  fetchOpenHouseFlyerConfig,
   fetchPropertyReportConfig,
+  previewOpenHouseFlyer,
   previewPropertyReport,
   generateListingQrCode,
   saveLightCmaConfig,
+  saveOpenHouseFlyerConfig,
   savePropertyReportConfig,
   type LightCmaConfig,
   type LightCmaManualComp,
   type ListingSourceDefault,
+  type OpenHouseFlyerConfig,
+  type OpenHouseFlyerContactMethod,
   type PropertyReportConfig,
   type PropertyReportContactMethod,
   type PropertyReportLengthMode
@@ -104,6 +109,24 @@ const createEmptyPropertyReportConfig = (): PropertyReportConfig => ({
   }
 });
 
+const createEmptyOpenHouseFlyerConfig = (): OpenHouseFlyerConfig => ({
+  event_date: '',
+  start_time: '',
+  end_time: '',
+  headline: '',
+  event_note: '',
+  host_note: '',
+  cta: '',
+  contact_method: 'call',
+  ai_enabled: true,
+  preview: {
+    headline: '',
+    schedule_line: '',
+    detail: '',
+    cta: ''
+  }
+});
+
 const parsePropertyFeatureInput = (value: string) =>
   value
     .split(/[\n,]+/)
@@ -118,6 +141,12 @@ const propertyReportLengthLabels: Record<PropertyReportLengthMode, string> = {
 };
 
 const propertyReportContactLabels: Record<PropertyReportContactMethod, string> = {
+  call: 'Call',
+  text: 'Text',
+  email: 'Email'
+};
+
+const openHouseFlyerContactLabels: Record<OpenHouseFlyerContactMethod, string> = {
   call: 'Call',
   text: 'Text',
   email: 'Email'
@@ -156,6 +185,11 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
   const [propertyReportLoading, setPropertyReportLoading] = useState(false);
   const [propertyReportPreviewing, setPropertyReportPreviewing] = useState(false);
   const [propertyReportSaving, setPropertyReportSaving] = useState(false);
+  const [isOpenHouseFlyerModalOpen, setIsOpenHouseFlyerModalOpen] = useState(false);
+  const [openHouseFlyerConfig, setOpenHouseFlyerConfig] = useState<OpenHouseFlyerConfig>(createEmptyOpenHouseFlyerConfig());
+  const [openHouseFlyerLoading, setOpenHouseFlyerLoading] = useState(false);
+  const [openHouseFlyerPreviewing, setOpenHouseFlyerPreviewing] = useState(false);
+  const [openHouseFlyerSaving, setOpenHouseFlyerSaving] = useState(false);
 
   const noticeTimeoutRef = useRef<number | null>(null);
 
@@ -209,6 +243,11 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
   );
   const propertyReportPreviewReady =
     Boolean(propertyReportConfig.preview.summary.trim()) || propertyReportConfig.preview.bullets.length > 0;
+  const openHouseFlyerPreviewReady =
+    Boolean(openHouseFlyerConfig.preview.headline.trim()) ||
+    Boolean(openHouseFlyerConfig.preview.schedule_line.trim()) ||
+    Boolean(openHouseFlyerConfig.preview.detail.trim()) ||
+    Boolean(openHouseFlyerConfig.preview.cta.trim());
 
   const setTransientNotice = useCallback((tone: 'info' | 'success' | 'error', text: string) => {
     setActionNotice({ tone, text });
@@ -343,6 +382,25 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
     };
   }, [listing.id]);
 
+  useEffect(() => {
+    let active = true;
+    setOpenHouseFlyerLoading(true);
+    void fetchOpenHouseFlyerConfig(listing.id)
+      .then((response) => {
+        if (!active) return;
+        setOpenHouseFlyerConfig(response.config || createEmptyOpenHouseFlyerConfig());
+      })
+      .catch((error) => {
+        console.error('Failed to load Open House Flyer config', error);
+      })
+      .finally(() => {
+        if (active) setOpenHouseFlyerLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [listing.id]);
+
   const handleCopy = async (text: string, setCopiedState: (v: boolean) => void) => {
     try {
       await copyToClipboard(text);
@@ -401,28 +459,8 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
     }
   };
 
-  const handleDownloadOpenHouseFlyer = async () => {
-    const fileName = `${flyerFileBase}-open-house-flyer.pdf`;
-    try {
-      setExportingKey(fileName);
-      setTransientNotice('info', `Building ${fileName}...`);
-      const { blob, fileName: resolvedFileName } = await listingShareKitService.getFlyerPdf(listing.id, 'open_house');
-      listingShareKitService.saveBlobDownload(blob, resolvedFileName || fileName);
-      setTransientNotice('success', `${resolvedFileName || fileName} download started.`);
-      showToast.success('Downloaded');
-    } catch (error) {
-      console.error('Failed to create Open House Flyer PDF', error);
-      const errorCode = error instanceof Error ? error.message : 'open_house_flyer_failed';
-      if (errorCode === 'demo_export_unavailable_use_real_listing') {
-        setTransientNotice('info', 'Demo page is for layout only. Use your real listing page to download files.');
-        showToast.error('Use the real listing page for downloads.');
-      } else {
-        setTransientNotice('error', `Could not create ${fileName} (${errorCode}).`);
-        showToast.error(`Could not create PDF (${errorCode}).`);
-      }
-    } finally {
-      setExportingKey(null);
-    }
+  const handleOpenOpenHouseFlyerModal = () => {
+    setIsOpenHouseFlyerModalOpen(true);
   };
 
   const handleDownloadSignRider = async () => {
@@ -451,6 +489,16 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
 
   const handleOpenPropertyReportModal = () => {
     setIsPropertyReportModalOpen(true);
+  };
+
+  const handleOpenHouseFlyerFieldChange = <K extends keyof OpenHouseFlyerConfig>(
+    field: K,
+    value: OpenHouseFlyerConfig[K]
+  ) => {
+    setOpenHouseFlyerConfig((current) => ({
+      ...current,
+      [field]: value
+    }));
   };
 
   const handlePropertyReportFieldChange = <K extends keyof PropertyReportConfig>(
@@ -483,6 +531,26 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
     }
   }, [listing.id, propertyReportConfig, setTransientNotice]);
 
+  const handleOpenHouseFlyerPreview = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
+    try {
+      setOpenHouseFlyerPreviewing(true);
+      const response = await previewOpenHouseFlyer(listing.id, openHouseFlyerConfig);
+      setOpenHouseFlyerConfig(response.config || openHouseFlyerConfig);
+      if (!silent) {
+        setTransientNotice('success', 'Open house preview refreshed.');
+      }
+    } catch (error) {
+      console.error('Failed to preview Open House Flyer', error);
+      const errorCode = error instanceof Error ? error.message : 'open_house_flyer_preview_failed';
+      if (!silent) {
+        setTransientNotice('error', `Could not refresh flyer preview (${errorCode}).`);
+        showToast.error(`Could not preview (${errorCode}).`);
+      }
+    } finally {
+      setOpenHouseFlyerPreviewing(false);
+    }
+  }, [listing.id, openHouseFlyerConfig, setTransientNotice]);
+
   useEffect(() => {
     if (!isPropertyReportModalOpen) return;
     if (propertyReportLoading || propertyReportPreviewing || propertyReportSaving) return;
@@ -496,6 +564,21 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
     propertyReportPreviewReady,
     propertyReportPreviewing,
     propertyReportSaving
+  ]);
+
+  useEffect(() => {
+    if (!isOpenHouseFlyerModalOpen) return;
+    if (openHouseFlyerLoading || openHouseFlyerPreviewing || openHouseFlyerSaving) return;
+    if (openHouseFlyerPreviewReady) return;
+
+    void handleOpenHouseFlyerPreview({ silent: true });
+  }, [
+    handleOpenHouseFlyerPreview,
+    isOpenHouseFlyerModalOpen,
+    openHouseFlyerLoading,
+    openHouseFlyerPreviewReady,
+    openHouseFlyerPreviewing,
+    openHouseFlyerSaving
   ]);
 
   const handleSavePropertyReport = async () => {
@@ -515,6 +598,26 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
       showToast.error(`Could not save (${errorCode}).`);
     } finally {
       setPropertyReportSaving(false);
+    }
+  };
+
+  const handleSaveOpenHouseFlyer = async () => {
+    try {
+      setOpenHouseFlyerSaving(true);
+      const payload = openHouseFlyerPreviewReady
+        ? openHouseFlyerConfig
+        : (await previewOpenHouseFlyer(listing.id, openHouseFlyerConfig)).config;
+      const response = await saveOpenHouseFlyerConfig(listing.id, payload);
+      setOpenHouseFlyerConfig(response.config || payload);
+      setTransientNotice('success', 'Saved open house flyer settings.');
+      showToast.success('Saved');
+    } catch (error) {
+      console.error('Failed to save Open House Flyer config', error);
+      const errorCode = error instanceof Error ? error.message : 'open_house_flyer_config_failed';
+      setTransientNotice('error', `Could not save open house flyer settings (${errorCode}).`);
+      showToast.error(`Could not save (${errorCode}).`);
+    } finally {
+      setOpenHouseFlyerSaving(false);
     }
   };
 
@@ -547,6 +650,39 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
       }
     } finally {
       setPropertyReportSaving(false);
+      setExportingKey(null);
+    }
+  };
+
+  const handleCreateOpenHouseFlyerPdf = async () => {
+    const fileName = `${flyerFileBase}-open-house-flyer.pdf`;
+    try {
+      setOpenHouseFlyerSaving(true);
+      setExportingKey(fileName);
+      setTransientNotice('info', `Building ${fileName}...`);
+      const preparedConfig = openHouseFlyerPreviewReady
+        ? openHouseFlyerConfig
+        : (await previewOpenHouseFlyer(listing.id, openHouseFlyerConfig)).config;
+      const saveResponse = await saveOpenHouseFlyerConfig(listing.id, preparedConfig);
+      const finalConfig = saveResponse.config || preparedConfig;
+      setOpenHouseFlyerConfig(finalConfig);
+      const { blob, fileName: resolvedFileName } = await listingShareKitService.getFlyerPdf(listing.id, 'open_house');
+      listingShareKitService.saveBlobDownload(blob, resolvedFileName || fileName);
+      setTransientNotice('success', `${resolvedFileName || fileName} download started.`);
+      showToast.success('Downloaded');
+      setIsOpenHouseFlyerModalOpen(false);
+    } catch (error) {
+      console.error('Failed to create Open House Flyer PDF', error);
+      const errorCode = error instanceof Error ? error.message : 'open_house_flyer_failed';
+      if (errorCode === 'demo_export_unavailable_use_real_listing') {
+        setTransientNotice('info', 'Demo page is for layout only. Use your real listing page to download files.');
+        showToast.error('Use the real listing page for downloads.');
+      } else {
+        setTransientNotice('error', `Could not create ${fileName} (${errorCode}).`);
+        showToast.error(`Could not create PDF (${errorCode}).`);
+      }
+    } finally {
+      setOpenHouseFlyerSaving(false);
       setExportingKey(null);
     }
   };
@@ -905,11 +1041,11 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
                   {exportingKey === `${flyerFileBase}-light-cma.pdf` ? 'Creating...' : 'Create Light CMA (PDF)'}
                 </button>
                 <button
-                  onClick={() => void handleDownloadOpenHouseFlyer()}
-                  disabled={Boolean(exportingKey)}
+                  onClick={handleOpenOpenHouseFlyerModal}
+                  disabled={Boolean(exportingKey) || openHouseFlyerLoading}
                   className="px-4 py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-lg transition-colors text-sm text-center border border-slate-700 disabled:opacity-60"
                 >
-                  {exportingKey === `${flyerFileBase}-open-house-flyer.pdf` ? 'Creating...' : 'Create Open House Flyer (PDF)'}
+                  {openHouseFlyerLoading ? 'Loading...' : exportingKey === `${flyerFileBase}-open-house-flyer.pdf` ? 'Creating...' : 'Create Open House Flyer (PDF)'}
                 </button>
                 <button
                   onClick={() => void handleDownloadSignRider()}
@@ -1467,6 +1603,255 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
                   >
                     {exportingKey === `${flyerFileBase}-property-report.pdf` ? 'Creating PDF...' : 'Create PDF'}
                   </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ), document.body)}
+
+        {isOpenHouseFlyerModalOpen && typeof document !== 'undefined' && createPortal((
+          <div className="fixed inset-0 z-[140] bg-black/80 backdrop-blur-sm">
+            <div className="flex h-full w-full items-end justify-center sm:items-center sm:p-4">
+              <div className="flex h-[100dvh] w-full flex-col overflow-hidden border border-slate-800 bg-[#0B1121] shadow-2xl sm:h-auto sm:max-h-[min(92vh,920px)] sm:w-[min(960px,calc(100vw-3rem))] sm:max-w-[calc(100vw-3rem)] sm:rounded-2xl">
+                <div className="sticky top-0 z-10 border-b border-slate-800 bg-[#0B1121]/95 px-4 py-4 backdrop-blur sm:px-6">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-black uppercase tracking-[0.2em] text-blue-300">Open House Flyer</p>
+                      <h3 className="mt-1 text-xl font-black text-white sm:text-2xl">Create Open House Flyer</h3>
+                      <p className="mt-2 max-w-2xl text-sm text-slate-400">
+                        Add the event details once. AI turns it into a short flyer headline and call-to-action.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsOpenHouseFlyerModalOpen(false)}
+                      className="inline-flex flex-shrink-0 items-center gap-1 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm font-bold text-slate-200 transition-colors hover:bg-slate-800 hover:text-white"
+                    >
+                      <span className="material-symbols-outlined text-[18px]">close</span>
+                      <span>Close</span>
+                    </button>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500">
+                    <span className="rounded-full border border-slate-700 bg-slate-950/70 px-2.5 py-1">Phone: fills the screen</span>
+                    <span className="rounded-full border border-slate-700 bg-slate-950/70 px-2.5 py-1">Desktop: fits the window</span>
+                    <span className="rounded-full border border-slate-700 bg-slate-950/70 px-2.5 py-1">Bottom button creates the PDF</span>
+                  </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6">
+                  <div className="grid gap-6 lg:grid-cols-[1.02fr,0.98fr]">
+                    <div className="space-y-5">
+                      <div className="grid gap-4 md:grid-cols-3">
+                        <div>
+                          <label className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-white">Event date</label>
+                          <input
+                            type="text"
+                            value={openHouseFlyerConfig.event_date}
+                            onChange={(e) => handleOpenHouseFlyerFieldChange('event_date', e.target.value)}
+                            maxLength={40}
+                            placeholder="Saturday, April 4"
+                            className="w-full rounded-xl border border-slate-700 bg-[#040814] px-4 py-3 text-sm text-slate-200 outline-none placeholder:text-slate-500 focus:border-blue-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-white">Start time</label>
+                          <input
+                            type="text"
+                            value={openHouseFlyerConfig.start_time}
+                            onChange={(e) => handleOpenHouseFlyerFieldChange('start_time', e.target.value)}
+                            maxLength={30}
+                            placeholder="1:00 PM"
+                            className="w-full rounded-xl border border-slate-700 bg-[#040814] px-4 py-3 text-sm text-slate-200 outline-none placeholder:text-slate-500 focus:border-blue-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-white">End time</label>
+                          <input
+                            type="text"
+                            value={openHouseFlyerConfig.end_time}
+                            onChange={(e) => handleOpenHouseFlyerFieldChange('end_time', e.target.value)}
+                            maxLength={30}
+                            placeholder="4:00 PM"
+                            className="w-full rounded-xl border border-slate-700 bg-[#040814] px-4 py-3 text-sm text-slate-200 outline-none placeholder:text-slate-500 focus:border-blue-500"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-white">Headline</label>
+                        <input
+                          type="text"
+                          value={openHouseFlyerConfig.headline}
+                          onChange={(e) => handleOpenHouseFlyerFieldChange('headline', e.target.value)}
+                          maxLength={90}
+                          placeholder="Tour this polished home in person this weekend"
+                          className="w-full rounded-xl border border-slate-700 bg-[#040814] px-4 py-3 text-sm text-slate-200 outline-none placeholder:text-slate-500 focus:border-blue-500"
+                        />
+                        <p className="mt-2 text-xs text-slate-500">{openHouseFlyerConfig.headline.length}/90</p>
+                      </div>
+
+                      <div>
+                        <label className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-white">Event note</label>
+                        <textarea
+                          value={openHouseFlyerConfig.event_note}
+                          onChange={(e) => handleOpenHouseFlyerFieldChange('event_note', e.target.value)}
+                          rows={5}
+                          maxLength={320}
+                          placeholder="Add the quick pitch here. Mention the feel of the home, what buyers should look for, or why this open house is worth the stop."
+                          className="w-full rounded-xl border border-slate-700 bg-[#040814] px-4 py-3 text-sm text-slate-200 outline-none placeholder:text-slate-500 focus:border-blue-500"
+                        />
+                        <p className="mt-2 text-xs text-slate-500">{openHouseFlyerConfig.event_note.length}/320</p>
+                      </div>
+
+                      <div>
+                        <label className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-white">Host note</label>
+                        <textarea
+                          value={openHouseFlyerConfig.host_note}
+                          onChange={(e) => handleOpenHouseFlyerFieldChange('host_note', e.target.value)}
+                          rows={3}
+                          maxLength={160}
+                          placeholder="Example: Hosted by Chris Potter. Ask about recent upgrades and off-market options."
+                          className="w-full rounded-xl border border-slate-700 bg-[#040814] px-4 py-3 text-sm text-slate-200 outline-none placeholder:text-slate-500 focus:border-blue-500"
+                        />
+                        <p className="mt-2 text-xs text-slate-500">{openHouseFlyerConfig.host_note.length}/160</p>
+                      </div>
+
+                      <div>
+                        <label className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-white">Call to action</label>
+                        <input
+                          type="text"
+                          value={openHouseFlyerConfig.cta}
+                          onChange={(e) => handleOpenHouseFlyerFieldChange('cta', e.target.value)}
+                          maxLength={90}
+                          placeholder="Scan to view the full listing and book a private showing"
+                          className="w-full rounded-xl border border-slate-700 bg-[#040814] px-4 py-3 text-sm text-slate-200 outline-none placeholder:text-slate-500 focus:border-blue-500"
+                        />
+                        <p className="mt-2 text-xs text-slate-500">{openHouseFlyerConfig.cta.length}/90</p>
+                      </div>
+
+                      <div>
+                        <label className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-white">Preferred contact</label>
+                        <select
+                          value={openHouseFlyerConfig.contact_method}
+                          onChange={(e) => handleOpenHouseFlyerFieldChange('contact_method', e.target.value as OpenHouseFlyerContactMethod)}
+                          className="w-full rounded-xl border border-slate-700 bg-[#040814] px-4 py-3 text-sm font-semibold text-slate-200 outline-none focus:border-blue-500"
+                        >
+                          <option value="call">Call first</option>
+                          <option value="text">Text first</option>
+                          <option value="email">Email first</option>
+                        </select>
+                      </div>
+
+                      <label className="flex items-start gap-3 rounded-xl border border-slate-800 bg-[#040814] p-4">
+                        <input
+                          type="checkbox"
+                          checked={openHouseFlyerConfig.ai_enabled}
+                          onChange={(e) => handleOpenHouseFlyerFieldChange('ai_enabled', e.target.checked)}
+                          className="mt-1 h-4 w-4 rounded border-slate-600 bg-slate-900 text-blue-500"
+                        />
+                        <div>
+                          <p className="text-sm font-bold text-white">AI polish this flyer</p>
+                          <p className="mt-1 text-xs text-slate-400">
+                            The app turns your event details into a short open-house headline, schedule line, and cleaner call-to-action.
+                          </p>
+                        </div>
+                      </label>
+                    </div>
+
+                    <div className="space-y-5">
+                      <div className="rounded-2xl border border-slate-800 bg-[#040814] p-4 sm:p-5">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-black uppercase tracking-[0.2em] text-white">Preview summary</p>
+                            <p className="mt-2 text-sm text-slate-400">
+                              This is the short content block that goes onto the open house flyer.
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => void handleOpenHouseFlyerPreview()}
+                            disabled={openHouseFlyerPreviewing}
+                            className="rounded-lg border border-blue-500/40 bg-blue-500/10 px-4 py-2 text-sm font-bold text-blue-200 transition-colors hover:bg-blue-500/20 disabled:opacity-60"
+                          >
+                            {openHouseFlyerPreviewing ? 'Refreshing...' : 'Refresh AI'}
+                          </button>
+                        </div>
+
+                        <div className="mt-5 space-y-4">
+                          <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+                            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-white">Headline</p>
+                            <p className="mt-2 text-lg font-black text-white">
+                              {openHouseFlyerConfig.preview.headline || 'Your open house headline will show up here.'}
+                            </p>
+                          </div>
+
+                          <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+                            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-white">Schedule line</p>
+                            <p className="mt-2 text-sm font-semibold text-slate-200">
+                              {openHouseFlyerConfig.preview.schedule_line || 'Date and time will show here after preview.'}
+                            </p>
+                          </div>
+
+                          <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+                            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-white">Detail</p>
+                            <p className="mt-2 text-sm leading-6 text-slate-300">
+                              {openHouseFlyerConfig.preview.detail || 'Your short event summary will show here.'}
+                            </p>
+                          </div>
+
+                          <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+                            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-white">CTA</p>
+                            <p className="mt-2 text-sm font-semibold text-slate-200">
+                              {openHouseFlyerConfig.preview.cta || `${openHouseFlyerContactLabels[openHouseFlyerConfig.contact_method]} instructions will show here after preview.`}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="rounded-2xl border border-slate-800 bg-[#040814] p-4 sm:p-5">
+                        <p className="text-xs font-black uppercase tracking-[0.2em] text-white">How this works</p>
+                        <ol className="mt-3 space-y-2 text-sm text-slate-300">
+                          <li>1. Add the open house date and time.</li>
+                          <li>2. Add one short note if you want.</li>
+                          <li>3. Let AI tighten the flyer copy.</li>
+                          <li>4. Tap create PDF at the bottom.</li>
+                        </ol>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="sticky bottom-0 z-10 border-t border-slate-800 bg-[#0B1121]/95 px-4 py-4 backdrop-blur sm:px-6">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-xs text-slate-500">
+                      Saved to this listing only. You can reopen and edit it any time.
+                    </p>
+                    <div className="grid grid-cols-1 gap-3 sm:flex sm:flex-row">
+                      <button
+                        type="button"
+                        onClick={() => setIsOpenHouseFlyerModalOpen(false)}
+                        className="rounded-lg border border-slate-700 bg-slate-900 px-4 py-3 text-sm font-bold text-slate-200 transition-colors hover:bg-slate-800"
+                      >
+                        Close
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleSaveOpenHouseFlyer()}
+                        disabled={openHouseFlyerSaving || openHouseFlyerPreviewing}
+                        className="rounded-lg border border-slate-700 bg-slate-900 px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-slate-800 disabled:opacity-60"
+                      >
+                        {openHouseFlyerSaving && !exportingKey ? 'Saving...' : 'Save settings'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleCreateOpenHouseFlyerPdf()}
+                        disabled={openHouseFlyerSaving || openHouseFlyerPreviewing || Boolean(exportingKey)}
+                        className="rounded-lg bg-blue-600 px-5 py-3 text-sm font-black text-white transition-colors hover:bg-blue-500 disabled:opacity-60"
+                      >
+                        {exportingKey === `${flyerFileBase}-open-house-flyer.pdf` ? 'Creating PDF...' : 'Create PDF'}
+                      </button>
                     </div>
                   </div>
                 </div>
