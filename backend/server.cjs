@@ -5767,28 +5767,28 @@ const buildPropertyReportHtml = ({
         display: block;
       }
       .footer-grid {
-        margin-top: 0.16in;
+        margin-top: 0.12in;
         display: grid;
         grid-template-columns: 1.05fr 0.95fr;
-        gap: 0.14in;
+        gap: 0.1in;
       }
       .agent-card {
         border-radius: 0.26in;
         background: rgba(0,0,0,0.5);
         border: 1px solid rgba(255,255,255,0.08);
         color: white;
-        padding: 0.16in;
+        padding: 0.12in;
         box-shadow: 0 18px 42px rgba(2,6,23,0.2);
         backdrop-filter: blur(20px);
       }
       .agent-row {
         display: flex;
         align-items: center;
-        gap: 0.16in;
+        gap: 0.12in;
       }
       .agent-headshot {
-        width: 0.76in;
-        height: 0.76in;
+        width: 0.6in;
+        height: 0.6in;
         border-radius: 999px;
         overflow: hidden;
         background: rgba(2,6,23,0.92);
@@ -5811,34 +5811,34 @@ const buildPropertyReportHtml = ({
         font-weight: 900;
       }
       .agent-name {
-        font-size: 0.24in;
+        font-size: 0.2in;
         font-weight: 900;
       }
       .agent-meta {
-        margin-top: 0.04in;
-        font-size: 0.13in;
+        margin-top: 0.02in;
+        font-size: 0.11in;
         color: rgba(255,255,255,0.82);
       }
       .agent-contact {
-        margin-top: 0.12in;
-        font-size: 0.16in;
+        margin-top: 0.08in;
+        font-size: 0.14in;
         font-weight: 800;
         color: rgba(255,255,255,0.88);
-        line-height: 1.45;
+        line-height: 1.3;
       }
       .agent-actions {
-        margin-top: 0.14in;
+        margin-top: 0.1in;
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 0.08in;
+        gap: 0.06in;
       }
       .agent-action {
         display: flex;
         align-items: center;
         justify-content: center;
-        min-height: 0.42in;
+        min-height: 0.34in;
         border-radius: 999px;
-        font-size: 0.12in;
+        font-size: 0.105in;
         font-weight: 900;
         color: white;
         text-decoration: none;
@@ -5854,48 +5854,48 @@ const buildPropertyReportHtml = ({
         background: white;
         border: 1px solid rgba(226,232,240,0.9);
         box-shadow: 0 16px 38px rgba(15,23,42,0.08);
-        padding: 0.16in;
+        padding: 0.12in;
         display: flex;
         flex-direction: column;
       }
       .qr-kicker {
-        font-size: 0.09in;
+        font-size: 0.075in;
         font-weight: 900;
-        letter-spacing: 0.22em;
+        letter-spacing: 0.18em;
         text-transform: uppercase;
         color: #64748b;
       }
       .qr-title {
-        margin-top: 0.06in;
-        font-size: 0.24in;
+        margin-top: 0.04in;
+        font-size: 0.19in;
         line-height: 1;
         font-weight: 900;
         color: #0f172a;
       }
       .qr-wrap {
-        margin-top: 0.1in;
+        margin-top: 0.08in;
         border-radius: 0.22in;
         border: 1px solid #e2e8f0;
-        padding: 0.12in;
+        padding: 0.08in;
         display: flex;
         justify-content: center;
         align-items: center;
       }
       .qr-wrap img {
-        width: 2.12in;
-        height: 2.12in;
+        width: 1.58in;
+        height: 1.58in;
         object-fit: contain;
       }
       .qr-copy {
-        margin-top: 0.1in;
-        font-size: 0.13in;
+        margin-top: 0.08in;
+        font-size: 0.11in;
         line-height: 1.35;
         color: #334155;
       }
       .footer-link {
-        margin-top: 0.1in;
+        margin-top: 0.08in;
         display: inline-block;
-        font-size: 0.12in;
+        font-size: 0.11in;
         font-weight: 700;
         color: ${darkerBrandColor};
         word-break: break-all;
