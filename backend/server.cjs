@@ -21939,9 +21939,14 @@ app.get('/api/dashboard/listings/:listingId/property-report.pdf', async (req, re
         fallbackDataUrl: null
       })
       : null;
-    const propertyReportPreview = propertyReportConfig.preview?.summary
+    const hasSavedPropertyReportPreview =
+      Boolean(toTrimmedOrNull(propertyReportConfig.preview?.headline)) ||
+      Boolean(toTrimmedOrNull(propertyReportConfig.preview?.summary)) ||
+      (Array.isArray(propertyReportConfig.preview?.bullets) && propertyReportConfig.preview.bullets.length > 0) ||
+      Boolean(toTrimmedOrNull(propertyReportConfig.preview?.cta));
+    const propertyReportPreview = hasSavedPropertyReportPreview
       ? normalizePropertyReportPreview(propertyReportConfig.preview, propertyReportConfig.length_mode)
-      : await generatePropertyReportPreview({
+      : buildPropertyReportFallbackPreview({
         listingRow: listing,
         config: propertyReportConfig,
         agentProfile: aiCardProfile
