@@ -463,21 +463,40 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
     }));
   };
 
-  const handlePropertyReportPreview = async () => {
+  const handlePropertyReportPreview = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
     try {
       setPropertyReportPreviewing(true);
       const response = await previewPropertyReport(listing.id, propertyReportConfig);
       setPropertyReportConfig(response.config || propertyReportConfig);
-      setTransientNotice('success', 'Preview refreshed.');
+      if (!silent) {
+        setTransientNotice('success', 'Preview refreshed.');
+      }
     } catch (error) {
       console.error('Failed to preview Property Report', error);
       const errorCode = error instanceof Error ? error.message : 'property_report_preview_failed';
-      setTransientNotice('error', `Could not refresh preview (${errorCode}).`);
-      showToast.error(`Could not preview (${errorCode}).`);
+      if (!silent) {
+        setTransientNotice('error', `Could not refresh preview (${errorCode}).`);
+        showToast.error(`Could not preview (${errorCode}).`);
+      }
     } finally {
       setPropertyReportPreviewing(false);
     }
-  };
+  }, [listing.id, propertyReportConfig, setTransientNotice]);
+
+  useEffect(() => {
+    if (!isPropertyReportModalOpen) return;
+    if (propertyReportLoading || propertyReportPreviewing || propertyReportSaving) return;
+    if (propertyReportPreviewReady) return;
+
+    void handlePropertyReportPreview({ silent: true });
+  }, [
+    handlePropertyReportPreview,
+    isPropertyReportModalOpen,
+    propertyReportLoading,
+    propertyReportPreviewReady,
+    propertyReportPreviewing,
+    propertyReportSaving
+  ]);
 
   const handleSavePropertyReport = async () => {
     try {
