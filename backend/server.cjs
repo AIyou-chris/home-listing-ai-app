@@ -4467,7 +4467,7 @@ const buildOpenHouseFlyerHtml = ({
       .headline {
         display: grid;
         grid-template-columns: 0.92fr 1.08fr;
-        gap: 0.18in;
+        gap: 0.14in;
         align-items: start;
       }
       .kicker {
@@ -4488,9 +4488,9 @@ const buildOpenHouseFlyerHtml = ({
       }
       .headline h1 .accent { color: ${safeBrandColor}; }
       .headline-copy {
-        margin-top: 0.12in;
-        font-size: 0.155in;
-        line-height: 1.35;
+        margin-top: 0.1in;
+        font-size: 0.145in;
+        line-height: 1.28;
         color: #475569;
       }
       .hero-summary {
@@ -4500,7 +4500,7 @@ const buildOpenHouseFlyerHtml = ({
         background: #ffffff;
         border: 1px solid rgba(226, 232, 240, 0.9);
         color: #0f172a;
-        padding: 0.18in 0.18in 0.16in;
+        padding: 0.16in 0.16in 0.14in;
         box-shadow: 0 18px 36px rgba(11, 17, 33, 0.1);
       }
       .hero-summary .label {
@@ -4527,31 +4527,31 @@ const buildOpenHouseFlyerHtml = ({
         margin-top: 0.14in;
       }
       .hero-summary-copy {
-        margin-top: 0.14in;
-        font-size: 0.145in;
-        line-height: 1.4;
+        margin-top: 0.1in;
+        font-size: 0.135in;
+        line-height: 1.3;
         color: #475569;
       }
       .event-line {
-        margin-top: 0.14in;
+        margin-top: 0.1in;
         border-radius: 0.18in;
         background: #fff2e8;
-        padding: 0.11in 0.12in;
-        font-size: 0.13in;
+        padding: 0.095in 0.11in;
+        font-size: 0.12in;
         font-weight: 900;
         color: ${darkerBrandColor};
       }
       .content {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 0.18in;
+        gap: 0.14in;
         flex: 1;
         min-height: 0;
       }
       .left-column {
         display: flex;
         flex-direction: column;
-        gap: 0.1in;
+        gap: 0.08in;
         min-height: 0;
       }
       .card {
@@ -4562,14 +4562,14 @@ const buildOpenHouseFlyerHtml = ({
         overflow: hidden;
       }
       .photo-card {
-        padding: 0.12in;
+        padding: 0.1in;
       }
       .photo-grid {
         display: grid;
         grid-template-columns: 1.3fr 0.7fr;
         grid-template-rows: 1fr 1fr 1fr;
-        gap: 0.08in;
-        height: 3.68in;
+        gap: 0.06in;
+        height: 3.08in;
       }
       .photo-grid .hero {
         grid-row: 1 / span 3;
@@ -4659,7 +4659,7 @@ const buildOpenHouseFlyerHtml = ({
         background: rgba(0,0,0,0.5);
         border: 1px solid rgba(255,255,255,0.08);
         color: white;
-        padding: 0.52in 0.14in 0.14in;
+        padding: 0.42in 0.12in 0.12in;
         box-shadow: 0 18px 42px rgba(2, 6, 23, 0.22);
         backdrop-filter: blur(20px);
       }
@@ -4672,11 +4672,11 @@ const buildOpenHouseFlyerHtml = ({
       }
       .agent-headshot {
         position: absolute;
-        top: -0.34in;
+        top: -0.28in;
         left: 50%;
         transform: translateX(-50%);
-        width: 0.84in;
-        height: 0.84in;
+        width: 0.72in;
+        height: 0.72in;
         border-radius: 0.22in;
         overflow: hidden;
         background: rgba(2,6,23,0.92);
@@ -4698,7 +4698,7 @@ const buildOpenHouseFlyerHtml = ({
         justify-content: center;
         background: ${safeBrandColor};
         color: white;
-        font-size: 0.2in;
+        font-size: 0.18in;
         font-weight: 900;
       }
       .agent-kicker {
@@ -4710,34 +4710,34 @@ const buildOpenHouseFlyerHtml = ({
       }
       .agent-name {
         margin-top: 0.02in;
-        font-size: 0.23in;
+        font-size: 0.2in;
         font-weight: 900;
         line-height: 1.05;
       }
       .agent-meta {
         margin-top: 0.03in;
-        font-size: 0.115in;
+        font-size: 0.105in;
         color: rgba(255,255,255,0.82);
       }
       .agent-host-note {
-        margin-top: 0.08in;
-        font-size: 0.105in;
-        line-height: 1.35;
+        margin-top: 0.06in;
+        font-size: 0.095in;
+        line-height: 1.28;
         color: rgba(255,255,255,0.74);
       }
       .agent-actions {
-        margin-top: 0.14in;
+        margin-top: 0.1in;
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 0.1in;
+        gap: 0.08in;
       }
       .agent-action {
         display: flex;
         align-items: center;
         justify-content: center;
         border-radius: 999px;
-        min-height: 0.42in;
-        font-size: 0.13in;
+        min-height: 0.34in;
+        font-size: 0.11in;
         font-weight: 900;
         color: white;
         text-decoration: none;
@@ -4750,11 +4750,11 @@ const buildOpenHouseFlyerHtml = ({
       }
       .qr-card {
         height: 100%;
-        border-radius: 0.28in;
+        border-radius: 0.24in;
         background: white;
         border: 1px solid rgba(226,232,240,0.9);
         box-shadow: 0 18px 38px rgba(15, 23, 42, 0.08);
-        padding: 0.18in;
+        padding: 0.14in;
         display: flex;
         flex-direction: column;
       }
@@ -4773,7 +4773,7 @@ const buildOpenHouseFlyerHtml = ({
       }
       .qr-title {
         margin-top: 0.08in;
-        font-size: 0.34in;
+        font-size: 0.28in;
         line-height: 0.95;
         font-weight: 900;
         color: #0f172a;
@@ -4782,14 +4782,14 @@ const buildOpenHouseFlyerHtml = ({
         border-radius: 999px;
         background: ${safeBrandColor};
         color: white;
-        padding: 0.08in 0.1in;
-        font-size: 0.1in;
+        padding: 0.07in 0.09in;
+        font-size: 0.09in;
         font-weight: 900;
         letter-spacing: 0.12em;
         text-transform: uppercase;
       }
       .qr-image-wrap {
-        margin-top: 0.18in;
+        margin-top: 0.12in;
         flex: 1;
         border-radius: 0.22in;
         background: #fff;
@@ -4797,24 +4797,24 @@ const buildOpenHouseFlyerHtml = ({
         display: flex;
         align-items: center;
         justify-content: center;
-        padding: 0.18in;
+        padding: 0.12in;
       }
       .qr-image-wrap img {
         width: 100%;
-        max-width: 3.05in;
+        max-width: 2.32in;
         object-fit: contain;
         display: block;
       }
       .qr-caption {
-        margin-top: 0.12in;
-        font-size: 0.14in;
-        line-height: 1.35;
+        margin-top: 0.08in;
+        font-size: 0.12in;
+        line-height: 1.28;
         color: #334155;
       }
       .footer-link {
-        margin-top: 0.1in;
+        margin-top: 0.08in;
         display: inline-block;
-        font-size: 0.12in;
+        font-size: 0.1in;
         font-weight: 700;
         color: ${darkerBrandColor};
         word-break: break-all;
