@@ -191,6 +191,7 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
   const [isTestModalOpen, setIsTestModalOpen] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedCaption, setCopiedCaption] = useState(false);
+  const [copiedFacebookPost, setCopiedFacebookPost] = useState(false);
   const [testName, setTestName] = useState('');
   const [testContact, setTestContact] = useState('');
   const [testContext, setTestContext] = useState('Report requested');
@@ -240,6 +241,7 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
       .replace(/\b\w/g, (char) => char.toUpperCase());
   }, [qrSource, trackedQrLink]);
   const captionTemplate = `Just listed: ${listing.address} 🏡✨\nPrice: ${listing.price} | ${listing.beds} Beds | ${listing.baths} Baths\n\nGet the instant 1-page property report + request a showing right here: ${resolvedShareUrl || 'Live link unlocks after publish.'}`;
+  const facebookPostTemplate = `New listing in ${listing.address}.\n\n${listing.price} | ${listing.beds} beds | ${listing.baths} baths${listing.sqft ? ` | ${listing.sqft} sqft` : ''}\n\nTake a look at the full property page, get the report, and request a showing here:\n${resolvedShareUrl || 'Publish listing to unlock the live link.'}\n\nIf you want more details or want to schedule a private showing, message me directly.`;
   const effectiveVideoCaption = latestVideo?.caption?.trim() || captionTemplate;
   const shareLinkHostname = useMemo(() => {
     try {
@@ -1167,10 +1169,10 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
               <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <div className="rounded-lg border border-slate-800 bg-[#0B1121] p-3">
                   <p className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-500">Formats</p>
-                  <p className="mt-2 text-sm font-semibold text-white">IG Post + Story</p>
+                  <p className="mt-2 text-sm font-semibold text-white">IG + Facebook</p>
                 </div>
                 <div className="rounded-lg border border-slate-800 bg-[#0B1121] p-3">
-                  <p className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-500">Caption</p>
+                  <p className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-500">Copy</p>
                   <p className="mt-2 text-sm font-semibold text-white">Ready to paste</p>
                 </div>
                 <div className="rounded-lg border border-slate-800 bg-[#0B1121] p-3">
@@ -1207,6 +1209,19 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
                   </button>
                 </div>
                 <p className="text-slate-300 text-sm whitespace-pre-wrap font-mono">{captionTemplate}</p>
+              </div>
+
+              <div className="mt-4 bg-[#0B1121] rounded-lg p-4 border border-slate-800">
+                <div className="flex justify-between items-center mb-3">
+                  <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">Facebook Post</span>
+                  <button
+                    onClick={() => void handleCopy(facebookPostTemplate, setCopiedFacebookPost)}
+                    className="text-blue-500 text-xs font-bold hover:text-blue-400"
+                  >
+                    {copiedFacebookPost ? 'Copied!' : 'Copy Facebook Post'}
+                  </button>
+                </div>
+                <p className="text-slate-300 text-sm whitespace-pre-wrap font-mono">{facebookPostTemplate}</p>
               </div>
 
               {latestVideo ? (
