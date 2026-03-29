@@ -55,7 +55,7 @@ const AgentContactSheet: React.FC<AgentContactSheetProps> = ({
       onClick={onClose}
     >
       <section
-        className="w-full max-w-[760px] rounded-[32px] border border-white/12 bg-slate-950/92 p-4 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)] shadow-[0_32px_90px_rgba(2,6,23,0.52)] md:p-5"
+        className="w-full max-w-[760px] rounded-[32px] border border-white/12 bg-slate-950/92 px-4 py-[20px] pb-[calc(env(safe-area-inset-bottom,0px)+20px)] shadow-[0_32px_90px_rgba(2,6,23,0.52)] md:p-5"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between gap-3">
