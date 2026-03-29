@@ -6810,10 +6810,11 @@ const buildLightCmaHtml = ({
         color: rgba(255,255,255,0.82);
       }
       .agent-contact {
-        margin-top: 0.12in;
-        font-size: 0.12in;
-        color: rgba(255,255,255,0.72);
-        line-height: 1.45;
+        margin-top: 0.13in;
+        font-size: 0.145in;
+        font-weight: 800;
+        color: rgba(255,255,255,0.9);
+        line-height: 1.5;
       }
       .agent-actions {
         margin-top: 0.16in;
@@ -6894,7 +6895,18 @@ const buildLightCmaHtml = ({
           <p>${escapeHtml(anchorComp.address || 'Manual anchor comp')} is weighted into the suggested range to keep your pricing story tied to the strongest comparable you selected.</p>
         </div>
         ` : ''}
-        <div class="table-card">
+      </div>
+    </div>
+    <div class="page">
+      <div class="shell">
+        <div class="brand">
+          <div class="brand-left">
+            <img src="${logoDataUrl}" alt="HomeListingAI" />
+            <div class="brand-name">HomeListingAI</div>
+          </div>
+          <div class="pill">Market support</div>
+        </div>
+        <div class="table-card" style="margin-top:0;">
           <h2>Sold comparables</h2>
           <p>Best recent sales to anchor the pricing floor and expected value.${manualCompCount > 0 ? ` Includes ${manualCompCount} manual override${manualCompCount === 1 ? '' : 's'}.` : ''}</p>
           <table>
@@ -6911,17 +6923,6 @@ const buildLightCmaHtml = ({
             </thead>
             <tbody>${renderCompRows(soldComps)}</tbody>
           </table>
-        </div>
-      </div>
-    </div>
-    <div class="page">
-      <div class="shell">
-        <div class="brand">
-          <div class="brand-left">
-            <img src="${logoDataUrl}" alt="HomeListingAI" />
-            <div class="brand-name">HomeListingAI</div>
-          </div>
-          <div class="pill">Market support</div>
         </div>
         <div class="table-card" style="margin-top:0;">
           <h2>Active + pending comparables</h2>
@@ -6955,7 +6956,7 @@ const buildLightCmaHtml = ({
             <p style="color:#475569;">Population: ${Number(census?.population || 0).toLocaleString('en-US')}</p>
           </div>
         </div>
-        <div class="agent-card">
+        <div class="agent-card" style="margin-top:0.2in;">
           <div class="agent-row">
             <div class="agent-headshot">
               ${
