@@ -192,6 +192,7 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedCaption, setCopiedCaption] = useState(false);
   const [copiedFacebookPost, setCopiedFacebookPost] = useState(false);
+  const [copiedFacebookOpenHousePost, setCopiedFacebookOpenHousePost] = useState(false);
   const [testName, setTestName] = useState('');
   const [testContact, setTestContact] = useState('');
   const [testContext, setTestContext] = useState('Report requested');
@@ -242,6 +243,10 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
   }, [qrSource, trackedQrLink]);
   const captionTemplate = `Just listed: ${listing.address} 🏡✨\nPrice: ${listing.price} | ${listing.beds} Beds | ${listing.baths} Baths\n\nGet the instant 1-page property report + request a showing right here: ${resolvedShareUrl || 'Live link unlocks after publish.'}`;
   const facebookPostTemplate = `New listing in ${listing.address}.\n\n${listing.price} | ${listing.beds} beds | ${listing.baths} baths${listing.sqft ? ` | ${listing.sqft} sqft` : ''}\n\nTake a look at the full property page, get the report, and request a showing here:\n${resolvedShareUrl || 'Publish listing to unlock the live link.'}\n\nIf you want more details or want to schedule a private showing, message me directly.`;
+  const openHouseScheduleLine = [openHouseFlyerConfig.event_date, openHouseFlyerConfig.start_time, openHouseFlyerConfig.end_time]
+    .filter(Boolean)
+    .join(openHouseFlyerConfig.start_time && openHouseFlyerConfig.end_time ? ' • ' : ' ');
+  const facebookOpenHouseTemplate = `Open house at ${listing.address}.\n\n${openHouseScheduleLine || 'Come by and tour the home in person.'}\n\n${listing.price} | ${listing.beds} beds | ${listing.baths} baths${listing.sqft ? ` | ${listing.sqft} sqft` : ''}\n\nSee the full listing details and request a showing here:\n${resolvedShareUrl || 'Publish listing to unlock the live link.'}\n\nMessage me if you want a private showing or more details before the open house.`;
   const effectiveVideoCaption = latestVideo?.caption?.trim() || captionTemplate;
   const shareLinkHostname = useMemo(() => {
     try {
@@ -1190,6 +1195,13 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
                   {exportingKey === `${flyerFileBase}-ig-post.png` ? 'Creating...' : 'Create IG Post'}
                 </button>
                 <button
+                  onClick={() => void handleDownloadSocialAsset('ig_post')}
+                  disabled={Boolean(exportingKey)}
+                  className="flex-1 px-4 py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-lg transition-colors text-sm text-center border border-slate-700 disabled:opacity-60"
+                >
+                  {exportingKey === `${flyerFileBase}-ig-post.png` ? 'Creating...' : 'Create Facebook Image'}
+                </button>
+                <button
                   onClick={() => void handleDownloadSocialAsset('ig_story')}
                   disabled={Boolean(exportingKey)}
                   className="flex-1 px-4 py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-lg transition-colors text-sm text-center border border-slate-700 disabled:opacity-60"
@@ -1213,7 +1225,7 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
 
               <div className="mt-4 bg-[#0B1121] rounded-lg p-4 border border-slate-800">
                 <div className="flex justify-between items-center mb-3">
-                  <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">Facebook Post</span>
+                  <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">Facebook Post · Just Listed</span>
                   <button
                     onClick={() => void handleCopy(facebookPostTemplate, setCopiedFacebookPost)}
                     className="text-blue-500 text-xs font-bold hover:text-blue-400"
@@ -1222,6 +1234,19 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
                   </button>
                 </div>
                 <p className="text-slate-300 text-sm whitespace-pre-wrap font-mono">{facebookPostTemplate}</p>
+              </div>
+
+              <div className="mt-4 bg-[#0B1121] rounded-lg p-4 border border-slate-800">
+                <div className="flex justify-between items-center mb-3">
+                  <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">Facebook Post · Open House</span>
+                  <button
+                    onClick={() => void handleCopy(facebookOpenHouseTemplate, setCopiedFacebookOpenHousePost)}
+                    className="text-blue-500 text-xs font-bold hover:text-blue-400"
+                  >
+                    {copiedFacebookOpenHousePost ? 'Copied!' : 'Copy Open House Post'}
+                  </button>
+                </div>
+                <p className="text-slate-300 text-sm whitespace-pre-wrap font-mono">{facebookOpenHouseTemplate}</p>
               </div>
 
               {latestVideo ? (
