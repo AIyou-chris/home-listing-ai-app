@@ -88,14 +88,14 @@ const AgentContactSheet: React.FC<AgentContactSheetProps> = ({
         />
 
         {showContactForm ? (
-          <div className="mx-auto mt-3 w-full max-w-[540px] rounded-[22px] border border-white/10 bg-[rgba(7,14,28,0.86)] p-3 shadow-[0_18px_42px_rgba(2,6,23,0.24)] backdrop-blur-xl">
-            <div className="mb-2.5">
-              <h3 className="text-[15px] font-bold text-white sm:text-base">Contact {safeName}</h3>
+          <div className="mx-auto mt-3 w-full max-w-[420px] rounded-[20px] border border-white/10 bg-[rgba(7,14,28,0.88)] p-2.5 shadow-[0_18px_42px_rgba(2,6,23,0.24)] backdrop-blur-xl">
+            <div className="mb-2">
+              <h3 className="text-sm font-bold text-white">Contact {safeName}</h3>
               <p className="mt-1 text-xs text-slate-300">{introText}</p>
             </div>
 
             <form
-              className="space-y-2"
+              className="space-y-1.5"
               onSubmit={(event) => {
                 event.preventDefault();
                 if (agent.email?.trim()) {
@@ -110,7 +110,7 @@ const AgentContactSheet: React.FC<AgentContactSheetProps> = ({
                 }
               }}
             >
-              <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid gap-1.5">
                 <input
                   type="text"
                   value={contactForm.name}
@@ -133,10 +133,10 @@ const AgentContactSheet: React.FC<AgentContactSheetProps> = ({
                 rows={2}
                 className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none placeholder:text-slate-400 focus:border-white/20"
               />
-              <div className="flex flex-wrap items-center gap-2 pt-1">
+              <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
                 <button
                   type="submit"
-                  className="rounded-[16px] px-3.5 py-2 text-sm font-bold text-white shadow-[0_16px_32px_rgba(249,115,22,0.22)] transition hover:brightness-105"
+                  className="rounded-[14px] px-3 py-1.5 text-sm font-bold text-white shadow-[0_16px_32px_rgba(249,115,22,0.22)] transition hover:brightness-105"
                   style={{ backgroundColor: brandColor }}
                 >
                   Send message
@@ -144,7 +144,7 @@ const AgentContactSheet: React.FC<AgentContactSheetProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowContactForm(false)}
-                  className="rounded-[16px] border border-white/10 bg-white/5 px-3.5 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+                  className="rounded-[14px] border border-white/10 bg-white/5 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-white/10"
                 >
                   Close form
                 </button>
