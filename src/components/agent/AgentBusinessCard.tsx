@@ -70,7 +70,7 @@ const AgentBusinessCard: React.FC<AgentBusinessCardProps> = ({
 
   return (
     <div
-      className="relative mx-auto w-full max-w-[760px] overflow-visible rounded-[34px] border border-white/10 bg-[rgba(0,0,0,0.5)] p-6 shadow-[0_28px_80px_rgba(2,6,23,0.42)] backdrop-blur-2xl sm:p-7"
+      className="relative mx-auto w-full max-w-[660px] overflow-visible rounded-[30px] border border-white/10 bg-[rgba(0,0,0,0.5)] p-4 shadow-[0_24px_64px_rgba(2,6,23,0.42)] backdrop-blur-2xl sm:p-5"
       style={{
         boxShadow: `0 28px 80px rgba(2,6,23,0.42), inset 0 1px 0 rgba(255,255,255,0.05), 0 0 0 1px rgba(255,255,255,0.04), 0 0 48px ${glowColor}`
       }}
@@ -78,17 +78,17 @@ const AgentBusinessCard: React.FC<AgentBusinessCardProps> = ({
       <div className="pointer-events-none absolute left-1/2 top-7 h-56 w-56 -translate-x-1/2 rounded-full blur-3xl" style={{ backgroundColor: `${themeColor}18` }} />
       <div className="pointer-events-none absolute bottom-4 right-3 h-44 w-44 rounded-full bg-white/5 blur-3xl" />
 
-      <div className="relative pt-24 sm:pt-28">
+      <div className="relative pt-20 sm:pt-24">
         <div
-          className="absolute left-1/2 top-0 z-20 h-[126px] w-[126px] -translate-x-1/2 overflow-hidden rounded-[32px] bg-slate-950 shadow-[0_22px_44px_rgba(2,6,23,0.42)] ring-1 ring-white/10"
+          className="absolute left-1/2 top-0 z-20 h-[104px] w-[104px] -translate-x-1/2 overflow-hidden rounded-[28px] bg-slate-950 shadow-[0_20px_40px_rgba(2,6,23,0.42)] ring-1 ring-white/10 sm:h-[114px] sm:w-[114px]"
           style={{ boxShadow: `0 22px 44px rgba(2,6,23,0.42), 0 0 28px ${glowColor}` }}
         >
-          <div className="h-full w-full overflow-hidden rounded-[32px] bg-slate-950">
+          <div className="h-full w-full overflow-hidden rounded-[28px] bg-slate-950">
             {headshotUrl ? (
               <img src={headshotUrl} alt={safeName} className="h-full w-full object-cover" />
             ) : (
               <div
-                className="flex h-full w-full items-center justify-center text-4xl font-bold text-white"
+                className="flex h-full w-full items-center justify-center text-3xl font-bold text-white sm:text-4xl"
                 style={{ backgroundColor: themeColor }}
               >
                 {initials}
@@ -97,45 +97,45 @@ const AgentBusinessCard: React.FC<AgentBusinessCardProps> = ({
           </div>
         </div>
 
-        <div className="rounded-[32px] border border-white/10 bg-[rgba(0,0,0,0.5)] p-5 shadow-[0_18px_42px_rgba(2,6,23,0.3)] backdrop-blur-2xl sm:p-6">
-          <div className="rounded-[28px] border border-white/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.015))] px-5 pb-5 pt-6 sm:px-6 sm:pb-6 sm:pt-7">
+        <div className="rounded-[28px] border border-white/10 bg-[rgba(0,0,0,0.5)] p-4 shadow-[0_18px_42px_rgba(2,6,23,0.3)] backdrop-blur-2xl sm:p-5">
+          <div className="rounded-[24px] border border-white/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.015))] px-4 pb-4 pt-5 sm:px-5 sm:pb-5 sm:pt-6">
             <p className="text-center text-[13px] font-semibold uppercase tracking-[0.35em] text-slate-400">
               HomeListingAI
             </p>
 
-            <div className="mt-5 text-center">
+            <div className="mt-4 text-center">
               <div>
-                <h3 className="text-[2.15rem] font-bold tracking-tight text-slate-50">{safeName}</h3>
+                <h3 className="text-[1.8rem] font-bold tracking-tight text-slate-50 sm:text-[2rem]">{safeName}</h3>
               </div>
-              <div className="mt-4">
-                <p className="text-[1.9rem] font-bold tracking-tight text-slate-200">{safeTitle}</p>
-                <p className="mt-2 text-xl font-semibold text-slate-400">{safeCompany}</p>
+              <div className="mt-3">
+                <p className="text-[1.5rem] font-bold tracking-tight text-slate-200 sm:text-[1.7rem]">{safeTitle}</p>
+                <p className="mt-1.5 text-lg font-semibold text-slate-400 sm:text-[1.15rem]">{safeCompany}</p>
               </div>
             </div>
 
-            <div className="mt-6 border-t border-white/8 pt-5">
+            <div className="mt-5 border-t border-white/8 pt-4">
               <div className="grid gap-3 sm:grid-cols-2">
                 <button
                   type="button"
                   onClick={onChat}
-                  className="flex items-center justify-center gap-3 rounded-[24px] px-5 py-4 text-lg font-bold text-white shadow-[0_16px_32px_rgba(15,23,42,0.28)] transition hover:brightness-105"
+                  className="flex items-center justify-center gap-2.5 rounded-[20px] px-4 py-3.5 text-base font-bold text-white shadow-[0_16px_32px_rgba(15,23,42,0.28)] transition hover:brightness-105"
                   style={{
                     backgroundImage: `linear-gradient(90deg, ${chatGradientStart}, ${chatGradientEnd})`
                   }}
                 >
-                  <span className="material-symbols-outlined text-[28px]">chat</span>
+                  <span className="material-symbols-outlined text-[24px]">chat</span>
                   <span>{chatLabel}</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={onContact}
-                  className="flex items-center justify-center gap-3 rounded-[24px] px-5 py-4 text-lg font-bold text-white shadow-[0_16px_32px_rgba(15,23,42,0.28)] transition hover:brightness-105"
+                  className="flex items-center justify-center gap-2.5 rounded-[20px] px-4 py-3.5 text-base font-bold text-white shadow-[0_16px_32px_rgba(15,23,42,0.28)] transition hover:brightness-105"
                   style={{
                     backgroundImage: `linear-gradient(90deg, ${contactGradientStart}, ${contactGradientEnd})`
                   }}
                 >
-                  <span className="material-symbols-outlined text-[28px]">mail</span>
+                  <span className="material-symbols-outlined text-[24px]">mail</span>
                   <span>{contactLabel}</span>
                 </button>
               </div>
@@ -143,10 +143,10 @@ const AgentBusinessCard: React.FC<AgentBusinessCardProps> = ({
                 <button
                   type="button"
                   onClick={onMoreInfo || onContact}
-                  className="mx-auto mt-4 flex w-full max-w-[600px] items-center justify-center gap-3 rounded-[24px] border border-white/6 bg-[rgba(6,12,24,0.64)] px-5 py-4 text-xl font-bold text-slate-50 shadow-[0_16px_32px_rgba(2,6,23,0.28)] backdrop-blur-xl transition hover:bg-[rgba(10,17,30,0.8)]"
+                  className="mx-auto mt-3 flex w-full max-w-[560px] items-center justify-center gap-3 rounded-[20px] border border-white/6 bg-[rgba(6,12,24,0.64)] px-4 py-3.5 text-lg font-bold text-slate-50 shadow-[0_16px_32px_rgba(2,6,23,0.28)] backdrop-blur-xl transition hover:bg-[rgba(10,17,30,0.8)]"
                 >
                   <span
-                    className="flex h-11 w-11 items-center justify-center rounded-full text-2xl font-bold text-white"
+                    className="flex h-10 w-10 items-center justify-center rounded-full text-xl font-bold text-white"
                     style={{ backgroundColor: themeColor }}
                   >
                     i
