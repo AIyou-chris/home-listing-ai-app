@@ -41,7 +41,7 @@ export interface ShareKitPanelProps {
     photos?: string[];
   };
   onPublish: () => void;
-  onTestLeadSubmit: (data: { name: string; contact: string; context: string }) => Promise<void>;
+  onTestLeadSubmit: (data: { name: string; contact: string; context: string; source: TestLeadSource }) => Promise<void>;
   stats?: {
     leadsCaptured: number;
     topSource: string;
@@ -63,6 +63,7 @@ export interface ShareKitPanelProps {
 }
 
 type ShareQrSource = 'sign' | 'open_house' | 'social';
+type TestLeadSource = 'sign' | 'social' | 'open_house' | 'public_contact';
 
 type ListingQrAsset = {
   source_key: string;
@@ -175,6 +176,13 @@ const lightCmaStrategyLabels: Record<LightCmaStrategy, string> = {
   premium: 'Premium'
 };
 
+const testLeadSourceLabels: Record<TestLeadSource, string> = {
+  sign: 'Sign QR',
+  social: 'Social post',
+  open_house: 'Open house',
+  public_contact: 'Public contact page'
+};
+
 export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
   listing,
   onPublish,
@@ -195,6 +203,7 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
   const [copiedFacebookOpenHousePost, setCopiedFacebookOpenHousePost] = useState(false);
   const [testName, setTestName] = useState('');
   const [testContact, setTestContact] = useState('');
+  const [testSource, setTestSource] = useState<TestLeadSource>('sign');
   const [testContext, setTestContext] = useState('Report requested');
   const [testSubmitting, setTestSubmitting] = useState(false);
   const [_agentProfile, setAgentProfile] = useState<AgentProfile | null>(null);
@@ -896,7 +905,7 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
     e.preventDefault();
     setTestSubmitting(true);
     try {
-      await onTestLeadSubmit({ name: testName, contact: testContact, context: testContext });
+      await onTestLeadSubmit({ name: testName, contact: testContact, context: testContext, source: testSource });
       setIsTestModalOpen(false);
     } catch (error) {
       console.error('Test lead failed', error);
@@ -2154,6 +2163,23 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
                 </button>
               </div>
               <form onSubmit={handleTestSubmit} className="p-6 space-y-4">
+                <div>
+                  <label className="block text-slate-400 text-sm font-bold mb-2">Source</label>
+                  <select
+                    value={testSource}
+                    onChange={(e) => setTestSource(e.target.value as TestLeadSource)}
+                    className="w-full bg-[#040814] border border-slate-700 text-white rounded-lg px-4 py-3 outline-none focus:border-blue-500 cursor-pointer"
+                  >
+                    {Object.entries(testLeadSourceLabels).map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-2 text-xs text-slate-500">
+                    This will tag the lead the same way a real buyer path would.
+                  </p>
+                </div>
                 <div>
                   <label className="block text-slate-400 text-sm font-bold mb-2">Name</label>
                   <input

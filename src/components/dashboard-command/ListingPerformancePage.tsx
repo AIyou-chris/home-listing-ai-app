@@ -235,13 +235,41 @@ const ListingPerformancePage: React.FC = () => {
         onTestLeadSubmit={async (data) => {
           if (!listingId) return;
           try {
+            const resolvedSource = (() => {
+              const defaults = shareKit?.source_defaults || {};
+              if (data.source === 'social') {
+                return {
+                  source_key: defaults.social?.source_key || 'social',
+                  source_type: defaults.social?.source_type || 'social'
+                };
+              }
+              if (data.source === 'open_house') {
+                return {
+                  source_key: defaults.open_house?.source_key || 'open_house',
+                  source_type: defaults.open_house?.source_type || 'open_house'
+                };
+              }
+              if (data.source === 'public_contact') {
+                return {
+                  source_key: defaults.link?.source_key || 'link',
+                  source_type: defaults.link?.source_type || 'link'
+                };
+              }
+              return {
+                source_key: defaults.sign?.source_key || 'sign',
+                source_type: defaults.sign?.source_type || 'qr'
+              };
+            })();
+
             await sendListingTestLeadCapture(listingId, {
               full_name: data.name,
               email: data.contact.includes('@') ? data.contact : undefined,
               phone: !data.contact.includes('@') ? data.contact : undefined,
               consent_sms: !data.contact.includes('@') ? true : undefined,
               context: data.context as TestCaptureContext,
-              source_key: 'dashboard_test'
+              source_key: resolvedSource.source_key,
+              source_type: resolvedSource.source_type,
+              path_mode: data.source as 'sign' | 'social' | 'open_house' | 'public_contact'
             });
             toast.success('Test lead created — open in Leads.');
             await loadAll();

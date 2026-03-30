@@ -1499,6 +1499,7 @@ export const sendListingTestLeadCapture = async (
     context?: 'report_requested' | 'showing_requested';
     source_key?: string;
     source_type?: string;
+    path_mode?: 'sign' | 'social' | 'open_house' | 'public_contact';
     source_meta?: Record<string, unknown>;
   },
   agentIdOverride?: string | null

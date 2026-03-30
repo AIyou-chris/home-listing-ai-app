@@ -24219,6 +24219,10 @@ app.post('/api/dashboard/listings/:listingId/test-capture', async (req, res) => 
     const emailLower = normalizeEmailLower(req.body?.email || '');
     const phoneE164 = normalizePhoneE164(req.body?.phone || '');
     const context = toTrimmedOrNull(req.body?.context) || 'report_requested';
+    const pathModeRaw = String(req.body?.path_mode || '').trim().toLowerCase();
+    const pathMode = new Set(['sign', 'social', 'open_house', 'public_contact']).has(pathModeRaw)
+      ? pathModeRaw
+      : 'sign';
     const sourceKey = toSourceKey(req.body?.source_key || 'link');
     const sourceType = toSourceType(req.body?.source_type || inferSourceTypeFromKey(sourceKey));
 
@@ -24230,10 +24234,19 @@ app.post('/api/dashboard/listings/:listingId/test-capture', async (req, res) => 
     }
 
     const visitorId = `test-${crypto.randomUUID()}`;
+    const publicSlug = toTrimmedOrNull(listing.public_slug) || toTrimmedOrNull(listing.slug) || listing.id;
+    const emulatedLandingPath = (() => {
+      if (pathMode === 'open_house') return `/l/${publicSlug}?src=open_house`;
+      if (pathMode === 'social') return `/l/${publicSlug}?src=${encodeURIComponent(sourceKey || 'social')}`;
+      if (pathMode === 'public_contact') return `/l/${publicSlug}?action=contact`;
+      return `/l/${publicSlug}?src=${encodeURIComponent(sourceKey || 'sign')}`;
+    })();
     const sourceMeta = {
       ...(req.body?.source_meta && typeof req.body.source_meta === 'object' ? req.body.source_meta : {}),
       test: true,
-      source_key: sourceKey
+      source_key: sourceKey,
+      emulated_public_path: pathMode,
+      landing_path: emulatedLandingPath
     };
 
     const forwardedProtoRaw = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim().toLowerCase();
