@@ -19666,8 +19666,59 @@ app.post('/api/billing/checkout-session', async (req, res) => {
 
     const rawPlanId = String(req.body?.plan_id || req.body?.planId || '').trim().toLowerCase();
     const planId = rawPlanId === 'starter' || rawPlanId === 'pro' ? rawPlanId : 'free';
+    const normalizedPromoCode = String(req.body?.promo_code || req.body?.promoCode || '').trim().toUpperCase();
     if (!['starter', 'pro'].includes(planId)) {
       return res.status(400).json({ error: 'invalid_plan_id' });
+    }
+
+    if (normalizedPromoCode === 'LIFETIME' || normalizedPromoCode === 'FRIENDS30') {
+      const existingSubscription = await billingEngine.getOrCreateSubscription(agentId);
+      const now = new Date().toISOString();
+
+      const { error: subscriptionError } = await supabaseAdmin
+        .from('subscriptions')
+        .upsert(
+          {
+            id: existingSubscription?.id || crypto.randomUUID(),
+            agent_id: agentId,
+            plan_id: 'pro',
+            stripe_customer_id: existingSubscription?.stripe_customer_id || null,
+            stripe_subscription_id: existingSubscription?.stripe_subscription_id || null,
+            status: 'active',
+            current_period_start: existingSubscription?.current_period_start || now,
+            current_period_end: existingSubscription?.current_period_end || null,
+            cancel_at_period_end: false,
+            allow_overages: false,
+            created_at: existingSubscription?.created_at || now,
+            updated_at: now
+          },
+          { onConflict: 'agent_id' }
+        );
+
+      if (subscriptionError) throw subscriptionError;
+
+      const { error: agentUpdateError } = await supabaseAdmin
+        .from('agents')
+        .update({
+          plan: 'pro',
+          subscription_status: 'active',
+          updated_at: now
+        })
+        .or(`id.eq.${agentId},auth_user_id.eq.${agentId}`);
+
+      if (agentUpdateError) throw agentUpdateError;
+
+      const dashboardSuccess =
+        toTrimmedOrNull(req.body?.success_url || req.body?.successUrl) ||
+        `${(process.env.APP_BASE_URL || process.env.DASHBOARD_BASE_URL || 'https://homelistingai.com').replace(/\/$/, '')}/dashboard/today?upgraded=true`;
+
+      return res.json({
+        success: true,
+        url: `${dashboardSuccess}${dashboardSuccess.includes('?') ? '&' : '?'}promo=${encodeURIComponent(normalizedPromoCode.toLowerCase())}`,
+        session_id: `promo_${normalizedPromoCode.toLowerCase()}`,
+        plan_id: 'pro',
+        promo_applied: normalizedPromoCode
+      });
     }
 
     const agent = await billingEngine.resolveAgentRecord(agentId).catch(() => null);

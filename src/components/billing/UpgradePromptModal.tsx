@@ -1,16 +1,21 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Modal from '../Modal';
 
 interface UpgradePromptModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onUpgrade: () => void;
+  onUpgrade: (promoCode?: string) => void;
   title?: string;
   body?: string;
   reasonLine?: string | null;
   primaryLabel?: string;
   secondaryLabel?: string;
   upgrading?: boolean;
+  allowPromoCode?: boolean;
+  promoPlaceholder?: string;
+  promoLabel?: string;
+  promoHelpText?: string;
+  initialPromoCode?: string;
 }
 
 const UpgradePromptModal: React.FC<UpgradePromptModalProps> = ({
@@ -22,8 +27,21 @@ const UpgradePromptModal: React.FC<UpgradePromptModalProps> = ({
   reasonLine = null,
   primaryLabel = 'Upgrade now',
   secondaryLabel = 'Not now',
-  upgrading = false
+  upgrading = false,
+  allowPromoCode = false,
+  promoPlaceholder = 'LIFETIME',
+  promoLabel = 'Promo code (optional)',
+  promoHelpText = 'If you have a promo code, enter it here before upgrading.',
+  initialPromoCode = ''
 }) => {
+  const [promoCode, setPromoCode] = useState(initialPromoCode);
+
+  useEffect(() => {
+    if (isOpen) {
+      setPromoCode(initialPromoCode);
+    }
+  }, [initialPromoCode, isOpen]);
+
   if (!isOpen) return null;
 
   return (
@@ -39,6 +57,19 @@ const UpgradePromptModal: React.FC<UpgradePromptModalProps> = ({
             {reasonLine}
           </p>
         ) : null}
+        {allowPromoCode ? (
+          <div className="space-y-2">
+            <label className="block text-sm font-semibold text-slate-700">{promoLabel}</label>
+            <input
+              type="text"
+              value={promoCode}
+              onChange={(event) => setPromoCode(event.target.value.toUpperCase())}
+              placeholder={promoPlaceholder}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold uppercase tracking-wide text-slate-900 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"
+            />
+            <p className="text-xs text-slate-500">{promoHelpText}</p>
+          </div>
+        ) : null}
         <div className="flex items-center justify-end gap-3">
           <button
             type="button"
@@ -50,7 +81,7 @@ const UpgradePromptModal: React.FC<UpgradePromptModalProps> = ({
           </button>
           <button
             type="button"
-            onClick={onUpgrade}
+            onClick={() => onUpgrade(promoCode.trim() || undefined)}
             disabled={upgrading}
             className="rounded-lg bg-[#233074] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1b275e]"
           >

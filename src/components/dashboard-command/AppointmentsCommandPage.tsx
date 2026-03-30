@@ -533,13 +533,14 @@ const AppointmentsCommandPage: React.FC = () => {
         title="You’re at your limit."
         body="Upgrade to keep capturing leads and sending reports without interruptions."
         reasonLine="Reminder calls are included in Pro."
+        allowPromoCode
         upgrading={upgradeLoading}
         onClose={() => setUpgradeModalOpen(false)}
-        onUpgrade={() => {
+        onUpgrade={(promoCode) => {
           void (async () => {
             try {
               setUpgradeLoading(true)
-              const checkout = await createBillingCheckoutSession('pro')
+              const checkout = await createBillingCheckoutSession('pro', promoCode)
               if (!checkout.url) throw new Error('Missing checkout URL')
               window.location.href = checkout.url
             } catch (err) {

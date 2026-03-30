@@ -156,7 +156,10 @@ export const fetchDashboardBillingUsage = async (): Promise<DashboardBillingUsag
   return (await parseJson(response)) as unknown as DashboardBillingUsageResponse;
 };
 
-export const createBillingCheckoutSession = async (planId: Exclude<PlanId, 'free'>): Promise<{ url: string }> => {
+export const createBillingCheckoutSession = async (
+  planId: Exclude<PlanId, 'free'>,
+  promoCode?: string
+): Promise<{ url: string }> => {
   const agentId = await resolveAgentId();
   const response = await fetch(buildApiUrl('/api/billing/checkout-session'), {
     method: 'POST',
@@ -166,6 +169,7 @@ export const createBillingCheckoutSession = async (planId: Exclude<PlanId, 'free
     },
     body: JSON.stringify({
       plan_id: planId,
+      promo_code: promoCode?.trim() || undefined,
       success_url: `${window.location.origin}/dashboard/settings/billing?checkout=success`,
       cancel_url: `${window.location.origin}/dashboard/settings/billing?checkout=cancelled`
     })

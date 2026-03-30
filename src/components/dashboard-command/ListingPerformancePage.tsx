@@ -297,9 +297,10 @@ const ListingPerformancePage: React.FC = () => {
         title={upgradeModal.title}
         body={upgradeModal.body}
         reasonLine={upgradeModal.reasonLine}
+        allowPromoCode
         upgrading={upgradeLoading}
         onClose={() => setUpgradeModal((prev) => ({ ...prev, open: false }))}
-          onUpgrade={() => {
+          onUpgrade={(promoCode) => {
             if (!upgradeModal.targetPlan) {
               navigate(buildDashboardPath('/settings/billing', demoMode));
               return;
@@ -307,7 +308,7 @@ const ListingPerformancePage: React.FC = () => {
           void (async () => {
             try {
               setUpgradeLoading(true);
-              const checkout = await createBillingCheckoutSession(upgradeModal.targetPlan);
+              const checkout = await createBillingCheckoutSession(upgradeModal.targetPlan, promoCode);
               if (!checkout.url) throw new Error('Missing checkout URL');
               window.location.href = checkout.url;
             } catch (err) {
