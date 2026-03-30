@@ -68,6 +68,7 @@ const EnhancedAISidekicksHub = lazy(() => import('./components/EnhancedAISidekic
 const PublicAICard = lazy(() => import('./components/PublicAICard')); // Public View
 const PublicListingPage = lazy(() => import('./pages/PublicListingPage')); // Public View
 const DemoAssetGalleryPage = lazy(() => import('./pages/DemoAssetGalleryPage'));
+const DemoAssetPreviewPage = lazy(() => import('./pages/DemoAssetPreviewPage'));
 const DemoPublicListingPage = lazy(() => import('./pages/DemoPublicListingPage'));
 const BlogIndex = lazy(() => import('./pages/Blog/BlogIndex'));
 const BlogPost = lazy(() => import('./pages/Blog/BlogPost'));
@@ -1499,6 +1500,7 @@ const App: React.FC = () => {
                         <Route path="listings/:listingId/edit" element={<ListingEditorPage />} />
                         <Route path="gallery" element={<Navigate to="/demo-dashboard/gallery/demo-listing-oak" replace />} />
                         <Route path="gallery/:listingId" element={<DemoAssetGalleryPage />} />
+                        <Route path="gallery/:listingId/assets/:assetKey" element={<DemoAssetPreviewPage />} />
                         <Route path="billing" element={<Navigate to="/demo-dashboard/settings/billing" replace />} />
                         <Route path="settings" element={renderSettingsPage('profile', { isDemoPage: true, backPath: '/demo-dashboard/today' })} />
                         <Route path="settings/billing" element={renderSettingsPage('billing', { isDemoPage: true, backPath: '/demo-dashboard/today' })} />
