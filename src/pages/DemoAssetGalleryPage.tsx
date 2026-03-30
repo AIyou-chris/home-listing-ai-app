@@ -1,7 +1,6 @@
 import React, { useMemo } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { buildApiUrl } from '../lib/api'
-import DemoSocialMockup from '../components/demo/DemoSocialMockup'
 import {
   getDemoListingMetaById,
   getDemoListingMetas,
@@ -87,22 +86,22 @@ const DemoAssetGalleryPage: React.FC = () => {
   const liveListingUrl = `/demo-live/${listingMeta.slug}`
   const crmUrl = `/demo-dashboard/listings/${listingMeta.id}`
   const qrPngUrl = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(`https://homelistingai.com${liveListingUrl}?src=open_house`)}`
-  const previewRouteBase = `/demo-dashboard/gallery/${listingMeta.id}/assets`
+  const withDownload = (url: string) => `${url}${url.includes('?') ? '&' : '?'}download=1`
 
   const assetCards: AssetCard[] = [
-    { key: 'property-report', title: 'Property Report', subtitle: 'Buyer Report', kind: 'pdf', accent: '#ef4444', downloadUrl: propertyReportUrl, openUrl: `${previewRouteBase}/property-report` },
-    { key: 'light-cma', title: 'Light CMA', subtitle: 'Seller Pricing', kind: 'pdf', accent: '#f97316', downloadUrl: lightCmaUrl, openUrl: `${previewRouteBase}/light-cma` },
-    { key: 'open-house-flyer', title: 'Open House Flyer', subtitle: 'Print Flyer', kind: 'pdf', accent: '#ec4899', downloadUrl: openHouseFlyerUrl, openUrl: `${previewRouteBase}/open-house-flyer` },
-    { key: 'sign-rider', title: 'Sign Rider', subtitle: 'Yard Sign', kind: 'pdf', accent: '#0ea5e9', downloadUrl: signRiderUrl, openUrl: `${previewRouteBase}/sign-rider` },
-    { key: 'ig-post', title: 'IG Post', subtitle: 'Square Social', kind: 'image', accent: '#8b5cf6', downloadUrl: igPostUrl, openUrl: `${previewRouteBase}/ig-post` },
-    { key: 'ig-story', title: 'IG Story', subtitle: 'Story Creative', kind: 'image', accent: '#14b8a6', downloadUrl: igStoryUrl, openUrl: `${previewRouteBase}/ig-story` }
+    { key: 'property-report', title: 'Property Report', subtitle: 'Buyer Report', kind: 'pdf', accent: '#ef4444', downloadUrl: withDownload(propertyReportUrl), openUrl: propertyReportUrl },
+    { key: 'light-cma', title: 'Light CMA', subtitle: 'Seller Pricing', kind: 'pdf', accent: '#f97316', downloadUrl: withDownload(lightCmaUrl), openUrl: lightCmaUrl },
+    { key: 'open-house-flyer', title: 'Open House Flyer', subtitle: 'Print Flyer', kind: 'pdf', accent: '#ec4899', downloadUrl: withDownload(openHouseFlyerUrl), openUrl: openHouseFlyerUrl },
+    { key: 'sign-rider', title: 'Sign Rider', subtitle: 'Yard Sign', kind: 'pdf', accent: '#0ea5e9', downloadUrl: withDownload(signRiderUrl), openUrl: signRiderUrl },
+    { key: 'ig-post', title: 'IG Post', subtitle: 'Square Social', kind: 'image', accent: '#8b5cf6', downloadUrl: withDownload(igPostUrl), openUrl: igPostUrl },
+    { key: 'ig-story', title: 'IG Story', subtitle: 'Story Creative', kind: 'image', accent: '#14b8a6', downloadUrl: withDownload(igStoryUrl), openUrl: igStoryUrl }
   ]
 
   const startDemoTour = () => {
     const targets = [
       crmUrl,
       `${liveListingUrl}?action=chat`,
-      `${previewRouteBase}/property-report`
+      propertyReportUrl
     ]
     targets.forEach((target, index) => {
       window.setTimeout(() => {
@@ -210,15 +209,17 @@ const DemoAssetGalleryPage: React.FC = () => {
             <article key={asset.key} className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
               <div className="aspect-[4/5] border-b border-slate-100 bg-slate-100 p-4">
                 {asset.kind === 'image' ? (
-                  <DemoSocialMockup
-                    format={asset.key === 'ig-story' ? 'ig_story' : 'ig_post'}
-                    imageUrl={previewImage}
-                    address={`${listingMeta.address}, ${listingMeta.city}, ${listingMeta.state}`}
-                    priceLabel={`$${listingMeta.price.toLocaleString('en-US')}`}
-                    beds={listingMeta.beds}
-                    baths={listingMeta.baths}
-                    sqft={listingMeta.sqft}
-                  />
+                  <div className="relative h-full w-full overflow-hidden rounded-[22px] bg-slate-950">
+                    <img src={previewImage} alt={asset.title} className="h-full w-full object-cover" loading="eager" referrerPolicy="no-referrer" crossOrigin="anonymous" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/15 to-transparent" />
+                    <div className="absolute left-4 top-4 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-white" style={{ backgroundColor: asset.accent }}>
+                      {asset.subtitle}
+                    </div>
+                    <div className="absolute bottom-4 left-4 right-4">
+                      <div className="text-lg font-black text-white">{asset.title}</div>
+                      <div className="text-xs text-white/80">Ready for social and outbound sharing.</div>
+                    </div>
+                  </div>
                 ) : (
                   <PdfThumbnail title={asset.title} subtitle={asset.subtitle} accent={asset.accent} imageUrl={previewImage} price={listingMeta.price} />
                 )}
@@ -229,8 +230,8 @@ const DemoAssetGalleryPage: React.FC = () => {
                   <div className="text-sm text-slate-600">{asset.subtitle}</div>
                 </div>
                 <div className="flex gap-2">
-                  <a href={asset.downloadUrl} download className="flex-1 rounded-2xl bg-slate-950 px-4 py-2.5 text-center text-sm font-bold text-white">Download</a>
-                  <Link to={asset.openUrl} className="flex-1 rounded-2xl border border-slate-300 px-4 py-2.5 text-center text-sm font-bold text-slate-800">Open</Link>
+                  <a href={asset.downloadUrl} className="flex-1 rounded-2xl bg-slate-950 px-4 py-2.5 text-center text-sm font-bold text-white">Download</a>
+                  <a href={asset.openUrl} target="_blank" rel="noreferrer" className="flex-1 rounded-2xl border border-slate-300 px-4 py-2.5 text-center text-sm font-bold text-slate-800">Open</a>
                 </div>
               </div>
             </article>

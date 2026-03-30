@@ -23082,6 +23082,7 @@ app.get('/api/demo/sharekit/listings/:listingId/qr.:format', async (req, res) =>
 app.get('/api/demo/sharekit/listings/:listingId/open-house-flyer.pdf', async (req, res) => {
   let browser = null;
   try {
+    const forceDownload = String(req.query.download || '').trim() === '1';
     const context = await buildDemoShareKitContext(req.params.listingId, 'open_house');
     const html = buildOpenHouseFlyerHtml({
       logoDataUrl: context.logoDataUrl,
@@ -23116,7 +23117,7 @@ app.get('/api/demo/sharekit/listings/:listingId/open-house-flyer.pdf', async (re
     });
     const downloadName = `${slugifyDownloadName(context.publicSlug)}-open-house-flyer.pdf`;
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${downloadName}"`);
+    res.setHeader('Content-Disposition', `${forceDownload ? 'attachment' : 'inline'}; filename="${downloadName}"`);
     return res.send(pdfBuffer);
   } catch (error) {
     console.error('[Demo] Failed to generate demo open house flyer PDF:', error);
@@ -23129,6 +23130,7 @@ app.get('/api/demo/sharekit/listings/:listingId/open-house-flyer.pdf', async (re
 app.get('/api/demo/sharekit/listings/:listingId/sign-rider.pdf', async (req, res) => {
   let browser = null;
   try {
+    const forceDownload = String(req.query.download || '').trim() === '1';
     const context = await buildDemoShareKitContext(req.params.listingId, 'sign');
     const html = buildSignRiderHtml({
       logoDataUrl: context.logoDataUrl,
@@ -23158,7 +23160,7 @@ app.get('/api/demo/sharekit/listings/:listingId/sign-rider.pdf', async (req, res
     });
     const downloadName = `${slugifyDownloadName(context.publicSlug)}-sign-rider.pdf`;
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${downloadName}"`);
+    res.setHeader('Content-Disposition', `${forceDownload ? 'attachment' : 'inline'}; filename="${downloadName}"`);
     return res.send(pdfBuffer);
   } catch (error) {
     console.error('[Demo] Failed to generate demo sign rider PDF:', error);
@@ -23171,6 +23173,7 @@ app.get('/api/demo/sharekit/listings/:listingId/sign-rider.pdf', async (req, res
 app.get('/api/demo/sharekit/listings/:listingId/social-asset.png', async (req, res) => {
   let browser = null;
   try {
+    const forceDownload = String(req.query.download || '').trim() === '1';
     const format = String(req.query.format || 'ig_post').trim().toLowerCase();
     if (!['ig_post', 'ig_story'].includes(format)) {
       return res.status(400).json({ error: 'unsupported_social_format' });
@@ -23204,7 +23207,7 @@ app.get('/api/demo/sharekit/listings/:listingId/social-asset.png', async (req, r
     const imageBuffer = await page.screenshot({ type: 'png', fullPage: false, omitBackground: false });
     const downloadName = `${slugifyDownloadName(context.publicSlug)}-${format === 'ig_story' ? 'ig-story' : 'ig-post'}.png`;
     res.setHeader('Content-Type', 'image/png');
-    res.setHeader('Content-Disposition', `attachment; filename="${downloadName}"`);
+    res.setHeader('Content-Disposition', `${forceDownload ? 'attachment' : 'inline'}; filename="${downloadName}"`);
     return res.send(imageBuffer);
   } catch (error) {
     console.error('[Demo] Failed to generate demo social asset:', error);
@@ -23217,6 +23220,7 @@ app.get('/api/demo/sharekit/listings/:listingId/social-asset.png', async (req, r
 app.get('/api/demo/sharekit/listings/:listingId/property-report.pdf', async (req, res) => {
   let browser = null;
   try {
+    const forceDownload = String(req.query.download || '').trim() === '1';
     const context = await buildDemoShareKitContext(req.params.listingId, 'report');
     const html = buildPropertyReportHtml({
       logoDataUrl: context.logoDataUrl,
@@ -23253,7 +23257,7 @@ app.get('/api/demo/sharekit/listings/:listingId/property-report.pdf', async (req
     });
     const downloadName = `${slugifyDownloadName(context.publicSlug)}-property-report.pdf`;
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${downloadName}"`);
+    res.setHeader('Content-Disposition', `${forceDownload ? 'attachment' : 'inline'}; filename="${downloadName}"`);
     return res.send(pdfBuffer);
   } catch (error) {
     console.error('[Demo] Failed to generate demo property report PDF:', error);
@@ -23299,6 +23303,7 @@ app.get('/api/demo/sharekit/listings/:listingId/fair-housing-review.pdf', async 
 app.get('/api/demo/sharekit/listings/:listingId/light-cma.pdf', async (req, res) => {
   let browser = null;
   try {
+    const forceDownload = String(req.query.download || '').trim() === '1';
     const context = await buildDemoShareKitContext(req.params.listingId, 'report');
     const lightCmaConfig = getDemoLightCmaConfig(req.params.listingId);
     const marketBundle = buildDemoMarketAnalysisBundle({
@@ -23352,7 +23357,7 @@ app.get('/api/demo/sharekit/listings/:listingId/light-cma.pdf', async (req, res)
     });
     const downloadName = `${slugifyDownloadName(context.publicSlug)}-light-cma.pdf`;
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${downloadName}"`);
+    res.setHeader('Content-Disposition', `${forceDownload ? 'attachment' : 'inline'}; filename="${downloadName}"`);
     return res.send(pdfBuffer);
   } catch (error) {
     console.error('[Demo] Failed to generate demo light CMA PDF:', error);
