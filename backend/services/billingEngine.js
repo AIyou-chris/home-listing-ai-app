@@ -229,13 +229,23 @@ const createBillingEngine = ({ supabaseAdmin, stripe, enqueueJob, appBaseUrl }) 
       updated_at: now
     };
 
+    const { data: existingSubscription, error: existingSubscriptionError } = await supabaseAdmin
+      .from('subscriptions')
+      .select('id, created_at')
+      .eq('agent_id', agentId)
+      .maybeSingle();
+
+    if (existingSubscriptionError && !isMissingTableError(existingSubscriptionError)) {
+      throw existingSubscriptionError;
+    }
+
     const { data, error } = await supabaseAdmin
       .from('subscriptions')
       .upsert(
         {
-          id: crypto.randomUUID(),
+          id: existingSubscription?.id || crypto.randomUUID(),
           ...payload,
-          created_at: now
+          created_at: existingSubscription?.created_at || now
         },
         { onConflict: 'agent_id' }
       )
