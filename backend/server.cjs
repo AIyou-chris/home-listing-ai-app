@@ -12661,6 +12661,7 @@ const mapAppointmentFromRow = (row) => {
     endIso,
     startsAt: startIso,
     endsAt: endIso,
+    icsToken: row.ics_token || null,
     confirmation_status: row.confirmation_status || 'needs_confirmation',
     last_reminder_outcome: row.last_reminder_outcome || null,
     last_reminder_at: row.last_reminder_at || null,
@@ -13004,6 +13005,11 @@ const PUBLIC_BASE_URL =
   process.env.APP_BASE_URL ||
   'http://localhost:3002';
 
+const buildAppointmentIcsUrl = (appointmentId, icsToken) => {
+  if (!appointmentId || !icsToken) return null;
+  return `${PUBLIC_BASE_URL.replace(/\/+$/, '')}/api/public/appointments/${appointmentId}/ics?token=${encodeURIComponent(icsToken)}`;
+};
+
 const buildAiCardDestinationUrl = (profile, userId, explicitUrl) =>
   explicitUrl ||
   `https://homelistingai.com/card/${profile?.id || userId || 'default'}`;
@@ -13047,6 +13053,10 @@ const decorateAppointmentWithAgent = (appointment, agentProfile) => {
 
   return {
     ...appointment,
+    calendarLinks: {
+      ics: buildAppointmentIcsUrl(appointment.id, appointment.icsToken),
+      appleOutlook: buildAppointmentIcsUrl(appointment.id, appointment.icsToken)
+    },
     agentInfo: {
       id: profile.id || 'default',
       name: displayName,

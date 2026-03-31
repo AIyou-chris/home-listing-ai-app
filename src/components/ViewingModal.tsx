@@ -8,36 +8,57 @@ interface ViewingModalProps {
   onSuccess?: () => void
   propertyAddress?: string
   agentEmail?: string
+  agentId?: string
   listingId?: string
+}
+
+type CalendarLinks = {
+  google?: string
+  ics?: string
+  appleOutlook?: string
 }
 
 const VISITOR_STORAGE_KEY = 'hlai_public_listing_visitor_id'
 const SESSION_STORAGE_PREFIX = 'hlai_public_listing_session_'
 const ATTRIBUTION_STORAGE_PREFIX = 'hlai_public_listing_attribution_'
 
-const ViewingModal: React.FC<ViewingModalProps> = ({ onClose, onSuccess, propertyAddress, agentEmail, listingId }) => {
+const ViewingModal: React.FC<ViewingModalProps> = ({
+  onClose,
+  onSuccess,
+  propertyAddress,
+  agentEmail,
+  agentId,
+  listingId
+}) => {
   const [form, setForm] = useState({ name: '', email: '', phone: '', date: '', time: 'Afternoon', notes: '' })
+  const [smsConsent, setSmsConsent] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle')
   const [errorMessage, setErrorMessage] = useState<string>('Failed to schedule. Try again.')
   const [confirmedSlot, setConfirmedSlot] = useState<{ date: string; time: string } | null>(null)
+  const [calendarLinks, setCalendarLinks] = useState<CalendarLinks | null>(null)
 
   const set = (k: keyof typeof form, v: string) => setForm(prev => ({ ...prev, [k]: v }))
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!form.name || !form.email || !form.date || !form.time) return
+    if (form.phone.trim() && !smsConsent) {
+      setStatus('error')
+      setErrorMessage('Check the consent box if you want reminder calls and text follow-up.')
+      return
+    }
     setSubmitting(true)
     setStatus('idle')
     setErrorMessage('Failed to schedule. Try again.')
     setConfirmedSlot(null)
+    setCalendarLinks(null)
 
     // Demo / Blueprint Bypass
     if (agentEmail === 'agent@example.com' || agentEmail?.includes('blueprint') || !agentEmail) {
       setTimeout(() => {
         setStatus('success')
         setConfirmedSlot({ date: form.date, time: form.time })
-        setTimeout(() => { onSuccess?.(); onClose() }, 1500)
         setSubmitting(false);
       }, 800);
       return;
@@ -68,7 +89,7 @@ const ViewingModal: React.FC<ViewingModalProps> = ({ onClose, onSuccess, propert
               full_name: form.name,
               email: form.email || undefined,
               phone: form.phone || undefined,
-              consent_sms: false,
+              consent_sms: form.phone.trim() ? smsConsent : undefined,
               source_type: attribution.source_type || 'link',
               source_key: attribution.source_key || 'link',
               source_meta: {
@@ -76,6 +97,7 @@ const ViewingModal: React.FC<ViewingModalProps> = ({ onClose, onSuccess, propert
                 utm_medium: attribution.utm_medium || null,
                 utm_campaign: attribution.utm_campaign || null,
                 referrer: attribution.referrer || document.referrer || null,
+                referrer_domain: attribution.referrer_domain || null,
                 landing_path: window.location.pathname + window.location.search
               },
               context: 'showing_requested'
@@ -107,6 +129,7 @@ const ViewingModal: React.FC<ViewingModalProps> = ({ onClose, onSuccess, propert
         message: `${form.notes}${propertyAddress ? `\nProperty: ${propertyAddress}` : ''}`.trim(),
         kind: 'Showing',
         agentEmail,
+        agentId,
         remindAgent: true,
         remindClient: true,
         agentReminderMinutes: 60,
@@ -117,13 +140,19 @@ const ViewingModal: React.FC<ViewingModalProps> = ({ onClose, onSuccess, propert
         date: slot?.date || form.date,
         time: slot?.time || form.time
       })
+      setCalendarLinks(result.calendarLinks || null)
       setStatus('success')
-      setTimeout(() => { onSuccess?.(); onClose() }, 1500)
+      onSuccess?.()
     } catch {
       setStatus('error')
     } finally {
       setSubmitting(false)
     }
+  }
+
+  const openLink = (url?: string) => {
+    if (!url) return
+    window.open(url, '_blank', 'noopener,noreferrer')
   }
 
   const header = (
@@ -132,6 +161,60 @@ const ViewingModal: React.FC<ViewingModalProps> = ({ onClose, onSuccess, propert
       <p className='text-sm text-slate-500 mt-0.5'>Pick a time to see the home in person</p>
     </div>
   )
+
+  if (status === 'success') {
+    return (
+      <Modal title={header} onClose={onClose}>
+        <div className='p-6'>
+          <div className='rounded-xl border border-green-200 bg-green-50 p-4'>
+            <h4 className='text-base font-bold text-green-900'>Showing booked</h4>
+            <p className='mt-1 text-sm text-green-800'>
+              {confirmedSlot
+                ? `Your showing is set for ${confirmedSlot.date} at ${confirmedSlot.time}.`
+                : 'Your showing is set.'}
+            </p>
+            <p className='mt-2 text-xs text-green-700'>
+              A confirmation email with a calendar invite is on the way.
+            </p>
+          </div>
+
+          <div className='mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2'>
+            <button
+              type='button'
+              onClick={() => openLink(calendarLinks?.google)}
+              className='rounded-lg bg-emerald-600 px-4 py-3 text-sm font-bold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50'
+              disabled={!calendarLinks?.google}
+            >
+              Add to Google Calendar
+            </button>
+            <button
+              type='button'
+              onClick={() => openLink(calendarLinks?.appleOutlook)}
+              className='rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-bold text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50'
+              disabled={!calendarLinks?.appleOutlook}
+            >
+              Add to Apple / Outlook
+            </button>
+            <button
+              type='button'
+              onClick={() => openLink(calendarLinks?.ics)}
+              className='rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-bold text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50'
+              disabled={!calendarLinks?.ics}
+            >
+              Download ICS
+            </button>
+            <button
+              type='button'
+              onClick={onClose}
+              className='rounded-lg bg-slate-900 px-4 py-3 text-sm font-bold text-white hover:bg-slate-800'
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      </Modal>
+    )
+  }
 
   return (
     <Modal title={header} onClose={onClose}>
@@ -150,6 +233,17 @@ const ViewingModal: React.FC<ViewingModalProps> = ({ onClose, onSuccess, propert
               <label className='block text-sm font-semibold text-slate-700 mb-1.5'>Phone</label>
               <input value={form.phone} onChange={e => set('phone', e.target.value)} className='w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500' />
               <p className='mt-1 text-xs text-slate-500'>Optional. Use a phone number if you want reminder calls about your showing.</p>
+              {form.phone.trim() && (
+                <label className='mt-2 flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700'>
+                  <input
+                    type='checkbox'
+                    checked={smsConsent}
+                    onChange={e => setSmsConsent(e.target.checked)}
+                    className='mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500'
+                  />
+                  <span>I agree to receive follow-up texts and reminder messages about this showing. Message and data rates may apply.</span>
+                </label>
+              )}
             </div>
           </div>
           <div className='grid grid-cols-2 gap-4'>
@@ -170,11 +264,6 @@ const ViewingModal: React.FC<ViewingModalProps> = ({ onClose, onSuccess, propert
             <label className='block text-sm font-semibold text-slate-700 mb-1.5'>Notes</label>
             <textarea rows={3} value={form.notes} onChange={e => set('notes', e.target.value)} className='w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500' />
           </div>
-          {status === 'success' && (
-            <div className='p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800'>
-              Showing scheduled{confirmedSlot ? ` for ${confirmedSlot.date} at ${confirmedSlot.time}` : ''}. Confirmation sent.
-            </div>
-          )}
           {status === 'error' && <div className='p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800'>{errorMessage}</div>}
         </div>
         <div className='flex justify-end items-center mt-6 pt-4 border-t border-slate-200'>

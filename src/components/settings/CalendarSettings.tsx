@@ -71,21 +71,27 @@ const CalendarSettingsPage: React.FC<CalendarSettingsProps> = ({
                 <p className="text-slate-500 mt-1">Configure your availability and booking preferences.</p>
             </div>
 
-            <FeatureSection title="Calendar Integration" icon="link">
+            <FeatureSection title="Calendar & Appointment Rules" icon="event_available">
                 <div className="bg-slate-50 border border-slate-200 rounded-lg p-6">
                     <div className="flex items-start gap-4">
                         <div className="w-12 h-12 bg-slate-800 rounded-lg flex items-center justify-center flex-shrink-0">
                             <span className="material-symbols-outlined text-white w-6 h-6">calendar_today</span>
                         </div>
                         <div className="flex-1">
-                            <h3 className="text-lg font-semibold text-slate-900 mb-2">External Calendar Sync</h3>
+                            <h3 className="text-lg font-semibold text-slate-900 mb-2">No Google connection required</h3>
                             <p className="text-sm text-slate-600 mb-4">
-                                Google OAuth entry points are disabled in this build. Use booking rules below and ICS invites from appointment emails.
+                                Buyers and agents get calendar invites by email, and every booking can be added to Google, Apple, or Outlook with one tap.
                             </p>
-                            <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
-                                <span className="material-symbols-outlined text-sm">block</span>
-                                Google integrations disabled
-                            </span>
+                            <div className="flex flex-wrap gap-2">
+                                <span className="inline-flex items-center gap-2 rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
+                                    <span className="material-symbols-outlined text-sm">mail</span>
+                                    ICS invite in every appointment email
+                                </span>
+                                <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                                    <span className="material-symbols-outlined text-sm">event</span>
+                                    Google, Apple, and Outlook ready
+                                </span>
+                            </div>
                         </div>
                     </div>
                 </div>

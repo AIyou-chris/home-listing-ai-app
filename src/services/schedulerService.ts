@@ -1,13 +1,13 @@
-import { insertAppointment, listAppointments } from './appointmentsService'
+import { listAppointments } from './appointmentsService'
 import type { AppointmentRow } from './appointmentsService'
 import { supabase } from './supabase'
 import { googleOAuthService } from './googleOAuthService'
 import { googleMeetService } from './googleMeetService'
-import { emailService } from './emailService'
 import { calendarSettingsService } from './calendarSettingsService'
 import { textingService } from './textingService'
 import type { CalendarSettings } from '../types'
 import { getBooleanEnv } from '../lib/env'
+import { buildApiUrl } from '../lib/api'
 
 export type AppointmentKind =
   | 'Showing'
@@ -40,6 +40,11 @@ export interface SchedulerResult {
   eventId: string
   meetLink?: string
   appointmentId?: string
+  calendarLinks?: {
+    google?: string
+    ics?: string
+    appleOutlook?: string
+  }
   scheduledAt?: {
     date: string
     time: string
@@ -110,6 +115,59 @@ const toIsoRange = (dateStr: string, timeLabel: string): {
   const end = new Date(start.getTime() + 30 * 60 * 1000)
   return { start: start.toISOString(), end: end.toISOString() }
 }
+
+const formatGoogleCalendarDateTime = (iso: string): string =>
+  new Date(iso).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z')
+
+const buildGoogleCalendarUrl = ({
+  title,
+  description,
+  location,
+  startIso,
+  endIso
+}: {
+  title: string
+  description?: string
+  location?: string
+  startIso: string
+  endIso: string
+}): string => {
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: title,
+    dates: `${formatGoogleCalendarDateTime(startIso)}/${formatGoogleCalendarDateTime(endIso)}`
+  })
+
+  if (description?.trim()) {
+    params.set('details', description.trim())
+  }
+
+  if (location?.trim()) {
+    params.set('location', location.trim())
+  }
+
+  return `https://calendar.google.com/calendar/render?${params.toString()}`
+}
+
+const buildCalendarLinks = ({
+  title,
+  description,
+  location,
+  startIso,
+  endIso,
+  icsUrl
+}: {
+  title: string
+  description?: string
+  location?: string
+  startIso: string
+  endIso: string
+  icsUrl?: string | null
+}) => ({
+  google: buildGoogleCalendarUrl({ title, description, location, startIso, endIso }),
+  ics: icsUrl || undefined,
+  appleOutlook: icsUrl || undefined
+})
 
 const DAY_NAMES: string[] = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
@@ -374,7 +432,6 @@ export const scheduleAppointment = async (
 ): Promise<SchedulerResult> => {
   const { data: user } = await supabase.auth.getUser()
   const uid = user?.user?.id ?? null
-  const agentUserId = input.agentId || uid || 'guest-agent'
 
   const { settings, busyIntervals } = await loadCalendarContext(uid)
 
@@ -465,43 +522,8 @@ ${normalizedInput.message || 'No additional notes'}
       console.warn('⚠️ Google Calendar event creation failed, continuing without Meet link', error)
       calendar = { eventId: '', meetLink: undefined }
     }
-
-    try {
-      await emailService.sendConsultationConfirmation(
-        {
-          name: normalizedInput.name,
-          email: normalizedInput.email,
-          phone: normalizedInput.phone || '',
-          date: normalizedInput.date,
-          time: normalizedInput.time,
-          message: normalizedInput.message || '',
-          location: normalizedInput.propertyAddress || undefined
-        },
-        calendar.meetLink
-      )
-    } catch (error) {
-      console.warn('⚠️ Consultation confirmation email failed', error)
-    }
-
-    try {
-      await emailService.sendAdminNotification(
-        {
-          name: normalizedInput.name,
-          email: normalizedInput.email,
-          phone: normalizedInput.phone || '',
-          date: normalizedInput.date,
-          time: normalizedInput.time,
-          message: normalizedInput.message || '',
-          location: normalizedInput.propertyAddress || undefined
-        },
-        calendar.meetLink,
-        { userId: agentUserId }
-      )
-    } catch (error) {
-      console.warn('⚠️ Admin notification email failed', error)
-    }
   } else {
-    console.info('ℹ️ Google integrations disabled; skipping calendar event and email sends.')
+    console.info('ℹ️ Google integrations disabled; continuing with backend booking flow and ICS invites.')
   }
 
   // SMS Notifications
@@ -514,90 +536,85 @@ ${normalizedInput.message || 'No additional notes'}
     }
   }
 
-  const appointmentPayload = {
-    kind: normalizedInput.kind,
-    name: normalizedInput.name,
-    email: normalizedInput.email,
-    phone: normalizedInput.phone,
-    notes: normalizedInput.message || '',
-    date: finalDate,
-    time_label: finalTimeLabel,
-    start_iso: startIso,
-    end_iso: endIso,
-    meet_link: calendar.meetLink,
-    status: normalizedInput.status || 'Scheduled',
-    lead_id: isUuid(normalizedInput.leadId) ? normalizedInput.leadId : undefined,
-    property_id: normalizedInput.propertyId ?? null,
-    property_address: normalizedInput.propertyAddress ?? null,
-    remind_agent: reminders.remindAgent,
-    remind_client: reminders.remindClient,
-    agent_reminder_minutes_before: reminders.agentReminderMinutes,
-    client_reminder_minutes_before: reminders.clientReminderMinutes
-  }
+  let storedAppointment: (AppointmentRow & {
+    calendarLinks?: { ics?: string; appleOutlook?: string }
+  }) | null = null
 
-  let storedAppointment: AppointmentRow | null = null
-
-  if (uid) {
-    try {
-      storedAppointment = await insertAppointment({
-        user_id: uid,
-        ...appointmentPayload
+  try {
+    const response = await fetch(buildApiUrl('/api/appointments'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        kind: normalizedInput.kind,
+        date: finalDate,
+        time: finalTimeLabel,
+        timeLabel: finalTimeLabel,
+        startIso,
+        endIso,
+        leadId: isUuid(normalizedInput.leadId) ? normalizedInput.leadId : null,
+        leadName: normalizedInput.name,
+        name: normalizedInput.name,
+        email: normalizedInput.email,
+        phone: normalizedInput.phone,
+        propertyId: normalizedInput.propertyId,
+        propertyAddress: normalizedInput.propertyAddress,
+        notes: normalizedInput.message || '',
+        status: normalizedInput.status || 'Scheduled',
+        remindAgent: reminders.remindAgent,
+        remindClient: reminders.remindClient,
+        agentReminderMinutes: reminders.agentReminderMinutes,
+        clientReminderMinutes: reminders.clientReminderMinutes,
+        meetLink: calendar.meetLink,
+        agentId: normalizedInput.agentId,
+        userId: uid || undefined
       })
-    } catch (error) {
-      console.warn('⚠️ Failed to persist appointment via Supabase client, falling back to backend', error)
+    })
+
+    const data = await response.json().catch(() => null)
+
+    if (!response.ok) {
+      const message =
+        typeof data?.error === 'string'
+          ? data.error
+          : typeof data?.message === 'string'
+            ? data.message
+            : 'Failed to create appointment'
+      throw new Error(message)
     }
-  }
 
-  const ownerIdForBackend = uid ?? normalizedInput.agentId ?? null
-
-  if (!storedAppointment && ownerIdForBackend) {
-    try {
-      const response = await fetch('/api/appointments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          kind: normalizedInput.kind,
-          date: finalDate,
-          time: finalTimeLabel,
-          timeLabel: finalTimeLabel,
-          startIso,
-          endIso,
-          leadId: isUuid(normalizedInput.leadId) ? normalizedInput.leadId : null,
-          leadName: normalizedInput.name,
-          name: normalizedInput.name,
-          email: normalizedInput.email,
-          phone: normalizedInput.phone,
-          propertyId: normalizedInput.propertyId,
-          propertyAddress: normalizedInput.propertyAddress,
-          notes: normalizedInput.message || '',
-          status: normalizedInput.status || 'Scheduled',
-          remindAgent: reminders.remindAgent,
-          remindClient: reminders.remindClient,
-          agentReminderMinutes: reminders.agentReminderMinutes,
-          clientReminderMinutes: reminders.clientReminderMinutes,
-          meetLink: calendar.meetLink,
-          agentId: normalizedInput.agentId,
-          userId: ownerIdForBackend
-        })
-      })
-
-      if (!response.ok) {
-        console.warn('⚠️ Backend appointment creation responded with non-OK status', response.status)
-      } else {
-        const data = await response.json()
-        if (data && data.id) {
-          storedAppointment = data as AppointmentRow
-        }
+    if (data?.id) {
+      storedAppointment = data as AppointmentRow & {
+        calendarLinks?: { ics?: string; appleOutlook?: string }
       }
-    } catch (error) {
-      console.warn('⚠️ Backend appointment creation failed', error)
     }
+  } catch (error) {
+    console.warn('⚠️ Backend appointment creation failed', error)
+    throw error
   }
+
+  if (!storedAppointment?.id) {
+    throw new Error('Failed to create appointment')
+  }
+
+  const location =
+    normalizedInput.propertyAddress ||
+    calendar.meetLink ||
+    normalizedInput.agentEmail ||
+    undefined
+  const calendarLinks = buildCalendarLinks({
+    title: summary,
+    description,
+    location,
+    startIso,
+    endIso,
+    icsUrl: storedAppointment.calendarLinks?.ics
+  })
 
   return {
     eventId: calendar.eventId,
     meetLink: calendar.meetLink,
     appointmentId: storedAppointment?.id,
+    calendarLinks,
     scheduledAt: {
       date: finalDate,
       time: finalTimeLabel,

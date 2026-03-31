@@ -73,7 +73,7 @@ export const insertAppointment = async (row: InsertAppointmentInput) => {
     }
 
     const result = await response.json();
-    return result.appointment as AppointmentRow;
+    return (result.appointment || result) as AppointmentRow;
   } catch (error) {
     console.error('Error creating appointment via API:', error);
     throw error;
@@ -87,4 +87,3 @@ export const listAppointments = async (userId?: string) => {
   if (error) throw error
   return (data || []) as AppointmentRow[]
 }
-

@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import Modal from './Modal';
-import { emailService } from '../services/emailService';
 import { ValidationUtils } from '../utils/validation';
 import { scheduleAppointment, getAvailableSlots } from '../services/schedulerService';
-import { Toaster, toast } from 'react-hot-toast';
+import { toast } from 'react-hot-toast';
 
 interface ConsultationModalProps {
     onClose: () => void;
@@ -11,7 +10,13 @@ interface ConsultationModalProps {
     leadRole?: string;
 }
 
-const ConsultationModal: React.FC<ConsultationModalProps> = ({ onClose, onSuccess, leadRole }) => {
+type CalendarLinks = {
+    google?: string;
+    ics?: string;
+    appleOutlook?: string;
+}
+
+const ConsultationModal: React.FC<ConsultationModalProps> = ({ onClose, onSuccess, leadRole: _leadRole }) => {
     const [formData, setFormData] = useState({
         name: '',
         email: '',
@@ -25,6 +30,8 @@ const ConsultationModal: React.FC<ConsultationModalProps> = ({ onClose, onSucces
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
     const [emailError, setEmailError] = useState<string>('');
+    const [calendarLinks, setCalendarLinks] = useState<CalendarLinks | null>(null);
+    const [confirmedSlot, setConfirmedSlot] = useState<{ date: string; time: string } | null>(null);
 
     // Set default date to tomorrow
     useEffect(() => {
@@ -84,6 +91,8 @@ const ConsultationModal: React.FC<ConsultationModalProps> = ({ onClose, onSucces
         e.preventDefault();
         setIsSubmitting(true);
         setSubmitStatus('idle');
+        setCalendarLinks(null);
+        setConfirmedSlot(null);
 
         try {
             if (!formData.name || !formData.email || !formData.message || !formData.date || !formData.time) {
@@ -96,7 +105,7 @@ const ConsultationModal: React.FC<ConsultationModalProps> = ({ onClose, onSucces
 
             // Schedule the appointment
             // This service handles calendar event creation, email confirmation, and admin notification
-            await scheduleAppointment({
+            const result = await scheduleAppointment({
                 name: formData.name,
                 email: formData.email,
                 phone: formData.phone,
@@ -107,18 +116,20 @@ const ConsultationModal: React.FC<ConsultationModalProps> = ({ onClose, onSucces
                 status: 'Scheduled'
             });
 
+            const slot = result?.scheduledAt;
+            setConfirmedSlot({
+                date: slot?.date || formData.date,
+                time: slot?.time || formData.time
+            });
+            setCalendarLinks(result.calendarLinks || null);
             setSubmitStatus('success');
             toast.success('Consultation scheduled successfully!');
+            onSuccess?.();
 
-            setTimeout(() => {
-                onSuccess?.();
-                onClose();
-            }, 2000);
-
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Error scheduling consultation:', error);
             setSubmitStatus('error');
-            toast.error(error.message || 'Failed to schedule. Please try another time.');
+            toast.error(error instanceof Error ? error.message : 'Failed to schedule. Please try another time.');
             // Refresh slots in case of conflict
             fetchSlots(formData.date);
         } finally {
@@ -132,6 +143,65 @@ const ConsultationModal: React.FC<ConsultationModalProps> = ({ onClose, onSucces
             <p className="text-sm text-slate-500 mt-0.5">Pick a time to chat about growing your brokerage with AI</p>
         </div>
     );
+
+    const openLink = (url?: string) => {
+        if (!url) return;
+        window.open(url, '_blank', 'noopener,noreferrer');
+    };
+
+    if (submitStatus === 'success') {
+        return (
+            <Modal title={titleNode} onClose={onClose}>
+                <div className="p-6">
+                    <div className="rounded-xl border border-green-200 bg-green-50 p-4">
+                        <h4 className="text-base font-bold text-green-900">Consultation booked</h4>
+                        <p className="mt-1 text-sm text-green-800">
+                            {confirmedSlot
+                                ? `Your consultation is set for ${confirmedSlot.date} at ${confirmedSlot.time}.`
+                                : 'Your consultation is set.'}
+                        </p>
+                        <p className="mt-2 text-xs text-green-700">
+                            A confirmation email with a calendar invite is on the way.
+                        </p>
+                    </div>
+
+                    <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <button
+                            type="button"
+                            onClick={() => openLink(calendarLinks?.google)}
+                            className="rounded-lg bg-indigo-600 px-4 py-3 text-sm font-bold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                            disabled={!calendarLinks?.google}
+                        >
+                            Add to Google Calendar
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => openLink(calendarLinks?.appleOutlook)}
+                            className="rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-bold text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                            disabled={!calendarLinks?.appleOutlook}
+                        >
+                            Add to Apple / Outlook
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => openLink(calendarLinks?.ics)}
+                            className="rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-bold text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                            disabled={!calendarLinks?.ics}
+                        >
+                            Download ICS
+                        </button>
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="rounded-lg bg-slate-900 px-4 py-3 text-sm font-bold text-white hover:bg-slate-800"
+                        >
+                            Done
+                        </button>
+                    </div>
+                </div>
+            </Modal>
+        );
+    }
 
     return (
         <Modal title={titleNode} onClose={onClose}>
