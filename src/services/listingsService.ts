@@ -1,6 +1,6 @@
 import { supabase } from './supabase'
 import { Property, AIDescription, AgentProfile } from '../types'
-import { SAMPLE_AGENT } from '../constants'
+import { EMPTY_AGENT } from '../constants'
 import { buildApiUrl } from '../lib/api'
 import { getDemoProperties } from '../demo/demoData'
 import { isDemoModeActive } from '../demo/useDemoMode'
@@ -132,15 +132,16 @@ const serializeDescription = (description?: Property['description']) => {
 
 const ensureAgentSnapshot = (snapshot: unknown): AgentProfile => {
   if (!snapshot || typeof snapshot !== 'object') {
-    return { ...SAMPLE_AGENT }
+    return { ...EMPTY_AGENT, headshotUrl: '' }
   }
 
   const candidate = snapshot as Partial<AgentProfile>
   return {
-    ...SAMPLE_AGENT,
+    ...EMPTY_AGENT,
+    headshotUrl: '',
     ...candidate,
-    language: candidate.language ?? SAMPLE_AGENT.language ?? 'en',
-    socials: Array.isArray(candidate.socials) ? (candidate.socials as AgentProfile['socials']) : [...SAMPLE_AGENT.socials]
+    language: candidate.language ?? EMPTY_AGENT.language ?? 'en',
+    socials: Array.isArray(candidate.socials) ? (candidate.socials as AgentProfile['socials']) : [...EMPTY_AGENT.socials]
   }
 }
 
@@ -148,8 +149,8 @@ const serializeAgentSnapshot = (snapshot?: AgentProfile | null) => {
   if (!snapshot) return null
   return {
     ...snapshot,
-    language: snapshot.language ?? SAMPLE_AGENT.language ?? 'en',
-    socials: Array.isArray(snapshot.socials) ? snapshot.socials : [...SAMPLE_AGENT.socials]
+    language: snapshot.language ?? EMPTY_AGENT.language ?? 'en',
+    socials: Array.isArray(snapshot.socials) ? snapshot.socials : [...EMPTY_AGENT.socials]
   }
 }
 
@@ -294,7 +295,7 @@ export const listingsService = {
       heroPhotos,
       galleryPhotos,
       appFeatures: ensureAppFeatures(input.appFeatures),
-      agentSnapshot: input.agentSnapshot ?? SAMPLE_AGENT,
+      agentSnapshot: input.agentSnapshot ?? { ...EMPTY_AGENT, headshotUrl: '' },
       status: input.status ?? 'active'
     })
 

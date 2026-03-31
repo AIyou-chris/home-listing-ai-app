@@ -4,7 +4,8 @@ import type { Session } from '@supabase/supabase-js';
 import { supabase } from './services/supabase';
 import { Property, View, AgentProfile, NotificationSettings, EmailSettings, CalendarSettings, BillingSettings, Lead, Appointment, Interaction, SecuritySettings } from './types';
 import { DEMO_FAT_PROPERTIES, DEMO_FAT_LEADS, DEMO_FAT_APPOINTMENTS } from './demoConstants';
-import { SAMPLE_AGENT, SAMPLE_INTERACTIONS } from './constants';
+import { EMPTY_AGENT, SAMPLE_AGENT, SAMPLE_INTERACTIONS } from './constants';
+import { isDemoModeActive } from './demo/useDemoMode';
 const LandingPage = lazy(() => import('./components/LandingPage'));
 const NewLandingPage = lazy(() => import('./components/NewLandingPage'));
 const SignUpPage = lazy(() => import('./components/SignUpPage'));
@@ -401,7 +402,7 @@ const App: React.FC = () => {
     const location = useLocation();
 
     // Mock data for settings (Moved up for scope access)
-    const [userProfile, setUserProfile] = useState<AgentProfile>(SAMPLE_AGENT);
+    const [userProfile, setUserProfile] = useState<AgentProfile>(EMPTY_AGENT);
 
 
 
@@ -494,10 +495,9 @@ const App: React.FC = () => {
     const [role, setRole] = useState<AppRole>(null);
     const [roleReady, setRoleReady] = useState(false);
     const [isSettingUp] = useState(false); // Helper state for setup flows (currently unused)
-    const [isDemoMode, setIsDemoMode] = useState(() => {
-        const path = window.location.pathname;
-        return path.includes('/demo-');
-    });
+    const [isDemoMode, setIsDemoMode] = useState(() =>
+        isDemoModeActive(window.location.pathname, window.location.search)
+    );
     const [isBlueprintMode, setIsBlueprintMode] = useState(() => {
         const path = window.location.pathname;
         return path.includes('blueprint') || path.includes('/agent-blueprint-');
@@ -584,6 +584,11 @@ const App: React.FC = () => {
     useEffect(() => {
         authReadyRef.current = authReady;
     }, [authReady]);
+
+    useEffect(() => {
+        const nextDemoMode = isDemoModeActive(location.pathname, location.search);
+        setIsDemoMode((prev) => (prev === nextDemoMode ? prev : nextDemoMode));
+    }, [location.pathname, location.search]);
 
     const logAuthBreadcrumb = useCallback((eventType: string, session: { expires_at?: number; user?: { id?: string } } | null) => {
         const expiresAt =
@@ -775,8 +780,9 @@ const App: React.FC = () => {
                     console.log("👮 Admin privileges confirmed via Email Whitelist:", currentUser.email);
                     setIsAdmin(true);
                     setUserProfile({
-                        ...SAMPLE_AGENT,
+                        ...EMPTY_AGENT,
                         name: 'System Administrator',
+                        title: 'Administrator',
                         email: currentUser.email ?? '',
                         headshotUrl: `https://i.pravatar.cc/150?u=${currentUser.uid}`,
                     });
@@ -794,8 +800,9 @@ const App: React.FC = () => {
                     console.log("👮 Admin privileges confirmed via RPC for:", currentUser.email);
                     setIsAdmin(true);
                     setUserProfile({
-                        ...SAMPLE_AGENT,
+                        ...EMPTY_AGENT,
                         name: 'System Administrator',
+                        title: 'Administrator',
                         email: currentUser.email ?? '',
                         headshotUrl: `https://i.pravatar.cc/150?u=${currentUser.uid}`,
                     });
@@ -815,7 +822,7 @@ const App: React.FC = () => {
                         : `agent-${currentUser.uid.substring(0, 8)}`;
 
                     setUserProfile({
-                        ...SAMPLE_AGENT,
+                        ...EMPTY_AGENT,
                         name: currentUser.displayName || 'Agent',
                         slug: generatedSlug,
                         email: currentUser.email || '',
@@ -1045,7 +1052,7 @@ const App: React.FC = () => {
                 }
             } else if (event === 'SIGNED_OUT') {
                 setUser(null);
-                setUserProfile(SAMPLE_AGENT);
+                setUserProfile(EMPTY_AGENT);
                 setIsAdmin(false);
                 setProperties([]);
                 localStorage.removeItem('hlai_impersonated_user_id'); // Clear impersonation
@@ -1181,7 +1188,7 @@ const App: React.FC = () => {
         } catch (error) {
             console.error('Failed to load agent profile:', error);
             setProfileLoadFailed(true);
-            // Keep using SAMPLE_AGENT as fallback
+            // Keep the current real user profile instead of falling back to demo data.
         } finally {
             setIsProfileLoading(false);
         }
