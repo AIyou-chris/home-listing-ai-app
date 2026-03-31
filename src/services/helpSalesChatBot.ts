@@ -63,7 +63,7 @@ COMMUNICATION GUIDELINES:
 - End with "What else can I help with?" or similar
 
 COMMON ISSUES - Quick solutions:
-- Email not working: "Go to Settings → Email Integration. Connect Gmail or Mailgun and verify permissions/API key."
+- Email not working: "Go to Settings → Email. Copy your dedicated lead inbox and paste it into your lead portals. That inbox is tied to your dashboard slug."
 - AI giving wrong info: "Go to AI Listings → [Property] → Edit AI Knowledge. Add correct info as FAQ entries."
 - Login problems: "Clear browser cache, or use 'Forgot Password'. Still stuck? Email us@homelistingai.com (15min response)."
 - Billing questions: "Go to Settings → Billing or email us@homelistingai.com (2hr response during business hours)."

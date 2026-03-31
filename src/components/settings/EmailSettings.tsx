@@ -16,7 +16,9 @@ const EmailSettingsPage: React.FC<EmailSettingsProps> = ({
     onBack: _onBack,
     agentSlug
 }) => {
-    const inboundEmail = agentSlug ? `${agentSlug}@leads.homelistingai.com` : 'your-slug@leads.homelistingai.com';
+    const normalizedSlug = agentSlug?.trim().toLowerCase() || '';
+    const inboundEmail = normalizedSlug ? `${normalizedSlug}@leads.homelistingai.com` : 'your-slug@leads.homelistingai.com';
+    const dashboardSlugPath = normalizedSlug ? `/dashboard/${normalizedSlug}` : '/dashboard/your-slug';
 
     const copyToClipboard = () => {
         navigator.clipboard.writeText(inboundEmail);
@@ -26,34 +28,40 @@ const EmailSettingsPage: React.FC<EmailSettingsProps> = ({
     return (
         <div className="p-8 space-y-12 animate-fadeIn">
             <div>
-                <h2 className="text-2xl font-bold text-slate-900">📧 Email Integration</h2>
-                <p className="text-slate-500 mt-1">Connect your email to sync conversations and leads.</p>
+                <h2 className="text-2xl font-bold text-slate-900">📧 Lead Inbox</h2>
+                <p className="text-slate-500 mt-1">This is your dedicated intake address for portal leads and forwarded buyer inquiries.</p>
             </div>
 
-            {/* SECTION 1: EMAIL STATUS */}
-            <FeatureSection title="Mailbox Sync" icon="mail">
+            <FeatureSection title="Lead Inbox Routing" icon="mail">
                 <p className="text-slate-600 mb-6">
-                    OAuth mailbox connections are disabled in this build. Use inbound forwarding below for lead ingestion.
+                    HomeListingAI routes forwarded leads by your account slug. No Gmail connection is required for this flow.
                 </p>
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-5">
-                    <span className="inline-flex items-center gap-2 rounded-full bg-slate-200 px-3 py-1 text-xs font-semibold text-slate-700">
-                        <span className="material-symbols-outlined text-sm">block</span>
-                        Google entry points removed
-                    </span>
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <div className="rounded-lg border border-slate-200 bg-white p-4">
+                            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Dashboard slug</div>
+                            <div className="mt-2 text-base font-bold text-slate-900">{normalizedSlug || 'your-slug'}</div>
+                            <div className="mt-1 text-sm text-slate-500">This is the slug your dashboard and lead inbox share.</div>
+                        </div>
+                        <div className="rounded-lg border border-slate-200 bg-white p-4">
+                            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Slug path</div>
+                            <div className="mt-2 text-base font-bold text-slate-900">{dashboardSlugPath}</div>
+                            <div className="mt-1 text-sm text-slate-500">If the slug changes, the lead inbox address changes with it.</div>
+                        </div>
+                    </div>
                 </div>
             </FeatureSection>
 
-            {/* SECTION 2: FORWARDING */}
             <FeatureSection title="Inbound Lead Forwarding" icon="forward_to_inbox">
                 <div className="space-y-6">
                     <p className="text-slate-600">
-                        Alternatively, forward leads from external portals directly to your AI dashboard.
+                        Forward leads from Zillow, Realtor.com, Redfin, Facebook ads, or any other source directly into your dashboard with this address.
                     </p>
 
                     <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-6">
                         <h3 className="text-lg font-semibold text-indigo-900 mb-2">Your Dedicated Lead Address</h3>
                         <p className="text-indigo-700 mb-6 max-w-xl">
-                            Use this unique email address to forward leads from Zillow, Realtor.com, Redfin, and other portals directly to your AI dashboard.
+                            This address is automatically built from your dashboard slug, so the inbox and account stay lined up.
                         </p>
 
                         <div className="flex items-center gap-2 max-w-md">
@@ -73,7 +81,7 @@ const EmailSettingsPage: React.FC<EmailSettingsProps> = ({
                     <div className="bg-slate-50 border border-slate-200 rounded-lg p-6">
                         <h4 className="font-semibold text-slate-900 mb-4 flex items-center gap-2">
                             <span className="material-symbols-outlined text-slate-400">help</span>
-                            How to set this up?
+                            How to set this up
                         </h4>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div className="space-y-2">
@@ -82,11 +90,11 @@ const EmailSettingsPage: React.FC<EmailSettingsProps> = ({
                             </div>
                             <div className="space-y-2">
                                 <div className="font-medium text-slate-900">2. Update Portals</div>
-                                <p className="text-sm text-slate-500">Log in to your lead sources (Zillow, Website, etc.) and find "Notification Email" settings.</p>
+                                <p className="text-sm text-slate-500">Open your lead source and find the place where new leads are emailed.</p>
                             </div>
                             <div className="space-y-2">
                                 <div className="font-medium text-slate-900">3. Paste & Save</div>
-                                <p className="text-sm text-slate-500">Paste your <strong>leads.homelistingai.com</strong> address and save. Leads will now appear instantly!</p>
+                                <p className="text-sm text-slate-500">Paste your <strong>leads.homelistingai.com</strong> address and save. New leads will flow into the same dashboard slug shown above.</p>
                             </div>
                         </div>
                     </div>
