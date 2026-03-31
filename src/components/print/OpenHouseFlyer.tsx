@@ -63,7 +63,7 @@ export const OpenHouseFlyer: React.FC<OpenHouseFlyerProps> = ({
   agentTitle = 'Listing Specialist',
   agentCompany = 'HomeListingAI',
   agentPhone = 'Contact for details',
-  agentEmail = 'support@homelistingai.com',
+  agentEmail = 'homelistingai@gmail.com',
   agentHeadshotUrl,
   agentBrandColor = '#f97316',
   slug = 'draft-listing-7',
