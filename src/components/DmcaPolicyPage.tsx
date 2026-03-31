@@ -47,7 +47,7 @@ const DmcaPolicyPage: React.FC = () => {
                                 <div className="bg-[#02050D]/50 p-6 rounded-xl border border-cyan-900/30">
                                     <p className="font-semibold text-white mb-2">Copyright Agent</p>
                                     <p>HomeListingAI Legal Dept.</p>
-                                    <p>Email: <a href="mailto:legal@homelistingai.com" className="text-cyan-400 hover:text-cyan-300 transition-colors">legal@homelistingai.com</a></p>
+                                    <p>Email: <a href="mailto:homelistingai@gmail.com" className="text-cyan-400 hover:text-cyan-300 transition-colors">homelistingai@gmail.com</a></p>
                                     <p className="mt-2 text-slate-400 text-sm">Subject Line: DMCA Takedown Request</p>
                                 </div>
                             </section>

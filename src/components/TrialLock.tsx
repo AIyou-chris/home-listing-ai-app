@@ -85,7 +85,7 @@ const TrialLock: React.FC<TrialLockProps> = ({ _user }) => {
                                 <span>Need help?</span>
                             </div>
                             <div className="flex items-center gap-4">
-                                <a href="mailto:support@homelistingai.com" className="hover:text-white transition-colors">Support</a>
+                                <a href="mailto:homelistingai@gmail.com" className="hover:text-white transition-colors">Support</a>
                                 <span className="w-1 h-1 bg-slate-700 rounded-full"></span>
                                 <a href="#" className="hover:text-white transition-colors">Documentation</a>
                             </div>

@@ -62,7 +62,7 @@ const CompliancePolicyPage: React.FC = () => {
                             <section>
                                 <h2 className="text-2xl font-bold text-white mb-4 tracking-tight">5. Contact Us</h2>
                                 <p>
-                                    If you have questions about our compliance policies, please contact our legal team at: <a href="mailto:legal@homelistingai.com" className="text-cyan-400 hover:text-cyan-300 transition-colors font-medium">legal@homelistingai.com</a>
+                                    If you have questions about our compliance policies, please contact us at: <a href="mailto:homelistingai@gmail.com" className="text-cyan-400 hover:text-cyan-300 transition-colors font-medium">homelistingai@gmail.com</a>
                                 </p>
                             </section>
                         </div>

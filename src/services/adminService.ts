@@ -60,7 +60,7 @@ const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
     id: 'default',
     platformName: 'Home Listing AI',
     platformUrl: 'https://homelistingai.com',
-    supportEmail: 'support@homelistingai.com',
+    supportEmail: 'homelistingai@gmail.com',
     timezone: 'UTC',
     featureToggles: {
         aiContentGeneration: true,

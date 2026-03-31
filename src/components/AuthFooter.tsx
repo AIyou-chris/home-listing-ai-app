@@ -46,15 +46,15 @@ export const AuthFooter: React.FC = () => {
                         <h4 className="text-sm font-semibold text-slate-300 mb-3">Support</h4>
                         <ul className="space-y-2 text-sm">
                             <li>
-                                <a href="mailto:support@homelistingai.com"
+                                <a href="mailto:homelistingai@gmail.com"
                                     className="hover:text-white transition-colors">
-                                    support@homelistingai.com
+                                    homelistingai@gmail.com
                                 </a>
                             </li>
                             <li>
-                                <a href="mailto:legal@homelistingai.com"
+                                <a href="mailto:homelistingai@gmail.com"
                                     className="hover:text-white transition-colors">
-                                    legal@homelistingai.com
+                                    homelistingai@gmail.com
                                 </a>
                             </li>
                         </ul>

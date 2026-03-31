@@ -311,7 +311,7 @@ module.exports = (supabaseAdmin) => {
     process.env.MAILGUN_FROM_NAME ||
     process.env.FROM_NAME ||
     'HomeListingAI';
-  const fallbackSupportEmail = process.env.MAILGUN_REPLYTO_FALLBACK || 'support@homelistingai.com';
+  const fallbackSupportEmail = process.env.MAILGUN_REPLYTO_FALLBACK || 'homelistingai@gmail.com';
   const fromAddress = `${mailgunFromName} <${mailgunFromEmail}>`;
 
   const persistFallbackEmail = async ({ to, subject, html, cc, tags, reason }) => {
