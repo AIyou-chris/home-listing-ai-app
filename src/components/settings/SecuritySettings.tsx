@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { supabase } from '../../services/supabase';
 import { FeatureSection } from './SettingsCommon';
 
@@ -31,6 +31,10 @@ const SecuritySettingsPage: React.FC<SecuritySettingsProps> = ({
     const [localSettings, setLocalSettings] = useState(settings);
     const [isSecuritySaving, setIsSecuritySaving] = useState(false);
     const [passwordMessage, setPasswordMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+
+    useEffect(() => {
+        setLocalSettings(settings);
+    }, [settings]);
 
     const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;

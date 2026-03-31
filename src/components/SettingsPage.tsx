@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
-import { AgentProfile, NotificationSettings, BillingSettings, SecuritySettings } from '../types';
+import { AgentProfile, NotificationSettings, BillingSettings, SecuritySettings, EmailSettings, CalendarSettings } from '../types';
 import ProfileSettings from './settings/ProfileSettings';
 import NotificationSettingsPage from './settings/NotificationSettings';
 import SecuritySettingsPage from './settings/SecuritySettings';
 import BillingSettingsPage from './settings/BillingSettings';
+import EmailSettingsPage from './settings/EmailSettings';
+import CalendarSettingsPage from './settings/CalendarSettings';
 
 interface SettingsPageProps {
     userId: string;
@@ -12,6 +14,10 @@ interface SettingsPageProps {
     onSaveProfile: (profile: AgentProfile) => Promise<void>;
     notificationSettings: NotificationSettings;
     onSaveNotifications: (settings: NotificationSettings) => Promise<void>;
+    emailSettings: EmailSettings;
+    onSaveEmailSettings: (settings: EmailSettings) => Promise<void>;
+    calendarSettings: CalendarSettings;
+    onSaveCalendarSettings: (settings: CalendarSettings) => Promise<void>;
     billingSettings: BillingSettings;
     onSaveBillingSettings: (settings: BillingSettings) => Promise<void>;
     securitySettings: SecuritySettings;
@@ -19,7 +25,7 @@ interface SettingsPageProps {
     onBackToDashboard: () => void;
     isDemoMode?: boolean;
     isBlueprintMode?: boolean;
-    initialTab?: 'profile' | 'notifications' | 'security' | 'billing';
+    initialTab?: 'profile' | 'notifications' | 'email' | 'calendar' | 'security' | 'billing';
 }
 
 const SettingsPage: React.FC<SettingsPageProps> = ({
@@ -28,6 +34,10 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
     onSaveProfile,
     notificationSettings,
     onSaveNotifications,
+    emailSettings,
+    onSaveEmailSettings,
+    calendarSettings,
+    onSaveCalendarSettings,
     billingSettings,
     onSaveBillingSettings,
     securitySettings,
@@ -38,7 +48,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
     isBlueprintMode,
     initialTab = 'profile'
 }) => {
-    const [activeTab, setActiveTab] = useState<'profile' | 'notifications' | 'security' | 'billing'>(initialTab);
+    const [activeTab, setActiveTab] = useState<'profile' | 'notifications' | 'email' | 'calendar' | 'security' | 'billing'>(initialTab);
     const [refreshingApp, setRefreshingApp] = useState(false);
 
     const hardRefreshApp = async () => {
@@ -67,6 +77,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
     const tabs = [
         { id: 'profile', label: 'Profile', icon: 'person' },
         { id: 'notifications', label: 'Notifications', icon: 'notifications' },
+        { id: 'email', label: 'Email', icon: 'mail' },
+        { id: 'calendar', label: 'Calendar', icon: 'calendar_month' },
         { id: 'security', label: 'Security', icon: 'security' },
         { id: 'billing', label: 'Billing', icon: 'receipt_long' },
     ];
@@ -91,7 +103,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                     {tabs.map((tab) => (
                         <button
                             key={tab.id}
-                            onClick={() => setActiveTab(tab.id as 'profile' | 'notifications' | 'security' | 'billing')}
+                            onClick={() => setActiveTab(tab.id as 'profile' | 'notifications' | 'email' | 'calendar' | 'security' | 'billing')}
                             className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg transition-colors ${activeTab === tab.id
                                 ? 'bg-primary-50 text-primary-700'
                                 : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
@@ -124,7 +136,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                             {tabs.map((tab) => (
                                 <button
                                     key={tab.id}
-                                    onClick={() => setActiveTab(tab.id as 'profile' | 'notifications' | 'security' | 'billing')}
+                                    onClick={() => setActiveTab(tab.id as 'profile' | 'notifications' | 'email' | 'calendar' | 'security' | 'billing')}
                                     className={`flex-shrink-0 px-4 py-2 text-sm font-medium rounded-full whitespace-nowrap ${activeTab === tab.id
                                         ? 'bg-primary-600 text-white'
                                         : 'bg-slate-100 text-slate-600'
@@ -213,6 +225,20 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                                 onBack={onBackToDashboard}
                                 userProfile={userProfile}
                                 onSaveProfile={isDemoMode ? async () => { } : onSaveProfile}
+                            />
+                        )}
+                        {activeTab === 'email' && (
+                            <EmailSettingsPage
+                                settings={emailSettings}
+                                onSave={isDemoMode ? async () => { } : onSaveEmailSettings}
+                                agentSlug={userProfile.slug}
+                            />
+                        )}
+                        {activeTab === 'calendar' && (
+                            <CalendarSettingsPage
+                                settings={calendarSettings}
+                                onSave={isDemoMode ? async () => { } : onSaveCalendarSettings}
+                                onBack={onBackToDashboard}
                             />
                         )}
                         {activeTab === 'security' && (

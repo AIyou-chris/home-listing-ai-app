@@ -2,7 +2,7 @@ import React, { useState, useEffect, Suspense, lazy, useCallback, useRef } from 
 import { Routes, Route, useNavigate, useLocation, Navigate, Outlet } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from './services/supabase';
-import { Property, View, AgentProfile, NotificationSettings, EmailSettings, CalendarSettings, BillingSettings, Lead, Appointment, Interaction } from './types';
+import { Property, View, AgentProfile, NotificationSettings, EmailSettings, CalendarSettings, BillingSettings, Lead, Appointment, Interaction, SecuritySettings } from './types';
 import { DEMO_FAT_PROPERTIES, DEMO_FAT_LEADS, DEMO_FAT_APPOINTMENTS } from './demoConstants';
 import { SAMPLE_AGENT, SAMPLE_INTERACTIONS } from './constants';
 const LandingPage = lazy(() => import('./components/LandingPage'));
@@ -44,7 +44,7 @@ const AnalyticsDashboard = lazy(() => import('./components/AnalyticsDashboard'))
 const ConsultationModal = lazy(() => import('./components/ConsultationModal'));
 import { AISidekickProvider } from './context/AISidekickContext';
 import { AgentBrandingProvider } from './context/AgentBrandingContext';
-import { getProfileForDashboard, subscribeToProfileChanges } from './services/agentProfileService';
+import { getProfileForDashboard, subscribeToProfileChanges, updateAgentProfile } from './services/agentProfileService';
 // Lazy load admin components for better performance
 const AdminSetup = lazy(() => import('./components/AdminSetup'));
 import AdminLogin from './components/AdminLogin'; // Keep AdminLogin static for faster auth interaction? No, lazy is fine if wrapped.
@@ -555,8 +555,8 @@ const App: React.FC = () => {
         weeklyReport: true,
         monthlyInsights: true
     });
-    const [_emailSettings, setEmailSettings] = useState<EmailSettings>({ integrationType: 'oauth', aiEmailProcessing: true, autoReply: true, leadScoring: true, followUpSequences: true });
-    const [_calendarSettings, setCalendarSettings] = useState<CalendarSettings>({
+    const [emailSettings, setEmailSettings] = useState<EmailSettings>({ integrationType: 'oauth', aiEmailProcessing: true, autoReply: true, leadScoring: true, followUpSequences: true });
+    const [calendarSettings, setCalendarSettings] = useState<CalendarSettings>({
         integrationType: 'google',
         aiScheduling: true,
         conflictDetection: true,
@@ -568,6 +568,12 @@ const App: React.FC = () => {
         bufferTime: 15,
         smsReminders: true,
         newAppointmentAlerts: true
+    });
+    const [securitySettings, setSecuritySettings] = useState<SecuritySettings>({
+        loginNotifications: true,
+        sessionTimeout: 24,
+        analyticsEnabled: true,
+        twoFactorEnabled: false
     });
     const [billingSettings, setBillingSettings] = useState<BillingSettings>({ planName: 'Free Tier', history: [] });
     // Removed unused state variables
@@ -817,14 +823,15 @@ const App: React.FC = () => {
                     });
                 }
 
-                // 3. Load User Settings (Notifications, Calendar, Billing, Email)
+                // 3. Load User Settings (Notifications, Calendar, Billing, Email, Security)
                 try {
                     console.log('⚙️ Loading user settings...');
-                    const [notifRes, calRes, billRes, emailRes] = await Promise.allSettled([
+                    const [notifRes, calRes, billRes, emailRes, securityRes] = await Promise.allSettled([
                         notificationSettingsService.fetch(currentUser.uid),
                         calendarSettingsService.fetch(currentUser.uid),
                         billingSettingsService.get(currentUser.uid),
-                        emailSettingsService.fetch(currentUser.uid)
+                        emailSettingsService.fetch(currentUser.uid),
+                        securitySettingsService.fetch(currentUser.uid)
                     ]);
 
                     if (notifRes.status === 'fulfilled' && notifRes.value.settings) {
@@ -838,6 +845,9 @@ const App: React.FC = () => {
                     }
                     if (emailRes.status === 'fulfilled' && emailRes.value.settings) {
                         setEmailSettings(emailRes.value.settings);
+                    }
+                    if (securityRes.status === 'fulfilled' && securityRes.value.settings) {
+                        setSecuritySettings(securityRes.value.settings);
                     }
                     console.log('✅ User settings loaded');
                 } catch (settingsError) {
@@ -1085,6 +1095,9 @@ const App: React.FC = () => {
             // Load listings from backend
             loadListingsFromBackend();
 
+            // Load account settings from backend
+            void loadUserSettings(user.uid);
+
             // Subscribe to profile changes for real-time updates
             const unsubscribe = subscribeToProfileChanges((updatedProfile) => {
                 setUserProfile(prev => ({
@@ -1109,6 +1122,36 @@ const App: React.FC = () => {
     const handleNavigateToLanding = () => {
         setIsDemoMode(false);
         navigate('/');
+    };
+
+    const loadUserSettings = async (userId: string) => {
+        try {
+            const [notifRes, calRes, billRes, emailRes, securityRes] = await Promise.allSettled([
+                notificationSettingsService.fetch(userId),
+                calendarSettingsService.fetch(userId),
+                billingSettingsService.get(userId),
+                emailSettingsService.fetch(userId),
+                securitySettingsService.fetch(userId)
+            ]);
+
+            if (notifRes.status === 'fulfilled' && notifRes.value.settings) {
+                setNotificationSettings(notifRes.value.settings);
+            }
+            if (calRes.status === 'fulfilled' && calRes.value.settings) {
+                setCalendarSettings(calRes.value.settings);
+            }
+            if (billRes.status === 'fulfilled' && billRes.value) {
+                setBillingSettings(billRes.value);
+            }
+            if (emailRes.status === 'fulfilled' && emailRes.value.settings) {
+                setEmailSettings(emailRes.value.settings);
+            }
+            if (securityRes.status === 'fulfilled' && securityRes.value.settings) {
+                setSecuritySettings(securityRes.value.settings);
+            }
+        } catch (error) {
+            console.warn('Failed to load user settings:', error);
+        }
     };
 
     // Load centralized agent profile
@@ -1351,7 +1394,7 @@ const App: React.FC = () => {
         if (isLoading) return <div className="flex h-screen items-center justify-center"><LoadingSpinner /></div>;
 
         const renderSettingsPage = (
-            initialTab: 'profile' | 'notifications' | 'security' | 'billing' = 'profile',
+            initialTab: 'profile' | 'notifications' | 'email' | 'calendar' | 'security' | 'billing' = 'profile',
             options?: { isDemoPage?: boolean; backPath?: string }
         ) => (
             <SettingsPage
@@ -1359,7 +1402,16 @@ const App: React.FC = () => {
                 userProfile={userProfile}
                 profileLoadFailed={profileLoadFailed}
                 onSaveProfile={async (profile) => {
-                    setUserProfile(profile);
+                    if (options?.isDemoPage || !user?.uid) {
+                        setUserProfile(profile);
+                        setProfileLoadFailed(false);
+                        return;
+                    }
+                    const updatedProfile = await updateAgentProfile(profile, user.uid);
+                    setUserProfile(prev => ({
+                        ...prev,
+                        ...updatedProfile
+                    }));
                     setProfileLoadFailed(false);
                 }}
                 notificationSettings={notificationSettings}
@@ -1367,6 +1419,20 @@ const App: React.FC = () => {
                     setNotificationSettings(settings);
                     if (user?.uid) {
                         await notificationSettingsService.update(user.uid, settings);
+                    }
+                }}
+                emailSettings={emailSettings}
+                onSaveEmailSettings={async (settings) => {
+                    setEmailSettings(settings);
+                    if (user?.uid) {
+                        await emailSettingsService.update(user.uid, settings);
+                    }
+                }}
+                calendarSettings={calendarSettings}
+                onSaveCalendarSettings={async (settings) => {
+                    setCalendarSettings(settings);
+                    if (user?.uid) {
+                        await calendarSettingsService.update(user.uid, settings);
                     }
                 }}
                 billingSettings={billingSettings}
@@ -1377,8 +1443,13 @@ const App: React.FC = () => {
                     }
                 }}
                 onBackToDashboard={() => navigate(options?.backPath || '/dashboard')}
-                securitySettings={{}}
-                onSaveSecuritySettings={async () => { }}
+                securitySettings={securitySettings}
+                onSaveSecuritySettings={async (settings) => {
+                    setSecuritySettings(settings);
+                    if (user?.uid) {
+                        await securitySettingsService.update(user.uid, settings);
+                    }
+                }}
                 isDemoMode={Boolean(options?.isDemoPage)}
                 isBlueprintMode={isBlueprintMode}
                 initialTab={initialTab}
@@ -1505,6 +1576,8 @@ const App: React.FC = () => {
                         <Route path="settings" element={renderSettingsPage('profile', { isDemoPage: true, backPath: '/demo-dashboard/today' })} />
                         <Route path="settings/billing" element={renderSettingsPage('billing', { isDemoPage: true, backPath: '/demo-dashboard/today' })} />
                         <Route path="settings/notifications" element={renderSettingsPage('notifications', { isDemoPage: true, backPath: '/demo-dashboard/today' })} />
+                        <Route path="settings/email" element={renderSettingsPage('email', { isDemoPage: true, backPath: '/demo-dashboard/today' })} />
+                        <Route path="settings/calendar" element={renderSettingsPage('calendar', { isDemoPage: true, backPath: '/demo-dashboard/today' })} />
                         <Route path="settings/security" element={renderSettingsPage('security', { isDemoPage: true, backPath: '/demo-dashboard/today' })} />
                         <Route path="onboarding" element={<OnboardingCommandPage />} />
                     </Route>
@@ -1627,9 +1700,16 @@ const App: React.FC = () => {
                         } />
                         <Route path="/settings" element={<Navigate to="/dashboard/settings" replace />} />
                         <Route path="/settings/billing" element={<Navigate to="/dashboard/settings/billing" replace />} />
+                        <Route path="/settings/notifications" element={<Navigate to="/dashboard/settings/notifications" replace />} />
+                        <Route path="/settings/email" element={<Navigate to="/dashboard/settings/email" replace />} />
+                        <Route path="/settings/calendar" element={<Navigate to="/dashboard/settings/calendar" replace />} />
+                        <Route path="/settings/security" element={<Navigate to="/dashboard/settings/security" replace />} />
                         <Route path="/dashboard/settings" element={renderSettingsPage()} />
                         <Route path="/dashboard/settings/billing" element={renderSettingsPage('billing')} />
                         <Route path="/dashboard/settings/notifications" element={renderSettingsPage('notifications')} />
+                        <Route path="/dashboard/settings/email" element={renderSettingsPage('email')} />
+                        <Route path="/dashboard/settings/calendar" element={renderSettingsPage('calendar')} />
+                        <Route path="/dashboard/settings/security" element={renderSettingsPage('security')} />
                     </Route>
                     </Route>
 
