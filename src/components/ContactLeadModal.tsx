@@ -260,11 +260,11 @@ Best regards,`
                 setSmsMessage('');
                 onClose();
             } else {
-                alert('SMS is marked as Coming Soon right now. Please use email or call for now.');
+                alert('SMS could not be sent right now. Please use email or call for now.');
             }
         } catch (error) {
             console.error('Failed to send SMS', error);
-            alert('SMS is marked as Coming Soon right now. Please use email or call for now.');
+            alert('SMS could not be sent right now. Please use email or call for now.');
         } finally {
             setIsSendingSms(false);
         }

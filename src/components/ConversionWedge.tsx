@@ -91,7 +91,7 @@ export const ConversionWedge: React.FC<ConversionWedgeProps> = ({ onNavigateToSi
                     </p>
                     <div className="inline-block mt-2 px-4 py-1.5 rounded-full bg-slate-900/80 border border-slate-800 backdrop-blur-sm">
                         <p className="text-xs md:text-sm text-slate-400 font-medium tracking-wide flex items-center justify-center gap-2">
-                            <span className="w-1.5 h-1.5 rounded-full bg-yellow-500"></span> SMS coming soon
+                            <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span> SMS alerts available
                             <span className="text-slate-700 mx-1">•</span>
                             <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span> Email alerts live
                             <span className="text-slate-700 mx-1">•</span>
@@ -415,7 +415,7 @@ export const ConversionWedge: React.FC<ConversionWedgeProps> = ({ onNavigateToSi
                                             onChange={(e) => setFormContact(e.target.value)}
                                             className="w-full px-4 py-3 rounded-xl border border-slate-300 bg-white font-medium text-slate-900 outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all placeholder:text-slate-400"
                                         />
-                                        <p className="text-[11px] text-slate-500 font-medium px-1">Email alerts are live. SMS is coming soon.</p>
+                                        <p className="text-[11px] text-slate-500 font-medium px-1">Email alerts and SMS alerts are available.</p>
 
                                         <div className="pt-2 flex flex-col gap-3">
                                             <button

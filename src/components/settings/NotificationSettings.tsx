@@ -11,6 +11,8 @@ interface NotificationSettingsProps {
     isLoading?: boolean;
     userProfile?: AgentProfile;
     onSaveProfile?: (profile: AgentProfile) => Promise<void>;
+    smsAvailable?: boolean;
+    smsChannel?: 'coming_soon' | 'active';
 }
 
 type NotificationSettingKey = keyof NotificationSettings;
@@ -123,14 +125,16 @@ const NotificationSettingsPage: React.FC<NotificationSettingsProps> = ({
     onBack: _onBack,
     isLoading = false,
     userProfile,
-    onSaveProfile
+    onSaveProfile,
+    smsAvailable = false,
+    smsChannel = 'coming_soon'
 }) => {
     const [localSettings, setLocalSettings] = useState<NotificationSettings>(settings);
     const [isSaving, setIsSaving] = useState(false);
     const [planId, setPlanId] = useState<PlanId>('free');
     const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
     const [upgradeLoading, setUpgradeLoading] = useState(false);
-    const smsComingSoon = true;
+    const smsComingSoon = !smsAvailable || smsChannel === 'coming_soon';
     const remindersProLocked = planId !== 'pro';
     // const [sendingTest, setSendingTest] = useState(false); // Removed unused state
 
@@ -239,7 +243,7 @@ const NotificationSettingsPage: React.FC<NotificationSettingsProps> = ({
                                         {item.label}
                                         {smsComingSoon && item.key === 'smsNewLeadAlerts' && (
                                             <span className="inline-flex items-center rounded-full bg-amber-100 text-amber-700 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide">
-                                                Coming Soon
+                                                Unavailable
                                             </span>
                                         )}
                                         {item.key === 'voiceAppointmentReminders' && (
@@ -250,7 +254,7 @@ const NotificationSettingsPage: React.FC<NotificationSettingsProps> = ({
                                     </h4>
                                     <p className="text-sm text-slate-500">
                                         {smsComingSoon && item.key === 'smsNewLeadAlerts'
-                                            ? 'SMS alerts are temporarily paused while we finish carrier setup.'
+                                            ? 'SMS alerts are not enabled on this account yet.'
                                             : remindersProLocked && item.key === 'voiceAppointmentReminders'
                                                 ? 'Pro feature — includes appointment reminder calls.'
                                                 : item.description}

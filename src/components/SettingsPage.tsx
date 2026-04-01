@@ -14,6 +14,8 @@ interface SettingsPageProps {
     onSaveProfile: (profile: AgentProfile) => Promise<void>;
     notificationSettings: NotificationSettings;
     onSaveNotifications: (settings: NotificationSettings) => Promise<void>;
+    smsAvailable?: boolean;
+    smsChannel?: 'coming_soon' | 'active';
     emailSettings: EmailSettings;
     onSaveEmailSettings: (settings: EmailSettings) => Promise<void>;
     calendarSettings: CalendarSettings;
@@ -34,6 +36,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
     onSaveProfile,
     notificationSettings,
     onSaveNotifications,
+    smsAvailable = false,
+    smsChannel = 'coming_soon',
     emailSettings,
     onSaveEmailSettings,
     calendarSettings,
@@ -225,6 +229,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                                 onBack={onBackToDashboard}
                                 userProfile={userProfile}
                                 onSaveProfile={isDemoMode ? async () => { } : onSaveProfile}
+                                smsAvailable={smsAvailable}
+                                smsChannel={smsChannel}
                             />
                         )}
                         {activeTab === 'email' && (
@@ -239,6 +245,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                                 settings={calendarSettings}
                                 onSave={isDemoMode ? async () => { } : onSaveCalendarSettings}
                                 onBack={onBackToDashboard}
+                                smsAvailable={smsAvailable}
+                                smsChannel={smsChannel}
                             />
                         )}
                         {activeTab === 'security' && (

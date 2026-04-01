@@ -39,7 +39,7 @@ export const PlacementSection: React.FC<PlacementSectionProps> = ({ onNavigateTo
                                 <span>
                                     <span className="w-1.5 h-1.5 inline-block rounded-full bg-green-500 mr-2 align-middle"></span>Email alerts live
                                     <span className="mx-2">•</span>
-                                    <span className="w-1.5 h-1.5 inline-block rounded-full bg-yellow-500 mr-2 align-middle"></span>SMS coming soon
+                                    <span className="w-1.5 h-1.5 inline-block rounded-full bg-green-500 mr-2 align-middle"></span>SMS alerts available
                                     <br className="sm:hidden" />
                                     <span className="hidden sm:inline mx-2">•</span>
                                     <span className="w-1.5 h-1.5 inline-block rounded-full bg-green-500 mr-2 align-middle mt-2 sm:mt-0"></span>Appointment reminder calls live

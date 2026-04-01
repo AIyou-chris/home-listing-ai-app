@@ -62,6 +62,7 @@ import LoadingSpinner from './components/LoadingSpinner';
 import { adminAuthService } from './services/adminAuthService';
 import { securitySettingsService } from './services/securitySettingsService';
 import { notificationSettingsService } from './services/notificationSettingsService';
+import type { NotificationChannelFlags } from './services/notificationSettingsService';
 import { calendarSettingsService } from './services/calendarSettingsService';
 import { billingSettingsService } from './services/billingSettingsService';
 import { emailSettingsService } from './services/emailSettingsService';
@@ -555,6 +556,12 @@ const App: React.FC = () => {
         weeklyReport: true,
         monthlyInsights: true
     });
+    const [notificationChannelFlags, setNotificationChannelFlags] = useState<NotificationChannelFlags>({
+        email_enabled: true,
+        voice_enabled: true,
+        sms_enabled: false
+    });
+    const [smsChannel, setSmsChannel] = useState<'coming_soon' | 'active'>('coming_soon');
     const [emailSettings, setEmailSettings] = useState<EmailSettings>({ integrationType: 'oauth', aiEmailProcessing: true, autoReply: true, leadScoring: true, followUpSequences: true });
     const [calendarSettings, setCalendarSettings] = useState<CalendarSettings>({
         integrationType: 'google',
@@ -843,6 +850,12 @@ const App: React.FC = () => {
 
                     if (notifRes.status === 'fulfilled' && notifRes.value.settings) {
                         setNotificationSettings(notifRes.value.settings);
+                        if (notifRes.value.channelFlags) {
+                            setNotificationChannelFlags(notifRes.value.channelFlags);
+                        }
+                        if (notifRes.value.smsChannel) {
+                            setSmsChannel(notifRes.value.smsChannel);
+                        }
                     }
                     if (calRes.status === 'fulfilled' && calRes.value.settings) {
                         setCalendarSettings(calRes.value.settings);
@@ -1143,6 +1156,12 @@ const App: React.FC = () => {
 
             if (notifRes.status === 'fulfilled' && notifRes.value.settings) {
                 setNotificationSettings(notifRes.value.settings);
+                if (notifRes.value.channelFlags) {
+                    setNotificationChannelFlags(notifRes.value.channelFlags);
+                }
+                if (notifRes.value.smsChannel) {
+                    setSmsChannel(notifRes.value.smsChannel);
+                }
             }
             if (calRes.status === 'fulfilled' && calRes.value.settings) {
                 setCalendarSettings(calRes.value.settings);
@@ -1423,11 +1442,25 @@ const App: React.FC = () => {
                 }}
                 notificationSettings={notificationSettings}
                 onSaveNotifications={async (settings) => {
-                    setNotificationSettings(settings);
                     if (user?.uid) {
-                        await notificationSettingsService.update(user.uid, settings);
+                        const result = await notificationSettingsService.update(user.uid, settings);
+                        if (result.settings) {
+                            setNotificationSettings(result.settings);
+                        } else {
+                            setNotificationSettings(settings);
+                        }
+                        if (result.channelFlags) {
+                            setNotificationChannelFlags(result.channelFlags);
+                        }
+                        if (result.smsChannel) {
+                            setSmsChannel(result.smsChannel);
+                        }
+                    } else {
+                        setNotificationSettings(settings);
                     }
                 }}
+                smsAvailable={notificationChannelFlags.sms_enabled && smsChannel === 'active'}
+                smsChannel={smsChannel}
                 emailSettings={emailSettings}
                 onSaveEmailSettings={async (settings) => {
                     setEmailSettings(settings);

@@ -204,10 +204,10 @@ export const PricingSectionNew: React.FC<PricingProps> = ({ onNavigateToSignUp, 
                 <div className="max-w-6xl mx-auto mb-16">
                     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 lg:p-10 flex flex-col md:flex-row gap-8 items-center bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMTAiIGN5PSIxMCIgcj0iMiIgZmlsbD0iIzMzNDE1NSIgZmlsbC1vcGFjaXR5PSIwLjEiLz48L3N2Zz4=')]">
                         <div className="flex-1 text-center md:text-left">
-                            <h3 className="text-2xl font-bold text-white mb-3">SMS is coming soon.</h3>
+                            <h3 className="text-2xl font-bold text-white mb-3">SMS follow-up is available.</h3>
                             <p className="text-slate-400 leading-relaxed max-w-lg mb-0 text-sm">
-                                Your system is already wired for SMS. We'll flip it on the moment approval lands.
-                                SMS counts sent + received.
+                                Your system can text leads as part of the follow-up flow when SMS is enabled on the account.
+                                Usage counts both outbound and inbound messages.
                             </p>
                         </div>
                         <div className="flex-1 w-full bg-slate-950 rounded-xl border border-slate-800 p-6 shadow-inner">

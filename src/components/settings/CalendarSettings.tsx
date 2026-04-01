@@ -7,17 +7,21 @@ interface CalendarSettingsProps {
     onSave: (settings: CalendarSettings) => Promise<void>;
     onBack?: () => void;
     isLoading?: boolean;
+    smsAvailable?: boolean;
+    smsChannel?: 'coming_soon' | 'active';
 }
 
 const CalendarSettingsPage: React.FC<CalendarSettingsProps> = ({
     settings,
     onSave,
     onBack: _onBack,
-    isLoading = false
+    isLoading = false,
+    smsAvailable = false,
+    smsChannel = 'coming_soon'
 }) => {
     const [formData, setFormData] = useState<CalendarSettings>(settings);
     const [isSaving, setIsSaving] = useState(false);
-    const smsComingSoon = true;
+    const smsComingSoon = !smsAvailable || smsChannel === 'coming_soon';
 
     useEffect(() => {
         if (settings) {
@@ -184,13 +188,13 @@ const CalendarSettingsPage: React.FC<CalendarSettingsProps> = ({
                                 SMS Reminders
                                 {smsComingSoon && (
                                     <span className="inline-flex items-center rounded-full bg-amber-100 text-amber-700 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide">
-                                        Coming Soon
+                                        Unavailable
                                     </span>
                                 )}
                             </h4>
                             <p className="text-sm text-slate-500">
                                 {smsComingSoon
-                                    ? 'SMS reminders are paused while carrier registration is completed.'
+                                    ? 'SMS reminders are not enabled on this account yet.'
                                     : 'Send text message reminders before appointments'}
                             </p>
                         </div>

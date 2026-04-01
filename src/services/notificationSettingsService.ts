@@ -1,8 +1,16 @@
 import { NotificationSettings } from '../types';
 
+export interface NotificationChannelFlags {
+    email_enabled: boolean;
+    voice_enabled: boolean;
+    sms_enabled: boolean;
+}
+
 interface NotificationSettingsResponse {
     success: boolean;
     settings?: NotificationSettings;
+    smsChannel?: 'coming_soon' | 'active';
+    channelFlags?: NotificationChannelFlags;
     error?: string;
 }
 
