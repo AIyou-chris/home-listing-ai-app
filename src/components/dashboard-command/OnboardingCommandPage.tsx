@@ -192,7 +192,16 @@ const OnboardingCommandPage: React.FC = () => {
         bathrooms: Number(listingForm.baths) || 0,
         squareFeet: Number(listingForm.sqft) || 0,
         status: 'active',
-        heroPhotos: listingPrimaryPhoto ? [listingPrimaryPhoto] : undefined
+        heroPhotos: listingPrimaryPhoto ? [listingPrimaryPhoto] : undefined,
+        agentSnapshot: {
+          name: brandForm.full_name || '',
+          title: 'Real Estate Agent',
+          company: brandForm.brokerage || '',
+          phone: brandForm.phone || '',
+          email: brandForm.email || '',
+          headshotUrl: brandForm.headshot_url || '',
+          socials: []
+        }
       });
 
       await patchState({
