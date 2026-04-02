@@ -3,6 +3,7 @@ import { NotificationSettings, AgentProfile } from '../../types';
 import { FeatureSection, ToggleSwitch } from './SettingsCommon';
 import UpgradePromptModal from '../billing/UpgradePromptModal';
 import { createBillingCheckoutSession, fetchDashboardBilling, type PlanId } from '../../services/dashboardBillingService';
+import { textingService } from '../../services/textingService';
 
 interface NotificationSettingsProps {
     settings: NotificationSettings;
@@ -134,6 +135,9 @@ const NotificationSettingsPage: React.FC<NotificationSettingsProps> = ({
     const [planId, setPlanId] = useState<PlanId>('free');
     const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
     const [upgradeLoading, setUpgradeLoading] = useState(false);
+    const [testPhone, setTestPhone] = useState('');
+    const [sendingTestSms, setSendingTestSms] = useState(false);
+    const [testSmsStatus, setTestSmsStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
     const smsComingSoon = !smsAvailable || smsChannel === 'coming_soon';
     const remindersProLocked = planId !== 'pro';
     // const [sendingTest, setSendingTest] = useState(false); // Removed unused state
@@ -149,6 +153,12 @@ const NotificationSettingsPage: React.FC<NotificationSettingsProps> = ({
     useEffect(() => {
         if (userProfile?.email) {
             setReplyToEmail(userProfile.email);
+        }
+    }, [userProfile]);
+
+    useEffect(() => {
+        if (userProfile?.phone) {
+            setTestPhone(userProfile.phone);
         }
     }, [userProfile]);
 
@@ -195,6 +205,30 @@ const NotificationSettingsPage: React.FC<NotificationSettingsProps> = ({
             }
         } finally {
             setIsSaving(false);
+        }
+    };
+
+    const handleSendTestSms = async () => {
+        const trimmedPhone = testPhone.trim();
+        if (!trimmedPhone) {
+            setTestSmsStatus({ type: 'error', message: 'Add a phone number first.' });
+            return;
+        }
+
+        setSendingTestSms(true);
+        setTestSmsStatus(null);
+
+        try {
+            const ok = await textingService.sendSms(trimmedPhone, 'hi');
+            if (ok) {
+                setTestSmsStatus({ type: 'success', message: 'Test text sent. Check your phone for "hi".' });
+            } else {
+                setTestSmsStatus({ type: 'error', message: 'SMS send failed. Check backend logs.' });
+            }
+        } catch (_error) {
+            setTestSmsStatus({ type: 'error', message: 'SMS send failed. Check backend logs.' });
+        } finally {
+            setSendingTestSms(false);
         }
     };
 
@@ -307,6 +341,48 @@ const NotificationSettingsPage: React.FC<NotificationSettingsProps> = ({
                             placeholder="America/Los_Angeles"
                         />
                     </label>
+                </div>
+            </FeatureSection>
+
+            <FeatureSection title="SMS Test" icon="sms">
+                <div className="space-y-4">
+                    <div>
+                        <label className="space-y-1 block">
+                            <span className="text-sm font-medium text-slate-700">Test phone number</span>
+                            <input
+                                type="tel"
+                                value={testPhone}
+                                onChange={(event) => setTestPhone(event.target.value)}
+                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                                placeholder="206-555-1234"
+                                disabled={smsComingSoon || sendingTestSms}
+                            />
+                        </label>
+                        <p className="mt-2 text-xs text-slate-500">This sends one simple test text: <span className="font-semibold text-slate-700">hi</span></p>
+                    </div>
+
+                    {testSmsStatus && (
+                        <div className={`rounded-lg border px-3 py-2 text-sm ${testSmsStatus.type === 'success'
+                            ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                            : 'border-rose-200 bg-rose-50 text-rose-700'
+                            }`}>
+                            {testSmsStatus.message}
+                        </div>
+                    )}
+
+                    <div className="flex items-center justify-between gap-3">
+                        <p className="text-sm text-slate-500">
+                            {smsComingSoon ? 'SMS is not live on this account yet.' : 'Use this to prove your SMS setup works before launch.'}
+                        </p>
+                        <button
+                            type="button"
+                            onClick={() => void handleSendTestSms()}
+                            disabled={smsComingSoon || sendingTestSms || !testPhone.trim()}
+                            className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                            {sendingTestSms ? 'Sending…' : 'Send Test SMS'}
+                        </button>
+                    </div>
                 </div>
             </FeatureSection>
 
