@@ -11197,7 +11197,7 @@ const processEmailSendJob = async (job) => {
           <ul>${topAppointmentItems || '<li>None</li>'}</ul>
           <p><strong>${rescheduleCount}</strong> reschedule requests</p>
           <p><a href="${dashboardBase}/dashboard/today" style="display:inline-block;padding:10px 16px;background:#233074;color:#fff;text-decoration:none;border-radius:8px;">Open Today</a></p>
-          <p style="font-size:12px;color:#6b7280;">Email alerts are live. SMS is coming soon.</p>
+          <p style="font-size:12px;color:#6b7280;">Email alerts are live and linked to your dashboard settings.</p>
         </div>
       `
     });
@@ -18336,7 +18336,7 @@ app.post('/api/leads', async (req, res) => {
             console.warn(`⚠️ SMS Alert skipped: No phone number found for Agent ${agentId}`);
           }
         } else if (SMS_COMING_SOON) {
-          console.log(`📵 SMS alerts are coming soon. Skipping SMS for Agent ${agentId}.`);
+          console.log(`📵 SMS alerts are disabled by configuration. Skipping SMS for Agent ${agentId}.`);
         }
 
         if (agentEmail) {
@@ -31350,8 +31350,8 @@ app.post('/api/sms/send', async (req, res) => {
 
     if (SMS_COMING_SOON) {
       return res.status(503).json({
-        error: 'sms_coming_soon',
-        message: 'SMS is temporarily paused and marked as coming soon.'
+        error: 'sms_disabled',
+        message: 'SMS is disabled by configuration.'
       });
     }
 

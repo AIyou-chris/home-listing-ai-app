@@ -74,7 +74,6 @@ const DemoAssetPreviewPage = lazy(() => import('./pages/DemoAssetPreviewPage'));
 const DemoPublicListingPage = lazy(() => import('./pages/DemoPublicListingPage'));
 const BlogIndex = lazy(() => import('./pages/Blog/BlogIndex'));
 const BlogPost = lazy(() => import('./pages/Blog/BlogPost'));
-const VoiceLabPage = lazy(() => import('./pages/VoiceLabPage'));
 const CombinedTrainingPage = lazy(() => import('./components/AgentAISidekicksPage'));
 // import AIInteractiveTraining from './components/AIInteractiveTraining'; // Keeping as backkup
 const FunnelAnalyticsPanel = lazy(() => import('./components/FunnelAnalyticsPanel'));
@@ -450,7 +449,6 @@ const App: React.FC = () => {
             '/analytics',
             '/ai-sidekicks',
             '/marketing-reports',
-            '/voice-lab',
             '/settings',
             '/signin',
             '/signup',
@@ -1733,11 +1731,6 @@ const App: React.FC = () => {
                         <Route path="/analytics" element={<AnalyticsDashboard />} />
                         <Route path="/ai-sidekicks" element={<EnhancedAISidekicksHub isDemoMode={isDemoMode} />} />
                         <Route path="/marketing-reports" element={<MarketingReportsPage />} />
-                        <Route path="/voice-lab" element={
-                            <Suspense fallback={<LoadingSpinner />}>
-                                <VoiceLabPage />
-                            </Suspense>
-                        } />
                         <Route path="/settings" element={<Navigate to="/dashboard/settings" replace />} />
                         <Route path="/settings/billing" element={<Navigate to="/dashboard/settings/billing" replace />} />
                         <Route path="/settings/notifications" element={<Navigate to="/dashboard/settings/notifications" replace />} />

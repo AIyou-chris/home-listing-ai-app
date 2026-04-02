@@ -7,7 +7,6 @@ import { subscribeDashboardInvalidation } from '../../services/dashboardInvalida
 import { createListingDraft } from '../../services/listingBuilderService'
 import { listingsService } from '../../services/listingsService'
 import { listLocalListingDrafts, saveLocalListingDraft } from '../../services/listingDraftStorage'
-import { getLiveExampleUrl, openInNewTab } from '../../utils/ctaLinks'
 
 type ListingRow = {
   id: string
@@ -258,15 +257,6 @@ const ListingsCommandPage: React.FC = () => {
           <p className="mt-1 text-sm text-slate-600">Build and manage AI listings from one place.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {!demoMode && (
-            <button
-              type="button"
-              onClick={() => navigate('/demo-dashboard/gallery/demo-listing-oak')}
-              className="inline-flex items-center justify-center rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-            >
-              Use this as sales demo
-            </button>
-          )}
           <button
             type="button"
             onClick={handleCreateDraft}
@@ -277,36 +267,6 @@ const ListingsCommandPage: React.FC = () => {
           </button>
         </div>
       </header>
-
-      {!demoMode && (
-        <section className="rounded-3xl border border-slate-200 bg-[linear-gradient(135deg,#fff7ed_0%,#ffffff_45%,#eef2ff_100%)] p-5 shadow-sm">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="max-w-2xl">
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary-600">See the finished version</p>
-              <h2 className="mt-2 text-2xl font-bold text-slate-900">Show clients and brokers what one listing turns into.</h2>
-              <p className="mt-2 text-sm text-slate-600">
-                Open the sales demo to show the live listing, tracked QR, buyer report, seller pricing report, flyer, sign rider, and social assets in one place.
-              </p>
-            </div>
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <button
-                type="button"
-                onClick={() => navigate('/demo-dashboard/gallery/demo-listing-oak')}
-                className="inline-flex items-center justify-center rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
-              >
-                Open Sales Demo
-              </button>
-              <button
-                type="button"
-                onClick={() => openInNewTab(getLiveExampleUrl())}
-                className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-              >
-                Open Demo Live Listing
-              </button>
-            </div>
-          </div>
-        </section>
-      )}
 
       {loading && (
         <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-500">Loading listings…</div>

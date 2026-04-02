@@ -89,7 +89,7 @@ const validatePhoneNumber = async (phoneNumber) => {
 // Updated signature to accept userId for billing
 const sendSms = async (to, message, mediaUrls = [], userId = null) => {
     if (SMS_COMING_SOON) {
-        console.log('📵 [SMS] Skipping send: SMS channel is marked as coming soon.');
+        console.log('📵 [SMS] Skipping send: SMS channel is disabled by configuration.');
         return false;
     }
 

@@ -142,7 +142,7 @@ const shouldSend = async (userId, channel, eventKey) => {
     }
 
     if (SMS_COMING_SOON) {
-      console.log(`📵 [Notifications] SMS disabled (coming soon) for User ${userId}`);
+      console.log(`📵 [Notifications] SMS disabled by configuration for User ${userId}`);
       return false;
     }
 
