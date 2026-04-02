@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { buildDashboardPath, useDemoMode } from '../../demo/useDemoMode';
+import { getAICardProfile } from '../../services/aiCardService';
 import {
   createLeadAppointment,
   fetchListingShareKit,
@@ -50,7 +51,8 @@ const OnboardingCommandPage: React.FC = () => {
     phone: '',
     email: '',
     brokerage: '',
-    headshot_url: ''
+    headshot_url: '',
+    professional_title: ''
   });
 
   const [listingForm, setListingForm] = useState({
@@ -93,13 +95,15 @@ const OnboardingCommandPage: React.FC = () => {
     setLoading(true);
     try {
       const onboarding = await fetchOnboardingState();
+      const aiCardProfile = await getAICardProfile().catch(() => null);
       setState(onboarding);
       setBrandForm({
         full_name: onboarding.brand_profile.full_name || '',
         phone: onboarding.brand_profile.phone || '',
         email: onboarding.brand_profile.email || '',
         brokerage: onboarding.brand_profile.brokerage || '',
-        headshot_url: onboarding.brand_profile.headshot_url || ''
+        headshot_url: onboarding.brand_profile.headshot_url || '',
+        professional_title: aiCardProfile?.professionalTitle || ''
       });
       setTestLeadForm((prev) => ({
         ...prev,
@@ -195,7 +199,7 @@ const OnboardingCommandPage: React.FC = () => {
         heroPhotos: listingPrimaryPhoto ? [listingPrimaryPhoto] : undefined,
         agentSnapshot: {
           name: brandForm.full_name || '',
-          title: 'Real Estate Agent',
+          title: brandForm.professional_title || 'Real Estate Agent',
           company: brandForm.brokerage || '',
           phone: brandForm.phone || '',
           email: brandForm.email || '',
