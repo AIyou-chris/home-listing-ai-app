@@ -17,7 +17,7 @@ class TextingService {
     }
 
     /**
-     * Sends an SMS message using Telnyx API (via native fetch).
+     * Sends an SMS message through the backend-configured SMS provider.
      */
     async sendSms(to: string, message: string): Promise<boolean> {
         // No client-side API key check needed (handled by backend)

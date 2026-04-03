@@ -583,7 +583,7 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
             console.error(error);
             const message = (error as Error).message || 'Unknown error';
             if (message.includes('D11') || message.toLowerCase().includes('destination number is invalid')) {
-                alert('Telnyx rejected the destination number (D11). Use E.164 format. For US/Canada: +1 followed by exactly 10 digits.');
+                alert('The SMS provider rejected the destination number. Use E.164 format. For US/Canada: +1 followed by exactly 10 digits.');
                 return;
             }
             alert(`Failed to send test: ${message}`);

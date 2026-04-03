@@ -235,7 +235,7 @@ const {
   buildFunnelJsonSteps
 } = require('./services/funnelEnrollmentService');
 
-const { sendSms, validatePhoneNumber } = require('./services/smsService');
+const { getSmsProviderName, sendSms, validatePhoneNumber } = require('./services/smsService');
 const { initiateCall } = require('./services/voiceService');
 const { sendAlert } = require('./services/slackService');
 
@@ -9689,7 +9689,7 @@ const enqueueLeadCaptureNotifications = async ({
       agentId: lead.agent_id,
       leadId: lead.id,
       channel: 'sms',
-      provider: 'telnyx',
+      provider: getSmsProviderName(),
       status: 'suppressed',
       idempotencyKey: smsIdempotencyKey,
       payload: smsPayload,
@@ -9709,7 +9709,7 @@ const enqueueLeadCaptureNotifications = async ({
       agentId: lead.agent_id,
       leadId: lead.id,
       channel: 'sms',
-      provider: 'telnyx',
+      provider: getSmsProviderName(),
       status: 'queued',
       idempotencyKey: smsIdempotencyKey,
       payload: smsPayload
@@ -9848,7 +9848,7 @@ const resolveAppointmentReminderFlags = async (agentId) => {
 
 const mapReminderProvider = (reminderType) => {
   if (reminderType === 'voice') return 'vapi';
-  if (reminderType === 'sms') return 'telnyx';
+  if (reminderType === 'sms') return getSmsProviderName();
   return 'mailgun';
 };
 
@@ -11433,7 +11433,8 @@ const processSmsSendJob = async (job) => {
   if (!toPhone || !text) throw new Error('missing_sms_payload');
 
   const result = await sendSms(toPhone, text);
-  const telnyxId = result?.data?.id || result?.id || null;
+  const providerName = result?.provider || getSmsProviderName();
+  const providerMessageId = result?.id || null;
 
   await supabaseAdmin
     .from('outbound_attempts')
@@ -11441,7 +11442,8 @@ const processSmsSendJob = async (job) => {
       status: 'sent',
       provider_response: {
         sent_at: nowIso(),
-        telnyx_id: telnyxId
+        provider: providerName,
+        provider_message_id: providerMessageId
       }
     })
     .eq('idempotency_key', job.idempotency_key);
@@ -11450,10 +11452,11 @@ const processSmsSendJob = async (job) => {
     agentId,
     type: 'sms_message',
     units: 1,
-    referenceId: telnyxId || payload.conversation_id || `${Date.now()}`,
+    referenceId: providerMessageId || payload.conversation_id || `${Date.now()}`,
     metadata: {
       kind,
-      conversation_id: payload.conversation_id || null
+      conversation_id: payload.conversation_id || null,
+      provider: providerName
     },
     idempotencyKey: `usage:sms_message:${job.idempotency_key}`
   }).catch((error) => {
@@ -11467,7 +11470,7 @@ const processSmsSendJob = async (job) => {
       sender: 'ai',
       channel: 'sms',
       content: text,
-      metadata: { telnyxId, status: 'sent' },
+      metadata: { provider: providerName, providerMessageId, status: 'sent' },
       created_at: nowIso()
     });
 
@@ -11482,7 +11485,7 @@ const processSmsSendJob = async (job) => {
     await refreshLeadIntelligenceSafely(leadId, 'sms_sent');
   }
 
-  return { kind, status: 'sent', telnyx_id: telnyxId };
+  return { kind, status: 'sent', provider: providerName, provider_message_id: providerMessageId };
 };
 
 const processVoiceReminderCallJob = async (job) => {
@@ -16859,43 +16862,14 @@ If you don't know the answer, ask for clarification or offer to have the agent c
   }
 };
 
-const processTelnyxInboundEvent = async (event, { webhookEventId = null } = {}) => {
-  const eventType = event?.data?.event_type;
-
-  if (eventType === 'message.finalized') {
-    const payload = event?.data?.payload || {};
-    const telnyxId = payload.id;
-    const status = payload.to?.[0]?.status || 'unknown';
-
-    if (telnyxId) {
-      const { data: msgs } = await supabaseAdmin
-        .from('ai_conversation_messages')
-        .select('id, metadata')
-        .contains('metadata', { telnyxId })
-        .limit(1);
-
-      if (msgs && msgs[0]) {
-        const msg = msgs[0];
-        const newMeta = { ...(msg.metadata || {}), status, status_at: nowIso() };
-        await supabaseAdmin
-          .from('ai_conversation_messages')
-          .update({ metadata: newMeta })
-          .eq('id', msg.id);
-      }
-    }
-    return { processed: true, eventType };
-  }
-
-  if (eventType !== 'message.received') {
-    return { processed: true, ignored: true, eventType };
-  }
-
-  const payload = event?.data?.payload || {};
-  const fromPhone = payload.from?.phone_number;
-  const textBody = payload.text;
-  const rawEventId = event?.data?.id || payload?.id || webhookEventId || nowIso();
-
-  if (!fromPhone || !textBody) {
+const processInboundSmsMessage = async ({
+  fromPhone,
+  textBody,
+  rawEventId,
+  providerName = getSmsProviderName()
+}) => {
+  const normalizedFromPhone = normalizePhoneE164(fromPhone);
+  if (!normalizedFromPhone || !textBody) {
     return { processed: true, ignored: true, reason: 'missing_message_fields' };
   }
 
@@ -16904,14 +16878,14 @@ const processTelnyxInboundEvent = async (event, { webhookEventId = null } = {}) 
     await supabaseAdmin
       .from('leads')
       .update({ status: 'unsubscribed', last_contact_at: nowIso() })
-      .eq('phone', fromPhone);
-    return { processed: true, eventType, unsubscribed: true };
+      .eq('phone', normalizedFromPhone);
+    return { processed: true, unsubscribed: true };
   }
 
   const { data: lead } = await supabaseAdmin
     .from('leads')
     .select('id, user_id, name, status')
-    .eq('phone', fromPhone)
+    .eq('phone', normalizedFromPhone)
     .maybeSingle();
 
   if (!lead) {
@@ -16936,7 +16910,7 @@ const processTelnyxInboundEvent = async (event, { webhookEventId = null } = {}) 
         type: 'sms',
         status: 'active',
         contact_name: lead.name,
-        contact_phone: fromPhone,
+        contact_phone: normalizedFromPhone,
         updated_at: nowIso()
       })
       .select('id')
@@ -16954,6 +16928,7 @@ const processTelnyxInboundEvent = async (event, { webhookEventId = null } = {}) 
     sender: 'lead',
     channel: 'sms',
     content: textBody,
+    metadata: { provider: providerName },
     created_at: nowIso()
   });
 
@@ -17042,7 +17017,7 @@ const processTelnyxInboundEvent = async (event, { webhookEventId = null } = {}) 
       const smsIdempotencyKey = `sms:auto_reply:${conversationId}:${rawEventId}`;
       const smsPayload = {
         kind: 'ai_auto_reply',
-        to_phone: fromPhone,
+        to_phone: normalizedFromPhone,
         text: aiResponse,
         lead_id: lead.id,
         agent_id: lead.user_id,
@@ -17061,7 +17036,7 @@ const processTelnyxInboundEvent = async (event, { webhookEventId = null } = {}) 
         agentId: lead.user_id,
         leadId: lead.id,
         channel: 'sms',
-        provider: 'telnyx',
+        provider: getSmsProviderName(),
         status: SMS_COMING_SOON || !FEATURE_FLAG_SMS_ENABLED ? 'suppressed' : 'queued',
         idempotencyKey: smsIdempotencyKey,
         payload: smsPayload,
@@ -17072,7 +17047,53 @@ const processTelnyxInboundEvent = async (event, { webhookEventId = null } = {}) 
     }
   }
 
-  return { processed: true, eventType, leadId: lead.id, conversationId };
+  return { processed: true, leadId: lead.id, conversationId };
+};
+
+const processTelnyxInboundEvent = async (event, { webhookEventId = null } = {}) => {
+  const eventType = event?.data?.event_type;
+
+  if (eventType === 'message.finalized') {
+    const payload = event?.data?.payload || {};
+    const telnyxId = payload.id;
+    const status = payload.to?.[0]?.status || 'unknown';
+
+    if (telnyxId) {
+      const { data: msgs } = await supabaseAdmin
+        .from('ai_conversation_messages')
+        .select('id, metadata')
+        .contains('metadata', { telnyxId })
+        .limit(1);
+
+      if (msgs && msgs[0]) {
+        const msg = msgs[0];
+        const newMeta = { ...(msg.metadata || {}), status, status_at: nowIso() };
+        await supabaseAdmin
+          .from('ai_conversation_messages')
+          .update({ metadata: newMeta })
+          .eq('id', msg.id);
+      }
+    }
+    return { processed: true, eventType };
+  }
+
+  if (eventType !== 'message.received') {
+    return { processed: true, ignored: true, eventType };
+  }
+
+  const payload = event?.data?.payload || {};
+  const fromPhone = payload.from?.phone_number;
+  const textBody = payload.text;
+  const rawEventId = event?.data?.id || payload?.id || webhookEventId || nowIso();
+
+  const result = await processInboundSmsMessage({
+    fromPhone,
+    textBody,
+    rawEventId,
+    providerName: 'telnyx'
+  });
+
+  return { ...result, eventType };
 };
 
 // Webhook for Telnyx Inbound SMS (inbox only; async processing via jobs)
@@ -17099,6 +17120,40 @@ app.post(['/api/webhooks/telnyx/inbound', '/webhooks/telnyx'], async (req, res) 
     }
     console.error('Telnyx inbound enqueue error:', error);
     res.status(500).json({ error: 'failed_to_enqueue_telnyx_webhook' });
+  }
+});
+
+app.get('/api/webhooks/textbelt/inbound', async (_req, res) => {
+  res.status(200).json({ ok: true, provider: 'textbelt' });
+});
+
+app.post('/api/webhooks/textbelt/inbound', async (req, res) => {
+  try {
+    const payload = req.body || {};
+    const fromPhone =
+      payload.fromNumber ||
+      payload.from ||
+      payload.phoneNumber ||
+      payload.phone ||
+      null;
+    const textBody = payload.text || payload.body || payload.message || null;
+    const rawEventId = payload.textId || payload.id || payload.messageId || nowIso();
+
+    const result = await processInboundSmsMessage({
+      fromPhone,
+      textBody,
+      rawEventId,
+      providerName: 'textbelt'
+    });
+
+    res.status(200).json({
+      received: true,
+      provider: 'textbelt',
+      ...result
+    });
+  } catch (error) {
+    console.error('Textbelt inbound processing error:', error);
+    res.status(500).json({ error: 'failed_to_process_textbelt_webhook' });
   }
 });
 
@@ -27911,7 +27966,7 @@ app.post('/api/conversations/:conversationId/messages', async (req, res) => {
         }
       }
 
-      // 2. Send via Telnyx
+      // 2. Send via configured SMS provider
       console.log(`📤 Sending Manual SMS to ${conversation.contact_phone}: "${content}"`);
       const smsResult = await sendSms(conversation.contact_phone, content);
 
@@ -27919,7 +27974,12 @@ app.post('/api/conversations/:conversationId/messages', async (req, res) => {
         return res.status(400).json({ error: 'SMS Send Failed (Check Safety Rules or Validity)' });
       }
 
-      externalMetadata = { telnyxId: smsResult.id, status: 'sent', sent_by: 'agent' };
+      externalMetadata = {
+        provider: smsResult.provider || getSmsProviderName(),
+        providerMessageId: smsResult.id || null,
+        status: 'sent',
+        sent_by: 'agent'
+      };
     }
 
     // --- EMAIL REPLY HANDLING (Actual Email Sending) ---
@@ -31390,7 +31450,7 @@ app.post('/api/sms/send', async (req, res) => {
     }
 
     const { sendSms } = require('./services/smsService');
-    const success = await sendSms(to, message);
+    const success = await sendSms(to, message, [], userId || null);
 
     if (success) {
       res.json({ success: true });
