@@ -4429,10 +4429,10 @@ const buildOpenHouseFlyerHtml = ({
         background: linear-gradient(180deg, #fbf7ef 0%, #f4ede2 100%);
         border: 1px solid rgba(255,255,255,0.72);
         box-shadow: 0 18px 60px rgba(15, 23, 42, 0.08);
-        padding: 0.26in 0.28in 0.24in;
+        padding: 0.24in 0.26in 0.22in;
         display: flex;
         flex-direction: column;
-        gap: 0.18in;
+        gap: 0.14in;
       }
       .header {
         display: flex;
@@ -18512,16 +18512,27 @@ app.get('/api/public/listings/:public_slug/bootstrap', async (req, res) => {
       ok: true,
       listing: {
         id: listing.id || listingRow.id,
+        title: listing.title || listingRow.title || listing.address || 'Listing',
         public_slug: listing.publicSlug || listingRow.public_slug || publicSlug,
         address: listing.address || '',
+        city: listing.city || '',
+        state: listing.state || '',
+        zip: listing.zip || '',
         price: Number.isFinite(Number(listing.price)) ? Number(listing.price) : null,
         beds: Number.isFinite(Number(listing.bedrooms)) ? Number(listing.bedrooms) : null,
         baths: Number.isFinite(Number(listing.bathrooms)) ? Number(listing.bathrooms) : null,
         sqft: Number.isFinite(Number(listing.squareFeet)) ? Number(listing.squareFeet) : null,
+        description: listing.description || payload.brain_summary || '',
+        features: Array.isArray(listing.features) ? listing.features : [],
         primary_photo: listing.imageUrl || photos.all?.[0] || null,
         photos: Array.isArray(photos.all) ? photos.all : [],
+        hero_photos: Array.isArray(photos.hero) ? photos.hero : [],
+        gallery_photos: Array.isArray(photos.gallery) ? photos.gallery : [],
+        property_type: listing.propertyType || listingRow.property_type || 'Single Family',
         status: 'published',
-        share_url: listing.shareUrl || buildListingShareUrl(listingRow.public_slug || publicSlug)
+        share_url: listing.shareUrl || buildListingShareUrl(listingRow.public_slug || publicSlug),
+        cta_media_url: listing.ctaMediaUrl || null,
+        cta_listing_url: listing.ctaListingUrl || null
       },
       agent: {
         id: agentCard.id || listingRow.agent_id || listingRow.user_id || 'unknown',
@@ -18695,7 +18706,8 @@ app.post('/api/public/conversations/start', async (req, res) => {
     const utmSource = toTrimmedOrNull(req.body?.utm_source || req.query?.utm_source);
     const utmMedium = toTrimmedOrNull(req.body?.utm_medium || req.query?.utm_medium);
     const utmCampaign = toTrimmedOrNull(req.body?.utm_campaign || req.query?.utm_campaign);
-    const referrerDomain = toTrimmedOrNull(req.body?.referrer_domain || toReferrerDomain(req.body?.referrer));
+    const referrer = toTrimmedOrNull(req.body?.referrer);
+    const referrerDomain = toTrimmedOrNull(req.body?.referrer_domain || toReferrerDomain(referrer));
     const visitorId =
       toTrimmedOrNull(req.body?.visitor_id || req.headers['x-visitor-id']) ||
       (typeof crypto.randomUUID === 'function'
@@ -18731,6 +18743,7 @@ app.post('/api/public/conversations/start', async (req, res) => {
       utm_source: utmSource,
       utm_medium: utmMedium,
       utm_campaign: utmCampaign,
+      referrer: referrer,
       referrer_domain: referrerDomain,
       landing_path: toTrimmedOrNull(req.body?.landing_path),
       channel: 'web'
@@ -21392,25 +21405,7 @@ app.patch('/api/dashboard/listings/:id', async (req, res) => {
       updates.gallery_photos = nextPhotos.length > 1 ? nextPhotos.slice(1) : [];
     }
     if (body.status !== undefined) {
-      const nextStatus = normalizeDashboardListingStatus(body.status);
-      if (nextStatus !== 'draft' && nextStatus !== 'published') {
-        return res.status(400).json({ error: 'invalid_status' });
-      }
-      updates.status = nextStatus;
-      updates.is_published = nextStatus === 'published';
-      updates.published_at = nextStatus === 'published'
-        ? (listingRow.published_at || nowIso())
-        : null;
-
-      if (nextStatus === 'published') {
-        const publicSlug = listingRow.public_slug || await ensureUniquePublicSlug({
-          listingId: listingRow.id,
-          title: listingRow.title,
-          address: listingRow.address
-        });
-        updates.public_slug = publicSlug;
-        updates.share_url = buildListingShareUrl(publicSlug);
-      }
+      return res.status(400).json({ error: 'use_publish_endpoint_for_status_changes' });
     }
 
     if (!Object.keys(updates).length) {
@@ -29685,17 +29680,18 @@ app.options('/api/listings/photo-upload', cors()); // Force preflight handling
 app.post('/api/listings/photo-upload', async (req, res) => {
   console.log(`📨 [Photo Upload] Incoming request! Body Size: ${req.headers['content-length']}`);
   try {
-    const { dataUrl, fileName, userId } = req.body || {};
+    const requesterUserId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!requesterUserId) {
+      return res.status(401).json({ error: 'agent_auth_required' });
+    }
+
+    const { dataUrl, fileName } = req.body || {};
     if (!dataUrl) {
       console.warn('[Photo Upload] Rejected request missing dataUrl');
       return res.status(400).json({ error: 'dataUrl is required' });
     }
 
-    const targetUserId = userId || DEFAULT_LEAD_USER_ID;
-    if (!targetUserId) {
-      console.warn('[Photo Upload] Rejected request missing userId');
-      return res.status(400).json({ error: 'userId is required to upload a listing photo' });
-    }
+    const targetUserId = requesterUserId;
 
     // Upload to 'ai-card-assets' (verified public bucket)
     const storedPath = await uploadDataUrlToStorage(targetUserId, 'listing', dataUrl);
@@ -29842,10 +29838,33 @@ app.put('/api/listings/:listingId', (req, res) => {
 app.delete('/api/listings/:listingId', async (req, res) => {
   try {
     const { listingId } = req.params;
-    const rawAgentId = req.headers['x-agent-id'];
-    const agentId = typeof rawAgentId === 'string' ? rawAgentId.trim() : '';
+    const requesterUserId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!requesterUserId) {
+      return res.status(401).json({ error: 'agent_auth_required' });
+    }
 
-    console.log(`🗑️ Delete request for listing: ${listingId} by agent: ${agentId || 'anonymous'}`);
+    console.log(`🗑️ Delete request for listing: ${listingId} by requester: ${requesterUserId}`);
+
+    const { data: existingRow, error: fetchError } = await supabaseAdmin
+      .from('properties')
+      .select('id, agent_id, user_id')
+      .eq('id', listingId)
+      .or(`agent_id.eq.${requesterUserId},user_id.eq.${requesterUserId}`)
+      .maybeSingle();
+
+    if (fetchError) {
+      console.error('Listing ownership lookup failed:', fetchError);
+      return res.status(500).json({
+        error: 'Failed to verify listing ownership',
+        details: fetchError.message
+      });
+    }
+
+    if (!existingRow?.id) {
+      return res.status(404).json({
+        error: 'Listing not found or unauthorized'
+      });
+    }
 
     // Delete from database using service role to bypass RLS
     const { error } = await supabaseAdmin
@@ -30302,8 +30321,7 @@ const raisePropertyAlert = async (description, requestId, severity = 'warning') 
 
 app.post('/api/properties', async (req, res) => {
   const requestId = crypto.randomBytes(5).toString('hex')
-  const rawAgentId = req.headers['x-agent-id']
-  const agentId = typeof rawAgentId === 'string' ? rawAgentId.trim() : ''
+  const agentId = await resolveRequesterUserId(req, { allowDefault: false })
 
   if (!agentId) {
     console.warn(`[${requestId}] Missing agent identity for property creation request`)
@@ -30333,8 +30351,9 @@ app.post('/api/properties', async (req, res) => {
     const { data: agentData, error: agentError } = await supabaseAdmin
       .from('agents')
       .select('auth_user_id, payment_status')
-      .eq('id', agentId)
-      .single()
+      .or(`id.eq.${agentId},auth_user_id.eq.${agentId}`)
+      .limit(1)
+      .maybeSingle()
 
     if (agentError) throw agentError;
 
@@ -30358,12 +30377,8 @@ app.post('/api/properties', async (req, res) => {
       }
     }
 
-    if (agentData?.auth_user_id) {
-      payload.user_id = agentData.auth_user_id
-      console.info(`[${requestId}] Resolved user_id: ${agentData.auth_user_id}`)
-    } else {
-      console.warn(`[${requestId}] Could not resolve auth_user_id for agent ${agentId}`)
-    }
+    payload.user_id = agentData?.auth_user_id || agentId
+    console.info(`[${requestId}] Resolved user_id: ${payload.user_id}`)
   } catch (lookupError) {
     console.warn(`[${requestId}] Agent lookup failed:`, lookupError)
   }
@@ -30418,8 +30433,7 @@ app.post('/api/properties', async (req, res) => {
 app.put('/api/properties/:id', async (req, res) => {
   const requestId = crypto.randomBytes(5).toString('hex')
   const { id } = req.params
-  const rawAgentId = req.headers['x-agent-id']
-  const agentId = typeof rawAgentId === 'string' ? rawAgentId.trim() : ''
+  const agentId = await resolveRequesterUserId(req, { allowDefault: false })
 
   if (!agentId) {
     console.warn(`[${requestId}] Missing agent identity for property update request`)
@@ -30453,11 +30467,26 @@ app.put('/api/properties/:id', async (req, res) => {
   console.log(`[${requestId}] FINAL PAYLOAD:`, JSON.stringify(payload, null, 2));
 
   try {
+    const { data: ownedProperty, error: ownedPropertyError } = await supabaseAdmin
+      .from('properties')
+      .select('id')
+      .eq('id', id)
+      .or(`agent_id.eq.${agentId},user_id.eq.${agentId}`)
+      .maybeSingle()
+
+    if (ownedPropertyError) {
+      console.error(`[${requestId}] Property ownership lookup failed`, ownedPropertyError)
+      return res.status(400).json({ error: ownedPropertyError.message, requestId })
+    }
+
+    if (!ownedProperty?.id) {
+      return res.status(404).json({ error: 'Property not found or unauthorized', requestId })
+    }
+
     const { data, error } = await supabaseAdmin
       .from('properties')
       .update(payload)
       .eq('id', id)
-      .eq('agent_id', agentId) // Ensure agent owns this property
       .select('*')
       .single()
 
@@ -31350,7 +31379,7 @@ app.post('/api/sms/send', async (req, res) => {
 
     if (SMS_COMING_SOON) {
       return res.status(503).json({
-        error: 'sms_disabled',
+        error: 'sms_coming_soon',
         message: 'SMS is disabled by configuration.'
       });
     }
