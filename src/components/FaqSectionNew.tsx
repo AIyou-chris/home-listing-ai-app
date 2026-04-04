@@ -26,15 +26,15 @@ const faqs = [
     },
     {
         question: "How do I get alerted?",
-        answer: "Email alerts are live now. Pro includes appointment reminder calls. SMS is already wired and turns on the moment approval lands."
+        answer: "Email alerts and outbound SMS are live now. Starter includes 50 SMS each month. Pro includes 250."
     },
     {
         question: "What counts as an SMS?",
-        answer: "Sent + received messages both count."
+        answer: "Only automated outbound texts count against your monthly plan limit."
     },
     {
-        question: "What are “reminder calls” on Pro?",
-        answer: "Automated calls that confirm or reschedule upcoming appointments to reduce no-shows. Pro includes 200 reminder calls per month."
+        question: "What SMS is included in each plan?",
+        answer: "Starter includes 50 outbound SMS per month. Pro includes 250. HomeListingAI uses those texts for first-touch follow-up, showing confirmations, reminder texts, schedule changes, and open house reminders."
     },
     {
         question: "Can I use it for open houses and yard signs?",

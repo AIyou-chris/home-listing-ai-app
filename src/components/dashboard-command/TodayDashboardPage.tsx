@@ -81,7 +81,7 @@ const formatWarningLine = (billing: DashboardBillingSnapshot, key: string) => {
   if (limit <= 0) return null
   if (key === 'active_listings') return `Active listings: ${used}/${limit} used`
   if (key === 'reports_per_month') return `Reports: ${used}/${limit} used`
-  if (key === 'reminder_calls_per_month') return `Reminder calls: ${used}/${limit} used`
+  if (key === 'reminder_calls_per_month') return `SMS: ${used}/${limit} used`
   if (key === 'stored_leads_cap') return `Stored leads: ${used}/${limit} used`
   return null
 }
@@ -801,8 +801,8 @@ const TodayDashboardPage: React.FC = () => {
                   {[
                     ['Active listings', billing.usage.active_listings.used, billing.usage.active_listings.limit],
                     ['Reports this month', billing.usage.reports_per_month.used, billing.usage.reports_per_month.limit],
-                    ...(billing.plan.id === 'pro'
-                      ? [['Reminder calls', billing.usage.reminder_calls_per_month.used, billing.usage.reminder_calls_per_month.limit] as const]
+                    ...(billing.plan.id !== 'free'
+                      ? [['SMS this month', billing.usage.reminder_calls_per_month.used, billing.usage.reminder_calls_per_month.limit] as const]
                       : [])
                   ].map(([label, used, limit]) => (
                     <div key={label}>

@@ -19,7 +19,7 @@ const meterOrder: Array<keyof DashboardBillingSnapshot['usage']> = [
 const meterLabels: Record<string, string> = {
   active_listings: 'Active listings',
   reports_per_month: 'Reports used',
-  reminder_calls_per_month: 'Reminder calls used',
+  reminder_calls_per_month: 'SMS used',
   stored_leads_cap: 'Stored leads'
 };
 
@@ -63,7 +63,7 @@ const formatWarningLine = (snapshot: DashboardBillingSnapshot, key: keyof Dashbo
   if (limit <= 0) return null;
   if (key === 'active_listings') return `Active listings: ${used}/${limit} used`;
   if (key === 'reports_per_month') return `Reports: ${used}/${limit} used`;
-  if (key === 'reminder_calls_per_month') return `Reminder calls: ${used}/${limit} used`;
+  if (key === 'reminder_calls_per_month') return `SMS: ${used}/${limit} used`;
   if (key === 'stored_leads_cap') return `Stored leads: ${used}/${limit} used`;
   return null;
 };
@@ -254,8 +254,8 @@ const BillingCommandPage: React.FC = () => {
               <tr className="border-b border-slate-100">
                 <td className="px-3 py-3 font-medium">Listings allowed</td>
                 <td className="px-3 py-3">1</td>
-                <td className="px-3 py-3">10</td>
-                <td className="px-3 py-3">50</td>
+                <td className="px-3 py-3">5</td>
+                <td className="px-3 py-3">25</td>
               </tr>
               <tr className="border-b border-slate-100">
                 <td className="px-3 py-3 font-medium">AI Listing Brain sources</td>
@@ -274,6 +274,12 @@ const BillingCommandPage: React.FC = () => {
                 <td className="px-3 py-3">Yes</td>
                 <td className="px-3 py-3">Yes</td>
                 <td className="px-3 py-3">Yes</td>
+              </tr>
+              <tr className="border-b border-slate-100">
+                <td className="px-3 py-3 font-medium">Automated SMS / month</td>
+                <td className="px-3 py-3">0</td>
+                <td className="px-3 py-3">50</td>
+                <td className="px-3 py-3">250</td>
               </tr>
               <tr className="border-b border-slate-100">
                 <td className="px-3 py-3 font-medium">Fair-housing compliance scan</td>
@@ -362,7 +368,7 @@ const BillingCommandPage: React.FC = () => {
       </section>
 
       <section className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-        SMS alerts are available when enabled in your account settings.
+        Starter includes 50 outbound SMS each month. Pro includes 250.
       </section>
     </div>
   );

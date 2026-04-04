@@ -576,12 +576,12 @@ const OnboardingCommandPage: React.FC = () => {
       {currentStep === 5 && (
         <section className={cardClass}>
           <h2 className="text-xl font-semibold text-slate-900">Set a showing + see reminders</h2>
-          <p className="mt-1 text-sm text-slate-600">Pro includes appointment reminder calls that reduce no-shows.</p>
+          <p className="mt-1 text-sm text-slate-600">Paid plans include appointment reminder texts that reduce no-shows.</p>
           <p className="mt-2 text-xs font-medium text-slate-500">Why this matters: confirmations and reminder outcomes cut wasted showing time.</p>
 
           {!state.is_pro ? (
             <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-              Upgrade to Pro to enable reminder calls.
+              Upgrade to a paid plan to enable reminder texts.
             </div>
           ) : (
             <div className="mt-4 grid gap-3 md:grid-cols-2">

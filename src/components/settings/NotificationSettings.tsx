@@ -103,13 +103,13 @@ const NOTIFICATION_GROUPS: Array<{
             items: [
                 {
                     key: 'voiceAppointmentReminders',
-                    label: 'Appointment reminder calls',
-                    description: 'Allow AI voice calls only for scheduled appointment reminders'
+                    label: 'Appointment reminder texts',
+                    description: 'Send one text reminder before scheduled appointments'
                 },
                 {
                     key: 'smsNewLeadAlerts',
-                    label: 'New Lead SMS',
-                    description: 'Receive instant text messages when a new lead is captured'
+                    label: 'New lead first-touch text',
+                    description: 'Send one automatic text when a new lead is captured'
                 },
                 {
                     key: 'browserNotifications',
@@ -139,7 +139,7 @@ const NotificationSettingsPage: React.FC<NotificationSettingsProps> = ({
     const [sendingTestSms, setSendingTestSms] = useState(false);
     const [testSmsStatus, setTestSmsStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
     const smsComingSoon = !smsAvailable || smsChannel === 'coming_soon';
-    const remindersProLocked = planId !== 'pro';
+    const smsLocked = planId === 'free';
     // const [sendingTest, setSendingTest] = useState(false); // Removed unused state
 
     useEffect(() => {
@@ -180,8 +180,8 @@ const NotificationSettingsPage: React.FC<NotificationSettingsProps> = ({
     }, []);
 
     const handleToggle = (key: NotificationSettingKey, enabled: boolean) => {
-        if (smsComingSoon && key === 'smsNewLeadAlerts') return;
-        if (remindersProLocked && key === 'voiceAppointmentReminders') {
+        if (smsComingSoon && (key === 'smsNewLeadAlerts' || key === 'voiceAppointmentReminders')) return;
+        if (smsLocked && (key === 'smsNewLeadAlerts' || key === 'voiceAppointmentReminders')) {
             setUpgradeModalOpen(true);
             return;
         }
@@ -275,31 +275,31 @@ const NotificationSettingsPage: React.FC<NotificationSettingsProps> = ({
                                 <div>
                                     <h4 className="font-medium text-slate-900 flex items-center gap-2">
                                         {item.label}
-                                        {smsComingSoon && item.key === 'smsNewLeadAlerts' && (
+                                        {smsComingSoon && (item.key === 'smsNewLeadAlerts' || item.key === 'voiceAppointmentReminders') && (
                                             <span className="inline-flex items-center rounded-full bg-amber-100 text-amber-700 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide">
                                                 Unavailable
                                             </span>
                                         )}
-                                        {item.key === 'voiceAppointmentReminders' && (
+                                        {smsLocked && (item.key === 'voiceAppointmentReminders' || item.key === 'smsNewLeadAlerts') && (
                                             <span className="inline-flex items-center rounded-full bg-indigo-100 text-indigo-700 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide">
-                                                PRO
+                                                PAID
                                             </span>
                                         )}
                                     </h4>
                                     <p className="text-sm text-slate-500">
-                                        {smsComingSoon && item.key === 'smsNewLeadAlerts'
-                                            ? 'SMS alerts are not enabled on this account yet.'
-                                            : remindersProLocked && item.key === 'voiceAppointmentReminders'
-                                                ? 'Pro feature — includes appointment reminder calls.'
+                                        {smsComingSoon && (item.key === 'smsNewLeadAlerts' || item.key === 'voiceAppointmentReminders')
+                                            ? 'SMS is not live on this account yet.'
+                                            : smsLocked && (item.key === 'smsNewLeadAlerts' || item.key === 'voiceAppointmentReminders')
+                                                ? 'Paid plans include live SMS. Starter includes 50 texts each month. Pro includes 250.'
                                                 : item.description}
                                     </p>
-                                    {remindersProLocked && item.key === 'voiceAppointmentReminders' && (
+                                    {smsLocked && (item.key === 'voiceAppointmentReminders' || item.key === 'smsNewLeadAlerts') && (
                                         <button
                                             type="button"
                                             onClick={() => setUpgradeModalOpen(true)}
                                             className="mt-2 rounded-md border border-indigo-300 bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700"
                                         >
-                                            Upgrade to Pro
+                                            Upgrade plan
                                         </button>
                                     )}
                                 </div>
@@ -309,8 +309,8 @@ const NotificationSettingsPage: React.FC<NotificationSettingsProps> = ({
                                     disabled={
                                         isLoading ||
                                         isSaving ||
-                                        (smsComingSoon && item.key === 'smsNewLeadAlerts') ||
-                                        (remindersProLocked && item.key === 'voiceAppointmentReminders')
+                                        (smsComingSoon && (item.key === 'smsNewLeadAlerts' || item.key === 'voiceAppointmentReminders')) ||
+                                        (smsLocked && (item.key === 'smsNewLeadAlerts' || item.key === 'voiceAppointmentReminders'))
                                     }
                                 />
                             </div>
@@ -399,7 +399,7 @@ const NotificationSettingsPage: React.FC<NotificationSettingsProps> = ({
                 isOpen={upgradeModalOpen}
                 title="You’re at your limit."
                 body="Upgrade to keep capturing leads and sending reports without interruptions."
-                reasonLine="Reminder calls are included in Pro."
+                reasonLine="Starter includes 50 SMS each month. Pro includes 250."
                 allowPromoCode
                 upgrading={upgradeLoading}
                 onClose={() => setUpgradeModalOpen(false)}

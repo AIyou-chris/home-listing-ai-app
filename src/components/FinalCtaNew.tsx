@@ -24,7 +24,7 @@ export const FinalCtaNew: React.FC<FinalCtaProps> = ({ onNavigateToSignUp, onEnt
                     </h2>
                     <p className="text-lg md:text-xl text-slate-300 font-light leading-relaxed max-w-2xl mx-auto mb-10">
                         Share one link or QR. Capture leads automatically. Get instant email alerts today.<br className="hidden md:block" />
-                        SMS turns on as soon as approval lands. No credit card required to start.
+                        Starter includes 50 outbound SMS. Pro includes 250. No credit card required to start.
                     </p>
                 </FadeIn>
 
@@ -47,7 +47,7 @@ export const FinalCtaNew: React.FC<FinalCtaProps> = ({ onNavigateToSignUp, onEnt
                     <div className="flex flex-wrap justify-center gap-x-6 gap-y-3 text-sm text-slate-400 mb-8 font-medium">
                         <span className="flex items-center gap-2"><span className="material-symbols-outlined text-cyan-500 text-[20px]">check_circle</span> No credit card required</span>
                         <span className="flex items-center gap-2"><span className="material-symbols-outlined text-cyan-500 text-[20px]">check_circle</span> Email alerts live</span>
-                        <span className="flex items-center gap-2"><span className="material-symbols-outlined text-cyan-500 text-[20px]">check_circle</span> Pro includes appointment reminder calls</span>
+                        <span className="flex items-center gap-2"><span className="material-symbols-outlined text-cyan-500 text-[20px]">check_circle</span> Paid plans include live SMS follow-up</span>
                     </div>
 
                     <p className="text-slate-600 text-[11px] tracking-wider uppercase font-semibold">

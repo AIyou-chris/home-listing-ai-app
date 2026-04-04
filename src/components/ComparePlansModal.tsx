@@ -42,9 +42,9 @@ const plans = [
     {
         id: 'starter',
         name: 'Starter',
-        price: '$34',
+        price: '$39',
         period: '/mo',
-        tagline: 'Scale your listings and leads.',
+        tagline: 'The paid plan for active follow-up.',
         color: 'border-slate-200',
         badge: null,
         ctaLabel: 'Get Starter',
@@ -56,7 +56,7 @@ const plans = [
         name: 'Pro',
         price: '$79',
         period: '/mo',
-        tagline: 'The full lead machine. Unlimited power.',
+        tagline: 'Higher limits for agents running real volume.',
         color: 'border-primary-500',
         badge: 'MOST POPULAR',
         ctaLabel: 'Go Pro',
@@ -89,8 +89,8 @@ const featureRows: { label: string; free: FeatureValue; starter: FeatureValue; p
 
     { section: 'Communications', label: '', free: false, starter: false, pro: false },
     { label: 'Social video credits', free: false, starter: '5 / mo', pro: '20 / mo' },
-    { label: 'AI reminder calls', free: false, starter: false, pro: '200 / mo' },
-    { label: 'SMS (add-on)', free: false, starter: '+ $9/mo', pro: '+ $19/mo' },
+    { label: 'Automated SMS included', free: false, starter: '50 / mo', pro: '250 / mo' },
+    { label: 'Appointment reminder texts', free: false, starter: true, pro: true },
 
     { section: 'Team & Branding', label: '', free: false, starter: false, pro: false },
     { label: 'Custom agent branding', free: false, starter: true, pro: true },

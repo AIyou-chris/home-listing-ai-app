@@ -195,7 +195,7 @@ const CalendarSettingsPage: React.FC<CalendarSettingsProps> = ({
                             <p className="text-sm text-slate-500">
                                 {smsComingSoon
                                     ? 'SMS reminders are not enabled on this account yet.'
-                                    : 'Send text message reminders before appointments'}
+                                    : 'Send one text reminder before an appointment starts'}
                             </p>
                         </div>
                         <ToggleSwitch

@@ -102,7 +102,7 @@ const AppointmentsCommandPage: React.FC = () => {
         )
         if (warning && reminderMeter) {
           setReminderUsageWarning(
-            `Reminder calls: ${Number(reminderMeter.used || 0)}/${Number(reminderMeter.limit || 0)} used`
+            `SMS: ${Number(reminderMeter.used || 0)}/${Number(reminderMeter.limit || 0)} used`
           )
         } else {
           setReminderUsageWarning(null)
@@ -244,7 +244,7 @@ const AppointmentsCommandPage: React.FC = () => {
   }
 
   const timelineRows = selectedAppointmentId ? remindersByAppointment[selectedAppointmentId] || [] : []
-  const remindersLocked = planId !== 'pro'
+  const remindersLocked = planId === 'free'
 
   const renderCard = (appointment: DashboardAppointmentRow) => {
     const badge = appointmentBadge(appointment)
@@ -332,16 +332,16 @@ const AppointmentsCommandPage: React.FC = () => {
         <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-900">
           <div className="flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center rounded-full bg-indigo-700 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-white">
-              PRO
+              PAID
             </span>
-            <p className="font-semibold">Pro feature — includes appointment reminder calls.</p>
+            <p className="font-semibold">Paid plans include appointment reminder texts.</p>
           </div>
           <button
             type="button"
             onClick={() => setUpgradeModalOpen(true)}
             className="mt-2 rounded-md border border-indigo-300 bg-white px-3 py-1.5 text-xs font-semibold text-indigo-700"
           >
-            Upgrade now
+            Upgrade plan
           </button>
         </div>
       ) : null}
@@ -532,7 +532,7 @@ const AppointmentsCommandPage: React.FC = () => {
         isOpen={upgradeModalOpen}
         title="You’re at your limit."
         body="Upgrade to keep capturing leads and sending reports without interruptions."
-        reasonLine="Reminder calls are included in Pro."
+        reasonLine="Starter includes 50 SMS each month. Pro includes 250."
         allowPromoCode
         upgrading={upgradeLoading}
         onClose={() => setUpgradeModalOpen(false)}

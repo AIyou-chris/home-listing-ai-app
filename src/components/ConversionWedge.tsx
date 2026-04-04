@@ -95,7 +95,7 @@ export const ConversionWedge: React.FC<ConversionWedgeProps> = ({ onNavigateToSi
                             <span className="text-slate-700 mx-1">•</span>
                             <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span> Email alerts live
                             <span className="text-slate-700 mx-1">•</span>
-                            <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span> Appointment reminder calls live
+                            <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span> Reminder texts live
                         </p>
                     </div>
                 </div>
@@ -278,7 +278,7 @@ export const ConversionWedge: React.FC<ConversionWedgeProps> = ({ onNavigateToSi
                                 <span className="w-1 h-1 rounded-full bg-blue-500 mt-2 shrink-0"></span> Lead shows in your inbox
                             </li>
                             <li className="text-slate-300 text-sm flex items-start gap-2">
-                                <span className="w-1 h-1 rounded-full bg-blue-500 mt-2 shrink-0"></span> Appointment reminder calls (no-show killer)
+                                <span className="w-1 h-1 rounded-full bg-blue-500 mt-2 shrink-0"></span> Appointment reminder texts (no-show killer)
                             </li>
                         </ul>
                     </div>

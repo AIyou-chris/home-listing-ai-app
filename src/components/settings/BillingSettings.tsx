@@ -24,8 +24,8 @@ type PaidPlanId = Exclude<PlanId, 'free'>;
 
 const planLabels: Record<PlanId, string> = {
   free: 'Free',
-  starter: 'Pro $39',
-  pro: 'Team $79'
+  starter: 'Starter $39',
+  pro: 'Pro $79'
 };
 
 const statusLabels: Record<string, string> = {
@@ -250,11 +250,11 @@ const BillingSettingsPage: React.FC<BillingSettingsProps> = ({
                   <th className="px-4 py-3 text-left text-sm font-semibold text-slate-900">Free</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-slate-900">
                     <div className="inline-flex items-center gap-2">
-                      <span>Pro $39</span>
+                      <span>Starter $39</span>
                       <span className="rounded-full bg-primary-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary-700">Most popular</span>
                     </div>
                   </th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-slate-900">Team $79</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-slate-900">Pro $79</th>
                 </tr>
               </thead>
               <tbody>

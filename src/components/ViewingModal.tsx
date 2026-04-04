@@ -45,7 +45,7 @@ const ViewingModal: React.FC<ViewingModalProps> = ({
     if (!form.name || !form.email || !form.date || !form.time) return
     if (form.phone.trim() && !smsConsent) {
       setStatus('error')
-      setErrorMessage('Check the consent box if you want reminder calls and text follow-up.')
+      setErrorMessage('Check the consent box if you want reminder texts and follow-up by SMS.')
       return
     }
     setSubmitting(true)
@@ -232,7 +232,7 @@ const ViewingModal: React.FC<ViewingModalProps> = ({
             <div>
               <label className='block text-sm font-semibold text-slate-700 mb-1.5'>Phone</label>
               <input value={form.phone} onChange={e => set('phone', e.target.value)} className='w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500' />
-              <p className='mt-1 text-xs text-slate-500'>Optional. Use a phone number if you want reminder calls about your showing.</p>
+              <p className='mt-1 text-xs text-slate-500'>Optional. Use a phone number if you want reminder texts about your showing.</p>
               {form.phone.trim() && (
                 <label className='mt-2 flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700'>
                   <input

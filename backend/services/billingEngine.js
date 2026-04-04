@@ -16,13 +16,13 @@ const DEFAULT_LIMITS = {
   [PLAN_IDS.STARTER]: {
     active_listings: 5,
     reports_per_month: 10,
-    reminder_calls_per_month: 0,
+    reminder_calls_per_month: 50,
     stored_leads_cap: 250
   },
   [PLAN_IDS.PRO]: {
     active_listings: 25,
     reports_per_month: 50,
-    reminder_calls_per_month: 200,
+    reminder_calls_per_month: 250,
     stored_leads_cap: 2000
   }
 };
@@ -82,7 +82,7 @@ const buildDefaultPlanRows = () => {
     {
       id: PLAN_IDS.STARTER,
       name: 'Starter',
-      price_monthly_usd: 34,
+      price_monthly_usd: 39,
       stripe_price_id: starterPriceId,
       limits: DEFAULT_LIMITS[PLAN_IDS.STARTER],
       created_at: nowIso()
@@ -770,7 +770,7 @@ const createBillingEngine = ({ supabaseAdmin, stripe, enqueueJob, appBaseUrl }) 
       limits,
       warnings,
       plans: plans,
-      sms_coming_soon: true
+      sms_coming_soon: false
     };
   };
 

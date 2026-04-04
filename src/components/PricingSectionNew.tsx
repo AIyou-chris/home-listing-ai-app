@@ -26,11 +26,11 @@ export const PricingSectionNew: React.FC<PricingProps> = ({ onNavigateToSignUp, 
                         Pricing
                     </h2>
                     <h3 className="text-xl md:text-2xl text-slate-300 font-medium leading-relaxed mb-6">
-                        Start free. Upgrade when you want more listings, more reports, and appointment reminders.
+                        Start free. Upgrade when you want more listings, more reports, and live SMS follow-up.
                     </h3>
                     <p className="text-lg md:text-xl text-slate-300 font-light leading-relaxed">
                         Built for agents who want more leads without more apps.
-                        Email alerts are live now. SMS turns on as soon as approval lands.
+                        Email alerts and live SMS are ready now. Starter includes 50 texts. Pro includes 250.
                     </p>
                 </div>
 
@@ -120,6 +120,10 @@ export const PricingSectionNew: React.FC<PricingProps> = ({ onNavigateToSignUp, 
                                     <span className="material-symbols-outlined text-cyan-500 text-xl shrink-0">check</span>
                                     Open House QR Pack (flyer + sign QR)
                                 </li>
+                                <li className="flex items-start gap-3 text-white">
+                                    <span className="material-symbols-outlined text-cyan-500 text-xl shrink-0">check</span>
+                                    50 SMS / month included
+                                </li>
                             </ul>
                         </div>
 
@@ -153,7 +157,7 @@ export const PricingSectionNew: React.FC<PricingProps> = ({ onNavigateToSignUp, 
                                 <span className="text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-white to-cyan-200">$79</span>
                                 <span className="text-slate-400">/ month</span>
                             </div>
-                            <p className="text-cyan-100/70 text-sm h-10">The "holy sh*t" version. Built to reduce no-shows.</p>
+                            <p className="text-cyan-100/70 text-sm h-10">The higher-limit plan for agents running real volume.</p>
                         </div>
 
                         <div className="flex-grow">
@@ -180,14 +184,18 @@ export const PricingSectionNew: React.FC<PricingProps> = ({ onNavigateToSignUp, 
                                 </li>
                                 <li className="flex items-start gap-3 text-white font-medium">
                                     <span className="material-symbols-outlined text-cyan-400 text-xl shrink-0">check</span>
-                                    Appointment Reminder Call Bot (200 calls/mo)
+                                    250 SMS / month included
+                                </li>
+                                <li className="flex items-start gap-3 text-white font-medium">
+                                    <span className="material-symbols-outlined text-cyan-400 text-xl shrink-0">check</span>
+                                    Appointment reminder texts
                                 </li>
                             </ul>
                         </div>
 
                         <div className="mb-6 p-4 bg-slate-900/50 rounded-xl border border-slate-800/50">
                             <p className="text-[11px] text-slate-400 leading-snug">
-                                Extra reminder calls $0.25 each
+                                Higher plan limits, more follow-up room, and faster response coverage
                             </p>
                         </div>
 
@@ -195,7 +203,7 @@ export const PricingSectionNew: React.FC<PricingProps> = ({ onNavigateToSignUp, 
                             Go Pro
                         </button>
                         <p className="text-center text-[11px] text-cyan-500/80 uppercase tracking-widest font-semibold mt-auto">
-                            Best for: teams + appointment reminders
+                            Best for: teams + active lead follow-up
                         </p>
                     </div>
                 </div>
@@ -204,22 +212,22 @@ export const PricingSectionNew: React.FC<PricingProps> = ({ onNavigateToSignUp, 
                 <div className="max-w-6xl mx-auto mb-16">
                     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 lg:p-10 flex flex-col md:flex-row gap-8 items-center bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMTAiIGN5PSIxMCIgcj0iMiIgZmlsbD0iIzMzNDE1NSIgZmlsbC1vcGFjaXR5PSIwLjEiLz48L3N2Zz4=')]">
                         <div className="flex-1 text-center md:text-left">
-                            <h3 className="text-2xl font-bold text-white mb-3">SMS follow-up is available.</h3>
+                            <h3 className="text-2xl font-bold text-white mb-3">Live SMS follow-up is included.</h3>
                             <p className="text-slate-400 leading-relaxed max-w-lg mb-0 text-sm">
-                                Your system can text leads as part of the follow-up flow when SMS is enabled on the account.
-                                Usage counts both outbound and inbound messages.
+                                Use SMS for first-touch, showing confirmations, reminders, and open house follow-up.
+                                Only automated outbound texts count toward your plan.
                             </p>
                         </div>
                         <div className="flex-1 w-full bg-slate-950 rounded-xl border border-slate-800 p-6 shadow-inner">
-                            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Add-On Preview</p>
+                            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Included Each Month</p>
                             <ul className="space-y-4">
                                 <li className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-slate-800/60 pb-3">
-                                    <span className="text-white font-medium text-sm">Starter SMS Add-On</span>
-                                    <span className="text-slate-400 text-xs">$9/mo (250 SMS) • $0.04 per extra SMS</span>
+                                    <span className="text-white font-medium text-sm">Starter</span>
+                                    <span className="text-slate-400 text-xs">50 outbound SMS / month included</span>
                                 </li>
                                 <li className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                                    <span className="text-white font-medium text-sm">Pro SMS Add-On</span>
-                                    <span className="text-slate-400 text-xs">$19/mo (1,000 SMS) • $0.03 per extra SMS</span>
+                                    <span className="text-white font-medium text-sm">Pro</span>
+                                    <span className="text-slate-400 text-xs">250 outbound SMS / month included</span>
                                 </li>
                             </ul>
                         </div>
@@ -232,7 +240,7 @@ export const PricingSectionNew: React.FC<PricingProps> = ({ onNavigateToSignUp, 
                         <h4 className="text-white font-semibold mb-2">
                             What counts as an SMS?
                         </h4>
-                        <p className="text-slate-400 text-sm">Sent + received messages both count.</p>
+                        <p className="text-slate-400 text-sm">Only automated outbound texts count.</p>
                     </div>
                     <div className="text-center md:text-left">
                         <h4 className="text-white font-semibold mb-2">
