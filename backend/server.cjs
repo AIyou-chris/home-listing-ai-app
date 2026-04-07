@@ -2576,6 +2576,11 @@ const isMissingSupabaseRelationError = (error) => {
   return /does not exist|could not find the table|schema cache/i.test(message);
 };
 
+const isMissingSupabaseColumnError = (error) => {
+  const message = String(error?.message || '');
+  return /column .* does not exist|could not find.*column|schema cache/i.test(message);
+};
+
 const mapLeadForRealtime = async (leadRow) => {
   if (!leadRow?.id) return null;
   const listingId = leadRow.listing_id || null;
@@ -12892,8 +12897,14 @@ async function fetchAiCardProfileForUser(userId) {
 const AI_CONVERSATION_SELECT_FIELDS =
   'id, user_id, agent_id, scope, listing_id, lead_id, visitor_id, channel, title, contact_name, contact_email, contact_phone, type, last_message, last_message_at, last_activity_at, started_at, status, message_count, property, tags, intent, language, voice_transcript, follow_up_task, metadata, created_at, updated_at';
 
+const AI_CONVERSATION_SELECT_FIELDS_LEGACY =
+  'id, user_id, scope, listing_id, lead_id, title, contact_name, contact_email, contact_phone, type, last_message, last_message_at, status, message_count, property, tags, intent, language, voice_transcript, follow_up_task, metadata, created_at, updated_at';
+
 const AI_CONVERSATION_MESSAGE_SELECT_FIELDS =
   'id, conversation_id, user_id, sender, channel, content, translation, metadata, is_capture_event, intent_tags, confidence, created_at';
+
+const AI_CONVERSATION_MESSAGE_SELECT_FIELDS_LEGACY =
+  'id, conversation_id, user_id, sender, channel, content, metadata, created_at';
 
 const mapAiConversationFromRow = (row) =>
   !row
@@ -28252,21 +28263,30 @@ app.get('/api/admin/conversations', verifyAdmin, async (req, res) => {
     const { scope, status, search, limit = '100' } = req.query;
     const parsedLimit = Math.max(1, Math.min(200, Number.parseInt(String(limit), 10) || 100));
 
-    let query = supabaseAdmin
-      .from('ai_conversations')
-      .select(AI_CONVERSATION_SELECT_FIELDS)
-      .order('last_message_at', { ascending: false, nulls: 'last' })
-      .order('created_at', { ascending: false, nulls: 'last' })
-      .limit(parsedLimit);
+    const runQuery = async (selectFields) => {
+      let query = supabaseAdmin
+        .from('ai_conversations')
+        .select(selectFields)
+        .order('last_message_at', { ascending: false, nulls: 'last' })
+        .order('created_at', { ascending: false, nulls: 'last' })
+        .limit(parsedLimit);
 
-    if (scope) query = query.eq('scope', scope);
-    if (status) query = query.eq('status', status);
-    if (search) {
-      const term = `%${String(search).trim()}%`;
-      query = query.or(`contact_name.ilike.${term},contact_email.ilike.${term},contact_phone.ilike.${term},title.ilike.${term},last_message.ilike.${term},property.ilike.${term}`);
+      if (scope) query = query.eq('scope', scope);
+      if (status) query = query.eq('status', status);
+      if (search) {
+        const term = `%${String(search).trim()}%`;
+        query = query.or(`contact_name.ilike.${term},contact_email.ilike.${term},contact_phone.ilike.${term},title.ilike.${term},last_message.ilike.${term},property.ilike.${term}`);
+      }
+
+      return await query;
+    };
+
+    let { data, error } = await runQuery(AI_CONVERSATION_SELECT_FIELDS);
+    if (error && isMissingSupabaseColumnError(error)) {
+      console.warn('[Admin] Falling back to legacy ai_conversations select:', error.message);
+      ({ data, error } = await runQuery(AI_CONVERSATION_SELECT_FIELDS_LEGACY));
     }
 
-    const { data, error } = await query;
     if (error) throw error;
 
     res.json((data || []).map(mapAiConversationFromRow));
@@ -28285,12 +28305,20 @@ app.get('/api/admin/conversations/:conversationId/messages', verifyAdmin, async 
       return res.json([]);
     }
 
-    const { data, error } = await supabaseAdmin
-      .from('ai_conversation_messages')
-      .select(AI_CONVERSATION_MESSAGE_SELECT_FIELDS)
-      .eq('conversation_id', conversationId)
-      .order('created_at', { ascending: true })
-      .limit(limit);
+    const runQuery = async (selectFields) => {
+      return await supabaseAdmin
+        .from('ai_conversation_messages')
+        .select(selectFields)
+        .eq('conversation_id', conversationId)
+        .order('created_at', { ascending: true })
+        .limit(limit);
+    };
+
+    let { data, error } = await runQuery(AI_CONVERSATION_MESSAGE_SELECT_FIELDS);
+    if (error && isMissingSupabaseColumnError(error)) {
+      console.warn('[Admin] Falling back to legacy ai_conversation_messages select:', error.message);
+      ({ data, error } = await runQuery(AI_CONVERSATION_MESSAGE_SELECT_FIELDS_LEGACY));
+    }
 
     if (error) throw error;
 
