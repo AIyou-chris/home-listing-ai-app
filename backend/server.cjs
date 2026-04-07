@@ -784,6 +784,8 @@ app.get('/api/funnels/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
     const normalizedUserId = userId;
+    const resolvedFunnelAgent = await billingEngine.resolveAgentRecord?.(normalizedUserId).catch(() => null);
+    const funnelOwnerId = resolvedFunnelAgent?.id || normalizedUserId;
 
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
       return res.json({ success: true, funnels: {} });
@@ -793,7 +795,7 @@ app.get('/api/funnels/:userId', async (req, res) => {
     let { data: funnels, error } = await supabaseAdmin
       .from('funnels')
       .select('*')
-      .or(`agent_id.eq.${normalizedUserId},is_default.eq.true`);
+      .or(`agent_id.eq.${funnelOwnerId},is_default.eq.true`);
 
     if (error) {
       console.warn('[Funnels] Failed to load funnels:', error);
@@ -915,6 +917,8 @@ app.post('/api/funnels/:userId/:funnelType', async (req, res) => {
     const { userId, funnelType } = req.params;
     const { steps } = req.body;
     const normalizedSteps = buildFunnelJsonSteps(Array.isArray(steps) ? steps : []);
+    const resolvedFunnelAgent = await billingEngine.resolveAgentRecord?.(userId).catch(() => null);
+    const funnelOwnerId = resolvedFunnelAgent?.id || userId;
 
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
       return res.json({ success: true, saved: false });
@@ -926,7 +930,7 @@ app.post('/api/funnels/:userId/:funnelType', async (req, res) => {
     let { data: funnel, error: fetchError } = await supabaseAdmin
       .from('funnels')
       .select('id')
-      .eq('agent_id', userId)
+      .eq('agent_id', funnelOwnerId)
       .eq('funnel_key', funnelType)
       .maybeSingle();
 
@@ -948,7 +952,7 @@ app.post('/api/funnels/:userId/:funnelType', async (req, res) => {
       const { data: newFunnel, error: insertError } = await supabaseAdmin
         .from('funnels')
         .insert({
-          agent_id: userId,
+          agent_id: funnelOwnerId,
           funnel_key: funnelType,
           name: FUNNEL_TITLES[funnelType] || 'Custom Funnel',
           description: 'Customized agent funnel',
@@ -1260,7 +1264,7 @@ app.post('/api/webhooks/email', async (req, res) => {
 });
 
 // Analytics Endpoint for Email Campaigns
-app.get('/api/admin/analytics/email', async (req, res) => {
+app.get('/api/admin/analytics/email', verifyAdmin, async (req, res) => {
   try {
     const { data: events, error } = await supabaseAdmin
       .from('email_events')
@@ -1331,7 +1335,7 @@ const openai = new OpenAI({
 // Supabase (uses env when provided; falls back to client values for dev)
 
 // DEBUG ENDPOINT: Verify Server Configuration
-app.get('/api/admin/debug-config-check', (req, res) => {
+app.get('/api/admin/debug-config-check', verifyAdmin, (req, res) => {
   // Basic obscuration
   const anon = supabaseAnonKey || '';
   const service = supabaseServiceRoleKey || '';
@@ -14036,7 +14040,7 @@ app.post('/api/continue-conversation', async (req, res) => {
     ];
 
     // GET /api/admin/ai-sidekicks/:sidekickId
-    app.get('/api/admin/ai-sidekicks/:sidekickId', async (req, res) => {
+    app.get('/api/admin/ai-sidekicks/:sidekickId', verifyAdmin, async (req, res) => {
       const { sidekickId } = req.params;
       // TODO: Add proper admin auth check here if not already handled by middleware
       // For now, we assume the frontend handles the auth flow and we trust the request context if we were using middleware
@@ -14084,7 +14088,7 @@ app.post('/api/continue-conversation', async (req, res) => {
     });
 
     // POST /api/admin/ai-sidekicks/:sidekickId/system-prompt
-    app.post('/api/admin/ai-sidekicks/:sidekickId/system-prompt', async (req, res) => {
+    app.post('/api/admin/ai-sidekicks/:sidekickId/system-prompt', verifyAdmin, async (req, res) => {
       const { sidekickId } = req.params;
       const { systemPrompt } = req.body;
       const userId = req.headers['x-user-id'];
@@ -14131,7 +14135,7 @@ app.post('/api/continue-conversation', async (req, res) => {
     });
 
     // POST /api/admin/ai-sidekicks/:sidekickId/feedback
-    app.post('/api/admin/ai-sidekicks/:sidekickId/feedback', async (req, res) => {
+    app.post('/api/admin/ai-sidekicks/:sidekickId/feedback', verifyAdmin, async (req, res) => {
       const { sidekickId } = req.params;
       const { feedback, improvement, userMessage, assistantMessage } = req.body;
       const userId = req.headers['x-user-id'];
@@ -14159,7 +14163,7 @@ app.post('/api/continue-conversation', async (req, res) => {
     });
 
     // POST /api/admin/ai-chat
-    app.post('/api/admin/ai-chat', async (req, res) => {
+    app.post('/api/admin/ai-chat', verifyAdmin, async (req, res) => {
       const { message, history, systemPrompt, sidekickId } = req.body;
 
       // SECURITY: Prefer header-based authentication
@@ -14905,7 +14909,7 @@ app.patch('/api/notifications/settings/:userId', async (req, res) => {
 // --- GMAIL INTEGRATION (REMOVED: USING MAILGUN SYSTEM SENDER NOW) ---
 
 // Send email via Gmail
-app.post('/api/admin/email/quick-send', async (req, res) => {
+app.post('/api/admin/email/quick-send', verifyAdmin, async (req, res) => {
   const { to, subject, html, text } = req.body;
   if (!to || !subject || !html) return res.status(400).json({ error: 'Missing required fields' });
   try {
@@ -14959,7 +14963,7 @@ app.post('/api/admin/email/quick-send', async (req, res) => {
 });
 
 // Quick Send SMS Endpoint (Admin/Test)
-app.post('/api/admin/sms/quick-send', async (req, res) => {
+app.post('/api/admin/sms/quick-send', verifyAdmin, async (req, res) => {
   const { to, message, mediaUrls } = req.body;
   if (!to || !message) return res.status(400).json({ error: 'Missing required fields' });
 
@@ -15959,7 +15963,7 @@ app.post('/api/listings', async (req, res) => {
 
 // Add new user endpoint
 // Add new user endpoint (Persist to Supabase Auth & Agents)
-app.post('/api/admin/users', async (req, res) => {
+app.post('/api/admin/users', verifyAdmin, async (req, res) => {
   try {
     const { name, email, role = 'agent', plan = 'Solo Agent' } = req.body;
 
@@ -16039,7 +16043,7 @@ app.post('/api/admin/users', async (req, res) => {
 });
 
 // Update user endpoint
-app.put('/api/admin/users/:userId', async (req, res) => {
+app.put('/api/admin/users/:userId', verifyAdmin, async (req, res) => {
   try {
     const { userId } = req.params;
     const updates = req.body;
@@ -16162,7 +16166,7 @@ const saveBroadcasts = (history) => {
 let broadcastHistory = loadBroadcasts();
 
 // Broadcast message endpoint - REAL DATA & DELIVERY
-app.post('/api/admin/broadcast', async (req, res) => {
+app.post('/api/admin/broadcast', verifyAdmin, async (req, res) => {
   console.log('🚀 [Broadcast] Received broadcast request');
   try {
     const { title, content, messageType, priority, targetAudience } = req.body;
@@ -16268,7 +16272,7 @@ app.post('/api/admin/broadcast', async (req, res) => {
 });
 
 // Get broadcast history endpoint
-app.get('/api/admin/broadcast-history', async (req, res) => {
+app.get('/api/admin/broadcast-history', verifyAdmin, async (req, res) => {
   try {
     // Reload from disk to ensure freshness
     broadcastHistory = loadBroadcasts();
@@ -16289,7 +16293,7 @@ app.get('/api/admin/broadcast-history', async (req, res) => {
 });
 
 // System Performance Metrics endpoint - REAL DATA
-app.get('/api/admin/performance', async (req, res) => {
+app.get('/api/admin/performance', verifyAdmin, async (req, res) => {
   try {
     const performanceMetrics = {
       responseTime: { average: 200, p95: 500, p99: 1000 },
@@ -16313,7 +16317,7 @@ app.get('/api/admin/performance', async (req, res) => {
 });
 
 // Get System Settings endpoint
-app.get('/api/admin/settings', async (req, res) => {
+app.get('/api/admin/settings', verifyAdmin, async (req, res) => {
   try {
     res.json(adminSettings);
   } catch (error) {
@@ -16323,7 +16327,7 @@ app.get('/api/admin/settings', async (req, res) => {
 });
 
 // Update System Settings endpoint
-app.post('/api/admin/settings', async (req, res) => {
+app.post('/api/admin/settings', verifyAdmin, async (req, res) => {
   try {
     const updates = req.body;
     adminSettings = { ...adminSettings, ...updates };
@@ -16341,7 +16345,7 @@ app.post('/api/admin/settings', async (req, res) => {
 });
 
 // Get System Alerts endpoint
-app.get('/api/admin/alerts', async (req, res) => {
+app.get('/api/admin/alerts', verifyAdmin, async (req, res) => {
   try {
     res.json({
       alerts: systemAlerts,
@@ -16359,7 +16363,7 @@ app.get('/api/admin/alerts', async (req, res) => {
 });
 
 // Acknowledge Alert endpoint
-app.post('/api/admin/alerts/:alertId/acknowledge', async (req, res) => {
+app.post('/api/admin/alerts/:alertId/acknowledge', verifyAdmin, async (req, res) => {
   try {
     const { alertId } = req.params;
 
@@ -16383,7 +16387,7 @@ app.post('/api/admin/alerts/:alertId/acknowledge', async (req, res) => {
 });
 
 // Toggle Maintenance Mode endpoint
-app.post('/api/admin/maintenance', async (req, res) => {
+app.post('/api/admin/maintenance', verifyAdmin, async (req, res) => {
   try {
     const { enabled } = req.body;
 
@@ -16415,7 +16419,7 @@ app.post('/api/admin/maintenance', async (req, res) => {
 });
 
 // Get AI Model Settings endpoint
-app.get('/api/admin/ai-model', async (req, res) => {
+app.get('/api/admin/ai-model', verifyAdmin, async (req, res) => {
   try {
     const aiSettings = {
       currentModel: 'gpt-5',
@@ -16472,7 +16476,7 @@ app.get('/api/admin/ai-model', async (req, res) => {
 
 
 // Admin Listings Endpoints
-app.get('/api/admin/listings', async (req, res) => {
+app.get('/api/admin/listings', verifyAdmin, async (req, res) => {
   console.log('🔍 GET /api/admin/listings hit');
   try {
     const { data, error } = await supabaseAdmin
@@ -16525,7 +16529,7 @@ app.get('/api/admin/listings', async (req, res) => {
   }
 });
 
-app.post('/api/admin/listings', async (req, res) => {
+app.post('/api/admin/listings', verifyAdmin, async (req, res) => {
   try {
     const { address, price, status, property_type } = req.body;
     const ownerId = req.user?.id || req.body?.user_id || req.body?.userId || DEFAULT_LEAD_USER_ID;
@@ -16563,7 +16567,7 @@ app.post('/api/admin/listings', async (req, res) => {
   }
 });
 
-app.delete('/api/admin/listings/:id', async (req, res) => {
+app.delete('/api/admin/listings/:id', verifyAdmin, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -16586,7 +16590,7 @@ app.delete('/api/admin/listings/:id', async (req, res) => {
   }
 });
 
-app.post('/api/admin/listings/:id/generate-summary', async (req, res) => {
+app.post('/api/admin/listings/:id/generate-summary', verifyAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     // Mock AI generation for now to save tokens/complexity, or hook up to OpenAI if requested
@@ -16610,7 +16614,7 @@ app.post('/api/admin/listings/:id/generate-summary', async (req, res) => {
 });
 
 // Update AI Model endpoint
-app.post('/api/admin/ai-model', async (req, res) => {
+app.post('/api/admin/ai-model', verifyAdmin, async (req, res) => {
   try {
     const { model } = req.body;
     console.log('Updating AI model to:', model);
@@ -16636,7 +16640,7 @@ app.post('/api/admin/ai-model', async (req, res) => {
 // ===== LEADS API ENDPOINTS =====
 
 // Get all leads
-app.get('/api/admin/leads', async (req, res) => {
+app.get('/api/admin/leads', verifyAdmin, async (req, res) => {
   try {
     const { status, search } = req.query;
     // await refreshLeadsCache(true); // Removed memory cache dependency
@@ -17148,7 +17152,7 @@ app.post('/api/webhooks/textbelt/inbound', async (req, res) => {
 });
 
 // Create new lead
-app.post('/api/admin/leads', async (req, res) => {
+app.post('/api/admin/leads', verifyAdmin, async (req, res) => {
   try {
     const { name, email, phone, status, source, notes, lastMessage, propertyInterest, budget, timeline } =
       req.body || {};
@@ -17388,7 +17392,7 @@ app.post('/api/admin/leads', async (req, res) => {
 });
 
 // Update lead
-app.put('/api/admin/leads/:leadId', async (req, res) => {
+app.put('/api/admin/leads/:leadId', verifyAdmin, async (req, res) => {
   try {
     const { leadId } = req.params;
     const updates = req.body || {};
@@ -17461,7 +17465,7 @@ app.put('/api/admin/leads/:leadId', async (req, res) => {
 });
 
 // Delete lead
-app.delete('/api/admin/leads/:leadId', async (req, res) => {
+app.delete('/api/admin/leads/:leadId', verifyAdmin, async (req, res) => {
   try {
     const { leadId } = req.params;
     if (!leadId) {
@@ -17534,7 +17538,7 @@ app.delete('/api/admin/leads/:leadId', async (req, res) => {
 });
 
 // Get lead statistics
-app.get('/api/admin/leads/stats', async (req, res) => {
+app.get('/api/admin/leads/stats', verifyAdmin, async (req, res) => {
   try {
     await refreshLeadsCache(true);
 
@@ -17564,7 +17568,7 @@ app.get('/api/admin/leads/stats', async (req, res) => {
 });
 
 // Lead phone logs
-app.get('/api/admin/leads/:leadId/phone-logs', async (req, res) => {
+app.get('/api/admin/leads/:leadId/phone-logs', verifyAdmin, async (req, res) => {
   try {
     const { leadId } = req.params;
     if (!leadId) {
@@ -17588,7 +17592,7 @@ app.get('/api/admin/leads/:leadId/phone-logs', async (req, res) => {
   }
 });
 
-app.post('/api/admin/leads/:leadId/phone-logs', async (req, res) => {
+app.post('/api/admin/leads/:leadId/phone-logs', verifyAdmin, async (req, res) => {
   try {
     const { leadId } = req.params;
     if (!leadId) {
@@ -17625,7 +17629,7 @@ app.post('/api/admin/leads/:leadId/phone-logs', async (req, res) => {
 // ===== BULK IMPORT ENDPOINT =====
 // [STRIPPED DOWN] Emergency Import Endpoint
 // Ignores complex logic (funnel checks, tags, etc) to ensure raw data gets in.
-app.post('/api/admin/leads/import', async (req, res) => {
+app.post('/api/admin/leads/import', verifyAdmin, async (req, res) => {
   console.log('🚀 [BACKEND] Received Import Request (Stripped Version)');
 
   try {
@@ -24981,7 +24985,7 @@ app.get('/api/dashboard/roi-metrics', async (req, res) => {
 // Marketing API endpoints
 
 // Get all follow-up sequences
-app.get('/api/admin/marketing/sequences', async (req, res) => {
+app.get('/api/admin/marketing/sequences', verifyAdmin, async (req, res) => {
   try {
     const ownerId = resolveMarketingOwnerId(req);
     const storedSequences = await marketingStore.loadSequences(ownerId);
@@ -25000,11 +25004,11 @@ app.get('/api/admin/marketing/sequences', async (req, res) => {
 });
 
 // Admin analytics: funnel summary/performance/calendar (admin-only mock)
-app.get('/api/admin/analytics/funnel-summary', (_req, res) => {
+app.get('/api/admin/analytics/funnel-summary', verifyAdmin, (_req, res) => {
   res.json(adminFunnelAnalytics.summary);
 });
 
-app.get('/api/admin/analytics/funnel-performance', (_req, res) => {
+app.get('/api/admin/analytics/funnel-performance', verifyAdmin, (_req, res) => {
   res.json(adminFunnelAnalytics.performance);
 });
 
@@ -25016,12 +25020,12 @@ app.get('/api/blueprint/leads', require('./api/blueprint_leads')); // NEW: Bluep
 
 // React routing handler moved to end of file to prevent masking API routes
 
-app.get('/api/admin/analytics/funnel-calendar', (_req, res) => {
+app.get('/api/admin/analytics/funnel-calendar', verifyAdmin, (_req, res) => {
   res.json(adminFunnelAnalytics.calendar);
 });
 
 // Admin command center endpoints (health, security, support, metrics)
-app.get('/api/admin/system/health', (_req, res) => {
+app.get('/api/admin/system/health', verifyAdmin, (_req, res) => {
   const { totalApiCalls, failedApiCalls, totalResponseTimeMs, startTime, recentFailures } = adminCommandCenter.health;
   const avgResponseTimeMs = totalApiCalls > 0 ? Math.round(totalResponseTimeMs / totalApiCalls) : 0;
   const uptimeSeconds = Math.floor((Date.now() - startTime) / 1000); // Process uptime
@@ -25045,7 +25049,7 @@ app.get('/api/admin/system/health', (_req, res) => {
   });
 });
 
-app.get('/api/admin/security/monitor', async (_req, res) => {
+app.get('/api/admin/security/monitor', verifyAdmin, async (_req, res) => {
   try {
     const openRisks = [];
 
@@ -25074,7 +25078,7 @@ app.get('/api/admin/security/monitor', async (_req, res) => {
   }
 });
 
-app.get('/api/admin/support/summary', async (_req, res) => {
+app.get('/api/admin/support/summary', verifyAdmin, async (_req, res) => {
   try {
     // 1. New Leads
     const { count: newLeadsCount } = await supabaseAdmin
@@ -25104,7 +25108,7 @@ app.get('/api/admin/support/summary', async (_req, res) => {
   }
 });
 
-app.get('/api/admin/analytics/overview', async (req, res) => {
+app.get('/api/admin/analytics/overview', verifyAdmin, async (req, res) => {
   try {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -25582,9 +25586,9 @@ app.post('/api/ai/generate-listing', async (req, res) => {
 
 // Admin settings: billing
 // Admin settings: billing
-app.get('/api/admin/billing', async (req, res) => {
+app.get('/api/admin/billing', verifyAdmin, async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'];
+    const userId = req.headers['x-user-id'] || req.user?.id;
     // Fallback: If no user ID, try to get the first admin or default?? 
     // For now, if no ID, return empty or error.
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
@@ -25592,7 +25596,7 @@ app.get('/api/admin/billing', async (req, res) => {
     const { data: agent, error } = await supabaseAdmin
       .from('agents')
       .select('plan, subscription_status, current_period_end, stripe_customer_id')
-      .eq('id', userId)
+      .or(`id.eq.${userId},auth_user_id.eq.${userId}`)
       .single();
 
     if (error || !agent) {
@@ -25611,7 +25615,7 @@ app.get('/api/admin/billing', async (req, res) => {
   }
 });
 
-app.get('/api/admin/users/billing', async (req, res) => {
+app.get('/api/admin/users/billing', verifyAdmin, async (req, res) => {
   try {
     // List all agents who have a subscription
     const { data: agents, error } = await supabaseAdmin
@@ -25637,12 +25641,12 @@ app.get('/api/admin/users/billing', async (req, res) => {
   }
 });
 
-app.get('/api/admin/billing/invoices', async (req, res) => {
+app.get('/api/admin/billing/invoices', verifyAdmin, async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'];
+    const userId = req.headers['x-user-id'] || req.user?.id;
     if (!userId) return res.json([]);
 
-    const { data: agent } = await supabaseAdmin.from('agents').select('stripe_customer_id').eq('id', userId).single();
+    const { data: agent } = await supabaseAdmin.from('agents').select('stripe_customer_id').or(`id.eq.${userId},auth_user_id.eq.${userId}`).single();
     if (!agent?.stripe_customer_id) return res.json([]);
 
     const invoices = await stripe.invoices.list({
@@ -25665,7 +25669,7 @@ app.get('/api/admin/billing/invoices', async (req, res) => {
   }
 });
 
-app.post('/api/admin/billing/cancel-alert', async (req, res) => {
+app.post('/api/admin/billing/cancel-alert', verifyAdmin, async (req, res) => {
   const { email } = req.body || {};
 
   // Real Notification to Admin
@@ -25682,7 +25686,7 @@ app.post('/api/admin/billing/cancel-alert', async (req, res) => {
   res.json({ success: true });
 });
 
-app.post('/api/admin/billing/send-reminder', async (req, res) => {
+app.post('/api/admin/billing/send-reminder', verifyAdmin, async (req, res) => {
   const { email } = req.body || {};
 
   if (email) {
@@ -25697,14 +25701,14 @@ app.post('/api/admin/billing/send-reminder', async (req, res) => {
   res.json({ success: true, email, sentAt: new Date().toISOString() });
 });
 
-app.post('/api/admin/billing/update-card', async (req, res) => {
+app.post('/api/admin/billing/update-card', verifyAdmin, async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'];
+    const userId = req.headers['x-user-id'] || req.user?.id;
     const returnUrl = req.body.returnUrl || `${process.env.APP_BASE_URL}/admin/settings`;
 
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-    const { data: agent } = await supabaseAdmin.from('agents').select('stripe_customer_id').eq('id', userId).single();
+    const { data: agent } = await supabaseAdmin.from('agents').select('stripe_customer_id').or(`id.eq.${userId},auth_user_id.eq.${userId}`).single();
     if (!agent?.stripe_customer_id) return res.status(400).json({ error: 'No billing account found' });
 
     const session = await stripe.billingPortal.sessions.create({
@@ -25719,7 +25723,7 @@ app.post('/api/admin/billing/update-card', async (req, res) => {
   }
 });
 
-app.post('/api/admin/billing/download-invoice', async (req, res) => {
+app.post('/api/admin/billing/download-invoice', verifyAdmin, async (req, res) => {
   // This is redundant if we use the invoice list URLs, but kept for compat
   // If they ask for a specific ID, we can retrieve it
   try {
@@ -25733,7 +25737,7 @@ app.post('/api/admin/billing/download-invoice', async (req, res) => {
 
 
 // Admin settings: coupons
-app.get('/api/admin/coupons', async (_req, res) => {
+app.get('/api/admin/coupons', verifyAdmin, async (_req, res) => {
   try {
     const { data, error } = await supabaseAdmin.from('coupons').select('*').order('created_at', { ascending: false });
     if (error) {
@@ -25747,7 +25751,7 @@ app.get('/api/admin/coupons', async (_req, res) => {
   }
 });
 
-app.post('/api/admin/coupons', async (req, res) => {
+app.post('/api/admin/coupons', verifyAdmin, async (req, res) => {
   try {
     const { code, discount_type, amount, duration, usage_limit, expires_at } = req.body;
 
@@ -25817,7 +25821,7 @@ app.post('/api/admin/coupons', async (req, res) => {
   }
 });
 
-app.delete('/api/admin/coupons/:id', async (req, res) => {
+app.delete('/api/admin/coupons/:id', verifyAdmin, async (req, res) => {
   try {
     const { error } = await supabaseAdmin.from('coupons').delete().eq('id', req.params.id);
     if (error) throw error;
@@ -25829,12 +25833,12 @@ app.delete('/api/admin/coupons/:id', async (req, res) => {
 });
 
 // Admin settings: security
-app.get('/api/admin/security', async (req, res) => {
+app.get('/api/admin/security', verifyAdmin, async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'];
+    const userId = req.headers['x-user-id'] || req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-    const { data: agent } = await supabaseAdmin.from('agents').select('metadata').eq('id', userId).single();
+    const { data: agent } = await supabaseAdmin.from('agents').select('metadata').or(`id.eq.${userId},auth_user_id.eq.${userId}`).single();
     const metadata = agent?.metadata || {};
 
     res.json({
@@ -25850,27 +25854,27 @@ app.get('/api/admin/security', async (req, res) => {
   }
 });
 
-app.post('/api/admin/security/password', (_req, res) => {
+app.post('/api/admin/security/password', verifyAdmin, (_req, res) => {
   // Passwords handled by Supabase Auth (client SDK updates it)
   // This endpoint is just a placeholder if the UI calls it directly, 
   // but usually UI uses supabase.auth.updateUser()
   res.json({ success: true, message: 'Please change password via Profile settings.' });
 });
 
-app.post('/api/admin/security/2fa', async (req, res) => {
+app.post('/api/admin/security/2fa', verifyAdmin, async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'];
+    const userId = req.headers['x-user-id'] || req.user?.id;
     const { enabled } = req.body || {};
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
     // 1. Get current metadata
-    const { data: agent } = await supabaseAdmin.from('agents').select('metadata').eq('id', userId).single();
+    const { data: agent } = await supabaseAdmin.from('agents').select('id, metadata').or(`id.eq.${userId},auth_user_id.eq.${userId}`).single();
     const metadata = agent?.metadata || {};
 
     // 2. Update
     metadata.two_factor_enabled = Boolean(enabled);
 
-    const { error } = await supabaseAdmin.from('agents').update({ metadata }).eq('id', userId);
+    const { error } = await supabaseAdmin.from('agents').update({ metadata }).eq('id', agent?.id || userId);
     if (error) throw error;
 
     res.json({ success: true, twoFactorEnabled: metadata.two_factor_enabled });
@@ -25880,25 +25884,25 @@ app.post('/api/admin/security/2fa', async (req, res) => {
   }
 });
 
-app.get('/api/admin/security/api-keys', async (req, res) => {
+app.get('/api/admin/security/api-keys', verifyAdmin, async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'];
+    const userId = req.headers['x-user-id'] || req.user?.id;
     if (!userId) return res.json({ keys: [] });
 
-    const { data: agent } = await supabaseAdmin.from('agents').select('metadata').eq('id', userId).single();
+    const { data: agent } = await supabaseAdmin.from('agents').select('metadata').or(`id.eq.${userId},auth_user_id.eq.${userId}`).single();
     res.json({ keys: agent?.metadata?.api_keys || [] });
   } catch (err) {
     res.json({ keys: [] });
   }
 });
 
-app.post('/api/admin/security/api-keys', async (req, res) => {
+app.post('/api/admin/security/api-keys', verifyAdmin, async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'];
+    const userId = req.headers['x-user-id'] || req.user?.id;
     const { scope } = req.body || {};
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-    const { data: agent } = await supabaseAdmin.from('agents').select('metadata').eq('id', userId).single();
+    const { data: agent } = await supabaseAdmin.from('agents').select('id, metadata').or(`id.eq.${userId},auth_user_id.eq.${userId}`).single();
     const metadata = agent?.metadata || {};
     const keys = metadata.api_keys || [];
 
@@ -25919,7 +25923,7 @@ app.post('/api/admin/security/api-keys', async (req, res) => {
     logs.unshift({ id: `log-${Date.now()}`, event: `Generated API Key (${scope})`, ip: 'N/A', at: new Date().toISOString() });
     metadata.activity_logs = logs.slice(0, 20);
 
-    await supabaseAdmin.from('agents').update({ metadata }).eq('id', userId);
+    await supabaseAdmin.from('agents').update({ metadata }).eq('id', agent?.id || userId);
 
     res.json({ success: true, keys: newKeys });
   } catch (err) {
@@ -25929,10 +25933,10 @@ app.post('/api/admin/security/api-keys', async (req, res) => {
 });
 
 // Admin settings: system config
-app.get('/api/admin/system-settings', async (req, res) => {
+app.get('/api/admin/system-settings', verifyAdmin, async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'];
-    const { data: agent } = await supabaseAdmin.from('agents').select('metadata').eq('id', userId).single();
+    const userId = req.headers['x-user-id'] || req.user?.id;
+    const { data: agent } = await supabaseAdmin.from('agents').select('metadata').or(`id.eq.${userId},auth_user_id.eq.${userId}`).single();
     // Default config if not present
     const defaultConfig = {
       appName: 'HomeListingAI (Admin)',
@@ -25952,18 +25956,18 @@ app.get('/api/admin/system-settings', async (req, res) => {
   }
 });
 
-app.put('/api/admin/system-settings', async (req, res) => {
+app.put('/api/admin/system-settings', verifyAdmin, async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'];
+    const userId = req.headers['x-user-id'] || req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-    const { data: agent } = await supabaseAdmin.from('agents').select('metadata').eq('id', userId).single();
+    const { data: agent } = await supabaseAdmin.from('agents').select('id, metadata').or(`id.eq.${userId},auth_user_id.eq.${userId}`).single();
     const metadata = agent?.metadata || {};
 
     // Update config
     metadata.system_config = { ...(metadata.system_config || {}), ...(req.body || {}) };
 
-    const { error } = await supabaseAdmin.from('agents').update({ metadata }).eq('id', userId);
+    const { error } = await supabaseAdmin.from('agents').update({ metadata }).eq('id', agent?.id || userId);
     if (error) throw error;
 
     res.json({ success: true, settings: metadata.system_config });
@@ -26318,7 +26322,7 @@ app.post('/api/blueprint/ai-sidekicks/:id/feedback', async (req, res) => {
 
 
 // Create new follow-up sequence
-app.post('/api/admin/marketing/sequences', async (req, res) => {
+app.post('/api/admin/marketing/sequences', verifyAdmin, async (req, res) => {
   try {
     const ownerId = resolveMarketingOwnerId(req);
     const newSequence = {
@@ -26460,7 +26464,7 @@ app.post('/api/leads/public', async (req, res) => {
 
 
 
-app.get('/api/admin/call-bots', async (req, res) => {
+app.get('/api/admin/call-bots', verifyAdmin, async (req, res) => {
   try {
     const { userId, includeInactive } = req.query || {};
     if (!userId) return res.status(400).json({ error: 'Missing "userId" query param' });
@@ -26474,7 +26478,7 @@ app.get('/api/admin/call-bots', async (req, res) => {
   }
 });
 
-app.post('/api/admin/call-bots', async (req, res) => {
+app.post('/api/admin/call-bots', verifyAdmin, async (req, res) => {
   try {
     const { userId, name, key, description, configId, isActive, isDefault } = req.body || {};
     if (!userId) return res.status(400).json({ error: 'Missing "userId"' });
@@ -26488,7 +26492,7 @@ app.post('/api/admin/call-bots', async (req, res) => {
   }
 });
 
-app.put('/api/admin/call-bots/:botId', async (req, res) => {
+app.put('/api/admin/call-bots/:botId', verifyAdmin, async (req, res) => {
   try {
     const { botId } = req.params;
     const { userId, name, key, description, configId, isActive, isDefault } = req.body || {};
@@ -26503,7 +26507,7 @@ app.put('/api/admin/call-bots/:botId', async (req, res) => {
   }
 });
 
-app.delete('/api/admin/call-bots/:botId', async (req, res) => {
+app.delete('/api/admin/call-bots/:botId', verifyAdmin, async (req, res) => {
   try {
     const { botId } = req.params;
     const userId = (req.body && req.body.userId) || req.query?.userId;
@@ -26518,7 +26522,7 @@ app.delete('/api/admin/call-bots/:botId', async (req, res) => {
   }
 });
 
-app.post('/api/admin/voice/quick-send', async (req, res) => {
+app.post('/api/admin/voice/quick-send', verifyAdmin, async (req, res) => {
   try {
     const { to, assistantKey, botType, configId, humeConfigId, userId } = req.body || {};
     if (!to) return res.status(400).json({ error: 'Missing "to" phone number' });
@@ -26622,7 +26626,7 @@ app.patch('/api/notifications/preferences/:userId', async (req, res) => {
 
 // Get single follow-up sequence
 // Get single follow-up sequence
-app.get('/api/admin/marketing/sequences/:sequenceId', async (req, res) => {
+app.get('/api/admin/marketing/sequences/:sequenceId', verifyAdmin, async (req, res) => {
   try {
     const ownerId = resolveMarketingOwnerId(req);
     const { sequenceId } = req.params;
@@ -26712,7 +26716,7 @@ app.get('/api/admin/marketing/sequences/:sequenceId', async (req, res) => {
 });
 
 // Update follow-up sequence
-app.put('/api/admin/marketing/sequences/:sequenceId', async (req, res) => {
+app.put('/api/admin/marketing/sequences/:sequenceId', verifyAdmin, async (req, res) => {
   try {
     const ownerId = resolveMarketingOwnerId(req);
     console.log(`[Marketing-PUT] Owner: ${ownerId}, Sequence: ${req.params.sequenceId}`);
@@ -26817,7 +26821,7 @@ app.put('/api/admin/marketing/sequences/:sequenceId', async (req, res) => {
 });
 
 // Delete follow-up sequence
-app.delete('/api/admin/marketing/sequences/:sequenceId', async (req, res) => {
+app.delete('/api/admin/marketing/sequences/:sequenceId', verifyAdmin, async (req, res) => {
   try {
     const ownerId = resolveMarketingOwnerId(req);
     const { sequenceId } = req.params;
@@ -26848,7 +26852,7 @@ app.delete('/api/admin/marketing/sequences/:sequenceId', async (req, res) => {
 });
 
 // Get active follow-ups
-app.get('/api/admin/marketing/active-followups', async (req, res) => {
+app.get('/api/admin/marketing/active-followups', verifyAdmin, async (req, res) => {
   try {
     const ownerId = resolveMarketingOwnerId(req);
     const storedFollowUps = await marketingStore.loadActiveFollowUps(ownerId);
@@ -26891,7 +26895,7 @@ app.get('/api/admin/marketing/active-followups', async (req, res) => {
 });
 
 // Update follow-up status
-app.put('/api/admin/marketing/active-followups/:followUpId', async (req, res) => {
+app.put('/api/admin/marketing/active-followups/:followUpId', verifyAdmin, async (req, res) => {
   try {
     const ownerId = resolveMarketingOwnerId(req);
     const { followUpId } = req.params;
@@ -26933,7 +26937,7 @@ app.put('/api/admin/marketing/active-followups/:followUpId', async (req, res) =>
 });
 
 // Create new follow-up (enroll lead in sequence)
-app.post('/api/admin/marketing/active-followups', async (req, res) => {
+app.post('/api/admin/marketing/active-followups', verifyAdmin, async (req, res) => {
   try {
     const ownerId = resolveMarketingOwnerId(req);
     const { leadId, sequenceId } = req.body;
@@ -26989,7 +26993,7 @@ app.post('/api/admin/marketing/active-followups', async (req, res) => {
 });
 
 // Get QR codes
-app.get('/api/admin/marketing/qr-codes', (req, res) => {
+app.get('/api/admin/marketing/qr-codes', verifyAdmin, (req, res) => {
   try {
     res.json({
       success: true,
@@ -27002,7 +27006,7 @@ app.get('/api/admin/marketing/qr-codes', (req, res) => {
 });
 
 // Create new QR code
-app.post('/api/admin/marketing/qr-codes', (req, res) => {
+app.post('/api/admin/marketing/qr-codes', verifyAdmin, (req, res) => {
   try {
     const newQRCode = {
       id: Date.now().toString(),
@@ -27025,7 +27029,7 @@ app.post('/api/admin/marketing/qr-codes', (req, res) => {
 });
 
 // Update QR code
-app.put('/api/admin/marketing/qr-codes/:qrCodeId', (req, res) => {
+app.put('/api/admin/marketing/qr-codes/:qrCodeId', verifyAdmin, (req, res) => {
   try {
     const { qrCodeId } = req.params;
     const updates = req.body;
@@ -27052,7 +27056,7 @@ app.put('/api/admin/marketing/qr-codes/:qrCodeId', (req, res) => {
 });
 
 // Delete QR code
-app.delete('/api/admin/marketing/qr-codes/:qrCodeId', (req, res) => {
+app.delete('/api/admin/marketing/qr-codes/:qrCodeId', verifyAdmin, (req, res) => {
   try {
     const { qrCodeId } = req.params;
 
@@ -29762,7 +29766,7 @@ app.delete('/api/appointments/:appointmentId', async (req, res) => {
 });
 
 // Admin: List all appointments
-app.get('/api/admin/appointments', async (req, res) => {
+app.get('/api/admin/appointments', verifyAdmin, async (req, res) => {
   try {
     // SECURITY: Verify Request
     const authHeader = req.headers.authorization;
@@ -29808,18 +29812,18 @@ app.get('/api/admin/appointments', async (req, res) => {
 });
 
 // Admin: CRUD Aliases (to ensure consistency with Admin Service)
-app.post('/api/admin/appointments', (req, res) => {
+app.post('/api/admin/appointments', verifyAdmin, (req, res) => {
   console.log('🔄 Routing Admin Create Appointment to Main Handler');
   return app._router.handle(Object.assign(req, { url: '/api/appointments' }), res, () => { });
 });
 
-app.put('/api/admin/appointments/:appointmentId', (req, res) => {
+app.put('/api/admin/appointments/:appointmentId', verifyAdmin, (req, res) => {
   const { appointmentId } = req.params;
   console.log(`🔄 Routing Admin Update Appointment ${appointmentId} to Main Handler`);
   return app._router.handle(Object.assign(req, { url: `/api/appointments/${appointmentId}` }), res, () => { });
 });
 
-app.delete('/api/admin/appointments/:appointmentId', (req, res) => {
+app.delete('/api/admin/appointments/:appointmentId', verifyAdmin, (req, res) => {
   const { appointmentId } = req.params;
   console.log(`🔄 Routing Admin Delete Appointment ${appointmentId} to Main Handler`);
   return app._router.handle(Object.assign(req, { url: `/api/appointments/${appointmentId}` }), res, () => { });
@@ -30677,7 +30681,7 @@ app.put('/api/properties/:id', async (req, res) => {
 })
 
 // Admin Setup Endpoint (Local Replacement for Cloud Function)
-app.post('/api/admin/setup', async (req, res) => {
+app.post('/api/admin/setup', verifyAdmin, async (req, res) => {
   try {
     const { email, password } = req.body;
 

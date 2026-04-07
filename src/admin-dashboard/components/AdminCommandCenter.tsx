@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { getEnvVar } from '../../lib/env'
 import { CampaignStatsWidget } from './CampaignStatsWidget'
 import { AuthService } from '../../services/authService'
@@ -109,6 +110,7 @@ const Badge: React.FC<{ tone?: 'success' | 'warn' | 'error' | 'neutral'; childre
 
 
 const AdminCommandCenter: React.FC = () => {
+  const navigate = useNavigate()
   const apiBase = useMemo(() => {
     const base = getEnvVar('VITE_API_BASE_URL') || ''
     return base.replace(/\/$/, '')
@@ -267,10 +269,10 @@ const AdminCommandCenter: React.FC = () => {
             <p className='text-sm text-slate-500'>Lead & appointment KPIs</p>
           </div>
           <div className='flex gap-2 text-xs text-slate-500'>
-            <a className='text-blue-600 hover:underline' href='#/admin-dashboard?tab=leads'>Leads</a>
-            <span>·</span>
-            <a className='text-blue-600 hover:underline' href='#/admin-dashboard?tab=appointments'>Appointments</a>
-          </div>
+              <button type='button' className='text-blue-600 hover:underline' onClick={() => navigate('/admin/leads')}>Leads</button>
+              <span>·</span>
+              <button type='button' className='text-blue-600 hover:underline' onClick={() => navigate('/admin/leads')}>Appointments</button>
+            </div>
         </div>
         <div className='grid grid-cols-1 sm:grid-cols-4 gap-3'>
           <Card title='Leads Today' value={metrics?.leadsToday ?? 0} />
@@ -286,7 +288,7 @@ const AdminCommandCenter: React.FC = () => {
         <div className='mt-3'>
           <div className='flex items-center justify-between mb-2'>
             <h4 className='text-sm font-semibold text-slate-800'>Recent Leads</h4>
-            <a className='text-xs text-blue-600 hover:underline' href='#/admin-dashboard?tab=leads'>View all</a>
+            <button type='button' className='text-xs text-blue-600 hover:underline' onClick={() => navigate('/admin/leads')}>View all</button>
           </div>
           <div className='space-y-2'>
             {metrics?.recentLeads?.map((lead) => (

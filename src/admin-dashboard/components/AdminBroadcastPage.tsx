@@ -8,7 +8,7 @@ const AdminBroadcastPage: React.FC = () => {
     const [content, setContent] = useState('');
     const [type, setType] = useState<BroadcastMessage['messageType']>('Feature');
     const [priority, setPriority] = useState<BroadcastMessage['priority']>('medium');
-    const [audience, setAudience] = useState<'all' | 'active' | 'demo'>('all');
+    const [audience, setAudience] = useState<'all' | 'active'>('all');
 
     const [isSending, setIsSending] = useState(false);
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -48,15 +48,10 @@ const AdminBroadcastPage: React.FC = () => {
 
             if (audience === 'all') {
                 targetUserIds = users.map(u => u.auth_user_id || u.id);
-            } else if (audience === 'demo') {
-                // Filter for demo users if we had a way to distinguish them easily in this list, 
-                // but for now we'll just target explicit demo IDs or assume the list contains them.
-                // Ideally, we'd filter by a 'is_demo' flag if available. 
-                // For this implementation, 'demo' might just target the current known demo IDs or themselves.
-                targetUserIds = ['demo-user', 'blueprint-agent'];
             } else {
-                // Active users logic could go here
-                targetUserIds = users.map(u => u.auth_user_id || u.id);
+                targetUserIds = users
+                    .filter(u => String((u as { status?: string }).status || '').toLowerCase() === 'active')
+                    .map(u => u.auth_user_id || u.id);
             }
 
             if (targetUserIds.length === 0) {
@@ -170,15 +165,16 @@ const AdminBroadcastPage: React.FC = () => {
                                     <div className="flex items-center gap-3">
                                         <select
                                             value={audience}
-                                            onChange={(e) => setAudience(e.target.value as 'all' | 'active' | 'demo')}
+                                            onChange={(e) => setAudience(e.target.value as 'all' | 'active')}
                                             className="bg-white border border-slate-300 text-slate-700 text-sm rounded-md focus:ring-blue-500 focus:border-blue-500 block p-2"
                                         >
                                             <option value="all">All Users</option>
                                             <option value="active">Active Users Only</option>
-                                            <option value="demo">Demo / Test</option>
                                         </select>
                                         <span className="text-sm text-slate-500">
-                                            Est. Reach: <strong>{audience === 'demo' ? 2 : userCount} users</strong>
+                                            Est. Reach: <strong>{audience === 'active'
+                                                ? users.filter(u => String((u as { status?: string }).status || '').toLowerCase() === 'active').length
+                                                : userCount} users</strong>
                                         </span>
                                     </div>
                                 </div>
