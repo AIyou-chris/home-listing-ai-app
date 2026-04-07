@@ -65,12 +65,10 @@ const AdminDashboardSidebar: React.FC<AdminDashboardSidebarProps> = ({ activeVie
   const navItems = [
     { view: 'dashboard', icon: 'home', label: 'Admin Overview' },
     { view: 'leads', icon: 'groups', label: 'Leads & Appointments' },
-    { view: 'ai-card', icon: 'badge', label: 'AI Card' },
     { view: 'ai-conversations', icon: 'chat_bubble', label: 'AI Conversations' },
     { view: 'listings', icon: 'storefront', label: 'AI Listings' },
     { view: 'knowledge-base', icon: 'smart_toy', label: 'AI Sidekicks' },
     { view: 'marketing-funnels', icon: 'campaign', label: 'Marketing Funnels' },
-    { view: 'marketing-reports', icon: 'analytics', label: 'Marketing Reports' },
     { view: 'broadcast', icon: 'podium', label: 'Broadcasts' },
     { view: 'users', icon: 'people', label: 'Users' },
     { view: 'blog', icon: 'article', label: 'Blog' },
