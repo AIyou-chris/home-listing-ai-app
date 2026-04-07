@@ -16872,6 +16872,12 @@ const processInboundSmsMessage = async ({
     return { processed: true, ignored: true, reason: 'lead_not_found' };
   }
 
+  const resolvedAgent = await billingEngine.resolveAgentRecord?.(lead.agent_id || lead.user_id).catch(() => null);
+  const resolvedAgentId = resolvedAgent?.id || lead.agent_id || lead.user_id || null;
+  if (!resolvedAgentId) {
+    return { processed: true, ignored: true, reason: 'agent_not_available' };
+  }
+
   const { data: conversations } = await supabaseAdmin
     .from('ai_conversations')
     .select('id')
@@ -16884,7 +16890,7 @@ const processInboundSmsMessage = async ({
     const { data: newConv, error: newConvError } = await supabaseAdmin
       .from('ai_conversations')
       .insert({
-        user_id: lead.user_id,
+        user_id: resolvedAgentId,
         lead_id: lead.id,
         title: `SMS with ${lead.name}`,
         type: 'chat',
@@ -16907,7 +16913,7 @@ const processInboundSmsMessage = async ({
 
   await supabaseAdmin.from('ai_conversation_messages').insert({
     conversation_id: conversationId,
-    user_id: lead.user_id,
+    user_id: resolvedAgentId,
     sender: 'lead',
     channel: 'sms',
     content: textBody,
@@ -16925,7 +16931,7 @@ const processInboundSmsMessage = async ({
     .catch(err => console.error('Failed to score inbound SMS:', err));
 
   try {
-    const userId = lead.user_id;
+    const userId = resolvedAgentId;
     const { data: store } = await supabaseAdmin.from('follow_up_active_store').select('*').eq('user_id', userId).single();
     let followUps = store ? store.follow_ups : [];
     let wasUpdated = false;
@@ -16963,7 +16969,7 @@ const processInboundSmsMessage = async ({
     payload: {
       kind: 'lead_action_notification',
       lead_id: lead.id,
-      agent_id: lead.user_id,
+      agent_id: resolvedAgentId,
       text_body: textBody,
       conversation_id: conversationId
     },
@@ -16974,7 +16980,7 @@ const processInboundSmsMessage = async ({
   });
 
   await recordOutboundAttempt({
-    agentId: lead.user_id,
+    agentId: resolvedAgentId,
     leadId: lead.id,
     channel: 'email',
     provider: 'mailgun',
@@ -16986,7 +16992,7 @@ const processInboundSmsMessage = async ({
     }
   });
 
-  const shouldAutoReply = await shouldSendNotification(lead.user_id, 'sms', 'aiInteraction');
+  const shouldAutoReply = await shouldSendNotification(resolvedAgentId, 'sms', 'aiInteraction');
   if (shouldAutoReply && String(lead.status || '').toLowerCase() !== 'unsubscribed') {
     const { data: history } = await supabaseAdmin
       .from('ai_conversation_messages')
@@ -17003,7 +17009,7 @@ const processInboundSmsMessage = async ({
         to_phone: normalizedFromPhone,
         text: aiResponse,
         lead_id: lead.id,
-        agent_id: lead.user_id,
+        agent_id: resolvedAgentId,
         conversation_id: conversationId
       };
       await enqueueJob({
@@ -17016,7 +17022,7 @@ const processInboundSmsMessage = async ({
       });
 
       await recordOutboundAttempt({
-        agentId: lead.user_id,
+        agentId: resolvedAgentId,
         leadId: lead.id,
         channel: 'sms',
         provider: getSmsProviderName(),
