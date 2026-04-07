@@ -11,6 +11,7 @@ type HealthResponse = {
   failedApiCalls: number
   avgResponseTimeMs: number
   uptimePercent: number
+  uptimeSeconds?: number
   lastChecked: string
   alerts?: Array<{ type: string; message: string }>
   recentFailures?: Array<{ id: string; timestamp: string; method: string; path: string; statusCode: number; error: unknown }>
@@ -18,7 +19,7 @@ type HealthResponse = {
 
 type SecurityResponse = {
   openRisks: string[]
-  lastLogin: { ip: string; device: string } | null
+  lastLogin: { ip: string; device: string; at?: string } | null
   anomalies: string[]
 }
 
@@ -108,6 +109,14 @@ const Badge: React.FC<{ tone?: 'success' | 'warn' | 'error' | 'neutral'; childre
   return <span className={`px-2 py-1 rounded-full text-xs font-semibold ${map[tone]}`}>{children}</span>
 }
 
+const formatUptimeSubtitle = (uptimeSeconds?: number) => {
+  if (!uptimeSeconds || uptimeSeconds <= 0) return 'since latest deploy'
+  const hours = Math.floor(uptimeSeconds / 3600)
+  const minutes = Math.floor((uptimeSeconds % 3600) / 60)
+  if (hours > 0) return `${hours}h ${minutes}m since deploy`
+  return `${minutes}m since deploy`
+}
+
 
 const AdminCommandCenter: React.FC = () => {
   const navigate = useNavigate()
@@ -187,15 +196,15 @@ const AdminCommandCenter: React.FC = () => {
           {anyAlert && <Badge tone='error'>Alert</Badge>}
         </div>
         <div className='grid grid-cols-1 sm:grid-cols-4 gap-3'>
-          <Card title='API Calls (Today)' value={health?.totalApiCalls ?? '—'} />
+          <Card title='API Calls (Since Deploy)' value={health?.totalApiCalls ?? '—'} />
           <Card
-            title='Failed (24h)'
+            title='Failed (Since Deploy)'
             value={health?.failedApiCalls ?? '—'}
             tone={(health?.failedApiCalls ?? 0) > 20 ? 'warn' : 'default'}
             onClick={() => setSelectedLogView('failures')}
           />
           <Card title='Avg Response Time' value={health ? `${health.avgResponseTimeMs} ms` : '—'} tone={(health?.avgResponseTimeMs ?? 0) > 1000 ? 'warn' : 'default'} />
-          <Card title='Uptime' value={health ? `${health.uptimePercent}%` : '—'} />
+          <Card title='Process Uptime' value={health ? `${health.uptimePercent}%` : '—'} subtitle={formatUptimeSubtitle(health?.uptimeSeconds)} />
         </div>
         {health?.alerts && health.alerts.length > 0 && (
           <div className='rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800'>
@@ -220,7 +229,11 @@ const AdminCommandCenter: React.FC = () => {
         </div>
         <div className='grid grid-cols-1 sm:grid-cols-3 gap-3'>
           <Card title='Open Risks' value={security?.openRisks?.length ?? 0} />
-          <Card title='Last Login' value={security?.lastLogin ? `${security.lastLogin.ip}` : '—'} subtitle={security?.lastLogin ? `${security.lastLogin.device}` : ''} />
+          <Card
+            title='Last Login'
+            value={security?.lastLogin?.at ? new Date(security.lastLogin.at).toLocaleString() : 'Not tracked yet'}
+            subtitle={security?.lastLogin ? `${security.lastLogin.ip} · ${security.lastLogin.device}` : 'No real login event found yet'}
+          />
           <Card title='Anomalies' value={security?.anomalies?.length ?? 0} tone={(security?.anomalies?.length ?? 0) > 0 ? 'warn' : 'default'} />
         </div>
         {security?.openRisks?.length ? (
@@ -246,7 +259,7 @@ const AdminCommandCenter: React.FC = () => {
         <div className='grid grid-cols-1 sm:grid-cols-3 gap-3'>
           <Card title='Open Chats' value={support?.openChats ?? 0} />
           <Card title='Tickets' value={support?.openTickets ?? 0} />
-          <Card title='Errors' value={support?.openErrors ?? 0} tone={(support?.openErrors ?? 0) > 0 ? 'warn' : 'default'} />
+          <Card title='Recent API Errors' value={support?.openErrors ?? 0} tone={(support?.openErrors ?? 0) > 0 ? 'warn' : 'default'} />
         </div>
         <div className='space-y-2'>
           {support?.items?.map((item) => (

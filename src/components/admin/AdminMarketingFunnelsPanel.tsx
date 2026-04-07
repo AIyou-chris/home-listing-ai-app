@@ -13,6 +13,7 @@ import { LeadStatus } from '../../types';
 import { leadsService } from '../../services/leadsService';
 import { Toast, ToastType } from '../Toast';
 import { callBotsService } from '../../services/callBotsService';
+import { AuthService } from '../../services/authService';
 
 interface FunnelAnalyticsPanelProps {
     onBackToDashboard?: () => void;
@@ -358,6 +359,7 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
     isBlueprintMode = false
 }: FunnelAnalyticsPanelProps & { isBlueprintMode?: boolean }) => {
     const isEmbedded = variant === 'embedded';
+    const auth = useMemo(() => AuthService.getInstance(), []);
     // Single Main Funnel State (formerly Buyer)
     const [funnelSteps, setFunnelSteps] = useState<EditableStep[]>([]);
     const [availableFunnels, setAvailableFunnels] = useState<Record<string, EditableStep[]>>({});
@@ -546,6 +548,44 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                 return;
             }
 
+            const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002';
+            const normalizedStepType = (step.type || '').toLowerCase();
+
+            if (normalizedStepType === 'text' || normalizedStepType === 'sms') {
+                if (!testPhone) {
+                    alert('Please enter a test phone number first.');
+                    return;
+                }
+                if (!isLikelyDialableE164(testPhone)) {
+                    alert('Invalid phone format. Use E.164 (example: +12125551212). For US/Canada numbers, use +1 plus exactly 10 digits.');
+                    return;
+                }
+
+                const mergedMessage = mergeTokens(step.content || '');
+                const complianceLine = step.includeUnsubscribe !== false ? '\n\nReply STOP to unsubscribe.' : '';
+                const response = await auth.makeAuthenticatedRequest(`${apiUrl}/api/admin/sms/quick-send`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        to: testPhone.trim(),
+                        message: `${mergedMessage}${complianceLine}`.trim(),
+                        mediaUrls: step.mediaUrl ? [step.mediaUrl] : []
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to send test SMS');
+                }
+
+                setSendSuccessIds(prev => [...prev, step.id]);
+                setTimeout(() => {
+                    setSendSuccessIds(prev => prev.filter(id => id !== step.id));
+                }, 3000);
+                return;
+            }
+
             // Handle Email Steps
             const subject = mergeTokens(step.subject);
             // Replace newlines with <br/> for HTML email body
@@ -556,8 +596,7 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                 body += `<br/><br/><div style="font-size:11px;color:#888;margin-top:20px;border-top:1px solid #eee;padding-top:10px;">To stop receiving these emails, <a href="#" style="color:#888;">unsubscribe here</a> (Link active in live emails).</div>`;
             }
 
-            const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002';
-            const response = await fetch(`${apiUrl}/api/admin/email/quick-send`, {
+            const response = await auth.makeAuthenticatedRequest(`${apiUrl}/api/admin/email/quick-send`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -611,7 +650,7 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                 setUserId(currentUserId);
 
                 const [funnelData, botData] = await Promise.all([
-                    funnelService.fetchFunnels(currentUserId),
+                    funnelService.fetchAdminFunnels(currentUserId),
                     callBotsService.fetchCallBots(currentUserId, true)
                 ]);
                 setCallBots(botData);
@@ -621,7 +660,7 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                 const normalizeWithBots = (step: EditableStep) => normalizeCallStep(step, botOptions);
 
                 // User Request: "Only want a realtor funnel and a broker funnel that's it"
-                const allowedFunnels = ['realtor_funnel', 'broker_funnel', 'marketing_funnel_2'];
+                const allowedFunnels = ['realtor_funnel', 'broker_funnel'];
                 const filteredFunnels = Object.fromEntries(
                     Object.entries(funnelData).filter(([key]) => allowedFunnels.includes(key))
                 );
@@ -815,7 +854,7 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
             }));
 
             // Saving to selectedFunnelId key
-            const result = await funnelService.saveFunnelStep(currentUserId, selectedFunnelId, stepsWithMinutes);
+            const result = await funnelService.saveAdminFunnelStep(currentUserId, selectedFunnelId, stepsWithMinutes);
             if (result) {
                 setSaveStatus('success');
                 // Update local availableFunnels state
@@ -1216,8 +1255,11 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                                                                         <div className="rounded-xl bg-slate-50 border border-slate-200 p-4">
                                                                             <div className="flex items-center gap-2 mb-2">
                                                                                 <span className="material-symbols-outlined text-slate-500">sms</span>
-                                                                                <h4 className="text-sm font-bold text-slate-700">Message Content</h4>
+                                                                                <h4 className="text-sm font-bold text-slate-700">SMS Message</h4>
                                                                             </div>
+                                                                            <p className="text-xs text-slate-500 mb-3">
+                                                                                This is the exact text your lead will get. Keep it short, personal, and easy to reply to.
+                                                                            </p>
 
                                                                             <textarea
                                                                                 className="w-full h-32 rounded-lg border-slate-200 bg-white p-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 shadow-sm resize-none"
@@ -1245,63 +1287,47 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                                                                                 </div>
                                                                             </div>
 
-                                                                            <div className="mb-4">
-                                                                                <label className="block text-xs font-semibold text-slate-500 mb-1">Preview Text (Preheader)</label>
-                                                                                <input
-                                                                                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                                                                    value={step.previewText || ''}
-                                                                                    onChange={(e) => onUpdateStep(step.id, 'previewText', e.target.value)}
-                                                                                    placeholder="Short summary displayed in inbox list view..."
-                                                                                />
-                                                                            </div>
-
-                                                                            <div className="flex items-center justify-between mb-2">
-                                                                                <label className="block text-xs font-semibold text-slate-500">Email Body</label>
-                                                                                {/* Compliance Toggle */}
-                                                                                <label className="flex items-center gap-2 cursor-pointer group">
-                                                                                    <input
-                                                                                        type="checkbox"
-                                                                                        className="hidden"
-                                                                                        checked={step.includeUnsubscribe !== false}
-                                                                                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                                                                        onChange={(e) => onUpdateStep(step.id, 'includeUnsubscribe', e.target.checked as any)}
-                                                                                    />
-                                                                                    <div className={`w-8 h-4 rounded-full transition-colors relative ${step.includeUnsubscribe !== false ? 'bg-indigo-500' : 'bg-slate-300'}`}>
-                                                                                        <div className={`absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white shadow-sm transition-transform ${step.includeUnsubscribe !== false ? 'translate-x-4' : 'translate-x-0'}`} />
+                                                                            <div className="mt-4 rounded-lg border border-slate-200 bg-white px-3 py-2">
+                                                                                <div className="flex items-center justify-between gap-3">
+                                                                                    <div>
+                                                                                        <label className="block text-xs font-semibold text-slate-700">Compliance Line</label>
+                                                                                        <p className="text-[11px] text-slate-500">Adds “Reply STOP to unsubscribe” to test sends and live sends.</p>
                                                                                     </div>
-                                                                                    <span className="text-[10px] uppercase font-bold text-slate-400 group-hover:text-indigo-500 transition-colors">
-                                                                                        Include Unsubscribe
-                                                                                    </span>
-                                                                                </label>
+                                                                                    {/* Compliance Toggle */}
+                                                                                    <label className="flex items-center gap-2 cursor-pointer group">
+                                                                                        <input
+                                                                                            type="checkbox"
+                                                                                            className="hidden"
+                                                                                            checked={step.includeUnsubscribe !== false}
+                                                                                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                                                                            onChange={(e) => onUpdateStep(step.id, 'includeUnsubscribe', e.target.checked as any)}
+                                                                                        />
+                                                                                        <div className={`w-8 h-4 rounded-full transition-colors relative ${step.includeUnsubscribe !== false ? 'bg-indigo-500' : 'bg-slate-300'}`}>
+                                                                                            <div className={`absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white shadow-sm transition-transform ${step.includeUnsubscribe !== false ? 'translate-x-4' : 'translate-x-0'}`} />
+                                                                                        </div>
+                                                                                        <span className="text-[10px] uppercase font-bold text-slate-400 group-hover:text-indigo-500 transition-colors">
+                                                                                            Include STOP
+                                                                                        </span>
+                                                                                    </label>
+                                                                                </div>
                                                                             </div>
 
-                                                                            <textarea
-                                                                                className="w-full h-64 rounded-lg border-slate-200 bg-white p-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 shadow-sm resize-none"
-                                                                                placeholder="Write your email here..."
-                                                                                value={step.content}
-                                                                                onChange={(e) => onUpdateStep(step.id, 'content', e.target.value)}
-                                                                            />
-                                                                            <div className="flex justify-between items-center mt-1">
-                                                                                <span className="text-[10px] text-slate-400">
-                                                                                    {step.content?.length || 0} characters
-                                                                                </span>
-                                                                            </div>
-
-                                                                            <p className="text-xs text-slate-400 mt-2">
+                                                                            <p className="text-xs text-slate-400 mt-3">
                                                                                 Tokens like <code className="bg-slate-200 px-1 rounded text-slate-600">{'{{lead.name}}'}</code> are supported.
                                                                             </p>
+
                                                                             <div className="flex items-center justify-end gap-2 mt-4 pt-2 border-t border-slate-200">
                                                                                 <button
                                                                                     onClick={() => onSendTest(step)}
                                                                                     className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50 shadow-sm"
                                                                                 >
-                                                                                    Send Test
+                                                                                    Send Test SMS
                                                                                 </button>
                                                                                 <button
                                                                                     onClick={onSave}
                                                                                     className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold shadow-md hover:bg-indigo-700"
                                                                                 >
-                                                                                    Save Changes
+                                                                                    Save SMS Step
                                                                                 </button>
                                                                             </div>
                                                                         </div>
@@ -1345,7 +1371,10 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
 
                                                                                     <div className="flex justify-end">
                                                                                         <div className="bg-blue-500 text-white rounded-2xl rounded-tr-sm px-3 py-2 max-w-[85%] text-xs leading-relaxed shadow-sm">
-                                                                                            {step.content || <span className="opacity-50 italic">Typing...</span>}
+                                                                                            <span className="whitespace-pre-wrap">
+                                                                                                {mergeTokens(step.content || '') || <span className="opacity-50 italic">Typing...</span>}
+                                                                                                {step.includeUnsubscribe !== false ? '\n\nReply STOP to unsubscribe.' : ''}
+                                                                                            </span>
                                                                                         </div>
                                                                                     </div>
 

@@ -232,7 +232,8 @@ const createAgentOnboardingService = require('./services/agentOnboardingService'
 const { runStartupDiagnostics } = require('./services/startupDiagnostics');
 const {
   enrollLeadInFunnel,
-  buildFunnelJsonSteps
+  buildFunnelJsonSteps,
+  normalizeFunnelKey
 } = require('./services/funnelEnrollmentService');
 
 const { getSmsProviderName, sendSms, validatePhoneNumber } = require('./services/smsService');
@@ -15513,146 +15514,425 @@ app.patch('/api/security/alerts/:id', async (req, res) => {
   }
 });
 
-// SAVE UNIVERSAL FUNNEL (Admin Bypass Support)
-app.post('/api/admin/marketing/funnel/save', verifyAdmin, async (req, res) => {
-  try {
-    const { steps } = req.body;
-    const userEmail = req.user.email;
+const ADMIN_FUNNEL_NAMES = {
+  realtor_funnel: 'Realtor Funnel',
+  broker_funnel: 'Broker Funnel',
+  universal_sales: 'Universal Sales Funnel'
+};
 
-    // 1. Find the Agent Record for this Admin
-    let { data: agent, error: agentError } = await supabaseAdmin
+const formatAdminFunnelDelay = (delayMinutes = 0) => {
+  const safeMinutes = Math.max(Number(delayMinutes || 0), 0);
+  if (safeMinutes === 0) return 'Immediately';
+  if (safeMinutes % 1440 === 0) return `+${safeMinutes / 1440} day${safeMinutes === 1440 ? '' : 's'}`;
+  if (safeMinutes % 60 === 0) return `+${safeMinutes / 60} hour${safeMinutes === 60 ? '' : 's'}`;
+  return `+${safeMinutes} min`;
+};
+
+const formatAdminFunnelType = (rawType = 'email') => {
+  const normalizedType = String(rawType || 'email').toLowerCase();
+  if (normalizedType === 'sms') return 'SMS';
+  if (normalizedType === 'call') return 'Call';
+  return normalizedType.charAt(0).toUpperCase() + normalizedType.slice(1);
+};
+
+const formatAdminFunnelIcon = (rawType = 'email') => {
+  const normalizedType = String(rawType || 'email').toLowerCase();
+  if (normalizedType === 'sms') return 'sms';
+  if (normalizedType === 'call') return 'call';
+  if (normalizedType === 'task') return 'assignment_turned_in';
+  return 'mail';
+};
+
+const mapStoredAdminFunnelSteps = (steps = []) => {
+  return (Array.isArray(steps) ? steps : []).map((step, index) => {
+    const delayMinutes = Math.max(Number(step.delay_minutes ?? step.delayMinutes ?? 0), 0);
+    const normalizedType = String(step.type || step.action_type || 'email').toLowerCase();
+    return {
+      id: step.step_key || step.id || `step-${index + 1}`,
+      step_key: step.step_key || step.id || `step-${index + 1}`,
+      title: step.title || step.step_name || `Step ${index + 1}`,
+      description: step.description || '',
+      icon: step.icon || formatAdminFunnelIcon(normalizedType),
+      delay: step.delay || formatAdminFunnelDelay(delayMinutes),
+      delayMinutes,
+      type: formatAdminFunnelType(normalizedType),
+      subject: step.subject || step.email_subject || '',
+      content: step.content || step.email_body || '',
+      mediaUrl: step.mediaUrl || '',
+      previewText: step.previewText || step.preview_text || '',
+      includeUnsubscribe: step.includeUnsubscribe !== false,
+      trackOpens: Boolean(step.trackOpens),
+      conditionRule: step.condition_type || step.conditionRule || '',
+      conditionValue: step.value ?? step.conditionValue ?? ''
+    };
+  });
+};
+
+const loadAdminFunnelSteps = async (funnel) => {
+  const storedSteps = Array.isArray(funnel?.steps) ? funnel.steps : [];
+  if (storedSteps.length > 0) {
+    return mapStoredAdminFunnelSteps(storedSteps);
+  }
+
+  const { data: stepRows, error } = await supabaseAdmin
+    .from('funnel_steps')
+    .select('id, step_key, step_name, action_type, subject, content, description, delay_days, delay_minutes, preview_text')
+    .eq('funnel_id', funnel.id)
+    .order('step_index', { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  return mapStoredAdminFunnelSteps((stepRows || []).map((row) => ({
+    id: row.step_key || row.id,
+    step_key: row.step_key || row.id,
+    title: row.step_name || 'Untitled Step',
+    description: row.description || '',
+    type: row.action_type || 'email',
+    subject: row.subject || '',
+    content: row.content || '',
+    delay_minutes: (Number(row.delay_days || 0) * 1440) + Number(row.delay_minutes || 0),
+    previewText: row.preview_text || ''
+  })));
+};
+
+const resolveOrCreateAdminAgentForFunnels = async (userEmail) => {
+  let { data: agent } = await supabaseAdmin
+    .from('agents')
+    .select('id')
+    .eq('email', userEmail)
+    .maybeSingle();
+
+  if (agent?.id) {
+    return agent;
+  }
+
+  console.log(`⚠️ No Agent found for ${userEmail}. Creating 'System Admin' agent record...`);
+
+  let authUserId;
+  const { data: { users } } = await supabaseAdmin.auth.admin.listUsers();
+  const existingUser = users.find((u) => u.email === userEmail);
+
+  if (existingUser) {
+    authUserId = existingUser.id;
+  } else {
+    const { data: newUser, error: createUserError } = await supabaseAdmin.auth.admin.createUser({
+      email: userEmail,
+      password: crypto.randomUUID(),
+      email_confirm: true
+    });
+
+    if (createUserError) {
+      throw createUserError;
+    }
+    authUserId = newUser.user.id;
+  }
+
+  const { data: newAgent, error: createError } = await supabaseAdmin
+    .from('agents')
+    .insert({
+      email: userEmail,
+      first_name: 'System',
+      last_name: 'Admin',
+      auth_user_id: authUserId,
+      slug: 'admin-' + crypto.randomUUID().split('-')[0],
+      status: 'active',
+      created_at: new Date()
+    })
+    .select('id')
+    .single();
+
+  if (createError) {
+    throw createError;
+  }
+
+  return newAgent;
+};
+
+app.get('/api/admin/marketing/funnels', verifyAdmin, async (req, res) => {
+  try {
+    const userEmail = req.user?.email;
+    if (!userEmail) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { data: agent } = await supabaseAdmin
       .from('agents')
       .select('id')
       .eq('email', userEmail)
-      .single();
+      .maybeSingle();
 
-    if (!agent) {
-      console.log(`⚠️ No Agent found for ${userEmail}. Creating 'System Admin' agent record...`);
+    if (!agent?.id) {
+      return res.json({ success: true, funnels: {} });
+    }
 
-      // 1. Get or Create Auth User (Required for FK)
-      let authUserId;
+    const { data: funnels, error } = await supabaseAdmin
+      .from('funnels')
+      .select('funnel_key, steps')
+      .eq('agent_id', agent.id)
+      .in('funnel_key', ['realtor_funnel', 'broker_funnel'])
+      .order('updated_at', { ascending: false });
 
-      // Try fetching existing auth user
-      const { data: { users }, error: userError } = await supabaseAdmin.auth.admin.listUsers();
-      const existingUser = users.find(u => u.email === userEmail);
+    if (error) {
+      throw error;
+    }
 
-      if (existingUser) {
-        authUserId = existingUser.id;
-      } else {
-        // Create new Auth User
-        const { data: newUser, error: createUserError } = await supabaseAdmin.auth.admin.createUser({
-          email: userEmail,
-          password: crypto.randomUUID(), // Random password, they use Admin Key anyway
-          email_confirm: true
-        });
+    const payload = {};
+    for (const funnel of funnels || []) {
+      const key = funnel.funnel_key || 'universal_sales';
+      payload[key] = await loadAdminFunnelSteps(funnel);
+    }
 
-        if (createUserError) {
-          console.error("Failed to create Auth User:", createUserError);
-          // If error implies user exists but list missed it? 
-          // Just fail gracefully
-          return res.status(500).json({ error: 'Failed to create Auth User for Agent.' });
-        }
-        authUserId = newUser.user.id;
-      }
+    res.json({ success: true, funnels: payload });
+  } catch (e) {
+    console.error('Get Admin Funnels Error:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
 
-      // 2. Create Agent
-      const { data: newAgent, error: createError } = await supabaseAdmin
-        .from('agents')
+app.post('/api/admin/marketing/funnels/:funnelKey', verifyAdmin, async (req, res) => {
+  try {
+    const normalizedFunnelKey = normalizeFunnelKey(req.params.funnelKey);
+    const { steps } = req.body || {};
+    const userEmail = req.user?.email;
+
+    if (!userEmail) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const agent = await resolveOrCreateAdminAgentForFunnels(userEmail);
+    const normalizedSteps = buildFunnelJsonSteps(Array.isArray(steps) ? steps : []);
+
+    let { data: funnel, error: fetchError } = await supabaseAdmin
+      .from('funnels')
+      .select('id')
+      .eq('agent_id', agent.id)
+      .eq('funnel_key', normalizedFunnelKey)
+      .maybeSingle();
+
+    if (fetchError) {
+      throw fetchError;
+    }
+
+    if (!funnel) {
+      const { data: newFunnel, error: insertError } = await supabaseAdmin
+        .from('funnels')
         .insert({
-          email: userEmail,
-          first_name: 'System',
-          last_name: 'Admin',
-          auth_user_id: authUserId,
-          slug: 'admin-' + crypto.randomUUID().split('-')[0],
-          status: 'active',
-          created_at: new Date()
+          agent_id: agent.id,
+          funnel_key: normalizedFunnelKey,
+          name: ADMIN_FUNNEL_NAMES[normalizedFunnelKey] || 'Admin Funnel',
+          description: 'Customized admin funnel',
+          steps: normalizedSteps,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
         })
         .select('id')
         .single();
 
-      if (createError) {
-        console.error("Failed to auto-create admin agent:", createError);
-        return res.status(500).json({ error: 'Failed to create Admin Agent Profile.' });
+      if (insertError) {
+        throw insertError;
       }
-      agent = newAgent;
+      funnel = newFunnel;
     }
 
-    // 2. Manual Upsert (Check First)
-    // Upsert failed due to missing constraint on (agent_id, funnel_key)
+    const { error: deleteError } = await supabaseAdmin
+      .from('funnel_steps')
+      .delete()
+      .eq('funnel_id', funnel.id);
 
-    let existingFunnelId;
-    const { data: existingFunnel, error: fetchError } = await supabaseAdmin
+    if (deleteError) {
+      throw deleteError;
+    }
+
+    if (normalizedSteps.length > 0) {
+      const stepRows = normalizedSteps.map((step, index) => ({
+        constDelayMinutes: Math.max(Number(step.delay_minutes || 0), 0),
+        normalizedType: String(step.type || 'email').toLowerCase(),
+        funnel_id: funnel.id,
+        step_index: index + 1,
+        step_name: step.title || `Step ${index + 1}`,
+        step_key: step.step_key || step.id || `step-${index + 1}`,
+        action_type: String(step.type || 'email').toLowerCase(),
+        subject: step.subject || '',
+        content: step.content || '',
+        description: step.description || '',
+        preview_text: step.previewText || '',
+        created_at: new Date().toISOString()
+      }));
+
+      const normalizedRows = stepRows.map(({ constDelayMinutes, normalizedType, ...row }) => ({
+        ...row,
+        action_type: normalizedType === 'call' ? 'call' : normalizedType,
+        delay_days: Math.floor(constDelayMinutes / 1440),
+        delay_minutes: constDelayMinutes % 1440
+      }));
+
+      const { error: stepsInsertError } = await supabaseAdmin
+        .from('funnel_steps')
+        .insert(normalizedRows);
+
+      if (stepsInsertError) {
+        throw stepsInsertError;
+      }
+    }
+
+    const { error: updateError } = await supabaseAdmin
+      .from('funnels')
+      .update({
+        steps: normalizedSteps,
+        name: ADMIN_FUNNEL_NAMES[normalizedFunnelKey] || 'Admin Funnel',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', funnel.id);
+
+    if (updateError) {
+      throw updateError;
+    }
+
+    res.json({ success: true });
+  } catch (e) {
+    console.error('Save Admin Funnel Error:', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// SAVE UNIVERSAL FUNNEL (Legacy Admin Support)
+app.post('/api/admin/marketing/funnel/save', verifyAdmin, async (req, res) => {
+  try {
+    const userEmail = req.user?.email;
+    const { steps } = req.body || {};
+
+    if (!userEmail) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const agent = await resolveOrCreateAdminAgentForFunnels(userEmail);
+    const normalizedSteps = buildFunnelJsonSteps(Array.isArray(steps) ? steps : []);
+
+    let { data: funnel, error: fetchError } = await supabaseAdmin
       .from('funnels')
       .select('id')
       .eq('agent_id', agent.id)
       .eq('funnel_key', 'universal_sales')
       .maybeSingle();
 
-    if (existingFunnel) {
-      existingFunnelId = existingFunnel.id;
+    if (fetchError) {
+      throw fetchError;
     }
 
-    const payload = {
-      agent_id: agent.id,
-      funnel_key: 'universal_sales',
-      name: 'Universal Sales Funnel',
-      steps: steps,
-      updated_at: new Date()
-    };
+    if (!funnel) {
+      const { data: newFunnel, error: insertError } = await supabaseAdmin
+        .from('funnels')
+        .insert({
+          agent_id: agent.id,
+          funnel_key: 'universal_sales',
+          name: ADMIN_FUNNEL_NAMES.universal_sales,
+          description: 'Customized admin funnel',
+          steps: normalizedSteps,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .select('id')
+        .single();
 
-    if (existingFunnelId) {
-      // UPDATE
-      const { data, error } = await supabaseAdmin
-        .from('funnels')
-        .update(payload)
-        .eq('id', existingFunnelId)
-        .select()
-        .single();
-      if (error) throw error;
-      res.json({ success: true, data });
-    } else {
-      // INSERT
-      const { data, error } = await supabaseAdmin
-        .from('funnels')
-        .insert(payload)
-        .select()
-        .single();
-      res.json({ success: true, data });
+      if (insertError) {
+        throw insertError;
+      }
+      funnel = newFunnel;
     }
 
+    const { error: deleteError } = await supabaseAdmin
+      .from('funnel_steps')
+      .delete()
+      .eq('funnel_id', funnel.id);
+
+    if (deleteError) {
+      throw deleteError;
+    }
+
+    if (normalizedSteps.length > 0) {
+      const stepRows = normalizedSteps.map((step, index) => ({
+        constDelayMinutes: Math.max(Number(step.delay_minutes || 0), 0),
+        normalizedType: String(step.type || 'email').toLowerCase(),
+        funnel_id: funnel.id,
+        step_index: index + 1,
+        step_name: step.title || `Step ${index + 1}`,
+        step_key: step.step_key || step.id || `step-${index + 1}`,
+        action_type: String(step.type || 'email').toLowerCase(),
+        subject: step.subject || '',
+        content: step.content || '',
+        description: step.description || '',
+        preview_text: step.previewText || '',
+        created_at: new Date().toISOString()
+      }));
+
+      const normalizedRows = stepRows.map(({ constDelayMinutes, normalizedType, ...row }) => ({
+        ...row,
+        action_type: normalizedType === 'call' ? 'call' : normalizedType,
+        delay_days: Math.floor(constDelayMinutes / 1440),
+        delay_minutes: constDelayMinutes % 1440
+      }));
+
+      const { error: stepsInsertError } = await supabaseAdmin
+        .from('funnel_steps')
+        .insert(normalizedRows);
+
+      if (stepsInsertError) {
+        throw stepsInsertError;
+      }
+    }
+
+    const { error: updateError } = await supabaseAdmin
+      .from('funnels')
+      .update({
+        steps: normalizedSteps,
+        name: ADMIN_FUNNEL_NAMES.universal_sales,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', funnel.id);
+
+    if (updateError) {
+      throw updateError;
+    }
+
+    return res.json({ success: true });
   } catch (e) {
     console.error('Save Funnel Error:', e);
     res.status(500).json({ error: e.message });
   }
 });
 
-// GET UNIVERSAL FUNNEL (Admin Bypass Support)
+// GET UNIVERSAL FUNNEL (Legacy Admin Support)
 app.get('/api/admin/marketing/funnel/get', verifyAdmin, async (req, res) => {
   try {
-    const userEmail = req.user.email;
+    const userEmail = req.user?.email;
+    if (!userEmail) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const { data: agent } = await supabaseAdmin
       .from('agents')
       .select('id')
       .eq('email', userEmail)
-      .single();
+      .maybeSingle();
 
-    if (!agent) {
+    if (!agent?.id) {
       return res.status(404).json({ error: 'Agent not found' });
     }
 
     const { data: funnel } = await supabaseAdmin
       .from('funnels')
-      .select('*')
+      .select('steps')
       .eq('agent_id', agent.id)
       .eq('funnel_key', 'universal_sales')
-      .single();
+      .maybeSingle();
 
     if (!funnel) {
       return res.status(404).json({ error: 'Funnel not found' });
     }
 
-    res.json({ steps: funnel.steps });
-
+    res.json({ steps: await loadAdminFunnelSteps(funnel) });
   } catch (e) {
     console.error('Get Funnel Error:', e);
     res.status(500).json({ error: e.message });
@@ -25029,6 +25309,7 @@ app.get('/api/admin/system/health', verifyAdmin, (_req, res) => {
   const { totalApiCalls, failedApiCalls, totalResponseTimeMs, startTime, recentFailures } = adminCommandCenter.health;
   const avgResponseTimeMs = totalApiCalls > 0 ? Math.round(totalResponseTimeMs / totalApiCalls) : 0;
   const uptimeSeconds = Math.floor((Date.now() - startTime) / 1000); // Process uptime
+  const uptimePercent = Math.min(100, Number(((uptimeSeconds / 86400) * 100).toFixed(2)));
 
   const alerts = [];
   if (failedApiCalls / (totalApiCalls || 1) > 0.05) {
@@ -25042,16 +25323,18 @@ app.get('/api/admin/system/health', verifyAdmin, (_req, res) => {
     totalApiCalls,
     failedApiCalls,
     avgResponseTimeMs,
-    uptimePercent: 100, // Always 100% since we are running
+    uptimePercent,
+    uptimeSeconds,
     lastChecked: new Date().toISOString(),
     recentFailures: recentFailures || [],
     alerts
   });
 });
 
-app.get('/api/admin/security/monitor', verifyAdmin, async (_req, res) => {
+app.get('/api/admin/security/monitor', verifyAdmin, async (req, res) => {
   try {
     const openRisks = [];
+    let lastLogin = null;
 
     // Check 1: Admins without 2FA
     // In JSONB, we can check if two_factor_enabled is true
@@ -25067,9 +25350,59 @@ app.get('/api/admin/security/monitor', verifyAdmin, async (_req, res) => {
       openRisks.push(`${unsecuredCount} accounts have 2FA disabled`);
     }
 
+    const adminIds = new Set();
+    if (req.user?.id) {
+      adminIds.add(req.user.id);
+    }
+
+    if (req.user?.email) {
+      const { data: adminAgent } = await supabaseAdmin
+        .from('agents')
+        .select('id, auth_user_id, metadata')
+        .eq('email', req.user.email)
+        .maybeSingle();
+
+      if (adminAgent?.id) adminIds.add(adminAgent.id);
+      if (adminAgent?.auth_user_id) adminIds.add(adminAgent.auth_user_id);
+
+      const metadataLogs = Array.isArray(adminAgent?.metadata?.activity_logs)
+        ? adminAgent.metadata.activity_logs
+        : [];
+      const recentLoginLog = metadataLogs
+        .filter((entry) => /login/i.test(String(entry?.event || entry?.action || '')))
+        .sort((a, b) => new Date(b?.at || 0).getTime() - new Date(a?.at || 0).getTime())[0];
+
+      if (recentLoginLog) {
+        lastLogin = {
+          ip: recentLoginLog.ip || 'Unknown',
+          device: recentLoginLog.device || recentLoginLog.event || 'Unknown',
+          at: recentLoginLog.at || new Date().toISOString()
+        };
+      }
+    }
+
+    if (!lastLogin && adminIds.size > 0) {
+      const { data: loginAudit } = await supabaseAdmin
+        .from('audit_logs')
+        .select('created_at, action, details, user_id')
+        .in('user_id', Array.from(adminIds))
+        .ilike('action', '%login%')
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      const latestAudit = loginAudit?.[0];
+      if (latestAudit) {
+        lastLogin = {
+          ip: latestAudit.details?.ip || latestAudit.details?.ipAddress || 'Unknown',
+          device: latestAudit.details?.device || latestAudit.details?.userAgent || latestAudit.action || 'Unknown',
+          at: latestAudit.created_at || new Date().toISOString()
+        };
+      }
+    }
+
     res.json({
       openRisks,
-      lastLogin: adminCommandCenter.security.lastLogin || { ip: '127.0.0.1', device: 'Server', at: new Date().toISOString() },
+      lastLogin: lastLogin || adminCommandCenter.security.lastLogin || null,
       anomalies: []
     });
   } catch (error) {
@@ -25093,13 +25426,18 @@ app.get('/api/admin/support/summary', verifyAdmin, async (_req, res) => {
       .select('*', { count: 'exact', head: true })
       .gte('updated_at', fifteenMinsAgo);
 
+    const recentFailureCount = (adminCommandCenter.health.recentFailures || []).filter((failure) => {
+      const failureTime = new Date(failure.timestamp || 0).getTime();
+      return Number.isFinite(failureTime) && (Date.now() - failureTime) <= 24 * 60 * 60 * 1000;
+    }).length;
+
     res.json({
       openChats: activeChatsCount || 0,
       openTickets: newLeadsCount || 0,
-      openErrors: adminCommandCenter.health.failedApiCalls,
+      openErrors: recentFailureCount,
       items: [
         ...(newLeadsCount > 0 ? [{ id: 'leads-new', type: 'lead', title: `${newLeadsCount} new leads`, severity: 'medium' }] : []),
-        ...(adminCommandCenter.health.failedApiCalls > 0 ? [{ id: 'err-api', type: 'error', title: 'API Failures detected', severity: 'low' }] : [])
+        ...(recentFailureCount > 0 ? [{ id: 'err-api', type: 'error', title: `${recentFailureCount} recent API errors`, severity: 'low' }] : [])
       ]
     });
   } catch (err) {
@@ -25840,13 +26178,21 @@ app.get('/api/admin/security', verifyAdmin, async (req, res) => {
 
     const { data: agent } = await supabaseAdmin.from('agents').select('metadata').or(`id.eq.${userId},auth_user_id.eq.${userId}`).single();
     const metadata = agent?.metadata || {};
+    const activityLogs = Array.isArray(metadata.activity_logs) ? metadata.activity_logs : [];
+    const latestLogin = activityLogs
+      .filter((entry) => /login/i.test(String(entry?.event || entry?.action || '')))
+      .sort((a, b) => new Date(b?.at || 0).getTime() - new Date(a?.at || 0).getTime())[0] || null;
 
     res.json({
       twoFactorEnabled: metadata.two_factor_enabled || false,
       apiKeys: metadata.api_keys || [],
       openRisks: [], // You could calculate risks here
-      lastLogin: new Date().toISOString(), // In real app, query auth.sessions
-      activityLogs: metadata.activity_logs || []
+      lastLogin: latestLogin ? {
+        ip: latestLogin.ip || 'Unknown',
+        device: latestLogin.device || latestLogin.event || 'Unknown',
+        at: latestLogin.at || new Date().toISOString()
+      } : null,
+      activityLogs
     });
   } catch (err) {
     console.error('Security fetch error:', err);

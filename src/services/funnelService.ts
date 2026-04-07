@@ -2,11 +2,14 @@ import { authService } from './authService';
 import { EditableStep } from '../types';
 
 const API_BASE = '/api/funnels';
+const ADMIN_API_BASE = '/api/admin/marketing/funnels';
+
+const isDemoUser = (userId: string) => userId === 'demo-blueprint' || userId.startsWith('demo-');
 
 export const funnelService = {
     async fetchFunnels(userId: string): Promise<Record<string, EditableStep[]>> {
         // Mock for Demo/Blueprint Mode with Local Storage Persistence
-        if (userId === 'demo-blueprint' || userId.startsWith('demo-')) {
+        if (isDemoUser(userId)) {
             console.log('Using local storage funnels for demo user:', userId);
             try {
                 const key = `hlai_demo_funnels_${userId}`;
@@ -37,7 +40,7 @@ export const funnelService = {
 
     async saveFunnelStep(userId: string, funnelType: string, steps: EditableStep[]): Promise<boolean> {
         // Mock for Demo/Blueprint Mode with Local Storage Persistence
-        if (userId === 'demo-blueprint' || userId.startsWith('demo-')) {
+        if (isDemoUser(userId)) {
             console.log('Using local storage save for demo user:', userId);
             try {
                 // Simulate network delay
@@ -77,6 +80,49 @@ export const funnelService = {
         } catch (error: unknown) {
             const err = error as Error;
             console.error(`Error saving ${funnelType} funnel:`, err);
+            return false;
+        }
+    },
+
+    async fetchAdminFunnels(userId: string): Promise<Record<string, EditableStep[]>> {
+        if (isDemoUser(userId)) {
+            return this.fetchFunnels(userId);
+        }
+
+        try {
+            const response = await authService.makeAuthenticatedRequest(ADMIN_API_BASE);
+            if (!response.ok) {
+                if (response.status === 404) return {};
+                throw new Error('Failed to fetch admin funnels');
+            }
+            const data = await response.json();
+            return data.funnels || {};
+        } catch (error) {
+            console.error('Error fetching admin funnels:', error);
+            return {};
+        }
+    },
+
+    async saveAdminFunnelStep(userId: string, funnelType: string, steps: EditableStep[]): Promise<boolean> {
+        if (isDemoUser(userId)) {
+            return this.saveFunnelStep(userId, funnelType, steps);
+        }
+
+        try {
+            const response = await authService.makeAuthenticatedRequest(`${ADMIN_API_BASE}/${encodeURIComponent(funnelType)}`, {
+                method: 'POST',
+                body: JSON.stringify({ steps })
+            });
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                console.error(`Error saving admin funnel ${funnelType}:`, errorData);
+                return false;
+            }
+
+            return true;
+        } catch (error: unknown) {
+            const err = error as Error;
+            console.error(`Error saving admin funnel ${funnelType}:`, err);
             return false;
         }
     },
