@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import AICardPage from '../components/AICardPage';
@@ -9,24 +9,21 @@ import AdminAISidekicksPage from './components/AdminAISidekicksPage';
 import MarketingReportsPage from '../components/MarketingReportsPage';
 // import EnhancedAISidekicksHub from '../components/EnhancedAISidekicksHub'; // Kept for reference if needed, but unused in new flow
 import AdminMarketingFunnelsPanel from '../components/admin/AdminMarketingFunnelsPanel';
-import InteractionHubPage from '../components/InteractionHubPage';
+import InteractionHubPage, { type InteractionThreadMessage } from '../components/InteractionHubPage';
 import AdminSettingsPage from './components/AdminSettingsPage';
 import AdminUsersPage from '../components/AdminUsersPage';
 import { LogoWithName } from '../components/LogoWithName';
 import AdminListingsPage from './AdminListingsPage';
 import AdminDashboardSidebar from './AdminDashboardSidebar';
-import { DEMO_FAT_PROPERTIES } from '../demoConstants';
-import { SAMPLE_AGENT, SAMPLE_INTERACTIONS } from '../constants';
 import {
-  AgentProfile,
   Appointment,
-  Property,
   Interaction
 } from '../types';
 import { useAdminLeads } from '../hooks/use-admin-leads';
 import AdminLeadsPage from './AdminLeadsPage';
 import { adminAppointmentsService } from '../services/adminAppointmentsService';
 import type { ScheduleAppointmentFormData } from '../components/ScheduleAppointmentModal';
+import { adminConversationsService } from '../services/adminConversationsService';
 
 export type DashboardView =
   | 'dashboard'
@@ -51,27 +48,6 @@ export type DashboardView =
 
 import AdminBroadcastPage from './components/AdminBroadcastPage';
 import BlogEditor from './Blog/BlogEditor';
-
-const cloneDemoProperty = (property: Property, index: number): Property => {
-  const description =
-    typeof property.description === 'string'
-      ? property.description
-      : {
-        ...property.description,
-        paragraphs: [...property.description.paragraphs]
-      };
-
-  return {
-    ...property,
-    id: property.id || `demo-property-${index}`,
-    description,
-    heroPhotos: [...property.heroPhotos],
-    galleryPhotos: property.galleryPhotos ? [...property.galleryPhotos] : undefined,
-    features: [...property.features],
-    appFeatures: { ...property.appFeatures },
-    agent: { ...property.agent }
-  };
-};
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const normalizeAppointment = (appt: any): Appointment => ({
@@ -115,40 +91,21 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'dashboard
   // Use URL tab if available, otherwise fall back to initialTab
   const normalizedTab = tab === 'overview' ? 'dashboard' : tab;
   const activeView = (normalizedTab as DashboardView) || initialTab;
+  // Admin routes should never honor demo mode flags or demo dashboards.
+  const isDemoMode = false;
 
   const handleSetView = (newView: DashboardView) => {
     navigate(`/admin/${newView}`);
   };
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isDemoMode] = useState(true);
-
-  const [properties, setProperties] = useState<Property[]>(() =>
-    DEMO_FAT_PROPERTIES.map((property, index) => cloneDemoProperty(property, index))
-  );
-  const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
-  const _selectedProperty = useMemo(
-    () => properties.find((property) => property.id === selectedPropertyId) || null,
-    [properties, selectedPropertyId]
-  );
 
   const { leads, isLoading: isLeadsLoading, error: leadsError, refreshLeads, addLead, updateLead, deleteLead, addNote, fetchNotesForLead, notesByLeadId } =
     useAdminLeads();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [interactions, setInteractions] = useState<Interaction[]>(SAMPLE_INTERACTIONS);
-
-  const [agentProfile] = useState<AgentProfile>(SAMPLE_AGENT);
-
-  const _handleSelectProperty = (propertyId: string | null) => {
-    setSelectedPropertyId(propertyId);
-    if (propertyId) {
-      handleSetView('property');
-    }
-  };
-
-  const _handleSetProperty = (property: Property) => {
-    setProperties((prev) => prev.map((p) => (p.id === property.id ? property : p)));
-  };
+  const [interactions, setInteractions] = useState<Interaction[]>([]);
+  const [interactionsLoading, setInteractionsLoading] = useState(false);
+  const [interactionsError, setInteractionsError] = useState<string | null>(null);
 
   useEffect(() => {
     const loadAppointments = async () => {
@@ -163,48 +120,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'dashboard
     void loadAppointments();
   }, []);
 
-  const _handleSaveNewProperty = async (propertyData: Property) => {
-    const newProperty: Property = {
-      ...propertyData,
-      id: `prop-${Date.now()}`,
-      agent: agentProfile
-    };
-    setProperties((prev) => [newProperty, ...prev]);
-    handleSetView('listings');
-  };
-
-  const _handleDeleteProperty = (propertyId: string) => {
-    setProperties((prev) => prev.filter((property) => property.id !== propertyId));
-    if (selectedPropertyId === propertyId) {
-      setSelectedPropertyId(null);
-    }
-  };
-
   const handleAddNewLead = async (leadData: { name: string; email: string; phone: string; message: string; source: string }) => {
-    try {
-      const lead = await addLead({
-        name: leadData.name,
-        email: leadData.email,
-        phone: leadData.phone,
-        source: leadData.source,
-        status: 'New',
-        notes: leadData.message
-      });
-      return lead;
-    } catch (error) {
-      console.error('Failed to create admin lead, falling back locally', error);
-      const fallbackLead = {
-        id: `lead-${Date.now()}`,
-        name: leadData.name,
-        email: leadData.email,
-        phone: leadData.phone,
-        status: 'New' as const,
-        date: new Date().toISOString(),
-        lastMessage: leadData.message
-      };
-      await refreshLeads().catch(() => undefined);
-      return fallbackLead;
-    }
+    return await addLead({
+      name: leadData.name,
+      email: leadData.email,
+      phone: leadData.phone,
+      source: leadData.source,
+      status: 'New',
+      notes: leadData.message
+    });
   };
 
   const handleUpdateAdminLead = async (leadId: string, leadData: { name: string; email: string; phone: string; message: string; source: string }) => {
@@ -246,30 +170,96 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'dashboard
       meetLink: null
     };
 
-    try {
-      const created = await adminAppointmentsService.create(payload);
-      const normalized = normalizeAppointment(created);
-      setAppointments((prev) => [normalized, ...prev]);
-      return normalized;
-    } catch (error) {
-      console.error('Failed to create admin appointment, falling back locally', error);
-      const fallback: Appointment = {
-        id: `appt-${Date.now()}`,
-        type: apptData.kind,
-        date: apptData.date,
-        time: apptData.time,
-        leadId: lead?.id ?? null,
-        propertyId: null,
-        notes: apptData.message,
-        status: 'Scheduled',
-        leadName: lead?.name,
-        email: apptData.email || lead?.email,
-        phone: apptData.phone || lead?.phone
-      };
-      setAppointments((prev) => [fallback, ...prev]);
-      return fallback;
-    }
+    const created = await adminAppointmentsService.create(payload);
+    const normalized = normalizeAppointment(created);
+    setAppointments((prev) => [normalized, ...prev]);
+    return normalized;
   };
+
+  const formatInteractionTimestamp = (value?: string | null) => {
+    if (!value) return 'Unknown time';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return date.toLocaleString();
+  };
+
+  const mapConversationToInteraction = useCallback((conversation: {
+    id: string;
+    scope?: string | null;
+    type?: string | null;
+    title?: string | null;
+    contactName?: string | null;
+    contact_name?: string | null;
+    lastMessage?: string | null;
+    last_message?: string | null;
+    lastMessageAt?: string | null;
+    last_message_at?: string | null;
+    listingId?: string | null;
+    listing_id?: string | null;
+    property?: string | null;
+    status?: string | null;
+    metadata?: Record<string, unknown> | null;
+  }): Interaction => {
+    const sourceType =
+      conversation.scope === 'listing'
+        ? 'listing-inquiry'
+        : conversation.type === 'email'
+          ? 'marketing-reply'
+          : 'chat-bot-session';
+
+    return {
+      id: conversation.id,
+      sourceType,
+      sourceName: conversation.property || conversation.title || conversation.contactName || conversation.contact_name || 'Conversation',
+      contact: { name: conversation.contactName || conversation.contact_name || 'Unknown Contact' },
+      message: conversation.lastMessage || conversation.last_message || 'No messages yet.',
+      timestamp: formatInteractionTimestamp(conversation.lastMessageAt || conversation.last_message_at),
+      isRead: conversation.status === 'archived',
+      relatedPropertyId: conversation.listingId || conversation.listing_id || undefined,
+      metadata: {
+        conversationId: conversation.id,
+        property: conversation.property || undefined,
+        propertyAddress: conversation.property || undefined,
+        status: conversation.status || 'active',
+        ...(conversation.metadata || {})
+      }
+    };
+  }, []);
+
+  const loadInteractions = useCallback(async () => {
+    setInteractionsLoading(true);
+    setInteractionsError(null);
+    try {
+      const rows = await adminConversationsService.list({ limit: 100 });
+      setInteractions(rows.map(mapConversationToInteraction));
+    } catch (error) {
+      console.error('Failed to load admin inbox conversations', error);
+      setInteractions([]);
+      setInteractionsError(error instanceof Error ? error.message : 'Failed to load inbox conversations');
+    } finally {
+      setInteractionsLoading(false);
+    }
+  }, [mapConversationToInteraction]);
+
+  useEffect(() => {
+    void loadInteractions();
+  }, [loadInteractions]);
+
+  const loadInteractionMessages = useCallback(async (interactionId: string): Promise<InteractionThreadMessage[]> => {
+    const rows = await adminConversationsService.listMessages(interactionId, 100);
+    return rows.map((row) => ({
+      id: row.id,
+      sender: row.sender,
+      channel: row.channel,
+      timestamp: formatInteractionTimestamp(row.created_at),
+      text: row.content
+    }));
+  }, []);
+
+  const handleArchiveInteraction = useCallback(async (interactionId: string) => {
+    await adminConversationsService.update(interactionId, { status: 'archived' });
+    setInteractions((prev) => prev.filter((interaction) => interaction.id !== interactionId));
+  }, []);
 
   const handleUpdateAdminAppointment = async (id: string, apptData: ScheduleAppointmentFormData, lead?: { id?: string | null }) => {
     try {
@@ -311,13 +301,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'dashboard
 
   const resetToDashboard = () => {
     handleSetView('dashboard');
-    setSelectedPropertyId(null);
   };
 
   const renderMainContent = () => {
     switch (activeView) {
       case 'dashboard':
-        return <AdminCommandCenter isDemoMode={isDemoMode} />;
+        return <AdminCommandCenter />;
       case 'leads':
         return (
           <AdminLeadsPage
@@ -341,7 +330,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'dashboard
       case 'ai-card':
         return <AICardPage isDemoMode={isDemoMode} />;
       case 'ai-conversations':
-        return <AIConversationsPage isDemoMode={isDemoMode} />;
+        return <AIConversationsPage adminMode />;
       case 'listings':
       case 'add-listing':
       case 'property':
@@ -371,11 +360,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'dashboard
       case 'inbox':
         return (
           <InteractionHubPage
-            properties={properties}
             interactions={interactions}
             setInteractions={setInteractions}
             onAddNewLead={handleAddNewLead}
             onBackToDashboard={resetToDashboard}
+            isLoading={interactionsLoading}
+            errorMessage={interactionsError}
+            onLoadInteractionMessages={loadInteractionMessages}
+            onArchiveInteraction={handleArchiveInteraction}
           />
         );
       case 'users':

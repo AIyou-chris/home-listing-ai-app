@@ -25,8 +25,9 @@ import {
 } from '../services/chatService';
 import { supabase } from '../services/supabase';
 import { DEMO_CONVERSATIONS, DEMO_MESSAGES } from '../demoConstants';
+import { adminConversationsService } from '../services/adminConversationsService';
 
-type ConversationType = 'chat' | 'voice' | 'email';
+type ConversationType = 'chat' | 'voice' | 'email' | 'sms';
 type ConversationStatus = 'active' | 'archived' | 'important' | 'follow-up';
 
 interface ConversationSummary {
@@ -119,7 +120,7 @@ const parseMessageTranslation = (translation: unknown): MessageTranslation | und
 };
 
 const mapFilterTypeValue = (value: string): ConversationType | 'all' => {
-  const allowed: Array<ConversationType | 'all'> = ['chat', 'voice', 'email', 'all'];
+  const allowed: Array<ConversationType | 'all'> = ['chat', 'voice', 'email', 'sms', 'all'];
   return allowed.includes(value as ConversationType | 'all') ? (value as ConversationType | 'all') : 'all';
 };
 
@@ -184,7 +185,11 @@ const parseDurationToMinutes = (duration?: string | null) => {
   return 0;
 };
 
-const AIConversationsPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = false }) => {
+const AIConversationsPage: React.FC<{ isDemoMode?: boolean; adminMode?: boolean }> = ({
+  isDemoMode = false,
+  adminMode = false
+}) => {
+  const effectiveDemoMode = isDemoMode && !adminMode;
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [messagesByConversation, setMessagesByConversation] = useState<Record<string, ConversationMessage[]>>({});
   const [loadingConversations, setLoadingConversations] = useState(true);
@@ -203,7 +208,7 @@ const AIConversationsPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = 
 
   const loadConversations = useCallback(async () => {
     // FORCE REAL DATA: Only use demo if explicitly passed, otherwise ignore default props if we want live
-    if (isDemoMode) {
+    if (effectiveDemoMode) {
       setConversations(DEMO_CONVERSATIONS as unknown as ConversationSummary[]);
       if (DEMO_CONVERSATIONS.length && !selectedConversationId) {
         setSelectedConversationId(DEMO_CONVERSATIONS[0].id);
@@ -217,10 +222,12 @@ const AIConversationsPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = 
       setLoadingConversations(true);
       setError(null);
 
-      const rows = await listConversations({
-        userId: currentUserId ?? undefined,
-        scope: 'agent'
-      });
+      const rows = adminMode
+        ? await adminConversationsService.list({ limit: 100 })
+        : await listConversations({
+            userId: currentUserId ?? undefined,
+            scope: 'agent'
+          });
       const mapped = rows.map(mapConversationRowToSummary);
       setConversations(mapped);
       if (mapped.length && !selectedConversationId) {
@@ -233,10 +240,14 @@ const AIConversationsPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = 
     } finally {
       setLoadingConversations(false);
     }
-  }, [selectedConversationId, currentUserId, isDemoMode]);
+  }, [selectedConversationId, currentUserId, effectiveDemoMode, adminMode]);
 
   useEffect(() => {
     const fetchUser = async () => {
+      if (adminMode) {
+        setCurrentUserId(null);
+        return;
+      }
       try {
         const { data } = await supabase.auth.getUser();
         setCurrentUserId(data?.user?.id ?? null);
@@ -246,7 +257,7 @@ const AIConversationsPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = 
       }
     };
     fetchUser();
-  }, []);
+  }, [adminMode]);
 
   useEffect(() => {
     loadConversations();
@@ -254,7 +265,7 @@ const AIConversationsPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = 
 
   // --- REAL-TIME UPDATES (PHASE 2) ---
   useEffect(() => {
-    if (isDemoMode) return;
+    if (effectiveDemoMode || adminMode) return;
 
     // 1. Live Conversation List Updates
     const convChannel = supabase.channel('public:ai_conversations:list')
@@ -269,10 +280,10 @@ const AIConversationsPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = 
       .subscribe();
 
     return () => { supabase.removeChannel(convChannel); };
-  }, [loadConversations, isDemoMode]);
+  }, [loadConversations, effectiveDemoMode, adminMode]);
 
   useEffect(() => {
-    if (isDemoMode || !selectedConversationId) return;
+    if (effectiveDemoMode || adminMode || !selectedConversationId) return;
 
     // 2. Live Message Thread Updates
     const msgChannel = supabase.channel(`public:messages:${selectedConversationId}`)
@@ -284,7 +295,7 @@ const AIConversationsPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = 
           table: 'ai_conversation_messages',
           filter: `conversation_id=eq.${selectedConversationId}`
         },
-        async (payload) => {
+        async (_payload) => {
           console.log('⚡ [Realtime] New message received');
           // Fast refresh of just this thread
           try {
@@ -301,7 +312,7 @@ const AIConversationsPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = 
       .subscribe();
 
     return () => { supabase.removeChannel(msgChannel); };
-  }, [selectedConversationId, isDemoMode]);
+  }, [selectedConversationId, effectiveDemoMode, adminMode]);
 
   useEffect(() => {
     setIsDetailExpanded(false);
@@ -346,7 +357,7 @@ const AIConversationsPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = 
       if (!conversationId) return;
       if (messagesByConversation[conversationId]) return;
 
-      if (isDemoMode) {
+      if (effectiveDemoMode) {
         const demoMsgs = DEMO_MESSAGES[conversationId as keyof typeof DEMO_MESSAGES] || [];
         setMessagesByConversation((prev) => ({
           ...prev,
@@ -357,7 +368,9 @@ const AIConversationsPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = 
 
       try {
         setLoadingMessages(true);
-        const rows = await getMessages(conversationId);
+        const rows = adminMode
+          ? await adminConversationsService.listMessages(conversationId)
+          : await getMessages(conversationId);
         setMessagesByConversation((prev) => ({
           ...prev,
           [conversationId]: rows.map(mapMessageRowToConversationMessage)
@@ -373,7 +386,7 @@ const AIConversationsPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = 
     if (selectedConversationId) {
       loadMessagesForConversation(selectedConversationId);
     }
-  }, [selectedConversationId, messagesByConversation, isDemoMode]);
+  }, [selectedConversationId, messagesByConversation, effectiveDemoMode, adminMode]);
 
   useEffect(() => {
     if (!lastSyncedAt) {
@@ -418,6 +431,10 @@ const AIConversationsPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = 
 
   const handleExportConversations = async () => {
     try {
+      if (adminMode) {
+        setError('Admin CSV export is not wired yet. This screen is live, but export still needs a real admin endpoint.');
+        return;
+      }
       setIsExporting(true);
       await exportConversationsCSV({
         scope: 'agent',
@@ -439,6 +456,8 @@ const AIConversationsPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = 
         return <Phone className="w-4 h-4" />;
       case 'email':
         return <User className="w-4 h-4" />;
+      case 'sms':
+        return <MessageCircle className="w-4 h-4" />;
       default:
         return <MessageCircle className="w-4 h-4" />;
     }
@@ -447,7 +466,8 @@ const AIConversationsPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = 
   const typeBadgeStyles: Record<ConversationType, string> = {
     chat: 'bg-blue-50 text-blue-600 border border-blue-100',
     voice: 'bg-green-50 text-green-600 border border-green-100',
-    email: 'bg-purple-50 text-purple-600 border border-purple-100'
+    email: 'bg-purple-50 text-purple-600 border border-purple-100',
+    sms: 'bg-amber-50 text-amber-700 border border-amber-100'
   };
 
   const statusBadgeStyles: Record<ConversationStatus, string> = {
@@ -512,7 +532,7 @@ const AIConversationsPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = 
                 disabled={isExporting}
               >
                 <Download className="w-4 h-4" />
-                <span>{isExporting ? 'Exporting…' : 'Export Conversation CSV'}</span>
+                <span>{adminMode ? 'Admin Export Not Ready' : isExporting ? 'Exporting…' : 'Export Conversation CSV'}</span>
               </button>
             </div>
           </div>
@@ -620,6 +640,7 @@ const AIConversationsPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = 
                 <option value="chat">Chat</option>
                 <option value="voice">Voice</option>
                 <option value="email">Email</option>
+                <option value="sms">SMS</option>
               </select>
               <select
                 value={filterStatus}
@@ -754,7 +775,7 @@ const AIConversationsPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = 
                           if (!selectedConversationSummary) return;
                           if (!window.confirm('Delete this conversation? This cannot be undone.')) return;
 
-                          if (isDemoMode) {
+                          if (effectiveDemoMode) {
                             setConversations((prev) => prev.filter((c) => c.id !== selectedConversationSummary.id));
                             setMessagesByConversation((prev) => {
                               const next = { ...prev };
@@ -766,7 +787,11 @@ const AIConversationsPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = 
                           }
 
                           try {
-                            await deleteConversation(selectedConversationSummary.id);
+                            if (adminMode) {
+                              await adminConversationsService.update(selectedConversationSummary.id, { status: 'archived' });
+                            } else {
+                              await deleteConversation(selectedConversationSummary.id);
+                            }
                             setMessagesByConversation((prev) => {
                               const next = { ...prev };
                               delete next[selectedConversationSummary.id];
@@ -782,7 +807,7 @@ const AIConversationsPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = 
                         className="flex items-center gap-2 border border-red-200 text-red-600 px-4 py-2 rounded-lg font-medium hover:bg-red-50 transition-colors"
                       >
                         <Trash2 className="w-4 h-4" />
-                        <span>Delete</span>
+                        <span>{adminMode ? 'Archive' : 'Delete'}</span>
                       </button>
                     </div>
                   </div>
@@ -793,7 +818,13 @@ const AIConversationsPage: React.FC<{ isDemoMode?: boolean }> = ({ isDemoMode = 
                     </span>
                     <span className="inline-flex items-center gap-1">
                       {getTypeIcon(selectedConversationSummary.type)}
-                      {selectedConversationSummary.type === 'voice' ? 'Voice note' : selectedConversationSummary.type === 'chat' ? 'Chat' : 'Email'}
+                      {selectedConversationSummary.type === 'voice'
+                        ? 'Voice note'
+                        : selectedConversationSummary.type === 'chat'
+                          ? 'Chat'
+                          : selectedConversationSummary.type === 'sms'
+                            ? 'SMS'
+                            : 'Email'}
                     </span>
                     {selectedConversationSummary.property && (
                       <span className="inline-flex items-center gap-1">
