@@ -664,7 +664,11 @@ app.get(['/api/vapi/webhook', '/api/voice/vapi/webhook', '/webhooks/vapi'], asyn
 });
 
 app.get('/webhooks/telnyx', async (_req, res) => {
-  res.status(200).json({ ok: true, provider: 'telnyx' });
+  res.status(410).json({
+    ok: false,
+    provider: 'telnyx',
+    error: 'telnyx_sms_webhook_retired'
+  });
 });
 
 // STRIPE CHECKOUT ENDPOINT
@@ -11432,7 +11436,7 @@ const processSmsSendJob = async (job) => {
   const text = payload.text || '';
   if (!toPhone || !text) throw new Error('missing_sms_payload');
 
-  const result = await sendSms(toPhone, text);
+  const result = await sendSms(toPhone, text, [], agentId || null);
   const providerName = result?.provider || getSmsProviderName();
   const providerMessageId = result?.id || null;
 
@@ -13217,7 +13221,7 @@ const triggerHotLeadAlert = async (lead, totalScore) => {
 
     const message = `🔥 HOT LEAD ALERT: ${lead.name} just hit ${totalScore} points! They are high-intent. 📞 ${lead.phone || 'No phone'}`;
 
-    await sendSms(agentPhone, message);
+    await sendSms(agentPhone, message, [], agentId || null);
     console.log(`🔥 [Alert] Sent Hot Lead SMS to Agent ${agentId} for ${lead.name}`);
 
   } catch (err) {
@@ -14597,7 +14601,7 @@ app.post('/api/realtime/handoff', async (req, res) => {
       // but strictly we should check `shouldSendNotification`.
       // However, this is a direct operational alert.
       const smsMsg = `🚨 ${fullName}: Client requested HUMAN HELP.\nReason: ${reason}\nCheck email for details.`;
-      await sendSms(phone, smsMsg);
+      await sendSms(phone, smsMsg, [], userId || null);
       console.log(`📱 [Handoff] SMS sent to ${phone}`);
 
       // Also log into ai_conversations if possible (skipped for simplicity/speed)
@@ -16467,25 +16471,22 @@ app.get('/api/admin/listings', async (req, res) => {
 
     if (error) throw error;
 
-    // If no listings found, return demo data
-    if (!data || data.length === 0) {
-      const demoListings = [
-        {
-          id: 'demo-listing-1',
-          listing_id: 'demo-listing-1',
-          address: '1234 Demo Lane, Beverly Hills, CA 90210',
-          price: 4500000,
-          status: 'Active',
-          property_type: 'Single Family',
-          bedrooms: 5,
-          bathrooms: 6,
-          square_feet: 4500,
-          hero_image: 'https://images.unsplash.com/photo-1613490493576-7fde63acd811?ixlib=rb-4.0.3&auto=format&fit=crop&w=1600&q=80',
-          ai_summary: 'This stunning modern masterpiece features panoramic views, an infinity pool, and state-of-the-art smart home technology. Perfect for entertaining with an open floor plan and gourmet kitchen.',
-          created_at: new Date().toISOString()
-        }
-      ];
-      return res.json(demoListings);
+    const ownerIds = Array.from(new Set((data || [])
+      .map((listing) => listing.user_id || listing.agent_id || null)
+      .filter(Boolean)));
+
+    let agentsByOwnerId = new Map();
+    if (ownerIds.length > 0) {
+      const { data: agentRows, error: agentError } = await supabaseAdmin
+        .from('agents')
+        .select('auth_user_id, first_name, last_name, email, phone, headshot_url, brokerage, title')
+        .in('auth_user_id', ownerIds);
+
+      if (agentError) {
+        console.warn('Failed to hydrate listing agents:', agentError);
+      } else {
+        agentsByOwnerId = new Map((agentRows || []).map((agent) => [agent.auth_user_id, agent]));
+      }
     }
 
     // Map database fields to frontend model if necessary, or return as is
@@ -16501,36 +16502,22 @@ app.get('/api/admin/listings', async (req, res) => {
       square_feet: l.square_feet || l.sqft,
       hero_image: l.image_url || l.hero_image,
       ai_summary: l.description && typeof l.description === 'string' ? l.description : (l.description?.paragraphs?.[0] || ''),
-      created_at: l.created_at
+      created_at: l.created_at,
+      owner_id: l.user_id || l.agent_id || null,
+      agent: agentsByOwnerId.get(l.user_id || l.agent_id || '') || null
     }));
 
     res.json(mappedListings);
   } catch (error) {
     console.error('Error fetching admin listings:', error);
-    // Fallback to demo data on error for now to unblock user
-    const demoListings = [
-      {
-        id: 'demo-listing-1',
-        listing_id: 'demo-listing-1',
-        address: '1234 Demo Lane, Beverly Hills, CA 90210',
-        price: 4500000,
-        status: 'Active',
-        property_type: 'Single Family',
-        bedrooms: 5,
-        bathrooms: 6,
-        square_feet: 4500,
-        hero_image: 'https://images.unsplash.com/photo-1613490493576-7fde63acd811?ixlib=rb-4.0.3&auto=format&fit=crop&w=1600&q=80',
-        ai_summary: 'This stunning modern masterpiece features panoramic views, an infinity pool, and state-of-the-art smart home technology. Perfect for entertaining with an open floor plan and gourmet kitchen.',
-        created_at: new Date().toISOString()
-      }
-    ];
-    return res.json(demoListings);
+    return res.status(500).json({ error: 'Failed to fetch admin listings' });
   }
 });
 
 app.post('/api/admin/listings', async (req, res) => {
   try {
     const { address, price, status, property_type } = req.body;
+    const ownerId = req.user?.id || req.body?.user_id || req.body?.userId || DEFAULT_LEAD_USER_ID;
 
     const newListing = {
       title: address, // Using address as title for now
@@ -16538,6 +16525,7 @@ app.post('/api/admin/listings', async (req, res) => {
       price,
       status,
       property_type,
+      user_id: ownerId,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
@@ -16560,15 +16548,7 @@ app.post('/api/admin/listings', async (req, res) => {
     });
   } catch (error) {
     console.error('Error creating admin listing:', error);
-    // Return a mock success for demo purposes if DB fails
-    res.json({
-      listing_id: `temp-${Date.now()}`,
-      address: req.body.address,
-      price: req.body.price,
-      status: req.body.status,
-      property_type: req.body.property_type,
-      created_at: new Date().toISOString()
-    });
+    res.status(500).json({ error: 'Failed to create admin listing' });
   }
 });
 
@@ -16782,7 +16762,7 @@ app.post('/api/webhooks/incoming-lead', async (req, res) => {
         const prefs = await getNotificationPreferences(assignedUserId);
         if (prefs.notificationPhone) {
           const msg = `🔥 New Lead Alert!\nName: ${mappedLead.name}\nContact: ${mappedLead.phone || mappedLead.email || 'N/A'}\nSource: ${mappedLead.source}`;
-          await sendSms(prefs.notificationPhone, msg);
+          await sendSms(prefs.notificationPhone, msg, [], assignedUserId || null);
           console.log(`📱 Sent SMS alert to Agent at ${prefs.notificationPhone}`);
         }
       }
@@ -16901,13 +16881,13 @@ const processInboundSmsMessage = async ({
   let conversationId = conversations?.[0]?.id;
 
   if (!conversationId) {
-    const { data: newConv } = await supabaseAdmin
+    const { data: newConv, error: newConvError } = await supabaseAdmin
       .from('ai_conversations')
       .insert({
         user_id: lead.user_id,
         lead_id: lead.id,
         title: `SMS with ${lead.name}`,
-        type: 'sms',
+        type: 'chat',
         status: 'active',
         contact_name: lead.name,
         contact_phone: normalizedFromPhone,
@@ -16915,6 +16895,9 @@ const processInboundSmsMessage = async ({
       })
       .select('id')
       .single();
+    if (newConvError) {
+      console.error('[SMS Inbound] Failed to create conversation:', newConvError);
+    }
     conversationId = newConv?.id;
   }
 
@@ -17059,11 +17042,20 @@ const processTelnyxInboundEvent = async (event, { webhookEventId = null } = {}) 
     const status = payload.to?.[0]?.status || 'unknown';
 
     if (telnyxId) {
-      const { data: msgs } = await supabaseAdmin
+      let { data: msgs } = await supabaseAdmin
         .from('ai_conversation_messages')
         .select('id, metadata')
         .contains('metadata', { telnyxId })
         .limit(1);
+
+      if ((!msgs || !msgs[0])) {
+        const fallback = await supabaseAdmin
+          .from('ai_conversation_messages')
+          .select('id, metadata')
+          .contains('metadata', { providerMessageId: telnyxId })
+          .limit(1);
+        msgs = fallback.data;
+      }
 
       if (msgs && msgs[0]) {
         const msg = msgs[0];
@@ -17096,31 +17088,12 @@ const processTelnyxInboundEvent = async (event, { webhookEventId = null } = {}) 
   return { ...result, eventType };
 };
 
-// Webhook for Telnyx Inbound SMS (inbox only; async processing via jobs)
-app.post(['/api/webhooks/telnyx/inbound', '/webhooks/telnyx'], async (req, res) => {
-  try {
-    const payload = req.body || {};
-    const forcedEventId = payload?.data?.id || payload?.data?.payload?.id || null;
-    const queued = await enqueueWebhookEvent({
-      provider: 'telnyx',
-      payload,
-      forcedEventId: forcedEventId || deriveWebhookEventId('telnyx', payload),
-      priority: 2
-    });
-
-    res.status(200).json({
-      received: true,
-      provider: 'telnyx',
-      webhook_event_id: queued?.webhookEvent?.id || null,
-      job_id: queued?.job?.id || null
-    });
-  } catch (error) {
-    if (isJobQueueMissingTableError(error)) {
-      return res.status(500).json({ error: 'job_queue_tables_missing_run_phase3_1_migration' });
-    }
-    console.error('Telnyx inbound enqueue error:', error);
-    res.status(500).json({ error: 'failed_to_enqueue_telnyx_webhook' });
-  }
+// Telnyx SMS webhooks are retired. Keep the route explicit so old provider retries are easy to diagnose.
+app.post(['/api/webhooks/telnyx/inbound', '/webhooks/telnyx'], async (_req, res) => {
+  res.status(410).json({
+    error: 'telnyx_sms_webhook_retired',
+    message: 'SMS now uses Textbelt. Update the provider webhook to /api/webhooks/textbelt/inbound.'
+  });
 });
 
 app.get('/api/webhooks/textbelt/inbound', async (_req, res) => {
@@ -17333,7 +17306,7 @@ app.post('/api/admin/leads', async (req, res) => {
               console.log(`[Funnel] Triggering immediate SMS to ${phone} for funnel ${funnelId}`);
 
               if (await shouldSendNotification(assignedUserId, 'sms', 'aiInteraction')) {
-                sendSms(phone, content, mediaUrls).catch(err => console.error(`[Funnel] Failed to send SMS to ${phone}`, err));
+                sendSms(phone, content, mediaUrls, assignedUserId || null).catch(err => console.error(`[Funnel] Failed to send SMS to ${phone}`, err));
               } else {
                 console.log(`[Funnel] SMS suppressed by preferences for User ${assignedUserId}`);
               }
@@ -18385,7 +18358,7 @@ app.post('/api/leads', async (req, res) => {
         if (!SMS_COMING_SOON && await shouldSendNotification(agentId, 'sms', 'smsNewLeadAlerts')) {
           if (agentPhone) {
             const smsMessage = `New Lead Alert: ${name} just signed up! 📞 ${phone || 'No phone'} 📧 ${email}`;
-            await sendSms(agentPhone, smsMessage);
+            await sendSms(agentPhone, smsMessage, [], agentId || null);
             console.log(`🔔 Sent SMS Alert for Agent ${agentId} to ${agentPhone}`);
           } else {
             console.warn(`⚠️ SMS Alert skipped: No phone number found for Agent ${agentId}`);
@@ -27968,7 +27941,7 @@ app.post('/api/conversations/:conversationId/messages', async (req, res) => {
 
       // 2. Send via configured SMS provider
       console.log(`📤 Sending Manual SMS to ${conversation.contact_phone}: "${content}"`);
-      const smsResult = await sendSms(conversation.contact_phone, content);
+      const smsResult = await sendSms(conversation.contact_phone, content, [], userId || null);
 
       if (!smsResult) {
         return res.status(400).json({ error: 'SMS Send Failed (Check Safety Rules or Validity)' });
@@ -28265,6 +28238,93 @@ app.get('/api/conversations/export/csv', async (req, res) => {
   } catch (error) {
     console.error('Error exporting conversations to CSV:', error);
     res.status(500).json({ error: 'Failed to export conversations' });
+  }
+});
+
+app.get('/api/admin/conversations', verifyAdmin, async (req, res) => {
+  try {
+    const { scope, status, search, limit = '100' } = req.query;
+    const parsedLimit = Math.max(1, Math.min(200, Number.parseInt(String(limit), 10) || 100));
+
+    let query = supabaseAdmin
+      .from('ai_conversations')
+      .select(AI_CONVERSATION_SELECT_FIELDS)
+      .order('last_message_at', { ascending: false, nulls: 'last' })
+      .order('created_at', { ascending: false, nulls: 'last' })
+      .limit(parsedLimit);
+
+    if (scope) query = query.eq('scope', scope);
+    if (status) query = query.eq('status', status);
+    if (search) {
+      const term = `%${String(search).trim()}%`;
+      query = query.or(`contact_name.ilike.${term},contact_email.ilike.${term},contact_phone.ilike.${term},title.ilike.${term},last_message.ilike.${term},property.ilike.${term}`);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    res.json((data || []).map(mapAiConversationFromRow));
+  } catch (error) {
+    console.error('Error listing admin conversations:', error);
+    res.status(500).json({ error: 'Failed to list admin conversations' });
+  }
+});
+
+app.get('/api/admin/conversations/:conversationId/messages', verifyAdmin, async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    const limit = Math.max(1, Math.min(200, Number.parseInt(String(req.query.limit || '100'), 10) || 100));
+
+    if (!isUuid(conversationId)) {
+      return res.json([]);
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('ai_conversation_messages')
+      .select(AI_CONVERSATION_MESSAGE_SELECT_FIELDS)
+      .eq('conversation_id', conversationId)
+      .order('created_at', { ascending: true })
+      .limit(limit);
+
+    if (error) throw error;
+
+    res.json((data || []).map(mapAiConversationMessageFromRow));
+  } catch (error) {
+    console.error('Error listing admin conversation messages:', error);
+    res.status(500).json({ error: 'Failed to load admin conversation messages' });
+  }
+});
+
+app.put('/api/admin/conversations/:conversationId', verifyAdmin, async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    const { status } = req.body || {};
+
+    if (!isUuid(conversationId)) {
+      return res.status(400).json({ error: 'invalid_conversation_id' });
+    }
+
+    const updates = {
+      updated_at: nowIso()
+    };
+
+    if (status !== undefined) {
+      updates.status = status || 'active';
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('ai_conversations')
+      .update(updates)
+      .eq('id', conversationId)
+      .select(AI_CONVERSATION_SELECT_FIELDS)
+      .single();
+
+    if (error) throw error;
+
+    res.json(mapAiConversationFromRow(data));
+  } catch (error) {
+    console.error('Error updating admin conversation:', error);
+    res.status(500).json({ error: 'Failed to update admin conversation' });
   }
 });
 
@@ -28582,7 +28642,7 @@ app.post('/api/ai-card/share', async (req, res) => {
       // Wire to SMS Service
       if (validatePhoneNumber(recipient)) {
         const { sendSms } = require('./services/smsService'); // dynamic require to ensure scope
-        await sendSms(recipient, `${shareText}\n\n${shareUrl}`);
+        await sendSms(recipient, `${shareText}\n\n${shareUrl}`, [], targetUserId || null);
         deliveryResult = { sent: true, provider: 'sms' };
         console.log(`📱 [AI Card] Sent SMS share to ${recipient}`);
       } else {
@@ -31612,7 +31672,7 @@ const executeDelayedStep = async (userId, lead, step, signature, sequenceId) => 
     if (phone) {
       const mediaUrls = step.mediaUrl ? [step.mediaUrl] : [];
       console.log('[Scheduler] Sending Delayed SMS to ' + phone);
-      await sendSms(phone, content, mediaUrls);
+      await sendSms(phone, content, mediaUrls, userId || null);
       return { success: true };
     } else {
       console.log(`[Scheduler] Skipping SMS for lead ${lead.id}: No phone number`);

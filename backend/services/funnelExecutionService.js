@@ -136,7 +136,8 @@ module.exports = ({ supabaseAdmin, emailService, smsService, voiceService }) => 
                 }
 
                 const message = mergeTokens(step.content || step.body, lead, agent);
-                await smsService.sendSms(lead.phone, message, step.mediaUrl);
+                const mediaUrls = step.mediaUrl ? [step.mediaUrl] : [];
+                await smsService.sendSms(lead.phone, message, mediaUrls, agent.id || null);
 
             } else if (stepType === 'call') {
                 if (process.env.VITE_ENABLE_VOICE === 'false') {

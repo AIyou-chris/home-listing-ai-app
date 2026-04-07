@@ -741,6 +741,10 @@ const createBillingEngine = ({ supabaseAdmin, stripe, enqueueJob, appBaseUrl }) 
         used: Number(usage.counters.reminder_calls_used || 0),
         limit: Number(limits.reminder_calls_per_month || 0)
       },
+      sms_messages: {
+        used: Number(usage.counters.sms_messages || 0),
+        limit: Number(limits.sms_messages || 0)
+      },
       stored_leads_cap: {
         used: Number(usage.counters.stored_leads || 0),
         limit: Number(limits.stored_leads_cap || 0)

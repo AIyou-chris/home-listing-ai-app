@@ -1,12 +1,7 @@
 const axios = require('axios');
 
-const TELNYX_MESSAGES_URL = 'https://api.telnyx.com/v2/messages';
-const TELNYX_LOOKUP_URL = 'https://api.telnyx.com/v2/number_lookups';
 const TEXTBELT_MESSAGES_URL = 'https://textbelt.com/text';
-
-const SMS_PROVIDER = String(
-  process.env.SMS_PROVIDER || (process.env.TEXTBELT_API_KEY ? 'textbelt' : 'telnyx')
-).trim().toLowerCase();
+const SMS_PROVIDER = 'textbelt';
 
 const SMS_COMING_SOON =
   String(process.env.SMS_COMING_SOON || 'true').toLowerCase() !== 'false';
@@ -48,46 +43,11 @@ const checkSafetyRules = (destination) => {
   return { safe: true };
 };
 
-const validatePhoneNumber = async (phoneNumber) => {
-  if (getSmsProviderName() !== 'telnyx') {
-    return true;
-  }
-
-  const apiKey = process.env.TELNYX_API_KEY;
-  if (!apiKey) return true;
-
+const validatePhoneNumber = (phoneNumber) => {
   const destination = normalizePhoneNumber(phoneNumber);
   if (!destination) return false;
-
-  try {
-    console.log(`🔍 [Lookup] Verifying ${destination}...`);
-    const url = `${TELNYX_LOOKUP_URL}/${encodeURIComponent(destination)}?type=carrier`;
-
-    const response = await axios.get(url, {
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      }
-    });
-
-    const data = response.data?.data;
-    if (!data) return false;
-
-    if (!data.valid_number) {
-      console.warn(`❌ [Lookup] Invalid Number Detected: ${destination}`);
-      return false;
-    }
-
-    console.log(`✅ [Lookup] Number Validated. Type: ${data.carrier?.type || 'unknown'}`);
-    return true;
-  } catch (error) {
-    if (error.response && (error.response.status === 404 || error.response.status === 400)) {
-      console.warn(`❌ [Lookup] Number Rejected by Telnyx: ${destination}`);
-      return false;
-    }
-    console.error(`⚠️ [Lookup] API Error: ${error.message}. Allowing send.`);
-    return true;
-  }
+  const digits = destination.replace(/\D/g, '');
+  return digits.length >= 10 && digits.length <= 15;
 };
 
 const getTextbeltReplyWebhookUrl = () => {
@@ -100,44 +60,6 @@ const buildReplyWebhookUrl = () => {
   return base.endsWith('/api/webhooks/textbelt/inbound')
     ? base
     : `${base.replace(/\/$/, '')}/api/webhooks/textbelt/inbound`;
-};
-
-const sendViaTelnyx = async ({ destination, messageText }) => {
-  const apiKey = process.env.TELNYX_API_KEY;
-  const fromNumber = process.env.TELNYX_PHONE_NUMBER;
-
-  if (!apiKey) {
-    console.warn('⚠️ [SMS] Telnyx API Key not configured (TELNYX_API_KEY).');
-    return false;
-  }
-
-  if (!fromNumber) {
-    console.warn('⚠️ [SMS] Telnyx From Number not configured.');
-    return false;
-  }
-
-  const response = await axios.post(
-    TELNYX_MESSAGES_URL,
-    {
-      from: fromNumber,
-      to: destination,
-      text: messageText
-    },
-    {
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`
-      }
-    }
-  );
-
-  const data = response.data?.data || {};
-  console.log('✅ [SMS] Sent successfully via Telnyx:', response.data);
-  return {
-    provider: 'telnyx',
-    id: data.id || null,
-    data: response.data
-  };
 };
 
 const sendViaTextbelt = async ({ destination, messageText }) => {
@@ -199,9 +121,10 @@ const sendSms = async (to, message, mediaUrls = [], userId = null) => {
     return false;
   }
 
-  const isValid = await validatePhoneNumber(to);
+  const isValid = validatePhoneNumber(to);
   if (!isValid) {
-    console.warn(`⚠️ [SMS] Lookup failed or rejected for ${destination}. Proceeding anyway (Trial Mode / Best Effort)...`);
+    console.warn(`⚠️ [SMS] Invalid phone number format for ${destination}.`);
+    return false;
   }
 
   const appendedMedia = Array.isArray(mediaUrls) && mediaUrls.length > 0
@@ -211,9 +134,7 @@ const sendSms = async (to, message, mediaUrls = [], userId = null) => {
 
   try {
     console.log(`📱 [SMS] Sending to ${destination} via ${getSmsProviderName()}...`);
-    const result = getSmsProviderName() === 'textbelt'
-      ? await sendViaTextbelt({ destination, messageText })
-      : await sendViaTelnyx({ destination, messageText });
+    const result = await sendViaTextbelt({ destination, messageText });
 
     if (!result) {
       return false;
