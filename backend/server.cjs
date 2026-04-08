@@ -15334,7 +15334,7 @@ app.post('/api/security/audit', async (req, res) => {
 });
 
 // SECURITY MIDDLEWARE: Verify Admin Access
-const verifyAdmin = async (req, res, next) => {
+async function verifyAdmin(req, res, next) {
   console.log(`[Auth] Admin verification started for: ${req.method} ${req.url}`);
   try {
     // 1. Verify Supabase Token (Strict)
@@ -15406,7 +15406,7 @@ const verifyAdmin = async (req, res, next) => {
     console.error('Admin verification failed:', e);
     res.status(500).json({ error: 'Internal Server Error during Auth' });
   }
-};
+}
 
 app.get('/api/admin/jobs', verifyAdmin, async (req, res) => {
   try {
