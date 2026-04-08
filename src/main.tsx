@@ -8,6 +8,7 @@ import App from './App'
 import ErrorBoundary from './components/ErrorBoundary'
 import { SchedulerProvider } from './context/SchedulerContext'
 import { ImpersonationProvider } from './context/ImpersonationContext'
+import RouteAnalyticsTracker from './components/RouteAnalyticsTracker'
 
 const rootElement = document.getElementById('root')!
 const root = createRoot(rootElement)
@@ -28,6 +29,7 @@ root.render(
   <StrictMode>
     <HelmetProvider>
       <BrowserRouter>
+        <RouteAnalyticsTracker />
         <ErrorBoundary>
           <SchedulerProvider>
             <ImpersonationProvider>
