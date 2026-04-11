@@ -1117,8 +1117,18 @@ interface LandingPageProps {
 const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigateToSignIn, onEnterDemoMode, onOpenConsultationModal, onNavigateToAdmin, onNavigateToShowcase }) => {
     const [isChatOpen, setIsChatOpen] = useState(false);
     const [isComparePlansOpen, setIsComparePlansOpen] = useState(false);
+    const [shouldLoadChat, setShouldLoadChat] = useState(false);
+
+    useEffect(() => {
+        const timer = window.setTimeout(() => {
+            setShouldLoadChat(true);
+        }, 3500);
+
+        return () => window.clearTimeout(timer);
+    }, []);
 
     const handleOpenChatBot = () => {
+        setShouldLoadChat(true);
         setIsChatOpen(true);
     };
 
@@ -1182,26 +1192,26 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigat
             <PublicFooter onNavigateToAdmin={onNavigateToAdmin} />
 
             {/* Chat Bot FAB for visitors */}
-            <Suspense fallback={null}>
-                <ChatBotFAB
-                    context={{
-                        userType: 'visitor',
-                        currentPage: 'landing',
-                        previousInteractions: 0,
-                        userInfo: {}
-                    }}
-                    onLeadGenerated={(leadInfo) => {
-                        console.log('Lead generated from landing page chat:', leadInfo);
-                        // Could trigger analytics event or save lead
-                    }}
-                    onSupportTicket={(ticketInfo) => {
-                        console.log('Support ticket created from landing page:', ticketInfo);
-                        // Could create support ticket or send notification
-                    }}
-                    position="bottom-right"
-                    initialOpen={isChatOpen}
-                />
-            </Suspense>
+            {shouldLoadChat || isChatOpen ? (
+                <Suspense fallback={null}>
+                    <ChatBotFAB
+                        context={{
+                            userType: 'visitor',
+                            currentPage: 'landing',
+                            previousInteractions: 0,
+                            userInfo: {}
+                        }}
+                        onLeadGenerated={(leadInfo) => {
+                            console.log('Lead generated from landing page chat:', leadInfo);
+                        }}
+                        onSupportTicket={(ticketInfo) => {
+                            console.log('Support ticket created from landing page:', ticketInfo);
+                        }}
+                        position="bottom-right"
+                        initialOpen={isChatOpen}
+                    />
+                </Suspense>
+            ) : null}
 
             {/* <AIContactOverlay isOpen={false} onClose={() => {}} /> Unused - replaced by ConsultationModal */}
 

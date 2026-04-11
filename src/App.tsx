@@ -2,6 +2,7 @@ import React, { useState, useEffect, Suspense, lazy, useCallback, useRef } from 
 import { Routes, Route, useNavigate, useLocation, Navigate, Outlet } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from './services/supabase';
+import './index.css';
 import { Property, View, AgentProfile, NotificationSettings, EmailSettings, CalendarSettings, BillingSettings, Lead, Appointment, Interaction, SecuritySettings } from './types';
 import { DEMO_FAT_PROPERTIES, DEMO_FAT_LEADS, DEMO_FAT_APPOINTMENTS } from './demoConstants';
 import { EMPTY_AGENT, SAMPLE_AGENT, SAMPLE_INTERACTIONS } from './constants';
@@ -88,6 +89,7 @@ import { fetchOnboardingState } from './services/onboardingService';
 import { listAppointments } from './services/appointmentsService';
 import { PerformanceService } from './services/performanceService';
 import PostAuth from './routes/PostAuth';
+import { SchedulerProvider } from './context/SchedulerContext';
 
 
 // A helper function to delay execution
@@ -1765,71 +1767,73 @@ const App: React.FC = () => {
 
     return (
         <ImpersonationProvider>
-            <AgentBrandingProvider>
-                <AISidekickProvider>
-                    <DashboardLayoutContext.Provider value={{ authReady, session, role, roleReady, user, isAdmin, isDemoMode, isSidebarOpen, setIsSidebarOpen, logAuthBreadcrumb }}>
-                    <ErrorBoundary>
-                        <Suspense fallback={<LoadingSpinner />}>
-                            {renderRoutes()}
-                        </Suspense>
-                        {user && userProfile?.payment_status === 'trialing' && (() => {
-                            const created = new Date(user.created_at || '').getTime();
-                            const now = new Date().getTime();
-                            const isExpired = now - created >= 3 * 24 * 60 * 60 * 1000;
-                            return isExpired ? (
+            <SchedulerProvider>
+                <AgentBrandingProvider>
+                    <AISidekickProvider>
+                        <DashboardLayoutContext.Provider value={{ authReady, session, role, roleReady, user, isAdmin, isDemoMode, isSidebarOpen, setIsSidebarOpen, logAuthBreadcrumb }}>
+                        <ErrorBoundary>
+                            <Suspense fallback={<LoadingSpinner />}>
+                                {renderRoutes()}
+                            </Suspense>
+                            {user && userProfile?.payment_status === 'trialing' && (() => {
+                                const created = new Date(user.created_at || '').getTime();
+                                const now = new Date().getTime();
+                                const isExpired = now - created >= 3 * 24 * 60 * 60 * 1000;
+                                return isExpired ? (
+                                    <Suspense fallback={null}>
+                                        <TrialLock _user={user} />
+                                    </Suspense>
+                                ) : null;
+                            })()}
+                            {isConsultationModalOpen && (
                                 <Suspense fallback={null}>
-                                    <TrialLock _user={user} />
+                                    <ConsultationModal leadRole={consultationRole} onClose={() => setIsConsultationModalOpen(false)} onSuccess={() => { console.log('Consultation scheduled successfully!'); }} />
                                 </Suspense>
-                            ) : null;
-                        })()}
-                        {isConsultationModalOpen && (
-                            <Suspense fallback={<LoadingSpinner />}>
-                                <ConsultationModal leadRole={consultationRole} onClose={() => setIsConsultationModalOpen(false)} onSuccess={() => { console.log('Consultation scheduled successfully!'); }} />
-                            </Suspense>
-                        )}
-                        {isAdminLoginOpen && view !== 'admin-setup' && (
-                            <Suspense fallback={<LoadingSpinner />}>
-                                <AdminLogin onLogin={handleAdminLogin} onBack={handleAdminLoginClose} isLoading={isAdminLoginLoading} error={adminLoginError || undefined} />
-                            </Suspense>
-                        )}
-                        {view !== 'landing' && view !== 'new-landing' && !isPublicListingRoute && (
-                            <Suspense fallback={null}>
-                                <ChatBotFAB
-                                    context={{
-                                        userType: user ? (isDemoMode ? 'prospect' : 'client') : 'visitor',
-                                        currentPage: view,
-                                        previousInteractions: user ? 1 : 0,
-                                        userInfo: user ? { name: user.displayName || 'User', email: user.email || '', company: 'Real Estate' } : undefined
-                                    }}
-                                    onLeadGenerated={(leadInfo) => { console.log('Lead generated from chat:', leadInfo); }}
-                                    onSupportTicket={async (ticketInfo) => {
-                                        console.log('Support ticket created from chat:', ticketInfo);
-                                        try {
-                                            const { notifyAgentHandoff } = await import('./services/chatService');
-                                            await notifyAgentHandoff(ticketInfo);
-                                        } catch (err) {
-                                            console.error("Failed to notify agent of handoff:", err);
-                                        }
-                                    }}
-                                    position="bottom-right"
-                                    showWelcomeMessage={false}
-                                />
-                            </Suspense>
-                        )}
-                    </ErrorBoundary>
-                    </DashboardLayoutContext.Provider>
-                </AISidekickProvider>
-                <Toaster
-                    position="bottom-center"
-                    toastOptions={{
-                        duration: 3000,
-                        style: {
-                            background: '#333',
-                            color: '#fff',
-                        },
-                    }}
-                />
-            </AgentBrandingProvider>
+                            )}
+                            {isAdminLoginOpen && view !== 'admin-setup' && (
+                                <Suspense fallback={<LoadingSpinner />}>
+                                    <AdminLogin onLogin={handleAdminLogin} onBack={handleAdminLoginClose} isLoading={isAdminLoginLoading} error={adminLoginError || undefined} />
+                                </Suspense>
+                            )}
+                            {view !== 'landing' && view !== 'new-landing' && !isPublicListingRoute && (
+                                <Suspense fallback={null}>
+                                    <ChatBotFAB
+                                        context={{
+                                            userType: user ? (isDemoMode ? 'prospect' : 'client') : 'visitor',
+                                            currentPage: view,
+                                            previousInteractions: user ? 1 : 0,
+                                            userInfo: user ? { name: user.displayName || 'User', email: user.email || '', company: 'Real Estate' } : undefined
+                                        }}
+                                        onLeadGenerated={(leadInfo) => { console.log('Lead generated from chat:', leadInfo); }}
+                                        onSupportTicket={async (ticketInfo) => {
+                                            console.log('Support ticket created from chat:', ticketInfo);
+                                            try {
+                                                const { notifyAgentHandoff } = await import('./services/chatService');
+                                                await notifyAgentHandoff(ticketInfo);
+                                            } catch (err) {
+                                                console.error("Failed to notify agent of handoff:", err);
+                                            }
+                                        }}
+                                        position="bottom-right"
+                                        showWelcomeMessage={false}
+                                    />
+                                </Suspense>
+                            )}
+                        </ErrorBoundary>
+                        </DashboardLayoutContext.Provider>
+                    </AISidekickProvider>
+                    <Toaster
+                        position="bottom-center"
+                        toastOptions={{
+                            duration: 3000,
+                            style: {
+                                background: '#333',
+                                color: '#fff',
+                            },
+                        }}
+                    />
+                </AgentBrandingProvider>
+            </SchedulerProvider>
         </ImpersonationProvider>
     );
 };

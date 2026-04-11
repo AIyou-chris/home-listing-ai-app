@@ -22,6 +22,9 @@ export const PublicHeader: React.FC<PublicHeaderProps> = ({
     const navigate = useNavigate();
     const location = useLocation();
     const isHome = location.pathname === '/';
+    const analyticsWindow = typeof window !== 'undefined'
+        ? (window as Window & { gtag?: (...args: unknown[]) => void })
+        : undefined;
 
     const navLinks = [
         { name: "Pricing", href: "/#pricing" },
@@ -78,8 +81,8 @@ export const PublicHeader: React.FC<PublicHeaderProps> = ({
     };
 
     const handleSignUp = () => {
-        if (typeof window !== 'undefined' && (window as any).gtag) {
-            (window as any).gtag('event', 'click_signup_header', { event_category: 'engagement', event_label: 'header_desktop' });
+        if (analyticsWindow?.gtag) {
+            analyticsWindow.gtag('event', 'click_signup_header', { event_category: 'engagement', event_label: 'header_desktop' });
         }
         if (onNavigateToSignUp) onNavigateToSignUp();
         else navigate('/signup');
@@ -114,7 +117,11 @@ export const PublicHeader: React.FC<PublicHeaderProps> = ({
                         </button>
                     </div>
                     <div className="lg:hidden">
-                        <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="p-2 rounded-md text-slate-600 hover:bg-slate-100">
+                        <button
+                            onClick={() => setIsMenuOpen(!isMenuOpen)}
+                            aria-label={isMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+                            className="p-2 rounded-md text-slate-600 hover:bg-slate-100"
+                        >
                             <span className="material-symbols-outlined">{isMenuOpen ? 'close' : 'menu'}</span>
                         </button>
                     </div>

@@ -148,6 +148,7 @@ export const ChatBotFAB: React.FC<ChatBotFABProps> = ({
                 </button>
                 <button
                   onClick={handleToggleChat}
+                  aria-label="Close AI assistant"
                   className="text-white hover:bg-white hover:bg-opacity-20 rounded-full p-1 transition-colors"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -205,6 +206,7 @@ export const ChatBotFAB: React.FC<ChatBotFABProps> = ({
       <div className={`fixed ${positionClasses[position]} z-40`}>
         <button
           onClick={handleToggleChat}
+          aria-label={isOpen ? 'Hide AI assistant' : 'Open AI assistant'}
           className={`relative bg-blue-600 hover:bg-blue-700 text-white rounded-full p-4 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 ${isOpen ? 'scale-0' : 'scale-100'
             }`}
         >
@@ -245,6 +247,7 @@ export const ChatBotFAB: React.FC<ChatBotFABProps> = ({
               </div>
               <button
                 onClick={() => setHasNewMessage(false)}
+                aria-label="Dismiss welcome message"
                 className="text-gray-400 hover:text-gray-600 ml-2"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

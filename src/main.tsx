@@ -2,12 +2,9 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import { HelmetProvider } from 'react-helmet-async'
-import './index.css'
 import './installProtectedApiFetch'
-import App from './App'
+import PublicApp from './PublicApp'
 import ErrorBoundary from './components/ErrorBoundary'
-import { SchedulerProvider } from './context/SchedulerContext'
-import { ImpersonationProvider } from './context/ImpersonationContext'
 import RouteAnalyticsTracker from './components/RouteAnalyticsTracker'
 
 const rootElement = document.getElementById('root')!
@@ -31,11 +28,7 @@ root.render(
       <BrowserRouter>
         <RouteAnalyticsTracker />
         <ErrorBoundary>
-          <SchedulerProvider>
-            <ImpersonationProvider>
-              <App />
-            </ImpersonationProvider>
-          </SchedulerProvider>
+          <PublicApp />
         </ErrorBoundary>
       </BrowserRouter>
     </HelmetProvider>
