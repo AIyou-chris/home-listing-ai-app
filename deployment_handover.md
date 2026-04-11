@@ -1,33 +1,55 @@
-# 🚀 Deployment Handover Prompt
+# Deployment Handover
 
-**Copy and paste this into your new chat:**
+HomeListingAI deployment setup as of April 11, 2026.
 
----
+## Hosting
 
-## 🤖 System Context & Deployment Request
+- Frontend: Netlify
+- Backend: Render
+- Database/Auth/Storage: Supabase
+- Source of truth branch: `main`
 
-Hi! I am working on **HomeListingAI**, a Real Estate platform.
-**Architecture:**
-*   **Frontend:** React + Vite (Hosted on **Netlify**).
-*   **Backend:** Node.js + Express (Hosted on **Render**).
-*   **Database:** Supabase.
-*   **Repository:** GitHub (Branch: `main`).
+## What must be in GitHub for a clean deploy
 
-**Current Status:**
-I have just implemented **Stripe Connect V2** (Server-side webhooks + Frontend Storefront). The code is written locally but needs to be **deployed**.
+- `package.json` now runs `node scripts/generate-seo-pages.mjs` after `vite build`
+- `scripts/generate-seo-pages.mjs` must be committed any time that build script is committed
 
-**My Request:**
-1.  **Deploy Code:** Guide me through the `git add`, `commit`, and `push` commands to trigger the automatic deployments on Netlify and Render.
-2.  **Environment Variables:** Remind me which keys I need to add to Render (e.g., `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`) for the new features to work.
-3.  **Docker Question:** I've heard about "Docker". Do I need to set up a Dockerfile for Render, or does it handle Node.js automatically? (Prefer the simplest path).
+## Netlify env
 
-**Immediate Goal:** Get the new Stripe Connect features live on `homelistingai.com`.
+Set these on Netlify if they are not already there:
 
----
+- `SEO_SITE_URL`
+- `VITE_APP_URL`
+- `VITE_API_URL`
+- `VITE_API_BASE_URL`
+- `VITE_BACKEND_URL`
+- `VITE_REALTIME_WS_BASE_URL`
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_ANON_KEY`
+- `VITE_STRIPE_STARTER_PRICE_ID`
+- `VITE_STRIPE_PRO_PRICE_ID`
 
-## 🗺️ System Flow & Future Requirements
-I have documented our current and desired flow in `system_flow_map.md`.
-**Crucial Requirement for Next Phase:**
-*   **Slug-Based Dashboards:** We want to change the private dashboard URL from `/dashboard` to `/dashboard/:slug` (e.g., `/dashboard/chris-potter`) to better identify user sessions and support future agency features.
-*   **Current State:** Storefronts use `/store/:slug` (working), but private Dashboard is still generic.
+## Render env
 
+Set these on Render if they are not already there:
+
+- `APP_BASE_URL`
+- `FRONTEND_URL`
+- `DASHBOARD_BASE_URL`
+- `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `OPENAI_API_KEY`
+- `MAILGUN_API_KEY`
+- `MAILGUN_DOMAIN`
+- `MAILGUN_FROM_EMAIL`
+- `MAILGUN_FROM_NAME`
+- `STRIPE_SECRET_KEY`
+- `STRIPE_STARTER_PRICE_ID`
+- `STRIPE_PRO_PRICE_ID`
+
+## Notes
+
+- Render does not need Docker for this app if you are using the normal Node service setup.
+- Netlify redirects `/api/*` to Render, but some older frontend paths still read explicit `VITE_*` API values, so keeping those env vars set is the safe production setup.
+- The SEO build script can still complete without blog or listing fetches, but you only get full SEO page generation when Supabase env vars are present during the build.

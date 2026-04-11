@@ -1,6 +1,7 @@
 // DatabaseService removed - using Supabase alternatives
 import NotificationService from './notificationService';
 import { User, AdminSettings, SystemAlert, RetentionCampaign, BroadcastMessage } from '../types';
+import { buildApiUrl } from '../lib/api';
 
 // Additional types for the new service methods
 export interface UserStats {
@@ -53,8 +54,6 @@ export interface RenewalData {
 }
 
 // Firebase removed - using local fallbacks
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/home-listing-ai/us-central1/api';
 
 const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
     id: 'default',
@@ -137,7 +136,7 @@ export class AdminService {
 
     static async getUserStats(): Promise<UserStats> {
         try {
-            const response = await fetch(`${API_BASE_URL}/admin/dashboard-metrics`);
+            const response = await fetch(buildApiUrl('/api/admin/dashboard-metrics'));
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
@@ -212,7 +211,7 @@ export class AdminService {
     // Broadcast Messages
     static async sendBroadcastMessage(broadcastData: BroadcastMessage): Promise<DeliveryStats> {
         try {
-            const response = await fetch(`${API_BASE_URL}/admin/broadcast`, {
+            const response = await fetch(buildApiUrl('/api/admin/broadcast'), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -501,7 +500,7 @@ export class AdminService {
 
     static async getSystemPerformanceMetrics(): Promise<SystemPerformanceMetrics> {
         try {
-            const response = await fetch(`${API_BASE_URL}/admin/performance`);
+            const response = await fetch(buildApiUrl('/api/admin/performance'));
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }

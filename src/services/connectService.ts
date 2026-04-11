@@ -1,9 +1,4 @@
-const getApiConnection = () => {
-    const base = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002';
-    return base.endsWith('/') ? base.slice(0, -1) : base; // remove trailing slash
-};
-
-const API_BASE = getApiConnection();
+import { buildApiUrl } from '../lib/api';
 
 export interface ConnectAccountResponse {
     accountId: string;
@@ -33,7 +28,7 @@ export interface StripeProduct {
 export const connectService = {
     // 1. Create Connected Account
     async createAccount(payload: { userId: string; email: string; firstName: string }): Promise<ConnectAccountResponse> {
-        const res = await fetch(`${API_BASE}/api/connect/create-account`, {
+        const res = await fetch(buildApiUrl('/api/connect/create-account'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
@@ -44,7 +39,7 @@ export const connectService = {
 
     // 2. Get Onboarding Link
     async getOnboardingLink(accountId: string): Promise<string> {
-        const res = await fetch(`${API_BASE}/api/connect/onboarding-link`, {
+        const res = await fetch(buildApiUrl('/api/connect/onboarding-link'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ accountId }),
@@ -56,14 +51,14 @@ export const connectService = {
 
     // 3. Get Account Status
     async getAccountStatus(accountId: string): Promise<AccountStatusResponse> {
-        const res = await fetch(`${API_BASE}/api/connect/status/${accountId}`);
+        const res = await fetch(buildApiUrl(`/api/connect/status/${encodeURIComponent(accountId)}`));
         if (!res.ok) throw new Error('Failed to get account status');
         return res.json();
     },
 
     // 4. Create Product
     async createProduct(accountId: string, product: { name: string; description: string; priceInCents: number }): Promise<StripeProduct> {
-        const res = await fetch(`${API_BASE}/api/connect/products`, {
+        const res = await fetch(buildApiUrl('/api/connect/products'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ accountId, ...product }),
@@ -74,14 +69,14 @@ export const connectService = {
 
     // 5. List Products
     async listProducts(accountId: string): Promise<StripeProduct[]> {
-        const res = await fetch(`${API_BASE}/api/connect/products/${accountId}`);
+        const res = await fetch(buildApiUrl(`/api/connect/products/${encodeURIComponent(accountId)}`));
         if (!res.ok) throw new Error('Failed to list products');
         return res.json();
     },
 
     // 6. Create Checkout Session (Buying a product)
     async createCheckoutSession(accountId: string, priceId: string): Promise<string> {
-        const res = await fetch(`${API_BASE}/api/connect/checkout`, {
+        const res = await fetch(buildApiUrl('/api/connect/checkout'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ accountId, priceId }),
@@ -93,7 +88,7 @@ export const connectService = {
 
     // 7. Subscribe to Platform (Agent paying Platform)
     async createPlatformSubscription(accountId: string, priceId: string): Promise<string> {
-        const res = await fetch(`${API_BASE}/api/connect/subscription`, {
+        const res = await fetch(buildApiUrl('/api/connect/subscription'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ accountId, priceId }),
@@ -105,7 +100,7 @@ export const connectService = {
 
     // 8. Billing Portal
     async createPortalSession(accountId: string): Promise<string> {
-        const res = await fetch(`${API_BASE}/api/connect/portal`, {
+        const res = await fetch(buildApiUrl('/api/connect/portal'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ accountId }),

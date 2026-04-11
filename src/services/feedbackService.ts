@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3002';
+import { buildApiUrl } from '../lib/api';
 
 export interface FeedbackStats {
     sent: number;
@@ -23,7 +23,7 @@ export interface FeedbackEvent {
 export const feedbackService = {
     async fetchAnalytics(userId: string): Promise<FeedbackAnalytics> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/analytics/feedback/${userId}`);
+            const response = await fetch(buildApiUrl(`/api/analytics/feedback/${encodeURIComponent(userId)}`));
             if (!response.ok) {
                 throw new Error('Failed to fetch analytics');
             }
@@ -37,7 +37,7 @@ export const feedbackService = {
 
     async fetchStepPerformance(userId: string): Promise<StepPerformance[]> {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/analytics/step-performance/${userId}`);
+            const response = await fetch(buildApiUrl(`/api/analytics/step-performance/${encodeURIComponent(userId)}`));
             if (!response.ok) throw new Error('Failed to fetch step performance');
             const data = await response.json();
             return data.steps || [];

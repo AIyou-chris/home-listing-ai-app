@@ -1,3 +1,5 @@
+import { buildApiUrl } from '../lib/api';
+
 export interface AgentRegistrationPayload {
   firstName: string;
   lastName: string;
@@ -37,15 +39,6 @@ export interface CheckoutSessionResponse {
 }
 
 const REGISTRATION_STORAGE_KEY = 'aiyouagent:agent-registration';
-
-const getApiBase = () => {
-  const base = import.meta.env.VITE_API_BASE_URL;
-  // If base seems invalid (too short, truncated) or missing, use production URL
-  if (!base || base.length < 10 || !base.startsWith('http')) {
-    return 'https://home-listing-ai-backend.onrender.com';
-  }
-  return base.endsWith('/') ? base.slice(0, -1) : base;
-};
 
 const handleResponse = async <T>(response: Response): Promise<T> => {
   const data = await response.json().catch(() => ({}));
@@ -96,7 +89,7 @@ export const clearRegistrationContext = () => {
 
 export const agentOnboardingService = {
   async registerAgent(payload: AgentRegistrationPayload): Promise<AgentRegistrationResponse> {
-    const response = await fetch(`${getApiBase()}/api/agents/register`, {
+    const response = await fetch(buildApiUrl('/api/agents/register'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -110,7 +103,7 @@ export const agentOnboardingService = {
   },
 
   async getAgentBySlug(slug: string): Promise<AgentRecord> {
-    const response = await fetch(`${getApiBase()}/api/agents/${slug}`);
+    const response = await fetch(buildApiUrl(`/api/agents/${encodeURIComponent(slug)}`));
     const data = await handleResponse<{ agent: AgentRecord }>(response);
     if (data.agent) {
       persistRegistrationContext({
@@ -133,7 +126,7 @@ export const agentOnboardingService = {
     amountCents?: number;
     promoCode?: string;
   }): Promise<CheckoutSessionResponse> {
-    const response = await fetch(`${getApiBase()}/api/payments/checkout-session`, {
+    const response = await fetch(buildApiUrl('/api/payments/checkout-session'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -146,7 +139,7 @@ export const agentOnboardingService = {
 
   async listPaymentProviders(): Promise<string[]> {
     try {
-      const response = await fetch(`${getApiBase()}/api/payments/providers`);
+      const response = await fetch(buildApiUrl('/api/payments/providers'));
       if (response.status === 503) {
         return [];
       }

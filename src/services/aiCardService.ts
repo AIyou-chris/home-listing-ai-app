@@ -1,12 +1,5 @@
 import { supabase } from './supabase'
-
-const getApiBase = () => {
-  const base = import.meta.env.VITE_API_BASE_URL;
-  if (!base || base.length < 10 || !base.startsWith('http')) {
-    return 'https://home-listing-ai-backend.onrender.com';
-  }
-  return base.endsWith('/') ? base.slice(0, -1) : base;
-};
+import { buildApiUrl } from '../lib/api'
 
 interface AICardProfile {
   id: string;
@@ -94,7 +87,7 @@ const withAssetUrls = async (profile: AICardProfile): Promise<AICardProfile> => 
 export const uploadAiCardAsset = async (
   type: 'headshot' | 'logo' | 'background',
   file: File,
-  userId?: string
+  _userId?: string
 ): Promise<{ path: string; url: string | null }> => {
   // Flexible auth: try to get userId, but allow fallback for demo/anonymous modes
   // The backend will use DEFAULT_LEAD_USER_ID if needed
@@ -141,7 +134,7 @@ export const getAICardProfile = async (userId?: string, signal?: AbortSignal): P
   try {
     const resolvedUserId = await resolveUserId(userId);
     const queryParams = resolvedUserId ? `?userId=${resolvedUserId}` : '';
-    const response = await fetch(`${getApiBase()}/api/ai-card/profile${queryParams}`, {
+    const response = await fetch(`${buildApiUrl('/api/ai-card/profile')}${queryParams}`, {
       signal
     });
 
@@ -163,7 +156,7 @@ export const getAICardProfile = async (userId?: string, signal?: AbortSignal): P
 export const createAICardProfile = async (profileData: Omit<AICardProfile, 'id' | 'created_at' | 'updated_at'>, userId?: string): Promise<AICardProfile> => {
   try {
     const resolvedUserId = await resolveUserId(userId);
-    const response = await fetch(`${getApiBase()}/api/ai-card/profile`, {
+    const response = await fetch(buildApiUrl('/api/ai-card/profile'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -191,7 +184,7 @@ export const createAICardProfile = async (profileData: Omit<AICardProfile, 'id' 
 export const updateAICardProfile = async (profileData: Partial<AICardProfile>, userId?: string): Promise<AICardProfile> => {
   try {
     const resolvedUserId = await resolveUserId(userId);
-    const response = await fetch(`${getApiBase()}/api/ai-card/profile`, {
+    const response = await fetch(buildApiUrl('/api/ai-card/profile'), {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',

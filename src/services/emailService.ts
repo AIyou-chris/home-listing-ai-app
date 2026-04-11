@@ -1,4 +1,6 @@
 // Email service for sending consultation confirmations and notifications
+import { buildApiUrl } from '../lib/api'
+
 type EmailRecipient = string | string[]
 
 type SendEmailOptions = {
@@ -60,7 +62,7 @@ const getMapsUrl = (location: string) => `https://www.google.com/maps/search/?ap
 
 class EmailService {
     private static instance: EmailService
-    private readonly endpoint = `${import.meta.env.VITE_API_URL || 'https://home-listing-ai-backend.onrender.com'}/api/email/send`
+    private readonly endpoint = buildApiUrl('/api/email/send')
 
     private constructor() { }
 
@@ -272,13 +274,11 @@ class EmailService {
         }
     }
 
-    async sendContactMessage(data: ContactMessageData, options: SendEmailOptions = {}): Promise<boolean> {
+    async sendContactMessage(data: ContactMessageData, _options: SendEmailOptions = {}): Promise<boolean> {
         try {
             console.log('📧 Sending contact message via Lead Capture API (DB + Email)');
 
-            const apiBase = import.meta.env.VITE_API_URL || 'https://home-listing-ai-backend.onrender.com';
-
-            const response = await fetch(`${apiBase}/api/leads/public`, {
+            const response = await fetch(buildApiUrl('/api/leads/public'), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'

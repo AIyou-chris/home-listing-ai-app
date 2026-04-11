@@ -6,9 +6,9 @@
   "description": "An AI-powered platform for real estate agents to generate stunning property listings with interactive features like an AI assistant.",
   "scripts": {
     "dev": "vite --port 5175",
-    "build": "vite build",
-    "build:frontend": "vite build",
-    "build:check": "tsc && vite build",
+    "build": "vite build && node scripts/generate-seo-pages.mjs",
+    "build:frontend": "vite build && node scripts/generate-seo-pages.mjs",
+    "build:check": "tsc && vite build && node scripts/generate-seo-pages.mjs",
     "gate:fe": "npm run typecheck && npm run build",
     "gate:be": "bash -c 'set -euo pipefail; mkdir -p logs; npm --prefix backend run -s start > logs/gate-backend.out 2>&1 & BACK_PID=$!; trap \"kill $BACK_PID 2>/dev/null || true\" EXIT; BASE=http://127.0.0.1:3002 bash scripts/gate_backend_smoke.sh'",
     "gate:all": "npm run gate:fe && npm run gate:be",

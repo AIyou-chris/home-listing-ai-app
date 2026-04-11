@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001/home-listing-ai/us-central1/api';
+import { buildApiUrl } from '../lib/api';
 
 /**
  * Continues a conversation using the local AI server
@@ -12,7 +12,7 @@ export const continueConversation = async (
   try {
     console.log("Calling local AI server with", messages.length, "messages");
 
-    const response = await fetch(`${API_BASE_URL}/continue-conversation`, {
+    const response = await fetch(buildApiUrl('/api/continue-conversation'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -48,7 +48,7 @@ export const generateSpeech = async (
   try {
     console.log("Calling local speech generation with text length:", text.length);
 
-    const response = await fetch(`${API_BASE_URL}/generate-speech`, {
+    const response = await fetch(buildApiUrl('/api/generate-speech'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
