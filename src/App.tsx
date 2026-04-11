@@ -1,6 +1,7 @@
 import React, { useState, useEffect, Suspense, lazy, useCallback, useRef } from 'react';
 import { Routes, Route, useNavigate, useLocation, Navigate, Outlet } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
+import './installProtectedApiFetch';
 import { supabase } from './services/supabase';
 import './index.css';
 import { Property, View, AgentProfile, NotificationSettings, EmailSettings, CalendarSettings, BillingSettings, Lead, Appointment, Interaction, SecuritySettings } from './types';

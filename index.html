@@ -11,14 +11,27 @@
   <link rel="manifest" href="/manifest.json">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 
-  <!-- Google tag (gtag.js) -->
-  <script async src="https://www.googletagmanager.com/gtag/js?id=G-V8NWQPFF6C"></script>
   <script>
     window.dataLayer = window.dataLayer || [];
     function gtag() { dataLayer.push(arguments); }
-    gtag('js', new Date());
+    window.__hlaiLoadAnalytics = function () {
+      if (window.__hlaiAnalyticsLoaded) return;
+      window.__hlaiAnalyticsLoaded = true;
 
-    gtag('config', 'G-V8NWQPFF6C', { send_page_view: false });
+      var script = document.createElement('script');
+      script.async = true;
+      script.src = 'https://www.googletagmanager.com/gtag/js?id=G-V8NWQPFF6C';
+      document.head.appendChild(script);
+
+      gtag('js', new Date());
+      gtag('config', 'G-V8NWQPFF6C', { send_page_view: false });
+    };
+
+    if ('requestIdleCallback' in window) {
+      requestIdleCallback(window.__hlaiLoadAnalytics, { timeout: 3000 });
+    } else {
+      window.addEventListener('load', window.__hlaiLoadAnalytics, { once: true });
+    }
   </script>
 
   <!-- Cache Control: Force revalidation -->
