@@ -1118,16 +1118,26 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigat
     const [isChatOpen, setIsChatOpen] = useState(false);
     const [isComparePlansOpen, setIsComparePlansOpen] = useState(false);
     const [shouldLoadChat, setShouldLoadChat] = useState(false);
+    const canLoadVisitorChat = Boolean(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
 
     useEffect(() => {
+        if (!canLoadVisitorChat) {
+            return;
+        }
+
         const timer = window.setTimeout(() => {
             setShouldLoadChat(true);
         }, 3500);
 
         return () => window.clearTimeout(timer);
-    }, []);
+    }, [canLoadVisitorChat]);
 
     const handleOpenChatBot = () => {
+        if (!canLoadVisitorChat) {
+            onOpenConsultationModal();
+            return;
+        }
+
         setShouldLoadChat(true);
         setIsChatOpen(true);
     };
@@ -1192,7 +1202,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigat
             <PublicFooter onNavigateToAdmin={onNavigateToAdmin} />
 
             {/* Chat Bot FAB for visitors */}
-            {shouldLoadChat || isChatOpen ? (
+            {canLoadVisitorChat && (shouldLoadChat || isChatOpen) ? (
                 <Suspense fallback={null}>
                     <ChatBotFAB
                         context={{
