@@ -43,6 +43,7 @@ export function isAIDescription(description: unknown): description is AIDescript
 // Expanded View union to include additional development/test routes used in the app
 export type View =
     | 'dashboard'
+    | 'linkedin'
     | 'analytics'
     | 'listings'
     | 'listings-v2'

@@ -13,6 +13,7 @@ interface SidebarProps {
 const NAV_ITEMS = [
   { key: 'today', icon: 'today', label: 'Today', path: '/today', testid: 'nav-today' },
   { key: 'command-center', icon: 'space_dashboard', label: 'Command Center', path: '/command-center', testid: 'nav-command-center' },
+  { key: 'linkedin', icon: 'hub', label: 'LinkedIn', path: '/linkedin', testid: 'nav-linkedin' },
   { key: 'listings', icon: 'storefront', label: 'Listings', path: '/listings', testid: 'nav-listings' },
   { key: 'leads', icon: 'groups', label: 'Leads', path: '/leads', testid: 'nav-leads' },
   { key: 'appointments', icon: 'event_available', label: 'Appointments', path: '/appointments', testid: 'nav-appointments' },
@@ -60,6 +61,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
   const pathMap: Record<string, string> = {
     '/today': derivedDemoMode || derivedBlueprintMode ? getPath('/today') : '/dashboard/today',
     '/command-center': derivedDemoMode || derivedBlueprintMode ? getPath('/command-center') : '/dashboard/command-center',
+    '/linkedin': derivedDemoMode || derivedBlueprintMode ? getPath('/linkedin') : '/dashboard/linkedin',
     '/listings': derivedDemoMode || derivedBlueprintMode ? getPath('/listings') : '/dashboard/listings',
     '/leads': derivedDemoMode || derivedBlueprintMode ? getPath('/leads') : '/dashboard/leads',
     '/appointments': derivedDemoMode || derivedBlueprintMode ? getPath('/appointments') : '/dashboard/appointments',

@@ -1,0 +1,48 @@
+{
+  "manifest_version": 3,
+  "name": "Home Listing AI LinkedIn Assistant",
+  "version": "0.2.0",
+  "description": "Pull the active LinkedIn thread, draft a reply with Home Listing AI, and insert it into the composer.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "sidePanel",
+    "storage",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://www.linkedin.com/*",
+    "https://linkedin.com/*",
+    "https://*.homelistingai.com/*",
+    "http://localhost:3002/*",
+    "http://127.0.0.1:3002/*",
+    "http://localhost:5173/*",
+    "http://127.0.0.1:5173/*",
+    "http://localhost:5175/*",
+    "http://127.0.0.1:5175/*",
+    "https://homelistingai.com/*",
+    "https://www.homelistingai.com/*",
+    "https://app.homelistingai.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Open LinkedIn Assistant"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.linkedin.com/*",
+        "https://linkedin.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}
