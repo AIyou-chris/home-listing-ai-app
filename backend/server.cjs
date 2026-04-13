@@ -229,6 +229,7 @@ const createPaymentService = require('./services/paymentService');
 const createEmailService = require('./services/emailService');
 const emailTrackingService = require('./services/emailTrackingService');
 const createAgentOnboardingService = require('./services/agentOnboardingService');
+const { generateLinkedInAssistantPayload } = require('./services/linkedinAutomationService');
 const { runStartupDiagnostics } = require('./services/startupDiagnostics');
 const {
   enrollLeadInFunnel,
@@ -25877,6 +25878,41 @@ Website: ${agentProfile.website}
   } catch (error) {
     console.error('[AI Agent Chat] Error:', error);
     res.status(500).json({ success: false, error: 'Failed to generate answer' });
+  }
+});
+
+app.post('/api/linkedin/assistant', async (req, res) => {
+  const userId = req.headers['x-user-id'] || req.user?.id;
+  if (!userId) {
+    return res.status(401).json({ success: false, error: 'Missing User Identity (x-user-id header or valid auth token required)' });
+  }
+
+  try {
+    const { threadText, goal, tone, context, agentProfile } = req.body || {};
+    if (!String(threadText || '').trim()) {
+      return res.status(400).json({ success: false, error: 'Conversation text is required.' });
+    }
+
+    const payload = await generateLinkedInAssistantPayload({
+      openai,
+      model: OPENAI_CHAT_MODEL,
+      threadText,
+      agentProfile,
+      goal,
+      tone,
+      context
+    });
+
+    return res.json({
+      success: true,
+      ...payload
+    });
+  } catch (error) {
+    console.error('[LinkedIn Assistant] Error:', error);
+    return res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to generate LinkedIn assistant output.'
+    });
   }
 });
 

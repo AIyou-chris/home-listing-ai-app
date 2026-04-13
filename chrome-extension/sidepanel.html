@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LinkedIn Assistant</title>
+    <link rel="stylesheet" href="sidepanel.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="card hero">
+        <p class="eyebrow">Home Listing AI</p>
+        <h1>LinkedIn Assistant</h1>
+        <p class="copy">Read the open LinkedIn thread, build a reply, and place it into the message box without auto-sending.</p>
+      </section>
+
+      <section class="card">
+        <div class="section-head">
+          <h2>Quick setup</h2>
+          <button id="detect-user" class="ghost-button" type="button">Auto find my user</button>
+        </div>
+        <div class="grid">
+          <label>
+            <span>API URL</span>
+            <input id="api-base-url" type="text" placeholder="https://homelistingai.com" />
+          </label>
+          <label>
+            <span>User ID</span>
+            <input id="user-id" type="text" placeholder="Auto-filled from Home Listing AI tab" />
+          </label>
+          <label>
+            <span>Agent name</span>
+            <input id="agent-name" type="text" />
+          </label>
+          <label>
+            <span>Agent title</span>
+            <input id="agent-title" type="text" />
+          </label>
+          <label>
+            <span>Company</span>
+            <input id="company" type="text" />
+          </label>
+          <label>
+            <span>Language</span>
+            <input id="language" type="text" value="English" />
+          </label>
+        </div>
+        <div class="actions">
+          <button id="save-settings" class="ghost-button" type="button">Save</button>
+          <button id="pull-thread" class="ghost-button" type="button">Pull thread</button>
+        </div>
+        <p id="status" class="status"></p>
+      </section>
+
+      <section class="card">
+        <h2>Audience</h2>
+        <div id="preset-grid" class="preset-grid"></div>
+      </section>
+
+      <section class="card">
+        <div class="grid">
+          <label>
+            <span>Goal</span>
+            <select id="goal"></select>
+          </label>
+          <label>
+            <span>Tone</span>
+            <select id="tone"></select>
+          </label>
+        </div>
+        <label>
+          <span>Business context</span>
+          <textarea id="context" rows="4"></textarea>
+        </label>
+        <label>
+          <span>LinkedIn thread</span>
+          <textarea id="thread" rows="10"></textarea>
+        </label>
+        <div class="actions">
+          <button id="build-plan" class="primary-button" type="button">Build plan</button>
+          <button id="copy-reply" class="ghost-button" type="button">Copy</button>
+          <button id="insert-reply" class="ghost-button" type="button">Insert into LinkedIn</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Reply</h2>
+        <pre id="reply" class="reply-box">No reply yet.</pre>
+        <div id="chips" class="chips"></div>
+      </section>
+
+      <section class="card">
+        <h2>Lead read</h2>
+        <div id="lead-read" class="lead-read empty">No lead read yet.</div>
+      </section>
+
+      <section class="card">
+        <h2>Follow-up plan</h2>
+        <div id="automation" class="stack empty">No follow-up ideas yet.</div>
+      </section>
+    </main>
+    <script src="sidepanel.js"></script>
+  </body>
+</html>

@@ -23,6 +23,7 @@ const NotificationSystem = lazy(() => import('./components/NotificationSystem'))
 
 const Sidebar = lazy(() => import('./components/Sidebar'));
 const ConversionDashboardHome = lazy(() => import('./components/dashboard-command/ConversionDashboardHome'));
+const LinkedInAutomationPage = lazy(() => import('./components/dashboard-command/LinkedInAutomationPage'));
 const TodayDashboardPage = lazy(() => import('./components/dashboard-command/TodayDashboardPage'));
 const LeadsInboxCommandPage = lazy(() => import('./components/dashboard-command/LeadsInboxCommandPage'));
 const LeadDetailCommandPage = lazy(() => import('./components/dashboard-command/LeadDetailCommandPage'));
@@ -250,6 +251,7 @@ const resolveSignedInHomePath = (role: AppRole, roleReady: boolean) =>
 
 const resolveDashboardPageTitle = (pathname: string) => {
     if (pathname.includes('/command-center')) return 'Command Center';
+    if (pathname.includes('/linkedin')) return 'LinkedIn';
     if (pathname.includes('/listings')) return 'Listings';
     if (pathname.includes('/leads')) return 'Leads';
     if (pathname.includes('/appointments')) return 'Appointments';
@@ -1604,6 +1606,7 @@ const App: React.FC = () => {
                         <Route index element={<Navigate to="/demo-dashboard/today" replace />} />
                         <Route path="today" element={<TodayDashboardPage />} />
                         <Route path="command-center" element={<ConversionDashboardHome />} />
+                        <Route path="linkedin" element={<LinkedInAutomationPage />} />
                         <Route path="leads" element={<LeadsInboxCommandPage />} />
                         <Route path="leads/:leadId" element={<LeadDetailCommandPage />} />
                         <Route path="appointments" element={<AppointmentsCommandPage />} />
@@ -1627,6 +1630,7 @@ const App: React.FC = () => {
                         <Route index element={<Navigate to="/blueprint-dashboard/today" replace />} />
                         <Route path="today" element={<TodayDashboardPage />} />
                         <Route path="command-center" element={<ConversionDashboardHome />} />
+                        <Route path="linkedin" element={<LinkedInAutomationPage />} />
                         <Route path="leads" element={<LeadsInboxCommandPage />} />
                         <Route path="leads/:leadId" element={<LeadDetailCommandPage />} />
                         <Route path="appointments" element={<AppointmentsCommandPage />} />
@@ -1699,6 +1703,7 @@ const App: React.FC = () => {
 
                         <Route path="/dashboard/today" element={<TodayDashboardPage />} />
                         <Route path="/dashboard/command-center" element={<ConversionDashboardHome />} />
+                        <Route path="/dashboard/linkedin" element={<LinkedInAutomationPage />} />
                         <Route path="/dashboard/leads" element={<LeadsInboxCommandPage />} />
                         <Route path="/dashboard/leads/:leadId" element={<LeadDetailCommandPage />} />
                         <Route path="/dashboard/appointments" element={<AppointmentsCommandPage />} />
