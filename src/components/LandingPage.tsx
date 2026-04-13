@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useState } from 'react';
 import ComparePlansModal from './ComparePlansModal';
 import { useNavigate } from 'react-router-dom';
 
