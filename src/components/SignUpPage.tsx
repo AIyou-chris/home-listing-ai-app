@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import { agentOnboardingService } from '../services/agentOnboardingService';
 import { supabase } from '../services/supabase';
@@ -29,6 +29,7 @@ const FeatureHighlight: React.FC<{ icon: string, title: string, children: React.
 );
 
 const SignUpPage = ({ onNavigateToSignIn, onNavigateToLanding: _onNavigateToLanding, onNavigateToSection: _onNavigateToSection, onEnterDemoMode }: SignUpPageProps): JSX.Element => {
+    const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const [firstName, setFirstName] = useState('');
     const [lastName, setLastName] = useState('');
@@ -105,9 +106,7 @@ const SignUpPage = ({ onNavigateToSignIn, onNavigateToLanding: _onNavigateToLand
                 return;
             }
 
-            // Use a hard replace so app state rehydrates from the fresh session
-            // before route guards evaluate.
-            window.location.replace('/dashboard/today');
+            navigate('/dashboard/today', { replace: true });
         } catch (error) {
             console.error('Signup error:', error);
             const message = error instanceof Error ? error.message : 'An error occurred during sign up. Please try again.';

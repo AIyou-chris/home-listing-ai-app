@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../services/supabase';
 import { PublicHeader } from './layout/PublicHeader';
 import { PublicFooter } from './layout/PublicFooter';
@@ -13,6 +14,7 @@ interface SignInPageProps {
 }
 
 const SignInPage: React.FC<SignInPageProps> = ({ onNavigateToSignUp, onNavigateToLanding: _onNavigateToLanding, onEnterDemoMode, onNavigateToAdmin }) => {
+    const navigate = useNavigate();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
@@ -51,7 +53,7 @@ const SignInPage: React.FC<SignInPageProps> = ({ onNavigateToSignUp, onNavigateT
                 throw result.error;
             }
 
-            window.location.replace('/dashboard/today');
+            navigate('/dashboard/today', { replace: true });
 
         } catch (err: unknown) {
             const message = err instanceof Error ? err.message : 'An unexpected error occurred';
@@ -106,7 +108,7 @@ const SignInPage: React.FC<SignInPageProps> = ({ onNavigateToSignUp, onNavigateT
                             <div>
                                 <div className="flex justify-between items-baseline mb-2">
                                     <label htmlFor="password" className="block text-sm font-semibold text-slate-300">Password</label>
-                                    <button type="button" onClick={() => window.location.href = '/forgot-password'} className="text-xs font-semibold text-cyan-400 hover:text-cyan-300 transition-colors">Forgot password?</button>
+                                    <button type="button" onClick={() => navigate('/forgot-password')} className="text-xs font-semibold text-cyan-400 hover:text-cyan-300 transition-colors">Forgot password?</button>
                                 </div>
                                 <div className="relative">
                                     <input

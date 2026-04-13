@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { supabase } from '../services/supabase';
+import { getEnvVar } from '../lib/env';
 import { PublicHeader } from './layout/PublicHeader';
 import { PublicFooter } from './layout/PublicFooter';
 import { BackgroundTechIcons } from './BackgroundTechIcons';
@@ -23,15 +24,16 @@ const ForgotPasswordPage: React.FC<ForgotPasswordPageProps> = ({ onNavigateToSig
         setIsLoading(true);
 
         try {
-            // Updated to use window.location.origin to support both localhost and production
-            const redirectUrl = `${window.location.origin}/reset-password`; // Ensure this route exists or Redirect to Home
-            const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+            const configuredAppUrl = getEnvVar('VITE_APP_URL')?.trim();
+            const redirectBase = configuredAppUrl ? configuredAppUrl.replace(/\/+$/, '') : window.location.origin;
+            const redirectUrl = `${redirectBase}/reset-password`;
+            const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
                 redirectTo: redirectUrl,
             });
 
             if (error) throw error;
 
-            setMessage('Check your email! We sent a password reset link.');
+            setMessage('Check your email and your spam folder. If the account exists, the reset link is on the way.');
         } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : 'Failed to send reset email.';
             setError(msg);

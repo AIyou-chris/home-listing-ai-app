@@ -19,62 +19,94 @@ const ResetPasswordPage: React.FC = () => {
 
     // Helper to get tokens from URL
     const getTokensFromUrl = React.useCallback(() => {
+        const searchParams = new URLSearchParams(location.search);
         const hashParams = new URLSearchParams(location.hash.substring(1));
         return {
+            authCode: searchParams.get('code'),
+            flowType: searchParams.get('type') || hashParams.get('type'),
+            tokenHash: searchParams.get('token_hash'),
             accessToken: hashParams.get('access_token'),
             refreshToken: hashParams.get('refresh_token'),
             errorCode: hashParams.get('error_code'),
             errorDescription: hashParams.get('error_description')
         };
-    }, [location.hash]);
+    }, [location.hash, location.search]);
 
     // Initial Setup
     useEffect(() => {
         const init = async () => {
-            const { accessToken, refreshToken, errorCode, errorDescription } = getTokensFromUrl();
+            const { authCode, accessToken, refreshToken, errorCode, errorDescription } = getTokensFromUrl();
 
-            if (errorCode || errorDescription) {
-                console.error('❌ Reset Link Error:', errorCode, errorDescription);
-                setIsLinkValid(false);
-                setError(formatErrorMessage(errorCode, errorDescription));
-                setDebugSessionStatus(`Link Error: ${errorCode}`);
-                return;
-            }
-
-            // Attempt to restore session
-            // STRATEGY: Wait 1s to let Supabase Auto-Detect finish. 
-            // If we force setSession too fast, it conflicts with the client's own listeners.
-            setDebugSessionStatus('Waiting for Auto-Detect...');
-            await new Promise(resolve => setTimeout(resolve, 1000));
-
-            const { data: { session: existingSession } } = await supabase.auth.getSession();
-
-            if (existingSession) {
-                setDebugSessionStatus('Session Restored (Auto)');
-                return;
-            }
-
-            // If auto-detect failed, THEN we manually force it
-            if (accessToken && refreshToken) {
-                setDebugSessionStatus('Auto failed. Forcing Session...');
-                const { error } = await supabase.auth.setSession({
-                    access_token: accessToken,
-                    refresh_token: refreshToken
-                });
-                if (error) {
-                    console.error('❌ Failed to set session:', error);
-                    setDebugSessionStatus('Session Restore Failed: ' + error.message);
-                } else {
-                    setDebugSessionStatus('Session Restored (Manual)');
+            const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+                if ((event === 'PASSWORD_RECOVERY' || event === 'SIGNED_IN') && session) {
+                    setIsLinkValid(true);
+                    setError('');
+                    setDebugSessionStatus(event === 'PASSWORD_RECOVERY' ? 'Recovery Session Ready' : 'Signed In Session Ready');
                 }
-            } else {
-                // Check if already active
-                const { data: { session } } = await supabase.auth.getSession();
-                setDebugSessionStatus(session ? 'Active Session Found' : 'No Session / No Tokens');
-                if (!session) {
+            });
+
+            try {
+                if (errorCode || errorDescription) {
+                    console.error('❌ Reset Link Error:', errorCode, errorDescription);
                     setIsLinkValid(false);
-                    setError('Invalid link. Please try again.');
+                    setError(formatErrorMessage(errorCode, errorDescription));
+                    setDebugSessionStatus(`Link Error: ${errorCode}`);
+                    return;
                 }
+
+                if (authCode) {
+                    setDebugSessionStatus('Exchanging recovery code...');
+                    const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(authCode);
+                    if (exchangeError) {
+                        throw exchangeError;
+                    }
+                }
+
+                // Let Supabase process URL-based recovery sessions before we inspect state.
+                setDebugSessionStatus('Waiting for recovery session...');
+                await new Promise(resolve => setTimeout(resolve, 1000));
+
+                const { data: { session: existingSession } } = await supabase.auth.getSession();
+
+                if (existingSession) {
+                    setIsLinkValid(true);
+                    setDebugSessionStatus('Session Restored');
+                    return;
+                }
+
+                // Legacy recovery links still arrive with access/refresh tokens in the hash.
+                if (accessToken && refreshToken) {
+                    setDebugSessionStatus('Forcing recovery session...');
+                    const { error } = await supabase.auth.setSession({
+                        access_token: accessToken,
+                        refresh_token: refreshToken
+                    });
+                    if (error) {
+                        console.error('❌ Failed to set session:', error);
+                        setDebugSessionStatus('Session Restore Failed: ' + error.message);
+                    } else {
+                        setIsLinkValid(true);
+                        setDebugSessionStatus('Session Restored');
+                    }
+                } else {
+                    const { data: { session } } = await supabase.auth.getSession();
+                    setDebugSessionStatus(session ? 'Active Session Found' : 'No Recovery Session Found');
+                    if (session) {
+                        setIsLinkValid(true);
+                        return;
+                    }
+
+                    setIsLinkValid(false);
+                    setError('This reset link is invalid or expired. Please request a new one.');
+                }
+            } catch (err: unknown) {
+                console.error('❌ Reset init failed:', err);
+                const message = err instanceof Error ? err.message : 'Invalid reset link.';
+                setIsLinkValid(false);
+                setError(message);
+                setDebugSessionStatus('Recovery setup failed');
+            } finally {
+                subscription.unsubscribe();
             }
         };
         init();
