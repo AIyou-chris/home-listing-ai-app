@@ -1084,7 +1084,7 @@ const App: React.FC = () => {
         if (!session) return;
 
         const path = location.pathname;
-        const isAuthPage = path === '/signin' || path === '/signup' || path === '/';
+        const isAuthPage = path === '/signup' || path === '/';
         const isPostAuthPage = path === '/post-auth';
         const signedInHomePath = resolveSignedInHomePath(role, roleReady);
 
@@ -1519,18 +1519,14 @@ const App: React.FC = () => {
                     } />
                     <Route path="/landing" element={<Navigate to="/" replace />} />
                     <Route path="/signin" element={
-                        session && roleReady ? (
-                            <Navigate to={resolveSignedInHomePath(role, roleReady)} replace />
-                        ) : (
-                            <Suspense fallback={<LoadingSpinner />}>
-                                <SignInPage
-                                    onNavigateToSignUp={handleNavigateToSignUp}
-                                    onNavigateToLanding={handleNavigateToLanding}
-                                    onEnterDemoMode={() => navigate('/demo-dashboard/gallery/demo-listing-oak')}
-                                    onNavigateToSection={(section) => { navigate('/'); setTimeout(() => setScrollToSection(section), 100); }}
-                                />
-                            </Suspense>
-                        )
+                        <Suspense fallback={<LoadingSpinner />}>
+                            <SignInPage
+                                onNavigateToSignUp={handleNavigateToSignUp}
+                                onNavigateToLanding={handleNavigateToLanding}
+                                onEnterDemoMode={() => navigate('/demo-dashboard/gallery/demo-listing-oak')}
+                                onNavigateToSection={(section) => { navigate('/'); setTimeout(() => setScrollToSection(section), 100); }}
+                            />
+                        </Suspense>
                     } />
                     <Route path="/forgot-password" element={
                         <Suspense fallback={<LoadingSpinner />}>
