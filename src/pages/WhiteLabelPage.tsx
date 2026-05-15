@@ -114,7 +114,7 @@ const WhiteLabelPage: React.FC<WhiteLabelPageProps> = ({
 
                                             {/* Dashboard Content */}
                                             <main className="flex-1 overflow-y-auto p-6">
-                                                <AdminCommandCenter isDemoMode={true} />
+                                                <AdminCommandCenter />
                                             </main>
                                         </div>
                                     </div>

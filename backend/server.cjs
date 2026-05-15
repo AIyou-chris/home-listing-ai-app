@@ -30175,6 +30175,675 @@ app.delete('/api/admin/appointments/:appointmentId', verifyAdmin, (req, res) => 
   return app._router.handle(Object.assign(req, { url: `/api/appointments/${appointmentId}` }), res, () => { });
 });
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// LO PLATFORM ENDPOINTS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ── LO profile save ───────────────────────────────────────────────────────────
+app.patch('/api/lo/profile', async (req, res) => {
+  try {
+    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!agentId) return res.status(401).json({ error: 'unauthorized' });
+    const { nmls_number, lending_states, company, full_name, phone, headshot_url } = req.body || {};
+    const updatePayload = {};
+    if (nmls_number !== undefined) updatePayload.nmls_number = toTrimmedOrNull(nmls_number);
+    if (lending_states !== undefined) updatePayload.lending_states = Array.isArray(lending_states) ? lending_states.filter(s => typeof s === 'string' && s.trim()) : [];
+    if (company !== undefined) updatePayload.brokerage_name = toTrimmedOrNull(company);
+    if (full_name !== undefined) {
+      const parts = String(full_name || '').trim().split(/\s+/);
+      if (parts.length >= 2) { updatePayload.first_name = parts[0]; updatePayload.last_name = parts.slice(1).join(' '); }
+      else if (parts.length === 1 && parts[0]) updatePayload.first_name = parts[0];
+    }
+    if (phone !== undefined) updatePayload.phone = toTrimmedOrNull(phone);
+    if (headshot_url !== undefined) updatePayload.headshot_url = toTrimmedOrNull(headshot_url);
+    if (Object.keys(updatePayload).length === 0) return res.json({ success: true, message: 'nothing_to_update' });
+    updatePayload.updated_at = nowIso();
+    const { error } = await supabaseAdmin.from('agents').update(updatePayload).eq('auth_user_id', agentId);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (error) {
+    console.error('[LO Profile] Failed to save LO profile:', error);
+    res.status(500).json({ error: 'failed_to_save_lo_profile' });
+  }
+});
+
+// ── LO realtor invite (legacy simple invite) ──────────────────────────────────
+app.post('/api/lo/invite-realtor', async (req, res) => {
+  try {
+    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!agentId) return res.status(401).json({ error: 'unauthorized' });
+    const { realtor_name, realtor_email } = req.body || {};
+    if (!realtor_email) return res.status(400).json({ error: 'realtor_email_required' });
+    const { data: loRows } = await supabaseAdmin.from('agents').select('first_name, last_name, email, nmls_number').eq('auth_user_id', agentId).limit(1);
+    const lo = loRows?.[0];
+    const loName = lo ? `${lo.first_name || ''} ${lo.last_name || ''}`.trim() : 'Your LO partner';
+    try {
+      await emailService.sendEmail({
+        to: realtor_email.trim().toLowerCase(),
+        subject: `${loName} wants to co-brand listings with you on HomeListingAI`,
+        html: `<p>Hi${realtor_name ? ` ${realtor_name}` : ''},</p><p><strong>${loName}</strong> is inviting you to partner on HomeListingAI.</p><p>Create your free account at <a href="https://homelistingai.com/signup">homelistingai.com/signup</a>.</p><p>— The HomeListingAI Team</p>`
+      });
+    } catch (emailError) {
+      console.warn('[LO Invite] Failed to send invite email (non-fatal):', emailError?.message);
+    }
+    res.json({ success: true, message: 'invite_sent' });
+  } catch (error) {
+    console.error('[LO Invite] Failed:', error);
+    res.status(500).json({ error: 'failed_to_send_invite' });
+  }
+});
+
+// ── LO info for public listing page ──────────────────────────────────────────
+app.get('/api/public/listing/:listingId/lo', async (req, res) => {
+  try {
+    const { listingId } = req.params;
+    if (!listingId) return res.status(400).json({ error: 'listing_id_required' });
+    const { data: assignments } = await supabaseAdmin.from('listing_lo_assignments').select('lo_agent_id, branding_enabled').eq('listing_id', listingId).eq('branding_enabled', true).limit(1);
+    if (!assignments || assignments.length === 0) return res.json({ success: true, lo: null });
+    const { data: loRows } = await supabaseAdmin.from('agents').select('id, first_name, last_name, email, phone, headshot_url, nmls_number, brokerage_name').eq('id', assignments[0].lo_agent_id).limit(1);
+    const lo = loRows?.[0];
+    if (!lo) return res.json({ success: true, lo: null });
+    res.json({ success: true, lo: { id: lo.id, name: [lo.first_name, lo.last_name].filter(Boolean).join(' ') || 'Loan Officer', email: lo.email || null, phone: lo.phone || null, headshotUrl: lo.headshot_url || null, nmlsNumber: lo.nmls_number || null, company: lo.brokerage_name || null } });
+  } catch (error) {
+    console.error('[LO Public] Failed:', error);
+    res.status(500).json({ error: 'failed_to_fetch_lo' });
+  }
+});
+
+// ── LO Today Dashboard ────────────────────────────────────────────────────────
+app.get('/api/lo/dashboard/today', async (req, res) => {
+  try {
+    const loAgentId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!loAgentId) return res.status(401).json({ error: 'unauthorized' });
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+    const startOf7Days = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const startOf30Days = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const { data: allLeads } = await supabaseAdmin.from('leads').select('id, full_name, name, email, email_lower, phone, status, source_type, source_meta, created_at, listing_id, lo_agent_id').eq('lo_agent_id', loAgentId).order('created_at', { ascending: false }).limit(200);
+    const leads = allLeads || [];
+    const totalLeads = leads.length;
+    const newToday = leads.filter(l => l.created_at >= startOfToday).length;
+    const newThisWeek = leads.filter(l => l.created_at >= startOf7Days).length;
+    const newThisMonth = leads.filter(l => l.created_at >= startOf30Days).length;
+    const preApprovalLeads = leads.filter(l => l.source_meta?.context === 'pre_approval').length;
+    const showingLeads = leads.filter(l => l.source_meta?.context === 'showing_request').length;
+    const recentLeads = leads.slice(0, 10).map(l => ({ id: l.id, name: l.full_name || l.name || 'Unknown', email: l.email_lower || l.email || null, status: l.status || 'New', context: l.source_meta?.context || 'general_info', listingId: l.listing_id || null, createdAt: l.created_at }));
+    const { data: assignments } = await supabaseAdmin.from('listing_lo_assignments').select('listing_id, branding_enabled, assigned_at, listings!listing_lo_assignments_listing_id_fkey(id, address, price, status, hero_photos)').eq('lo_agent_id', loAgentId).order('assigned_at', { ascending: false });
+    const listingLeadCounts = leads.reduce((acc, l) => { if (l.listing_id) acc[l.listing_id] = (acc[l.listing_id] || 0) + 1; return acc; }, {});
+    const assignedListings = (assignments || []).map(a => { const listing = a.listings; return { listingId: a.listing_id, brandingEnabled: a.branding_enabled, address: listing?.address || 'Unknown', price: listing?.price || null, status: listing?.status || 'draft', heroPhoto: Array.isArray(listing?.hero_photos) ? listing.hero_photos[0] : null, leadCount: listingLeadCounts[a.listing_id] || 0 }; });
+    res.json({ success: true, stats: { totalLeads, newToday, newThisWeek, newThisMonth, preApprovalLeads, showingLeads, assignedListings: assignedListings.length }, recentLeads, assignedListings });
+  } catch (err) {
+    console.error('[LO Today] Failed:', err);
+    res.status(500).json({ error: 'failed_to_load_lo_dashboard' });
+  }
+});
+
+// ── LO Partners — Magic Link Invite System ────────────────────────────────────
+app.post('/api/lo/partners/invite', async (req, res) => {
+  try {
+    const loAgentId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!loAgentId) return res.status(401).json({ error: 'unauthorized' });
+    const { email, name } = req.body || {};
+    if (!email || !email.includes('@')) return res.status(400).json({ error: 'valid_email_required' });
+    const { data: loAgent } = await supabaseAdmin.from('agents').select('id, first_name, last_name, brokerage_name, email').eq('id', loAgentId).single();
+    if (!loAgent) return res.status(404).json({ error: 'lo_not_found' });
+    const emailLower = email.trim().toLowerCase();
+    const { data: existing } = await supabaseAdmin.from('agent_invites').select('id, token, claimed_at').eq('lo_agent_id', loAgentId).eq('invited_email', emailLower).order('created_at', { ascending: false }).limit(1);
+    let token;
+    if (existing && existing.length > 0 && !existing[0].claimed_at) {
+      token = existing[0].token;
+    } else {
+      const { data: invite, error: inviteError } = await supabaseAdmin.from('agent_invites').insert({ lo_agent_id: loAgentId, invited_email: emailLower, invited_name: name || null, expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() }).select('token').single();
+      if (inviteError || !invite) throw inviteError || new Error('invite_create_failed');
+      token = invite.token;
+    }
+    const appBase = process.env.APP_BASE_URL || process.env.DASHBOARD_BASE_URL || 'https://homelistingai.com';
+    const magicLink = `${appBase.replace(/\/$/, '')}/agent/claim/${token}`;
+    const loName = [loAgent.first_name, loAgent.last_name].filter(Boolean).join(' ') || 'Your Loan Officer';
+    const loCompany = loAgent.brokerage_name || 'HomeListingAI';
+    try {
+      await emailService.sendEmail({ to: emailLower, subject: `${loName} invited you to HomeListingAI`, html: `<p>Hi${name ? ` ${name}` : ''},</p><p><strong>${loName}</strong> at ${loCompany} set up a listing platform for you. Claim your account:</p><p><a href="${magicLink}">${magicLink}</a></p><p>Link expires in 30 days.</p>` });
+    } catch (emailErr) { console.warn('[LO Invite] Email failed (non-fatal):', emailErr?.message); }
+    res.json({ success: true, message: 'Invite sent', magicLink });
+  } catch (err) {
+    console.error('[LO Invite] Failed:', err);
+    res.status(500).json({ error: 'invite_failed' });
+  }
+});
+
+app.get('/api/lo/partners', async (req, res) => {
+  try {
+    const loAgentId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!loAgentId) return res.status(401).json({ error: 'unauthorized' });
+    const { data: partnerships } = await supabaseAdmin.from('lo_agent_partnerships').select('id, status, created_at, agent:agent_id(id, first_name, last_name, email, phone, headshot_url, brokerage_name)').eq('lo_agent_id', loAgentId).eq('status', 'active').order('created_at', { ascending: false });
+    const { data: pendingInvites } = await supabaseAdmin.from('agent_invites').select('id, invited_email, invited_name, created_at').eq('lo_agent_id', loAgentId).is('claimed_at', null).gt('expires_at', nowIso());
+    const partnerAgentIds = (partnerships || []).map(p => p.agent?.id).filter(Boolean);
+    let listingsByAgent = {};
+    if (partnerAgentIds.length > 0) {
+      const { data: assignments } = await supabaseAdmin.from('listing_lo_assignments').select('listing_id, listings!listing_lo_assignments_listing_id_fkey(id, address, price, status, hero_photos, total_leads, total_views)').eq('lo_agent_id', loAgentId);
+      const listingIds = (assignments || []).map(a => a.listing_id).filter(Boolean);
+      if (listingIds.length > 0) {
+        const { data: listingAgents } = await supabaseAdmin.from('listings').select('id, agent_id').in('id', listingIds);
+        (listingAgents || []).forEach(la => { const a = (assignments || []).find(x => x.listing_id === la.id); if (!a) return; if (!listingsByAgent[la.agent_id]) listingsByAgent[la.agent_id] = []; listingsByAgent[la.agent_id].push(a.listings); });
+      }
+    }
+    const { data: leadCounts } = await supabaseAdmin.from('leads').select('agent_id').eq('lo_agent_id', loAgentId);
+    const leadCountByAgent = (leadCounts || []).reduce((acc, l) => { if (l.agent_id) acc[l.agent_id] = (acc[l.agent_id] || 0) + 1; return acc; }, {});
+    const partners = (partnerships || []).map(p => {
+      const agent = p.agent || {}; const agentId = agent.id;
+      const listings = (listingsByAgent[agentId] || []).map(l => ({ listingId: l?.id, address: l?.address || 'Unknown', price: l?.price || null, status: l?.status || 'draft', heroPhoto: Array.isArray(l?.hero_photos) ? l.hero_photos[0] : null, totalLeads: l?.total_leads || 0, totalViews: l?.total_views || 0 }));
+      return { partnershipId: p.id, agentId, name: [agent.first_name, agent.last_name].filter(Boolean).join(' ') || 'Agent', email: agent.email || null, phone: agent.phone || null, headshotUrl: agent.headshot_url || null, company: agent.brokerage_name || null, totalLeads: leadCountByAgent[agentId] || 0, listings, joinedAt: p.created_at };
+    });
+    res.json({ success: true, partners, pendingInvites: (pendingInvites || []).map(i => ({ id: i.id, email: i.invited_email, name: i.invited_name || null, sentAt: i.created_at })) });
+  } catch (err) {
+    console.error('[LO Partners] Failed:', err);
+    res.status(500).json({ error: 'failed_to_load_partners' });
+  }
+});
+
+// ── Agent Magic Link Claim ────────────────────────────────────────────────────
+app.get('/api/agent/claim/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { data: invite } = await supabaseAdmin.from('agent_invites').select('id, invited_email, invited_name, claimed_at, expires_at, lo:lo_agent_id(id, first_name, last_name, brokerage_name, headshot_url, nmls_number)').eq('token', token).single();
+    if (!invite) return res.status(404).json({ error: 'invalid_token' });
+    if (new Date(invite.expires_at) < new Date()) return res.status(410).json({ error: 'token_expired' });
+    const lo = invite.lo || {};
+    res.json({ success: true, invite: { email: invite.invited_email, name: invite.invited_name, claimed: !!invite.claimed_at, lo: { name: [lo.first_name, lo.last_name].filter(Boolean).join(' ') || 'Your Loan Officer', company: lo.brokerage_name || 'HomeListingAI', headshotUrl: lo.headshot_url || null, nmlsNumber: lo.nmls_number || null } } });
+  } catch (err) {
+    console.error('[Agent Claim] Token lookup failed:', err);
+    res.status(500).json({ error: 'token_lookup_failed' });
+  }
+});
+
+app.post('/api/agent/claim/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { password, name } = req.body || {};
+    if (!password || password.length < 8) return res.status(400).json({ error: 'password_min_8_chars' });
+    const { data: invite } = await supabaseAdmin.from('agent_invites').select('id, invited_email, invited_name, claimed_at, expires_at, lo_agent_id').eq('token', token).single();
+    if (!invite) return res.status(404).json({ error: 'invalid_token' });
+    if (new Date(invite.expires_at) < new Date()) return res.status(410).json({ error: 'token_expired' });
+    if (invite.claimed_at) return res.status(409).json({ error: 'already_claimed' });
+    const displayName = name || invite.invited_name || invite.invited_email.split('@')[0];
+    const [firstName, ...rest] = displayName.split(' ');
+    const lastName = rest.join(' ') || '';
+    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({ email: invite.invited_email, password, email_confirm: true, user_metadata: { first_name: firstName, last_name: lastName } });
+    if (authError) { if (authError.message?.includes('already')) return res.status(409).json({ error: 'email_already_registered' }); throw authError; }
+    const authUserId = authData.user.id;
+    const { data: agentRecord, error: agentError } = await supabaseAdmin.from('agents').insert({ auth_user_id: authUserId, email: invite.invited_email, first_name: firstName, last_name: lastName, account_type: 'agent', invited_by_lo_id: invite.lo_agent_id, onboarding_completed: true, referral_code: Math.random().toString(36).slice(2, 10) }).select('id').single();
+    if (agentError || !agentRecord) throw agentError || new Error('agent_create_failed');
+    await supabaseAdmin.from('lo_agent_partnerships').insert({ lo_agent_id: invite.lo_agent_id, agent_id: agentRecord.id, invite_id: invite.id, status: 'active' });
+    await supabaseAdmin.from('agent_invites').update({ claimed_at: nowIso(), claimed_agent_id: agentRecord.id }).eq('id', invite.id);
+    res.json({ success: true, message: 'Account created', agentId: agentRecord.id });
+  } catch (err) {
+    console.error('[Agent Claim] Account creation failed:', err);
+    res.status(500).json({ error: 'claim_failed', detail: err?.message });
+  }
+});
+
+// ── Pre-Qual 5-Question Form ──────────────────────────────────────────────────
+app.post('/api/leads/pre-qual', async (req, res) => {
+  try {
+    const { listing_id: listingId, full_name: fullName, email, phone, purchase_timeline, credit_range, income_range, down_payment, property_type, notes } = req.body || {};
+    if (!listingId) return res.status(400).json({ error: 'listing_id_required' });
+    if (!email && !phone) return res.status(400).json({ error: 'email_or_phone_required' });
+    const emailLower = (email || '').trim().toLowerCase() || null;
+    const { data: loRow } = await supabaseAdmin.from('listing_lo_assignments').select('lo_agent_id').eq('listing_id', listingId).limit(1);
+    const loAgentId = loRow?.[0]?.lo_agent_id || null;
+    const { data: preQual, error: pqError } = await supabaseAdmin.from('pre_qual_submissions').insert({ listing_id: listingId, lo_agent_id: loAgentId, full_name: fullName || null, email: emailLower, phone: phone || null, purchase_timeline: purchase_timeline || null, credit_range: credit_range || null, income_range: income_range || null, down_payment: down_payment || null, property_type: property_type || null, notes: notes || null }).select('id').single();
+    if (pqError) throw pqError;
+    if (loAgentId) {
+      const { data: listingRow } = await supabaseAdmin.from('listings').select('address').eq('id', listingId).single().catch(() => ({ data: null }));
+      await supabaseAdmin.from('notifications').insert({ user_id: loAgentId, title: '🔥 New pre-qual submission', content: `${fullName || 'A buyer'} completed a pre-qual at ${listingRow?.address || 'a listing'}. Timeline: ${purchase_timeline || 'unknown'}.`, type: 'lead', priority: 'high', is_read: false }).catch(() => null);
+    }
+    res.json({ success: true, preQualId: preQual.id });
+  } catch (err) {
+    console.error('[PreQual] Submission failed:', err);
+    res.status(500).json({ error: 'pre_qual_failed' });
+  }
+});
+
+// ── Sold / Archive Listing ────────────────────────────────────────────────────
+app.patch('/api/listings/:listingId/sold', async (req, res) => {
+  try {
+    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!agentId) return res.status(401).json({ error: 'unauthorized' });
+    const { listingId } = req.params;
+    const { sold_price: soldPrice } = req.body || {};
+    const { data: listing } = await supabaseAdmin.from('listings').select('id, agent_id, address, total_leads, total_views').eq('id', listingId).single();
+    if (!listing) return res.status(404).json({ error: 'listing_not_found' });
+    if (listing.agent_id !== agentId) return res.status(403).json({ error: 'listing_access_denied' });
+    await supabaseAdmin.from('listings').update({ status: 'sold', sold_at: nowIso(), sold_price: soldPrice || null, updated_at: nowIso() }).eq('id', listingId);
+    const { data: loAssignment } = await supabaseAdmin.from('listing_lo_assignments').select('lo_agent_id').eq('listing_id', listingId).limit(1);
+    if (loAssignment?.[0]?.lo_agent_id) {
+      await supabaseAdmin.from('notifications').insert({ user_id: loAssignment[0].lo_agent_id, title: '🎉 Listing sold!', content: `${listing.address} just sold! ${listing.total_leads || 0} leads, ${listing.total_views || 0} views.`, type: 'listing', priority: 'high', is_read: false }).catch(() => null);
+    }
+    res.json({ success: true, sold_price: soldPrice, total_leads: listing.total_leads || 0, total_views: listing.total_views || 0 });
+  } catch (err) {
+    console.error('[Sold] Failed:', err);
+    res.status(500).json({ error: 'sold_update_failed' });
+  }
+});
+
+app.patch('/api/listings/:listingId/archive', async (req, res) => {
+  try {
+    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!agentId) return res.status(401).json({ error: 'unauthorized' });
+    const { listingId } = req.params;
+    const { data: listing } = await supabaseAdmin.from('listings').select('id, agent_id').eq('id', listingId).single();
+    if (!listing) return res.status(404).json({ error: 'listing_not_found' });
+    if (listing.agent_id !== agentId) return res.status(403).json({ error: 'listing_access_denied' });
+    await supabaseAdmin.from('listings').update({ status: 'archived', archived_at: nowIso(), updated_at: nowIso() }).eq('id', listingId);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'archive_failed' });
+  }
+});
+
+// ── LO ROI Stats per Listing ──────────────────────────────────────────────────
+app.get('/api/lo/listings/:listingId/roi', async (req, res) => {
+  try {
+    const loAgentId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!loAgentId) return res.status(401).json({ error: 'unauthorized' });
+    const { listingId } = req.params;
+    const { data: assignment } = await supabaseAdmin.from('listing_lo_assignments').select('id').eq('listing_id', listingId).eq('lo_agent_id', loAgentId).single();
+    if (!assignment) return res.status(403).json({ error: 'not_assigned_to_listing' });
+    const [listingRes, leadsRes, preQualRes] = await Promise.all([
+      supabaseAdmin.from('listings').select('address, price, status, total_views, total_leads, sold_at, sold_price').eq('id', listingId).single(),
+      supabaseAdmin.from('leads').select('id, source_meta').eq('listing_id', listingId).eq('lo_agent_id', loAgentId),
+      supabaseAdmin.from('pre_qual_submissions').select('id').eq('listing_id', listingId).eq('lo_agent_id', loAgentId)
+    ]);
+    const listing = listingRes.data;
+    const leads = leadsRes.data || [];
+    const preQuals = preQualRes.data || [];
+    res.json({ success: true, roi: { address: listing?.address, status: listing?.status, views: listing?.total_views || 0, leads: leads.length, preQuals: preQuals.length, soldAt: listing?.sold_at || null, soldPrice: listing?.sold_price || null } });
+  } catch (err) {
+    console.error('[ROI] Failed:', err);
+    res.status(500).json({ error: 'roi_fetch_failed' });
+  }
+});
+
+// ── Branding Toggles ──────────────────────────────────────────────────────────
+// piece_type values: listing_page | share_kit | qr | social | flyer | open_house
+
+app.get('/api/lo/listings/:listingId/branding-toggles', async (req, res) => {
+  try {
+    const loAgentId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!loAgentId) return res.status(401).json({ error: 'unauthorized' });
+    const { listingId } = req.params;
+    const ALL_PIECES = ['listing_page', 'share_kit', 'qr', 'social', 'flyer', 'open_house'];
+    const { data: rows } = await supabaseAdmin.from('listing_branding_toggles').select('piece_type, lo_visible').eq('listing_id', listingId).eq('lo_agent_id', loAgentId);
+    // Build map — default to true (visible) for any piece not yet saved
+    const savedMap = Object.fromEntries((rows || []).map(r => [r.piece_type, r.lo_visible]));
+    const toggles = Object.fromEntries(ALL_PIECES.map(p => [p, savedMap[p] !== undefined ? savedMap[p] : true]));
+    res.json({ success: true, toggles });
+  } catch (err) {
+    console.error('[BrandingToggles] GET failed:', err);
+    res.status(500).json({ error: 'toggles_fetch_failed' });
+  }
+});
+
+app.patch('/api/lo/listings/:listingId/branding-toggles', async (req, res) => {
+  try {
+    const loAgentId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!loAgentId) return res.status(401).json({ error: 'unauthorized' });
+    const { listingId } = req.params;
+    const { toggles } = req.body || {};
+    if (!toggles || typeof toggles !== 'object') return res.status(400).json({ error: 'toggles_object_required' });
+    const VALID_PIECES = new Set(['listing_page', 'share_kit', 'qr', 'social', 'flyer', 'open_house']);
+    const upsertRows = Object.entries(toggles)
+      .filter(([piece]) => VALID_PIECES.has(piece))
+      .map(([piece_type, lo_visible]) => ({ listing_id: listingId, lo_agent_id: loAgentId, piece_type, lo_visible: !!lo_visible, updated_at: nowIso() }));
+    if (upsertRows.length === 0) return res.json({ success: true, updated: 0 });
+    const { error } = await supabaseAdmin.from('listing_branding_toggles').upsert(upsertRows, { onConflict: 'listing_id,lo_agent_id,piece_type' });
+    if (error) throw error;
+    res.json({ success: true, updated: upsertRows.length });
+  } catch (err) {
+    console.error('[BrandingToggles] PATCH failed:', err);
+    res.status(500).json({ error: 'toggles_update_failed' });
+  }
+});
+
+// ── Lead Follow-Up Nudge Job ──────────────────────────────────────────────────
+app.post('/api/internal/run-nudge-job', async (req, res) => {
+  try {
+    const secret = req.headers['x-internal-secret'];
+    if (secret !== (process.env.INTERNAL_JOB_SECRET || 'hlai-internal')) return res.status(403).json({ error: 'forbidden' });
+    const cutoff24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const cutoff48h = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+    const { data: unworkedLeads } = await supabaseAdmin.from('leads').select('id, agent_id, lo_agent_id, full_name, name, listing_id').lte('created_at', cutoff24h).gte('created_at', cutoff48h).is('contacted_at', null).is('nudge_sent_at', null).limit(100);
+    const nudged = [];
+    for (const lead of (unworkedLeads || [])) {
+      const displayName = lead.full_name || lead.name || 'A lead';
+      const { data: listingRow } = await supabaseAdmin.from('listings').select('address').eq('id', lead.listing_id).single().catch(() => ({ data: null }));
+      const address = listingRow?.address || 'a listing';
+      await supabaseAdmin.from('notifications').insert({ user_id: lead.agent_id, title: '⏰ Lead needs follow-up', content: `${displayName} reached out 24h ago at ${address} — no contact yet.`, type: 'lead', priority: 'high', is_read: false }).catch(() => null);
+      if (lead.lo_agent_id && lead.lo_agent_id !== lead.agent_id) {
+        await supabaseAdmin.from('notifications').insert({ user_id: lead.lo_agent_id, title: '⏰ Lead needs follow-up', content: `${displayName} at ${address} hasn't been contacted in 24h.`, type: 'lead', priority: 'high', is_read: false }).catch(() => null);
+      }
+      await supabaseAdmin.from('leads').update({ nudge_sent_at: nowIso() }).eq('id', lead.id).catch(() => null);
+      nudged.push(lead.id);
+    }
+    res.json({ success: true, nudged: nudged.length });
+  } catch (err) {
+    console.error('[NudgeJob] Failed:', err);
+    res.status(500).json({ error: 'nudge_job_failed' });
+  }
+});
+
+// ── Mark Lead Contacted ───────────────────────────────────────────────────────
+app.patch('/api/leads/:leadId/contacted', async (req, res) => {
+  try {
+    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!agentId) return res.status(401).json({ error: 'unauthorized' });
+    const { leadId } = req.params;
+    const { data: lead } = await supabaseAdmin.from('leads').select('id, agent_id, lo_agent_id').eq('id', leadId).single();
+    if (!lead) return res.status(404).json({ error: 'lead_not_found' });
+    if (lead.agent_id !== agentId && lead.lo_agent_id !== agentId) return res.status(403).json({ error: 'access_denied' });
+    await supabaseAdmin.from('leads').update({ contacted_at: nowIso(), updated_at: nowIso(), status: 'Contacted' }).eq('id', leadId);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'update_failed' });
+  }
+});
+
+// ── LO Listing Limit Check ────────────────────────────────────────────────────
+app.get('/api/lo/listing-limit', async (req, res) => {
+  try {
+    const loAgentId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!loAgentId) return res.status(401).json({ error: 'unauthorized' });
+    const { data: assignments } = await supabaseAdmin.from('listing_lo_assignments').select('listing_id, listings!listing_lo_assignments_listing_id_fkey(status)').eq('lo_agent_id', loAgentId);
+    const publishedCount = (assignments || []).filter(a => a.listings?.status === 'published').length;
+    const { data: agentRow } = await supabaseAdmin.from('agents').select('plan_id').eq('id', loAgentId).single();
+    const plan = agentRow?.plan_id || 'lo_partner';
+    const limit = (plan === 'office' || plan === 'white_label') ? -1 : 25;
+    res.json({ success: true, published: publishedCount, limit, unlimited: limit === -1, atLimit: limit !== -1 && publishedCount >= limit, remaining: limit === -1 ? null : Math.max(0, limit - publishedCount) });
+  } catch (err) {
+    res.status(500).json({ error: 'limit_check_failed' });
+  }
+});
+
+// ── LO Listing Association ────────────────────────────────────────────────────
+app.get('/api/lo/listings', async (req, res) => {
+  try {
+    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!agentId) return res.status(401).json({ error: 'unauthorized' });
+    const { data: agentRows } = await supabaseAdmin.from('agents').select('id').eq('auth_user_id', agentId).limit(1);
+    const agentRecord = agentRows?.[0];
+    if (!agentRecord) return res.json({ success: true, listings: [] });
+    const { data: assignments, error: assignErr } = await supabaseAdmin.from('listing_lo_assignments').select('listing_id, branding_enabled, assigned_at').eq('lo_agent_id', agentRecord.id);
+    if (assignErr) throw assignErr;
+    if (!assignments || assignments.length === 0) return res.json({ success: true, listings: [] });
+    const listingIds = assignments.map(a => a.listing_id);
+    const { data: properties, error: propErr } = await supabaseAdmin.from('properties').select('id, address, city, state, zip, price, bedrooms, bathrooms, sqft, status, hero_photo_url, title, agent_id, user_id').in('id', listingIds);
+    if (propErr) throw propErr;
+    const assignmentMap = Object.fromEntries(assignments.map(a => [a.listing_id, a]));
+    const listings = (properties || []).map(p => ({ id: p.id, address: [p.address, p.city, p.state].filter(Boolean).join(', ') || 'Unknown', title: p.title || p.address || 'Listing', price: Number(p.price) || 0, bedrooms: Number(p.bedrooms) || 0, bathrooms: Number(p.bathrooms) || 0, sqft: Number(p.sqft) || 0, status: p.status || 'draft', heroPhoto: p.hero_photo_url || null, brandingEnabled: assignmentMap[p.id]?.branding_enabled ?? true, assignedAt: assignmentMap[p.id]?.assigned_at || null }));
+    res.json({ success: true, listings });
+  } catch (error) {
+    console.error('[LO Listings] Failed:', error);
+    res.status(500).json({ error: 'failed_to_load_lo_listings' });
+  }
+});
+
+app.post('/api/lo/listings/:listingId/assign', async (req, res) => {
+  try {
+    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!agentId) return res.status(401).json({ error: 'unauthorized' });
+    const { listingId } = req.params;
+    if (!listingId) return res.status(400).json({ error: 'listing_id_required' });
+    const { data: agentRows } = await supabaseAdmin.from('agents').select('id').eq('auth_user_id', agentId).limit(1);
+    const agentRecord = agentRows?.[0];
+    if (!agentRecord) return res.status(404).json({ error: 'agent_not_found' });
+    const { data: propRows } = await supabaseAdmin.from('properties').select('id').eq('id', listingId).limit(1);
+    if (!propRows || propRows.length === 0) return res.status(404).json({ error: 'listing_not_found' });
+    const { error: upsertErr } = await supabaseAdmin.from('listing_lo_assignments').upsert({ listing_id: listingId, lo_agent_id: agentRecord.id, branding_enabled: true, assigned_at: nowIso() }, { onConflict: 'listing_id,lo_agent_id' });
+    if (upsertErr) throw upsertErr;
+    res.json({ success: true });
+  } catch (error) {
+    console.error('[LO Assign] Failed:', error);
+    res.status(500).json({ error: 'failed_to_assign_lo_listing' });
+  }
+});
+
+app.delete('/api/lo/listings/:listingId/assign', async (req, res) => {
+  try {
+    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!agentId) return res.status(401).json({ error: 'unauthorized' });
+    const { listingId } = req.params;
+    const { data: agentRows } = await supabaseAdmin.from('agents').select('id').eq('auth_user_id', agentId).limit(1);
+    const agentRecord = agentRows?.[0];
+    if (!agentRecord) return res.status(404).json({ error: 'agent_not_found' });
+    const { error: delErr } = await supabaseAdmin.from('listing_lo_assignments').delete().eq('listing_id', listingId).eq('lo_agent_id', agentRecord.id);
+    if (delErr) throw delErr;
+    res.json({ success: true });
+  } catch (error) {
+    console.error('[LO Remove] Failed:', error);
+    res.status(500).json({ error: 'failed_to_remove_lo_listing' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LO AI CHATBOT ENDPOINTS
+// ─────────────────────────────────────────────────────────────────────────────
+
+// GET /api/lo/chatbot-config — fetch authenticated LO's chatbot config
+app.get('/api/lo/chatbot-config', async (req, res) => {
+  try {
+    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!agentId) return res.status(401).json({ error: 'unauthorized' });
+
+    const { data, error } = await supabaseAdmin
+      .from('lo_chatbot_configs')
+      .select('*')
+      .eq('lo_agent_id', agentId)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    // Return defaults if no config saved yet
+    if (!data) {
+      return res.json({
+        bot_name: 'Your Loan Officer',
+        greeting: 'Hi! I can answer your financing and mortgage questions. What would you like to know?',
+        personality: 'Professional, friendly, and knowledgeable mortgage advisor. Keep answers clear and concise. Always encourage the visitor to reach out directly for personalized numbers.',
+        knowledge_base: '',
+        faq: [],
+        is_active: true
+      });
+    }
+
+    res.json(data);
+  } catch (err) {
+    console.error('[LO Chatbot Config GET] Error:', err);
+    res.status(500).json({ error: 'failed_to_fetch_chatbot_config' });
+  }
+});
+
+// PUT /api/lo/chatbot-config — save LO's chatbot config
+app.put('/api/lo/chatbot-config', async (req, res) => {
+  try {
+    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!agentId) return res.status(401).json({ error: 'unauthorized' });
+
+    const { bot_name, greeting, personality, knowledge_base, faq, is_active } = req.body;
+
+    const { data, error } = await supabaseAdmin
+      .from('lo_chatbot_configs')
+      .upsert({
+        lo_agent_id: agentId,
+        bot_name: bot_name || 'Your Loan Officer',
+        greeting: greeting || 'Hi! I can answer your financing and mortgage questions.',
+        personality: personality || '',
+        knowledge_base: knowledge_base || '',
+        faq: Array.isArray(faq) ? faq : [],
+        is_active: is_active !== false,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'lo_agent_id' })
+      .select()
+      .single();
+
+    if (error) throw error;
+    res.json({ success: true, config: data });
+  } catch (err) {
+    console.error('[LO Chatbot Config PUT] Error:', err);
+    res.status(500).json({ error: 'failed_to_save_chatbot_config' });
+  }
+});
+
+// GET /api/public/listing/:listingId/lo-chatbot — get LO chatbot info for a listing (no auth)
+app.get('/api/public/listing/:listingId/lo-chatbot', async (req, res) => {
+  try {
+    const { listingId } = req.params;
+
+    // Find the LO agent linked to this listing via listing_lo_assignments
+    const { data: assignment, error: assignErr } = await supabaseAdmin
+      .from('listing_lo_assignments')
+      .select('lo_agent_id')
+      .eq('listing_id', listingId)
+      .maybeSingle();
+
+    if (assignErr) throw assignErr;
+    if (!assignment || !assignment.lo_agent_id) {
+      return res.json({ enabled: false });
+    }
+
+    const loAgentId = assignment.lo_agent_id;
+
+    // Get LO's chatbot config
+    const { data: config, error: configErr } = await supabaseAdmin
+      .from('lo_chatbot_configs')
+      .select('bot_name, greeting, is_active')
+      .eq('lo_agent_id', loAgentId)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (configErr) throw configErr;
+    if (!config) return res.json({ enabled: false });
+
+    // Get LO's name and photo
+    const { data: loAgent, error: agentErr } = await supabaseAdmin
+      .from('agents')
+      .select('full_name, headshot_url, brokerage_name')
+      .eq('id', loAgentId)
+      .maybeSingle();
+
+    if (agentErr) throw agentErr;
+
+    res.json({
+      enabled: true,
+      lo_agent_id: loAgentId,
+      bot_name: config.bot_name,
+      greeting: config.greeting,
+      lo_name: loAgent?.full_name || config.bot_name,
+      lo_photo: loAgent?.headshot_url || null,
+      lo_company: loAgent?.brokerage_name || null
+    });
+  } catch (err) {
+    console.error('[LO Chatbot Public Info] Error:', err);
+    res.json({ enabled: false });
+  }
+});
+
+// POST /api/public/lo-chat — visitor sends message to LO chatbot
+app.post('/api/public/lo-chat', async (req, res) => {
+  try {
+    const { listing_id, lo_agent_id, message, history } = req.body;
+    if (!listing_id || !lo_agent_id || !message) {
+      return res.status(400).json({ error: 'missing_required_fields' });
+    }
+
+    // Fetch LO config
+    const { data: config, error: configErr } = await supabaseAdmin
+      .from('lo_chatbot_configs')
+      .select('bot_name, greeting, personality, knowledge_base, faq, is_active')
+      .eq('lo_agent_id', lo_agent_id)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (configErr) throw configErr;
+    if (!config) {
+      return res.json({
+        reply: "I'm setting up my financing assistant. Please contact me directly for mortgage questions."
+      });
+    }
+
+    // Fetch listing address for context
+    const { data: listing } = await supabaseAdmin
+      .from('listings')
+      .select('address, price')
+      .eq('id', listing_id)
+      .maybeSingle();
+
+    const listingContext = listing
+      ? `The visitor is looking at a listing at ${listing.address}${listing.price ? ` listed at $${Number(listing.price).toLocaleString('en-US')}` : ''}.`
+      : '';
+
+    // Build FAQ context
+    const faqText = Array.isArray(config.faq) && config.faq.length > 0
+      ? '\n\nFrequently Asked Questions:\n' + config.faq.map(
+          (item) => `Q: ${item.question}\nA: ${item.answer}`
+        ).join('\n\n')
+      : '';
+
+    // Build system prompt
+    const systemPrompt = [
+      `You are ${config.bot_name}, a mortgage and financing assistant.`,
+      config.personality,
+      listingContext,
+      config.knowledge_base ? `\nKnowledge base:\n${config.knowledge_base}` : '',
+      faqText,
+      '\nKeep responses brief (2-4 sentences). Do not give specific rate quotes — encourage visitors to contact you directly for personalized numbers. Never discuss topics unrelated to real estate financing and mortgages.'
+    ].filter(Boolean).join('\n');
+
+    // Build messages array
+    const safeHistory = Array.isArray(history) ? history.slice(-8) : [];
+    const messages = [
+      { role: 'system', content: systemPrompt },
+      ...safeHistory.map((m) => ({
+        role: m.role === 'visitor' ? 'user' : 'assistant',
+        content: String(m.text || '')
+      })),
+      { role: 'user', content: message }
+    ];
+
+    // Call OpenAI
+    const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: process.env.OPENAI_CHAT_MODEL || 'gpt-4o',
+        messages,
+        max_tokens: 200,
+        temperature: 0.5
+      })
+    });
+
+    if (!openaiRes.ok) {
+      const errBody = await openaiRes.text();
+      console.error('[LO Chat] OpenAI error:', errBody);
+      return res.json({ reply: "I'm having trouble connecting right now. Please contact me directly for financing questions." });
+    }
+
+    const openaiData = await openaiRes.json();
+    const reply = openaiData.choices?.[0]?.message?.content?.trim()
+      || "I'm not able to answer that right now. Please reach out to me directly.";
+
+    res.json({ reply });
+  } catch (err) {
+    console.error('[LO Chat] Error:', err);
+    res.json({ reply: "Something went wrong. Please contact the loan officer directly for financing questions." });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// END LO PLATFORM ENDPOINTS
+// ═══════════════════════════════════════════════════════════════════════════════
+
 // Listing/Property Management Endpoints
 
 // Upload listing photo (handled by backend so uploads use service role key)

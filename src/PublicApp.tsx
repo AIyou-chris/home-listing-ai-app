@@ -2,6 +2,7 @@ import React, { Suspense, lazy, useState } from 'react';
 import { Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import './public.css';
 import LoadingSpinner from './components/LoadingSpinner';
+import ErrorBoundary from './components/ErrorBoundary';
 
 const App = lazy(() => import('./App'));
 const LandingPage = lazy(() => import('./components/LandingPage'));
@@ -24,6 +25,62 @@ const PrivateAppLoader: React.FC = () => (
   <Suspense fallback={routeFallback}>
     <App />
   </Suspense>
+);
+
+const LandingPageFallback: React.FC<{
+  onNavigateToSignUp: () => void;
+  onNavigateToSignIn: () => void;
+  onEnterDemoMode: () => void;
+}> = ({ onNavigateToSignUp, onNavigateToSignIn, onEnterDemoMode }) => (
+  <div className="min-h-screen bg-slate-950 text-white">
+    <div className="mx-auto flex min-h-screen max-w-6xl flex-col justify-center px-6 py-20 sm:px-8">
+      <div className="max-w-3xl">
+        <p className="mb-4 text-sm font-semibold uppercase tracking-[0.3em] text-cyan-400">
+          HomeListingAI
+        </p>
+        <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
+          Turn listings into leads without losing the homepage.
+        </h1>
+        <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-300">
+          The full landing experience hit a production rendering error. This fallback keeps the site live,
+          keeps sign-up working, and gives visitors a clean path into the app while we finish the deeper fix.
+        </p>
+      </div>
+
+      <div className="mt-10 flex flex-col gap-4 sm:flex-row">
+        <button
+          onClick={onNavigateToSignUp}
+          className="rounded-xl bg-cyan-500 px-6 py-4 text-base font-bold text-slate-950 transition hover:bg-cyan-400"
+        >
+          Create Free Account
+        </button>
+        <button
+          onClick={onEnterDemoMode}
+          className="rounded-xl border border-slate-700 px-6 py-4 text-base font-semibold text-white transition hover:bg-slate-900"
+        >
+          See a Full Listing Demo
+        </button>
+        <button
+          onClick={onNavigateToSignIn}
+          className="rounded-xl border border-slate-800 px-6 py-4 text-base font-semibold text-slate-300 transition hover:bg-slate-900 hover:text-white"
+        >
+          Login
+        </button>
+      </div>
+
+      <div className="mt-12 grid gap-4 sm:grid-cols-3">
+        {[
+          'AI listing pages that answer buyer questions',
+          'Market reports and QR lead capture built in',
+          'Fast lead routing into your dashboard',
+        ].map((item) => (
+          <div key={item} className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 text-slate-200">
+            {item}
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
 );
 
 const PublicApp: React.FC = () => {
@@ -49,14 +106,24 @@ const PublicApp: React.FC = () => {
           <Route
             path="/"
             element={
-              <LandingPage
-                onNavigateToSignUp={handleNavigateToSignUp}
-                onNavigateToSignIn={handleNavigateToSignIn}
-                onEnterDemoMode={handleEnterDemoMode}
-                onOpenConsultationModal={() => openConsultationModal('realtor')}
-                onNavigateToAdmin={handleNavigateToAdmin}
-                onNavigateToShowcase={handleNavigateToShowcase}
-              />
+              <ErrorBoundary
+                fallback={
+                  <LandingPageFallback
+                    onNavigateToSignUp={handleNavigateToSignUp}
+                    onNavigateToSignIn={handleNavigateToSignIn}
+                    onEnterDemoMode={handleEnterDemoMode}
+                  />
+                }
+              >
+                <LandingPage
+                  onNavigateToSignUp={handleNavigateToSignUp}
+                  onNavigateToSignIn={handleNavigateToSignIn}
+                  onEnterDemoMode={handleEnterDemoMode}
+                  onOpenConsultationModal={() => openConsultationModal('realtor')}
+                  onNavigateToAdmin={handleNavigateToAdmin}
+                  onNavigateToShowcase={handleNavigateToShowcase}
+                />
+              </ErrorBoundary>
             }
           />
           <Route path="/landing" element={<Navigate to="/" replace />} />

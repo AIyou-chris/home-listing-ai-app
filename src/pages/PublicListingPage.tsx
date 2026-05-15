@@ -2,12 +2,22 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import PublicPropertyApp from '../components/PublicPropertyApp';
 import PublicListingChatModule from '../components/public/PublicListingChatModule';
+import LOFinanceChatPanel from '../components/public/LOFinanceChatPanel';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { Property } from '../types';
 import { buildApiUrl } from '../lib/api';
 
 const VISITOR_STORAGE_KEY = 'hlai_public_listing_visitor_id';
 const ATTRIBUTION_STORAGE_PREFIX = 'hlai_public_listing_attribution_';
+
+const toReferrerDomain = (value: string | null | undefined): string | null => {
+    if (!value) return null;
+    try {
+        return new URL(value).hostname || null;
+    } catch {
+        return null;
+    }
+};
 
 const toPropertyFromPublicPayload = (payload: Record<string, unknown>): Property => {
     const heroPhotos = Array.isArray(payload.heroPhotos) ? payload.heroPhotos.filter((item): item is string => typeof item === 'string') : [];
@@ -65,12 +75,19 @@ const toPropertyFromBootstrapPayload = (
     listing: Record<string, unknown>,
     agent: Record<string, unknown> | null | undefined
 ): Property => {
+    const heroPhotos = Array.isArray(listing.hero_photos)
+        ? listing.hero_photos.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+        : [];
+    const galleryPhotos = Array.isArray(listing.gallery_photos)
+        ? listing.gallery_photos.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+        : [];
     const photos = Array.isArray(listing.photos)
         ? listing.photos.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
         : [];
+    const mergedPhotos = [...heroPhotos, ...galleryPhotos, ...photos].filter((value, index, array) => array.indexOf(value) === index);
     const imageUrl = typeof listing.primary_photo === 'string' && listing.primary_photo
         ? listing.primary_photo
-        : (photos[0] || '');
+        : (mergedPhotos[0] || '');
     const beds = Number(listing.beds ?? 0);
     const baths = Number(listing.baths ?? 0);
     const sqft = Number(listing.sqft ?? 0);
@@ -78,7 +95,7 @@ const toPropertyFromBootstrapPayload = (
 
     return {
         id: String(listing.id || ''),
-        title: String(listing.address || 'Listing'),
+        title: String(listing.title || listing.address || 'Listing'),
         address: String(listing.address || ''),
         price: Number.isFinite(price) ? price : 0,
         bedrooms: Number.isFinite(beds) ? beds : 0,
@@ -86,9 +103,9 @@ const toPropertyFromBootstrapPayload = (
         squareFeet: Number.isFinite(sqft) ? sqft : 0,
         status: 'Active',
         listedDate: undefined,
-        description: '',
-        heroPhotos: photos,
-        galleryPhotos: photos,
+        description: typeof listing.description === 'string' ? listing.description : '',
+        heroPhotos: heroPhotos.length > 0 ? heroPhotos : mergedPhotos,
+        galleryPhotos: galleryPhotos.length > 0 ? galleryPhotos : mergedPhotos,
         appFeatures: {
             gallery: true,
             schools: true,
@@ -112,11 +129,11 @@ const toPropertyFromBootstrapPayload = (
             brandColor: String(agent?.brand_color || '#28a7e8'),
             socials: []
         },
-        propertyType: 'Single Family',
-        features: [],
+        propertyType: typeof listing.property_type === 'string' ? listing.property_type : 'Single Family',
+        features: Array.isArray(listing.features) ? listing.features.filter((item): item is string => typeof item === 'string') : [],
         imageUrl,
         ctaListingUrl: typeof listing.share_url === 'string' ? listing.share_url : undefined,
-        ctaMediaUrl: undefined,
+        ctaMediaUrl: typeof listing.cta_media_url === 'string' ? listing.cta_media_url : undefined,
         ctaContactMode: 'form',
         agentId: typeof agent?.id === 'string' ? String(agent.id) : undefined
     };
@@ -137,6 +154,8 @@ const PublicListingPage: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [notPublished, setNotPublished] = useState(false);
     const [talkToHomeOpen, setTalkToHomeOpen] = useState(false);
+    const [loFinanceChatOpen, setLoFinanceChatOpen] = useState(false);
+    const [loHasBot, setLoHasBot] = useState(false);
     const safePublicSlug = useMemo(() => normalizeRouteSlug(publicSlug), [publicSlug]);
     useEffect(() => {
         document.body.classList.add('public-listing-fullscreen');
@@ -154,6 +173,9 @@ const PublicListingPage: React.FC = () => {
             }
 
             try {
+                setLoading(true);
+                setProperty(null);
+                setTalkToHomeOpen(false);
                 setNotPublished(false);
                 setError(null);
                 let loaded: Property | null = null;
@@ -205,11 +227,24 @@ const PublicListingPage: React.FC = () => {
                 setProperty(loaded);
                 document.title = `${loaded.address} | HomeListingAI`;
 
+                // Check if the listing's LO has a financing bot enabled
+                try {
+                    const loInfoRes = await fetch(buildApiUrl(`/api/public/listing/${encodeURIComponent(loaded.id)}/lo-chatbot`));
+                    if (loInfoRes.ok) {
+                        const loInfo = await loInfoRes.json() as { enabled?: boolean };
+                        setLoHasBot(loInfo.enabled === true);
+                    }
+                } catch {
+                    setLoHasBot(false);
+                }
+
                 const params = new URLSearchParams(location.search || '');
                 const sourceKey = params.get('src') || undefined;
                 const utmSource = params.get('utm_source') || undefined;
                 const utmMedium = params.get('utm_medium') || undefined;
                 const utmCampaign = params.get('utm_campaign') || undefined;
+                const referrer = document.referrer || null;
+                const referrerDomain = toReferrerDomain(referrer);
                 const existingVisitorId = localStorage.getItem(VISITOR_STORAGE_KEY);
                 const visitorId = existingVisitorId && existingVisitorId.trim().length > 0
                     ? existingVisitorId
@@ -227,7 +262,8 @@ const PublicListingPage: React.FC = () => {
                     utm_source: utmSource || null,
                     utm_medium: utmMedium || null,
                     utm_campaign: utmCampaign || null,
-                    referrer: document.referrer || null
+                    referrer,
+                    referrer_domain: referrerDomain
                 };
                 localStorage.setItem(`${ATTRIBUTION_STORAGE_PREFIX}${loaded.id}`, JSON.stringify(attributionPayload));
             } catch (err) {
@@ -302,6 +338,23 @@ const PublicListingPage: React.FC = () => {
                 open={talkToHomeOpen}
                 hideLauncher
                 onOpenChange={setTalkToHomeOpen}
+            />
+            {/* LO Financing Bot button — only shows when LO has a bot configured */}
+            {loHasBot && !loFinanceChatOpen && !talkToHomeOpen && (
+                <div className="fixed bottom-4 right-4 z-50">
+                    <button
+                        onClick={() => setLoFinanceChatOpen(true)}
+                        className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-700 to-teal-600 px-4 py-3 text-sm font-semibold text-white shadow-xl transition hover:brightness-110"
+                    >
+                        <span className="material-symbols-outlined text-[18px]">calculate</span>
+                        Ask About Financing
+                    </button>
+                </div>
+            )}
+            <LOFinanceChatPanel
+                listingId={property.id}
+                open={loFinanceChatOpen}
+                onClose={() => setLoFinanceChatOpen(false)}
             />
         </>
     );

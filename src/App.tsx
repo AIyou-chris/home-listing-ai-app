@@ -1,21 +1,19 @@
 import React, { useState, useEffect, Suspense, lazy, useCallback, useRef } from 'react';
-import { Routes, Route, useNavigate, useLocation, Navigate, Outlet } from 'react-router-dom';
+import { Routes, Route, useNavigate, useLocation, Navigate, Outlet, useParams } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
-import './installProtectedApiFetch';
 import { supabase } from './services/supabase';
-import './index.css';
-import { Property, View, AgentProfile, NotificationSettings, EmailSettings, CalendarSettings, BillingSettings, Lead, Appointment, Interaction, SecuritySettings } from './types';
+import { Property, View, AgentProfile, NotificationSettings, EmailSettings, CalendarSettings, BillingSettings, Lead, Appointment, Interaction } from './types';
 import { DEMO_FAT_PROPERTIES, DEMO_FAT_LEADS, DEMO_FAT_APPOINTMENTS } from './demoConstants';
-import { EMPTY_AGENT, SAMPLE_AGENT, SAMPLE_INTERACTIONS } from './constants';
-import { isDemoModeActive } from './demo/useDemoMode';
+import { SAMPLE_AGENT, SAMPLE_INTERACTIONS } from './constants';
 const LandingPage = lazy(() => import('./components/LandingPage'));
 const NewLandingPage = lazy(() => import('./components/NewLandingPage'));
 const SignUpPage = lazy(() => import('./components/SignUpPage'));
 const SignInPage = lazy(() => import('./components/SignInPage'));
 const ForgotPasswordPage = lazy(() => import('./components/ForgotPasswordPage'));
 const ResetPasswordPage = lazy(() => import('./components/ResetPasswordPage'));
+const CheckoutPage = lazy(() => import('./components/CheckoutPage'));
 import { Toaster } from 'react-hot-toast';
-import { showToast } from './utils/toastService';
+import { getRegistrationContext } from './services/agentOnboardingService';
 
 const WhiteLabelPage = lazy(() => import('./pages/WhiteLabelPage'));
 
@@ -32,6 +30,11 @@ const ListingPerformancePage = lazy(() => import('./components/dashboard-command
 const ListingEditorPage = lazy(() => import('./components/dashboard-command/ListingEditorPage'));
 const BillingCommandPage = lazy(() => import('./components/dashboard-command/BillingCommandPage'));
 const OnboardingCommandPage = lazy(() => import('./components/dashboard-command/OnboardingCommandPage'));
+const LOOnboardingPage = lazy(() => import('./components/dashboard-command/LOOnboardingPage'));
+const LOListingsPage = lazy(() => import('./components/dashboard-command/LOListingsPage'));
+const LOPartnersPage = lazy(() => import('./components/dashboard-command/LOPartnersPage'));
+const LOChatbotSetupPage = lazy(() => import('./components/dashboard-command/LOChatbotSetupPage'));
+const AgentClaimPage = lazy(() => import('./pages/AgentClaimPage'));
 const ShareTestPage = lazy(() => import('./components/dashboard-command/ShareTestPage'));
 const AIConversationsPage = lazy(() => import('./components/AIConversationsPage'));
 const AICardPage = lazy(() => import('./components/AICardPage'));
@@ -47,7 +50,7 @@ const AnalyticsDashboard = lazy(() => import('./components/AnalyticsDashboard'))
 const ConsultationModal = lazy(() => import('./components/ConsultationModal'));
 import { AISidekickProvider } from './context/AISidekickContext';
 import { AgentBrandingProvider } from './context/AgentBrandingContext';
-import { getProfileForDashboard, subscribeToProfileChanges, updateAgentProfile } from './services/agentProfileService';
+import { getProfileForDashboard, subscribeToProfileChanges } from './services/agentProfileService';
 // Lazy load admin components for better performance
 const AdminSetup = lazy(() => import('./components/AdminSetup'));
 import AdminLogin from './components/AdminLogin'; // Keep AdminLogin static for faster auth interaction? No, lazy is fine if wrapped.
@@ -64,18 +67,15 @@ import LoadingSpinner from './components/LoadingSpinner';
 import { adminAuthService } from './services/adminAuthService';
 import { securitySettingsService } from './services/securitySettingsService';
 import { notificationSettingsService } from './services/notificationSettingsService';
-import type { NotificationChannelFlags } from './services/notificationSettingsService';
 import { calendarSettingsService } from './services/calendarSettingsService';
 import { billingSettingsService } from './services/billingSettingsService';
 import { emailSettingsService } from './services/emailSettingsService';
 const EnhancedAISidekicksHub = lazy(() => import('./components/EnhancedAISidekicksHub'));
 const PublicAICard = lazy(() => import('./components/PublicAICard')); // Public View
 const PublicListingPage = lazy(() => import('./pages/PublicListingPage')); // Public View
-const DemoAssetGalleryPage = lazy(() => import('./pages/DemoAssetGalleryPage'));
-const DemoAssetPreviewPage = lazy(() => import('./pages/DemoAssetPreviewPage'));
-const DemoPublicListingPage = lazy(() => import('./pages/DemoPublicListingPage'));
 const BlogIndex = lazy(() => import('./pages/Blog/BlogIndex'));
 const BlogPost = lazy(() => import('./pages/Blog/BlogPost'));
+const VoiceLabPage = lazy(() => import('./pages/VoiceLabPage'));
 const CombinedTrainingPage = lazy(() => import('./components/AgentAISidekicksPage'));
 // import AIInteractiveTraining from './components/AIInteractiveTraining'; // Keeping as backkup
 const FunnelAnalyticsPanel = lazy(() => import('./components/FunnelAnalyticsPanel'));
@@ -90,7 +90,6 @@ import { fetchOnboardingState } from './services/onboardingService';
 import { listAppointments } from './services/appointmentsService';
 import { PerformanceService } from './services/performanceService';
 import PostAuth from './routes/PostAuth';
-import { SchedulerProvider } from './context/SchedulerContext';
 
 
 // A helper function to delay execution
@@ -173,6 +172,7 @@ interface DashboardLayoutContextValue {
     logAuthBreadcrumb: (eventType: string, session: { expires_at?: number; user?: { id?: string } } | null) => void;
 }
 const DashboardLayoutContext = React.createContext<DashboardLayoutContextValue | null>(null);
+const CheckoutContext = React.createContext<{ onBackToSignup: () => void } | null>(null);
 // ────────────────────────────────────────────────────────────────────────────
 
 const AuthGateSpinner: React.FC<{ text?: string }> = ({ text = 'Checking session...' }) => (
@@ -202,7 +202,7 @@ const RequireRole: React.FC<{ requiredRole: Exclude<AppRole, null> }> = ({ requi
 };
 
 const DashboardRouteGate = () => {
-    const [routeTarget, setRouteTarget] = useState<'loading' | 'today' | 'onboarding'>('loading');
+    const [routeTarget, setRouteTarget] = useState<'loading' | 'today' | 'onboarding' | 'lo-onboarding'>('loading');
 
     useEffect(() => {
         let cancelled = false;
@@ -217,7 +217,17 @@ const DashboardRouteGate = () => {
                     setRouteTarget('today');
                     return;
                 }
-                setRouteTarget(onboarding.onboarding_completed ? 'today' : 'onboarding');
+                if (onboarding.onboarding_completed) {
+                    setRouteTarget('today');
+                    return;
+                }
+                // Route LOs to the LO-specific onboarding flow
+                const accountType = (onboarding as { account_type?: string }).account_type;
+                if (accountType === 'lo' || !accountType) {
+                    setRouteTarget('lo-onboarding');
+                } else {
+                    setRouteTarget('onboarding');
+                }
             } catch (_error) {
                 if (cancelled) return;
                 setRouteTarget('today');
@@ -238,15 +248,16 @@ const DashboardRouteGate = () => {
         );
     }
 
+    if (routeTarget === 'lo-onboarding') {
+        return <Navigate to="/dashboard/lo-onboarding" replace />;
+    }
+
     if (routeTarget === 'onboarding') {
         return <Navigate to="/dashboard/onboarding" replace />;
     }
 
     return <Navigate to="/dashboard/today" replace />;
 };
-
-const resolveSignedInHomePath = (role: AppRole, roleReady: boolean) =>
-    roleReady && role === 'admin' ? '/admin/overview' : '/dashboard/today';
 
 const resolveDashboardPageTitle = (pathname: string) => {
     if (pathname.includes('/command-center')) return 'Command Center';
@@ -379,23 +390,33 @@ const ProtectedDashboardLayout: React.FC = () => {
 
 // ─── CheckoutRouteWrapper (module-level, stable identity) ─────────────────────
 const CheckoutRouteWrapper: React.FC = () => {
-    const ctx = React.useContext(DashboardLayoutContext)!;
-    const navigate = useNavigate();
-    const hasRedirected = React.useRef(false);
-    const isLoggedIn = Boolean(ctx.session || ctx.user || ctx.isAdmin);
+    const params = useParams<{ slug?: string }>();
+    const ctx = React.useContext(CheckoutContext)!;
+    const registrationContext = getRegistrationContext() as { slug?: string } | null;
+    const slugForCheckout = params.slug || registrationContext?.slug || null;
 
-    useEffect(() => {
-        if (hasRedirected.current) return;
-        hasRedirected.current = true;
-        showToast.info('Billing is managed in your Dashboard → Settings → Billing.');
-        navigate(isLoggedIn ? '/dashboard/settings/billing' : '/signup', { replace: true });
-    }, [isLoggedIn, navigate]);
+    if (!slugForCheckout) {
+        return (
+            <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 px-6 text-center">
+                <div className="max-w-md space-y-4">
+                    <h2 className="text-xl font-semibold text-slate-800">We could not find your registration</h2>
+                    <p className="text-sm text-slate-600">
+                        Your secure checkout link may have expired. Please restart the signup process to generate a new link.
+                    </p>
+                    <button
+                        type="button"
+                        onClick={ctx.onBackToSignup}
+                        className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-500 transition"
+                    >
+                        <span className="material-symbols-outlined text-base">person_add</span>
+                        Start new signup
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
-    return (
-        <div className="flex h-screen items-center justify-center bg-slate-50">
-            <LoadingSpinner size="lg" type="dots" text="Redirecting..." />
-        </div>
-    );
+    return <CheckoutPage slug={slugForCheckout} onBackToSignup={ctx.onBackToSignup} />;
 };
 // ────────────────────────────────────────────────────────────────────────────
 
@@ -405,7 +426,7 @@ const App: React.FC = () => {
     const location = useLocation();
 
     // Mock data for settings (Moved up for scope access)
-    const [userProfile, setUserProfile] = useState<AgentProfile>(EMPTY_AGENT);
+    const [userProfile, setUserProfile] = useState<AgentProfile>(SAMPLE_AGENT);
 
 
 
@@ -420,14 +441,6 @@ const App: React.FC = () => {
 
     // We treat 'view' as derived state now
     const view = getCurrentView();
-    const pathname = location.pathname || '';
-    const isPublicListingRoute = (
-        pathname.startsWith('/draft-listing') ||
-        pathname.startsWith('/listing/') ||
-        pathname.startsWith('/l/') ||
-        pathname.startsWith('/demo-listing') ||
-        (pathname.includes('/demo-') && pathname.includes('listing'))
-    );
 
     const shouldNoindexRoute = useCallback((pathname: string) => {
         const privatePrefixes = [
@@ -452,6 +465,7 @@ const App: React.FC = () => {
             '/analytics',
             '/ai-sidekicks',
             '/marketing-reports',
+            '/voice-lab',
             '/settings',
             '/signin',
             '/signup',
@@ -497,9 +511,10 @@ const App: React.FC = () => {
     const [role, setRole] = useState<AppRole>(null);
     const [roleReady, setRoleReady] = useState(false);
     const [isSettingUp] = useState(false); // Helper state for setup flows (currently unused)
-    const [isDemoMode, setIsDemoMode] = useState(() =>
-        isDemoModeActive(window.location.pathname, window.location.search)
-    );
+    const [isDemoMode, setIsDemoMode] = useState(() => {
+        const path = window.location.pathname;
+        return path.includes('/demo-');
+    });
     const [isBlueprintMode, setIsBlueprintMode] = useState(() => {
         const path = window.location.pathname;
         return path.includes('blueprint') || path.includes('/agent-blueprint-');
@@ -557,14 +572,8 @@ const App: React.FC = () => {
         weeklyReport: true,
         monthlyInsights: true
     });
-    const [notificationChannelFlags, setNotificationChannelFlags] = useState<NotificationChannelFlags>({
-        email_enabled: true,
-        voice_enabled: true,
-        sms_enabled: false
-    });
-    const [smsChannel, setSmsChannel] = useState<'coming_soon' | 'active'>('coming_soon');
-    const [emailSettings, setEmailSettings] = useState<EmailSettings>({ integrationType: 'oauth', aiEmailProcessing: true, autoReply: true, leadScoring: true, followUpSequences: true });
-    const [calendarSettings, setCalendarSettings] = useState<CalendarSettings>({
+    const [_emailSettings, setEmailSettings] = useState<EmailSettings>({ integrationType: 'oauth', aiEmailProcessing: true, autoReply: true, leadScoring: true, followUpSequences: true });
+    const [_calendarSettings, setCalendarSettings] = useState<CalendarSettings>({
         integrationType: 'google',
         aiScheduling: true,
         conflictDetection: true,
@@ -577,12 +586,6 @@ const App: React.FC = () => {
         smsReminders: true,
         newAppointmentAlerts: true
     });
-    const [securitySettings, setSecuritySettings] = useState<SecuritySettings>({
-        loginNotifications: true,
-        sessionTimeout: 24,
-        analyticsEnabled: true,
-        twoFactorEnabled: false
-    });
     const [billingSettings, setBillingSettings] = useState<BillingSettings>({ planName: 'Free Tier', history: [] });
     // Removed unused state variables
 
@@ -592,11 +595,6 @@ const App: React.FC = () => {
     useEffect(() => {
         authReadyRef.current = authReady;
     }, [authReady]);
-
-    useEffect(() => {
-        const nextDemoMode = isDemoModeActive(location.pathname, location.search);
-        setIsDemoMode((prev) => (prev === nextDemoMode ? prev : nextDemoMode));
-    }, [location.pathname, location.search]);
 
     const logAuthBreadcrumb = useCallback((eventType: string, session: { expires_at?: number; user?: { id?: string } } | null) => {
         const expiresAt =
@@ -627,12 +625,6 @@ const App: React.FC = () => {
         const userId = String(nextSession.user.id || '');
         const userEmail = String(nextSession.user.email || '').toLowerCase();
         const profileRoleCandidates: string[] = [];
-        const currentPathname = typeof window !== 'undefined' ? window.location.pathname : '';
-        const isPublicListingRoute =
-            currentPathname.startsWith('/l/') ||
-            currentPathname.startsWith('/draft-listing') ||
-            currentPathname.startsWith('/demo-listing') ||
-            currentPathname.includes('/demo-');
 
         const normalizedMetaRole = String(
             nextSession.user.user_metadata?.role ||
@@ -645,7 +637,9 @@ const App: React.FC = () => {
             nextSession.user.app_metadata?.claims_admin ||
             nextSession.user.app_metadata?.admin
         );
+        const envAdminEmail = String(import.meta.env.VITE_ADMIN_EMAIL || '').trim().toLowerCase();
         const adminEmails = ['admin@homelistingai.com', 'us@homelistingai.com'];
+        if (envAdminEmail) adminEmails.push(envAdminEmail);
         if (adminClaim || adminEmails.includes(userEmail)) {
             return 'admin';
         }
@@ -657,17 +651,26 @@ const App: React.FC = () => {
             // Ignore role-RPC failures and keep deterministic fallback below.
         }
 
-        if (!isPublicListingRoute) {
-            try {
-                const { data: agentRow } = await supabase
-                    .from('agents')
-                    .select('id, role')
-                    .or(`auth_user_id.eq.${userId},id.eq.${userId}`)
-                    .maybeSingle();
-                if (agentRow?.role) profileRoleCandidates.push(String(agentRow.role).trim().toLowerCase());
-            } catch (_error) {
-                // Agents table can also be RLS-restricted; continue with deterministic fallback below.
-            }
+        try {
+            const { data: profileById } = await supabase
+                .from('profiles')
+                .select('role')
+                .eq('id', userId)
+                .maybeSingle();
+            if (profileById?.role) profileRoleCandidates.push(String(profileById.role).trim().toLowerCase());
+        } catch (_error) {
+            // Profiles table can be absent or RLS-restricted; continue.
+        }
+
+        try {
+            const { data: profileByUserId } = await supabase
+                .from('profiles')
+                .select('role')
+                .eq('user_id', userId)
+                .maybeSingle();
+            if (profileByUserId?.role) profileRoleCandidates.push(String(profileByUserId.role).trim().toLowerCase());
+        } catch (_error) {
+            // Profiles table can be absent or RLS-restricted; continue.
         }
 
         const normalizedProfileRole = profileRoleCandidates.find((candidate) =>
@@ -699,6 +702,7 @@ const App: React.FC = () => {
         const applyAuthSnapshot = async (nextSession: Session | null) => {
             if (!active) return;
 
+            console.log(`[AUTH] session loaded: ${nextSession ? 'yes' : 'no'}`);
             setSession(nextSession);
             setAuthReady(true);
             setRoleReady(false);
@@ -726,6 +730,7 @@ const App: React.FC = () => {
             setRole(resolvedRole);
             setIsAdmin(resolvedRole === 'admin');
             setRoleReady(true);
+            console.log(`[AUTH] role loaded: ${resolvedRole}`);
         };
 
         void (async () => {
@@ -780,7 +785,9 @@ const App: React.FC = () => {
 
                 // 1. Admin Check logic - OPTIMIZED ORDER
                 // Fast Local Check: Check email whitelist FIRST to avoid blocking network calls
+                const envAdminEmail = import.meta.env.VITE_ADMIN_EMAIL as string | undefined;
                 const adminEmails = ['admin@homelistingai.com', 'us@homelistingai.com'];
+                if (envAdminEmail) adminEmails.push(envAdminEmail.toLowerCase());
 
                 const isEnvAdmin = currentUser.email && adminEmails.includes(currentUser.email.toLowerCase());
 
@@ -788,9 +795,8 @@ const App: React.FC = () => {
                     console.log("👮 Admin privileges confirmed via Email Whitelist:", currentUser.email);
                     setIsAdmin(true);
                     setUserProfile({
-                        ...EMPTY_AGENT,
+                        ...SAMPLE_AGENT,
                         name: 'System Administrator',
-                        title: 'Administrator',
                         email: currentUser.email ?? '',
                         headshotUrl: `https://i.pravatar.cc/150?u=${currentUser.uid}`,
                     });
@@ -808,9 +814,8 @@ const App: React.FC = () => {
                     console.log("👮 Admin privileges confirmed via RPC for:", currentUser.email);
                     setIsAdmin(true);
                     setUserProfile({
-                        ...EMPTY_AGENT,
+                        ...SAMPLE_AGENT,
                         name: 'System Administrator',
-                        title: 'Administrator',
                         email: currentUser.email ?? '',
                         headshotUrl: `https://i.pravatar.cc/150?u=${currentUser.uid}`,
                     });
@@ -830,7 +835,7 @@ const App: React.FC = () => {
                         : `agent-${currentUser.uid.substring(0, 8)}`;
 
                     setUserProfile({
-                        ...EMPTY_AGENT,
+                        ...SAMPLE_AGENT,
                         name: currentUser.displayName || 'Agent',
                         slug: generatedSlug,
                         email: currentUser.email || '',
@@ -838,25 +843,18 @@ const App: React.FC = () => {
                     });
                 }
 
-                // 3. Load User Settings (Notifications, Calendar, Billing, Email, Security)
+                // 3. Load User Settings (Notifications, Calendar, Billing, Email)
                 try {
                     console.log('⚙️ Loading user settings...');
-                    const [notifRes, calRes, billRes, emailRes, securityRes] = await Promise.allSettled([
+                    const [notifRes, calRes, billRes, emailRes] = await Promise.allSettled([
                         notificationSettingsService.fetch(currentUser.uid),
                         calendarSettingsService.fetch(currentUser.uid),
                         billingSettingsService.get(currentUser.uid),
-                        emailSettingsService.fetch(currentUser.uid),
-                        securitySettingsService.fetch(currentUser.uid)
+                        emailSettingsService.fetch(currentUser.uid)
                     ]);
 
                     if (notifRes.status === 'fulfilled' && notifRes.value.settings) {
                         setNotificationSettings(notifRes.value.settings);
-                        if (notifRes.value.channelFlags) {
-                            setNotificationChannelFlags(notifRes.value.channelFlags);
-                        }
-                        if (notifRes.value.smsChannel) {
-                            setSmsChannel(notifRes.value.smsChannel);
-                        }
                     }
                     if (calRes.status === 'fulfilled' && calRes.value.settings) {
                         setCalendarSettings(calRes.value.settings);
@@ -866,9 +864,6 @@ const App: React.FC = () => {
                     }
                     if (emailRes.status === 'fulfilled' && emailRes.value.settings) {
                         setEmailSettings(emailRes.value.settings);
-                    }
-                    if (securityRes.status === 'fulfilled' && securityRes.value.settings) {
-                        setSecuritySettings(securityRes.value.settings);
                     }
                     console.log('✅ User settings loaded');
                 } catch (settingsError) {
@@ -985,7 +980,7 @@ const App: React.FC = () => {
                         const urlParams = new URLSearchParams(window.location.search);
                         const next = urlParams.get('next'); // e.g. /checkout
                         if (next) {
-                            navigate(next.startsWith('/checkout') ? '/dashboard/settings/billing' : next);
+                            navigate(next);
                         } else {
                             navigate('/dashboard');
                         }
@@ -1025,7 +1020,9 @@ const App: React.FC = () => {
 
         // Fast admin email check
         const fastAdminCheck = (email: string | null | undefined) => {
+            const envAdminEmail = import.meta.env.VITE_ADMIN_EMAIL as string | undefined;
             const adminEmails = ['admin@homelistingai.com', 'us@homelistingai.com'];
+            if (envAdminEmail) adminEmails.push(envAdminEmail.toLowerCase());
             if (email && adminEmails.includes(email.toLowerCase())) {
                 console.log("👮 Fast Admin Check Passed");
                 setIsAdmin(true);
@@ -1066,7 +1063,7 @@ const App: React.FC = () => {
                 }
             } else if (event === 'SIGNED_OUT') {
                 setUser(null);
-                setUserProfile(EMPTY_AGENT);
+                setUserProfile(SAMPLE_AGENT);
                 setIsAdmin(false);
                 setProperties([]);
                 localStorage.removeItem('hlai_impersonated_user_id'); // Clear impersonation
@@ -1086,14 +1083,9 @@ const App: React.FC = () => {
         const path = location.pathname;
         const isAuthPage = path === '/signin' || path === '/signup' || path === '/';
         const isPostAuthPage = path === '/post-auth';
-        const signedInHomePath = resolveSignedInHomePath(role, roleReady);
 
-        if (isAuthPage) {
-            navigate(signedInHomePath, { replace: true });
-            return;
-        }
-
-        if (isPostAuthPage) {
+        if (isAuthPage || isPostAuthPage) {
+            navigate('/post-auth', { replace: true });
             return;
         }
 
@@ -1116,9 +1108,6 @@ const App: React.FC = () => {
             // Load listings from backend
             loadListingsFromBackend();
 
-            // Load account settings from backend
-            void loadUserSettings(user.uid);
-
             // Subscribe to profile changes for real-time updates
             const unsubscribe = subscribeToProfileChanges((updatedProfile) => {
                 setUserProfile(prev => ({
@@ -1130,6 +1119,7 @@ const App: React.FC = () => {
                     email: updatedProfile.email,
                     phone: updatedProfile.phone
                 }));
+                console.log('🔄 Profile updated across app');
             });
 
             return () => {
@@ -1143,42 +1133,6 @@ const App: React.FC = () => {
     const handleNavigateToLanding = () => {
         setIsDemoMode(false);
         navigate('/');
-    };
-
-    const loadUserSettings = async (userId: string) => {
-        try {
-            const [notifRes, calRes, billRes, emailRes, securityRes] = await Promise.allSettled([
-                notificationSettingsService.fetch(userId),
-                calendarSettingsService.fetch(userId),
-                billingSettingsService.get(userId),
-                emailSettingsService.fetch(userId),
-                securitySettingsService.fetch(userId)
-            ]);
-
-            if (notifRes.status === 'fulfilled' && notifRes.value.settings) {
-                setNotificationSettings(notifRes.value.settings);
-                if (notifRes.value.channelFlags) {
-                    setNotificationChannelFlags(notifRes.value.channelFlags);
-                }
-                if (notifRes.value.smsChannel) {
-                    setSmsChannel(notifRes.value.smsChannel);
-                }
-            }
-            if (calRes.status === 'fulfilled' && calRes.value.settings) {
-                setCalendarSettings(calRes.value.settings);
-            }
-            if (billRes.status === 'fulfilled' && billRes.value) {
-                setBillingSettings(billRes.value);
-            }
-            if (emailRes.status === 'fulfilled' && emailRes.value.settings) {
-                setEmailSettings(emailRes.value.settings);
-            }
-            if (securityRes.status === 'fulfilled' && securityRes.value.settings) {
-                setSecuritySettings(securityRes.value.settings);
-            }
-        } catch (error) {
-            console.warn('Failed to load user settings:', error);
-        }
     };
 
     // Load centralized agent profile
@@ -1205,10 +1159,11 @@ const App: React.FC = () => {
                 phone: profileData.phone,
                 language: profileData.language ?? prev.language
             }));
+            console.log('✅ Loaded centralized agent profile');
         } catch (error) {
             console.error('Failed to load agent profile:', error);
             setProfileLoadFailed(true);
-            // Keep the current real user profile instead of falling back to demo data.
+            // Keep using SAMPLE_AGENT as fallback
         } finally {
             setIsProfileLoading(false);
         }
@@ -1316,7 +1271,9 @@ const App: React.FC = () => {
             }
 
             // Check email whitelist first (fast path — no RPC needed)
+            const envAdminEmail = import.meta.env.VITE_ADMIN_EMAIL as string | undefined;
             const adminEmails = ['admin@homelistingai.com', 'us@homelistingai.com'];
+            if (envAdminEmail) adminEmails.push(envAdminEmail.toLowerCase());
             const isWhitelistedAdmin = adminEmails.includes(trimmedEmail);
 
             if (!isWhitelistedAdmin) {
@@ -1411,6 +1368,7 @@ const App: React.FC = () => {
         );
     }
 
+
     // CheckoutRouteWrapper is defined at module level above for stable component identity.
 
 
@@ -1419,61 +1377,22 @@ const App: React.FC = () => {
     // above the App component for stable component identity (see Edit #2).
     const renderRoutes = () => {
         if (isLoading) return <div className="flex h-screen items-center justify-center"><LoadingSpinner /></div>;
+        console.log("📍 Rendering Routes");
 
-        const renderSettingsPage = (
-            initialTab: 'profile' | 'notifications' | 'email' | 'calendar' | 'security' | 'billing' = 'profile',
-            options?: { isDemoPage?: boolean; backPath?: string }
-        ) => (
+        const renderSettingsPage = (initialTab: 'profile' | 'notifications' | 'security' | 'billing' = 'profile') => (
             <SettingsPage
                 userId={user?.uid ?? 'guest-agent'}
                 userProfile={userProfile}
                 profileLoadFailed={profileLoadFailed}
                 onSaveProfile={async (profile) => {
-                    if (options?.isDemoPage || !user?.uid) {
-                        setUserProfile(profile);
-                        setProfileLoadFailed(false);
-                        return;
-                    }
-                    const updatedProfile = await updateAgentProfile(profile, user.uid);
-                    setUserProfile(prev => ({
-                        ...prev,
-                        ...updatedProfile
-                    }));
+                    setUserProfile(profile);
                     setProfileLoadFailed(false);
                 }}
                 notificationSettings={notificationSettings}
                 onSaveNotifications={async (settings) => {
+                    setNotificationSettings(settings);
                     if (user?.uid) {
-                        const result = await notificationSettingsService.update(user.uid, settings);
-                        if (result.settings) {
-                            setNotificationSettings(result.settings);
-                        } else {
-                            setNotificationSettings(settings);
-                        }
-                        if (result.channelFlags) {
-                            setNotificationChannelFlags(result.channelFlags);
-                        }
-                        if (result.smsChannel) {
-                            setSmsChannel(result.smsChannel);
-                        }
-                    } else {
-                        setNotificationSettings(settings);
-                    }
-                }}
-                smsAvailable={notificationChannelFlags.sms_enabled && smsChannel === 'active'}
-                smsChannel={smsChannel}
-                emailSettings={emailSettings}
-                onSaveEmailSettings={async (settings) => {
-                    setEmailSettings(settings);
-                    if (user?.uid) {
-                        await emailSettingsService.update(user.uid, settings);
-                    }
-                }}
-                calendarSettings={calendarSettings}
-                onSaveCalendarSettings={async (settings) => {
-                    setCalendarSettings(settings);
-                    if (user?.uid) {
-                        await calendarSettingsService.update(user.uid, settings);
+                        await notificationSettingsService.update(user.uid, settings);
                     }
                 }}
                 billingSettings={billingSettings}
@@ -1483,15 +1402,9 @@ const App: React.FC = () => {
                         await billingSettingsService.update(user.uid, settings);
                     }
                 }}
-                onBackToDashboard={() => navigate(options?.backPath || '/dashboard')}
-                securitySettings={securitySettings}
-                onSaveSecuritySettings={async (settings) => {
-                    setSecuritySettings(settings);
-                    if (user?.uid) {
-                        await securitySettingsService.update(user.uid, settings);
-                    }
-                }}
-                isDemoMode={Boolean(options?.isDemoPage)}
+                onBackToDashboard={() => navigate('/dashboard')}
+                securitySettings={{}}
+                onSaveSecuritySettings={async () => { }}
                 isBlueprintMode={isBlueprintMode}
                 initialTab={initialTab}
             />
@@ -1503,13 +1416,13 @@ const App: React.FC = () => {
                     <Route path="/" element={
                         !authReady ? <LoadingSpinner /> :
                         isDemoMode ? <Navigate to="/demo-dashboard/today" replace /> :
-                        session ? <Navigate to={resolveSignedInHomePath(role, roleReady)} replace /> :
+                        session ? <Navigate to="/post-auth" replace /> :
                             <Suspense fallback={<LoadingSpinner />}>
                                 <LandingPage
                                     onNavigateToSignUp={handleNavigateToSignUp}
                                     onNavigateToSignIn={handleNavigateToSignIn}
-                                    onEnterDemoMode={() => navigate('/demo-dashboard/gallery/demo-listing-oak')}
-                                    onNavigateToShowcase={() => navigate('/demo-dashboard/gallery/demo-listing-oak')}
+                                    onEnterDemoMode={() => navigate('/demo-dashboard/today')}
+                                    onNavigateToShowcase={() => navigate('/demo-dashboard/today')}
                                     scrollToSection={scrollToSection}
                                     onScrollComplete={() => setScrollToSection(null)}
                                     onOpenConsultationModal={() => { setConsultationRole('realtor'); setIsConsultationModalOpen(true); }}
@@ -1520,13 +1433,13 @@ const App: React.FC = () => {
                     <Route path="/landing" element={<Navigate to="/" replace />} />
                     <Route path="/signin" element={
                         session && roleReady ? (
-                            <Navigate to={resolveSignedInHomePath(role, roleReady)} replace />
+                            <Navigate to="/post-auth" replace />
                         ) : (
                             <Suspense fallback={<LoadingSpinner />}>
                                 <SignInPage
                                     onNavigateToSignUp={handleNavigateToSignUp}
                                     onNavigateToLanding={handleNavigateToLanding}
-                                    onEnterDemoMode={() => navigate('/demo-dashboard/gallery/demo-listing-oak')}
+                                    onEnterDemoMode={() => navigate('/demo-dashboard')}
                                     onNavigateToSection={(section) => { navigate('/'); setTimeout(() => setScrollToSection(section), 100); }}
                                 />
                             </Suspense>
@@ -1548,13 +1461,13 @@ const App: React.FC = () => {
                     } />
                     <Route path="/signup" element={
                         session && roleReady ? (
-                            <Navigate to={resolveSignedInHomePath(role, roleReady)} replace />
+                            <Navigate to="/post-auth" replace />
                         ) : (
                             <Suspense fallback={<LoadingSpinner />}>
                                 <SignUpPage
                                     onNavigateToSignIn={handleNavigateToSignIn}
                                     onNavigateToLanding={handleNavigateToLanding}
-                                    onEnterDemoMode={() => navigate('/demo-dashboard/gallery/demo-listing-oak')}
+                                    onEnterDemoMode={() => navigate('/demo-dashboard')}
                                     onNavigateToSection={(section) => { navigate('/'); setTimeout(() => setScrollToSection(section), 100); }}
                                 />
                             </Suspense>
@@ -1585,7 +1498,7 @@ const App: React.FC = () => {
                                 onNavigateToAdmin={handleNavigateToAdmin}
                                 onNavigateToSignUp={handleNavigateToSignUp}
                                 onNavigateToSignIn={handleNavigateToSignIn}
-                                onEnterDemoMode={() => navigate('/demo-dashboard/gallery/demo-listing-oak')}
+                                onEnterDemoMode={() => navigate('/demo-dashboard')}
                             />
                         </Suspense>
                     } />
@@ -1610,17 +1523,12 @@ const App: React.FC = () => {
                         <Route path="listings" element={<ListingsCommandPage />} />
                         <Route path="listings/:listingId" element={<ListingPerformancePage />} />
                         <Route path="listings/:listingId/edit" element={<ListingEditorPage />} />
-                        <Route path="gallery" element={<Navigate to="/demo-dashboard/gallery/demo-listing-oak" replace />} />
-                        <Route path="gallery/:listingId" element={<DemoAssetGalleryPage />} />
-                        <Route path="gallery/:listingId/assets/:assetKey" element={<DemoAssetPreviewPage />} />
-                        <Route path="billing" element={<Navigate to="/demo-dashboard/settings/billing" replace />} />
-                        <Route path="settings" element={renderSettingsPage('profile', { isDemoPage: true, backPath: '/demo-dashboard/today' })} />
-                        <Route path="settings/billing" element={renderSettingsPage('billing', { isDemoPage: true, backPath: '/demo-dashboard/today' })} />
-                        <Route path="settings/notifications" element={renderSettingsPage('notifications', { isDemoPage: true, backPath: '/demo-dashboard/today' })} />
-                        <Route path="settings/email" element={renderSettingsPage('email', { isDemoPage: true, backPath: '/demo-dashboard/today' })} />
-                        <Route path="settings/calendar" element={renderSettingsPage('calendar', { isDemoPage: true, backPath: '/demo-dashboard/today' })} />
-                        <Route path="settings/security" element={renderSettingsPage('security', { isDemoPage: true, backPath: '/demo-dashboard/today' })} />
+                        <Route path="lo-listings" element={<LOListingsPage />} />
+                        <Route path="lo-partners" element={<LOPartnersPage />} />
+                        <Route path="lo-chatbot" element={<LOChatbotSetupPage />} />
+                        <Route path="billing" element={<BillingCommandPage />} />
                         <Route path="onboarding" element={<OnboardingCommandPage />} />
+                        <Route path="lo-onboarding" element={<LOOnboardingPage />} />
                     </Route>
                     {/* New Blueprint Dashboard — same UI as demo, zero fake data, one example listing */}
                     <Route path="/blueprint-dashboard" element={<BlueprintDashboardLayout />}>
@@ -1633,8 +1541,11 @@ const App: React.FC = () => {
                         <Route path="listings" element={<ListingsCommandPage />} />
                         <Route path="listings/:listingId" element={<ListingPerformancePage />} />
                         <Route path="listings/:listingId/edit" element={<ListingEditorPage />} />
+                        <Route path="lo-listings" element={<LOListingsPage />} />
+                        <Route path="lo-partners" element={<LOPartnersPage />} />
                         <Route path="billing" element={<BillingCommandPage />} />
                         <Route path="onboarding" element={<OnboardingCommandPage />} />
+                        <Route path="lo-onboarding" element={<LOOnboardingPage />} />
                     </Route>
 
                     {/* Public Property Route */}
@@ -1648,9 +1559,11 @@ const App: React.FC = () => {
                             <PublicListingPage />
                         </Suspense>
                     } />
-                    <Route path="/demo-live/:publicSlug" element={
+
+                    {/* Agent Magic Link Claim */}
+                    <Route path="/agent/claim/:token" element={
                         <Suspense fallback={<LoadingSpinner />}>
-                            <DemoPublicListingPage />
+                            <AgentClaimPage />
                         </Suspense>
                     } />
 
@@ -1705,8 +1618,11 @@ const App: React.FC = () => {
                         <Route path="/dashboard/listings" element={<ListingsCommandPage />} />
                         <Route path="/dashboard/listings/:listingId" element={<ListingPerformancePage />} />
                         <Route path="/dashboard/listings/:listingId/edit" element={<ListingEditorPage />} />
+                        <Route path="/dashboard/lo-listings" element={<LOListingsPage />} />
+                        <Route path="/dashboard/lo-partners" element={<LOPartnersPage />} />
                         <Route path="/dashboard/billing" element={<Navigate to="/dashboard/settings/billing" replace />} />
                         <Route path="/dashboard/onboarding" element={<OnboardingCommandPage />} />
+                        <Route path="/dashboard/lo-onboarding" element={<LOOnboardingPage />} />
                         <Route path="/dashboard/dev/share-test" element={<ShareTestPage />} />
 
 
@@ -1734,18 +1650,16 @@ const App: React.FC = () => {
                         <Route path="/analytics" element={<AnalyticsDashboard />} />
                         <Route path="/ai-sidekicks" element={<EnhancedAISidekicksHub isDemoMode={isDemoMode} />} />
                         <Route path="/marketing-reports" element={<MarketingReportsPage />} />
+                        <Route path="/voice-lab" element={
+                            <Suspense fallback={<LoadingSpinner />}>
+                                <VoiceLabPage />
+                            </Suspense>
+                        } />
                         <Route path="/settings" element={<Navigate to="/dashboard/settings" replace />} />
                         <Route path="/settings/billing" element={<Navigate to="/dashboard/settings/billing" replace />} />
-                        <Route path="/settings/notifications" element={<Navigate to="/dashboard/settings/notifications" replace />} />
-                        <Route path="/settings/email" element={<Navigate to="/dashboard/settings/email" replace />} />
-                        <Route path="/settings/calendar" element={<Navigate to="/dashboard/settings/calendar" replace />} />
-                        <Route path="/settings/security" element={<Navigate to="/dashboard/settings/security" replace />} />
                         <Route path="/dashboard/settings" element={renderSettingsPage()} />
                         <Route path="/dashboard/settings/billing" element={renderSettingsPage('billing')} />
                         <Route path="/dashboard/settings/notifications" element={renderSettingsPage('notifications')} />
-                        <Route path="/dashboard/settings/email" element={renderSettingsPage('email')} />
-                        <Route path="/dashboard/settings/calendar" element={renderSettingsPage('calendar')} />
-                        <Route path="/dashboard/settings/security" element={renderSettingsPage('security')} />
                     </Route>
                     </Route>
 
@@ -1763,78 +1677,79 @@ const App: React.FC = () => {
     };
 
     // DEBUG: Log current state before render
+    console.log('🎨 RENDERING with view=', view, 'hash=', window.location.hash);
 
     // Hash override removed - AppRoutes handles routing now
 
     return (
         <ImpersonationProvider>
-            <SchedulerProvider>
-                <AgentBrandingProvider>
-                    <AISidekickProvider>
-                        <DashboardLayoutContext.Provider value={{ authReady, session, role, roleReady, user, isAdmin, isDemoMode, isSidebarOpen, setIsSidebarOpen, logAuthBreadcrumb }}>
-                        <ErrorBoundary>
+            <AgentBrandingProvider>
+                <AISidekickProvider>
+                    <DashboardLayoutContext.Provider value={{ authReady, session, role, roleReady, user, isAdmin, isDemoMode, isSidebarOpen, setIsSidebarOpen, logAuthBreadcrumb }}>
+                    <CheckoutContext.Provider value={{ onBackToSignup: handleNavigateToSignUp }}>
+                    <ErrorBoundary>
+                        <Suspense fallback={<LoadingSpinner />}>
+                            {renderRoutes()}
+                        </Suspense>
+                        {user && userProfile?.payment_status === 'trialing' && (() => {
+                            const created = new Date(user.created_at || '').getTime();
+                            const now = new Date().getTime();
+                            const isExpired = now - created >= 3 * 24 * 60 * 60 * 1000;
+                            return isExpired ? (
+                                <Suspense fallback={null}>
+                                    <TrialLock _user={user} />
+                                </Suspense>
+                            ) : null;
+                        })()}
+                        {isConsultationModalOpen && (
                             <Suspense fallback={<LoadingSpinner />}>
-                                {renderRoutes()}
+                                <ConsultationModal leadRole={consultationRole} onClose={() => setIsConsultationModalOpen(false)} onSuccess={() => { console.log('Consultation scheduled successfully!'); }} />
                             </Suspense>
-                            {user && userProfile?.payment_status === 'trialing' && (() => {
-                                const created = new Date(user.created_at || '').getTime();
-                                const now = new Date().getTime();
-                                const isExpired = now - created >= 3 * 24 * 60 * 60 * 1000;
-                                return isExpired ? (
-                                    <Suspense fallback={null}>
-                                        <TrialLock _user={user} />
-                                    </Suspense>
-                                ) : null;
-                            })()}
-                            {isConsultationModalOpen && (
-                                <Suspense fallback={null}>
-                                    <ConsultationModal leadRole={consultationRole} onClose={() => setIsConsultationModalOpen(false)} onSuccess={() => { console.log('Consultation scheduled successfully!'); }} />
-                                </Suspense>
-                            )}
-                            {isAdminLoginOpen && view !== 'admin-setup' && (
-                                <Suspense fallback={<LoadingSpinner />}>
-                                    <AdminLogin onLogin={handleAdminLogin} onBack={handleAdminLoginClose} isLoading={isAdminLoginLoading} error={adminLoginError || undefined} />
-                                </Suspense>
-                            )}
-                            {view !== 'landing' && view !== 'new-landing' && !isPublicListingRoute && (
-                                <Suspense fallback={null}>
-                                    <ChatBotFAB
-                                        context={{
-                                            userType: user ? (isDemoMode ? 'prospect' : 'client') : 'visitor',
-                                            currentPage: view,
-                                            previousInteractions: user ? 1 : 0,
-                                            userInfo: user ? { name: user.displayName || 'User', email: user.email || '', company: 'Real Estate' } : undefined
-                                        }}
-                                        onLeadGenerated={(leadInfo) => { console.log('Lead generated from chat:', leadInfo); }}
-                                        onSupportTicket={async (ticketInfo) => {
-                                            console.log('Support ticket created from chat:', ticketInfo);
-                                            try {
-                                                const { notifyAgentHandoff } = await import('./services/chatService');
-                                                await notifyAgentHandoff(ticketInfo);
-                                            } catch (err) {
-                                                console.error("Failed to notify agent of handoff:", err);
-                                            }
-                                        }}
-                                        position="bottom-right"
-                                        showWelcomeMessage={false}
-                                    />
-                                </Suspense>
-                            )}
-                        </ErrorBoundary>
-                        </DashboardLayoutContext.Provider>
-                    </AISidekickProvider>
-                    <Toaster
-                        position="bottom-center"
-                        toastOptions={{
-                            duration: 3000,
-                            style: {
-                                background: '#333',
-                                color: '#fff',
-                            },
-                        }}
-                    />
-                </AgentBrandingProvider>
-            </SchedulerProvider>
+                        )}
+                        {isAdminLoginOpen && view !== 'admin-setup' && (
+                            <Suspense fallback={<LoadingSpinner />}>
+                                <AdminLogin onLogin={handleAdminLogin} onBack={handleAdminLoginClose} isLoading={isAdminLoginLoading} error={adminLoginError || undefined} />
+                            </Suspense>
+                        )}
+                        {view !== 'landing' && view !== 'new-landing' && (
+                            <Suspense fallback={null}>
+                                <ChatBotFAB
+                                    context={{
+                                        userType: user ? (isDemoMode ? 'prospect' : 'client') : 'visitor',
+                                        currentPage: view,
+                                        previousInteractions: user ? 1 : 0,
+                                        userInfo: user ? { name: user.displayName || 'User', email: user.email || '', company: 'Real Estate' } : undefined
+                                    }}
+                                    onLeadGenerated={(leadInfo) => { console.log('Lead generated from chat:', leadInfo); }}
+                                    onSupportTicket={async (ticketInfo) => {
+                                        console.log('Support ticket created from chat:', ticketInfo);
+                                        try {
+                                            const { notifyAgentHandoff } = await import('./services/chatService');
+                                            await notifyAgentHandoff(ticketInfo);
+                                        } catch (err) {
+                                            console.error("Failed to notify agent of handoff:", err);
+                                        }
+                                    }}
+                                    position="bottom-right"
+                                    showWelcomeMessage={false}
+                                />
+                            </Suspense>
+                        )}
+                    </ErrorBoundary>
+                    </CheckoutContext.Provider>
+                    </DashboardLayoutContext.Provider>
+                </AISidekickProvider>
+                <Toaster
+                    position="bottom-center"
+                    toastOptions={{
+                        duration: 3000,
+                        style: {
+                            background: '#333',
+                            color: '#fff',
+                        },
+                    }}
+                />
+            </AgentBrandingProvider>
         </ImpersonationProvider>
     );
 };
