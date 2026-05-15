@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { buildDashboardPath, useDemoMode } from '../../demo/useDemoMode'
+import LOTodayPage from './LOTodayPage'
 import { buildBlueprintPath, useBlueprintMode } from '../../demo/useBlueprintMode'
 import { BLUEPRINT_PROPERTIES } from '../../constants/agentBlueprintData'
 import {
@@ -15,9 +16,8 @@ import {
 } from '../../services/dashboardCommandService'
 import { fetchDashboardBilling, createBillingCheckoutSession, type DashboardBillingSnapshot } from '../../services/dashboardBillingService'
 import { PENDING_PLAN_KEY } from '../ComparePlansModal'
-import { fetchOnboardingState, resendWelcomeEmail, type OnboardingState } from '../../services/onboardingService'
+import { fetchOnboardingState, type OnboardingState } from '../../services/onboardingService'
 import { listingsService } from '../../services/listingsService'
-import { subscribeDashboardInvalidation } from '../../services/dashboardInvalidation'
 import { useDashboardRealtimeStore } from '../../state/useDashboardRealtimeStore'
 import { showToast } from '../../utils/toastService'
 import TodayROIStrip from '../dashboard-widgets/TodayROIStrip'
@@ -81,7 +81,7 @@ const formatWarningLine = (billing: DashboardBillingSnapshot, key: string) => {
   if (limit <= 0) return null
   if (key === 'active_listings') return `Active listings: ${used}/${limit} used`
   if (key === 'reports_per_month') return `Reports: ${used}/${limit} used`
-  if (key === 'reminder_calls_per_month') return `SMS: ${used}/${limit} used`
+  if (key === 'reminder_calls_per_month') return `Reminder calls: ${used}/${limit} used`
   if (key === 'stored_leads_cap') return `Stored leads: ${used}/${limit} used`
   return null
 }
@@ -91,16 +91,19 @@ const TodayDashboardPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams()
   const demoMode = useDemoMode()
   const blueprintMode = useBlueprintMode()
+  const [accountType, setAccountType] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetchOnboardingState()
+      .then(s => setAccountType(s?.account_type || 'realtor'))
+      .catch(() => setAccountType('realtor'))
+  }, [])
 
   // Unified nav helper — routes to the correct base path regardless of mode
-  const resolveDashboardPath = useCallback((path: string) => {
-    if (blueprintMode) return buildBlueprintPath(path)
-    return buildDashboardPath(path, demoMode)
-  }, [blueprintMode, demoMode])
-
   const navTo = useCallback((path: string) => {
-    navigate(resolveDashboardPath(path))
-  }, [navigate, resolveDashboardPath])
+    if (blueprintMode) navigate(buildBlueprintPath(path))
+    else navigate(buildDashboardPath(path, demoMode))
+  }, [blueprintMode, demoMode, navigate])
   const leadsById = useDashboardRealtimeStore((state) => state.leadsById)
   const appointmentsById = useDashboardRealtimeStore((state) => state.appointmentsById)
   const setInitialLeads = useDashboardRealtimeStore((state) => state.setInitialLeads)
@@ -125,7 +128,6 @@ const TodayDashboardPage: React.FC = () => {
   // sessionStorage plan intent set by ComparePlansModal → prompt user to complete upgrade
   const [pendingPlan, setPendingPlan] = useState<'starter' | 'pro' | null>(null)
   const [isStartingCheckout, setIsStartingCheckout] = useState(false)
-  const [isResendingWelcomeEmail, setIsResendingWelcomeEmail] = useState(false)
 
   useEffect(() => {
     // Only show upgrade banners in real authenticated dashboard
@@ -161,23 +163,10 @@ const TodayDashboardPage: React.FC = () => {
     setPendingPlan(null)
   }
 
-  const handleResendWelcomeEmail = async () => {
-    if (isResendingWelcomeEmail) return
-    setIsResendingWelcomeEmail(true)
-    try {
-      const result = await resendWelcomeEmail()
-      showToast.success(`Welcome email sent to ${result.email}.`)
-    } catch (error) {
-      showToast.error(error instanceof Error ? error.message : 'Failed to resend welcome email.')
-    } finally {
-      setIsResendingWelcomeEmail(false)
-    }
-  }
-
   const load = useCallback(async () => {
     if (fetchInFlightRef.current) return
     fetchInFlightRef.current = true
-    setLoading((current) => current || !hasFetchedInitialStateRef.current)
+    setLoading(true)
     setError(null)
     try {
       const [leadRes, appointmentRes, listings, onboardingState, billingSnapshot] = await Promise.all([
@@ -260,13 +249,6 @@ const TodayDashboardPage: React.FC = () => {
       isMountedRef.current = false
     }
   }, [])
-
-  useEffect(() => {
-    if (demoMode || blueprintMode) return
-    return subscribeDashboardInvalidation(() => {
-      void load()
-    })
-  }, [blueprintMode, demoMode, load])
 
   useEffect(() => {
     if (!recentListing?.id) return
@@ -372,14 +354,21 @@ const TodayDashboardPage: React.FC = () => {
     return 'Needs confirmation'
   }
 
+  // LO gets their own dashboard — swap before rendering the realtor view
+  if (accountType === 'lo') {
+    return (
+      <div className="mx-auto max-w-7xl px-4 py-6 md:px-8">
+        <LOTodayPage />
+      </div>
+    )
+  }
+
   return (
     <div className="mx-auto max-w-7xl space-y-6 px-4 py-6 md:px-8">
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-900">Today</h1>
-          <p className="mt-1 text-base text-slate-700">Good {dayPart()}, {greetingName}.</p>
-          <p className="mt-1 text-sm text-slate-500">Here’s what needs your attention right now.</p>
-        </div>
+      <header>
+        <h1 className="text-3xl font-bold text-slate-900">Today</h1>
+        <p className="mt-1 text-base text-slate-700">Good {dayPart()}, {greetingName}.</p>
+        <p className="mt-1 text-sm text-slate-500">Here’s what needs your attention right now.</p>
       </header>
 
       {/* ── Upgrade success banner (?upgraded=true / ?checkout=success) ─────── */}
@@ -433,25 +422,19 @@ const TodayDashboardPage: React.FC = () => {
                 You're {onboarding.progress.total_items - onboarding.progress.completed_items} steps away from capturing your first lead.
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
-                <a
-                  href={resolveDashboardPath('/listings')}
+                <button
+                  type="button"
+                  onClick={() => navTo('/listings')}
                   className="rounded-md bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
                 >
                   Create your first listing
-                </a>
-                <a
-                  href={resolveDashboardPath('/onboarding')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navTo('/onboarding')}
                   className="rounded-md border border-primary-300 bg-white px-4 py-2 text-sm font-semibold text-primary-700"
                 >
                   View setup checklist
-                </a>
-                <button
-                  type="button"
-                  onClick={handleResendWelcomeEmail}
-                  disabled={isResendingWelcomeEmail}
-                  className="rounded-md border border-primary-200 bg-primary-100 px-4 py-2 text-sm font-semibold text-primary-800 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {isResendingWelcomeEmail ? 'Sending welcome email…' : 'Resend welcome email'}
                 </button>
               </div>
             </div>
@@ -476,31 +459,6 @@ const TodayDashboardPage: React.FC = () => {
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <div className="space-y-4">
-          {!blueprintMode && !demoMode && onboarding && !onboarding.onboarding_checklist.brand_profile && (
-            <article className="rounded-2xl border border-sky-200 bg-sky-50 p-5 shadow-sm">
-              <p className="text-sm font-bold text-sky-900">Finish your AI Card in Settings</p>
-              <p className="mt-1 text-sm text-sky-800">
-                This is your main profile. It is used throughout the app for your branding, contact info, listings, share pages, flyers, and lead capture.
-              </p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => navTo('/settings')}
-                  className="rounded-md bg-sky-600 px-3 py-1.5 text-xs font-semibold text-white"
-                >
-                  Open Settings
-                </button>
-                <button
-                  type="button"
-                  onClick={() => navTo('/onboarding?step=1')}
-                  className="rounded-md border border-sky-300 bg-white px-3 py-1.5 text-xs font-semibold text-sky-900"
-                >
-                  Finish setup
-                </button>
-              </div>
-            </article>
-          )}
-
           <article className={containerCardClass}>
             <button
               type="button"
@@ -801,8 +759,8 @@ const TodayDashboardPage: React.FC = () => {
                   {[
                     ['Active listings', billing.usage.active_listings.used, billing.usage.active_listings.limit],
                     ['Reports this month', billing.usage.reports_per_month.used, billing.usage.reports_per_month.limit],
-                    ...(billing.plan.id !== 'free'
-                      ? [['SMS this month', billing.usage.reminder_calls_per_month.used, billing.usage.reminder_calls_per_month.limit] as const]
+                    ...(billing.plan.id === 'pro'
+                      ? [['Reminder calls', billing.usage.reminder_calls_per_month.used, billing.usage.reminder_calls_per_month.limit] as const]
                       : [])
                   ].map(([label, used, limit]) => (
                     <div key={label}>
