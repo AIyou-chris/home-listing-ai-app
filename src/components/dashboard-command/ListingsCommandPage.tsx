@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { useDemoMode } from '../../demo/useDemoMode'
+import { useDemoMode, buildDashboardPath } from '../../demo/useDemoMode'
+import { supabase } from '../../services/supabase'
+import { buildApiUrl } from '../../lib/api'
 import { fetchListingShareKit } from '../../services/dashboardCommandService'
 import { subscribeDashboardInvalidation } from '../../services/dashboardInvalidation'
 import { createListingDraft } from '../../services/listingBuilderService'
@@ -18,10 +20,18 @@ type ListingRow = {
   squareFeet: number
   heroPhoto: string | null
   isPublished: boolean
-  statusLabel: 'Draft' | 'Published'
+  statusLabel: 'Draft' | 'Published' | 'Sold'
   shareUrl: string | null
 }
 const DEFAULT_LISTING_ADDRESS = '123 Main St'
+
+type CelebrationData = {
+  address: string
+  soldPrice: number | null
+  totalLeads: number
+  totalViews: number
+  listingId: string
+}
 
 const DEMO_ROWS: ListingRow[] = [
   {
@@ -63,8 +73,30 @@ const ListingsCommandPage: React.FC = () => {
   const location = useLocation()
   const demoMode = useDemoMode()
   const [loading, setLoading] = useState(true)
+
+  // LOs have their own listings page — redirect on mount
+  useEffect(() => {
+    supabase.auth.getUser().then(async ({ data }) => {
+      if (!data.user?.id) return;
+      try {
+        const res = await fetch(buildApiUrl('/api/onboarding'), {
+          headers: { 'x-user-id': data.user.id }
+        });
+        const json = await res.json();
+        if (json?.account_type === 'lo') {
+          navigate(buildDashboardPath('/lo-listings'), { replace: true });
+        }
+      } catch {
+        // non-fatal — stay on this page
+      }
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [creatingDraft, setCreatingDraft] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [markingSoldId, setMarkingSoldId] = useState<string | null>(null)
+  const [soldPriceInput, setSoldPriceInput] = useState<string>('')
+  const [soldPromptId, setSoldPromptId] = useState<string | null>(null)
+  const [celebration, setCelebration] = useState<CelebrationData | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [rows, setRows] = useState<ListingRow[]>([])
 
@@ -249,6 +281,81 @@ const ListingsCommandPage: React.FC = () => {
     }
   }
 
+  const handleMarkSold = async (listingId: string) => {
+    const row = rows.find((r) => r.id === listingId)
+    if (!row) return
+
+    const soldPrice = soldPriceInput ? Number(soldPriceInput.replace(/[^0-9.]/g, '')) : null
+    setSoldPromptId(null)
+    setSoldPriceInput('')
+
+    if (demoMode) {
+      setRows((prev) =>
+        prev.map((r) => r.id === listingId ? { ...r, statusLabel: 'Sold', isPublished: false } : r)
+      )
+      setCelebration({
+        address: row.address,
+        soldPrice,
+        totalLeads: 12,
+        totalViews: 347,
+        listingId,
+      })
+      return
+    }
+
+    setMarkingSoldId(listingId)
+    try {
+      const { data: userData } = await supabase.auth.getUser()
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+        ...(userData.user?.id ? { 'x-user-id': userData.user.id } : {})
+      }
+      const res = await fetch(buildApiUrl(`/api/listings/${listingId}/sold`), {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ sold_price: soldPrice }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'mark_sold_failed')
+
+      setRows((prev) =>
+        prev.map((r) => r.id === listingId ? { ...r, statusLabel: 'Sold', isPublished: false } : r)
+      )
+      setCelebration({
+        address: row.address,
+        soldPrice: data.sold_price ?? soldPrice,
+        totalLeads: data.total_leads ?? 0,
+        totalViews: data.total_views ?? 0,
+        listingId,
+      })
+    } catch {
+      toast.error('Could not mark listing as sold. Try again.')
+    } finally {
+      setMarkingSoldId(null)
+    }
+  }
+
+  const handleArchive = async (listingId: string) => {
+    setCelebration(null)
+    if (demoMode) {
+      setRows((prev) => prev.filter((r) => r.id !== listingId))
+      toast.success('Listing archived.')
+      return
+    }
+    try {
+      const { data: userData } = await supabase.auth.getUser()
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+        ...(userData.user?.id ? { 'x-user-id': userData.user.id } : {})
+      }
+      await fetch(buildApiUrl(`/api/listings/${listingId}/archive`), { method: 'PATCH', headers })
+      setRows((prev) => prev.filter((r) => r.id !== listingId))
+      toast.success('Listing archived.')
+    } catch {
+      toast.error('Could not archive listing.')
+    }
+  }
+
   return (
     <div className="mx-auto max-w-6xl space-y-6 px-4 py-6 md:px-8">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -309,7 +416,11 @@ const ListingsCommandPage: React.FC = () => {
                     <p className="text-base font-semibold text-slate-900">{address}</p>
                     <span
                       className={`rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-wide ${
-                        row.isPublished ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-700'
+                        row.statusLabel === 'Sold'
+                          ? 'bg-amber-100 text-amber-700'
+                          : row.isPublished
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : 'bg-slate-100 text-slate-700'
                       }`}
                     >
                       {row.statusLabel}
@@ -320,7 +431,7 @@ const ListingsCommandPage: React.FC = () => {
                     {row.bedrooms || 0} bd • {row.bathrooms || 0} ba • {row.squareFeet || 0} sqft
                   </p>
                   {row.shareUrl && <p className="truncate text-xs text-slate-500">{row.shareUrl}</p>}
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
                       onClick={() => navigate(buildListingPath(`/listings/${row.id}/edit`))}
@@ -335,6 +446,16 @@ const ListingsCommandPage: React.FC = () => {
                     >
                       Share Kit
                     </button>
+                    {row.isPublished && row.statusLabel !== 'Sold' && (
+                      <button
+                        type="button"
+                        onClick={() => setSoldPromptId(row.id)}
+                        disabled={markingSoldId === row.id}
+                        className="rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-100 disabled:opacity-50"
+                      >
+                        {markingSoldId === row.id ? 'Updating…' : '🎉 Mark Sold'}
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => void handleDeleteListing(row.id)}
@@ -344,11 +465,99 @@ const ListingsCommandPage: React.FC = () => {
                       {deletingId === row.id ? 'Deleting…' : 'Delete'}
                     </button>
                   </div>
+
+                  {/* Sold price prompt inline */}
+                  {soldPromptId === row.id && (
+                    <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
+                      <p className="mb-2 text-xs font-semibold text-amber-800">What did it sell for? (optional)</p>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          placeholder="e.g. 1,250,000"
+                          value={soldPriceInput}
+                          onChange={(e) => setSoldPriceInput(e.target.value)}
+                          className="flex-1 rounded-lg border border-amber-200 bg-white px-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-300"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => void handleMarkSold(row.id)}
+                          className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-bold text-white hover:bg-amber-600"
+                        >
+                          Confirm
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setSoldPromptId(null); setSoldPriceInput('') }}
+                          className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-50"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </article>
             )
           })}
         </div>
+      )}
+
+      {/* ── Celebration modal ──────────────────────────────────────── */}
+      {celebration && (
+        <>
+          <div
+            className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
+            onClick={() => setCelebration(null)}
+            aria-hidden="true"
+          />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-gradient-to-b from-slate-900 to-slate-950 p-6 shadow-2xl text-center">
+              <div className="text-6xl mb-3">🎉</div>
+              <h2 className="text-white font-bold text-xl mb-1">Listing Sold!</h2>
+              <p className="text-slate-400 text-sm mb-5 truncate">{celebration.address}</p>
+
+              <div className="grid grid-cols-3 gap-3 mb-5">
+                {celebration.soldPrice && (
+                  <div className="col-span-3 rounded-xl bg-amber-500/15 border border-amber-500/20 p-3">
+                    <p className="text-amber-300 font-bold text-lg">
+                      {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(celebration.soldPrice)}
+                    </p>
+                    <p className="text-amber-400/70 text-xs">Sold price</p>
+                  </div>
+                )}
+                <div className="rounded-xl bg-white/6 border border-white/8 p-3">
+                  <p className="text-white font-bold text-lg">{celebration.totalLeads}</p>
+                  <p className="text-slate-500 text-xs">Leads</p>
+                </div>
+                <div className="rounded-xl bg-white/6 border border-white/8 p-3">
+                  <p className="text-white font-bold text-lg">{celebration.totalViews}</p>
+                  <p className="text-slate-500 text-xs">Views</p>
+                </div>
+                <div className="rounded-xl bg-emerald-500/15 border border-emerald-500/20 p-3">
+                  <p className="text-emerald-400 font-bold text-lg">✓</p>
+                  <p className="text-slate-500 text-xs">Done</p>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => void handleArchive(celebration.listingId)}
+                  className="flex-1 rounded-xl border border-slate-700 bg-white/5 py-2.5 text-sm font-semibold text-slate-300 hover:bg-white/10 transition-all"
+                >
+                  Archive it
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCelebration(null)}
+                  className="flex-1 rounded-xl bg-primary-600 py-2.5 text-sm font-bold text-white hover:bg-primary-700 transition-all"
+                >
+                  Keep Active
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
       )}
     </div>
   )
