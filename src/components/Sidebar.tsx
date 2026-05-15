@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { LogoWithName } from './LogoWithName';
 import { adminAuthService } from '../services/adminAuthService';
+import { fetchOnboardingState } from '../services/onboardingService';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -10,15 +11,26 @@ interface SidebarProps {
   isBlueprintMode?: boolean;
 }
 
-const NAV_ITEMS = [
+const REALTOR_NAV_ITEMS = [
   { key: 'today', icon: 'today', label: 'Today', path: '/today', testid: 'nav-today' },
   { key: 'command-center', icon: 'space_dashboard', label: 'Command Center', path: '/command-center', testid: 'nav-command-center' },
-  { key: 'linkedin', icon: 'hub', label: 'LinkedIn', path: '/linkedin', testid: 'nav-linkedin' },
   { key: 'listings', icon: 'storefront', label: 'Listings', path: '/listings', testid: 'nav-listings' },
   { key: 'leads', icon: 'groups', label: 'Leads', path: '/leads', testid: 'nav-leads' },
   { key: 'appointments', icon: 'event_available', label: 'Appointments', path: '/appointments', testid: 'nav-appointments' },
   { key: 'settings', icon: 'settings', label: 'Settings', path: '/settings', testid: 'nav-settings' }
 ] as const;
+
+const LO_NAV_ITEMS = [
+  { key: 'today', icon: 'today', label: 'Today', path: '/today', testid: 'nav-today' },
+  { key: 'lo-partners', icon: 'handshake', label: 'Partners', path: '/lo-partners', testid: 'nav-lo-partners' },
+  { key: 'lo-listings', icon: 'storefront', label: 'Listings', path: '/lo-listings', testid: 'nav-lo-listings' },
+  { key: 'leads', icon: 'groups', label: 'Leads', path: '/leads', testid: 'nav-leads' },
+  { key: 'appointments', icon: 'event_available', label: 'Appointments', path: '/appointments', testid: 'nav-appointments' },
+  { key: 'settings', icon: 'settings', label: 'Settings', path: '/settings', testid: 'nav-settings' }
+] as const;
+
+// Combine for type (kept for reference)
+const _NAV_ITEMS = REALTOR_NAV_ITEMS;
 
 const Icon: React.FC<{ name: string; className?: string }> = ({ name, className }) => (
   <span className={`material-symbols-outlined ${className}`}>{name}</span>
@@ -52,6 +64,15 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
   const location = useLocation();
   const derivedDemoMode = isDemoMode || location.pathname.startsWith('/demo-dashboard');
   const derivedBlueprintMode = isBlueprintMode || location.pathname.startsWith('/agent-blueprint-dashboard') || location.pathname.startsWith('/blueprint-dashboard');
+  const [accountType, setAccountType] = useState<string>('realtor');
+
+  useEffect(() => {
+    fetchOnboardingState()
+      .then(s => setAccountType(s?.account_type || 'realtor'))
+      .catch(() => setAccountType('realtor'));
+  }, []);
+
+  const isLO = accountType === 'lo';
 
   // New blueprint dashboard uses /blueprint-dashboard; legacy uses /agent-blueprint-dashboard
   const blueprintBase = location.pathname.startsWith('/blueprint-dashboard') ? '/blueprint-dashboard' : '/agent-blueprint-dashboard';
@@ -61,13 +82,18 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
   const pathMap: Record<string, string> = {
     '/today': derivedDemoMode || derivedBlueprintMode ? getPath('/today') : '/dashboard/today',
     '/command-center': derivedDemoMode || derivedBlueprintMode ? getPath('/command-center') : '/dashboard/command-center',
-    '/linkedin': derivedDemoMode || derivedBlueprintMode ? getPath('/linkedin') : '/dashboard/linkedin',
     '/listings': derivedDemoMode || derivedBlueprintMode ? getPath('/listings') : '/dashboard/listings',
+    '/lo-listings': '/dashboard/lo-listings',
+    '/lo-partners': '/dashboard/lo-partners',
     '/leads': derivedDemoMode || derivedBlueprintMode ? getPath('/leads') : '/dashboard/leads',
     '/appointments': derivedDemoMode || derivedBlueprintMode ? getPath('/appointments') : '/dashboard/appointments',
     '/settings': derivedDemoMode || derivedBlueprintMode ? getPath('/settings') : '/dashboard/settings'
   };
-  const visibleNavItems = NAV_ITEMS;
+
+  const activeNavItems = isLO ? LO_NAV_ITEMS : REALTOR_NAV_ITEMS;
+  const visibleNavItems = derivedDemoMode && !derivedBlueprintMode
+    ? activeNavItems.filter((item) => item.key !== 'settings')
+    : activeNavItems;
 
   const handleLogoClick = () => {
     onClose();
@@ -99,6 +125,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
             className="group rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
           >
             <LogoWithName />
+            {!derivedDemoMode && !derivedBlueprintMode && (
+              <div className="mt-2 flex items-center gap-2">
+                <span className="rounded-full border border-blue-100 bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-tight text-blue-600">
+                  Trial Mode
+                </span>
+                <span className="text-[10px] font-medium text-slate-400">Active Trial</span>
+              </div>
+            )}
           </a>
           <button onClick={onClose} className="rounded-full p-1 text-slate-500 hover:bg-slate-100 lg:hidden" aria-label="Close navigation">
             <Icon name="close" />
@@ -132,13 +166,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                   <p className="mb-3 text-xs font-medium uppercase tracking-wider text-slate-500">Demo Mode</p>
                   <div className="space-y-2">
-                    <a
-                      href="/demo-dashboard/gallery/demo-listing-oak"
-                      className="flex w-full items-center justify-center gap-2 rounded-lg bg-fuchsia-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-fuchsia-700"
-                    >
-                      <span className="material-symbols-outlined text-lg">gallery_thumbnail</span>
-                      Demo Gallery
-                    </a>
                     <a
                       href="/"
                       className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
