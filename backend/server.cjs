@@ -30624,6 +30624,222 @@ app.delete('/api/lo/listings/:listingId/assign', async (req, res) => {
   }
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// LO AI CHATBOT ENDPOINTS
+// ─────────────────────────────────────────────────────────────────────────────
+
+// GET /api/lo/chatbot-config — fetch authenticated LO's chatbot config
+app.get('/api/lo/chatbot-config', async (req, res) => {
+  try {
+    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!agentId) return res.status(401).json({ error: 'unauthorized' });
+
+    const { data, error } = await supabaseAdmin
+      .from('lo_chatbot_configs')
+      .select('*')
+      .eq('lo_agent_id', agentId)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    // Return defaults if no config saved yet
+    if (!data) {
+      return res.json({
+        bot_name: 'Your Loan Officer',
+        greeting: 'Hi! I can answer your financing and mortgage questions. What would you like to know?',
+        personality: 'Professional, friendly, and knowledgeable mortgage advisor. Keep answers clear and concise. Always encourage the visitor to reach out directly for personalized numbers.',
+        knowledge_base: '',
+        faq: [],
+        is_active: true
+      });
+    }
+
+    res.json(data);
+  } catch (err) {
+    console.error('[LO Chatbot Config GET] Error:', err);
+    res.status(500).json({ error: 'failed_to_fetch_chatbot_config' });
+  }
+});
+
+// PUT /api/lo/chatbot-config — save LO's chatbot config
+app.put('/api/lo/chatbot-config', async (req, res) => {
+  try {
+    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!agentId) return res.status(401).json({ error: 'unauthorized' });
+
+    const { bot_name, greeting, personality, knowledge_base, faq, is_active } = req.body;
+
+    const { data, error } = await supabaseAdmin
+      .from('lo_chatbot_configs')
+      .upsert({
+        lo_agent_id: agentId,
+        bot_name: bot_name || 'Your Loan Officer',
+        greeting: greeting || 'Hi! I can answer your financing and mortgage questions.',
+        personality: personality || '',
+        knowledge_base: knowledge_base || '',
+        faq: Array.isArray(faq) ? faq : [],
+        is_active: is_active !== false,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'lo_agent_id' })
+      .select()
+      .single();
+
+    if (error) throw error;
+    res.json({ success: true, config: data });
+  } catch (err) {
+    console.error('[LO Chatbot Config PUT] Error:', err);
+    res.status(500).json({ error: 'failed_to_save_chatbot_config' });
+  }
+});
+
+// GET /api/public/listing/:listingId/lo-chatbot — get LO chatbot info for a listing (no auth)
+app.get('/api/public/listing/:listingId/lo-chatbot', async (req, res) => {
+  try {
+    const { listingId } = req.params;
+
+    // Find the LO agent linked to this listing via listing_lo_assignments
+    const { data: assignment, error: assignErr } = await supabaseAdmin
+      .from('listing_lo_assignments')
+      .select('lo_agent_id')
+      .eq('listing_id', listingId)
+      .maybeSingle();
+
+    if (assignErr) throw assignErr;
+    if (!assignment || !assignment.lo_agent_id) {
+      return res.json({ enabled: false });
+    }
+
+    const loAgentId = assignment.lo_agent_id;
+
+    // Get LO's chatbot config
+    const { data: config, error: configErr } = await supabaseAdmin
+      .from('lo_chatbot_configs')
+      .select('bot_name, greeting, is_active')
+      .eq('lo_agent_id', loAgentId)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (configErr) throw configErr;
+    if (!config) return res.json({ enabled: false });
+
+    // Get LO's name and photo
+    const { data: loAgent, error: agentErr } = await supabaseAdmin
+      .from('agents')
+      .select('full_name, headshot_url, brokerage_name')
+      .eq('id', loAgentId)
+      .maybeSingle();
+
+    if (agentErr) throw agentErr;
+
+    res.json({
+      enabled: true,
+      lo_agent_id: loAgentId,
+      bot_name: config.bot_name,
+      greeting: config.greeting,
+      lo_name: loAgent?.full_name || config.bot_name,
+      lo_photo: loAgent?.headshot_url || null,
+      lo_company: loAgent?.brokerage_name || null
+    });
+  } catch (err) {
+    console.error('[LO Chatbot Public Info] Error:', err);
+    res.json({ enabled: false });
+  }
+});
+
+// POST /api/public/lo-chat — visitor sends message to LO chatbot
+app.post('/api/public/lo-chat', async (req, res) => {
+  try {
+    const { listing_id, lo_agent_id, message, history } = req.body;
+    if (!listing_id || !lo_agent_id || !message) {
+      return res.status(400).json({ error: 'missing_required_fields' });
+    }
+
+    // Fetch LO config
+    const { data: config, error: configErr } = await supabaseAdmin
+      .from('lo_chatbot_configs')
+      .select('bot_name, greeting, personality, knowledge_base, faq, is_active')
+      .eq('lo_agent_id', lo_agent_id)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (configErr) throw configErr;
+    if (!config) {
+      return res.json({
+        reply: "I'm setting up my financing assistant. Please contact me directly for mortgage questions."
+      });
+    }
+
+    // Fetch listing address for context
+    const { data: listing } = await supabaseAdmin
+      .from('listings')
+      .select('address, price')
+      .eq('id', listing_id)
+      .maybeSingle();
+
+    const listingContext = listing
+      ? `The visitor is looking at a listing at ${listing.address}${listing.price ? ` listed at $${Number(listing.price).toLocaleString('en-US')}` : ''}.`
+      : '';
+
+    // Build FAQ context
+    const faqText = Array.isArray(config.faq) && config.faq.length > 0
+      ? '\n\nFrequently Asked Questions:\n' + config.faq.map(
+          (item) => `Q: ${item.question}\nA: ${item.answer}`
+        ).join('\n\n')
+      : '';
+
+    // Build system prompt
+    const systemPrompt = [
+      `You are ${config.bot_name}, a mortgage and financing assistant.`,
+      config.personality,
+      listingContext,
+      config.knowledge_base ? `\nKnowledge base:\n${config.knowledge_base}` : '',
+      faqText,
+      '\nKeep responses brief (2-4 sentences). Do not give specific rate quotes — encourage visitors to contact you directly for personalized numbers. Never discuss topics unrelated to real estate financing and mortgages.'
+    ].filter(Boolean).join('\n');
+
+    // Build messages array
+    const safeHistory = Array.isArray(history) ? history.slice(-8) : [];
+    const messages = [
+      { role: 'system', content: systemPrompt },
+      ...safeHistory.map((m) => ({
+        role: m.role === 'visitor' ? 'user' : 'assistant',
+        content: String(m.text || '')
+      })),
+      { role: 'user', content: message }
+    ];
+
+    // Call OpenAI
+    const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: process.env.OPENAI_CHAT_MODEL || 'gpt-4o',
+        messages,
+        max_tokens: 200,
+        temperature: 0.5
+      })
+    });
+
+    if (!openaiRes.ok) {
+      const errBody = await openaiRes.text();
+      console.error('[LO Chat] OpenAI error:', errBody);
+      return res.json({ reply: "I'm having trouble connecting right now. Please contact me directly for financing questions." });
+    }
+
+    const openaiData = await openaiRes.json();
+    const reply = openaiData.choices?.[0]?.message?.content?.trim()
+      || "I'm not able to answer that right now. Please reach out to me directly.";
+
+    res.json({ reply });
+  } catch (err) {
+    console.error('[LO Chat] Error:', err);
+    res.json({ reply: "Something went wrong. Please contact the loan officer directly for financing questions." });
+  }
+});
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // END LO PLATFORM ENDPOINTS
 // ═══════════════════════════════════════════════════════════════════════════════
