@@ -24,6 +24,7 @@ const LO_NAV_ITEMS = [
   { key: 'today', icon: 'today', label: 'Today', path: '/today', testid: 'nav-today' },
   { key: 'lo-partners', icon: 'handshake', label: 'Partners', path: '/lo-partners', testid: 'nav-lo-partners' },
   { key: 'lo-listings', icon: 'storefront', label: 'Listings', path: '/lo-listings', testid: 'nav-lo-listings' },
+  { key: 'lo-chatbot', icon: 'smart_toy', label: 'AI Bot', path: '/lo-chatbot', testid: 'nav-lo-chatbot' },
   { key: 'leads', icon: 'groups', label: 'Leads', path: '/leads', testid: 'nav-leads' },
   { key: 'appointments', icon: 'event_available', label: 'Appointments', path: '/appointments', testid: 'nav-appointments' },
   { key: 'settings', icon: 'settings', label: 'Settings', path: '/settings', testid: 'nav-settings' }
@@ -85,6 +86,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
     '/listings': derivedDemoMode || derivedBlueprintMode ? getPath('/listings') : '/dashboard/listings',
     '/lo-listings': '/dashboard/lo-listings',
     '/lo-partners': '/dashboard/lo-partners',
+    '/lo-chatbot': '/dashboard/lo-chatbot',
     '/leads': derivedDemoMode || derivedBlueprintMode ? getPath('/leads') : '/dashboard/leads',
     '/appointments': derivedDemoMode || derivedBlueprintMode ? getPath('/appointments') : '/dashboard/appointments',
     '/settings': derivedDemoMode || derivedBlueprintMode ? getPath('/settings') : '/dashboard/settings'

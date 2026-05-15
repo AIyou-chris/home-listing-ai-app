@@ -33,6 +33,7 @@ const OnboardingCommandPage = lazy(() => import('./components/dashboard-command/
 const LOOnboardingPage = lazy(() => import('./components/dashboard-command/LOOnboardingPage'));
 const LOListingsPage = lazy(() => import('./components/dashboard-command/LOListingsPage'));
 const LOPartnersPage = lazy(() => import('./components/dashboard-command/LOPartnersPage'));
+const LOChatbotSetupPage = lazy(() => import('./components/dashboard-command/LOChatbotSetupPage'));
 const AgentClaimPage = lazy(() => import('./pages/AgentClaimPage'));
 const ShareTestPage = lazy(() => import('./components/dashboard-command/ShareTestPage'));
 const AIConversationsPage = lazy(() => import('./components/AIConversationsPage'));
@@ -1524,6 +1525,7 @@ const App: React.FC = () => {
                         <Route path="listings/:listingId/edit" element={<ListingEditorPage />} />
                         <Route path="lo-listings" element={<LOListingsPage />} />
                         <Route path="lo-partners" element={<LOPartnersPage />} />
+                        <Route path="lo-chatbot" element={<LOChatbotSetupPage />} />
                         <Route path="billing" element={<BillingCommandPage />} />
                         <Route path="onboarding" element={<OnboardingCommandPage />} />
                         <Route path="lo-onboarding" element={<LOOnboardingPage />} />
