@@ -30284,31 +30284,109 @@ app.post('/api/lo/partners/invite', async (req, res) => {
   try {
     const loAgentId = await resolveRequesterUserId(req, { allowDefault: false });
     if (!loAgentId) return res.status(401).json({ error: 'unauthorized' });
-    const { email, name } = req.body || {};
+    const { email, name, listingId } = req.body || {};
     if (!email || !email.includes('@')) return res.status(400).json({ error: 'valid_email_required' });
-    const { data: loAgent } = await supabaseAdmin.from('agents').select('id, first_name, last_name, brokerage_name, email').eq('id', loAgentId).single();
+    const { data: loAgent } = await supabaseAdmin.from('agents').select('id, first_name, last_name, brokerage_name, email, headshot_url, brand_color').eq('id', loAgentId).single();
     if (!loAgent) return res.status(404).json({ error: 'lo_not_found' });
     const emailLower = email.trim().toLowerCase();
+    // Validate listing belongs to this LO if provided
+    let resolvedListingId = null;
+    if (listingId) {
+      const { data: assignment } = await supabaseAdmin.from('listing_lo_assignments').select('listing_id').eq('listing_id', listingId).eq('lo_agent_id', loAgentId).limit(1).single();
+      if (assignment) resolvedListingId = listingId;
+    }
+    // Reuse unclaimed token if one exists
     const { data: existing } = await supabaseAdmin.from('agent_invites').select('id, token, claimed_at').eq('lo_agent_id', loAgentId).eq('invited_email', emailLower).order('created_at', { ascending: false }).limit(1);
     let token;
     if (existing && existing.length > 0 && !existing[0].claimed_at) {
       token = existing[0].token;
+      // Update listing_id on existing token if changed
+      if (resolvedListingId) await supabaseAdmin.from('agent_invites').update({ listing_id: resolvedListingId }).eq('id', existing[0].id);
     } else {
-      const { data: invite, error: inviteError } = await supabaseAdmin.from('agent_invites').insert({ lo_agent_id: loAgentId, invited_email: emailLower, invited_name: name || null, expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() }).select('token').single();
+      const { data: invite, error: inviteError } = await supabaseAdmin.from('agent_invites').insert({ lo_agent_id: loAgentId, invited_email: emailLower, invited_name: name || null, listing_id: resolvedListingId, expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() }).select('token').single();
       if (inviteError || !invite) throw inviteError || new Error('invite_create_failed');
       token = invite.token;
     }
     const appBase = process.env.APP_BASE_URL || process.env.DASHBOARD_BASE_URL || 'https://homelistingai.com';
-    const magicLink = `${appBase.replace(/\/$/, '')}/agent/claim/${token}`;
+    // WOW Link: opens the demo listing page with LO chatbot active
+    const wowLink = `${appBase.replace(/\/$/, '')}/partner-invite/${token}`;
+    const claimLink = `${appBase.replace(/\/$/, '')}/agent/claim/${token}`;
     const loName = [loAgent.first_name, loAgent.last_name].filter(Boolean).join(' ') || 'Your Loan Officer';
     const loCompany = loAgent.brokerage_name || 'HomeListingAI';
+    const emailHtml = `
+<!DOCTYPE html><html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#1e293b;">
+<div style="background:linear-gradient(135deg,#0f172a,#1e3a5f);border-radius:16px;padding:32px;text-align:center;margin-bottom:24px;">
+  <h1 style="color:white;margin:0 0 8px;font-size:24px;">${loName} built something for your listings</h1>
+  <p style="color:#94a3b8;margin:0;font-size:15px;">${loCompany}</p>
+</div>
+<p style="font-size:16px;">Hi${name ? ` ${name}` : ''},</p>
+<p style="font-size:15px;color:#475569;line-height:1.6;">I put together a live demo of what your listings could look like with my AI financing assistant built in. Buyers get instant answers to mortgage questions — 24/7, right on the listing page.</p>
+<div style="text-align:center;margin:32px 0;">
+  <a href="${wowLink}" style="background:#2563eb;color:white;text-decoration:none;padding:16px 36px;border-radius:12px;font-weight:700;font-size:16px;display:inline-block;">See Your Listing Demo →</a>
+</div>
+<p style="font-size:13px;color:#94a3b8;text-align:center;">No account needed to view · Link expires in 30 days</p>
+<hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;">
+<p style="font-size:13px;color:#64748b;">Ready to claim your account? <a href="${claimLink}" style="color:#2563eb;">Click here →</a></p>
+</body></html>`;
     try {
-      await emailService.sendEmail({ to: emailLower, subject: `${loName} invited you to HomeListingAI`, html: `<p>Hi${name ? ` ${name}` : ''},</p><p><strong>${loName}</strong> at ${loCompany} set up a listing platform for you. Claim your account:</p><p><a href="${magicLink}">${magicLink}</a></p><p>Link expires in 30 days.</p>` });
+      await emailService.sendEmail({ to: emailLower, subject: `${loName} built a listing demo for you`, html: emailHtml });
     } catch (emailErr) { console.warn('[LO Invite] Email failed (non-fatal):', emailErr?.message); }
-    res.json({ success: true, message: 'Invite sent', magicLink });
+    res.json({ success: true, message: 'Invite sent', wowLink, claimLink });
   } catch (err) {
     console.error('[LO Invite] Failed:', err);
     res.status(500).json({ error: 'invite_failed' });
+  }
+});
+
+// ── GET /api/public/partner-invite/:token — WOW Link data ────────────────────
+app.get('/api/public/partner-invite/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { data: invite } = await supabaseAdmin
+      .from('agent_invites')
+      .select('id, invited_email, invited_name, claimed_at, expires_at, listing_id, lo:lo_agent_id(id, first_name, last_name, brokerage_name, headshot_url, brand_color, email, phone)')
+      .eq('token', token)
+      .single();
+    if (!invite) return res.status(404).json({ error: 'invite_not_found' });
+    if (invite.expires_at && new Date(invite.expires_at) < new Date()) return res.status(410).json({ error: 'invite_expired' });
+    const lo = invite.lo || {};
+    const loName = [lo.first_name, lo.last_name].filter(Boolean).join(' ') || 'Your Loan Officer';
+    // Get listing data if attached
+    let listing = null;
+    if (invite.listing_id) {
+      const { data: listingRow } = await supabaseAdmin
+        .from('listings')
+        .select('id, address, price, beds, baths, sqft, description, hero_photos, gallery_photos, share_url, status')
+        .eq('id', invite.listing_id)
+        .single();
+      if (listingRow && listingRow.status === 'published') listing = listingRow;
+    }
+    // Get LO chatbot config
+    const { data: chatbot } = await supabaseAdmin
+      .from('lo_chatbot_configs')
+      .select('bot_name, greeting, is_active')
+      .eq('lo_agent_id', lo.id)
+      .single();
+    res.json({
+      success: true,
+      token,
+      claimed: !!invite.claimed_at,
+      inviteeName: invite.invited_name || null,
+      lo: {
+        id: lo.id,
+        name: loName,
+        company: lo.brokerage_name || 'HomeListingAI',
+        headshotUrl: lo.headshot_url || null,
+        brandColor: lo.brand_color || '#2563eb',
+        email: lo.email || null,
+        phone: lo.phone || null
+      },
+      listing,
+      chatbot: chatbot || null
+    });
+  } catch (err) {
+    console.error('[PartnerInvite] Failed:', err);
+    res.status(500).json({ error: 'server_error' });
   }
 });
 

@@ -34,7 +34,8 @@ const LOOnboardingPage = lazy(() => import('./components/dashboard-command/LOOnb
 const LOListingsPage = lazy(() => import('./components/dashboard-command/LOListingsPage'));
 const LOPartnersPage = lazy(() => import('./components/dashboard-command/LOPartnersPage'));
 const LOChatbotSetupPage = lazy(() => import('./components/dashboard-command/LOChatbotSetupPage'));
-const AgentClaimPage = lazy(() => import('./pages/AgentClaimPage'));
+const AgentClaimPage = lazy(() => import('./pages/AgentClaimPage'))
+const PartnerInvitePage = lazy(() => import('./pages/PartnerInvitePage'));
 const ShareTestPage = lazy(() => import('./components/dashboard-command/ShareTestPage'));
 const AIConversationsPage = lazy(() => import('./components/AIConversationsPage'));
 const AICardPage = lazy(() => import('./components/AICardPage'));
@@ -1593,6 +1594,13 @@ const App: React.FC = () => {
                     <Route path="/l/:publicSlug" element={
                         <Suspense fallback={<LoadingSpinner />}>
                             <PublicListingPage />
+                        </Suspense>
+                    } />
+
+                    {/* WOW Link — LO partner invite demo page */}
+                    <Route path="/partner-invite/:token" element={
+                        <Suspense fallback={<LoadingSpinner />}>
+                            <PartnerInvitePage />
                         </Suspense>
                     } />
 
