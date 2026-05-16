@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { buildDashboardPath, useDemoMode } from '../../demo/useDemoMode'
+import { useDemoMode } from '../../demo/useDemoMode'
 import { buildApiUrl } from '../../lib/api'
 import { supabase } from '../../services/supabase'
 import { showToast } from '../../utils/toastService'
@@ -92,12 +92,32 @@ function Avatar({ src, name, size = 40 }: { src?: string | null; name: string; s
 
 // ─── Invite Modal ─────────────────────────────────────────────────────────────
 
-const InviteModal: React.FC<{ onClose: () => void; onSent: () => void }> = ({ onClose, onSent }) => {
+interface LOListing {
+  id: string
+  address: string
+  status: string
+}
+
+const InviteModal: React.FC<{ onClose: () => void; onSent: (wowLink: string) => void }> = ({ onClose, onSent }) => {
   const demoMode = useDemoMode()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
+  const [listingId, setListingId] = useState<string>('')
+  const [listings, setListings] = useState<LOListing[]>([])
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
+  const [wowLink, setWowLink] = useState('')
+
+  useEffect(() => {
+    if (demoMode) return
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return
+      fetch(buildApiUrl('/api/lo/listings'), { headers: { 'x-user-id': user.id } })
+        .then(r => r.json())
+        .then((d: { listings?: LOListing[] }) => setListings((d.listings || []).filter(l => l.status === 'published')))
+        .catch(() => {})
+    })
+  }, [demoMode])
 
   const handleSend = async () => {
     if (!email.trim()) return
@@ -105,20 +125,25 @@ const InviteModal: React.FC<{ onClose: () => void; onSent: () => void }> = ({ on
     try {
       if (demoMode) {
         await new Promise(r => setTimeout(r, 800))
+        const demoLink = `${window.location.origin}/partner-invite/demo-token`
+        setWowLink(demoLink)
         setSent(true)
-        setTimeout(() => { onSent(); onClose() }, 1500)
+        setTimeout(() => { onSent(demoLink); onClose() }, 3000)
         return
       }
       const { data: { user } } = await supabase.auth.getUser()
       const res = await fetch(buildApiUrl('/api/lo/partners/invite'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-user-id': user?.id || '' },
-        body: JSON.stringify({ email: email.trim(), name: name.trim() || undefined })
+        body: JSON.stringify({ email: email.trim(), name: name.trim() || undefined, listingId: listingId || undefined })
       })
+      const json = await res.json() as { success?: boolean; wowLink?: string }
       if (!res.ok) throw new Error('send_failed')
+      const link = json.wowLink || ''
+      setWowLink(link)
       setSent(true)
-      showToast.success('Invite sent!')
-      setTimeout(() => { onSent(); onClose() }, 1500)
+      showToast.success('WOW Link sent!')
+      setTimeout(() => { onSent(link); onClose() }, 3000)
     } catch {
       showToast.error('Failed to send invite. Try again.')
     } finally {
@@ -131,18 +156,26 @@ const InviteModal: React.FC<{ onClose: () => void; onSent: () => void }> = ({ on
       <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl p-6">
         {sent ? (
           <div className="text-center py-6">
-            <div className="text-5xl mb-3">📨</div>
-            <h3 className="text-lg font-bold text-slate-900 mb-1">Invite sent!</h3>
-            <p className="text-slate-500 text-sm">They'll get a magic link in their inbox.</p>
+            <div className="text-5xl mb-3">🚀</div>
+            <h3 className="text-lg font-bold text-slate-900 mb-1">WOW Link sent!</h3>
+            <p className="text-slate-500 text-sm mb-4">They'll get a live listing demo in their inbox — chatbot already working.</p>
+            {wowLink && (
+              <button
+                onClick={() => { navigator.clipboard.writeText(wowLink); showToast.success('Link copied!') }}
+                className="w-full border border-slate-200 rounded-xl py-2.5 text-xs font-semibold text-primary-600 hover:bg-primary-50 transition-all"
+              >
+                📋 Copy WOW Link
+              </button>
+            )}
           </div>
         ) : (
           <>
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="text-lg font-bold text-slate-900">Add a Partner Agent</h3>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-lg font-bold text-slate-900">Send a WOW Link</h3>
               <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl">×</button>
             </div>
             <p className="text-sm text-slate-500 mb-5">
-              Enter their name and email. We'll send them a magic link — their listing page will already be set up when they arrive.
+              The agent gets a live listing demo with your financing chatbot already running — before they even sign up.
             </p>
             <div className="space-y-3 mb-5">
               <input
@@ -159,13 +192,32 @@ const InviteModal: React.FC<{ onClose: () => void; onSent: () => void }> = ({ on
                 onChange={e => setEmail(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleSend()}
               />
+              {/* Listing picker */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 mb-1.5 uppercase tracking-wide">Show them this listing</label>
+                <select
+                  value={listingId}
+                  onChange={e => setListingId(e.target.value)}
+                  className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white"
+                >
+                  <option value="">📸 Use demo listing (default)</option>
+                  {listings.map(l => (
+                    <option key={l.id} value={l.id}>🏠 {l.address}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-slate-400 mt-1.5">
+                  {listings.length === 0
+                    ? 'No published listings yet — we\'ll show a beautiful demo.'
+                    : 'Pick a live listing or use the default demo.'}
+                </p>
+              </div>
             </div>
             <button
               onClick={handleSend}
               disabled={sending || !email.trim()}
               className="w-full bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white font-bold rounded-xl py-3 text-sm transition-all"
             >
-              {sending ? 'Sending…' : 'Send Magic Link →'}
+              {sending ? 'Sending…' : '🚀 Send WOW Link →'}
             </button>
           </>
         )}
@@ -338,7 +390,7 @@ const PartnerDetail: React.FC<{ partner: Partner; onClose: () => void }> = ({ pa
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 const LOPartnersPage: React.FC = () => {
-  const navigate = useNavigate()
+  const _navigate = useNavigate()
   const demoMode = useDemoMode()
   const [partners, setPartners] = useState<Partner[]>([])
   const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([])
@@ -453,7 +505,7 @@ const LOPartnersPage: React.FC = () => {
       {showInvite && (
         <InviteModal
           onClose={() => setShowInvite(false)}
-          onSent={load}
+          onSent={() => { load() }}
         />
       )}
       {selectedPartner && (
