@@ -104,7 +104,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
   return (
     <>
       <div
-        className={`fixed inset-0 z-30 bg-black/50 transition-opacity lg:hidden ${isOpen ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
+        className={`fixed inset-0 z-30 bg-black/50 transition-opacity xl:hidden ${isOpen ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
         onClick={onClose}
         aria-hidden="true"
       />
@@ -112,7 +112,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
         className={`
           fixed inset-y-0 left-0 z-40 flex h-full w-64 flex-col border-r border-slate-200 bg-white px-4 py-6
           transform transition-transform duration-300 ease-in-out
-          lg:static lg:translate-x-0 lg:flex-shrink-0
+          xl:static xl:translate-x-0 xl:flex-shrink-0
           ${isOpen ? 'translate-x-0' : '-translate-x-full'}
         `}
         style={{
@@ -136,7 +136,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
               </div>
             )}
           </a>
-          <button onClick={onClose} className="rounded-full p-1 text-slate-500 hover:bg-slate-100 lg:hidden" aria-label="Close navigation">
+          <button onClick={onClose} className="rounded-full p-1 text-slate-500 hover:bg-slate-100 xl:hidden" aria-label="Close navigation">
             <Icon name="close" />
           </button>
         </div>
@@ -154,7 +154,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
             <div className="mt-auto border-t border-slate-100 px-2 pb-6 pt-4">
               <button
                 onClick={() => adminAuthService.logout()}
-                className="hidden w-full items-center gap-3 rounded-lg px-4 py-2.5 text-sm font-medium text-rose-600 transition-colors hover:bg-rose-50 lg:flex"
+                className="hidden w-full items-center gap-3 rounded-lg px-4 py-2.5 text-sm font-medium text-rose-600 transition-colors hover:bg-rose-50 xl:flex"
               >
                 <Icon name="logout" className="text-rose-500" />
                 <span>Sign Out</span>
@@ -163,7 +163,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
           )}
 
           {derivedDemoMode && !derivedBlueprintMode && (
-            <div className="mt-auto hidden space-y-3 pt-6 lg:block">
+            <div className="mt-auto hidden space-y-3 pt-6 xl:block">
               <div className="px-2">
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                   <p className="mb-3 text-xs font-medium uppercase tracking-wider text-slate-500">Demo Mode</p>

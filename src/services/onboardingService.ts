@@ -33,6 +33,7 @@ export interface OnboardingState {
   brand_profile: OnboardingBrandProfileState;
   plan_id: string;
   is_pro: boolean;
+  account_type?: string;
   progress: {
     completed_items: number;
     total_items: number;
