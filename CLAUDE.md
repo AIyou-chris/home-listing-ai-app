@@ -5,6 +5,18 @@
 
 ---
 
+## 0. Golden Rules (read this first — always)
+
+See `GOLDEN_RULES.md` in the project root. Every feature decision is measured against these three rules:
+
+1. **🔥 Get warm leads** — does it turn browsers into real, qualified conversations?
+2. **🤝 Build agent partnerships** — does it make the LO indispensable to agents?
+3. **⚡ Keep it simple and fast** — 3 taps max, one primary action per screen, show don't tell
+
+This is built by someone with 15 years in the mortgage industry. The two biggest pain points for every LO are warm leads and agent partnerships. This app solves both. Never lose sight of that.
+
+---
+
 ## 1. App Purpose / Who It's For
 
 HomeListingAI is an AI-powered operating system for real estate agents and small broker teams.
