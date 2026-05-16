@@ -94,7 +94,7 @@ const LiveChat: React.FC<{ lo: LOInfo; listingId: string; botName: string; greet
       const res = await fetch(buildApiUrl('/api/public/lo-chat'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ loAgentId: lo.id, listingId, message: clean, history: historyRef.current.slice(-8) })
+        body: JSON.stringify({ lo_agent_id: lo.id, listing_id: listingId, message: clean, history: historyRef.current.slice(-8) })
       });
       const data = await res.json() as { reply?: string };
       const reply = data.reply || 'I\'d be happy to answer that — give me a call or email to discuss your specific situation!';

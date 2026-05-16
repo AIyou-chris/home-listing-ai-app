@@ -30286,8 +30286,9 @@ app.post('/api/lo/partners/invite', async (req, res) => {
     if (!loAgentId) return res.status(401).json({ error: 'unauthorized' });
     const { email, name, listingId } = req.body || {};
     if (!email || !email.includes('@')) return res.status(400).json({ error: 'valid_email_required' });
-    const { data: loAgent } = await supabaseAdmin.from('agents').select('id, first_name, last_name, brokerage_name, email, headshot_url, brand_color').eq('id', loAgentId).single();
-    if (!loAgent) return res.status(404).json({ error: 'lo_not_found' });
+    // Agent profile is used for email personalization only — never block the
+    // invite if the profile row is missing (some accounts have no agents row).
+    const { data: loAgent } = await supabaseAdmin.from('agents').select('id, first_name, last_name, brokerage_name, email, headshot_url, brand_color').or(`id.eq.${loAgentId},auth_user_id.eq.${loAgentId}`).limit(1).maybeSingle();
     const emailLower = email.trim().toLowerCase();
     // Validate listing belongs to this LO if provided
     let resolvedListingId = null;
@@ -30311,8 +30312,8 @@ app.post('/api/lo/partners/invite', async (req, res) => {
     // WOW Link: opens the demo listing page with LO chatbot active
     const wowLink = `${appBase.replace(/\/$/, '')}/partner-invite/${token}`;
     const claimLink = `${appBase.replace(/\/$/, '')}/agent/claim/${token}`;
-    const loName = [loAgent.first_name, loAgent.last_name].filter(Boolean).join(' ') || 'Your Loan Officer';
-    const loCompany = loAgent.brokerage_name || 'HomeListingAI';
+    const loName = [loAgent?.first_name, loAgent?.last_name].filter(Boolean).join(' ') || 'Your Loan Officer';
+    const loCompany = loAgent?.brokerage_name || 'HomeListingAI';
     const emailHtml = `
 <!DOCTYPE html><html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#1e293b;">
 <div style="background:linear-gradient(135deg,#0f172a,#1e3a5f);border-radius:16px;padding:32px;text-align:center;margin-bottom:24px;">
@@ -30344,13 +30345,25 @@ app.get('/api/public/partner-invite/:token', async (req, res) => {
     const { token } = req.params;
     const { data: invite } = await supabaseAdmin
       .from('agent_invites')
-      .select('id, invited_email, invited_name, claimed_at, expires_at, listing_id, lo:lo_agent_id(id, first_name, last_name, brokerage_name, headshot_url, brand_color, email, phone)')
+      .select('id, invited_email, invited_name, claimed_at, expires_at, listing_id, lo_agent_id')
       .eq('token', token)
-      .single();
+      .maybeSingle();
     if (!invite) return res.status(404).json({ error: 'invite_not_found' });
     if (invite.expires_at && new Date(invite.expires_at) < new Date()) return res.status(410).json({ error: 'invite_expired' });
-    const lo = invite.lo || {};
-    const loName = [lo.first_name, lo.last_name].filter(Boolean).join(' ') || 'Your Loan Officer';
+
+    // lo_agent_id is the consistent LO key used across the platform
+    // (chatbot configs, listing assignments, etc.)
+    const loAgentId = invite.lo_agent_id;
+
+    // Fetch LO display profile (agents table is keyed by id OR auth_user_id)
+    const { data: lo } = await supabaseAdmin
+      .from('agents')
+      .select('id, first_name, last_name, brokerage_name, headshot_url, brand_color, email, phone')
+      .or(`id.eq.${loAgentId},auth_user_id.eq.${loAgentId}`)
+      .limit(1)
+      .maybeSingle();
+    const loName = [lo?.first_name, lo?.last_name].filter(Boolean).join(' ') || 'Your Loan Officer';
+
     // Get listing data if attached
     let listing = null;
     if (invite.listing_id) {
@@ -30358,28 +30371,30 @@ app.get('/api/public/partner-invite/:token', async (req, res) => {
         .from('listings')
         .select('id, address, price, beds, baths, sqft, description, hero_photos, gallery_photos, share_url, status')
         .eq('id', invite.listing_id)
-        .single();
+        .maybeSingle();
       if (listingRow && listingRow.status === 'published') listing = listingRow;
     }
-    // Get LO chatbot config
+
+    // Get LO chatbot config (keyed by the same lo_agent_id)
     const { data: chatbot } = await supabaseAdmin
       .from('lo_chatbot_configs')
       .select('bot_name, greeting, is_active')
-      .eq('lo_agent_id', lo.id)
-      .single();
+      .eq('lo_agent_id', loAgentId)
+      .maybeSingle();
+
     res.json({
       success: true,
       token,
       claimed: !!invite.claimed_at,
       inviteeName: invite.invited_name || null,
       lo: {
-        id: lo.id,
+        id: loAgentId, // chat endpoint expects this exact value as lo_agent_id
         name: loName,
-        company: lo.brokerage_name || 'HomeListingAI',
-        headshotUrl: lo.headshot_url || null,
-        brandColor: lo.brand_color || '#2563eb',
-        email: lo.email || null,
-        phone: lo.phone || null
+        company: lo?.brokerage_name || 'HomeListingAI',
+        headshotUrl: lo?.headshot_url || null,
+        brandColor: lo?.brand_color || '#2563eb',
+        email: lo?.email || null,
+        phone: lo?.phone || null
       },
       listing,
       chatbot: chatbot || null
