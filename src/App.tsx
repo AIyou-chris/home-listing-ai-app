@@ -273,12 +273,18 @@ const DemoDashboardLayout = () => {
     const location = useLocation();
     const pageTitle = resolveDashboardPageTitle(location.pathname);
 
+    useEffect(() => {
+        const handleResize = () => { if (window.innerWidth < 1280) setIsSidebarOpen(false); };
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
     return (
         <div className="relative flex h-screen bg-slate-50">
             <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} isDemoMode />
             <div className="relative flex flex-1 flex-col overflow-hidden">
                 <header
-                    className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-200 bg-white px-3 py-3 shadow-sm lg:hidden"
+                    className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-200 bg-white px-3 py-3 shadow-sm xl:hidden"
                     style={{
                         paddingTop: 'calc(env(safe-area-inset-top) + 0.75rem)',
                         paddingBottom: 'calc(env(safe-area-inset-bottom) + 0.5rem)'
@@ -312,12 +318,18 @@ const BlueprintDashboardLayout = () => {
     const location = useLocation();
     const pageTitle = resolveDashboardPageTitle(location.pathname);
 
+    useEffect(() => {
+        const handleResize = () => { if (window.innerWidth < 1280) setIsSidebarOpen(false); };
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
     return (
         <div className="relative flex h-screen bg-slate-50">
             <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} isBlueprintMode />
             <div className="relative flex flex-1 flex-col overflow-hidden">
                 <header
-                    className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-200 bg-white px-3 py-3 shadow-sm lg:hidden"
+                    className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-200 bg-white px-3 py-3 shadow-sm xl:hidden"
                     style={{
                         paddingTop: 'calc(env(safe-area-inset-top) + 0.75rem)',
                         paddingBottom: 'calc(env(safe-area-inset-bottom) + 0.5rem)'
@@ -347,13 +359,24 @@ const ProtectedDashboardLayout: React.FC = () => {
     const { user, isSidebarOpen, setIsSidebarOpen } = ctx;
     const location = useLocation();
 
+    // Auto-close sidebar when viewport shrinks below xl breakpoint (1280px)
+    useEffect(() => {
+        const handleResize = () => {
+            if (window.innerWidth < 1280) {
+                setIsSidebarOpen(false);
+            }
+        };
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, [setIsSidebarOpen]);
+
     return (
         <div className="flex h-screen bg-slate-50 relative">
             <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
             <div className="flex-1 flex flex-col overflow-hidden relative">
                 {/* Mobile Header */}
                 <header
-                    className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-200 bg-white px-3 py-3 shadow-sm lg:hidden"
+                    className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-200 bg-white px-3 py-3 shadow-sm xl:hidden"
                     style={{
                         paddingTop: 'calc(env(safe-area-inset-top) + 0.75rem)',
                         paddingBottom: 'calc(env(safe-area-inset-bottom) + 0.5rem)'
@@ -375,7 +398,7 @@ const ProtectedDashboardLayout: React.FC = () => {
                 </header>
 
                 {/* Desktop Notification Bell (Absolute Top-Right) */}
-                <div className="absolute right-8 top-6 z-50 hidden lg:block">
+                <div className="absolute right-8 top-6 z-50 hidden xl:block">
                     {user && <NotificationSystem userId={user.uid} />}
                 </div>
 
@@ -1608,7 +1631,6 @@ const App: React.FC = () => {
                             <DashboardRouteGate />
                         } />
                         <Route path="/daily-pulse" element={<Navigate to="/dashboard/today" replace />} />
-                        <Route path="/dashboard/:slug" element={<Navigate to="/dashboard/today" replace />} />
 
                         <Route path="/dashboard/today" element={<TodayDashboardPage />} />
                         <Route path="/dashboard/command-center" element={<ConversionDashboardHome />} />
@@ -1620,6 +1642,7 @@ const App: React.FC = () => {
                         <Route path="/dashboard/listings/:listingId/edit" element={<ListingEditorPage />} />
                         <Route path="/dashboard/lo-listings" element={<LOListingsPage />} />
                         <Route path="/dashboard/lo-partners" element={<LOPartnersPage />} />
+                        <Route path="/dashboard/lo-chatbot" element={<LOChatbotSetupPage />} />
                         <Route path="/dashboard/billing" element={<Navigate to="/dashboard/settings/billing" replace />} />
                         <Route path="/dashboard/onboarding" element={<OnboardingCommandPage />} />
                         <Route path="/dashboard/lo-onboarding" element={<LOOnboardingPage />} />
