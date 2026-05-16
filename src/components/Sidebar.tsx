@@ -11,6 +11,20 @@ interface SidebarProps {
   isBlueprintMode?: boolean;
 }
 
+// Desktop = viewport >= 1280px. Sidebar is static (always visible).
+// Mobile/tablet = viewport < 1280px. Sidebar is a fixed overlay controlled by isOpen.
+const DESKTOP_WIDTH = 1280;
+
+function useIsDesktop() {
+  const [isDesktop, setIsDesktop] = useState(() => typeof window !== 'undefined' ? window.innerWidth >= DESKTOP_WIDTH : true);
+  useEffect(() => {
+    const handler = () => setIsDesktop(window.innerWidth >= DESKTOP_WIDTH);
+    window.addEventListener('resize', handler);
+    return () => window.removeEventListener('resize', handler);
+  }, []);
+  return isDesktop;
+}
+
 const REALTOR_NAV_ITEMS = [
   { key: 'today', icon: 'today', label: 'Today', path: '/today', testid: 'nav-today' },
   { key: 'command-center', icon: 'space_dashboard', label: 'Command Center', path: '/command-center', testid: 'nav-command-center' },
@@ -63,6 +77,7 @@ const NavItem: React.FC<{
 
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, isBlueprintMode = false }) => {
   const location = useLocation();
+  const isDesktop = useIsDesktop();
   const derivedDemoMode = isDemoMode || location.pathname.startsWith('/demo-dashboard');
   const derivedBlueprintMode = isBlueprintMode || location.pathname.startsWith('/agent-blueprint-dashboard') || location.pathname.startsWith('/blueprint-dashboard');
   const [accountType, setAccountType] = useState<string>('realtor');
@@ -73,9 +88,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
       .catch(() => setAccountType('realtor'));
   }, []);
 
+  // Auto-close when screen grows to desktop (not needed, but close when shrinking)
+  useEffect(() => {
+    if (!isDesktop) return;
+    // Don't call onClose when switching to desktop — sidebar auto-shows via CSS
+  }, [isDesktop, onClose]);
+
   const isLO = accountType === 'lo';
 
-  // New blueprint dashboard uses /blueprint-dashboard; legacy uses /agent-blueprint-dashboard
   const blueprintBase = location.pathname.startsWith('/blueprint-dashboard') ? '/blueprint-dashboard' : '/agent-blueprint-dashboard';
   const basePath = derivedBlueprintMode ? blueprintBase : derivedDemoMode ? '/demo-dashboard' : '';
 
@@ -97,33 +117,45 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
     ? activeNavItems.filter((item) => item.key !== 'settings')
     : activeNavItems;
 
-  const handleLogoClick = () => {
-    onClose();
-  };
+  // ── Positioning logic (JS-driven, no Tailwind breakpoint classes) ──────────
+  // Desktop: sidebar is part of the normal flex flow, always visible.
+  // Mobile/tablet: sidebar is a fixed overlay, slide in/out with transform.
+  const asideStyle: React.CSSProperties = isDesktop
+    ? {
+        position: 'relative',
+        flexShrink: 0,
+        transform: 'none',
+        paddingTop: 'calc(env(safe-area-inset-top) + 1.25rem)',
+        paddingBottom: 'calc(env(safe-area-inset-bottom) + 1.25rem)'
+      }
+    : {
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        bottom: 0,
+        transform: isOpen ? 'translateX(0)' : 'translateX(-100%)',
+        paddingTop: 'calc(env(safe-area-inset-top) + 1.25rem)',
+        paddingBottom: 'calc(env(safe-area-inset-bottom) + 1.25rem)'
+      };
 
   return (
     <>
-      <div
-        className={`fixed inset-0 z-30 bg-black/50 transition-opacity xl:hidden ${isOpen ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
-        onClick={onClose}
-        aria-hidden="true"
-      />
+      {/* Backdrop — only on mobile/tablet when open */}
+      {!isDesktop && (
+        <div
+          className={`fixed inset-0 z-30 bg-black/50 transition-opacity ${isOpen ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
+          onClick={onClose}
+          aria-hidden="true"
+        />
+      )}
       <aside
-        className={`
-          fixed inset-y-0 left-0 z-40 flex h-full w-64 flex-col border-r border-slate-200 bg-white px-4 py-6
-          transform transition-transform duration-300 ease-in-out
-          xl:static xl:translate-x-0 xl:flex-shrink-0
-          ${isOpen ? 'translate-x-0' : '-translate-x-full'}
-        `}
-        style={{
-          paddingTop: 'calc(env(safe-area-inset-top) + 1.25rem)',
-          paddingBottom: 'calc(env(safe-area-inset-bottom) + 1.25rem)'
-        }}
+        className="z-40 flex h-full w-64 flex-col border-r border-slate-200 bg-white px-4 py-6 transition-transform duration-300 ease-in-out"
+        style={asideStyle}
       >
         <div className="mb-6 flex items-center justify-between px-2">
           <a
             href={derivedBlueprintMode ? '/agent-blueprint-dashboard/today' : derivedDemoMode ? '/demo-dashboard/today' : '/dashboard/today'}
-            onClick={handleLogoClick}
+            onClick={onClose}
             className="group rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
           >
             <LogoWithName />
@@ -136,9 +168,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
               </div>
             )}
           </a>
-          <button onClick={onClose} className="rounded-full p-1 text-slate-500 hover:bg-slate-100 xl:hidden" aria-label="Close navigation">
-            <Icon name="close" />
-          </button>
+          {/* Close button — only on mobile/tablet */}
+          {!isDesktop && (
+            <button onClick={onClose} className="rounded-full p-1 text-slate-500 hover:bg-slate-100" aria-label="Close navigation">
+              <Icon name="close" />
+            </button>
+          )}
         </div>
 
         <nav className="flex min-h-0 flex-1 flex-col gap-4">
@@ -154,7 +189,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
             <div className="mt-auto border-t border-slate-100 px-2 pb-6 pt-4">
               <button
                 onClick={() => adminAuthService.logout()}
-                className="hidden w-full items-center gap-3 rounded-lg px-4 py-2.5 text-sm font-medium text-rose-600 transition-colors hover:bg-rose-50 xl:flex"
+                className="flex w-full items-center gap-3 rounded-lg px-4 py-2.5 text-sm font-medium text-rose-600 transition-colors hover:bg-rose-50"
               >
                 <Icon name="logout" className="text-rose-500" />
                 <span>Sign Out</span>
@@ -162,8 +197,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
             </div>
           )}
 
-          {derivedDemoMode && !derivedBlueprintMode && (
-            <div className="mt-auto hidden space-y-3 pt-6 xl:block">
+          {derivedDemoMode && !derivedBlueprintMode && isDesktop && (
+            <div className="mt-auto space-y-3 pt-6">
               <div className="px-2">
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                   <p className="mb-3 text-xs font-medium uppercase tracking-wider text-slate-500">Demo Mode</p>

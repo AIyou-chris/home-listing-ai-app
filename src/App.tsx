@@ -270,11 +270,16 @@ const resolveDashboardPageTitle = (pathname: string) => {
 
 const DemoDashboardLayout = () => {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const [isDesktop, setIsDesktop] = useState(() => window.innerWidth >= 1280);
     const location = useLocation();
     const pageTitle = resolveDashboardPageTitle(location.pathname);
 
     useEffect(() => {
-        const handleResize = () => { if (window.innerWidth < 1280) setIsSidebarOpen(false); };
+        const handleResize = () => {
+            const desktop = window.innerWidth >= 1280;
+            setIsDesktop(desktop);
+            if (!desktop) setIsSidebarOpen(false);
+        };
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
     }, []);
@@ -284,8 +289,9 @@ const DemoDashboardLayout = () => {
             <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} isDemoMode />
             <div className="relative flex flex-1 flex-col overflow-hidden">
                 <header
-                    className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-200 bg-white px-3 py-3 shadow-sm xl:hidden"
+                    className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-200 bg-white px-3 py-3 shadow-sm"
                     style={{
+                        display: isDesktop ? 'none' : undefined,
                         paddingTop: 'calc(env(safe-area-inset-top) + 0.75rem)',
                         paddingBottom: 'calc(env(safe-area-inset-bottom) + 0.5rem)'
                     }}
@@ -315,11 +321,16 @@ const DemoDashboardLayout = () => {
 // empty state + one example listing without making real API calls.
 const BlueprintDashboardLayout = () => {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const [isDesktop, setIsDesktop] = useState(() => window.innerWidth >= 1280);
     const location = useLocation();
     const pageTitle = resolveDashboardPageTitle(location.pathname);
 
     useEffect(() => {
-        const handleResize = () => { if (window.innerWidth < 1280) setIsSidebarOpen(false); };
+        const handleResize = () => {
+            const desktop = window.innerWidth >= 1280;
+            setIsDesktop(desktop);
+            if (!desktop) setIsSidebarOpen(false);
+        };
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
     }, []);
@@ -329,8 +340,9 @@ const BlueprintDashboardLayout = () => {
             <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} isBlueprintMode />
             <div className="relative flex flex-1 flex-col overflow-hidden">
                 <header
-                    className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-200 bg-white px-3 py-3 shadow-sm xl:hidden"
+                    className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-200 bg-white px-3 py-3 shadow-sm"
                     style={{
+                        display: isDesktop ? 'none' : undefined,
                         paddingTop: 'calc(env(safe-area-inset-top) + 0.75rem)',
                         paddingBottom: 'calc(env(safe-area-inset-bottom) + 0.5rem)'
                     }}
@@ -358,13 +370,13 @@ const ProtectedDashboardLayout: React.FC = () => {
     const ctx = React.useContext(DashboardLayoutContext)!;
     const { user, isSidebarOpen, setIsSidebarOpen } = ctx;
     const location = useLocation();
+    const [isDesktop, setIsDesktop] = useState(() => window.innerWidth >= 1280);
 
-    // Auto-close sidebar when viewport shrinks below xl breakpoint (1280px)
     useEffect(() => {
         const handleResize = () => {
-            if (window.innerWidth < 1280) {
-                setIsSidebarOpen(false);
-            }
+            const desktop = window.innerWidth >= 1280;
+            setIsDesktop(desktop);
+            if (!desktop) setIsSidebarOpen(false);
         };
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
@@ -374,10 +386,11 @@ const ProtectedDashboardLayout: React.FC = () => {
         <div className="flex h-screen bg-slate-50 relative">
             <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
             <div className="flex-1 flex flex-col overflow-hidden relative">
-                {/* Mobile Header */}
+                {/* Mobile Header — hidden on desktop via JS state */}
                 <header
-                    className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-200 bg-white px-3 py-3 shadow-sm xl:hidden"
+                    className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-200 bg-white px-3 py-3 shadow-sm"
                     style={{
+                        display: isDesktop ? 'none' : undefined,
                         paddingTop: 'calc(env(safe-area-inset-top) + 0.75rem)',
                         paddingBottom: 'calc(env(safe-area-inset-bottom) + 0.5rem)'
                     }}
@@ -398,7 +411,7 @@ const ProtectedDashboardLayout: React.FC = () => {
                 </header>
 
                 {/* Desktop Notification Bell (Absolute Top-Right) */}
-                <div className="absolute right-8 top-6 z-50 hidden xl:block">
+                <div className="absolute right-8 top-6 z-50" style={{ display: isDesktop ? undefined : 'none' }}>
                     {user && <NotificationSystem userId={user.uid} />}
                 </div>
 
