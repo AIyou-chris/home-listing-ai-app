@@ -7183,8 +7183,8 @@ const loadAgentOnboardingRow = async (agentId) => {
       .limit(1)
       .maybeSingle();
 
-  const extendedColumns = 'id, auth_user_id, first_name, last_name, email, phone, metadata, onboarding_completed, onboarding_step, onboarding_checklist';
-  const fallbackColumns = 'id, auth_user_id, first_name, last_name, email, phone, metadata';
+  const extendedColumns = 'id, auth_user_id, first_name, last_name, email, phone, metadata, onboarding_completed, onboarding_step, onboarding_checklist, account_type';
+  const fallbackColumns = 'id, auth_user_id, first_name, last_name, email, phone, metadata, account_type';
 
   let result = await baseFilter(supabaseAdmin.from('agents').select(extendedColumns));
   let hasOnboardingColumns = true;
@@ -7225,6 +7225,7 @@ const buildOnboardingResponse = ({ agentRow, hasOnboardingColumns, billingSnapsh
     brand_profile: resolveOnboardingBrandProfile(agentRow),
     plan_id: planId,
     is_pro: planId === 'pro',
+    account_type: agentRow?.account_type || 'realtor',
     progress: {
       completed_items: ONBOARDING_REQUIRED_KEYS.filter((key) => Boolean(checklist[key])).length,
       total_items: ONBOARDING_REQUIRED_KEYS.length
@@ -30743,6 +30744,106 @@ app.get('/api/public/listing/:listingId/lo-chatbot', async (req, res) => {
   } catch (err) {
     console.error('[LO Chatbot Public Info] Error:', err);
     res.json({ enabled: false });
+  }
+});
+
+// POST /api/lo/chatbot/extract-url — scrape a URL and return plain text (auth required)
+app.post('/api/lo/chatbot/extract-url', async (req, res) => {
+  try {
+    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!agentId) return res.status(401).json({ error: 'unauthorized' });
+
+    const { url } = req.body;
+    if (!url || typeof url !== 'string') return res.status(400).json({ error: 'url_required' });
+
+    let fetchUrl = url.trim();
+    if (!/^https?:\/\//i.test(fetchUrl)) fetchUrl = `https://${fetchUrl}`;
+
+    const cheerio = require('cheerio');
+    const response = await fetch(fetchUrl, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; HomeListingAI/1.0)' },
+      signal: AbortSignal.timeout(10000)
+    });
+
+    if (!response.ok) {
+      return res.status(422).json({ error: `fetch_failed_${response.status}`, message: `Could not fetch the page (HTTP ${response.status})` });
+    }
+
+    const html = await response.text();
+    const $ = cheerio.load(html);
+
+    // Remove noise
+    $('script, style, nav, footer, header, noscript, iframe, svg, [aria-hidden="true"]').remove();
+
+    // Extract meaningful text
+    const title = $('title').text().trim();
+    const metaDesc = $('meta[name="description"]').attr('content') || '';
+    const bodyText = $('body').text()
+      .replace(/\s{2,}/g, ' ')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim()
+      .slice(0, 12000); // cap at 12k chars
+
+    const extracted = [
+      title ? `Page: ${title}` : '',
+      metaDesc ? `Summary: ${metaDesc}` : '',
+      bodyText
+    ].filter(Boolean).join('\n\n');
+
+    res.json({ text: extracted, chars: extracted.length, url: fetchUrl });
+  } catch (err) {
+    const msg = err?.message || String(err);
+    console.error('[LO Chatbot extract-url]', msg);
+    if (msg.includes('TimeoutError') || msg.includes('timeout')) {
+      return res.status(422).json({ error: 'timeout', message: 'The page took too long to load.' });
+    }
+    res.status(500).json({ error: 'extract_failed', message: 'Could not extract content from that URL.' });
+  }
+});
+
+// POST /api/lo/chatbot/extract-file — extract text from uploaded PDF or TXT (auth required)
+const chatbotFileUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const allowed = ['application/pdf', 'text/plain', 'text/csv'];
+    if (allowed.includes(file.mimetype) || file.originalname.endsWith('.txt') || file.originalname.endsWith('.pdf') || file.originalname.endsWith('.csv')) {
+      cb(null, true);
+    } else {
+      cb(new Error('unsupported_file_type'));
+    }
+  }
+});
+
+app.post('/api/lo/chatbot/extract-file', chatbotFileUpload.single('file'), async (req, res) => {
+  try {
+    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!agentId) return res.status(401).json({ error: 'unauthorized' });
+
+    if (!req.file) return res.status(400).json({ error: 'no_file' });
+
+    const { mimetype, originalname, buffer } = req.file;
+    let text = '';
+
+    if (mimetype === 'application/pdf' || originalname.toLowerCase().endsWith('.pdf')) {
+      const pdfParse = require('pdf-parse');
+      const parsed = await pdfParse(buffer);
+      text = parsed.text || '';
+    } else {
+      // TXT / CSV — just decode as UTF-8
+      text = buffer.toString('utf-8');
+    }
+
+    text = text
+      .replace(/\r\n/g, '\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim()
+      .slice(0, 20000); // cap at 20k chars
+
+    res.json({ text, chars: text.length, filename: originalname });
+  } catch (err) {
+    console.error('[LO Chatbot extract-file]', err?.message || err);
+    res.status(500).json({ error: 'extract_failed', message: 'Could not extract text from that file.' });
   }
 });
 

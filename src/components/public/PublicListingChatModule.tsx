@@ -39,7 +39,34 @@ interface ChatMessage {
   sender: ChatSender;
   text: string;
   created_at: string;
+  bot_type?: 'listing' | 'financing';
 }
+
+interface LOChatbotInfo {
+  enabled: boolean;
+  lo_agent_id?: string;
+  bot_name?: string;
+  greeting?: string;
+  lo_name?: string;
+  lo_photo?: string | null;
+}
+
+// ─── Financing question detector ──────────────────────────────────────────────
+const FINANCING_KEYWORDS = [
+  'rate', 'rates', 'mortgage', 'loan', 'monthly payment', 'payment',
+  'down payment', 'down', 'interest', 'qualify', 'qualification',
+  'credit score', 'credit', 'pre-approval', 'preapproval', 'pre-qualify',
+  'prequalify', 'fha', 'va loan', 'va ', 'conventional', 'usda', 'dti',
+  'pmi', 'closing cost', 'apr', 'refinance', 'lender', 'finance',
+  'financing', 'afford', 'income', 'debt', '% down', 'points', 'jumbo',
+  'arm loan', 'fixed rate', '30 year', '15 year', 'escrow', 'underwriting',
+  'how much can i borrow', 'how much do i need', 'can i qualify'
+];
+
+const isFinancingQuestion = (text: string): boolean => {
+  const lower = text.toLowerCase();
+  return FINANCING_KEYWORDS.some((kw) => lower.includes(kw));
+};
 
 interface PublicListingChatModuleProps {
   property: Property;
@@ -68,6 +95,12 @@ const DEFAULT_SUGGESTED = [
   'Is it still available?',
   'Can I see it this weekend?',
   'Any HOA or monthly cost?'
+];
+
+const FINANCING_SUGGESTED = [
+  "What's the monthly payment?",
+  'How much do I need down?',
+  'Can I qualify with less-than-perfect credit?'
 ];
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
@@ -169,6 +202,10 @@ const PublicListingChatModule: React.FC<PublicListingChatModuleProps> = ({
   const [voiceTranscript, setVoiceTranscript] = useState('');
   const [voiceError, setVoiceError] = useState<string | null>(null);
 
+  // LO smart routing state
+  const [loInfo, setLoInfo] = useState<LOChatbotInfo | null>(null);
+  const loHistoryRef = useRef<{ role: string; text: string }[]>([]);
+
   const transcriptRef = useRef<HTMLDivElement | null>(null);
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
 
@@ -178,6 +215,16 @@ const PublicListingChatModule: React.FC<PublicListingChatModuleProps> = ({
     setLeadCaptured(false);
     setUseLocalFallback(Boolean(demoMode));
     setError(null);
+    setLoInfo(null);
+    loHistoryRef.current = [];
+
+    // Fetch LO chatbot info for smart routing
+    if (!demoMode && property.id) {
+      fetch(buildApiUrl(`/api/public/listing/${encodeURIComponent(property.id)}/lo-chatbot`))
+        .then((r) => r.json())
+        .then((data: LOChatbotInfo) => setLoInfo(data.enabled ? data : null))
+        .catch(() => setLoInfo(null));
+    }
   }, [demoMode, property.id]);
 
   useEffect(() => {
@@ -356,12 +403,64 @@ const PublicListingChatModule: React.FC<PublicListingChatModuleProps> = ({
     setCaptureRequired(false);
     setError(null);
     setActiveTab('chat');
-    pushMessage('visitor', clean);
     setLoading(true);
 
+    // Add visitor message
+    setMessages((prev) => [
+      ...prev,
+      { id: `visitor_${Date.now()}`, sender: 'visitor', text: clean, created_at: new Date().toISOString() }
+    ]);
+
+    // ── Smart routing: financing question + LO bot available ──────────────
+    if (loInfo?.enabled && loInfo.lo_agent_id && isFinancingQuestion(clean)) {
+      try {
+        const history = loHistoryRef.current.slice(-8);
+        const res = await fetch(buildApiUrl('/api/public/lo-chat'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            listing_id: property.id,
+            lo_agent_id: loInfo.lo_agent_id,
+            message: clean,
+            history
+          })
+        });
+        const payload = await res.json().catch(() => ({}));
+        const reply = String(payload.reply || 'Please contact the loan officer directly for financing details.');
+
+        // Track LO conversation history
+        loHistoryRef.current = [...loHistoryRef.current, { role: 'visitor', text: clean }, { role: 'bot', text: reply }];
+
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `lo_${Date.now()}`,
+            sender: 'ai',
+            text: reply,
+            created_at: new Date().toISOString(),
+            bot_type: 'financing'
+          }
+        ]);
+        // Rotate in financing-related suggestions
+        setSuggestedQuestions(FINANCING_SUGGESTED.filter((q) => q.toLowerCase() !== clean.toLowerCase()));
+      } catch (_loError) {
+        setMessages((prev) => [
+          ...prev,
+          { id: `ai_${Date.now()}`, sender: 'ai', text: 'Contact the loan officer directly for financing details.', created_at: new Date().toISOString(), bot_type: 'financing' }
+        ]);
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    // ── Standard listing bot path ─────────────────────────────────────────
     if (useLocalFallback || !conversationId || !visitorId) {
       await new Promise((resolve) => window.setTimeout(resolve, 480));
-      pushMessage('ai', buildFallbackResponse(clean, property));
+      setMessages((prev) => [
+        ...prev,
+        { id: `ai_${Date.now()}`, sender: 'ai', text: buildFallbackResponse(clean, property), created_at: new Date().toISOString(), bot_type: 'listing' }
+      ]);
       setLoading(false);
       return;
     }
@@ -383,20 +482,21 @@ const PublicListingChatModule: React.FC<PublicListingChatModuleProps> = ({
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
         if (response.status === 429) {
-          pushMessage('ai', 'Try again in a moment.');
+          setMessages((prev) => [...prev, { id: `ai_${Date.now()}`, sender: 'ai', text: 'Try again in a moment.', created_at: new Date().toISOString() }]);
           setLoading(false);
           return;
         }
         throw new Error(String(payload.error || 'failed_to_send_message'));
       }
 
-      pushMessage('ai', String(payload.ai_text || 'I can help with this home.'));
+      setMessages((prev) => [
+        ...prev,
+        { id: `ai_${Date.now()}`, sender: 'ai', text: String(payload.ai_text || 'I can help with this home.'), created_at: new Date().toISOString(), bot_type: 'listing' }
+      ]);
       const shouldCapture = Boolean(payload.capture_required) && !leadCaptured;
       setCaptureRequired(shouldCapture);
       if (shouldCapture) {
-        setCapturePrompt(
-          String(payload.capture_prompt || "Want the 1-page report + showing options? What's the best email or phone for follow-up?")
-        );
+        setCapturePrompt(String(payload.capture_prompt || "Want the 1-page report + showing options? What's the best email or phone for follow-up?"));
       }
       if (Array.isArray(payload.suggested_questions) && payload.suggested_questions.length > 0) {
         setSuggestedQuestions(payload.suggested_questions.map((value: unknown) => String(value)));
@@ -404,7 +504,7 @@ const PublicListingChatModule: React.FC<PublicListingChatModuleProps> = ({
     } catch (_sendError) {
       setError('Live assistant failed to respond. I can still answer basic listing questions now.');
       setUseLocalFallback(true);
-      pushMessage('ai', buildFallbackResponse(clean, property));
+      setMessages((prev) => [...prev, { id: `ai_${Date.now()}`, sender: 'ai', text: buildFallbackResponse(clean, property), created_at: new Date().toISOString() }]);
     } finally {
       setLoading(false);
     }
@@ -578,7 +678,14 @@ const PublicListingChatModule: React.FC<PublicListingChatModuleProps> = ({
             <header className="bg-gradient-to-r from-slate-900 via-indigo-700 to-blue-600 px-4 py-4 text-white">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-sm font-bold">Talk to the Home</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-bold">Talk to the Home</p>
+                    {loInfo?.enabled && (
+                      <span className="rounded-full bg-emerald-500/25 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-200">
+                        + Financing
+                      </span>
+                    )}
+                  </div>
                   <p className="truncate text-xs text-blue-100">{property.address || 'Listing assistant'}</p>
                 </div>
                 <button
@@ -620,15 +727,28 @@ const PublicListingChatModule: React.FC<PublicListingChatModuleProps> = ({
                       key={message.id}
                       className={`flex ${message.sender === 'visitor' ? 'justify-end' : 'justify-start'}`}
                     >
-                      <div
-                        className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm ${
-                          message.sender === 'visitor'
-                            ? 'rounded-br-sm bg-slate-900 text-white'
-                            : 'rounded-tl-sm bg-white text-slate-800 shadow-sm border border-slate-200'
-                        }`}
-                      >
-                        <p>{message.text}</p>
-                        <span className="mt-1 block text-[10px] opacity-70">{formatRelativeTime(message.created_at)}</span>
+                      <div className="max-w-[85%]">
+                        {/* Financing badge above bubble */}
+                        {message.sender === 'ai' && message.bot_type === 'financing' && loInfo && (
+                          <div className="mb-1 flex items-center gap-1">
+                            <span className="text-[10px]">💰</span>
+                            <span className="text-[10px] font-semibold text-emerald-600">
+                              {loInfo.lo_name || loInfo.bot_name || 'Loan Officer'}
+                            </span>
+                          </div>
+                        )}
+                        <div
+                          className={`rounded-2xl px-3 py-2 text-sm ${
+                            message.sender === 'visitor'
+                              ? 'rounded-br-sm bg-slate-900 text-white'
+                              : message.bot_type === 'financing'
+                                ? 'rounded-tl-sm border border-emerald-200 bg-emerald-50 text-slate-800 shadow-sm'
+                                : 'rounded-tl-sm border border-slate-200 bg-white text-slate-800 shadow-sm'
+                          }`}
+                        >
+                          <p>{message.text}</p>
+                          <span className="mt-1 block text-[10px] opacity-70">{formatRelativeTime(message.created_at)}</span>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -677,6 +797,15 @@ const PublicListingChatModule: React.FC<PublicListingChatModuleProps> = ({
                         className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700 transition hover:bg-slate-200"
                       >
                         {question}
+                      </button>
+                    ))}
+                    {loInfo?.enabled && messages.length <= 1 && FINANCING_SUGGESTED.slice(0, 1).map((question) => (
+                      <button
+                        key={question}
+                        onClick={() => void sendMessage(question)}
+                        className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700 transition hover:bg-emerald-100"
+                      >
+                        💰 {question}
                       </button>
                     ))}
                   </div>
