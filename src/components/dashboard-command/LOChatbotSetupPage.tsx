@@ -28,6 +28,226 @@ interface ChatbotConfig {
   is_active: boolean;
 }
 
+// ─── Knowledge Base Section ───────────────────────────────────────────────────
+
+type KbTab = 'text' | 'file' | 'url';
+
+const KnowledgeBaseSection: React.FC<{
+  value: string;
+  onChange: (text: string) => void;
+  getHeaders: () => Promise<HeadersInit>;
+}> = ({ value, onChange, getHeaders }) => {
+  const [tab, setTab] = useState<KbTab>('text');
+  const [urlInput, setUrlInput] = useState('');
+  const [scanning, setScanning] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const appendText = (newText: string) => {
+    const trimmed = newText.trim();
+    if (!trimmed) return;
+    onChange(value ? `${value}\n\n---\n\n${trimmed}` : trimmed);
+    toast.success('Added to knowledge base');
+  };
+
+  const scanUrl = async () => {
+    const url = urlInput.trim();
+    if (!url) return;
+    setScanning(true);
+    try {
+      const headers = await getHeaders();
+      const res = await fetch(buildApiUrl('/api/lo/chatbot/extract-url'), {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ url })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to scan');
+      appendText(`[From: ${url}]\n${data.text}`);
+      setUrlInput('');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Could not scan that URL');
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  const uploadFile = async (file: File) => {
+    setUploading(true);
+    try {
+      const headers = await getHeaders();
+      // Remove Content-Type so browser sets multipart boundary
+      const headerEntries = Object.entries(headers as Record<string, string>).filter(([k]) => k.toLowerCase() !== 'content-type');
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch(buildApiUrl('/api/lo/chatbot/extract-file'), {
+        method: 'POST',
+        headers: Object.fromEntries(headerEntries),
+        body: formData
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to extract file');
+      appendText(`[From: ${file.name}]\n${data.text}`);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Could not read that file');
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  };
+
+  const TABS: { id: KbTab; label: string; icon: string }[] = [
+    { id: 'text', label: 'Paste Text', icon: 'edit_note' },
+    { id: 'file', label: 'Upload File', icon: 'upload_file' },
+    { id: 'url', label: 'Scan Website', icon: 'travel_explore' }
+  ];
+
+  return (
+    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <h2 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-slate-500">
+        <span className="material-symbols-outlined text-base text-emerald-500">library_books</span>
+        Knowledge Base
+      </h2>
+
+      {/* Tabs */}
+      <div className="mb-4 inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1">
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+              tab === t.id
+                ? 'bg-white text-slate-900 shadow-sm'
+                : 'text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <span className="material-symbols-outlined text-sm">{t.icon}</span>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Paste Text */}
+      {tab === 'text' && (
+        <div>
+          <textarea
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder="Paste your rate sheet, loan programs, down payment assistance info, or any other content you want the bot to reference..."
+            rows={8}
+            className="w-full resize-none rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-primary-400 focus:ring-1 focus:ring-primary-100"
+          />
+          <p className="mt-1 text-xs text-slate-400">
+            Paste rate sheets, program details, eligibility — anything you want the bot to know.
+          </p>
+        </div>
+      )}
+
+      {/* Upload File */}
+      {tab === 'file' && (
+        <div>
+          <div
+            onClick={() => fileRef.current?.click()}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              e.preventDefault();
+              const file = e.dataTransfer.files[0];
+              if (file) void uploadFile(file);
+            }}
+            className="flex cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 px-6 py-10 transition hover:border-emerald-400 hover:bg-emerald-50"
+          >
+            {uploading ? (
+              <>
+                <span className="material-symbols-outlined animate-spin text-3xl text-emerald-500">progress_activity</span>
+                <p className="text-sm font-medium text-slate-600">Extracting text...</p>
+              </>
+            ) : (
+              <>
+                <span className="material-symbols-outlined text-3xl text-slate-400">upload_file</span>
+                <div className="text-center">
+                  <p className="text-sm font-semibold text-slate-700">Drop a file here or click to browse</p>
+                  <p className="mt-1 text-xs text-slate-400">Supports PDF, TXT, CSV — up to 10MB</p>
+                </div>
+              </>
+            )}
+          </div>
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".pdf,.txt,.csv"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) void uploadFile(file);
+            }}
+          />
+          {value && (
+            <p className="mt-2 text-xs text-emerald-600">
+              ✓ {value.length.toLocaleString()} characters in knowledge base
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Scan Website */}
+      {tab === 'url' && (
+        <div className="space-y-3">
+          <div className="flex gap-2">
+            <input
+              value={urlInput}
+              onChange={(e) => setUrlInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void scanUrl(); } }}
+              placeholder="https://yoursite.com/loan-programs"
+              className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-emerald-400 focus:ring-1 focus:ring-emerald-100"
+            />
+            <button
+              onClick={() => void scanUrl()}
+              disabled={scanning || !urlInput.trim()}
+              className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
+            >
+              {scanning ? (
+                <span className="material-symbols-outlined animate-spin text-sm">progress_activity</span>
+              ) : (
+                <span className="material-symbols-outlined text-sm">travel_explore</span>
+              )}
+              {scanning ? 'Scanning...' : 'Scan'}
+            </button>
+          </div>
+          <p className="text-xs text-slate-400">
+            Enter a URL and we'll extract the text content — great for loan program pages, rate sheets, or your company bio.
+          </p>
+          {value && (
+            <p className="text-xs text-emerald-600">
+              ✓ {value.length.toLocaleString()} characters in knowledge base
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Current KB preview (shown when not in text mode) */}
+      {tab !== 'text' && value && (
+        <div className="mt-4">
+          <div className="flex items-center justify-between mb-1.5">
+            <p className="text-xs font-semibold text-slate-500">Current Knowledge Base</p>
+            <button
+              onClick={() => { if (window.confirm('Clear the entire knowledge base?')) onChange(''); }}
+              className="text-xs text-rose-500 hover:underline"
+            >
+              Clear all
+            </button>
+          </div>
+          <textarea
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            rows={5}
+            className="w-full resize-none rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 outline-none transition focus:border-slate-300"
+          />
+        </div>
+      )}
+    </section>
+  );
+};
+
 // ─── Preview ─────────────────────────────────────────────────────────────────
 
 const BotPreview: React.FC<{ config: ChatbotConfig }> = ({ config }) => {
@@ -296,22 +516,11 @@ const LOChatbotSetupPage: React.FC = () => {
           </section>
 
           {/* Knowledge Base */}
-          <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-slate-500">
-              <span className="material-symbols-outlined text-base text-emerald-500">library_books</span>
-              Knowledge Base
-            </h2>
-            <textarea
-              value={config.knowledge_base}
-              onChange={(e) => setConfig((c) => ({ ...c, knowledge_base: e.target.value }))}
-              placeholder="Paste your rate sheet, loan programs, down payment assistance info, or any other content you want the bot to reference..."
-              rows={8}
-              className="w-full resize-none rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-primary-400 focus:ring-1 focus:ring-primary-100"
-            />
-            <p className="mt-1 text-xs text-slate-400">
-              Paste rate sheets, program details, eligibility criteria — anything you want the bot to know. Plain text works best.
-            </p>
-          </section>
+          <KnowledgeBaseSection
+            value={config.knowledge_base}
+            onChange={(text) => setConfig((c) => ({ ...c, knowledge_base: text }))}
+            getHeaders={getApiHeaders}
+          />
 
           {/* FAQ */}
           <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
