@@ -7092,6 +7092,23 @@ const resolveLoAgentId = async (req) => {
   return agentRow?.id || null;
 };
 
+// ─── Office identity resolver ─────────────────────────────────────────────────
+// An "office" is an agents row with account_type='office'. LOs link to it via
+// agents.office_id. Returns { officeId, agent } or null if the requester is not
+// an office account.
+const resolveOfficeContext = async (req) => {
+  const authId = await resolveRequesterUserId(req, { allowDefault: false });
+  if (!authId) return null;
+  const { data: agentRow } = await supabaseAdmin
+    .from('agents')
+    .select('id, first_name, last_name, company, email, account_type')
+    .or(`id.eq.${authId},auth_user_id.eq.${authId}`)
+    .limit(1)
+    .maybeSingle();
+  if (!agentRow || agentRow.account_type !== 'office') return null;
+  return { officeId: agentRow.id, agent: agentRow };
+};
+
 const isIgnorableCleanupError = (error) =>
   error?.code === '42P01' || // undefined table
   error?.code === 'PGRST205' || // table missing in API schema cache
@@ -30553,6 +30570,190 @@ app.get('/api/public/listing-dashboard/:token', async (req, res) => {
     });
   } catch (err) {
     console.error('[ListingDashboard] Failed:', err);
+    res.status(500).json({ error: 'server_error' });
+  }
+});
+
+// ═══ #17 OFFICE TIER ══════════════════════════════════════════════════════════
+
+// POST /api/office/invite-lo — office invites a loan officer by email
+app.post('/api/office/invite-lo', async (req, res) => {
+  try {
+    const ctx = await resolveOfficeContext(req);
+    if (!ctx) return res.status(403).json({ error: 'office_account_required' });
+    const { email, name } = req.body || {};
+    if (!email || !email.includes('@')) return res.status(400).json({ error: 'valid_email_required' });
+    const emailLower = email.trim().toLowerCase();
+
+    // Reuse an unclaimed invite if one exists
+    const { data: existing } = await supabaseAdmin
+      .from('office_lo_invites')
+      .select('id, token, claimed_at')
+      .eq('office_id', ctx.officeId).eq('invited_email', emailLower)
+      .order('created_at', { ascending: false }).limit(1).maybeSingle();
+    let token;
+    if (existing && !existing.claimed_at) {
+      token = existing.token;
+    } else {
+      const { data: created, error: cErr } = await supabaseAdmin
+        .from('office_lo_invites')
+        .insert({ office_id: ctx.officeId, invited_email: emailLower, invited_name: name || null })
+        .select('token').single();
+      if (cErr || !created) throw cErr || new Error('invite_create_failed');
+      token = created.token;
+    }
+    const appBase = (process.env.APP_BASE_URL || process.env.DASHBOARD_BASE_URL || 'https://homelistingai.com').replace(/\/$/, '');
+    const link = `${appBase}/office-invite/${token}`;
+    const officeName = ctx.agent.company || [ctx.agent.first_name, ctx.agent.last_name].filter(Boolean).join(' ') || 'Your Office';
+    const html = `
+<!DOCTYPE html><html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#1e293b;">
+<div style="background:linear-gradient(135deg,#0f172a,#1e3a5f);border-radius:16px;padding:30px;text-align:center;margin-bottom:24px;">
+  <h1 style="color:#fff;margin:0;font-size:22px;">${officeName} added you to their team</h1>
+</div>
+<p style="font-size:15px;color:#475569;line-height:1.6;">Hi${name ? ` ${name}` : ''}, you've been invited to join <strong>${officeName}</strong> on HomeListingAI as a loan officer. Claim your account to get your AI financing assistant, agent partnerships, and warm-lead dashboard.</p>
+<div style="text-align:center;margin:30px 0;">
+  <a href="${link}" style="background:#2563eb;color:#fff;text-decoration:none;padding:15px 34px;border-radius:12px;font-weight:700;font-size:15px;display:inline-block;">Claim Your Account →</a>
+</div>
+<p style="font-size:12px;color:#94a3b8;text-align:center;">Link expires in 30 days</p>
+</body></html>`;
+    try { await emailService.sendEmail({ to: emailLower, subject: `${officeName} invited you to HomeListingAI`, html }); }
+    catch (e) { console.warn('[OfficeInvite] email failed (non-fatal):', e?.message); }
+    res.json({ success: true, link });
+  } catch (err) {
+    console.error('[OfficeInviteLO] Failed:', err);
+    res.status(500).json({ error: 'invite_failed' });
+  }
+});
+
+// GET /api/public/office-invite/:token — invite info for the claim page (no auth)
+app.get('/api/public/office-invite/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { data: invite } = await supabaseAdmin
+      .from('office_lo_invites')
+      .select('id, invited_email, invited_name, claimed_at, expires_at, office_id')
+      .eq('token', token).maybeSingle();
+    if (!invite) return res.status(404).json({ error: 'invite_not_found' });
+    if (invite.expires_at && new Date(invite.expires_at) < new Date()) return res.status(410).json({ error: 'invite_expired' });
+    const { data: office } = await supabaseAdmin
+      .from('agents').select('first_name, last_name, company, headshot_url')
+      .eq('id', invite.office_id).maybeSingle();
+    const officeName = office?.company || [office?.first_name, office?.last_name].filter(Boolean).join(' ') || 'Your Office';
+    res.json({
+      success: true,
+      claimed: !!invite.claimed_at,
+      email: invite.invited_email,
+      name: invite.invited_name || null,
+      office: { name: officeName, headshotUrl: office?.headshot_url || null }
+    });
+  } catch (err) {
+    console.error('[OfficeInvite GET] Failed:', err);
+    res.status(500).json({ error: 'server_error' });
+  }
+});
+
+// POST /api/public/office-invite/:token/claim — create LO account linked to office
+app.post('/api/public/office-invite/:token/claim', async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { password, first_name, last_name } = req.body || {};
+    if (!password || password.length < 8) return res.status(400).json({ error: 'password_min_8' });
+    const { data: invite } = await supabaseAdmin
+      .from('office_lo_invites')
+      .select('id, invited_email, invited_name, claimed_at, expires_at, office_id')
+      .eq('token', token).maybeSingle();
+    if (!invite) return res.status(404).json({ error: 'invalid_token' });
+    if (invite.claimed_at) return res.status(409).json({ error: 'already_claimed' });
+    if (invite.expires_at && new Date(invite.expires_at) < new Date()) return res.status(410).json({ error: 'token_expired' });
+
+    const fn = (first_name || invite.invited_name || '').trim().split(/\s+/)[0] || 'Loan';
+    const ln = (last_name || (invite.invited_name || '').trim().split(/\s+/).slice(1).join(' ')) || 'Officer';
+
+    const { data: authData, error: authErr } = await supabaseAdmin.auth.admin.createUser({
+      email: invite.invited_email, password, email_confirm: true,
+      user_metadata: { first_name: fn, last_name: ln }
+    });
+    if (authErr) {
+      if (authErr.message?.includes('already')) return res.status(409).json({ error: 'email_already_registered' });
+      throw authErr;
+    }
+    const authUserId = authData.user.id;
+    const { data: agentRecord, error: agErr } = await supabaseAdmin
+      .from('agents')
+      .insert({
+        auth_user_id: authUserId, email: invite.invited_email,
+        first_name: fn, last_name: ln, account_type: 'lo',
+        office_id: invite.office_id, onboarding_completed: true,
+        referral_code: Math.random().toString(36).slice(2, 10)
+      })
+      .select('id').single();
+    if (agErr || !agentRecord) throw agErr || new Error('agent_create_failed');
+
+    await supabaseAdmin.from('office_lo_invites')
+      .update({ claimed_at: nowIso(), claimed_agent_id: agentRecord.id })
+      .eq('id', invite.id);
+
+    res.json({ success: true, email: invite.invited_email });
+  } catch (err) {
+    console.error('[OfficeInvite claim] Failed:', err);
+    res.status(500).json({ error: 'claim_failed' });
+  }
+});
+
+// GET /api/office/overview — aggregate + per-LO performance
+app.get('/api/office/overview', async (req, res) => {
+  try {
+    const ctx = await resolveOfficeContext(req);
+    if (!ctx) return res.status(403).json({ error: 'office_account_required' });
+
+    const { data: los } = await supabaseAdmin
+      .from('agents')
+      .select('id, first_name, last_name, email, company, headshot_url, created_at')
+      .eq('office_id', ctx.officeId).eq('account_type', 'lo')
+      .order('created_at', { ascending: false });
+    const loList = los || [];
+    const loIds = loList.map(l => l.id);
+
+    // Pending invites
+    const { data: pending } = await supabaseAdmin
+      .from('office_lo_invites')
+      .select('id, invited_email, invited_name, created_at')
+      .eq('office_id', ctx.officeId).is('claimed_at', null).gt('expires_at', nowIso());
+
+    // Per-LO stats (partnerships, leads, listings)
+    const perLo = await Promise.all(loList.map(async (lo) => {
+      const [{ count: partnerships }, { count: leads }, { count: listings }] = await Promise.all([
+        supabaseAdmin.from('lo_agent_partnerships').select('id', { count: 'exact', head: true }).eq('lo_agent_id', lo.id).eq('status', 'active'),
+        supabaseAdmin.from('leads').select('id', { count: 'exact', head: true }).eq('lo_agent_id', lo.id),
+        supabaseAdmin.from('listing_lo_assignments').select('id', { count: 'exact', head: true }).eq('lo_agent_id', lo.id)
+      ]);
+      return {
+        id: lo.id,
+        name: [lo.first_name, lo.last_name].filter(Boolean).join(' ') || 'Loan Officer',
+        email: lo.email || null,
+        headshotUrl: lo.headshot_url || null,
+        joinedAt: lo.created_at,
+        partnerships: partnerships || 0,
+        leads: leads || 0,
+        listings: listings || 0
+      };
+    }));
+    perLo.sort((a, b) => b.leads - a.leads);
+
+    res.json({
+      success: true,
+      office: { name: ctx.agent.company || [ctx.agent.first_name, ctx.agent.last_name].filter(Boolean).join(' ') || 'Your Office' },
+      totals: {
+        loCount: loList.length,
+        partnerships: perLo.reduce((s, l) => s + l.partnerships, 0),
+        leads: perLo.reduce((s, l) => s + l.leads, 0),
+        listings: perLo.reduce((s, l) => s + l.listings, 0)
+      },
+      loanOfficers: perLo,
+      pendingInvites: (pending || []).map(p => ({ id: p.id, email: p.invited_email, name: p.invited_name, sentAt: p.created_at }))
+    });
+  } catch (err) {
+    console.error('[OfficeOverview] Failed:', err);
     res.status(500).json({ error: 'server_error' });
   }
 });
