@@ -126,10 +126,11 @@ interface Branding {
   brandColor: string
   logoUrl: string
   leadWebhookUrl: string
+  customDomain: string
 }
 
 const WhiteLabelCard: React.FC = () => {
-  const [b, setB] = useState<Branding>({ companyName: '', brandColor: '#2563eb', logoUrl: '', leadWebhookUrl: '' })
+  const [b, setB] = useState<Branding>({ companyName: '', brandColor: '#2563eb', logoUrl: '', leadWebhookUrl: '', customDomain: '' })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [testing, setTesting] = useState(false)
@@ -227,6 +228,15 @@ const WhiteLabelCard: React.FC = () => {
               {testing ? 'Testing…' : 'Send Test'}
             </button>
           </div>
+        </div>
+        <div className="md:col-span-2">
+          <label className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500">
+            Custom Domain <span className="font-normal text-slate-400">— your LOs' public pages load on your domain</span>
+          </label>
+          <input value={b.customDomain} onChange={e => setB({ ...b, customDomain: e.target.value })}
+            className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+            placeholder="app.summitmortgage.com" />
+          <p className="mt-1.5 text-[11px] text-slate-400">Point a CNAME at your host, then enter the hostname here. Changes take effect within minutes.</p>
         </div>
       </div>
 

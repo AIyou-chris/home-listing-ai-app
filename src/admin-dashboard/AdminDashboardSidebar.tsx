@@ -19,7 +19,8 @@ type DashboardView =
   | 'marketing-reports'
   | 'users'
   | 'broadcast'
-  | 'blog';
+  | 'blog'
+  | 'white-label';
 
 interface AdminDashboardSidebarProps {
   activeView: DashboardView;
@@ -71,6 +72,7 @@ const AdminDashboardSidebar: React.FC<AdminDashboardSidebarProps> = ({ activeVie
     { view: 'broadcast', icon: 'podium', label: 'Broadcasts' },
     { view: 'users', icon: 'people', label: 'Users' },
     { view: 'blog', icon: 'article', label: 'Blog' },
+    { view: 'white-label', icon: 'language', label: 'White Label' },
     { view: 'settings', icon: 'settings', label: 'Settings' }
   ];
 

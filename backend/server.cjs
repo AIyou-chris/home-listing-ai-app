@@ -421,6 +421,38 @@ app.get('/healthz', (_req, res) => {
 // Lock the entire admin surface behind admin auth by default.
 app.use('/api/admin', (req, res, next) => verifyAdmin(req, res, next));
 
+// ── #18 White Label: tenant resolution middleware ─────────────────────────────
+// Reads req.hostname, matches to an office account's custom_domain, attaches
+// req.tenantOffice = { officeId, companyName, brandColor, logoUrl } or null.
+// Runs on every request; is fast (single indexed query) and best-effort.
+app.use(async (req, res, next) => {
+  const hostname = req.hostname;
+  const appHostname = (process.env.APP_BASE_URL || '').replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+  if (!hostname || hostname === 'localhost' || hostname === appHostname) {
+    req.tenantOffice = null;
+    return next();
+  }
+  try {
+    const { data } = await supabaseAdmin
+      .from('agents')
+      .select('id, company, brand_color, brand_logo_url')
+      .eq('custom_domain', hostname)
+      .eq('account_type', 'office')
+      .maybeSingle();
+    req.tenantOffice = data
+      ? {
+          officeId: data.id,
+          companyName: data.company || null,
+          brandColor: (data.brand_color && /^#[0-9a-fA-F]{6}$/.test(data.brand_color)) ? data.brand_color : '#2563eb',
+          logoUrl: data.brand_logo_url || null
+        }
+      : null;
+  } catch {
+    req.tenantOffice = null;
+  }
+  next();
+});
+
 // URL SHORTENER & ANALYTICS (Supabase-based)
 // No local files anymore.
 
@@ -16456,6 +16488,54 @@ app.delete('/api/admin/users/:userId', verifyAdmin, async (req, res) => {
   }
 });
 
+// ── #18 White Label: admin domain assignment ──────────────────────────────────
+
+// GET /api/admin/white-label/offices — list all office accounts with brand + domain info
+app.get('/api/admin/white-label/offices', verifyAdmin, async (req, res) => {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('agents')
+      .select('id, company, first_name, last_name, email, brand_color, brand_logo_url, custom_domain, created_at')
+      .eq('account_type', 'office')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    res.json({
+      success: true,
+      offices: (data || []).map(o => ({
+        id: o.id,
+        name: o.company || [o.first_name, o.last_name].filter(Boolean).join(' ') || 'Unnamed Office',
+        email: o.email || null,
+        brandColor: o.brand_color || null,
+        logoUrl: o.brand_logo_url || null,
+        customDomain: o.custom_domain || null,
+        createdAt: o.created_at
+      }))
+    });
+  } catch (err) {
+    console.error('[AdminWhiteLabel] Failed to list offices:', err);
+    res.status(500).json({ error: 'server_error' });
+  }
+});
+
+// PUT /api/admin/white-label/offices/:officeId/domain — set or clear custom domain for an office
+app.put('/api/admin/white-label/offices/:officeId/domain', verifyAdmin, async (req, res) => {
+  try {
+    const { officeId } = req.params;
+    const { customDomain } = req.body || {};
+    const domain = customDomain ? String(customDomain).trim().toLowerCase().replace(/^https?:\/\//, '') : null;
+    const { error } = await supabaseAdmin
+      .from('agents')
+      .update({ custom_domain: domain || null, updated_at: nowIso() })
+      .eq('id', officeId)
+      .eq('account_type', 'office');
+    if (error) throw error;
+    res.json({ success: true, customDomain: domain || null });
+  } catch (err) {
+    console.error('[AdminWhiteLabel] Failed to set domain:', err);
+    res.status(500).json({ error: 'save_failed' });
+  }
+});
+
 // SPECIAL CLEANUP ENDPOINT FOR ORPHANED AGENTS
 app.delete('/api/setup/reset-agent/:identifier', async (req, res) => {
   try {
@@ -18885,6 +18965,35 @@ const sendPublicListingBySlug = async (req, res) => {
     return res.status(500).json({ error: 'failed_to_load_public_listing' });
   }
 };
+
+// GET /api/public/tenant — resolve white-label brand by hostname (pre-auth, no credentials needed).
+// Used by the frontend on boot to show the right logo/color on the login page.
+app.get('/api/public/tenant', async (req, res) => {
+  const hostname = (req.query.hostname || req.hostname || '').toString().trim().toLowerCase();
+  if (!hostname || hostname === 'localhost') {
+    return res.json({ tenant: null });
+  }
+  try {
+    const { data } = await supabaseAdmin
+      .from('agents')
+      .select('id, company, brand_color, brand_logo_url')
+      .eq('custom_domain', hostname)
+      .eq('account_type', 'office')
+      .maybeSingle();
+    if (!data) return res.json({ tenant: null });
+    res.json({
+      tenant: {
+        officeId: data.id,
+        companyName: data.company || null,
+        brandColor: (data.brand_color && /^#[0-9a-fA-F]{6}$/.test(data.brand_color)) ? data.brand_color : '#2563eb',
+        logoUrl: data.brand_logo_url || null
+      }
+    });
+  } catch (err) {
+    console.error('[PublicTenant] Failed:', err);
+    res.status(500).json({ error: 'server_error' });
+  }
+});
 
 app.get('/api/public/listings/:public_slug/bootstrap', async (req, res) => {
   try {
@@ -30776,7 +30885,7 @@ app.get('/api/office/branding', requireOffice, async (req, res) => {
     const ctx = req.officeCtx;
     const { data } = await supabaseAdmin
       .from('agents')
-      .select('company, brand_color, brand_logo_url, lead_webhook_url')
+      .select('company, brand_color, brand_logo_url, lead_webhook_url, custom_domain')
       .eq('id', ctx.officeId).maybeSingle();
     res.json({
       success: true,
@@ -30784,7 +30893,8 @@ app.get('/api/office/branding', requireOffice, async (req, res) => {
         companyName: data?.company || '',
         brandColor: data?.brand_color || '#2563eb',
         logoUrl: data?.brand_logo_url || '',
-        leadWebhookUrl: data?.lead_webhook_url || ''
+        leadWebhookUrl: data?.lead_webhook_url || '',
+        customDomain: data?.custom_domain || ''
       }
     });
   } catch (err) {
@@ -30797,7 +30907,7 @@ app.get('/api/office/branding', requireOffice, async (req, res) => {
 app.put('/api/office/branding', requireOffice, async (req, res) => {
   try {
     const ctx = req.officeCtx;
-    const { companyName, brandColor, logoUrl, leadWebhookUrl } = req.body || {};
+    const { companyName, brandColor, logoUrl, leadWebhookUrl, customDomain } = req.body || {};
     const patch = { updated_at: nowIso() };
     if (companyName !== undefined) patch.company = String(companyName).trim() || null;
     if (brandColor !== undefined) {
@@ -30812,6 +30922,10 @@ app.put('/api/office/branding', requireOffice, async (req, res) => {
       const w = String(leadWebhookUrl).trim();
       if (w && !/^https:\/\//i.test(w)) return res.status(400).json({ error: 'webhook_must_be_https' });
       patch.lead_webhook_url = w || null;
+    }
+    if (customDomain !== undefined) {
+      const d = String(customDomain).trim().toLowerCase().replace(/^https?:\/\//, '');
+      patch.custom_domain = d || null;
     }
     const { error } = await supabaseAdmin.from('agents').update(patch).eq('id', ctx.officeId);
     if (error) throw error;
