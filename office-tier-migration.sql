@@ -1,6 +1,11 @@
 -- #17 Office Tier migration
 -- Run once in Supabase SQL editor.
 
+-- 0. The legacy account_type CHECK constraint predates the 'office' tier and
+-- blocks it. account_type is application-controlled (realtor|lo|agent|office),
+-- so drop the outdated DB-level check (same precedent as agent_invites FK).
+ALTER TABLE agents DROP CONSTRAINT IF EXISTS agents_account_type_check;
+
 -- 1. Link LOs to an office. An office is an agents row with account_type='office'.
 ALTER TABLE agents
   ADD COLUMN IF NOT EXISTS office_id uuid REFERENCES agents(id) ON DELETE SET NULL;
