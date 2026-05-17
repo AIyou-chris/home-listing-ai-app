@@ -94,6 +94,7 @@ import { fetchOnboardingState } from './services/onboardingService';
 import { listAppointments } from './services/appointmentsService';
 import { PerformanceService } from './services/performanceService';
 import PostAuth from './routes/PostAuth';
+import { OfficeBrandProvider } from './context/OfficeBrandContext';
 
 
 // A helper function to delay execution
@@ -387,6 +388,7 @@ const ProtectedDashboardLayout: React.FC = () => {
     }, [setIsSidebarOpen]);
 
     return (
+        <OfficeBrandProvider>
         <div className="flex h-screen bg-slate-50 relative">
             <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
             <div className="flex-1 flex flex-col overflow-hidden relative">
@@ -425,6 +427,7 @@ const ProtectedDashboardLayout: React.FC = () => {
                 </main>
             </div>
         </div>
+        </OfficeBrandProvider>
     );
 };
 

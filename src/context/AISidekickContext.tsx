@@ -2,7 +2,7 @@ import React, { createContext, useContext, useEffect, useMemo, useState, useCall
 import type { AIPersonality } from '../types';
 import { AI_PERSONALITIES } from '../constants';
 import { loadRoleMap, saveRoleMap, type RolePersonalityMap as PersistedRoleMap } from '../services/aiPersonaService';
-import { resolveUserId } from '../services/userId';
+import { resolveUserId } from '../services/authSession';
 
 export type AISidekickRole = 'agent' | 'listing' | 'helper' | 'marketing' | 'sales' | 'god';
 

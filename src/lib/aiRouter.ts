@@ -2,7 +2,7 @@ import { useAISidekicks, AISidekickRole } from '../context/AISidekickContext';
 import { buildSystemPrompt } from './promptBuilder';
 import { continueConversation as callLocal } from '../services/localAIService';
 import { addUsage } from '../services/usageService';
-import { resolveUserId } from '../services/userId';
+import { resolveUserId } from '../services/authSession';
 
 type Msg = { sender: 'user' | 'assistant'; text: string };
 

@@ -1,7 +1,7 @@
 import { buildApiUrl } from '../lib/api'
 import { isDemoModeActive } from '../demo/useDemoMode'
 import { getDemoProperties } from '../demo/demoData'
-import { resolveAgentId } from './dashboardCommandService'
+import { waitForAuthenticatedUserId } from './authSession'
 import { emitDashboardInvalidation } from './dashboardInvalidation'
 
 export type ListingBrainSourceType = 'text' | 'doc' | 'url'
@@ -164,7 +164,7 @@ const buildDemoListingPayload = (listingId: string): { listing: ListingBuilderRe
 const resolveListingAgent = async (agentIdOverride?: string | null): Promise<string | null> => {
   if (agentIdOverride !== undefined) return agentIdOverride
   if (isDemoModeActive()) return null
-  return resolveAgentId()
+  return waitForAuthenticatedUserId()
 }
 
 export const createListingDraft = async (input: CreateListingDraftInput = {}, agentIdOverride?: string | null) => {

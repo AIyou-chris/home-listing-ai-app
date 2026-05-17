@@ -7109,6 +7109,31 @@ const resolveOfficeContext = async (req) => {
   return { officeId: agentRow.id, agent: agentRow };
 };
 
+// ─── Auth middleware ──────────────────────────────────────────────────────────
+// Use these on routes instead of calling resolveRequesterUserId inline.
+// Attaches resolved IDs to req so the handler body just reads req.authUserId etc.
+
+const requireAuth = async (req, res, next) => {
+  const authUserId = await resolveRequesterUserId(req, { allowDefault: false });
+  if (!authUserId) return res.status(401).json({ error: 'unauthorized' });
+  req.authUserId = authUserId;
+  next();
+};
+
+const requireLoAgent = async (req, res, next) => {
+  const loAgentId = await resolveLoAgentId(req);
+  if (!loAgentId) return res.status(401).json({ error: 'unauthorized' });
+  req.loAgentId = loAgentId;
+  next();
+};
+
+const requireOffice = async (req, res, next) => {
+  const officeCtx = await resolveOfficeContext(req);
+  if (!officeCtx) return res.status(403).json({ error: 'office_account_required' });
+  req.officeCtx = officeCtx;
+  next();
+};
+
 const isIgnorableCleanupError = (error) =>
   error?.code === '42P01' || // undefined table
   error?.code === 'PGRST205' || // table missing in API schema cache
@@ -30242,10 +30267,9 @@ app.delete('/api/admin/appointments/:appointmentId', verifyAdmin, (req, res) => 
 // ═══════════════════════════════════════════════════════════════════════════════
 
 // ── LO profile save ───────────────────────────────────────────────────────────
-app.patch('/api/lo/profile', async (req, res) => {
+app.patch('/api/lo/profile', requireAuth, async (req, res) => {
   try {
-    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
-    if (!agentId) return res.status(401).json({ error: 'unauthorized' });
+    const agentId = req.authUserId;
     const { nmls_number, lending_states, company, full_name, phone, headshot_url } = req.body || {};
     const updatePayload = {};
     if (nmls_number !== undefined) updatePayload.nmls_number = toTrimmedOrNull(nmls_number);
@@ -30270,10 +30294,9 @@ app.patch('/api/lo/profile', async (req, res) => {
 });
 
 // ── LO realtor invite (legacy simple invite) ──────────────────────────────────
-app.post('/api/lo/invite-realtor', async (req, res) => {
+app.post('/api/lo/invite-realtor', requireAuth, async (req, res) => {
   try {
-    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
-    if (!agentId) return res.status(401).json({ error: 'unauthorized' });
+    const agentId = req.authUserId;
     const { realtor_name, realtor_email } = req.body || {};
     if (!realtor_email) return res.status(400).json({ error: 'realtor_email_required' });
     const { data: loRows } = await supabaseAdmin.from('agents').select('first_name, last_name, email, nmls_number').eq('auth_user_id', agentId).limit(1);
@@ -30314,10 +30337,9 @@ app.get('/api/public/listing/:listingId/lo', async (req, res) => {
 });
 
 // ── LO Today Dashboard ────────────────────────────────────────────────────────
-app.get('/api/lo/dashboard/today', async (req, res) => {
+app.get('/api/lo/dashboard/today', requireAuth, async (req, res) => {
   try {
-    const loAgentId = await resolveRequesterUserId(req, { allowDefault: false });
-    if (!loAgentId) return res.status(401).json({ error: 'unauthorized' });
+    const loAgentId = req.authUserId;
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
     const startOf7Days = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
@@ -30342,10 +30364,9 @@ app.get('/api/lo/dashboard/today', async (req, res) => {
 });
 
 // ── LO Partners — Magic Link Invite System ────────────────────────────────────
-app.post('/api/lo/partners/invite', async (req, res) => {
+app.post('/api/lo/partners/invite', requireAuth, async (req, res) => {
   try {
-    const loAgentId = await resolveRequesterUserId(req, { allowDefault: false });
-    if (!loAgentId) return res.status(401).json({ error: 'unauthorized' });
+    const loAgentId = req.authUserId;
     const { email, name, listingId } = req.body || {};
     if (!email || !email.includes('@')) return res.status(400).json({ error: 'valid_email_required' });
     // Agent profile is used for email personalization only — never block the
@@ -30375,13 +30396,10 @@ app.post('/api/lo/partners/invite', async (req, res) => {
     const wowLink = `${appBase.replace(/\/$/, '')}/partner-invite/${token}`;
     const claimLink = `${appBase.replace(/\/$/, '')}/agent/claim/${token}`;
     const loName = [loAgent?.first_name, loAgent?.last_name].filter(Boolean).join(' ') || 'Your Loan Officer';
-    const loCompany = loAgent?.company || 'HomeListingAI';
+    const loBrand = await resolveBrandForLoAgent(loAgent?.id).catch(() => ({ whiteLabel: false, brandColor: '#2563eb', logoUrl: null, companyName: null }));
     const emailHtml = `
 <!DOCTYPE html><html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#1e293b;">
-<div style="background:linear-gradient(135deg,#0f172a,#1e3a5f);border-radius:16px;padding:32px;text-align:center;margin-bottom:24px;">
-  <h1 style="color:white;margin:0 0 8px;font-size:24px;">${loName} built something for your listings</h1>
-  <p style="color:#94a3b8;margin:0;font-size:15px;">${loCompany}</p>
-</div>
+${buildBrandedEmailHeader(loBrand, `${loName} built something for your listings`)}
 <p style="font-size:16px;">Hi${name ? ` ${name}` : ''},</p>
 <p style="font-size:15px;color:#475569;line-height:1.6;">I put together a live demo of what your listings could look like with my AI financing assistant built in. Buyers get instant answers to mortgage questions — 24/7, right on the listing page.</p>
 <div style="text-align:center;margin:32px 0;">
@@ -30475,10 +30493,9 @@ app.get('/api/public/partner-invite/:token', async (req, res) => {
 
 // ── POST /api/listing/:listingId/dashboard-link — create/get shareable token ──
 // Auth: requester must be an assigned LO for the listing OR the listing owner.
-app.post('/api/listing/:listingId/dashboard-link', async (req, res) => {
+app.post('/api/listing/:listingId/dashboard-link', requireAuth, async (req, res) => {
   try {
-    const requesterId = await resolveRequesterUserId(req, { allowDefault: false });
-    if (!requesterId) return res.status(401).json({ error: 'unauthorized' });
+    const requesterId = req.authUserId;
     const { listingId } = req.params;
     if (!listingId) return res.status(400).json({ error: 'listing_id_required' });
 
@@ -30613,10 +30630,9 @@ app.get('/api/public/listing-dashboard/:token', async (req, res) => {
 // ═══ #17 OFFICE TIER ══════════════════════════════════════════════════════════
 
 // POST /api/office/invite-lo — office invites a loan officer by email
-app.post('/api/office/invite-lo', async (req, res) => {
+app.post('/api/office/invite-lo', requireOffice, async (req, res) => {
   try {
-    const ctx = await resolveOfficeContext(req);
-    if (!ctx) return res.status(403).json({ error: 'office_account_required' });
+    const ctx = req.officeCtx;
     const { email, name } = req.body || {};
     if (!email || !email.includes('@')) return res.status(400).json({ error: 'valid_email_required' });
     const emailLower = email.trim().toLowerCase();
@@ -30641,11 +30657,10 @@ app.post('/api/office/invite-lo', async (req, res) => {
     const appBase = (process.env.APP_BASE_URL || process.env.DASHBOARD_BASE_URL || 'https://homelistingai.com').replace(/\/$/, '');
     const link = `${appBase}/office-invite/${token}`;
     const officeName = ctx.agent.company || [ctx.agent.first_name, ctx.agent.last_name].filter(Boolean).join(' ') || 'Your Office';
+    const officeBrand = await resolveOfficeBrand(ctx.officeId).catch(() => ({ whiteLabel: false, brandColor: '#2563eb', logoUrl: null, companyName: null }));
     const html = `
 <!DOCTYPE html><html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#1e293b;">
-<div style="background:linear-gradient(135deg,#0f172a,#1e3a5f);border-radius:16px;padding:30px;text-align:center;margin-bottom:24px;">
-  <h1 style="color:#fff;margin:0;font-size:22px;">${officeName} added you to their team</h1>
-</div>
+${buildBrandedEmailHeader(officeBrand, `${officeName} added you to their team`)}
 <p style="font-size:15px;color:#475569;line-height:1.6;">Hi${name ? ` ${name}` : ''}, you've been invited to join <strong>${officeName}</strong> on HomeListingAI as a loan officer. Claim your account to get your AI financing assistant, agent partnerships, and warm-lead dashboard.</p>
 <div style="text-align:center;margin:30px 0;">
   <a href="${link}" style="background:#2563eb;color:#fff;text-decoration:none;padding:15px 34px;border-radius:12px;font-weight:700;font-size:15px;display:inline-block;">Claim Your Account →</a>
@@ -30742,11 +30757,23 @@ app.post('/api/public/office-invite/:token/claim', async (req, res) => {
 
 // ── #18 White Label: office branding + lead webhook ───────────────────────────
 
-// GET /api/office/branding — read the office's white-label config
-app.get('/api/office/branding', async (req, res) => {
+// GET /api/me/brand — returns the office brand for the calling user (any account type).
+// LOs and agents under a branded office inherit that brand. Others get whiteLabel:false.
+app.get('/api/me/brand', async (req, res) => {
   try {
-    const ctx = await resolveOfficeContext(req);
-    if (!ctx) return res.status(403).json({ error: 'office_account_required' });
+    const loAgentsId = await resolveLoAgentId(req);
+    const brand = await resolveBrandForLoAgent(loAgentsId);
+    res.json({ success: true, brand });
+  } catch (err) {
+    console.error('[me/brand] Failed:', err);
+    res.status(500).json({ error: 'server_error' });
+  }
+});
+
+// GET /api/office/branding — read the office's white-label config
+app.get('/api/office/branding', requireOffice, async (req, res) => {
+  try {
+    const ctx = req.officeCtx;
     const { data } = await supabaseAdmin
       .from('agents')
       .select('company, brand_color, brand_logo_url, lead_webhook_url')
@@ -30767,10 +30794,9 @@ app.get('/api/office/branding', async (req, res) => {
 });
 
 // PUT /api/office/branding — save white-label config
-app.put('/api/office/branding', async (req, res) => {
+app.put('/api/office/branding', requireOffice, async (req, res) => {
   try {
-    const ctx = await resolveOfficeContext(req);
-    if (!ctx) return res.status(403).json({ error: 'office_account_required' });
+    const ctx = req.officeCtx;
     const { companyName, brandColor, logoUrl, leadWebhookUrl } = req.body || {};
     const patch = { updated_at: nowIso() };
     if (companyName !== undefined) patch.company = String(companyName).trim() || null;
@@ -30797,10 +30823,9 @@ app.put('/api/office/branding', async (req, res) => {
 });
 
 // POST /api/office/branding/test-webhook — fire a sample payload
-app.post('/api/office/branding/test-webhook', async (req, res) => {
+app.post('/api/office/branding/test-webhook', requireOffice, async (req, res) => {
   try {
-    const ctx = await resolveOfficeContext(req);
-    if (!ctx) return res.status(403).json({ error: 'office_account_required' });
+    const ctx = req.officeCtx;
     const { data } = await supabaseAdmin.from('agents').select('lead_webhook_url, company').eq('id', ctx.officeId).maybeSingle();
     const url = data?.lead_webhook_url;
     if (!url) return res.status(400).json({ error: 'no_webhook_configured' });
@@ -30860,11 +30885,45 @@ const fireOfficeLeadWebhook = async (loAgentsId, leadPayload) => {
   }
 };
 
+// Resolve an office account's own brand (reads directly from the office agents row).
+const resolveOfficeBrand = async (officeId) => {
+  const fallback = { companyName: null, brandColor: '#2563eb', logoUrl: null, whiteLabel: false };
+  if (!officeId) return fallback;
+  const { data: office } = await supabaseAdmin
+    .from('agents').select('company, brand_color, brand_logo_url')
+    .eq('id', officeId).maybeSingle();
+  if (!office) return fallback;
+  return {
+    companyName: office.company || null,
+    brandColor: (office.brand_color && /^#[0-9a-fA-F]{6}$/.test(office.brand_color)) ? office.brand_color : '#2563eb',
+    logoUrl: office.brand_logo_url || null,
+    whiteLabel: !!(office.company || office.brand_color || office.brand_logo_url)
+  };
+};
+
+// Build a branded email header block. Falls back to HomeListingAI styling when whiteLabel:false.
+const buildBrandedEmailHeader = (brand, title) => {
+  const bgColor = brand?.whiteLabel ? (brand.brandColor || '#2563eb') : null;
+  const background = bgColor
+    ? `background-color:${bgColor};`
+    : 'background:linear-gradient(135deg,#0f172a,#1e3a5f);';
+  const logo = brand?.whiteLabel && brand.logoUrl
+    ? `<img src="${brand.logoUrl}" alt="${brand.companyName || ''}" style="width:44px;height:44px;border-radius:8px;object-fit:contain;background:#fff;padding:4px;margin-bottom:12px;">`
+    : `<img src="https://homelistingai.com/newlogo.png" alt="HomeListingAI" style="width:44px;height:44px;border-radius:8px;object-fit:contain;background:#fff;padding:4px;margin-bottom:12px;">`;
+  const subtitle = brand?.whiteLabel && brand.companyName
+    ? `<p style="color:rgba(255,255,255,0.75);margin:4px 0 0;font-size:13px;">${brand.companyName}</p>`
+    : '';
+  return `<div style="${background}border-radius:16px;padding:32px;text-align:center;margin-bottom:24px;">
+  ${logo}
+  <h1 style="color:#fff;margin:0;font-size:22px;font-weight:700;">${title}</h1>
+  ${subtitle}
+</div>`;
+};
+
 // GET /api/office/overview — aggregate + per-LO performance
-app.get('/api/office/overview', async (req, res) => {
+app.get('/api/office/overview', requireOffice, async (req, res) => {
   try {
-    const ctx = await resolveOfficeContext(req);
-    if (!ctx) return res.status(403).json({ error: 'office_account_required' });
+    const ctx = req.officeCtx;
 
     const { data: los } = await supabaseAdmin
       .from('agents')
@@ -30918,10 +30977,9 @@ app.get('/api/office/overview', async (req, res) => {
   }
 });
 
-app.get('/api/lo/partners', async (req, res) => {
+app.get('/api/lo/partners', requireAuth, async (req, res) => {
   try {
-    const loAgentId = await resolveRequesterUserId(req, { allowDefault: false });
-    if (!loAgentId) return res.status(401).json({ error: 'unauthorized' });
+    const loAgentId = req.authUserId;
     const { data: partnerships } = await supabaseAdmin.from('lo_agent_partnerships').select('id, status, created_at, agent:agent_id(id, first_name, last_name, email, phone, headshot_url, company)').eq('lo_agent_id', loAgentId).eq('status', 'active').order('created_at', { ascending: false });
     const { data: pendingInvites } = await supabaseAdmin.from('agent_invites').select('id, invited_email, invited_name, created_at').eq('lo_agent_id', loAgentId).is('claimed_at', null).gt('expires_at', nowIso());
     const partnerAgentIds = (partnerships || []).map(p => p.agent?.id).filter(Boolean);
@@ -31013,10 +31071,9 @@ app.post('/api/leads/pre-qual', async (req, res) => {
 });
 
 // ── Sold / Archive Listing ────────────────────────────────────────────────────
-app.patch('/api/listings/:listingId/sold', async (req, res) => {
+app.patch('/api/listings/:listingId/sold', requireAuth, async (req, res) => {
   try {
-    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
-    if (!agentId) return res.status(401).json({ error: 'unauthorized' });
+    const agentId = req.authUserId;
     const { listingId } = req.params;
     const { sold_price: soldPrice } = req.body || {};
     const { data: listing } = await supabaseAdmin.from('listings').select('id, agent_id, address, total_leads, total_views').eq('id', listingId).single();
@@ -31034,10 +31091,9 @@ app.patch('/api/listings/:listingId/sold', async (req, res) => {
   }
 });
 
-app.patch('/api/listings/:listingId/archive', async (req, res) => {
+app.patch('/api/listings/:listingId/archive', requireAuth, async (req, res) => {
   try {
-    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
-    if (!agentId) return res.status(401).json({ error: 'unauthorized' });
+    const agentId = req.authUserId;
     const { listingId } = req.params;
     const { data: listing } = await supabaseAdmin.from('listings').select('id, agent_id').eq('id', listingId).single();
     if (!listing) return res.status(404).json({ error: 'listing_not_found' });
@@ -31050,10 +31106,9 @@ app.patch('/api/listings/:listingId/archive', async (req, res) => {
 });
 
 // ── LO ROI Stats per Listing ──────────────────────────────────────────────────
-app.get('/api/lo/listings/:listingId/roi', async (req, res) => {
+app.get('/api/lo/listings/:listingId/roi', requireAuth, async (req, res) => {
   try {
-    const loAgentId = await resolveRequesterUserId(req, { allowDefault: false });
-    if (!loAgentId) return res.status(401).json({ error: 'unauthorized' });
+    const loAgentId = req.authUserId;
     const { listingId } = req.params;
     const { data: assignment } = await supabaseAdmin.from('listing_lo_assignments').select('id').eq('listing_id', listingId).eq('lo_agent_id', loAgentId).single();
     if (!assignment) return res.status(403).json({ error: 'not_assigned_to_listing' });
@@ -31075,10 +31130,9 @@ app.get('/api/lo/listings/:listingId/roi', async (req, res) => {
 // ── Branding Toggles ──────────────────────────────────────────────────────────
 // piece_type values: listing_page | share_kit | qr | social | flyer | open_house
 
-app.get('/api/lo/listings/:listingId/branding-toggles', async (req, res) => {
+app.get('/api/lo/listings/:listingId/branding-toggles', requireLoAgent, async (req, res) => {
   try {
-    const loAgentId = await resolveLoAgentId(req);
-    if (!loAgentId) return res.status(401).json({ error: 'unauthorized' });
+    const loAgentId = req.loAgentId;
     const { listingId } = req.params;
     const ALL_PIECES = ['listing_page', 'share_kit', 'qr', 'social', 'flyer', 'open_house'];
     const { data: rows } = await supabaseAdmin.from('listing_branding_toggles').select('piece_type, lo_visible').eq('listing_id', listingId).eq('lo_agent_id', loAgentId);
@@ -31092,10 +31146,9 @@ app.get('/api/lo/listings/:listingId/branding-toggles', async (req, res) => {
   }
 });
 
-app.patch('/api/lo/listings/:listingId/branding-toggles', async (req, res) => {
+app.patch('/api/lo/listings/:listingId/branding-toggles', requireLoAgent, async (req, res) => {
   try {
-    const loAgentId = await resolveLoAgentId(req);
-    if (!loAgentId) return res.status(401).json({ error: 'unauthorized' });
+    const loAgentId = req.loAgentId;
     const { listingId } = req.params;
     const { toggles } = req.body || {};
     if (!toggles || typeof toggles !== 'object') return res.status(400).json({ error: 'toggles_object_required' });
@@ -31141,10 +31194,9 @@ app.post('/api/internal/run-nudge-job', async (req, res) => {
 });
 
 // ── Mark Lead Contacted ───────────────────────────────────────────────────────
-app.patch('/api/leads/:leadId/contacted', async (req, res) => {
+app.patch('/api/leads/:leadId/contacted', requireAuth, async (req, res) => {
   try {
-    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
-    if (!agentId) return res.status(401).json({ error: 'unauthorized' });
+    const agentId = req.authUserId;
     const { leadId } = req.params;
     const { data: lead } = await supabaseAdmin.from('leads').select('id, agent_id, lo_agent_id').eq('id', leadId).single();
     if (!lead) return res.status(404).json({ error: 'lead_not_found' });
@@ -31157,10 +31209,9 @@ app.patch('/api/leads/:leadId/contacted', async (req, res) => {
 });
 
 // ── LO Listing Limit Check ────────────────────────────────────────────────────
-app.get('/api/lo/listing-limit', async (req, res) => {
+app.get('/api/lo/listing-limit', requireAuth, async (req, res) => {
   try {
-    const loAgentId = await resolveRequesterUserId(req, { allowDefault: false });
-    if (!loAgentId) return res.status(401).json({ error: 'unauthorized' });
+    const loAgentId = req.authUserId;
     const { data: assignments } = await supabaseAdmin.from('listing_lo_assignments').select('listing_id, listings!listing_lo_assignments_listing_id_fkey(status)').eq('lo_agent_id', loAgentId);
     const publishedCount = (assignments || []).filter(a => a.listings?.status === 'published').length;
     const { data: agentRow } = await supabaseAdmin.from('agents').select('plan_id').eq('id', loAgentId).single();
@@ -31173,10 +31224,9 @@ app.get('/api/lo/listing-limit', async (req, res) => {
 });
 
 // ── LO Listing Association ────────────────────────────────────────────────────
-app.get('/api/lo/listings', async (req, res) => {
+app.get('/api/lo/listings', requireAuth, async (req, res) => {
   try {
-    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
-    if (!agentId) return res.status(401).json({ error: 'unauthorized' });
+    const agentId = req.authUserId;
     const { data: agentRows } = await supabaseAdmin.from('agents').select('id').eq('auth_user_id', agentId).limit(1);
     const agentRecord = agentRows?.[0];
     if (!agentRecord) return res.json({ success: true, listings: [] });
@@ -31195,10 +31245,9 @@ app.get('/api/lo/listings', async (req, res) => {
   }
 });
 
-app.post('/api/lo/listings/:listingId/assign', async (req, res) => {
+app.post('/api/lo/listings/:listingId/assign', requireAuth, async (req, res) => {
   try {
-    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
-    if (!agentId) return res.status(401).json({ error: 'unauthorized' });
+    const agentId = req.authUserId;
     const { listingId } = req.params;
     if (!listingId) return res.status(400).json({ error: 'listing_id_required' });
     const { data: agentRows } = await supabaseAdmin.from('agents').select('id').eq('auth_user_id', agentId).limit(1);
@@ -31215,10 +31264,9 @@ app.post('/api/lo/listings/:listingId/assign', async (req, res) => {
   }
 });
 
-app.delete('/api/lo/listings/:listingId/assign', async (req, res) => {
+app.delete('/api/lo/listings/:listingId/assign', requireAuth, async (req, res) => {
   try {
-    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
-    if (!agentId) return res.status(401).json({ error: 'unauthorized' });
+    const agentId = req.authUserId;
     const { listingId } = req.params;
     const { data: agentRows } = await supabaseAdmin.from('agents').select('id').eq('auth_user_id', agentId).limit(1);
     const agentRecord = agentRows?.[0];
@@ -31237,10 +31285,9 @@ app.delete('/api/lo/listings/:listingId/assign', async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // GET /api/lo/chatbot-config — fetch authenticated LO's chatbot config
-app.get('/api/lo/chatbot-config', async (req, res) => {
+app.get('/api/lo/chatbot-config', requireLoAgent, async (req, res) => {
   try {
-    const agentId = await resolveLoAgentId(req);
-    if (!agentId) return res.status(401).json({ error: 'unauthorized' });
+    const agentId = req.loAgentId;
 
     const { data, error } = await supabaseAdmin
       .from('lo_chatbot_configs')
@@ -31270,10 +31317,9 @@ app.get('/api/lo/chatbot-config', async (req, res) => {
 });
 
 // PUT /api/lo/chatbot-config — save LO's chatbot config
-app.put('/api/lo/chatbot-config', async (req, res) => {
+app.put('/api/lo/chatbot-config', requireLoAgent, async (req, res) => {
   try {
-    const agentId = await resolveLoAgentId(req);
-    if (!agentId) return res.status(401).json({ error: 'unauthorized' });
+    const agentId = req.loAgentId;
 
     const { bot_name, greeting, personality, knowledge_base, faq, is_active } = req.body;
 
@@ -31357,10 +31403,9 @@ app.get('/api/public/listing/:listingId/lo-chatbot', async (req, res) => {
 });
 
 // POST /api/lo/chatbot/extract-url — scrape a URL and return plain text (auth required)
-app.post('/api/lo/chatbot/extract-url', async (req, res) => {
+app.post('/api/lo/chatbot/extract-url', requireAuth, async (req, res) => {
   try {
-    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
-    if (!agentId) return res.status(401).json({ error: 'unauthorized' });
+    const agentId = req.authUserId;
 
     const { url } = req.body;
     if (!url || typeof url !== 'string') return res.status(400).json({ error: 'url_required' });
@@ -31424,10 +31469,9 @@ const chatbotFileUpload = multer({
   }
 });
 
-app.post('/api/lo/chatbot/extract-file', chatbotFileUpload.single('file'), async (req, res) => {
+app.post('/api/lo/chatbot/extract-file', chatbotFileUpload.single('file'), requireAuth, async (req, res) => {
   try {
-    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
-    if (!agentId) return res.status(401).json({ error: 'unauthorized' });
+    const agentId = req.authUserId;
 
     if (!req.file) return res.status(400).json({ error: 'no_file' });
 
@@ -31557,16 +31601,12 @@ app.post('/api/public/lo-chat', async (req, res) => {
 // Listing/Property Management Endpoints
 
 // Upload listing photo (handled by backend so uploads use service role key)
-// Upload listing photo (handled by backend so uploads use service role key)
 app.options('/api/listings/photo-upload', cors()); // Force preflight handling
 
-app.post('/api/listings/photo-upload', async (req, res) => {
+app.post('/api/listings/photo-upload', requireAuth, async (req, res) => {
   console.log(`📨 [Photo Upload] Incoming request! Body Size: ${req.headers['content-length']}`);
   try {
-    const requesterUserId = await resolveRequesterUserId(req, { allowDefault: false });
-    if (!requesterUserId) {
-      return res.status(401).json({ error: 'agent_auth_required' });
-    }
+    const requesterUserId = req.authUserId;
 
     const { dataUrl, fileName } = req.body || {};
     if (!dataUrl) {
@@ -31718,13 +31758,10 @@ app.put('/api/listings/:listingId', (req, res) => {
 });
 
 // Delete listing
-app.delete('/api/listings/:listingId', async (req, res) => {
+app.delete('/api/listings/:listingId', requireAuth, async (req, res) => {
   try {
     const { listingId } = req.params;
-    const requesterUserId = await resolveRequesterUserId(req, { allowDefault: false });
-    if (!requesterUserId) {
-      return res.status(401).json({ error: 'agent_auth_required' });
-    }
+    const requesterUserId = req.authUserId;
 
     console.log(`🗑️ Delete request for listing: ${listingId} by requester: ${requesterUserId}`);
 
@@ -32202,14 +32239,9 @@ const raisePropertyAlert = async (description, requestId, severity = 'warning') 
   }
 }
 
-app.post('/api/properties', async (req, res) => {
+app.post('/api/properties', requireAuth, async (req, res) => {
   const requestId = crypto.randomBytes(5).toString('hex')
-  const agentId = await resolveRequesterUserId(req, { allowDefault: false })
-
-  if (!agentId) {
-    console.warn(`[${requestId}] Missing agent identity for property creation request`)
-    return res.status(401).json({ error: 'Agent identity is required', requestId })
-  }
+  const agentId = req.authUserId;
 
   const payload = sanitizePropertyPayload(req.body, agentId)
   if (!payload.title || !payload.address || payload.price === undefined) {
@@ -32313,15 +32345,10 @@ app.post('/api/properties', async (req, res) => {
 })
 
 // Update property
-app.put('/api/properties/:id', async (req, res) => {
+app.put('/api/properties/:id', requireAuth, async (req, res) => {
   const requestId = crypto.randomBytes(5).toString('hex')
   const { id } = req.params
-  const agentId = await resolveRequesterUserId(req, { allowDefault: false })
-
-  if (!agentId) {
-    console.warn(`[${requestId}] Missing agent identity for property update request`)
-    return res.status(401).json({ error: 'Agent identity is required', requestId })
-  }
+  const agentId = req.authUserId;
 
   if (!id) {
     return res.status(400).json({ error: 'Property ID is required', requestId })

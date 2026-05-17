@@ -1,4 +1,4 @@
-import { resolveUserId } from './userId';
+import { resolveUserId } from './authSession';
 import { getEnvVar } from '../lib/env';
 
 export interface Voice {

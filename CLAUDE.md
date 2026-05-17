@@ -169,3 +169,19 @@ No long explanations. No walls of text. Table in, table out.
 - When in doubt about route wiring, check `src/App.tsx` `<Routes>` block.
 - Demo mode is toggled via `useDemoMode()` hook — always guard demo-only data behind it.
 - `primary-600` is the brand blue used throughout — do not swap to generic Tailwind blue.
+
+---
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in GitHub Issues at `AIyou-chris/home-listing-ai-app`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default mattpocock/skills label vocabulary (needs-triage, needs-info, ready-for-agent, ready-for-human, wontfix). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context repo — one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
