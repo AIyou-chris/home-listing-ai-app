@@ -188,6 +188,117 @@ const LiveChat: React.FC<{ lo: LOInfo; listingId: string; botName: string; greet
   );
 };
 
+// ─── Property Chat — the REAL ESTATE AI (agent's bot, trained via ai_kb) ──────
+
+const PROPERTY_QUESTIONS = [
+  'Tell me about this neighborhood',
+  'What schools are nearby?',
+  'What are the standout features?',
+  'Is this a good time to make an offer?',
+];
+
+const PropertyChat: React.FC<{ listing: ListingInfo; agentName: string; brandColor: string }> = ({ listing, agentName, brandColor }) => {
+  const greeting = `Hi! I'm the AI assistant for ${listing.address.split(',')[0]}. Ask me anything about this home — the layout, the neighborhood, schools, features, or what it's like to live here.`;
+  const [messages, setMessages] = useState<ChatMessage[]>([{ id: 'greeting', role: 'bot', text: greeting }]);
+  const [input, setInput] = useState('');
+  const [sending, setSending] = useState(false);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const historyRef = useRef<{ sender: string; text: string }[]>([]);
+
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+
+  const send = async (text: string) => {
+    const clean = text.trim();
+    if (!clean || sending) return;
+    setInput('');
+    setMessages(prev => [...prev, { id: `u-${Date.now()}`, role: 'visitor', text: clean }]);
+    setSending(true);
+    historyRef.current = [...historyRef.current, { sender: 'user', text: clean }];
+    try {
+      const res = await fetch(buildApiUrl('/api/ai/property-chat'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          property: {
+            id: listing.id,
+            address: listing.address,
+            price: listing.price,
+            bedrooms: listing.beds,
+            bathrooms: listing.baths,
+            squareFeet: listing.sqft,
+            description: listing.description,
+            features: []
+          },
+          question: clean,
+          history: historyRef.current.slice(-8)
+        })
+      });
+      const data = await res.json() as { success?: boolean; text?: string };
+      const reply = data.text || 'Great question — I\'d recommend scheduling a viewing to see this one in person!';
+      historyRef.current = [...historyRef.current, { sender: 'bot', text: reply }];
+      setMessages(prev => [...prev, { id: `b-${Date.now()}`, role: 'bot', text: reply }]);
+    } catch {
+      setMessages(prev => [...prev, { id: `b-${Date.now()}`, role: 'bot', text: 'Sorry, I\'m having trouble connecting right now. Try again in a moment!' }]);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div className="flex h-full flex-col">
+      <div className="flex items-center gap-3 border-b border-slate-100 px-4 py-3 text-white" style={{ background: `linear-gradient(135deg,#1e3a8a,${brandColor})` }}>
+        <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white/20 text-lg">🏡</div>
+        <div className="min-w-0">
+          <p className="text-sm font-bold leading-tight text-white">Talk to the Home</p>
+          <p className="truncate text-xs text-white/70">{agentName}'s listing assistant</p>
+        </div>
+        <div className="ml-auto flex items-center gap-1.5">
+          <span className="h-2 w-2 animate-pulse rounded-full bg-cyan-300" />
+          <span className="text-xs font-medium text-white/80">Live</span>
+        </div>
+      </div>
+      <div className="flex-1 space-y-3 overflow-y-auto bg-white px-4 py-4">
+        {messages.map(msg => (
+          <div key={msg.id} className={`flex ${msg.role === 'visitor' ? 'justify-end' : 'justify-start'}`}>
+            <div className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${msg.role === 'visitor' ? 'rounded-br-sm bg-slate-900 text-white' : 'rounded-bl-sm border border-blue-100 bg-blue-50 text-slate-800'}`}>
+              {msg.text}
+            </div>
+          </div>
+        ))}
+        {sending && (
+          <div className="flex justify-start">
+            <div className="rounded-2xl rounded-bl-sm border border-blue-100 bg-blue-50 px-4 py-3">
+              <div className="flex gap-1">
+                {[0, 150, 300].map(d => <span key={d} className="h-2 w-2 animate-bounce rounded-full bg-blue-400" style={{ animationDelay: `${d}ms` }} />)}
+              </div>
+            </div>
+          </div>
+        )}
+        <div ref={bottomRef} />
+      </div>
+      {messages.filter(m => m.role === 'visitor').length === 0 && (
+        <div className="flex flex-wrap gap-2 bg-white px-4 pb-2">
+          {PROPERTY_QUESTIONS.map(q => (
+            <button key={q} onClick={() => send(q)} className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100">{q}</button>
+          ))}
+        </div>
+      )}
+      <div className="flex items-center gap-2 border-t border-slate-100 bg-white px-3 py-3">
+        <input
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send(input)}
+          placeholder="Ask about this home…"
+          className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+        <button onClick={() => send(input)} disabled={!input.trim() || sending} className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl text-white transition-colors disabled:opacity-40" style={{ background: brandColor }}>
+          <span className="material-symbols-outlined text-[18px]">send</span>
+        </button>
+      </div>
+    </div>
+  );
+};
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 const PartnerInvitePage: React.FC = () => {
@@ -196,7 +307,11 @@ const PartnerInvitePage: React.FC = () => {
   const [data, setData] = useState<InviteData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [chatOpen, setChatOpen] = useState(false);
+  const [chatMode, setChatMode] = useState<'home' | 'financing' | null>(null);
+  const [showHowItWorks, setShowHowItWorks] = useState(false);
+  const listingRef = useRef<HTMLDivElement>(null);
+
+  const scrollToListing = () => listingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
   useEffect(() => {
     if (!token) { setError('Invalid link'); setLoading(false); return; }
@@ -255,7 +370,7 @@ const PartnerInvitePage: React.FC = () => {
             <p className="text-[11px] text-slate-500">made you something — take a look 👇</p>
           </div>
           <button
-            onClick={() => navigate(`/agent/claim/${token}`)}
+            onClick={scrollToListing}
             className="flex-shrink-0 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-[11px] font-bold text-slate-100 transition-colors hover:bg-white/20"
           >
             Take a Look
@@ -283,7 +398,7 @@ const PartnerInvitePage: React.FC = () => {
         </div>
 
         {/* ── Listing card ── */}
-        <div className="-mt-4 px-3.5">
+        <div ref={listingRef} className="-mt-4 scroll-mt-4 px-3.5">
           <div className="overflow-hidden rounded-[22px] bg-white shadow-[0_8px_28px_rgba(15,23,42,0.10)]">
             <div className="relative h-60 bg-cover bg-center" style={{ backgroundImage: `url('${heroPhoto}')` }}>
               <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/60" />
@@ -294,7 +409,7 @@ const PartnerInvitePage: React.FC = () => {
               </div>
             </div>
             <button
-              onClick={() => setChatOpen(true)}
+              onClick={() => setChatMode('home')}
               className="m-3.5 flex w-[calc(100%-1.75rem)] items-center justify-center gap-2 rounded-2xl py-4 text-base font-extrabold text-white shadow-[0_8px_22px_rgba(40,167,232,0.4)] transition-transform active:scale-[0.99]"
               style={{ background: '#28a7e8' }}
             >
@@ -348,7 +463,7 @@ const PartnerInvitePage: React.FC = () => {
               <p className="mt-0.5 text-[11px] text-emerald-500">20% down · 30yr fixed · est. 7.1% rate</p>
             </div>
             <button
-              onClick={() => setChatOpen(true)}
+              onClick={() => setChatMode('financing')}
               className="rounded-xl border-2 border-emerald-200 bg-white px-4 py-2.5 text-[13px] font-extrabold text-emerald-700 transition-colors hover:bg-emerald-50"
             >
               Ask the AI
@@ -363,7 +478,7 @@ const PartnerInvitePage: React.FC = () => {
             No tech setup, no contracts, no catch. Curious how it works? Have a look — it's all yours to explore.
           </p>
           <button
-            onClick={() => navigate(`/agent/claim/${token}`)}
+            onClick={() => setShowHowItWorks(true)}
             className="mt-4 w-full rounded-xl border border-cyan-400/40 bg-cyan-400/15 py-3.5 text-[15px] font-extrabold text-cyan-300 transition-colors hover:bg-cyan-400/25"
           >
             See How It Works →
@@ -386,20 +501,64 @@ const PartnerInvitePage: React.FC = () => {
         </div>
       </div>
 
-      {/* ── Chat overlay (slides up) ── */}
-      {chatOpen && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center" onClick={() => setChatOpen(false)}>
+      {/* ── Chat overlay — Talk to the Home (real estate AI) OR Financing (LO AI) ── */}
+      {chatMode && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center" onClick={() => setChatMode(null)}>
           <div
             className="flex h-[85vh] w-full max-w-[480px] flex-col overflow-hidden rounded-t-[22px] bg-white shadow-2xl sm:h-[600px] sm:rounded-[22px]"
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-center justify-end border-b border-slate-100 px-3 py-2">
-              <button onClick={() => setChatOpen(false)} className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100" aria-label="Close chat">
+              <button onClick={() => setChatMode(null)} className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100" aria-label="Close chat">
                 <span className="material-symbols-outlined text-[20px]">close</span>
               </button>
             </div>
             <div className="min-h-0 flex-1">
-              <LiveChat lo={lo} listingId={displayListing.id} botName={botName} greeting={greeting} />
+              {chatMode === 'home'
+                ? <PropertyChat listing={displayListing} agentName={agentName} brandColor={brandColor} />
+                : <LiveChat lo={lo} listingId={displayListing.id} botName={botName} greeting={greeting} />
+              }
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── How It Works explainer (soft, then signup) ── */}
+      {showHowItWorks && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center" onClick={() => setShowHowItWorks(false)}>
+          <div
+            className="w-full max-w-[440px] overflow-hidden rounded-t-[22px] bg-white shadow-2xl sm:rounded-[22px]"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="relative bg-gradient-to-br from-slate-900 to-[#1e3a5f] px-6 pb-6 pt-7 text-center text-white">
+              <button onClick={() => setShowHowItWorks(false)} className="absolute right-4 top-4 rounded-full p-1.5 text-white/60 hover:bg-white/10" aria-label="Close">
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+              <p className="text-[11px] font-extrabold uppercase tracking-widest text-cyan-300">How it works</p>
+              <h2 className="mt-2 text-xl font-black leading-snug">Your own AI listing — in 3 steps</h2>
+            </div>
+            <div className="space-y-4 px-6 py-6">
+              {[
+                { n: '1', t: 'Claim your free account', d: `${lo.name.split(' ')[0]} already set it up — just confirm your details. Takes a minute.` },
+                { n: '2', t: 'Add your listing', d: 'Drop in the address and photos. The AI reads it and is ready to answer buyers instantly.' },
+                { n: '3', t: 'Share the link', d: 'Every buyer who opens it gets answers 24/7 — and the warm ones come straight to you.' },
+              ].map(s => (
+                <div key={s.n} className="flex gap-3.5">
+                  <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-sm font-black text-white" style={{ background: brandColor }}>{s.n}</div>
+                  <div>
+                    <p className="text-[15px] font-bold text-slate-900">{s.t}</p>
+                    <p className="mt-0.5 text-[13px] leading-relaxed text-slate-500">{s.d}</p>
+                  </div>
+                </div>
+              ))}
+              <button
+                onClick={() => navigate(`/agent/claim/${token}`)}
+                className="mt-2 w-full rounded-xl py-3.5 text-[15px] font-extrabold text-white shadow-md transition-all hover:brightness-110"
+                style={{ background: brandColor }}
+              >
+                Start Free →
+              </button>
+              <p className="text-center text-[11px] text-slate-400">Free for agents · No card · Cancel anytime</p>
             </div>
           </div>
         </div>
