@@ -44,6 +44,11 @@ const LO_NAV_ITEMS = [
   { key: 'settings', icon: 'settings', label: 'Settings', path: '/settings', testid: 'nav-settings' }
 ] as const;
 
+const OFFICE_NAV_ITEMS = [
+  { key: 'office', icon: 'corporate_fare', label: 'Office', path: '/office', testid: 'nav-office' },
+  { key: 'settings', icon: 'settings', label: 'Settings', path: '/settings', testid: 'nav-settings' }
+] as const;
+
 // Combine for type (kept for reference)
 const _NAV_ITEMS = REALTOR_NAV_ITEMS;
 
@@ -95,6 +100,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
   }, [isDesktop, onClose]);
 
   const isLO = accountType === 'lo';
+  const isOffice = accountType === 'office';
 
   const blueprintBase = location.pathname.startsWith('/blueprint-dashboard') ? '/blueprint-dashboard' : '/agent-blueprint-dashboard';
   const basePath = derivedBlueprintMode ? blueprintBase : derivedDemoMode ? '/demo-dashboard' : '';
@@ -107,12 +113,13 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
     '/lo-listings': '/dashboard/lo-listings',
     '/lo-partners': '/dashboard/lo-partners',
     '/lo-chatbot': '/dashboard/lo-chatbot',
+    '/office': '/dashboard/office',
     '/leads': derivedDemoMode || derivedBlueprintMode ? getPath('/leads') : '/dashboard/leads',
     '/appointments': derivedDemoMode || derivedBlueprintMode ? getPath('/appointments') : '/dashboard/appointments',
     '/settings': derivedDemoMode || derivedBlueprintMode ? getPath('/settings') : '/dashboard/settings'
   };
 
-  const activeNavItems = isLO ? LO_NAV_ITEMS : REALTOR_NAV_ITEMS;
+  const activeNavItems = isOffice ? OFFICE_NAV_ITEMS : isLO ? LO_NAV_ITEMS : REALTOR_NAV_ITEMS;
   const visibleNavItems = derivedDemoMode && !derivedBlueprintMode
     ? activeNavItems.filter((item) => item.key !== 'settings')
     : activeNavItems;

@@ -36,7 +36,9 @@ const LOPartnersPage = lazy(() => import('./components/dashboard-command/LOPartn
 const LOChatbotSetupPage = lazy(() => import('./components/dashboard-command/LOChatbotSetupPage'));
 const AgentClaimPage = lazy(() => import('./pages/AgentClaimPage'))
 const PartnerInvitePage = lazy(() => import('./pages/PartnerInvitePage'))
-const ListingDashboardPage = lazy(() => import('./pages/ListingDashboardPage'));
+const ListingDashboardPage = lazy(() => import('./pages/ListingDashboardPage'))
+const OfficeDashboardPage = lazy(() => import('./components/dashboard-command/OfficeDashboardPage'))
+const OfficeInviteClaimPage = lazy(() => import('./pages/OfficeInviteClaimPage'));
 const ShareTestPage = lazy(() => import('./components/dashboard-command/ShareTestPage'));
 const AIConversationsPage = lazy(() => import('./components/AIConversationsPage'));
 const AICardPage = lazy(() => import('./components/AICardPage'));
@@ -1564,6 +1566,7 @@ const App: React.FC = () => {
                         <Route path="lo-listings" element={<LOListingsPage />} />
                         <Route path="lo-partners" element={<LOPartnersPage />} />
                         <Route path="lo-chatbot" element={<LOChatbotSetupPage />} />
+                        <Route path="office" element={<OfficeDashboardPage />} />
                         <Route path="billing" element={<BillingCommandPage />} />
                         <Route path="onboarding" element={<OnboardingCommandPage />} />
                         <Route path="lo-onboarding" element={<LOOnboardingPage />} />
@@ -1609,6 +1612,13 @@ const App: React.FC = () => {
                     <Route path="/listing-dashboard/:token" element={
                         <Suspense fallback={<LoadingSpinner />}>
                             <ListingDashboardPage />
+                        </Suspense>
+                    } />
+
+                    {/* Office → LO invite claim (public, token-gated) */}
+                    <Route path="/office-invite/:token" element={
+                        <Suspense fallback={<LoadingSpinner />}>
+                            <OfficeInviteClaimPage />
                         </Suspense>
                     } />
 
@@ -1672,6 +1682,7 @@ const App: React.FC = () => {
                         <Route path="/dashboard/lo-listings" element={<LOListingsPage />} />
                         <Route path="/dashboard/lo-partners" element={<LOPartnersPage />} />
                         <Route path="/dashboard/lo-chatbot" element={<LOChatbotSetupPage />} />
+                        <Route path="/dashboard/office" element={<OfficeDashboardPage />} />
                         <Route path="/dashboard/billing" element={<Navigate to="/dashboard/settings/billing" replace />} />
                         <Route path="/dashboard/onboarding" element={<OnboardingCommandPage />} />
                         <Route path="/dashboard/lo-onboarding" element={<LOOnboardingPage />} />
