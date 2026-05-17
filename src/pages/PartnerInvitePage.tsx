@@ -27,11 +27,19 @@ interface ListingInfo {
   gallery_photos: string[];
 }
 
+interface BrandInfo {
+  companyName: string | null;
+  logoUrl: string | null;
+  color: string;
+  whiteLabel: boolean;
+}
+
 interface InviteData {
   token: string;
   claimed: boolean;
   inviteeName: string | null;
   lo: LOInfo;
+  brand?: BrandInfo;
   listing: ListingInfo | null;
   chatbot: { bot_name: string; greeting: string; is_active: boolean } | null;
 }
@@ -343,13 +351,15 @@ const PartnerInvitePage: React.FC = () => {
     </div>
   );
 
-  const { lo, listing, chatbot, inviteeName } = data;
+  const { lo, listing, chatbot, inviteeName, brand } = data;
   const agentName = inviteeName?.trim() || 'Your Name Here';
   const agentInitial = agentName[0]?.toUpperCase() || 'A';
   const displayListing = listing || DEMO_LISTING;
   const botName = chatbot?.bot_name || `${lo.name.split(' ')[0]}'s Finance Assistant`;
   const greeting = chatbot?.greeting || `Hi! I'm ${lo.name}'s AI assistant. Ask me anything about financing this home — rates, payments, programs, whatever's on your mind.`;
-  const brandColor = lo.brandColor || '#2563eb';
+  const brandColor = brand?.color || lo.brandColor || '#2563eb';
+  const officeLogo = brand?.logoUrl || null;
+  const officeName = brand?.companyName || lo.company;
 
   const monthlyPayment = Math.round(displayListing.price * 0.8 * 0.00716).toLocaleString();
   const market = displayListing.address.split(',').slice(-2).join(',').trim() || 'Your market';
@@ -361,12 +371,14 @@ const PartnerInvitePage: React.FC = () => {
 
         {/* ── Invite bar (soft, no pressure) ── */}
         <div className="sticky top-0 z-40 flex items-center gap-3 bg-slate-900 px-4 py-3 text-white">
-          {lo.headshotUrl
-            ? <img src={lo.headshotUrl} alt={lo.name} className="h-9 w-9 flex-shrink-0 rounded-full object-cover" />
-            : <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-sm font-extrabold text-white" style={{ background: brandColor }}>{lo.name[0]}</div>
+          {officeLogo
+            ? <img src={officeLogo} alt={officeName || 'logo'} className="h-9 max-w-[120px] flex-shrink-0 object-contain" />
+            : lo.headshotUrl
+              ? <img src={lo.headshotUrl} alt={lo.name} className="h-9 w-9 flex-shrink-0 rounded-full object-cover" />
+              : <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-sm font-extrabold text-white" style={{ background: brandColor }}>{lo.name[0]}</div>
           }
           <div className="min-w-0 flex-1">
-            <p className="truncate text-[13px] font-bold text-slate-300">{lo.name} · {lo.company}</p>
+            <p className="truncate text-[13px] font-bold text-slate-300">{lo.name}{officeName ? ` · ${officeName}` : ''}</p>
             <p className="text-[11px] text-slate-500">made you something — take a look 👇</p>
           </div>
           <button
@@ -499,6 +511,9 @@ const PartnerInvitePage: React.FC = () => {
           </div>
           <span className="flex-shrink-0 text-[11px] text-slate-400">Powers the AI →</span>
         </div>
+
+        {/* Subtle attribution */}
+        <p className="mt-4 text-center text-[10px] text-slate-400">Powered by HomeListingAI</p>
       </div>
 
       {/* ── Chat overlay — Talk to the Home (real estate AI) OR Financing (LO AI) ── */}

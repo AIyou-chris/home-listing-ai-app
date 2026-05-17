@@ -121,6 +121,135 @@ const InviteLOModal: React.FC<{ onClose: () => void; onSent: () => void }> = ({ 
   )
 }
 
+interface Branding {
+  companyName: string
+  brandColor: string
+  logoUrl: string
+  leadWebhookUrl: string
+}
+
+const WhiteLabelCard: React.FC = () => {
+  const [b, setB] = useState<Branding>({ companyName: '', brandColor: '#2563eb', logoUrl: '', leadWebhookUrl: '' })
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [testing, setTesting] = useState(false)
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      fetch(buildApiUrl('/api/office/branding'), { headers: { 'x-user-id': user?.id || '' } })
+        .then(r => r.json())
+        .then((d: { success?: boolean; branding?: Branding }) => { if (d.success && d.branding) setB(d.branding) })
+        .catch(() => {})
+        .finally(() => setLoading(false))
+    })
+  }, [])
+
+  const save = async () => {
+    setSaving(true)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      const res = await fetch(buildApiUrl('/api/office/branding'), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': user?.id || '' },
+        body: JSON.stringify(b)
+      })
+      const j = await res.json() as { success?: boolean; error?: string }
+      if (!res.ok || !j.success) throw new Error(j.error || 'failed')
+      showToast.success('Branding saved — live on all your LO pages')
+    } catch (e) {
+      showToast.error(e instanceof Error && e.message === 'webhook_must_be_https' ? 'Webhook URL must start with https://' : 'Save failed. Try again.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const testWebhook = async () => {
+    setTesting(true)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      const res = await fetch(buildApiUrl('/api/office/branding/test-webhook'), {
+        method: 'POST', headers: { 'x-user-id': user?.id || '' }
+      })
+      const j = await res.json() as { success?: boolean; status?: number; error?: string }
+      if (j.success) showToast.success(`Webhook OK (HTTP ${j.status})`)
+      else showToast.error(j.error === 'no_webhook_configured' ? 'Save a webhook URL first' : `Webhook failed${j.status ? ` (HTTP ${j.status})` : ''}`)
+    } catch {
+      showToast.error('Webhook test failed')
+    } finally {
+      setTesting(false)
+    }
+  }
+
+  if (loading) return null
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
+      <div className="mb-1 flex items-center gap-2">
+        <h2 className="text-sm font-black uppercase tracking-wide text-slate-500">White Label</h2>
+        <span className="rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-bold uppercase text-violet-600">Premium</span>
+      </div>
+      <p className="mb-5 text-sm text-slate-500">Your brand flows to every loan officer's WOW Links, listing dashboards, and chatbots automatically.</p>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <div>
+          <label className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500">Company Name</label>
+          <input value={b.companyName} onChange={e => setB({ ...b, companyName: e.target.value })}
+            className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+            placeholder="Summit Mortgage Group" />
+        </div>
+        <div>
+          <label className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500">Brand Color</label>
+          <div className="flex items-center gap-3">
+            <input type="color" value={/^#[0-9a-fA-F]{6}$/.test(b.brandColor) ? b.brandColor : '#2563eb'}
+              onChange={e => setB({ ...b, brandColor: e.target.value })}
+              className="h-10 w-14 cursor-pointer rounded-lg border border-slate-200" />
+            <input value={b.brandColor} onChange={e => setB({ ...b, brandColor: e.target.value })}
+              className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              placeholder="#2563eb" />
+          </div>
+        </div>
+        <div className="md:col-span-2">
+          <label className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500">Logo URL</label>
+          <input value={b.logoUrl} onChange={e => setB({ ...b, logoUrl: e.target.value })}
+            className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+            placeholder="https://yourdomain.com/logo.png" />
+        </div>
+        <div className="md:col-span-2">
+          <label className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500">
+            Lead Webhook URL <span className="font-normal text-slate-400">— warm leads POST here (CRM / Zapier / Make)</span>
+          </label>
+          <div className="flex gap-2">
+            <input value={b.leadWebhookUrl} onChange={e => setB({ ...b, leadWebhookUrl: e.target.value })}
+              className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              placeholder="https://hooks.zapier.com/…" />
+            <button onClick={testWebhook} disabled={testing}
+              className="flex-shrink-0 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50">
+              {testing ? 'Testing…' : 'Send Test'}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {b.logoUrl && /^https?:\/\//.test(b.logoUrl) && (
+        <div className="mt-4 flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50 p-3">
+          <span className="text-[11px] font-bold uppercase text-slate-400">Preview</span>
+          <img src={b.logoUrl} alt="logo" className="h-8 max-w-[160px] object-contain" />
+          <span className="rounded-full px-3 py-1 text-xs font-bold text-white" style={{ background: /^#[0-9a-fA-F]{6}$/.test(b.brandColor) ? b.brandColor : '#2563eb' }}>
+            {b.companyName || 'Your Brand'}
+          </span>
+        </div>
+      )}
+
+      <div className="mt-5 flex justify-end">
+        <button onClick={save} disabled={saving}
+          className="rounded-xl bg-primary-600 px-6 py-2.5 text-sm font-bold text-white hover:bg-primary-700 disabled:opacity-50">
+          {saving ? 'Saving…' : 'Save Branding'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 const OfficeDashboardPage: React.FC = () => {
   const [data, setData] = useState<OverviewData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -245,6 +374,8 @@ const OfficeDashboardPage: React.FC = () => {
           </div>
         )}
       </div>
+
+      <WhiteLabelCard />
 
       {showInvite && <InviteLOModal onClose={() => setShowInvite(false)} onSent={load} />}
     </div>

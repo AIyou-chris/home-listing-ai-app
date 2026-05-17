@@ -22,6 +22,7 @@ interface Lead {
 interface DashboardData {
   listing: { address: string; price: number; beds: number; baths: number; sqft: number; photo: string | null; status: string };
   owner: { name: string; company: string | null } | null;
+  brand?: { companyName: string | null; logoUrl: string | null; color: string; whiteLabel: boolean };
   stats: { views: number; leads: number; hotLeads: number };
   leads: Lead[];
 }
@@ -83,7 +84,8 @@ const ListingDashboardPage: React.FC = () => {
     </div>
   );
 
-  const { listing, owner, stats, leads } = data;
+  const { listing, owner, stats, leads, brand } = data;
+  const accent = brand?.color || '#22d3ee';
 
   return (
     <div className="min-h-screen bg-[#eef2f7]">
@@ -91,10 +93,15 @@ const ListingDashboardPage: React.FC = () => {
 
         {/* Header */}
         <div className="relative overflow-hidden bg-gradient-to-b from-slate-900 to-[#1e3a5f] px-5 pb-6 pt-7 text-white">
-          <div className="pointer-events-none absolute -right-12 -top-12 h-44 w-44 rounded-full bg-cyan-400/10" />
+          <div className="pointer-events-none absolute -right-12 -top-12 h-44 w-44 rounded-full" style={{ background: `${accent}1a` }} />
+          {brand?.logoUrl && (
+            <div className="mb-4">
+              <img src={brand.logoUrl} alt={brand.companyName || 'logo'} className="h-7 max-w-[160px] object-contain" />
+            </div>
+          )}
           <div className="flex items-center gap-2">
-            <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
-            <span className="text-[11px] font-extrabold uppercase tracking-widest text-emerald-300">Live · updates automatically</span>
+            <span className="h-2 w-2 animate-pulse rounded-full" style={{ background: accent }} />
+            <span className="text-[11px] font-extrabold uppercase tracking-widest" style={{ color: accent }}>Live · updates automatically</span>
           </div>
           <div className="mt-3 flex items-center gap-4">
             {listing.photo
