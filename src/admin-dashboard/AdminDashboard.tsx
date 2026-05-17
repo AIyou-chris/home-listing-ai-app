@@ -44,10 +44,12 @@ export type DashboardView =
   | 'marketing-reports'
   | 'users'
   | 'broadcast'
-  | 'blog';
+  | 'blog'
+  | 'white-label';
 
 import AdminBroadcastPage from './components/AdminBroadcastPage';
 import BlogEditor from './Blog/BlogEditor';
+import AdminWhiteLabelPage from './components/AdminWhiteLabelPage';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const normalizeAppointment = (appt: any): Appointment => ({
@@ -376,6 +378,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'dashboard
         return <AdminBroadcastPage />;
       case 'blog':
         return <BlogEditor />;
+      case 'white-label':
+        return <AdminWhiteLabelPage />;
       default:
         return (
           <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-8">
