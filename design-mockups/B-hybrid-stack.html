@@ -1,0 +1,92 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:-apple-system,'Segoe UI',Roboto,sans-serif}
+body{background:#eef2f7;width:430px}
+.phone{width:430px;background:#eef2f7;padding-bottom:30px}
+.invite-bar{display:flex;align-items:center;gap:10px;padding:12px 16px;background:#0f172a;color:#fff;position:sticky;top:0;z-index:9}
+.invite-bar .av{width:34px;height:34px;border-radius:50%;background:#2563eb;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px}
+.invite-bar .n{font-size:13px;font-weight:700;color:#cbd5e1}
+.invite-bar .s{font-size:11px;color:#64748b}
+.invite-bar .cta{margin-left:auto;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);font-size:11px;font-weight:700;padding:8px 14px;border-radius:99px;color:#e2e8f0}
+
+/* ── BIGGER PITCH HERO ── */
+.pitchhero{background:linear-gradient(160deg,#0f172a 0%,#1e3a5f 100%);color:#fff;padding:30px 22px 34px;text-align:center;position:relative;overflow:hidden}
+.pitchhero::after{content:'';position:absolute;right:-50px;top:-50px;width:180px;height:180px;background:rgba(40,167,232,.12);border-radius:50%}
+.pitchhero .kicker{display:inline-block;background:rgba(40,167,232,.18);color:#5cc6f5;font-size:11px;font-weight:800;padding:6px 14px;border-radius:99px;text-transform:uppercase;letter-spacing:1px}
+.pitchhero h1{font-size:27px;font-weight:900;margin-top:16px;line-height:1.22;letter-spacing:-.5px}
+.pitchhero h1 span{color:#28a7e8}
+.pitchhero p{font-size:14px;color:#9fb3c8;margin-top:12px;line-height:1.55;max-width:340px;margin-left:auto;margin-right:auto}
+.pitchhero .chips{display:flex;gap:8px;justify-content:center;margin-top:18px;flex-wrap:wrap}
+.pitchhero .chip{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);font-size:11px;padding:8px 13px;border-radius:99px;color:#cbd5e1}
+.pitchhero .scroll{margin-top:20px;font-size:12px;color:#64748b;font-weight:600;letter-spacing:.5px}
+
+.wrap{padding:14px;margin-top:-16px}
+.card{background:#fff;border-radius:22px;box-shadow:0 8px 28px rgba(15,23,42,.10);overflow:hidden}
+.heroimg{position:relative;height:240px;background:url('https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?q=80&w=900&auto=format&fit=crop') center/cover}
+.heroimg::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0) 40%,rgba(0,0,0,.6))}
+.heroimg .pr{position:absolute;bottom:14px;left:16px;color:#fff;z-index:2}
+.heroimg .pr b{font-size:26px;font-weight:900}
+.heroimg .pr p{font-size:12px;opacity:.85}
+.tag{position:absolute;top:12px;left:12px;background:#fff;color:#2563eb;font-size:10px;font-weight:900;padding:5px 10px;border-radius:99px;z-index:3}
+.talk{margin:14px;display:flex;align-items:center;justify-content:center;gap:8px;background:#28a7e8;color:#fff;padding:16px;border-radius:16px;font-weight:800;font-size:16px;box-shadow:0 8px 22px rgba(40,167,232,.4)}
+.talk-sub{text-align:center;font-size:11px;color:#64748b;margin:-6px 14px 8px;font-weight:600}
+.statbar{display:flex;justify-content:space-around;padding:14px;border-top:1px solid #f1f5f9;border-bottom:1px solid #f1f5f9;margin:0 0 4px}
+.statbar div{text-align:center}
+.statbar b{font-size:17px;font-weight:800;color:#0f172a;display:block}
+.statbar span{font-size:10px;color:#94a3b8;letter-spacing:.5px}
+.agent{margin:14px;background:linear-gradient(135deg,#1e3a8a,#2563eb);border-radius:18px;padding:18px;color:#fff;position:relative;overflow:hidden}
+.agent::after{content:'';position:absolute;right:-30px;top:-30px;width:120px;height:120px;background:rgba(255,255,255,.08);border-radius:50%}
+.agent .top{display:flex;align-items:center;gap:14px;position:relative}
+.agent .ph{width:58px;height:58px;border-radius:50%;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:900;border:2px solid rgba(255,255,255,.4)}
+.agent .nm{font-size:20px;font-weight:900}
+.agent .badge{font-size:10px;font-weight:800;text-transform:uppercase;background:rgba(255,255,255,.25);padding:3px 8px;border-radius:99px;margin-left:8px}
+.agent .loc{font-size:12px;opacity:.8;margin-top:3px}
+.agent .you{font-size:12px;font-weight:700;margin-top:8px;opacity:.95}
+.agent .btns{display:flex;gap:8px;margin-top:15px;position:relative}
+.agent .btns button{flex:1;padding:11px;border:none;border-radius:11px;font-weight:800;font-size:13px;background:#fff;color:#1e3a8a}
+.agent .btns .o{background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3)}
+.sec{margin:14px;background:#fff;border-radius:18px;padding:18px;box-shadow:0 4px 16px rgba(15,23,42,.05)}
+.desc{font-size:14px;color:#475569;line-height:1.6}
+.pay{margin-top:0}.payrow{display:flex;align-items:center;justify-content:space-between}
+.pay b{font-size:24px;font-weight:900;color:#065f46}
+.pay p{font-size:11px;color:#059669;text-transform:uppercase;font-weight:800;letter-spacing:.5px}
+.pay s{font-size:11px;color:#10b981;text-decoration:none}
+.pay button{background:#fff;color:#059669;border:2px solid #a7f3d0;padding:11px 16px;border-radius:11px;font-weight:800;font-size:13px}
+.pitch{margin:14px;background:linear-gradient(135deg,#0f172a,#1e3a5f);border-radius:18px;padding:22px;color:#fff;text-align:center}
+.pitch .h{font-size:18px;font-weight:900;line-height:1.3}
+.pitch .p{font-size:13px;color:#cbd5e1;margin-top:9px;line-height:1.5}
+.pitch button{margin-top:16px;width:100%;background:rgba(40,167,232,.16);color:#5cc6f5;border:1px solid rgba(40,167,232,.4);padding:14px;border-radius:12px;font-weight:800;font-size:15px}
+.pitch .ns{font-size:11px;color:#64748b;margin-top:10px}
+.finby{margin:14px;display:flex;align-items:center;gap:10px;background:#fff;border-radius:13px;padding:12px;box-shadow:0 4px 16px rgba(15,23,42,.05)}
+.finby .lab{font-size:10px;font-weight:800;text-transform:uppercase;color:#94a3b8}
+.finby .a{width:30px;height:30px;border-radius:50%;background:#cbd5e1;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;color:#fff}
+.finby .nm{font-size:13px;font-weight:700;color:#475569}.finby .co{font-size:11px;color:#94a3b8}
+</style></head><body>
+<div class="phone">
+  <div class="invite-bar"><div class="av">F</div><div><div class="n">Fred Potter · HomeListingAI</div><div class="s">made you something — take a look 👇</div></div><div class="cta">Take a Look</div></div>
+
+  <div class="pitchhero">
+    <span class="kicker">A new way to show listings</span>
+    <h1>What if your listings could <span>answer buyers</span> for you?</h1>
+    <p>This is a real, live preview — an AI concierge built into the page that answers questions any hour and quietly flags the serious buyers for you. Nothing to sign up for. Just look around.</p>
+    <div class="chips"><span class="chip">🤖 Answers 24/7</span><span class="chip">🔥 Warm leads, automatically</span><span class="chip">📱 Feels like an app</span></div>
+    <div class="scroll">↓ Here's yours — scroll through it ↓</div>
+  </div>
+
+  <div class="wrap">
+    <div class="card">
+      <div class="heroimg"><span class="tag">LIVE PREVIEW</span><div class="pr"><b>$875,000</b><p>2847 Sunset Ridge Dr, Austin TX</p></div></div>
+      <div class="talk">💬 Talk to the Home</div>
+      <div class="talk-sub">Tap it — ask this listing anything, like you would a person</div>
+      <div class="statbar"><div><b>4</b><span>BEDS</span></div><div><b>3</b><span>BATHS</span></div><div><b>2,840</b><span>SQFT</span></div></div>
+    </div>
+    <div class="agent">
+      <div class="top"><div class="ph">F</div><div><div class="nm">Fred<span class="badge">Listing Agent</span></div><div class="loc">Austin, TX 78746</div><div class="you">👋 This is your page — your name, your brand, front and center.</div></div></div>
+      <div class="btns"><button>📞 Call Fred</button><button class="o">✉️ Message</button><button class="o">📅 Tour</button></div>
+    </div>
+    <div class="sec desc">Stunning modern home nestled in the hills of West Austin. Open floor plan, chef's kitchen with waterfall island, primary suite with spa bath.</div>
+    <div class="sec pay"><div class="payrow"><div><p>Est. Monthly Payment</p><b>$5,012<span style="font-size:14px">/mo</span></b><br><s>20% down · 30yr · 7.1%</s></div><button>Ask the AI</button></div></div>
+    <div class="pitch"><div class="h">This took 5 minutes to build.<br>Yours could too.</div><div class="p">No tech setup, no contracts, no catch. Curious how it works? Have a look — it's all yours to explore.</div><button>See How It Works →</button><div class="ns">No account needed · Nothing happens until you decide</div></div>
+    <div class="finby"><span class="lab">Financing&nbsp;by</span><div class="a">F</div><div style="flex:1"><div class="nm">Fred Potter</div><div class="co">HomeListingAI</div></div><span style="font-size:11px;color:#94a3b8">Powers the AI →</span></div>
+  </div>
+</div>
+</body></html>
