@@ -1,5 +1,6 @@
 import { supabase } from './supabase'
 import { buildApiUrl } from '../lib/api'
+import { waitForAuthenticatedUserId } from './authSession'
 
 interface AICardProfile {
   id: string;
@@ -53,16 +54,8 @@ export interface AICardQRCode {
   updated_at?: string;
 }
 
-const resolveUserId = async (explicit?: string | null) => {
-  if (explicit) return explicit;
-  try {
-    const { data } = await supabase.auth.getUser();
-    return data?.user?.id || null;
-  } catch (error) {
-    console.warn('[AI Card] Failed to resolve user id:', error);
-    return null;
-  }
-};
+const resolveUserId = async (explicit?: string | null): Promise<string | null> =>
+  explicit ?? await waitForAuthenticatedUserId();
 
 const createSignedAssetUrl = async (path?: string | null) => {
   if (!path) return null;

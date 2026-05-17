@@ -1,5 +1,5 @@
-import { supabase } from './supabase'
 import { buildApiUrl } from '../lib/api'
+import { waitForAuthenticatedUserId } from './authSession'
 
 const LISTING_UPLOAD_PATH = buildApiUrl('/api/listings/photo-upload')
 const MAX_UPLOAD_ATTEMPTS = 4
@@ -76,18 +76,8 @@ const compressImageFile = async (
   return new File([blob], `${baseName}.jpg`, { type: 'image/jpeg' })
 }
 
-const resolveUserId = async () => {
-  try {
-    const { data } = await supabase.auth.getUser()
-    return data?.user?.id ?? null
-  } catch (error) {
-    console.warn('[Listing Upload] Failed to resolve user id:', error)
-    return null
-  }
-}
-
 export const uploadListingPhoto = async (file: File): Promise<string> => {
-  const userId = await resolveUserId()
+  const userId = await waitForAuthenticatedUserId()
   const isImage = file.type.startsWith(IMAGE_MIME_PREFIX)
 
   const attemptFiles: File[] = [file]

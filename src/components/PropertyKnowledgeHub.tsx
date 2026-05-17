@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { resolveUserId } from '../services/userId';
+import { resolveUserId } from '../services/authSession';
 import { Property } from '../types';
 import {
     listKb,
@@ -78,8 +78,8 @@ export const PropertyKnowledgeHub: React.FC<PropertyKnowledgeHubProps> = ({ prop
         try {
             const userId = resolveUserId();
             const url = websiteUrl.trim();
-            let title = url;
-            let content = '';
+            const title = url;
+            const content = '';
 
             // [REMOVED] Scraping logic removed per user request
             // const data = await scrapeWebsite(url);
