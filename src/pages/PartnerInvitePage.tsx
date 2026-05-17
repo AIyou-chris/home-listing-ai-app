@@ -188,69 +188,6 @@ const LiveChat: React.FC<{ lo: LOInfo; listingId: string; botName: string; greet
   );
 };
 
-// ─── Listing Hero ─────────────────────────────────────────────────────────────
-
-const ListingHero: React.FC<{ listing: ListingInfo }> = ({ listing }) => {
-  const [photoIdx, setPhotoIdx] = useState(0);
-  const photos = listing.hero_photos.length > 0 ? listing.hero_photos : ['https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?q=80&w=1200&auto=format&fit=crop'];
-
-  return (
-    <div className="relative">
-      <div className="relative h-64 md:h-80 overflow-hidden">
-        <img
-          src={photos[photoIdx]}
-          alt={listing.address}
-          className="w-full h-full object-cover"
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-        {photos.length > 1 && (
-          <div className="absolute bottom-3 right-3 flex gap-1">
-            {photos.map((_, i) => (
-              <button
-                key={i}
-                onClick={() => setPhotoIdx(i)}
-                className={`w-2 h-2 rounded-full transition-all ${i === photoIdx ? 'bg-white scale-125' : 'bg-white/50'}`}
-              />
-            ))}
-          </div>
-        )}
-        {photos.length > 1 && (
-          <>
-            <button onClick={() => setPhotoIdx(i => (i - 1 + photos.length) % photos.length)} className="absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/40 text-white flex items-center justify-center hover:bg-black/60 transition-colors">
-              <span className="material-symbols-outlined text-[16px]">chevron_left</span>
-            </button>
-            <button onClick={() => setPhotoIdx(i => (i + 1) % photos.length)} className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/40 text-white flex items-center justify-center hover:bg-black/60 transition-colors">
-              <span className="material-symbols-outlined text-[16px]">chevron_right</span>
-            </button>
-          </>
-        )}
-        <div className="absolute bottom-4 left-4 text-white">
-          <p className="text-2xl font-black">${listing.price.toLocaleString()}</p>
-          <p className="text-sm text-white/80">{listing.address}</p>
-        </div>
-      </div>
-
-      {/* Stats bar */}
-      <div className="flex items-center gap-4 px-4 py-3 bg-white border-b border-slate-100 text-sm font-semibold text-slate-700">
-        <span className="flex items-center gap-1.5">
-          <span className="material-symbols-outlined text-[16px] text-slate-400">bed</span>
-          {listing.beds} beds
-        </span>
-        <span className="text-slate-200">|</span>
-        <span className="flex items-center gap-1.5">
-          <span className="material-symbols-outlined text-[16px] text-slate-400">bathtub</span>
-          {listing.baths} baths
-        </span>
-        <span className="text-slate-200">|</span>
-        <span className="flex items-center gap-1.5">
-          <span className="material-symbols-outlined text-[16px] text-slate-400">straighten</span>
-          {listing.sqft.toLocaleString()} sqft
-        </span>
-      </div>
-    </div>
-  );
-};
-
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 const PartnerInvitePage: React.FC = () => {
@@ -299,161 +236,174 @@ const PartnerInvitePage: React.FC = () => {
   const greeting = chatbot?.greeting || `Hi! I'm ${lo.name}'s AI assistant. Ask me anything about financing this home — rates, payments, programs, whatever's on your mind.`;
   const brandColor = lo.brandColor || '#2563eb';
 
-  return (
-    <div className="min-h-screen bg-slate-50">
+  const monthlyPayment = Math.round(displayListing.price * 0.8 * 0.00716).toLocaleString();
+  const market = displayListing.address.split(',').slice(-2).join(',').trim() || 'Your market';
+  const heroPhoto = displayListing.hero_photos[0] || 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?q=80&w=1200&auto=format&fit=crop';
 
-      {/* ── Invitation Banner ── */}
-      <div className="sticky top-0 z-50 bg-slate-900 text-white px-4 py-3 shadow-lg">
-        <div className="max-w-5xl mx-auto flex items-center gap-3">
+  return (
+    <div className="min-h-screen bg-[#eef2f7]">
+      <div className="mx-auto max-w-[480px] bg-[#eef2f7] pb-10">
+
+        {/* ── Invite bar (soft, no pressure) ── */}
+        <div className="sticky top-0 z-40 flex items-center gap-3 bg-slate-900 px-4 py-3 text-white">
           {lo.headshotUrl
-            ? <img src={lo.headshotUrl} alt={lo.name} className="w-9 h-9 rounded-full object-cover border-2 border-white/20 flex-shrink-0" />
-            : <div className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0" style={{ background: brandColor }}>{lo.name[0]}</div>
+            ? <img src={lo.headshotUrl} alt={lo.name} className="h-9 w-9 flex-shrink-0 rounded-full object-cover" />
+            : <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-sm font-extrabold text-white" style={{ background: brandColor }}>{lo.name[0]}</div>
           }
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold leading-tight truncate">
-              <span className="text-slate-300">{lo.name}</span>
-              <span className="text-slate-500 mx-1">·</span>
-              <span className="text-slate-400 text-xs">{lo.company}</span>
-            </p>
-            <p className="text-xs text-slate-400 leading-tight">built this for your listings. The chatbot is live — try it. 👇</p>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[13px] font-bold text-slate-300">{lo.name} · {lo.company}</p>
+            <p className="text-[11px] text-slate-500">made you something — take a look 👇</p>
           </div>
           <button
             onClick={() => navigate(`/agent/claim/${token}`)}
-            className="flex-shrink-0 rounded-lg px-4 py-2 text-xs font-bold text-white transition-all shadow-sm hover:brightness-110"
-            style={{ background: brandColor }}
+            className="flex-shrink-0 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-[11px] font-bold text-slate-100 transition-colors hover:bg-white/20"
           >
-            Get This on My Listings →
+            Take a Look
           </button>
         </div>
-      </div>
 
-      {/* ── Main layout: listing + chat ── */}
-      <div className="max-w-5xl mx-auto px-4 py-6 flex flex-col lg:flex-row gap-6 items-start">
-
-        {/* Left — listing detail */}
-        <div className="w-full lg:flex-1 rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-          <ListingHero listing={displayListing} />
-
-          {/* ── AGENT HERO CARD — the star of the page ── */}
-          <div className="relative -mt-10 mx-4 z-10">
-            <div className="rounded-2xl bg-white border border-slate-200 shadow-xl p-5">
-              <div className="flex items-center gap-4">
-                <div
-                  className="w-16 h-16 rounded-full flex items-center justify-center text-white text-2xl font-black flex-shrink-0 shadow-md ring-4 ring-white"
-                  style={{ background: `linear-gradient(135deg, ${brandColor}, ${brandColor}cc)` }}
-                >
-                  {agentInitial}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="text-xl font-black text-slate-900 leading-tight">{agentName}</p>
-                    <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full" style={{ background: `${brandColor}1a`, color: brandColor }}>
-                      Listing Agent
-                    </span>
-                  </div>
-                  <p className="text-sm text-slate-500 mt-0.5">{displayListing.address.split(',').slice(-2).join(',').trim() || 'Your market'}</p>
-                  <p className="text-xs font-semibold mt-1.5" style={{ color: brandColor }}>
-                    👋 This is your listing page — your name, your brand, front and center.
-                  </p>
-                </div>
-              </div>
-              <div className="flex gap-2 mt-4">
-                <button className="flex-1 rounded-xl py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:brightness-110" style={{ background: brandColor }}>
-                  📞 Call {agentName.split(' ')[0]}
-                </button>
-                <button className="flex-1 rounded-xl py-2.5 text-sm font-bold border-2 transition-all hover:bg-slate-50" style={{ borderColor: `${brandColor}40`, color: brandColor }}>
-                  ✉️ Message
-                </button>
-                <button className="flex-1 rounded-xl py-2.5 text-sm font-bold border-2 transition-all hover:bg-slate-50" style={{ borderColor: `${brandColor}40`, color: brandColor }}>
-                  📅 Tour
-                </button>
-              </div>
-            </div>
+        {/* ── Bigger pitch hero ── */}
+        <div className="relative overflow-hidden bg-gradient-to-b from-slate-900 to-[#1e3a5f] px-6 pb-9 pt-8 text-center text-white">
+          <div className="pointer-events-none absolute -right-12 -top-12 h-44 w-44 rounded-full bg-cyan-400/10" />
+          <span className="inline-block rounded-full bg-cyan-400/15 px-3.5 py-1.5 text-[11px] font-extrabold uppercase tracking-widest text-cyan-300">
+            A new way to show listings
+          </span>
+          <h1 className="mx-auto mt-4 max-w-[340px] text-[26px] font-black leading-[1.22] tracking-tight">
+            What if your listings could <span className="text-[#28a7e8]">answer buyers</span> for you?
+          </h1>
+          <p className="mx-auto mt-3 max-w-[340px] text-sm leading-relaxed text-slate-300">
+            This is a real, live preview — an AI concierge built into the page that answers questions any hour and quietly flags the serious buyers for you. Nothing to sign up for. Just look around.
+          </p>
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
+            {['🤖 Answers 24/7', '🔥 Warm leads, automatically', '📱 Feels like an app'].map(c => (
+              <span key={c} className="rounded-full border border-white/15 bg-white/[0.07] px-3 py-2 text-[11px] text-slate-300">{c}</span>
+            ))}
           </div>
+          <p className="mt-5 text-[12px] font-semibold tracking-wide text-slate-500">↓ Here's yours — scroll through it ↓</p>
+        </div>
 
-          <div className="p-5 pt-6 space-y-4">
-            <p className="text-sm text-slate-600 leading-relaxed">{displayListing.description}</p>
-
-            {/* Mortgage estimate teaser */}
-            <div className="rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-100 p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-bold text-emerald-700 uppercase tracking-wide mb-1">Est. Monthly Payment</p>
-                  <p className="text-2xl font-black text-emerald-800">
-                    ${Math.round((displayListing.price * 0.8 * 0.00716)).toLocaleString()}<span className="text-base font-semibold text-emerald-600">/mo</span>
-                  </p>
-                  <p className="text-xs text-emerald-600 mt-0.5">20% down · 30yr fixed · est. 7.1% rate</p>
-                </div>
-                <button
-                  onClick={() => setChatOpen(true)}
-                  className="rounded-xl px-4 py-2.5 text-sm font-bold text-white transition-all shadow-sm hover:brightness-110"
-                  style={{ background: brandColor }}
-                >
-                  Ask About Rates
-                </button>
+        {/* ── Listing card ── */}
+        <div className="-mt-4 px-3.5">
+          <div className="overflow-hidden rounded-[22px] bg-white shadow-[0_8px_28px_rgba(15,23,42,0.10)]">
+            <div className="relative h-60 bg-cover bg-center" style={{ backgroundImage: `url('${heroPhoto}')` }}>
+              <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/60" />
+              <span className="absolute left-3 top-3 z-10 rounded-full bg-white px-2.5 py-1 text-[10px] font-black" style={{ color: brandColor }}>LIVE PREVIEW</span>
+              <div className="absolute bottom-3.5 left-4 z-10 text-white">
+                <p className="text-[26px] font-black leading-none">${displayListing.price.toLocaleString()}</p>
+                <p className="mt-1 text-[12px] opacity-85">{displayListing.address}</p>
               </div>
             </div>
-
-            {/* Financing partner — small, clearly secondary, no confusion */}
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 flex items-center gap-3">
-              <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400 flex-shrink-0">Financing&nbsp;by</span>
-              {lo.headshotUrl
-                ? <img src={lo.headshotUrl} alt={lo.name} className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
-                : <div className="w-8 h-8 rounded-full bg-slate-300 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">{lo.name[0]}</div>
-              }
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-slate-700 truncate">{lo.name}</p>
-                <p className="text-xs text-slate-400 truncate">{lo.company}</p>
-              </div>
-              <span className="text-[11px] text-slate-400 flex-shrink-0">Powers the AI assistant →</span>
+            <button
+              onClick={() => setChatOpen(true)}
+              className="m-3.5 flex w-[calc(100%-1.75rem)] items-center justify-center gap-2 rounded-2xl py-4 text-base font-extrabold text-white shadow-[0_8px_22px_rgba(40,167,232,0.4)] transition-transform active:scale-[0.99]"
+              style={{ background: '#28a7e8' }}
+            >
+              💬 Talk to the Home
+            </button>
+            <p className="-mt-1.5 mb-2 px-3.5 text-center text-[11px] font-semibold text-slate-500">Tap it — ask this listing anything, like you would a person</p>
+            <div className="mb-1 flex justify-around border-y border-slate-100 py-3.5">
+              {[[displayListing.beds, 'BEDS'], [displayListing.baths, 'BATHS'], [displayListing.sqft.toLocaleString(), 'SQFT']].map(([v, l]) => (
+                <div key={l} className="text-center">
+                  <b className="block text-[17px] font-extrabold text-slate-900">{v}</b>
+                  <span className="text-[10px] tracking-wide text-slate-400">{l}</span>
+                </div>
+              ))}
             </div>
           </div>
         </div>
 
-        {/* Right — live chat (always visible on desktop, toggle on mobile) */}
-        <div className="w-full lg:w-[380px] lg:sticky lg:top-[72px]">
-          {/* Mobile chat toggle */}
-          <div className="lg:hidden mb-4">
-            <button
-              onClick={() => setChatOpen(!chatOpen)}
-              className="w-full flex items-center justify-between rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4"
-            >
-              <div className="flex items-center gap-3">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="font-bold text-emerald-800 text-sm">{botName} — Ask anything about financing</span>
+        {/* ── Agent card (the star) ── */}
+        <div className="m-3.5 overflow-hidden rounded-[18px] p-[18px] text-white" style={{ background: 'linear-gradient(135deg,#1e3a8a,#2563eb)' }}>
+          <div className="flex items-center gap-3.5">
+            <div className="flex h-[58px] w-[58px] flex-shrink-0 items-center justify-center rounded-full border-2 border-white/40 bg-white/20 text-2xl font-black">
+              {agentInitial}
+            </div>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-xl font-black leading-none">{agentName}</p>
+                <span className="rounded-full bg-white/25 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide">Listing Agent</span>
               </div>
-              <span className="material-symbols-outlined text-emerald-600">{chatOpen ? 'expand_less' : 'expand_more'}</span>
+              <p className="mt-1 text-xs opacity-80">{market}</p>
+              <p className="mt-2 text-xs font-bold opacity-95">👋 This is your page — your name, your brand, front and center.</p>
+            </div>
+          </div>
+          <div className="mt-4 flex gap-2">
+            <button className="flex-1 rounded-xl bg-white py-2.5 text-[13px] font-extrabold text-[#1e3a8a]">📞 Call {agentName.split(' ')[0]}</button>
+            <button className="flex-1 rounded-xl border border-white/30 bg-white/15 py-2.5 text-[13px] font-extrabold text-white">✉️ Message</button>
+            <button className="flex-1 rounded-xl border border-white/30 bg-white/15 py-2.5 text-[13px] font-extrabold text-white">📅 Tour</button>
+          </div>
+        </div>
+
+        {/* ── Description ── */}
+        <div className="m-3.5 rounded-[18px] bg-white p-[18px] text-sm leading-relaxed text-slate-600 shadow-[0_4px_16px_rgba(15,23,42,0.05)]">
+          {displayListing.description}
+        </div>
+
+        {/* ── Payment ── */}
+        <div className="m-3.5 rounded-[18px] bg-white p-[18px] shadow-[0_4px_16px_rgba(15,23,42,0.05)]">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[11px] font-extrabold uppercase tracking-wide text-emerald-600">Est. Monthly Payment</p>
+              <p className="text-2xl font-black text-emerald-800">${monthlyPayment}<span className="text-sm font-semibold">/mo</span></p>
+              <p className="mt-0.5 text-[11px] text-emerald-500">20% down · 30yr fixed · est. 7.1% rate</p>
+            </div>
+            <button
+              onClick={() => setChatOpen(true)}
+              className="rounded-xl border-2 border-emerald-200 bg-white px-4 py-2.5 text-[13px] font-extrabold text-emerald-700 transition-colors hover:bg-emerald-50"
+            >
+              Ask the AI
             </button>
           </div>
-
-          <div className={`rounded-2xl border border-slate-200 shadow-sm overflow-hidden bg-white ${chatOpen ? 'block' : 'hidden'} lg:block`} style={{ height: '520px' }}>
-            <LiveChat
-              lo={lo}
-              listingId={displayListing.id}
-              botName={botName}
-              greeting={greeting}
-            />
-          </div>
         </div>
-      </div>
 
-      {/* ── Bottom CTA ── */}
-      <div className="max-w-5xl mx-auto px-4 pb-12">
-        <div className="rounded-2xl p-8 text-center shadow-sm" style={{ background: `linear-gradient(135deg, ${brandColor}15, ${brandColor}08)`, border: `1px solid ${brandColor}30` }}>
-          <p className="text-xl font-black text-slate-900 mb-2">Want this on every one of your listings?</p>
-          <p className="text-slate-500 text-sm mb-6 max-w-md mx-auto">
-            {lo.name.split(' ')[0]} will power your listings with AI — buyers get instant answers to financing questions, and you get warm leads automatically.
+        {/* ── Soft pitch block ── */}
+        <div className="m-3.5 rounded-[18px] bg-gradient-to-br from-slate-900 to-[#1e3a5f] p-[22px] text-center text-white">
+          <p className="text-lg font-black leading-snug">This took 5 minutes to build.<br />Yours could too.</p>
+          <p className="mt-2 text-[13px] leading-relaxed text-slate-300">
+            No tech setup, no contracts, no catch. Curious how it works? Have a look — it's all yours to explore.
           </p>
           <button
             onClick={() => navigate(`/agent/claim/${token}`)}
-            className="rounded-xl px-8 py-4 text-base font-bold text-white shadow-md hover:brightness-110 transition-all"
-            style={{ background: brandColor }}
+            className="mt-4 w-full rounded-xl border border-cyan-400/40 bg-cyan-400/15 py-3.5 text-[15px] font-extrabold text-cyan-300 transition-colors hover:bg-cyan-400/25"
           >
-            Accept Partnership & Claim Your Account →
+            See How It Works →
           </button>
-          <p className="text-xs text-slate-400 mt-3">Free to agents · Powered by {lo.company}</p>
+          <p className="mt-2.5 text-[11px] text-slate-500">No account needed · Nothing happens until you decide</p>
+        </div>
+
+        {/* ── Financing by (small, secondary) ── */}
+        <div className="m-3.5 flex items-center gap-2.5 rounded-[13px] bg-white p-3 shadow-[0_4px_16px_rgba(15,23,42,0.05)]">
+          <span className="text-[10px] font-extrabold uppercase tracking-wide text-slate-400">Financing&nbsp;by</span>
+          {lo.headshotUrl
+            ? <img src={lo.headshotUrl} alt={lo.name} className="h-[30px] w-[30px] flex-shrink-0 rounded-full object-cover" />
+            : <div className="flex h-[30px] w-[30px] flex-shrink-0 items-center justify-center rounded-full bg-slate-300 text-xs font-bold text-white">{lo.name[0]}</div>
+          }
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[13px] font-bold text-slate-600">{lo.name}</p>
+            <p className="truncate text-[11px] text-slate-400">{lo.company}</p>
+          </div>
+          <span className="flex-shrink-0 text-[11px] text-slate-400">Powers the AI →</span>
         </div>
       </div>
+
+      {/* ── Chat overlay (slides up) ── */}
+      {chatOpen && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center" onClick={() => setChatOpen(false)}>
+          <div
+            className="flex h-[85vh] w-full max-w-[480px] flex-col overflow-hidden rounded-t-[22px] bg-white shadow-2xl sm:h-[600px] sm:rounded-[22px]"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-end border-b border-slate-100 px-3 py-2">
+              <button onClick={() => setChatOpen(false)} className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100" aria-label="Close chat">
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+            <div className="min-h-0 flex-1">
+              <LiveChat lo={lo} listingId={displayListing.id} botName={botName} greeting={greeting} />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

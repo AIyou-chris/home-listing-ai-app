@@ -1,0 +1,105 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:-apple-system,'Segoe UI',Roboto,sans-serif}
+body{background:#0a0e17;width:430px}
+.phone{width:430px;background:#0a0e17;color:#fff;overflow:hidden}
+.invite-bar{display:flex;align-items:center;gap:10px;padding:12px 16px;background:#0f172a;border-bottom:1px solid #1e293b}
+.invite-bar .av{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#2563eb,#1d4ed8);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px}
+.invite-bar .txt{flex:1;min-width:0}
+.invite-bar .n{font-size:13px;font-weight:700;color:#cbd5e1}
+.invite-bar .s{font-size:11px;color:#64748b}
+.invite-bar .cta{background:#2563eb;font-size:11px;font-weight:800;padding:8px 12px;border-radius:9px;white-space:nowrap}
+.hero{position:relative;height:560px;background:url('https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?q=80&w=900&auto=format&fit=crop') center/cover}
+.hero::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,14,23,.55) 0%,rgba(10,14,23,0) 22%,rgba(10,14,23,0) 55%,rgba(10,14,23,.92) 100%)}
+.talk{position:absolute;top:20px;left:16px;right:16px;z-index:3;display:flex;align-items:center;justify-content:center;gap:10px;background:linear-gradient(135deg,#1ea7 e8,#28a7e8);background:#28a7e8;padding:18px;border-radius:18px;font-weight:800;font-size:17px;box-shadow:0 10px 30px rgba(40,167,232,.45)}
+.talk small{position:absolute;bottom:-22px;left:0;right:0;text-align:center;font-size:11px;color:#94a3b8;font-weight:600}
+.glass{position:absolute;left:16px;right:16px;bottom:120px;z-index:3;background:rgba(15,23,42,.55);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.12);border-radius:22px;padding:22px;text-align:center}
+.glass .price{font-size:34px;font-weight:900;letter-spacing:-1px}
+.glass .addr{font-size:13px;color:#cbd5e1;margin-top:4px;display:flex;align-items:center;justify-content:center;gap:5px}
+.glass .stats{display:flex;justify-content:space-around;margin-top:18px;padding-top:18px;border-top:1px solid rgba(255,255,255,.12)}
+.glass .stats div{text-align:center}
+.glass .stats b{font-size:20px;font-weight:800;display:block}
+.glass .stats span{font-size:10px;color:#94a3b8;letter-spacing:1px}
+.navbar{position:absolute;left:16px;right:16px;bottom:24px;z-index:3;display:flex;justify-content:space-between;background:rgba(15,23,42,.6);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.1);border-radius:18px;padding:14px 8px}
+.navbar div{flex:1;text-align:center;font-size:10px;color:#cbd5e1;letter-spacing:.5px}
+.navbar div .ic{font-size:20px;margin-bottom:5px}
+.body{background:#fff;color:#0f172a;padding:0 16px;border-radius:24px 24px 0 0;margin-top:-20px;position:relative;z-index:4;padding-bottom:30px}
+.agent{margin-top:-44px;background:#fff;border:1px solid #e2e8f0;border-radius:20px;box-shadow:0 14px 40px rgba(0,0,0,.16);padding:18px;position:relative;z-index:5}
+.agent .top{display:flex;align-items:center;gap:14px}
+.agent .ph{width:62px;height:62px;border-radius:50%;background:linear-gradient(135deg,#2563eb,#1d4ed8);display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:900;color:#fff;box-shadow:0 0 0 4px #fff,0 6px 16px rgba(37,99,235,.4)}
+.agent .nm{font-size:21px;font-weight:900}
+.agent .badge{display:inline-block;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#2563eb;background:#dbeafe;padding:3px 8px;border-radius:99px;margin-left:8px;vertical-align:middle}
+.agent .loc{font-size:13px;color:#64748b;margin-top:3px}
+.agent .you{font-size:12px;font-weight:700;color:#2563eb;margin-top:8px}
+.agent .btns{display:flex;gap:8px;margin-top:16px}
+.agent .btns button{flex:1;padding:11px;border:none;border-radius:12px;font-weight:800;font-size:13px;cursor:pointer}
+.agent .b1{background:#2563eb;color:#fff}
+.agent .b2{background:#fff;border:2px solid #bfdbfe!important;color:#2563eb}
+.pitch{margin-top:18px;background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1px solid #bfdbfe;border-radius:18px;padding:18px}
+.pitch .h{font-size:16px;font-weight:900;color:#1e3a8a}
+.pitch .p{font-size:13px;color:#1e40af;margin-top:6px;line-height:1.5}
+.pitch button{margin-top:14px;width:100%;background:#2563eb;color:#fff;border:none;padding:13px;border-radius:12px;font-weight:800;font-size:14px}
+.desc{margin-top:18px;font-size:14px;color:#475569;line-height:1.6}
+.pay{margin-top:16px;background:linear-gradient(135deg,#ecfdf5,#d1fae5);border:1px solid #a7f3d0;border-radius:16px;padding:16px;display:flex;align-items:center;justify-content:space-between}
+.pay .l b{font-size:24px;font-weight:900;color:#065f46}
+.pay .l p{font-size:11px;color:#059669;text-transform:uppercase;font-weight:700;letter-spacing:.5px}
+.pay .l s{font-size:11px;color:#10b981;text-decoration:none}
+.pay button{background:#059669;color:#fff;border:none;padding:11px 16px;border-radius:11px;font-weight:800;font-size:13px}
+.finby{margin-top:14px;display:flex;align-items:center;gap:10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:13px;padding:11px}
+.finby .lab{font-size:10px;font-weight:800;text-transform:uppercase;color:#94a3b8}
+.finby .a{width:30px;height:30px;border-radius:50%;background:#cbd5e1;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;color:#fff}
+.finby .nm{font-size:13px;font-weight:700;color:#475569}
+.finby .co{font-size:11px;color:#94a3b8}
+.tag{position:absolute;top:14px;left:14px;background:#fff;color:#2563eb;font-size:10px;font-weight:900;padding:6px 11px;border-radius:99px;z-index:6;box-shadow:0 4px 12px rgba(0,0,0,.15)}
+</style></head><body>
+<div class="phone">
+  <div class="invite-bar">
+    <div class="av">F</div>
+    <div class="txt"><div class="n">Fred Potter · HomeListingAI</div><div class="s">built this for your listings 👇</div></div>
+    <div class="cta">Get This →</div>
+  </div>
+  <div class="hero">
+    <span class="tag">DEMO · Mockup A</span>
+    <div class="talk">💬 Talk to the Home<small>Ask this listing anything — powered by AI</small></div>
+    <div class="glass">
+      <div class="price">$875,000</div>
+      <div class="addr">📍 2847 Sunset Ridge Dr, Austin TX</div>
+      <div class="stats">
+        <div><b>4</b><span>BEDS</span></div>
+        <div><b>3</b><span>BATHS</span></div>
+        <div><b>2,840</b><span>SQ FT</span></div>
+      </div>
+    </div>
+    <div class="navbar">
+      <div><div class="ic">🖼️</div>GALLERY</div>
+      <div><div class="ic">📄</div>FLYER</div>
+      <div><div class="ic">👤</div>CONTACT</div>
+      <div><div class="ic">📅</div>SHOWING</div>
+    </div>
+  </div>
+  <div class="body">
+    <div class="agent">
+      <div class="top">
+        <div class="ph">F</div>
+        <div><div class="nm">Fred<span class="badge">Listing Agent</span></div><div class="loc">Austin, TX 78746</div><div class="you">👋 This is your listing page — your brand, front and center.</div></div>
+      </div>
+      <div class="btns"><button class="b1">📞 Call Fred</button><button class="b2">✉️ Message</button><button class="b2">📅 Tour</button></div>
+    </div>
+    <div class="pitch">
+      <div class="h">⚡ Your own AI listing assistant — live in 5 minutes</div>
+      <div class="p">Every listing you post gets a "Talk to the Home" AI that answers buyer questions 24/7 and sends you warm leads automatically.</div>
+      <button>See How It Works →</button>
+    </div>
+    <div class="desc">Stunning modern home nestled in the hills of West Austin. Open floor plan, chef's kitchen with waterfall island, primary suite with spa bath.</div>
+    <div class="pay">
+      <div class="l"><p>Est. Monthly Payment</p><b>$5,012<span style="font-size:14px">/mo</span></b><s>20% down · 30yr · 7.1%</s></div>
+      <button>Ask About Rates</button>
+    </div>
+    <div class="finby">
+      <span class="lab">Financing&nbsp;by</span>
+      <div class="a">F</div>
+      <div style="flex:1"><div class="nm">Fred Potter</div><div class="co">HomeListingAI</div></div>
+      <span style="font-size:11px;color:#94a3b8">Powers the AI →</span>
+    </div>
+  </div>
+</div>
+</body></html>
