@@ -82,6 +82,17 @@ It helps agents:
 - `/dashboard/billing`
 - `/dashboard/onboarding`
 
+**LO (Loan Officer) Platform:**
+- `/dashboard/lo-partners` — agent partnerships
+- `/dashboard/lo-listings` — assigned listings + branding toggles + "📊 Live Dashboard" share
+- `/dashboard/lo-chatbot` — LO AI financing bot setup (#13)
+- `/partner-invite/:token` — **WOW Link**: live listing demo w/ chatbots, sent to agents
+- `/listing-dashboard/:token` — **#15** public per-listing live lead dashboard (token-gated)
+
+**Office Tier (#17):**
+- `/dashboard/office` — branch-manager oversight: KPIs + LO leaderboard + invite LOs
+- `/office-invite/:token` — invited LO claims account, auto-linked to office
+
 **Legacy listing flow (still active):**
 - `/listings`, `/add-listing`, `/property`, `/listings-v2`
 
@@ -92,9 +103,19 @@ It helps agents:
 
 ### 🚧 In Progress / Partial
 
-- **Listing Builder V1 edit route** — `/dashboard/listings/:listingId/edit` is not yet wired into the main route table (UI + backend endpoints exist on branch, not merged to main).
-- **Listings command cards** — still centered on Open Share Kit; full New Listing + Edit Listing workflow being finalized.
+- **#18 White Label** — custom domain + full office rebrand (IN PROGRESS).
+- **Listing Builder V1 edit route** — `/dashboard/listings/:listingId/edit` not yet in main route table.
 - **SMS messaging areas** — intentionally show "coming soon" in UI.
+
+---
+
+### ⚠️ Critical Architecture Notes (LO Platform)
+
+- **Two ID forms per account.** `resolveRequesterUserId()` returns the **auth/login id**; FK-enforced tables (`lo_chatbot_configs`, `listing_lo_assignments`, `pre_qual_submissions`, `listing_branding_toggles`, `listing_dashboard_tokens.created_by`) require the **agents.id profile id**. ALWAYS use the canonical helper **`resolveLoAgentId(req)`** for those — never pass the raw auth id. Office accounts use **`resolveOfficeContext(req)`**.
+- **`listings` vs `properties`.** The LO platform's `listing_id` everywhere = **`properties.id`** (rich data). The `listings` table is a legacy stub — do not query it for price/beds/photos.
+- **`account_type`** values: `realtor` | `lo` | `agent` | `office`. The old DB check constraint was dropped (app-controlled). An "office" is an `agents` row with `account_type='office'`; LOs link via `agents.office_id`.
+- **`agent_invites.lo_agent_id`** stores the auth id (its FK was dropped) — the odd one out; internally consistent within the invite→claim→partnership chain. Leave as-is.
+- Migrations are committed as `*-migration.sql` / `*.sql` in repo root; user runs them manually in Supabase SQL editor.
 
 ---
 
@@ -144,7 +165,7 @@ No long explanations. No walls of text. Table in, table out.
 
 ## 7. Notes
 
-- Snapshot reflects repo state as of **March 4, 2026**.
+- Snapshot reflects repo state as of **May 17, 2026** (post WOW Link, #13 LO bot, #15 listing dashboard, ID-consistency pass, #17 Office tier; #18 white-label in progress).
 - When in doubt about route wiring, check `src/App.tsx` `<Routes>` block.
 - Demo mode is toggled via `useDemoMode()` hook — always guard demo-only data behind it.
 - `primary-600` is the brand blue used throughout — do not swap to generic Tailwind blue.
