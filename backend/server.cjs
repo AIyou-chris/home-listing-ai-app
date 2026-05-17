@@ -19748,6 +19748,31 @@ app.post('/api/leads/capture', async (req, res) => {
       agentId
     });
 
+    // #18 White Label: push the warm lead to the office's CRM webhook
+    // (best-effort; only fires if the listing's LO belongs to an office
+    // that configured a lead_webhook_url).
+    try {
+      const { data: loAssign } = await supabaseAdmin
+        .from('listing_lo_assignments').select('lo_agent_id')
+        .eq('listing_id', listingId).limit(1).maybeSingle();
+      if (loAssign?.lo_agent_id) {
+        await fireOfficeLeadWebhook(loAssign.lo_agent_id, {
+          id: leadId,
+          name: fullName || null,
+          email: emailLower || null,
+          phone: phoneE164 || phone || null,
+          intentLevel,
+          status: leadStatus,
+          source: effectiveSourceType,
+          listingId,
+          listingAddress: listing.address || null,
+          capturedAt: timestamp
+        });
+      }
+    } catch (e) {
+      console.warn('[LeadCapture] office webhook non-fatal:', e?.message);
+    }
+
     res.json({
       lead_id: leadId,
       is_deduped: isDeduped,
@@ -30421,6 +30446,9 @@ app.get('/api/public/partner-invite/:token', async (req, res) => {
       .eq('lo_agent_id', loProfileId)
       .maybeSingle();
 
+    // #18 White Label: if the LO belongs to an office, inherit its brand.
+    const brand = await resolveBrandForLoAgent(loProfileId);
+
     res.json({
       success: true,
       token,
@@ -30429,12 +30457,13 @@ app.get('/api/public/partner-invite/:token', async (req, res) => {
       lo: {
         id: loProfileId, // chat endpoint expects the profile id as lo_agent_id
         name: loName,
-        company: lo?.company || 'HomeListingAI',
+        company: brand.companyName || lo?.company || 'HomeListingAI',
         headshotUrl: lo?.headshot_url || null,
-        brandColor: '#2563eb',
+        brandColor: brand.brandColor,
         email: lo?.email || null,
         phone: lo?.phone || null
       },
+      brand: { companyName: brand.companyName, logoUrl: brand.logoUrl, color: brand.brandColor, whiteLabel: brand.whiteLabel },
       listing,
       chatbot: chatbot || null
     });
@@ -30549,6 +30578,12 @@ app.get('/api/public/listing-dashboard/:token', async (req, res) => {
     const hot = leads.filter(l => String(l.intentLevel).toLowerCase() === 'hot').length;
     const views = Number(listing.marketing_stats?.views ?? listing.marketing_stats?.total_views) || 0;
 
+    // #18 White Label: brand the dashboard by the listing's assigned LO's office.
+    const { data: assign } = await supabaseAdmin
+      .from('listing_lo_assignments').select('lo_agent_id')
+      .eq('listing_id', tok.listing_id).limit(1).maybeSingle();
+    const brand = await resolveBrandForLoAgent(assign?.lo_agent_id || null);
+
     res.json({
       success: true,
       listing: {
@@ -30561,6 +30596,7 @@ app.get('/api/public/listing-dashboard/:token', async (req, res) => {
         status: listing.status || 'published'
       },
       owner: ownerAgent ? { name: [ownerAgent.first_name, ownerAgent.last_name].filter(Boolean).join(' ') || 'Listing Agent', company: ownerAgent.company || null } : null,
+      brand: { companyName: brand.companyName, logoUrl: brand.logoUrl, color: brand.brandColor, whiteLabel: brand.whiteLabel },
       stats: {
         views,
         leads: leads.length,
@@ -30703,6 +30739,126 @@ app.post('/api/public/office-invite/:token/claim', async (req, res) => {
     res.status(500).json({ error: 'claim_failed' });
   }
 });
+
+// ── #18 White Label: office branding + lead webhook ───────────────────────────
+
+// GET /api/office/branding — read the office's white-label config
+app.get('/api/office/branding', async (req, res) => {
+  try {
+    const ctx = await resolveOfficeContext(req);
+    if (!ctx) return res.status(403).json({ error: 'office_account_required' });
+    const { data } = await supabaseAdmin
+      .from('agents')
+      .select('company, brand_color, brand_logo_url, lead_webhook_url')
+      .eq('id', ctx.officeId).maybeSingle();
+    res.json({
+      success: true,
+      branding: {
+        companyName: data?.company || '',
+        brandColor: data?.brand_color || '#2563eb',
+        logoUrl: data?.brand_logo_url || '',
+        leadWebhookUrl: data?.lead_webhook_url || ''
+      }
+    });
+  } catch (err) {
+    console.error('[OfficeBranding GET] Failed:', err);
+    res.status(500).json({ error: 'server_error' });
+  }
+});
+
+// PUT /api/office/branding — save white-label config
+app.put('/api/office/branding', async (req, res) => {
+  try {
+    const ctx = await resolveOfficeContext(req);
+    if (!ctx) return res.status(403).json({ error: 'office_account_required' });
+    const { companyName, brandColor, logoUrl, leadWebhookUrl } = req.body || {};
+    const patch = { updated_at: nowIso() };
+    if (companyName !== undefined) patch.company = String(companyName).trim() || null;
+    if (brandColor !== undefined) {
+      const c = String(brandColor).trim();
+      patch.brand_color = /^#[0-9a-fA-F]{6}$/.test(c) ? c : null;
+    }
+    if (logoUrl !== undefined) {
+      const u = String(logoUrl).trim();
+      patch.brand_logo_url = (!u || /^https?:\/\//i.test(u)) ? (u || null) : null;
+    }
+    if (leadWebhookUrl !== undefined) {
+      const w = String(leadWebhookUrl).trim();
+      if (w && !/^https:\/\//i.test(w)) return res.status(400).json({ error: 'webhook_must_be_https' });
+      patch.lead_webhook_url = w || null;
+    }
+    const { error } = await supabaseAdmin.from('agents').update(patch).eq('id', ctx.officeId);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[OfficeBranding PUT] Failed:', err);
+    res.status(500).json({ error: 'save_failed' });
+  }
+});
+
+// POST /api/office/branding/test-webhook — fire a sample payload
+app.post('/api/office/branding/test-webhook', async (req, res) => {
+  try {
+    const ctx = await resolveOfficeContext(req);
+    if (!ctx) return res.status(403).json({ error: 'office_account_required' });
+    const { data } = await supabaseAdmin.from('agents').select('lead_webhook_url, company').eq('id', ctx.officeId).maybeSingle();
+    const url = data?.lead_webhook_url;
+    if (!url) return res.status(400).json({ error: 'no_webhook_configured' });
+    const sample = {
+      event: 'lead.test',
+      office: data.company || 'Your Office',
+      sentAt: new Date().toISOString(),
+      lead: { name: 'Test Lead', email: 'test@example.com', phone: '5125550100', intentLevel: 'Hot', source: 'webhook_test', message: 'This is a test from HomeListingAI.' }
+    };
+    let ok = false, status = 0;
+    try {
+      const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(sample) });
+      ok = r.ok; status = r.status;
+    } catch (e) { return res.json({ success: false, error: 'request_failed', detail: e?.message }); }
+    res.json({ success: ok, status });
+  } catch (err) {
+    console.error('[OfficeBranding test-webhook] Failed:', err);
+    res.status(500).json({ error: 'server_error' });
+  }
+});
+
+// Shared: resolve white-label brand for any LO agents.id (office inheritance).
+// Returns { companyName, brandColor, logoUrl } — office brand if the LO belongs
+// to an office, otherwise sensible HomeListingAI defaults.
+const resolveBrandForLoAgent = async (loAgentsId) => {
+  const fallback = { companyName: null, brandColor: '#2563eb', logoUrl: null, whiteLabel: false };
+  if (!loAgentsId) return fallback;
+  const { data: lo } = await supabaseAdmin.from('agents').select('office_id').eq('id', loAgentsId).maybeSingle();
+  if (!lo?.office_id) return fallback;
+  const { data: office } = await supabaseAdmin
+    .from('agents').select('company, brand_color, brand_logo_url')
+    .eq('id', lo.office_id).maybeSingle();
+  if (!office) return fallback;
+  return {
+    companyName: office.company || null,
+    brandColor: (office.brand_color && /^#[0-9a-fA-F]{6}$/.test(office.brand_color)) ? office.brand_color : '#2563eb',
+    logoUrl: office.brand_logo_url || null,
+    whiteLabel: !!(office.company || office.brand_color || office.brand_logo_url)
+  };
+};
+
+// Shared: fire the office lead webhook for a lead tied to an LO (best-effort).
+const fireOfficeLeadWebhook = async (loAgentsId, leadPayload) => {
+  try {
+    if (!loAgentsId) return;
+    const { data: lo } = await supabaseAdmin.from('agents').select('office_id').eq('id', loAgentsId).maybeSingle();
+    if (!lo?.office_id) return;
+    const { data: office } = await supabaseAdmin.from('agents').select('lead_webhook_url, company').eq('id', lo.office_id).maybeSingle();
+    if (!office?.lead_webhook_url) return;
+    await fetch(office.lead_webhook_url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event: 'lead.created', office: office.company || null, sentAt: new Date().toISOString(), lead: leadPayload })
+    }).catch(() => null);
+  } catch (e) {
+    console.warn('[OfficeLeadWebhook] non-fatal:', e?.message);
+  }
+};
 
 // GET /api/office/overview — aggregate + per-LO performance
 app.get('/api/office/overview', async (req, res) => {
