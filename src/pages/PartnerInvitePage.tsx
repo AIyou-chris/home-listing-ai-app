@@ -291,7 +291,9 @@ const PartnerInvitePage: React.FC = () => {
     </div>
   );
 
-  const { lo, listing, chatbot } = data;
+  const { lo, listing, chatbot, inviteeName } = data;
+  const agentName = inviteeName?.trim() || 'Your Name Here';
+  const agentInitial = agentName[0]?.toUpperCase() || 'A';
   const displayListing = listing || DEMO_LISTING;
   const botName = chatbot?.bot_name || `${lo.name.split(' ')[0]}'s Finance Assistant`;
   const greeting = chatbot?.greeting || `Hi! I'm ${lo.name}'s AI assistant. Ask me anything about financing this home — rates, payments, programs, whatever's on your mind.`;
@@ -332,7 +334,44 @@ const PartnerInvitePage: React.FC = () => {
         <div className="w-full lg:flex-1 rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
           <ListingHero listing={displayListing} />
 
-          <div className="p-5 space-y-4">
+          {/* ── AGENT HERO CARD — the star of the page ── */}
+          <div className="relative -mt-10 mx-4 z-10">
+            <div className="rounded-2xl bg-white border border-slate-200 shadow-xl p-5">
+              <div className="flex items-center gap-4">
+                <div
+                  className="w-16 h-16 rounded-full flex items-center justify-center text-white text-2xl font-black flex-shrink-0 shadow-md ring-4 ring-white"
+                  style={{ background: `linear-gradient(135deg, ${brandColor}, ${brandColor}cc)` }}
+                >
+                  {agentInitial}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-xl font-black text-slate-900 leading-tight">{agentName}</p>
+                    <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full" style={{ background: `${brandColor}1a`, color: brandColor }}>
+                      Listing Agent
+                    </span>
+                  </div>
+                  <p className="text-sm text-slate-500 mt-0.5">{displayListing.address.split(',').slice(-2).join(',').trim() || 'Your market'}</p>
+                  <p className="text-xs font-semibold mt-1.5" style={{ color: brandColor }}>
+                    👋 This is your listing page — your name, your brand, front and center.
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-2 mt-4">
+                <button className="flex-1 rounded-xl py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:brightness-110" style={{ background: brandColor }}>
+                  📞 Call {agentName.split(' ')[0]}
+                </button>
+                <button className="flex-1 rounded-xl py-2.5 text-sm font-bold border-2 transition-all hover:bg-slate-50" style={{ borderColor: `${brandColor}40`, color: brandColor }}>
+                  ✉️ Message
+                </button>
+                <button className="flex-1 rounded-xl py-2.5 text-sm font-bold border-2 transition-all hover:bg-slate-50" style={{ borderColor: `${brandColor}40`, color: brandColor }}>
+                  📅 Tour
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-5 pt-6 space-y-4">
             <p className="text-sm text-slate-600 leading-relaxed">{displayListing.description}</p>
 
             {/* Mortgage estimate teaser */}
@@ -355,29 +394,18 @@ const PartnerInvitePage: React.FC = () => {
               </div>
             </div>
 
-            {/* LO contact card */}
-            <div className="rounded-xl border border-slate-200 p-4 flex items-center gap-4">
+            {/* Financing partner — small, clearly secondary, no confusion */}
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 flex items-center gap-3">
+              <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400 flex-shrink-0">Financing&nbsp;by</span>
               {lo.headshotUrl
-                ? <img src={lo.headshotUrl} alt={lo.name} className="w-12 h-12 rounded-full object-cover border-2 border-slate-100 flex-shrink-0" />
-                : <div className="w-12 h-12 rounded-full flex items-center justify-center text-white text-lg font-bold flex-shrink-0" style={{ background: brandColor }}>{lo.name[0]}</div>
+                ? <img src={lo.headshotUrl} alt={lo.name} className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
+                : <div className="w-8 h-8 rounded-full bg-slate-300 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">{lo.name[0]}</div>
               }
               <div className="flex-1 min-w-0">
-                <p className="font-bold text-slate-900">{lo.name}</p>
-                <p className="text-sm text-slate-500">{lo.company}</p>
-                {lo.email && <p className="text-xs text-slate-400 truncate">{lo.email}</p>}
+                <p className="text-sm font-semibold text-slate-700 truncate">{lo.name}</p>
+                <p className="text-xs text-slate-400 truncate">{lo.company}</p>
               </div>
-              <div className="flex flex-col gap-2 flex-shrink-0">
-                {lo.phone && (
-                  <a href={`tel:${lo.phone}`} className="text-xs font-semibold text-slate-600 border border-slate-200 rounded-lg px-3 py-1.5 hover:bg-slate-50 transition-colors">
-                    📞 Call
-                  </a>
-                )}
-                {lo.email && (
-                  <a href={`mailto:${lo.email}`} className="text-xs font-semibold text-slate-600 border border-slate-200 rounded-lg px-3 py-1.5 hover:bg-slate-50 transition-colors">
-                    ✉️ Email
-                  </a>
-                )}
-              </div>
+              <span className="text-[11px] text-slate-400 flex-shrink-0">Powers the AI assistant →</span>
             </div>
           </div>
         </div>
