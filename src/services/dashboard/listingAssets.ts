@@ -2,12 +2,10 @@ import { buildApiUrl } from '../../lib/api';
 import { isDemoModeActive } from '../../demo/useDemoMode';
 import {
   getDemoListingShareKit,
-  publishDemoListingShareKit,
-  createDemoTestLead
+  publishDemoListingShareKit
 } from '../../demo/demoData';
 import { emitDashboardInvalidation } from '../dashboardInvalidation';
 import { resolveAgentId, defaultJsonHeaders, withAgentQuery, parseResponse } from './utils';
-import type { LeadIntentLevel } from './leads';
 
 export interface ListingSourceDefault {
   id: string | null;
@@ -288,42 +286,3 @@ export const downloadLightCmaPdf = async (listingId: string, agentIdOverride?: s
     }
   );
 
-export const sendListingTestLeadCapture = async (
-  listingId: string,
-  payload: {
-    full_name?: string;
-    email?: string;
-    phone?: string;
-    consent_sms?: boolean;
-    context?: 'report_requested' | 'showing_requested';
-    source_key?: string;
-    source_type?: string;
-    path_mode?: 'sign' | 'social' | 'open_house' | 'public_contact';
-    source_meta?: Record<string, unknown>;
-  },
-  agentIdOverride?: string | null
-) => {
-  if (isDemoModeActive()) {
-    return createDemoTestLead(listingId, payload);
-  }
-
-  const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
-  const response = await fetch(
-    buildApiUrl(withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}/test-capture`, agentId)),
-    {
-      method: 'POST',
-      headers: defaultJsonHeaders(agentId),
-      body: JSON.stringify({ ...payload, agentId })
-    }
-  );
-  return parseResponse<{
-    success: boolean;
-    message: string;
-    lead_id: string;
-    is_deduped: boolean;
-    status: string;
-    intent_level: LeadIntentLevel;
-    source_key: string | null;
-    source_type: string;
-  }>(response);
-};
