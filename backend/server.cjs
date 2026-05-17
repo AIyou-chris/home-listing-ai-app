@@ -7073,6 +7073,25 @@ const resolveRequesterUserId = async (
   return allowDefault ? String(DEFAULT_LEAD_USER_ID || '') : null;
 };
 
+// ─── Canonical LO identity resolver ───────────────────────────────────────────
+// The LO platform has TWO id forms for one account: the auth/login id (from
+// resolveRequesterUserId) and the agents-table profile id. FK-enforced tables
+// (lo_chatbot_configs, listing_lo_assignments, pre_qual_submissions,
+// listing_branding_toggles, listing_dashboard_tokens.created_by) require the
+// PROFILE id. Always use this helper for those tables — never pass the raw
+// auth id. Returns the agents.id (profile id) or null.
+const resolveLoAgentId = async (req) => {
+  const authId = await resolveRequesterUserId(req, { allowDefault: false });
+  if (!authId) return null;
+  const { data: agentRow } = await supabaseAdmin
+    .from('agents')
+    .select('id')
+    .or(`id.eq.${authId},auth_user_id.eq.${authId}`)
+    .limit(1)
+    .maybeSingle();
+  return agentRow?.id || null;
+};
+
 const isIgnorableCleanupError = (error) =>
   error?.code === '42P01' || // undefined table
   error?.code === 'PGRST205' || // table missing in API schema cache
@@ -30376,11 +30395,13 @@ app.get('/api/public/partner-invite/:token', async (req, res) => {
       if (listingRow && listingRow.status === 'published') listing = listingRow;
     }
 
-    // Get LO chatbot config (keyed by the same lo_agent_id)
+    // chatbot configs are keyed by the PROFILE id (agents.id), not the auth id
+    // stored on agent_invites — resolve to lo.id for a correct lookup.
+    const loProfileId = lo?.id || loAgentId;
     const { data: chatbot } = await supabaseAdmin
       .from('lo_chatbot_configs')
       .select('bot_name, greeting, is_active')
-      .eq('lo_agent_id', loAgentId)
+      .eq('lo_agent_id', loProfileId)
       .maybeSingle();
 
     res.json({
@@ -30389,7 +30410,7 @@ app.get('/api/public/partner-invite/:token', async (req, res) => {
       claimed: !!invite.claimed_at,
       inviteeName: invite.invited_name || null,
       lo: {
-        id: loAgentId, // chat endpoint expects this exact value as lo_agent_id
+        id: loProfileId, // chat endpoint expects the profile id as lo_agent_id
         name: loName,
         company: lo?.company || 'HomeListingAI',
         headshotUrl: lo?.headshot_url || null,
@@ -30695,7 +30716,7 @@ app.get('/api/lo/listings/:listingId/roi', async (req, res) => {
 
 app.get('/api/lo/listings/:listingId/branding-toggles', async (req, res) => {
   try {
-    const loAgentId = await resolveRequesterUserId(req, { allowDefault: false });
+    const loAgentId = await resolveLoAgentId(req);
     if (!loAgentId) return res.status(401).json({ error: 'unauthorized' });
     const { listingId } = req.params;
     const ALL_PIECES = ['listing_page', 'share_kit', 'qr', 'social', 'flyer', 'open_house'];
@@ -30712,7 +30733,7 @@ app.get('/api/lo/listings/:listingId/branding-toggles', async (req, res) => {
 
 app.patch('/api/lo/listings/:listingId/branding-toggles', async (req, res) => {
   try {
-    const loAgentId = await resolveRequesterUserId(req, { allowDefault: false });
+    const loAgentId = await resolveLoAgentId(req);
     if (!loAgentId) return res.status(401).json({ error: 'unauthorized' });
     const { listingId } = req.params;
     const { toggles } = req.body || {};
@@ -30857,7 +30878,7 @@ app.delete('/api/lo/listings/:listingId/assign', async (req, res) => {
 // GET /api/lo/chatbot-config — fetch authenticated LO's chatbot config
 app.get('/api/lo/chatbot-config', async (req, res) => {
   try {
-    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
+    const agentId = await resolveLoAgentId(req);
     if (!agentId) return res.status(401).json({ error: 'unauthorized' });
 
     const { data, error } = await supabaseAdmin
@@ -30890,7 +30911,7 @@ app.get('/api/lo/chatbot-config', async (req, res) => {
 // PUT /api/lo/chatbot-config — save LO's chatbot config
 app.put('/api/lo/chatbot-config', async (req, res) => {
   try {
-    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
+    const agentId = await resolveLoAgentId(req);
     if (!agentId) return res.status(401).json({ error: 'unauthorized' });
 
     const { bot_name, greeting, personality, knowledge_base, faq, is_active } = req.body;
