@@ -154,6 +154,26 @@ const BrandingTogglePanel: React.FC<{ listingId: string; demo?: boolean }> = ({ 
 
 const ListingCard: React.FC<ListingCardProps> = ({ listing, mode, onRemove, onAdd, loading }) => {
   const [showToggles, setShowToggles] = useState(false);
+  const [sharingDash, setSharingDash] = useState(false);
+
+  const handleShareDashboard = async () => {
+    setSharingDash(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const res = await fetch(buildApiUrl(`/api/listing/${listing.id}/dashboard-link`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': user?.id || '' }
+      });
+      const json = await res.json() as { success?: boolean; url?: string };
+      if (!res.ok || !json.url) throw new Error('failed');
+      await navigator.clipboard.writeText(json.url);
+      showToast.success('Live dashboard link copied!');
+    } catch {
+      showToast.error('Could not create the dashboard link. Try again.');
+    } finally {
+      setSharingDash(false);
+    }
+  };
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -178,6 +198,13 @@ const ListingCard: React.FC<ListingCardProps> = ({ listing, mode, onRemove, onAd
         <div className="flex flex-col items-end gap-2 flex-shrink-0">
           {mode === 'assigned' ? (
             <>
+              <button
+                onClick={handleShareDashboard}
+                disabled={sharingDash}
+                className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition-all hover:bg-emerald-100 disabled:opacity-40"
+              >
+                {sharingDash ? 'Creating…' : '📊 Live Dashboard'}
+              </button>
               <button
                 onClick={() => setShowToggles(v => !v)}
                 className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all ${showToggles ? 'border-primary-300 bg-primary-50 text-primary-700' : 'border-slate-200 text-slate-500 hover:border-primary-200 hover:text-primary-600'}`}

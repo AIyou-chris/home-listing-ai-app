@@ -35,7 +35,8 @@ const LOListingsPage = lazy(() => import('./components/dashboard-command/LOListi
 const LOPartnersPage = lazy(() => import('./components/dashboard-command/LOPartnersPage'));
 const LOChatbotSetupPage = lazy(() => import('./components/dashboard-command/LOChatbotSetupPage'));
 const AgentClaimPage = lazy(() => import('./pages/AgentClaimPage'))
-const PartnerInvitePage = lazy(() => import('./pages/PartnerInvitePage'));
+const PartnerInvitePage = lazy(() => import('./pages/PartnerInvitePage'))
+const ListingDashboardPage = lazy(() => import('./pages/ListingDashboardPage'));
 const ShareTestPage = lazy(() => import('./components/dashboard-command/ShareTestPage'));
 const AIConversationsPage = lazy(() => import('./components/AIConversationsPage'));
 const AICardPage = lazy(() => import('./components/AICardPage'));
@@ -1601,6 +1602,13 @@ const App: React.FC = () => {
                     <Route path="/partner-invite/:token" element={
                         <Suspense fallback={<LoadingSpinner />}>
                             <PartnerInvitePage />
+                        </Suspense>
+                    } />
+
+                    {/* Per-listing shared live dashboard (public, token-gated) */}
+                    <Route path="/listing-dashboard/:token" element={
+                        <Suspense fallback={<LoadingSpinner />}>
+                            <ListingDashboardPage />
                         </Suspense>
                     } />
 

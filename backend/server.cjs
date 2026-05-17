@@ -30406,6 +30406,136 @@ app.get('/api/public/partner-invite/:token', async (req, res) => {
   }
 });
 
+// ── POST /api/listing/:listingId/dashboard-link — create/get shareable token ──
+// Auth: requester must be an assigned LO for the listing OR the listing owner.
+app.post('/api/listing/:listingId/dashboard-link', async (req, res) => {
+  try {
+    const requesterId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!requesterId) return res.status(401).json({ error: 'unauthorized' });
+    const { listingId } = req.params;
+    if (!listingId) return res.status(400).json({ error: 'listing_id_required' });
+
+    // Resolve requester to their agents.id (LO platform convention:
+    // listing_lo_assignments.lo_agent_id == agents.id, not the auth user id).
+    const { data: agentRow } = await supabaseAdmin
+      .from('agents').select('id')
+      .or(`id.eq.${requesterId},auth_user_id.eq.${requesterId}`).limit(1).maybeSingle();
+    const agentsId = agentRow?.id || null;
+
+    // Access check: assigned LO (by agents.id) OR listing owner
+    let hasAccess = false;
+    if (agentsId) {
+      const { data: assignment } = await supabaseAdmin
+        .from('listing_lo_assignments')
+        .select('id').eq('listing_id', listingId).eq('lo_agent_id', agentsId).limit(1).maybeSingle();
+      hasAccess = !!assignment;
+    }
+    if (!hasAccess) {
+      const { data: listingRow } = await supabaseAdmin.from('listings').select('user_id').eq('id', listingId).maybeSingle();
+      if (listingRow && (listingRow.user_id === requesterId || (agentsId && listingRow.user_id === agentsId))) hasAccess = true;
+    }
+    if (!hasAccess) return res.status(403).json({ error: 'listing_access_denied' });
+
+    // Reuse existing token or create one
+    let token;
+    const { data: existing } = await supabaseAdmin
+      .from('listing_dashboard_tokens')
+      .select('token').eq('listing_id', listingId).order('created_at', { ascending: false }).limit(1).maybeSingle();
+    if (existing?.token) {
+      token = existing.token;
+    } else {
+      const { data: created, error: createErr } = await supabaseAdmin
+        .from('listing_dashboard_tokens')
+        .insert({ listing_id: listingId, created_by: agentsId })
+        .select('token').single();
+      if (createErr || !created) throw createErr || new Error('token_create_failed');
+      token = created.token;
+    }
+    const appBase = (process.env.APP_BASE_URL || process.env.DASHBOARD_BASE_URL || 'https://homelistingai.com').replace(/\/$/, '');
+    res.json({ success: true, token, url: `${appBase}/listing-dashboard/${token}` });
+  } catch (err) {
+    console.error('[ListingDashboardLink] Failed:', err);
+    res.status(500).json({ error: 'link_failed' });
+  }
+});
+
+// ── GET /api/public/listing-dashboard/:token — public dashboard data ──────────
+app.get('/api/public/listing-dashboard/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { data: tok } = await supabaseAdmin
+      .from('listing_dashboard_tokens')
+      .select('listing_id, expires_at').eq('token', token).maybeSingle();
+    if (!tok) return res.status(404).json({ error: 'dashboard_not_found' });
+    if (tok.expires_at && new Date(tok.expires_at) < new Date()) return res.status(410).json({ error: 'dashboard_expired' });
+
+    // LO platform "listing_id" === properties.id
+    const { data: listing } = await supabaseAdmin
+      .from('properties')
+      .select('id, address, price, bedrooms, bathrooms, sqft, status, hero_photos, title, user_id, agent_id, marketing_stats')
+      .eq('id', tok.listing_id).maybeSingle();
+    if (!listing) return res.status(404).json({ error: 'listing_not_found' });
+
+    // Owner agent name
+    const ownerKey = listing.user_id || listing.agent_id;
+    const { data: ownerAgent } = ownerKey ? await supabaseAdmin
+      .from('agents').select('first_name, last_name, company')
+      .or(`id.eq.${ownerKey},auth_user_id.eq.${ownerKey}`).limit(1).maybeSingle() : { data: null };
+
+    // Leads for this listing, hottest first
+    const { data: leadRows } = await supabaseAdmin
+      .from('leads')
+      .select('id, full_name, name, email, phone, status, source_type, intent_score, intent_level, score_tier, last_message_preview, last_message_at, financing, working_with_agent, created_at')
+      .eq('listing_id', tok.listing_id)
+      .order('intent_score', { ascending: false, nullsFirst: false })
+      .order('created_at', { ascending: false })
+      .limit(100);
+
+    const leads = (leadRows || []).map(l => ({
+      id: l.id,
+      name: l.full_name || l.name || 'Anonymous visitor',
+      email: l.email || null,
+      phone: l.phone || null,
+      status: l.status || 'new',
+      source: l.source_type || 'listing',
+      intentLevel: l.intent_level || l.score_tier || (l.intent_score >= 70 ? 'hot' : l.intent_score >= 40 ? 'warm' : 'cold'),
+      intentScore: typeof l.intent_score === 'number' ? l.intent_score : null,
+      lastMessage: l.last_message_preview || null,
+      lastActiveAt: l.last_message_at || l.created_at,
+      financing: l.financing === true || l.financing === 'true' || l.financing === 'yes',
+      hasAgent: l.working_with_agent === true || l.working_with_agent === 'true' || l.working_with_agent === 'yes',
+      createdAt: l.created_at
+    }));
+
+    const photo = (Array.isArray(listing.hero_photos) && listing.hero_photos[0]) || null;
+    const hot = leads.filter(l => String(l.intentLevel).toLowerCase() === 'hot').length;
+    const views = Number(listing.marketing_stats?.views ?? listing.marketing_stats?.total_views) || 0;
+
+    res.json({
+      success: true,
+      listing: {
+        address: listing.address || listing.title || 'Listing',
+        price: Number(listing.price) || 0,
+        beds: Number(listing.bedrooms) || 0,
+        baths: Number(listing.bathrooms) || 0,
+        sqft: Number(listing.sqft) || 0,
+        photo,
+        status: listing.status || 'published'
+      },
+      owner: ownerAgent ? { name: [ownerAgent.first_name, ownerAgent.last_name].filter(Boolean).join(' ') || 'Listing Agent', company: ownerAgent.company || null } : null,
+      stats: {
+        views,
+        leads: leads.length,
+        hotLeads: hot
+      },
+      leads
+    });
+  } catch (err) {
+    console.error('[ListingDashboard] Failed:', err);
+    res.status(500).json({ error: 'server_error' });
+  }
+});
+
 app.get('/api/lo/partners', async (req, res) => {
   try {
     const loAgentId = await resolveRequesterUserId(req, { allowDefault: false });
