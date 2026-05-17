@@ -89,6 +89,10 @@
       "tsx",
       "js"
     ],
+    "moduleNameMapper": {
+      "^.+/lib/env$": "<rootDir>/src/lib/__mocks__/env.ts",
+      "^\\.{1,2}/env$": "<rootDir>/src/lib/__mocks__/env.ts"
+    },
     "setupFilesAfterEnv": [
       "<rootDir>/src/test/setupTests.ts"
     ],
