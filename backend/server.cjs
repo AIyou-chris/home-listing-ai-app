@@ -30678,12 +30678,16 @@ app.post('/api/public/office-invite/:token/claim', async (req, res) => {
       throw authErr;
     }
     const authUserId = authData.user.id;
+    // slug is NOT NULL — generate a unique-ish one from name + random suffix
+    const slugBase = `${fn}-${ln}`.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'lo';
+    const slug = `${slugBase}-${Math.random().toString(36).slice(2, 8)}`;
     const { data: agentRecord, error: agErr } = await supabaseAdmin
       .from('agents')
       .insert({
         auth_user_id: authUserId, email: invite.invited_email,
         first_name: fn, last_name: ln, account_type: 'lo',
         office_id: invite.office_id, onboarding_completed: true,
+        slug,
         referral_code: Math.random().toString(36).slice(2, 10)
       })
       .select('id').single();
