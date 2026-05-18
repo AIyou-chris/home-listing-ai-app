@@ -18,22 +18,22 @@ export const PlacementSection: React.FC<PlacementSectionProps> = ({ onNavigateTo
                     {/* Left Column: Copy */}
                     <div className="w-full lg:w-5/12 text-center lg:text-left pt-4">
                         <h2 className="text-4xl md:text-5xl font-bold text-white tracking-tight mb-6">
-                            Where HomeListingAI Prints Leads.
+                            The Tools That Make You the Partner Every Agent Wants.
                         </h2>
                         <p className="text-lg md:text-xl text-slate-300 font-light leading-relaxed mb-10">
-                            Share one link or QR. Use it on signs, open houses, and social.
+                            Your agent partners get a full marketing system on every listing — signs, open houses, social, email.
                             <br className="hidden lg:block" />
-                            <span className="text-cyan-400 mt-2 block font-medium">You’re not changing your workflow — you’re upgrading it.</span>
+                            <span className="text-cyan-400 mt-2 block font-medium">You get the warm leads. They get the best LO in the market.</span>
                         </p>
 
                         <ul className="space-y-5 text-left max-w-md mx-auto lg:mx-0">
                             <li className="flex items-start gap-4 text-slate-200 bg-slate-900/40 border border-slate-800/80 p-4 rounded-xl">
                                 <span className="material-symbols-outlined text-cyan-400 mt-0.5">add_link</span>
-                                <span className="font-medium">One link works everywhere</span>
+                                <span className="font-medium">One link — works on every channel, every time</span>
                             </li>
                             <li className="flex items-start gap-4 text-slate-200 bg-slate-900/40 border border-slate-800/80 p-4 rounded-xl">
                                 <span className="material-symbols-outlined text-cyan-400 mt-0.5">ads_click</span>
-                                <span className="font-medium">Every click becomes a tracked lead</span>
+                                <span className="font-medium">Every scan and click routes leads to you both</span>
                             </li>
                             <li className="flex text-sm items-start gap-3 text-slate-400 p-4">
                                 <span>
@@ -57,7 +57,7 @@ export const PlacementSection: React.FC<PlacementSectionProps> = ({ onNavigateTo
                                     <span className="material-symbols-outlined text-cyan-400">qr_code_scanner</span>
                                 </div>
                                 <h4 className="text-white font-semibold mb-1">Yard Sign QR</h4>
-                                <p className="text-xs text-slate-400 leading-relaxed">Scan → instant answers + report request</p>
+                                <p className="text-xs text-slate-400 leading-relaxed">Scan → instant answers + preapproval request</p>
                             </div>
 
                             {/* Tile 2 */}
@@ -102,7 +102,7 @@ export const PlacementSection: React.FC<PlacementSectionProps> = ({ onNavigateTo
                                     <span className="material-symbols-outlined text-cyan-400">handshake</span>
                                 </div>
                                 <h4 className="text-white font-semibold mb-1">Listing Appointment</h4>
-                                <p className="text-xs text-slate-400 leading-relaxed">Show the report as your proof-of-work</p>
+                                <p className="text-xs text-slate-400 leading-relaxed">Show up with tools no other LO can offer</p>
                             </div>
                         </div>
                     </div>

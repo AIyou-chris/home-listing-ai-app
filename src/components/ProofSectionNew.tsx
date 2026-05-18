@@ -160,10 +160,10 @@ export const ProofSectionNew: React.FC<ProofSectionProps> = ({ onNavigateToSignU
                 <div className="text-center max-w-3xl mx-auto mb-16">
                     <p className="text-cyan-400 font-bold tracking-widest text-sm uppercase mb-3">REAL-WORLD PROOF</p>
                     <h2 className="text-4xl md:text-5xl font-bold text-white tracking-tight mb-6">
-                        Where HomeListingAI prints leads.
+                        The Platform Agents Love. The Pipeline LOs Need.
                     </h2>
                     <p className="text-lg md:text-xl text-slate-300 font-light leading-relaxed">
-                        Built for how agents actually work—open houses, sign riders, and social. Used by agents at major brokerages and financial institutions.
+                        Trusted by agents at top brokerages and the loan officers who partner with them — across open houses, sign riders, and social every single day.
                     </p>
                 </div>
 
