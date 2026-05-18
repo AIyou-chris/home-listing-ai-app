@@ -47,10 +47,11 @@ export const PublicFooter: React.FC<PublicFooterProps> = ({ onNavigateToAdmin })
                     <div>
                         <h3 className="text-sm font-semibold text-white mb-3">Legal</h3>
                         <ul className="space-y-2 text-sm">
-                            <li><a href="/terms-of-service.html" target="_blank" className="hover:text-white transition-colors">Terms of Service</a></li>
-                            <li><a href="/privacy-policy.html" target="_blank" className="hover:text-white transition-colors">Privacy Policy</a></li>
-                            <li><a href="/compliance" className="hover:text-white transition-colors">Compliance Policy</a></li>
-                            <li><a href="/dmca" className="hover:text-white transition-colors">DMCA Policy</a></li>
+                            <li><a href="/terms" onClick={(e) => { e.preventDefault(); navigate('/terms'); }} className="hover:text-white transition-colors">Terms of Service</a></li>
+                            <li><a href="/privacy" onClick={(e) => { e.preventDefault(); navigate('/privacy'); }} className="hover:text-white transition-colors">Privacy Policy</a></li>
+                            <li><a href="/compliance" onClick={(e) => { e.preventDefault(); navigate('/compliance'); }} className="hover:text-white transition-colors">Compliance Policy</a></li>
+                            <li><a href="/marketing-guidelines" onClick={(e) => { e.preventDefault(); navigate('/marketing-guidelines'); }} className="hover:text-white transition-colors">Marketing Guidelines</a></li>
+                            <li><a href="/dmca" onClick={(e) => { e.preventDefault(); navigate('/dmca'); }} className="hover:text-white transition-colors">DMCA Policy</a></li>
                         </ul>
                     </div>
 
@@ -75,7 +76,7 @@ export const PublicFooter: React.FC<PublicFooterProps> = ({ onNavigateToAdmin })
 
                 {/* Copyright Notice */}
                 <div className="mt-12 border-t border-slate-700 pt-8 text-center">
-                    <p className="text-sm text-slate-300">&copy; 2025 HomeListingAI. All rights reserved.</p>
+                    <p className="text-sm text-slate-300">&copy; 2026 HomeListingAI. All rights reserved.</p>
                 </div>
             </div>
         </footer>

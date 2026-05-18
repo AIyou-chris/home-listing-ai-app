@@ -45,6 +45,9 @@ const AICardPage = lazy(() => import('./components/AICardPage'));
 const MarketingReportsPage = lazy(() => import('./components/MarketingReportsPage'));
 const CompliancePolicyPage = lazy(() => import('./components/CompliancePolicyPage'));
 const DmcaPolicyPage = lazy(() => import('./components/DmcaPolicyPage'));
+const PrivacyPolicyPage = lazy(() => import('./components/PrivacyPolicyPage'));
+const TermsOfServicePage = lazy(() => import('./components/TermsOfServicePage'));
+const MarketingGuidelinesPage = lazy(() => import('./components/MarketingGuidelinesPage'));
 const TrialLock = lazy(() => import('./components/TrialLock'));
 
 // import KnowledgeBasePage from './components/KnowledgeBasePage';
@@ -1529,6 +1532,9 @@ const App: React.FC = () => {
                     {/* Legal Pages */}
                     <Route path="/compliance" element={<CompliancePolicyPage />} />
                     <Route path="/dmca" element={<DmcaPolicyPage />} />
+                    <Route path="/privacy" element={<PrivacyPolicyPage />} />
+                    <Route path="/terms" element={<TermsOfServicePage />} />
+                    <Route path="/marketing-guidelines" element={<MarketingGuidelinesPage />} />
 
                     {/* Public Storefront Route */}
                     <Route path="/store/:slug" element={<StorefrontPage />} />

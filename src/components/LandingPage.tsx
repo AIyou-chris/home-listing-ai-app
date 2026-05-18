@@ -1202,6 +1202,35 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigat
                 <FaqSectionNew onNavigateToSignUp={onNavigateToSignUp} onEnterDemoMode={onEnterDemoMode} />
 
                 <FinalCtaNew onNavigateToSignUp={onNavigateToSignUp} onEnterDemoMode={onEnterDemoMode} />
+
+                {/* Compliance Trust Strip */}
+                <div className="bg-[#02050D] border-t border-slate-900 py-10">
+                    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+                        <p className="text-center text-slate-600 text-xs font-bold uppercase tracking-widest mb-6">Built to comply</p>
+                        <div className="flex flex-wrap justify-center gap-4 mb-6">
+                            {[
+                                { icon: 'gpp_good', label: 'TCPA Compliant SMS' },
+                                { icon: 'mark_email_read', label: 'CAN-SPAM Compliant Email' },
+                                { icon: 'badge', label: 'NMLS # on All Assets' },
+                                { icon: 'balance', label: 'Fair Housing Aligned' },
+                                { icon: 'lock', label: 'Data Encrypted at Rest' },
+                            ].map((chip) => (
+                                <div key={chip.label} className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900/60 border border-slate-800 rounded-full text-slate-400 text-xs font-medium">
+                                    <span className="material-symbols-outlined text-[14px] text-cyan-600">{chip.icon}</span>
+                                    {chip.label}
+                                </div>
+                            ))}
+                        </div>
+                        <p className="text-center text-slate-600 text-xs leading-relaxed max-w-2xl mx-auto">
+                            HomeListingAI is a marketing technology platform. Users are responsible for ensuring their use complies with applicable real estate, lending, and advertising laws.{' '}
+                            <a href="/marketing-guidelines" className="text-slate-500 hover:text-slate-300 underline transition-colors">Marketing Guidelines</a>
+                            {' '}·{' '}
+                            <a href="/privacy" className="text-slate-500 hover:text-slate-300 underline transition-colors">Privacy Policy</a>
+                            {' '}·{' '}
+                            <a href="/terms" className="text-slate-500 hover:text-slate-300 underline transition-colors">Terms of Service</a>
+                        </p>
+                    </div>
+                </div>
             </main>
             <PublicFooter onNavigateToAdmin={onNavigateToAdmin} />
 
