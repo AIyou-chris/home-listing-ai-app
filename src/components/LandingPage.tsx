@@ -738,29 +738,33 @@ const Hero: React.FC<{ onNavigateToSignUp: () => void, onEnterDemoMode: () => vo
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="grid lg:grid-cols-2 gap-16 items-center">
                 <div className="text-center lg:text-left relative z-10">
+                    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-xs font-semibold uppercase tracking-widest mb-6 animate-fade-in-up">
+                        <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse"></span>
+                        Built for Loan Officers &amp; Their Partners
+                    </div>
                     <h1 className="text-5xl sm:text-6xl lg:text-7xl font-extrabold text-white tracking-tight leading-[1.1] animate-fade-in-up">
-                        Turn Every Listing <br className="hidden lg:block" />
-                        <span className="bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent drop-shadow-sm">Into a 24/7 Lead Machine.</span>
+                        AI That Delivers{' '}<br className="hidden lg:block" />
+                        <span className="bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent drop-shadow-sm">Leads &amp; Partners to Your Pipeline.</span>
                     </h1>
-                    <div className="sr-only">HomeListingAI is a web app for real estate agents that turns listings into lead-capture pages with an AI Listing Page and a 1-page Market Report.</div>
+                    <div className="sr-only">HomeListingAI is an AI-powered platform for loan officers and their real estate agent partners. Give your agents AI-powered listing pages that wow buyers — and get every warm lead routed back to you. Build the agent partnerships that fill your pipeline.</div>
                     <p className="mt-8 max-w-xl mx-auto lg:mx-0 text-xl text-slate-400 animate-fade-in-up font-light leading-relaxed" style={{ animationDelay: "200ms" }}>
-                        HomeListingAI turns every listing into a 24/7 AI sidekick that responds instantly, follows up relentlessly, and books real conversations — in your voice.
+                        In this market, standing out isn't optional — it's everything. HomeListingAI gives you and your agent partners an unfair advantage that buyers notice and competitors can't match. Getting started takes 30 seconds. All you need is a name and an email.
                     </p>
                     <div className="mt-10 flex flex-col sm:flex-row justify-center lg:justify-start items-center gap-5 animate-fade-in-up px-4 lg:px-0" style={{ animationDelay: "400ms" }}>
                         <button onClick={onNavigateToSignUp} className="w-full sm:w-auto px-8 py-4 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold rounded-lg shadow-[0_0_20px_rgba(6,182,212,0.4)] transition-all transform hover:scale-105 text-lg btn-animate group flex items-center justify-center gap-2">
-                            Create Free Account
+                            Start Free
                             <span className="material-symbols-outlined text-xl transition-transform group-hover:translate-x-1">arrow_forward</span>
                         </button>
                         <button
                             onClick={onEnterDemoMode}
-                            aria-label="See a full listing demo"
+                            aria-label="See a live listing demo"
                             className="w-full sm:w-auto px-8 py-4 bg-transparent border border-slate-700 hover:border-slate-500 text-white font-semibold rounded-lg transition-all text-lg hover:bg-slate-800/50 flex items-center justify-center gap-2"
                         >
-                            See a Full Listing Demo <span className="text-cyan-500 ml-1">→</span>
+                            See a Live Listing Demo <span className="text-cyan-500 ml-1">→</span>
                         </button>
                     </div>
                     <p className="mt-2 text-sm text-slate-500 text-center lg:text-left">
-                        Open one finished listing and see the live page, QR system, reports, print, and social assets.
+                        Full share kit included — QR codes, sign riders, social assets &amp; property reports.
                     </p>
                     <div className="mt-4 text-center lg:text-left">
                         <button
@@ -889,18 +893,18 @@ const Hero: React.FC<{ onNavigateToSignUp: () => void, onEnterDemoMode: () => vo
 // ─── Lead Machine Timeline Section ────────────────────────────────────────────
 const LeadMachineSection: React.FC = () => {
     const leftSteps = [
-        { icon: 'forum', title: 'New Lead Detected', desc: 'Lead captured via landing page, chat/voice, or showing request' },
-        { icon: 'smart_toy', title: 'AI Chat Engages', desc: 'AI texts back instantly, does Q&A, and collects showing times' },
-        { icon: 'calendar_month', title: 'Showing Scheduled', desc: 'Agent or AI sets and confirms the showing' },
-        { icon: 'notifications_active', title: 'Follow-Up & Reminders', desc: 'Smart follow-up reminders and reschedules' },
-        { icon: 'handshake', title: 'Lead Converts', desc: 'Offer made, deal negotiated, under contract' },
+        { icon: 'forum', title: 'Buyer Engages the Listing', desc: 'AI captures them the moment they ask a question — day or night' },
+        { icon: 'smart_toy', title: 'AI Qualifies Instantly', desc: 'Answers questions, gauges intent, and asks about financing needs' },
+        { icon: 'calendar_month', title: 'Showing Gets Booked', desc: 'Agent or AI confirms the showing — no back-and-forth' },
+        { icon: 'notifications_active', title: 'You Both Get Notified', desc: 'Warm lead alert goes to the LO and the agent partner simultaneously' },
+        { icon: 'handshake', title: 'Pipeline Grows', desc: 'Buyer is pre-qualified, relationship is warm, deal is in motion' },
     ];
     const rightCards = [
-        { icon: 'mark_email_unread', title: 'Capture Lead', desc: 'AI listing page, chat/voice, or showing request' },
-        { icon: 'smart_toy', title: 'AI Chat', desc: 'AI asks qualifying questions and collects showing times' },
-        { icon: 'event_available', title: 'Schedule Showing', desc: 'Agent or AI sets and confirms the showing appointment' },
-        { icon: 'task_alt', title: 'Smart Follow-Up', desc: 'Friendly reminders and reschedules sent automatically' },
-        { icon: 'real_estate_agent', title: 'Close or Nurture', desc: 'Negotiate the deal, or nurture with touch points' },
+        { icon: 'mark_email_unread', title: 'Listing Goes Live', desc: 'AI listing page, QR codes, and share kit ready in minutes' },
+        { icon: 'smart_toy', title: 'AI Engages Buyers', desc: 'Answers questions, collects contact info, flags financing interest' },
+        { icon: 'event_available', title: 'Showing Scheduled', desc: 'Appointment confirmed — reminder texts keep buyers from ghosting' },
+        { icon: 'task_alt', title: 'Warm Lead Delivered', desc: 'You get the lead with full context — ready to have a real conversation' },
+        { icon: 'real_estate_agent', title: 'Close & Repeat', desc: 'Agent wins the deal, you close the loan, partnership gets stronger' },
     ];
     return (
         <section className="relative py-20 lg:py-28 bg-[#020B18] overflow-hidden border-t border-slate-900">
@@ -912,14 +916,14 @@ const LeadMachineSection: React.FC = () => {
                 <div className="text-center mb-14">
                     <p className="text-blue-400 font-bold tracking-widest text-sm uppercase mb-3">How It Works</p>
                     <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold text-white tracking-tight">
-                        The Lead Machine Timeline
+                        From Listing to Warm Lead to Closed Loan.
                     </h2>
                     <p className="mt-3 text-xl text-slate-400">
-                        <span className="text-blue-400 font-semibold">New</span>
+                        <span className="text-blue-400 font-semibold">Listing Live</span>
                         <span className="mx-2 text-slate-600">→</span>
-                        <span className="text-cyan-400 font-semibold">Closed</span>
+                        <span className="text-cyan-400 font-semibold">Buyer Captured</span>
                         <span className="mx-2 text-slate-600">→</span>
-                        <span className="text-emerald-400 font-semibold">Repeat</span>
+                        <span className="text-emerald-400 font-semibold">Pipeline Full</span>
                     </p>
                 </div>
 
@@ -1153,8 +1157,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigat
     return (
         <div className="bg-white font-sans">
             <SEO
-                title="HomeListingAI - AI Real Estate Assistant"
-                description="Automate your real estate business with 24/7 AI agents. Lead qualification, scheduling, and marketing automation for modern realtors."
+                title="HomeListingAI — AI-Powered Listing Pages That Capture & Convert Buyers"
+                description="Give every listing its own AI buyer agent, QR share kit, property reports, and automated lead follow-up. Turn any listing into a 24/7 lead machine. Free to try."
                 schema={{
                     "@context": "https://schema.org",
                     "@type": "SoftwareApplication",
@@ -1166,7 +1170,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigat
                         "price": "34.00",
                         "priceCurrency": "USD"
                     },
-                    "description": "AI-powered real estate assistant for lead generation and management."
+                    "description": "AI-powered listing pages with built-in buyer chatbot, QR share kit, property reports, and automated lead follow-up — built for real estate agents."
                 }}
             />
             <PublicHeader

@@ -26,7 +26,7 @@ const faqs = [
     },
     {
         question: "How do I get alerted?",
-        answer: "Email alerts and outbound SMS are live now. Starter includes 50 SMS each month. Pro includes 250."
+        answer: "Email alerts and outbound SMS are live now. LO includes 250 SMS each month. LO Pro includes unlimited."
     },
     {
         question: "What counts as an SMS?",
@@ -34,7 +34,7 @@ const faqs = [
     },
     {
         question: "What SMS is included in each plan?",
-        answer: "Starter includes 50 outbound SMS per month. Pro includes 250. HomeListingAI uses those texts for first-touch follow-up, showing confirmations, reminder texts, schedule changes, and open house reminders."
+        answer: "LO includes 250 outbound SMS per month. LO Pro includes unlimited. HomeListingAI uses those texts for first-touch follow-up, showing confirmations, reminder texts, schedule changes, and open house reminders."
     },
     {
         question: "Can I use it for open houses and yard signs?",
@@ -42,7 +42,7 @@ const faqs = [
     },
     {
         question: "Do you support multiple listings or teams?",
-        answer: "Yes. Starter supports 5 active listings. Pro supports 25. You can add more via overages if you need it."
+        answer: "Yes. LO supports 20 active listings. LO Pro supports 50. You can add more via overages if you need it."
     },
     {
         question: "Can I cancel anytime?",
@@ -72,10 +72,10 @@ export const FaqSectionNew: React.FC<FaqSectionProps> = ({ onNavigateToSignUp, o
                         FAQ
                     </h2>
                     <h3 className="text-2xl md:text-3xl font-semibold text-white tracking-tight mb-4">
-                        Questions agents ask before they hit "Start Free."
+                        Questions LOs and Agents Ask Before They Hit "Start Free."
                     </h3>
                     <p className="text-lg md:text-xl text-slate-300 font-light leading-relaxed max-w-2xl mx-auto">
-                        Short answers. No fluff. If you still have questions, we'll show you a live example.
+                        Short answers. No fluff. If you still have questions, we'll show you a live listing.
                     </p>
                 </FadeIn>
 

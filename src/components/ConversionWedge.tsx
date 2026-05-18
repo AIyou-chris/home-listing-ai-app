@@ -82,12 +82,12 @@ export const ConversionWedge: React.FC<ConversionWedgeProps> = ({ onNavigateToSi
                 {/* 1) Headline + Subhead (Centered) */}
                 <div className="text-center max-w-3xl mx-auto mb-16 lg:mb-20">
                     <h2 className="text-4xl md:text-5xl font-bold text-white tracking-tight mb-6">
-                        Your Listing Becomes the Funnel.
+                        Every Listing Grows Your Pipeline.
                     </h2>
                     <p className="text-xl md:text-2xl text-slate-300 font-light leading-relaxed mb-4">
-                        Share one link or QR. Buyers get instant answers + the 1-page market report.
+                        Give your agent partners AI-powered listing pages that buyers love.
                         <br className="hidden md:block" />
-                        <span className="text-cyan-400 font-medium tracking-wide">You get the lead, the context, and the next step — automatically.</span>
+                        <span className="text-cyan-400 font-medium tracking-wide">Every lead it captures comes straight to you both — warm, qualified, and ready to talk.</span>
                     </p>
                     <div className="inline-block mt-2 px-4 py-1.5 rounded-full bg-slate-900/80 border border-slate-800 backdrop-blur-sm">
                         <p className="text-xs md:text-sm text-slate-400 font-medium tracking-wide flex items-center justify-center gap-2">
@@ -146,7 +146,7 @@ export const ConversionWedge: React.FC<ConversionWedgeProps> = ({ onNavigateToSi
                                 </li>
                                 <li className="flex items-start gap-3 text-slate-300">
                                     <span className="material-symbols-outlined text-cyan-500 text-xl shrink-0">check_circle</span>
-                                    "Get the report" CTA included
+                                    Preapproval request built in
                                 </li>
                             </ul>
 
@@ -164,10 +164,10 @@ export const ConversionWedge: React.FC<ConversionWedgeProps> = ({ onNavigateToSi
                         <div className="flex flex-col h-full">
                             <div className="mb-8">
                                 <h3 className="text-2xl font-semibold text-white mb-2 flex items-center gap-3">
-                                    <span className="material-symbols-outlined text-blue-400">description</span>
-                                    1-Page Market Report
+                                    <span className="material-symbols-outlined text-blue-400">rocket_launch</span>
+                                    Full Listing Marketing Package
                                 </h3>
-                                <p className="text-slate-400 font-medium uppercase tracking-wider text-sm">What makes you look like the pro</p>
+                                <p className="text-slate-400 font-medium uppercase tracking-wider text-sm">Everything ready in under 5 minutes</p>
                             </div>
 
                             {/* Real Product Screenshot */}
@@ -191,21 +191,21 @@ export const ConversionWedge: React.FC<ConversionWedgeProps> = ({ onNavigateToSi
                             <ul className="space-y-4 mb-8">
                                 <li className="flex items-start gap-3 text-slate-300">
                                     <span className="material-symbols-outlined text-blue-500 text-xl shrink-0">check_circle</span>
-                                    Market snapshot + pricing context
+                                    QR codes + sign riders + social assets
                                 </li>
                                 <li className="flex items-start gap-3 text-slate-300">
                                     <span className="material-symbols-outlined text-blue-500 text-xl shrink-0">check_circle</span>
-                                    Clean, send-worthy layout
+                                    Open house flyer + property report
                                 </li>
                                 <li className="flex items-start gap-3 text-slate-300">
                                     <span className="material-symbols-outlined text-blue-500 text-xl shrink-0">check_circle</span>
-                                    QR lead capture embedded
+                                    Co-branded with your LO partner
                                 </li>
                             </ul>
 
                             <div className="mt-auto">
                                 <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900 border border-slate-800 text-xs font-medium text-slate-400">
-                                    <span className="material-symbols-outlined text-[14px]">bolt</span> Generated in minutes
+                                    <span className="material-symbols-outlined text-[14px]">bolt</span> Full package ready in under 5 minutes
                                 </span>
                             </div>
                         </div>
@@ -246,14 +246,14 @@ export const ConversionWedge: React.FC<ConversionWedgeProps> = ({ onNavigateToSi
                         </div>
                         <h4 className="text-xl font-bold text-white mb-2">Capture</h4>
                         <p className="text-slate-400 text-sm leading-relaxed mb-5">
-                            Turn "Is it available?" into a saved lead in seconds.
+                            Every buyer question becomes a warm lead in your pipeline.
                         </p>
                         <ul className="space-y-2.5">
                             <li className="text-slate-300 text-sm flex items-start gap-2">
-                                <span className="w-1 h-1 rounded-full bg-cyan-500 mt-2 shrink-0"></span> Name + phone/email captured
+                                <span className="w-1 h-1 rounded-full bg-cyan-500 mt-2 shrink-0"></span> Name + phone/email captured instantly
                             </li>
                             <li className="text-slate-300 text-sm flex items-start gap-2">
-                                <span className="w-1 h-1 rounded-full bg-cyan-500 mt-2 shrink-0"></span> Auto-deduped per listing
+                                <span className="w-1 h-1 rounded-full bg-cyan-500 mt-2 shrink-0"></span> Routed to you and your agent partner
                             </li>
                             <li className="text-slate-300 text-sm flex items-start gap-2">
                                 <span className="w-1 h-1 rounded-full bg-cyan-500 mt-2 shrink-0"></span> Source tracked (link/QR/social)
@@ -268,17 +268,17 @@ export const ConversionWedge: React.FC<ConversionWedgeProps> = ({ onNavigateToSi
                         </div>
                         <h4 className="text-xl font-bold text-white mb-2">Alert</h4>
                         <p className="text-slate-400 text-sm leading-relaxed mb-5">
-                            Know the moment someone raises their hand.
+                            You know the second a buyer raises their hand — before anyone else.
                         </p>
                         <ul className="space-y-2.5">
                             <li className="text-slate-300 text-sm flex items-start gap-2">
-                                <span className="w-1 h-1 rounded-full bg-blue-500 mt-2 shrink-0"></span> Instant email notification
+                                <span className="w-1 h-1 rounded-full bg-blue-500 mt-2 shrink-0"></span> Instant email + SMS notification
                             </li>
                             <li className="text-slate-300 text-sm flex items-start gap-2">
-                                <span className="w-1 h-1 rounded-full bg-blue-500 mt-2 shrink-0"></span> Lead shows in your inbox
+                                <span className="w-1 h-1 rounded-full bg-blue-500 mt-2 shrink-0"></span> Lead lands in your dashboard immediately
                             </li>
                             <li className="text-slate-300 text-sm flex items-start gap-2">
-                                <span className="w-1 h-1 rounded-full bg-blue-500 mt-2 shrink-0"></span> Appointment reminder texts (no-show killer)
+                                <span className="w-1 h-1 rounded-full bg-blue-500 mt-2 shrink-0"></span> Automated reminders keep appointments from ghosting
                             </li>
                         </ul>
                     </div>
@@ -290,17 +290,17 @@ export const ConversionWedge: React.FC<ConversionWedgeProps> = ({ onNavigateToSi
                         </div>
                         <h4 className="text-xl font-bold text-white mb-2">Convert</h4>
                         <p className="text-slate-400 text-sm leading-relaxed mb-5">
-                            Follow-up stays organized without extra work.
+                            Warm buyers. Stronger partnerships. A pipeline that never runs dry.
                         </p>
                         <ul className="space-y-2.5">
                             <li className="text-slate-300 text-sm flex items-start gap-2">
-                                <span className="w-1 h-1 rounded-full bg-green-500 mt-2 shrink-0"></span> Lead status + activity timeline
+                                <span className="w-1 h-1 rounded-full bg-green-500 mt-2 shrink-0"></span> Lead status + full activity timeline
                             </li>
                             <li className="text-slate-300 text-sm flex items-start gap-2">
-                                <span className="w-1 h-1 rounded-full bg-green-500 mt-2 shrink-0"></span> Appointment panel (set once, reminders auto)
+                                <span className="w-1 h-1 rounded-full bg-green-500 mt-2 shrink-0"></span> Appointments set, reminders automated
                             </li>
                             <li className="text-slate-300 text-sm flex items-start gap-2">
-                                <span className="w-1 h-1 rounded-full bg-green-500 mt-2 shrink-0"></span> Clean handoff to the agent
+                                <span className="w-1 h-1 rounded-full bg-green-500 mt-2 shrink-0"></span> Buyers arrive pre-qualified and ready to move
                             </li>
                         </ul>
                     </div>
@@ -323,7 +323,7 @@ export const ConversionWedge: React.FC<ConversionWedgeProps> = ({ onNavigateToSi
                         </button>
                     </div>
                     <p className="text-slate-500 text-sm font-medium">
-                        Built for agents who want more leads without more apps.
+                        Built for loan officers who win by making their partners look great.
                     </p>
                 </div>
 
