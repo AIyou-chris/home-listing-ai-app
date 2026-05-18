@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import QRCode from 'qrcode';
 import { getLiveExampleUrl, getSampleReportUrl, openInNewTab, safeNavigate, verifyHomepageCtaTargetsOnce } from '../utils/ctaLinks';
 
 interface ConversionWedgeProps {
@@ -20,6 +21,13 @@ export const ConversionWedge: React.FC<ConversionWedgeProps> = ({ onNavigateToSi
     const [formName, setFormName] = useState('');
     const [formContact, setFormContact] = useState('');
 
+    // Demo send modal
+    const [isDemoModalOpen, setIsDemoModalOpen] = useState(false);
+    const [demoName, setDemoName] = useState('');
+    const [demoEmail, setDemoEmail] = useState('');
+    const [demoSent, setDemoSent] = useState(false);
+    const qrCanvasRef = useRef<HTMLCanvasElement>(null);
+
     // Reset modal when opened
     useEffect(() => {
         if (isModalOpen) {
@@ -35,6 +43,21 @@ export const ConversionWedge: React.FC<ConversionWedgeProps> = ({ onNavigateToSi
     useEffect(() => {
         verifyHomepageCtaTargetsOnce();
     }, []);
+
+    useEffect(() => {
+        if (!qrCanvasRef.current) return;
+        const demoUrl = window.location.origin + getLiveExampleUrl();
+        QRCode.toCanvas(qrCanvasRef.current, demoUrl, {
+            width: 140,
+            margin: 1,
+            color: { dark: '#ffffff', light: '#0B1121' },
+        });
+    }, []);
+
+    const handleDemoSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        setDemoSent(true);
+    };
 
     const handleQuestionClick = (question: string) => {
         setSelectedQuestion(question);
@@ -154,6 +177,34 @@ export const ConversionWedge: React.FC<ConversionWedgeProps> = ({ onNavigateToSi
                             </div>
                             <h4 className="text-white font-bold text-lg mb-2">Watch warm leads hit your inbox</h4>
                             <p className="text-slate-400 text-sm leading-relaxed">Repeat with the next agent. That's how you build a pipeline.</p>
+                        </div>
+                    </div>
+
+                    {/* See what they get — QR + send demo */}
+                    <div className="mt-12 flex flex-col items-center">
+                        <p className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-6">See what your partner gets</p>
+                        <div className="flex flex-col sm:flex-row items-center gap-8 bg-[#0B1121] border border-slate-800 rounded-2xl px-8 py-8 w-full max-w-lg">
+                            {/* QR Code */}
+                            <div className="flex flex-col items-center gap-2 shrink-0">
+                                <canvas ref={qrCanvasRef} className="rounded-xl" />
+                                <p className="text-slate-500 text-xs font-medium">Scan to see it live</p>
+                            </div>
+
+                            <div className="w-px h-24 bg-slate-800 hidden sm:block shrink-0"></div>
+                            <div className="h-px w-full bg-slate-800 sm:hidden"></div>
+
+                            {/* Send it button */}
+                            <div className="flex flex-col items-center sm:items-start gap-3 flex-1">
+                                <p className="text-white font-semibold text-base leading-snug">Or send yourself a live demo right now</p>
+                                <p className="text-slate-400 text-sm">Experience exactly what your agent partner will see.</p>
+                                <button
+                                    onClick={() => { setIsDemoModalOpen(true); setDemoSent(false); setDemoName(''); setDemoEmail(''); }}
+                                    className="mt-1 px-6 py-3 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold rounded-xl transition-all shadow-[0_0_16px_rgba(6,182,212,0.3)] hover:shadow-[0_0_22px_rgba(6,182,212,0.5)] text-sm flex items-center gap-2"
+                                >
+                                    <span className="material-symbols-outlined text-[18px]">send</span>
+                                    Send me the demo
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -386,6 +437,67 @@ export const ConversionWedge: React.FC<ConversionWedgeProps> = ({ onNavigateToSi
                 </div>
 
             </div>
+
+            {/* Demo Send Modal */}
+            {isDemoModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                    <div className="w-full max-w-sm bg-[#0B1121] border border-slate-700 rounded-2xl shadow-2xl overflow-hidden">
+                        <div className="px-6 py-5 border-b border-slate-800 flex items-start justify-between">
+                            <div>
+                                <h3 className="text-lg font-bold text-white">Send yourself the demo</h3>
+                                <p className="text-sm text-slate-400 mt-1">We'll send a live listing link — experience it as a buyer would.</p>
+                            </div>
+                            <button onClick={() => setIsDemoModalOpen(false)} className="text-slate-500 hover:text-slate-300 transition-colors p-1 ml-3">
+                                <span className="material-symbols-outlined text-[20px]">close</span>
+                            </button>
+                        </div>
+
+                        <div className="p-6">
+                            {!demoSent ? (
+                                <form onSubmit={handleDemoSubmit} className="space-y-3">
+                                    <input
+                                        type="text"
+                                        required
+                                        placeholder="Your name"
+                                        value={demoName}
+                                        onChange={(e) => setDemoName(e.target.value)}
+                                        className="w-full px-4 py-3 rounded-xl border border-slate-700 bg-slate-900 text-white font-medium outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all placeholder:text-slate-500"
+                                    />
+                                    <input
+                                        type="email"
+                                        required
+                                        placeholder="Your email"
+                                        value={demoEmail}
+                                        onChange={(e) => setDemoEmail(e.target.value)}
+                                        className="w-full px-4 py-3 rounded-xl border border-slate-700 bg-slate-900 text-white font-medium outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all placeholder:text-slate-500"
+                                    />
+                                    <button
+                                        type="submit"
+                                        className="w-full py-3.5 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold rounded-xl transition-all shadow-[0_0_16px_rgba(6,182,212,0.3)] mt-2"
+                                    >
+                                        Send me the link
+                                    </button>
+                                    <p className="text-center text-[11px] text-slate-500">No spam. No account needed. Just the demo.</p>
+                                </form>
+                            ) : (
+                                <div className="py-6 text-center animate-in zoom-in-95 duration-300">
+                                    <div className="w-14 h-14 rounded-full bg-cyan-950 border border-cyan-500 flex items-center justify-center mx-auto mb-4">
+                                        <span className="material-symbols-outlined text-cyan-400 text-2xl">check</span>
+                                    </div>
+                                    <h4 className="text-white font-bold text-lg mb-2">On its way, {demoName.split(' ')[0]}.</h4>
+                                    <p className="text-slate-400 text-sm mb-6">Check your inbox — the demo listing link is headed there now.</p>
+                                    <button
+                                        onClick={() => setIsDemoModalOpen(false)}
+                                        className="w-full py-3 border border-slate-700 hover:bg-slate-800 text-slate-300 font-semibold rounded-xl transition-all text-sm"
+                                    >
+                                        Close
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Modal Overlay */}
             {isModalOpen && (
