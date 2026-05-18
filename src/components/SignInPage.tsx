@@ -4,6 +4,7 @@ import { supabase } from '../services/supabase';
 import { PublicHeader } from './layout/PublicHeader';
 import { PublicFooter } from './layout/PublicFooter';
 import { BackgroundTechIcons } from './BackgroundTechIcons';
+import { useTenantBrand } from '../hooks/useTenantBrand';
 
 interface SignInPageProps {
     onNavigateToSignUp: () => void;
@@ -15,6 +16,7 @@ interface SignInPageProps {
 
 const SignInPage: React.FC<SignInPageProps> = ({ onNavigateToSignUp, onNavigateToLanding: _onNavigateToLanding, onEnterDemoMode, onNavigateToAdmin }) => {
     const navigate = useNavigate();
+    const tenantBrand = useTenantBrand();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
@@ -81,7 +83,24 @@ const SignInPage: React.FC<SignInPageProps> = ({ onNavigateToSignUp, onNavigateT
                 <div className="w-full max-w-md px-4 sm:px-0">
                     <div className="bg-[#0B1121]/80 backdrop-blur-md p-8 sm:p-10 rounded-3xl shadow-[0_0_40px_rgba(6,182,212,0.1)] border border-cyan-900/30">
                         <div className="text-center mb-8">
-                            <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">Sign In to HomeListingAI</h1>
+                            {tenantBrand && (
+                                <div className="flex flex-col items-center gap-2 mb-4">
+                                    {tenantBrand.logoUrl ? (
+                                        <img src={tenantBrand.logoUrl} alt={tenantBrand.companyName || 'Logo'} className="h-10 max-w-[180px] object-contain" />
+                                    ) : (
+                                        <div className="h-10 w-10 rounded-full flex items-center justify-center text-white font-black text-lg"
+                                            style={{ background: tenantBrand.brandColor }}>
+                                            {(tenantBrand.companyName || 'O')[0].toUpperCase()}
+                                        </div>
+                                    )}
+                                    {tenantBrand.companyName && (
+                                        <span className="text-sm font-semibold text-slate-300">{tenantBrand.companyName}</span>
+                                    )}
+                                </div>
+                            )}
+                            <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
+                                Sign In{tenantBrand?.companyName ? ` to ${tenantBrand.companyName}` : ' to HomeListingAI'}
+                            </h1>
                             <p className="text-slate-400 mt-3 font-light">Welcome back! Please enter your details.</p>
                         </div>
 
