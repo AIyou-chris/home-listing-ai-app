@@ -719,7 +719,7 @@ const _AboutUsSection: React.FC = () => (
 
 
 
-const Hero: React.FC<{ onNavigateToSignUp: () => void, onEnterDemoMode: () => void, onOpenChatBot?: () => void, onOpenComparePlans: () => void }> = ({ onNavigateToSignUp, onOpenChatBot: _onOpenChatBot, onOpenComparePlans }) => {
+const Hero: React.FC<{ onNavigateToSignUp: () => void, onEnterDemoMode: () => void, onOpenChatBot?: () => void, onOpenComparePlans: () => void }> = ({ onNavigateToSignUp: _onNavigateToSignUp, onOpenChatBot: _onOpenChatBot, onOpenComparePlans }) => {
     const [isDemoOpen, setIsDemoOpen] = useState(false);
     const [demoName, setDemoName] = useState('');
     const [demoEmail, setDemoEmail] = useState('');
@@ -767,14 +767,10 @@ const Hero: React.FC<{ onNavigateToSignUp: () => void, onEnterDemoMode: () => vo
                     <p className="mt-8 max-w-xl mx-auto lg:mx-0 text-xl text-slate-400 animate-fade-in-up font-light leading-relaxed" style={{ animationDelay: "200ms" }}>
                         In this market, standing out isn't optional — it's everything. HomeListingAI gives you and your agent partners an unfair advantage that buyers notice and competitors can't match. Getting started takes 30 seconds. All you need is a name and an email.
                     </p>
-                    <div className="mt-10 flex flex-col sm:flex-row justify-center lg:justify-start items-center gap-5 animate-fade-in-up px-4 lg:px-0" style={{ animationDelay: "400ms" }}>
-                        <button onClick={onNavigateToSignUp} className="w-full sm:w-auto px-8 py-4 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold rounded-lg shadow-[0_0_20px_rgba(6,182,212,0.4)] transition-all transform hover:scale-105 text-lg btn-animate group flex items-center justify-center gap-2">
-                            Start Free
-                            <span className="material-symbols-outlined text-xl transition-transform group-hover:translate-x-1">arrow_forward</span>
-                        </button>
+                    <div className="mt-10 animate-fade-in-up px-4 lg:px-0" style={{ animationDelay: "400ms" }}>
                         <button
                             onClick={openDemo}
-                            className="w-full sm:w-auto px-8 py-4 bg-transparent border border-slate-700 hover:border-cyan-500/50 hover:bg-cyan-500/5 text-white font-semibold rounded-lg transition-all text-lg flex items-center justify-center gap-2 group"
+                            className="w-full sm:w-auto px-12 py-4 bg-transparent border border-slate-700 hover:border-cyan-500/50 hover:bg-cyan-500/5 text-white font-semibold rounded-lg transition-all text-lg flex items-center justify-center gap-2"
                         >
                             <span className="material-symbols-outlined text-cyan-500 text-xl">qr_code_scanner</span>
                             See What You Send Them
