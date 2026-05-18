@@ -767,7 +767,7 @@ const Hero: React.FC<{ onNavigateToSignUp: () => void, onEnterDemoMode: () => vo
                     <p className="mt-8 max-w-xl mx-auto lg:mx-0 text-xl text-slate-400 animate-fade-in-up font-light leading-relaxed" style={{ animationDelay: "200ms" }}>
                         In this market, standing out isn't optional — it's everything. HomeListingAI gives you and your agent partners an unfair advantage that buyers notice and competitors can't match. Getting started takes 30 seconds. All you need is a name and an email.
                     </p>
-                    <div className="mt-10 animate-fade-in-up px-4 lg:px-0" style={{ animationDelay: "400ms" }}>
+                    <div className="mt-10 animate-fade-in-up px-4 lg:px-0 flex justify-center lg:justify-center" style={{ animationDelay: "400ms" }}>
                         <button
                             onClick={openDemo}
                             className="w-full sm:w-auto px-12 py-4 bg-transparent border border-slate-700 hover:border-cyan-500/50 hover:bg-cyan-500/5 text-white font-semibold rounded-lg transition-all text-lg flex items-center justify-center gap-2"
