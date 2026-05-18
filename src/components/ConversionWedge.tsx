@@ -100,6 +100,64 @@ export const ConversionWedge: React.FC<ConversionWedgeProps> = ({ onNavigateToSi
                     </div>
                 </div>
 
+                {/* 1.5) Not BS Leads Strip + 3-Step Setup */}
+                <div className="max-w-4xl mx-auto mb-16 lg:mb-20">
+                    {/* Bold claim */}
+                    <div className="text-center mb-10">
+                        <p className="inline-block text-sm font-bold uppercase tracking-widest text-slate-500 mb-3">How it works</p>
+                        <h3 className="text-2xl md:text-3xl font-bold text-white mb-3">
+                            Not cold calls. Not purchased lists. Not BS.
+                        </h3>
+                        <p className="text-slate-400 leading-relaxed max-w-2xl mx-auto">
+                            These are real buyers who asked a question, requested a showing, or wanted the market report —
+                            then handed you their contact info. <span className="text-cyan-400 font-medium">That's a warm lead.</span>
+                        </p>
+                    </div>
+
+                    {/* 3-Step Timeline */}
+                    <div className="relative flex flex-col md:flex-row items-stretch gap-0">
+                        {/* Connecting line (desktop) */}
+                        <div className="hidden md:block absolute top-8 left-[calc(16.66%+1px)] right-[calc(16.66%+1px)] h-px bg-gradient-to-r from-cyan-500/40 via-cyan-400/60 to-cyan-500/40 z-0"></div>
+
+                        {/* Step 1 */}
+                        <div className="flex-1 flex flex-col items-center text-center px-4 relative z-10">
+                            <div className="w-16 h-16 rounded-full bg-cyan-950 border-2 border-cyan-500 flex items-center justify-center mb-4 shadow-[0_0_20px_rgba(6,182,212,0.25)]">
+                                <span className="text-cyan-400 font-extrabold text-xl">1</span>
+                            </div>
+                            <h4 className="text-white font-bold text-lg mb-2">Get a partner's name + email</h4>
+                            <p className="text-slate-400 text-sm leading-relaxed">One agent. One listing. That's all you need to start.</p>
+                        </div>
+
+                        {/* Arrow (mobile) */}
+                        <div className="flex md:hidden justify-center py-2 text-cyan-500/50">
+                            <span className="material-symbols-outlined">arrow_downward</span>
+                        </div>
+
+                        {/* Step 2 */}
+                        <div className="flex-1 flex flex-col items-center text-center px-4 relative z-10">
+                            <div className="w-16 h-16 rounded-full bg-cyan-950 border-2 border-cyan-500 flex items-center justify-center mb-4 shadow-[0_0_20px_rgba(6,182,212,0.25)]">
+                                <span className="text-cyan-400 font-extrabold text-xl">2</span>
+                            </div>
+                            <h4 className="text-white font-bold text-lg mb-2">Send them the link</h4>
+                            <p className="text-slate-400 text-sm leading-relaxed">Their listing goes live with a full AI page, QR, and marketing kit. Done.</p>
+                        </div>
+
+                        {/* Arrow (mobile) */}
+                        <div className="flex md:hidden justify-center py-2 text-cyan-500/50">
+                            <span className="material-symbols-outlined">arrow_downward</span>
+                        </div>
+
+                        {/* Step 3 */}
+                        <div className="flex-1 flex flex-col items-center text-center px-4 relative z-10">
+                            <div className="w-16 h-16 rounded-full bg-cyan-950 border-2 border-cyan-500 flex items-center justify-center mb-4 shadow-[0_0_20px_rgba(6,182,212,0.25)]">
+                                <span className="text-cyan-400 font-extrabold text-xl">3</span>
+                            </div>
+                            <h4 className="text-white font-bold text-lg mb-2">Watch warm leads hit your inbox</h4>
+                            <p className="text-slate-400 text-sm leading-relaxed">Repeat with the next agent. That's how you build a pipeline.</p>
+                        </div>
+                    </div>
+                </div>
+
                 {/* 2) Two Visual Cards Side-By-Side */}
                 <div className="grid md:grid-cols-2 gap-8 mb-8">
 
