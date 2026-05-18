@@ -1,4 +1,5 @@
-import React, { Suspense, lazy, useEffect, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useRef, useState } from 'react';
+import QRCode from 'qrcode';
 import ComparePlansModal from './ComparePlansModal';
 import { useNavigate } from 'react-router-dom';
 
@@ -718,8 +719,24 @@ const _AboutUsSection: React.FC = () => (
 
 
 
-const Hero: React.FC<{ onNavigateToSignUp: () => void, onEnterDemoMode: () => void, onOpenChatBot?: () => void, onOpenComparePlans: () => void }> = ({ onNavigateToSignUp, onEnterDemoMode, onOpenChatBot: _onOpenChatBot, onOpenComparePlans }) => (
-    <section className="relative pt-32 pb-20 lg:pt-48 lg:pb-32 overflow-hidden bg-slate-950">
+const Hero: React.FC<{ onNavigateToSignUp: () => void, onEnterDemoMode: () => void, onOpenChatBot?: () => void, onOpenComparePlans: () => void }> = ({ onNavigateToSignUp, onOpenChatBot: _onOpenChatBot, onOpenComparePlans }) => {
+    const [isDemoOpen, setIsDemoOpen] = useState(false);
+    const [demoName, setDemoName] = useState('');
+    const [demoEmail, setDemoEmail] = useState('');
+    const [demoSent, setDemoSent] = useState(false);
+    const qrRef = useRef<HTMLCanvasElement>(null);
+
+    useEffect(() => {
+        if (!isDemoOpen || !qrRef.current) return;
+        const url = window.location.origin + '/demo-live/demo-124-oak-street-austin';
+        QRCode.toCanvas(qrRef.current, url, { width: 130, margin: 1, color: { dark: '#ffffff', light: '#0B1121' } });
+    }, [isDemoOpen]);
+
+    const openDemo = () => { setIsDemoOpen(true); setDemoSent(false); setDemoName(''); setDemoEmail(''); };
+
+    return (
+        <>
+        <section className="relative pt-32 pb-20 lg:pt-48 lg:pb-32 overflow-hidden bg-slate-950">
         {/* Deep, dark gradient background */}
         <div className="absolute inset-0 bg-gradient-to-br from-[#0B0F19] via-[#0B1528] to-[#040814]"></div>
 
@@ -756,11 +773,11 @@ const Hero: React.FC<{ onNavigateToSignUp: () => void, onEnterDemoMode: () => vo
                             <span className="material-symbols-outlined text-xl transition-transform group-hover:translate-x-1">arrow_forward</span>
                         </button>
                         <button
-                            onClick={onEnterDemoMode}
-                            aria-label="See a live listing demo"
-                            className="w-full sm:w-auto px-8 py-4 bg-transparent border border-slate-700 hover:border-slate-500 text-white font-semibold rounded-lg transition-all text-lg hover:bg-slate-800/50 flex items-center justify-center gap-2"
+                            onClick={openDemo}
+                            className="w-full sm:w-auto px-8 py-4 bg-transparent border border-slate-700 hover:border-cyan-500/50 hover:bg-cyan-500/5 text-white font-semibold rounded-lg transition-all text-lg flex items-center justify-center gap-2 group"
                         >
-                            See a Live Listing Demo <span className="text-cyan-500 ml-1">→</span>
+                            <span className="material-symbols-outlined text-cyan-500 text-xl">qr_code_scanner</span>
+                            See What You Send Them
                         </button>
                     </div>
                     <p className="mt-2 text-sm text-slate-500 text-center lg:text-left">
@@ -888,7 +905,74 @@ const Hero: React.FC<{ onNavigateToSignUp: () => void, onEnterDemoMode: () => vo
             </div>
         </div>
     </section>
-);
+
+            {/* Demo Send Modal */}
+            {isDemoOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                    <div className="w-full max-w-sm bg-[#0B1121] border border-slate-700 rounded-2xl shadow-2xl overflow-hidden">
+                        <div className="px-6 py-5 border-b border-slate-800 flex items-start justify-between">
+                            <div>
+                                <h3 className="text-lg font-bold text-white">See what you send them</h3>
+                                <p className="text-sm text-slate-400 mt-1">We'll fire a live demo listing to your inbox right now — experience it exactly as a buyer would.</p>
+                            </div>
+                            <button onClick={() => setIsDemoOpen(false)} className="text-slate-500 hover:text-slate-300 transition-colors p-1 ml-3 shrink-0">
+                                <span className="material-symbols-outlined text-[20px]">close</span>
+                            </button>
+                        </div>
+                        <div className="p-6">
+                            {!demoSent ? (
+                                <form onSubmit={(e) => { e.preventDefault(); setDemoSent(true); }} className="space-y-3">
+                                    <div className="flex justify-center mb-4">
+                                        <div className="flex flex-col items-center gap-2">
+                                            <canvas ref={qrRef} className="rounded-xl" />
+                                            <p className="text-slate-500 text-xs font-medium">Scan to open it now</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-3 my-4">
+                                        <div className="flex-1 h-px bg-slate-800"></div>
+                                        <p className="text-slate-600 text-xs font-semibold uppercase tracking-widest">or send to email</p>
+                                        <div className="flex-1 h-px bg-slate-800"></div>
+                                    </div>
+                                    <input
+                                        type="text"
+                                        required
+                                        placeholder="Your name"
+                                        value={demoName}
+                                        onChange={(e) => setDemoName(e.target.value)}
+                                        className="w-full px-4 py-3 rounded-xl border border-slate-700 bg-slate-900 text-white font-medium outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all placeholder:text-slate-500"
+                                    />
+                                    <input
+                                        type="email"
+                                        required
+                                        placeholder="Your email"
+                                        value={demoEmail}
+                                        onChange={(e) => setDemoEmail(e.target.value)}
+                                        className="w-full px-4 py-3 rounded-xl border border-slate-700 bg-slate-900 text-white font-medium outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all placeholder:text-slate-500"
+                                    />
+                                    <button type="submit" className="w-full py-3.5 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold rounded-xl transition-all shadow-[0_0_16px_rgba(6,182,212,0.3)] mt-2">
+                                        Send me the demo
+                                    </button>
+                                    <p className="text-center text-[11px] text-slate-500">No spam. No account needed. Just the demo.</p>
+                                </form>
+                            ) : (
+                                <div className="py-6 text-center animate-in zoom-in-95 duration-300">
+                                    <div className="w-14 h-14 rounded-full bg-cyan-950 border border-cyan-500 flex items-center justify-center mx-auto mb-4">
+                                        <span className="material-symbols-outlined text-cyan-400 text-2xl">check</span>
+                                    </div>
+                                    <h4 className="text-white font-bold text-lg mb-2">On its way, {demoName.split(' ')[0]}.</h4>
+                                    <p className="text-slate-400 text-sm mb-6">Check your inbox — a live demo listing is headed there now. That's exactly what your buyers and agent partners will see.</p>
+                                    <button onClick={() => setIsDemoOpen(false)} className="w-full py-3 border border-slate-700 hover:bg-slate-800 text-slate-300 font-semibold rounded-xl transition-all text-sm">
+                                        Close
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+        </>
+    );
+};
 
 // ─── Lead Machine Timeline Section ────────────────────────────────────────────
 const LeadMachineSection: React.FC = () => {
