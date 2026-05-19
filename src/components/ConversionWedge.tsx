@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import QRCode from 'qrcode';
-import { getLiveExampleUrl, getSampleReportUrl, openInNewTab, safeNavigate, verifyHomepageCtaTargetsOnce } from '../utils/ctaLinks';
+import { getLiveExampleUrl, safeNavigate, verifyHomepageCtaTargetsOnce } from '../utils/ctaLinks';
 
 interface ConversionWedgeProps {
     onNavigateToSignUp: () => void;
@@ -322,29 +322,6 @@ export const ConversionWedge: React.FC<ConversionWedgeProps> = ({ onNavigateToSi
 
                 </div>
 
-                {/* Try It Live ACTION ROW */}
-                <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16 max-w-2xl mx-auto">
-                    <button
-                        onClick={() => setIsModalOpen(true)}
-                        className="w-full sm:w-auto px-6 py-3.5 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold rounded-xl transition-all shadow-[0_0_20px_rgba(6,182,212,0.3)] hover:shadow-[0_0_25px_rgba(6,182,212,0.5)] transform hover:-translate-y-0.5"
-                    >
-                        Try it live (10 seconds)
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => openInNewTab(getSampleReportUrl())}
-                        className="w-full sm:w-auto px-6 py-3.5 bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-white font-semibold rounded-xl text-center transition-colors"
-                    >
-                        View sample report
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => safeNavigate(navigate, getLiveExampleUrl())}
-                        className="w-full sm:w-auto px-6 py-3.5 bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-white font-semibold rounded-xl text-center transition-colors"
-                    >
-                        See a live example
-                    </button>
-                </div>
 
                 {/* 3) Three Outcome Cards Underneath */}
                 <div className="grid md:grid-cols-3 gap-6 mb-16">
