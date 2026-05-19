@@ -4,6 +4,9 @@ export interface AgentRegistrationPayload {
   firstName: string;
   lastName: string;
   email: string;
+  accountType?: 'lo' | 'agent' | 'realtor' | 'office';
+  phone?: string;
+  nmls?: string;
 }
 
 export interface AgentRecord {
@@ -119,19 +122,21 @@ export const agentOnboardingService = {
     slug,
     provider,
     amountCents,
-    promoCode
+    promoCode,
+    plan
   }: {
     slug: string;
     provider?: string;
     amountCents?: number;
     promoCode?: string;
+    plan?: 'lo' | 'lo_pro';
   }): Promise<CheckoutSessionResponse> {
     const response = await fetch(buildApiUrl('/api/payments/checkout-session'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ slug, provider, amountCents, promoCode })
+      body: JSON.stringify({ slug, provider, amountCents, promoCode, plan })
     });
     const data = await handleResponse<{ session: CheckoutSessionResponse }>(response);
     return data.session;

@@ -27,6 +27,7 @@ interface AdminDashboardSidebarProps {
   setView: (view: DashboardView) => void;
   isOpen: boolean;
   onClose: () => void;
+  isDesktop: boolean;
 }
 
 const Icon: React.FC<{ name: string; className?: string }> = ({ name, className }) => (
@@ -62,7 +63,7 @@ const NavItem: React.FC<{
   );
 };
 
-const AdminDashboardSidebar: React.FC<AdminDashboardSidebarProps> = ({ activeView, setView, isOpen, onClose }) => {
+const AdminDashboardSidebar: React.FC<AdminDashboardSidebarProps> = ({ activeView, setView, isOpen, onClose, isDesktop }) => {
   const navItems = [
     { view: 'dashboard', icon: 'home', label: 'Admin Overview' },
     { view: 'leads', icon: 'groups', label: 'Leads & Appointments' },
@@ -81,19 +82,23 @@ const AdminDashboardSidebar: React.FC<AdminDashboardSidebarProps> = ({ activeVie
     onClose();
   };
 
+  const asideStyle: React.CSSProperties = isDesktop
+    ? { position: 'relative', flexShrink: 0, transform: 'none' }
+    : { position: 'fixed', top: 0, left: 0, bottom: 0, transform: isOpen ? 'translateX(0)' : 'translateX(-100%)' };
+
   return (
     <>
-      <div
-        className={`fixed inset-0 bg-black/50 z-30 md:hidden transition-opacity ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
-        onClick={onClose}
-        aria-hidden="true"
-      />
-      <aside className={`
-            fixed inset-y-0 left-0 z-40 h-full w-64 flex flex-col border-r border-slate-200 bg-white px-4 py-6
-            transform transition-transform duration-300 ease-in-out
-            md:static md:flex md:translate-x-0
-            ${isOpen ? 'translate-x-0' : '-translate-x-full'}
-        `}>
+      {!isDesktop && (
+        <div
+          className={`fixed inset-0 bg-black/50 z-30 transition-opacity ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+          onClick={onClose}
+          aria-hidden="true"
+        />
+      )}
+      <aside
+        className="z-40 flex h-full w-64 flex-col border-r border-slate-200 bg-white px-4 py-6 transition-transform duration-300 ease-in-out"
+        style={asideStyle}
+      >
         <div className="flex justify-between items-center px-2 mb-6">
           <a
             href="/"
@@ -102,9 +107,11 @@ const AdminDashboardSidebar: React.FC<AdminDashboardSidebarProps> = ({ activeVie
           >
             <LogoWithName />
           </a>
-          <button onClick={onClose} className="md:hidden p-1 rounded-full text-slate-500 hover:bg-slate-100">
-            <Icon name="close" />
-          </button>
+          {!isDesktop && (
+            <button onClick={onClose} className="p-1 rounded-full text-slate-500 hover:bg-slate-100">
+              <Icon name="close" />
+            </button>
+          )}
         </div>
 
         <nav className="flex-1 overflow-y-auto">

@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { StripeLogo as _StripeLogo } from './StripeLogo';
 import { BackgroundTechIcons } from './BackgroundTechIcons';
 
@@ -8,7 +9,8 @@ interface PricingProps {
     onOpenComparePlans?: () => void;
 }
 
-export const PricingSectionNew: React.FC<PricingProps> = ({ onNavigateToSignUp, onEnterDemoMode, onOpenComparePlans }) => {
+export const PricingSectionNew: React.FC<PricingProps> = ({ onNavigateToSignUp: _onNavigateToSignUp, onEnterDemoMode, onOpenComparePlans }) => {
+    const navigate = useNavigate();
     return (
         <section id="pricing" className="relative py-24 lg:py-32 bg-[#02050D] overflow-hidden">
 
@@ -94,8 +96,8 @@ export const PricingSectionNew: React.FC<PricingProps> = ({ onNavigateToSignUp, 
                             </p>
                         </div>
 
-                        <button onClick={onNavigateToSignUp} className="w-full py-3.5 px-6 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-white font-semibold transition-all text-center mb-4">
-                            Get Started
+                        <button onClick={() => navigate('/lo-signup?plan=lo')} className="w-full py-3.5 px-6 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-white font-semibold transition-all text-center mb-4">
+                            Start LO — Free 3 Days
                         </button>
                         <p className="text-center text-[11px] text-slate-500 uppercase tracking-widest font-semibold mt-auto">
                             Best for: solo LOs building partnerships
@@ -166,8 +168,8 @@ export const PricingSectionNew: React.FC<PricingProps> = ({ onNavigateToSignUp, 
                             </p>
                         </div>
 
-                        <button onClick={onNavigateToSignUp} className="w-full py-3.5 px-6 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold transition-all text-center shadow-[0_0_20px_rgba(6,182,212,0.3)] mb-4">
-                            Go Pro
+                        <button onClick={() => navigate('/lo-signup?plan=lo_pro')} className="w-full py-3.5 px-6 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold transition-all text-center shadow-[0_0_20px_rgba(6,182,212,0.3)] mb-4">
+                            Go Pro — Free 3 Days
                         </button>
                         <p className="text-center text-[11px] text-cyan-500/80 uppercase tracking-widest font-semibold mt-auto">
                             Best for: high-volume LOs + growing networks
@@ -301,7 +303,7 @@ export const PricingSectionNew: React.FC<PricingProps> = ({ onNavigateToSignUp, 
                             See a Live Example
                         </button>
                         <button
-                            onClick={onNavigateToSignUp}
+                            onClick={() => navigate('/lo-signup')}
                             className="w-full sm:w-auto px-8 py-4 bg-white text-slate-950 hover:bg-slate-200 font-bold rounded-lg transition-all text-lg flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(255,255,255,0.2)]"
                         >
                             Create Free Account
