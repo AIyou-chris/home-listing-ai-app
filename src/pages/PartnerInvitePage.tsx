@@ -50,14 +50,7 @@ interface ChatMessage {
   text: string;
 }
 
-const SUGGESTED_QUESTIONS = [
-  'What would my monthly payment be?',
-  'How much do I need for a down payment?',
-  'What loan programs are available?',
-  'How fast can we close?',
-];
-
-// ─── Demo listing fallback (used when LO has no listing attached) ─────────────
+// ─── Demo listing fallback ─────────────────────────────────────────────────────
 
 const DEMO_LISTING: ListingInfo = {
   id: 'demo',
@@ -75,9 +68,161 @@ const DEMO_LISTING: ListingInfo = {
   gallery_photos: [],
 };
 
-// ─── Chat Component ───────────────────────────────────────────────────────────
+// ─── Mortgage Calculator ───────────────────────────────────────────────────────
 
-const LiveChat: React.FC<{ lo: LOInfo; listingId: string; botName: string; greeting: string }> = ({ lo, listingId, botName, greeting }) => {
+const MortgageCalculator: React.FC<{
+  price: number;
+  brandColor: string;
+  onGetPreApproved: () => void;
+}> = ({ price, brandColor, onGetPreApproved }) => {
+  const [downPct, setDownPct] = useState(20);
+  const [rate, setRate] = useState(7.1);
+  const [term, setTerm] = useState(30);
+  const [showBreakdown, setShowBreakdown] = useState(false);
+
+  const downAmount = Math.round(price * (downPct / 100));
+  const loanAmount = price - downAmount;
+  const monthlyRate = rate / 100 / 12;
+  const numPayments = term * 12;
+  const pi = monthlyRate === 0
+    ? loanAmount / numPayments
+    : (loanAmount * monthlyRate * Math.pow(1 + monthlyRate, numPayments)) / (Math.pow(1 + monthlyRate, numPayments) - 1);
+  const taxes = Math.round((price * 0.012) / 12);
+  const insurance = 150;
+  const total = Math.round(pi + taxes + insurance);
+
+  return (
+    <div className="m-3.5 overflow-hidden rounded-[20px] bg-white shadow-[0_4px_20px_rgba(15,23,42,0.08)]">
+      {/* Header */}
+      <div className="px-5 pt-5 pb-3">
+        <p className="text-[11px] font-extrabold uppercase tracking-widest" style={{ color: brandColor }}>Monthly Payment</p>
+        <div className="mt-1 flex items-end gap-2">
+          <span className="text-[36px] font-black leading-none text-slate-900">${total.toLocaleString()}</span>
+          <span className="mb-1 text-sm font-semibold text-slate-400">/mo</span>
+        </div>
+        <p className="mt-0.5 text-[11px] text-slate-400">{downPct}% down · {term}yr fixed · {rate}% rate</p>
+      </div>
+
+      {/* Term picker */}
+      <div className="flex gap-2 px-5 pb-3">
+        {[15, 20, 30].map(t => (
+          <button
+            key={t}
+            onClick={() => setTerm(t)}
+            className={`flex-1 rounded-xl py-2 text-[13px] font-extrabold transition-all ${term === t ? 'text-white shadow-sm' : 'bg-slate-100 text-slate-500'}`}
+            style={term === t ? { background: brandColor } : {}}
+          >
+            {t}yr
+          </button>
+        ))}
+      </div>
+
+      {/* Down payment slider */}
+      <div className="px-5 pb-3">
+        <div className="flex justify-between mb-1.5">
+          <span className="text-[12px] font-bold text-slate-600">Down Payment</span>
+          <span className="text-[12px] font-extrabold" style={{ color: brandColor }}>{downPct}% · ${downAmount.toLocaleString()}</span>
+        </div>
+        <input
+          type="range"
+          min={3}
+          max={50}
+          step={1}
+          value={downPct}
+          onChange={e => setDownPct(Number(e.target.value))}
+          className="w-full h-2 rounded-full appearance-none cursor-pointer"
+          style={{ accentColor: brandColor }}
+        />
+        <div className="flex justify-between mt-1">
+          <span className="text-[10px] text-slate-400">3%</span>
+          <span className="text-[10px] text-slate-400">50%</span>
+        </div>
+      </div>
+
+      {/* Rate input */}
+      <div className="px-5 pb-4">
+        <div className="flex justify-between mb-1.5">
+          <span className="text-[12px] font-bold text-slate-600">Interest Rate</span>
+          <span className="text-[12px] font-extrabold" style={{ color: brandColor }}>{rate.toFixed(1)}%</span>
+        </div>
+        <input
+          type="range"
+          min={4.0}
+          max={10.0}
+          step={0.1}
+          value={rate}
+          onChange={e => setRate(Number(e.target.value))}
+          className="w-full h-2 rounded-full appearance-none cursor-pointer"
+          style={{ accentColor: brandColor }}
+        />
+        <div className="flex justify-between mt-1">
+          <span className="text-[10px] text-slate-400">4%</span>
+          <span className="text-[10px] text-slate-400">10%</span>
+        </div>
+      </div>
+
+      {/* Breakdown toggle */}
+      <button
+        onClick={() => setShowBreakdown(s => !s)}
+        className="flex w-full items-center justify-between border-t border-slate-100 px-5 py-3 text-[12px] font-bold text-slate-500"
+      >
+        <span>See full breakdown</span>
+        <span className="material-symbols-outlined text-[16px] transition-transform" style={{ transform: showBreakdown ? 'rotate(180deg)' : 'none' }}>expand_more</span>
+      </button>
+
+      {showBreakdown && (
+        <div className="px-5 pb-4 space-y-2 border-t border-slate-100 pt-3">
+          {[
+            { label: 'Principal & Interest', value: `$${Math.round(pi).toLocaleString()}` },
+            { label: 'Property Taxes (est.)', value: `$${taxes.toLocaleString()}` },
+            { label: 'Homeowners Insurance (est.)', value: `$${insurance}` },
+          ].map(row => (
+            <div key={row.label} className="flex justify-between">
+              <span className="text-[12px] text-slate-500">{row.label}</span>
+              <span className="text-[12px] font-bold text-slate-800">{row.value}</span>
+            </div>
+          ))}
+          <div className="flex justify-between border-t border-slate-200 pt-2 mt-2">
+            <span className="text-[13px] font-extrabold text-slate-900">Total / month</span>
+            <span className="text-[13px] font-extrabold" style={{ color: brandColor }}>${total.toLocaleString()}</span>
+          </div>
+          <p className="text-[10px] text-slate-400 leading-relaxed">Estimates only. Does not include HOA, PMI, or utilities. Contact your lender for exact figures.</p>
+        </div>
+      )}
+
+      {/* Pre-approval CTA */}
+      <div className="px-5 pb-5 pt-1">
+        <button
+          onClick={onGetPreApproved}
+          className="flex w-full items-center justify-center gap-2 rounded-2xl py-4 text-[15px] font-extrabold text-white shadow-[0_6px_20px_rgba(0,0,0,0.15)] transition-transform active:scale-[0.99]"
+          style={{ background: `linear-gradient(135deg,#059669,#10b981)` }}
+        >
+          <span className="text-xl">✅</span>
+          Get Pre-Approved in 60 Seconds
+        </button>
+        <p className="mt-2 text-center text-[11px] text-slate-400">Talk to the AI — no forms, no hard pull</p>
+      </div>
+    </div>
+  );
+};
+
+// ─── Chat Component (Financing / Pre-Approval) ─────────────────────────────────
+
+const FINANCING_QUESTIONS = [
+  'How much can I qualify for?',
+  'What do I need to get pre-approved?',
+  'What\'s the minimum down payment?',
+  'How fast can I close?',
+  'What loan programs are available?',
+];
+
+const LiveChat: React.FC<{
+  lo: LOInfo;
+  listingId: string;
+  botName: string;
+  greeting: string;
+  brandColor: string;
+}> = ({ lo, listingId, botName, greeting, brandColor: _brandColor }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([
     { id: 'greeting', role: 'bot', text: greeting }
   ]);
@@ -105,11 +250,11 @@ const LiveChat: React.FC<{ lo: LOInfo; listingId: string; botName: string; greet
         body: JSON.stringify({ lo_agent_id: lo.id, listing_id: listingId, message: clean, history: historyRef.current.slice(-8) })
       });
       const data = await res.json() as { reply?: string };
-      const reply = data.reply || 'I\'d be happy to answer that — give me a call or email to discuss your specific situation!';
+      const reply = data.reply || 'Happy to answer that — give me a call or send an email and we\'ll get you sorted!';
       historyRef.current = [...historyRef.current, { role: 'assistant', content: reply }];
       setMessages(prev => [...prev, { id: `b-${Date.now()}`, role: 'bot', text: reply }]);
     } catch {
-      setMessages(prev => [...prev, { id: `b-${Date.now()}`, role: 'bot', text: 'Sorry, I\'m having trouble connecting right now. Feel free to reach out directly!' }]);
+      setMessages(prev => [...prev, { id: `b-${Date.now()}`, role: 'bot', text: 'Having trouble connecting — reach out directly and I\'ll get back to you fast!' }]);
     } finally {
       setSending(false);
     }
@@ -117,13 +262,12 @@ const LiveChat: React.FC<{ lo: LOInfo; listingId: string; botName: string; greet
 
   return (
     <div className="flex flex-col h-full">
-      {/* Chat header */}
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-emerald-100 bg-gradient-to-r from-emerald-700 to-teal-600">
+      <div className="flex items-center gap-3 px-4 py-3 border-b border-emerald-100" style={{ background: 'linear-gradient(135deg,#064e3b,#059669)' }}>
         {lo.headshotUrl
           ? <img src={lo.headshotUrl} alt={lo.name} className="w-9 h-9 rounded-full object-cover border-2 border-white/30 flex-shrink-0" />
           : <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">{lo.name[0]}</div>
         }
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="text-white font-bold text-sm leading-tight">{botName}</p>
           <p className="text-emerald-100 text-xs truncate">{lo.name} · {lo.company}</p>
         </div>
@@ -133,7 +277,6 @@ const LiveChat: React.FC<{ lo: LOInfo; listingId: string; botName: string; greet
         </div>
       </div>
 
-      {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 bg-white">
         {messages.map(msg => (
           <div key={msg.id} className={`flex ${msg.role === 'visitor' ? 'justify-end' : 'justify-start'}`}>
@@ -150,9 +293,9 @@ const LiveChat: React.FC<{ lo: LOInfo; listingId: string; botName: string; greet
           <div className="flex justify-start">
             <div className="bg-emerald-50 border border-emerald-100 rounded-2xl rounded-bl-sm px-4 py-3">
               <div className="flex gap-1">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-bounce" style={{ animationDelay: '0ms' }} />
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-bounce" style={{ animationDelay: '150ms' }} />
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+                {[0, 150, 300].map(d => (
+                  <span key={d} className="w-2 h-2 rounded-full bg-emerald-400 animate-bounce" style={{ animationDelay: `${d}ms` }} />
+                ))}
               </div>
             </div>
           </div>
@@ -160,10 +303,9 @@ const LiveChat: React.FC<{ lo: LOInfo; listingId: string; botName: string; greet
         <div ref={bottomRef} />
       </div>
 
-      {/* Suggested questions — shown until first visitor message */}
       {messages.filter(m => m.role === 'visitor').length === 0 && (
-        <div className="px-4 pb-2 flex flex-wrap gap-2 bg-white">
-          {SUGGESTED_QUESTIONS.map(q => (
+        <div className="px-4 pb-3 flex flex-wrap gap-2 bg-white">
+          {FINANCING_QUESTIONS.map(q => (
             <button
               key={q}
               onClick={() => send(q)}
@@ -175,19 +317,19 @@ const LiveChat: React.FC<{ lo: LOInfo; listingId: string; botName: string; greet
         </div>
       )}
 
-      {/* Input */}
       <div className="flex items-center gap-2 px-3 py-3 border-t border-slate-100 bg-white">
         <input
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send(input)}
-          placeholder="Ask about financing…"
+          placeholder="Ask about financing or pre-approval…"
           className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
         />
         <button
           onClick={() => send(input)}
           disabled={!input.trim() || sending}
-          className="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center text-white disabled:opacity-40 hover:bg-emerald-700 transition-colors flex-shrink-0"
+          className="w-10 h-10 rounded-xl flex items-center justify-center text-white disabled:opacity-40 transition-colors flex-shrink-0"
+          style={{ background: '#059669' }}
         >
           <span className="material-symbols-outlined text-[18px]">send</span>
         </button>
@@ -196,7 +338,7 @@ const LiveChat: React.FC<{ lo: LOInfo; listingId: string; botName: string; greet
   );
 };
 
-// ─── Property Chat — the REAL ESTATE AI (agent's bot, trained via ai_kb) ──────
+// ─── Property Chat ─────────────────────────────────────────────────────────────
 
 const PROPERTY_QUESTIONS = [
   'Tell me about this neighborhood',
@@ -227,16 +369,7 @@ const PropertyChat: React.FC<{ listing: ListingInfo; agentName: string; brandCol
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          property: {
-            id: listing.id,
-            address: listing.address,
-            price: listing.price,
-            bedrooms: listing.beds,
-            bathrooms: listing.baths,
-            squareFeet: listing.sqft,
-            description: listing.description,
-            features: []
-          },
+          property: { id: listing.id, address: listing.address, price: listing.price, bedrooms: listing.beds, bathrooms: listing.baths, squareFeet: listing.sqft, description: listing.description, features: [] },
           question: clean,
           history: historyRef.current.slice(-8)
         })
@@ -246,7 +379,7 @@ const PropertyChat: React.FC<{ listing: ListingInfo; agentName: string; brandCol
       historyRef.current = [...historyRef.current, { sender: 'bot', text: reply }];
       setMessages(prev => [...prev, { id: `b-${Date.now()}`, role: 'bot', text: reply }]);
     } catch {
-      setMessages(prev => [...prev, { id: `b-${Date.now()}`, role: 'bot', text: 'Sorry, I\'m having trouble connecting right now. Try again in a moment!' }]);
+      setMessages(prev => [...prev, { id: `b-${Date.now()}`, role: 'bot', text: 'Try again in a moment!' }]);
     } finally {
       setSending(false);
     }
@@ -307,6 +440,50 @@ const PropertyChat: React.FC<{ listing: ListingInfo; agentName: string; brandCol
   );
 };
 
+// ─── Bottom Tab Bar ────────────────────────────────────────────────────────────
+
+type Tab = 'home' | 'finance' | 'tour' | 'contact';
+
+const BottomBar: React.FC<{
+  active: Tab;
+  onTab: (t: Tab) => void;
+  brandColor: string;
+  onChat: (mode: 'home' | 'financing') => void;
+}> = ({ active, onTab, brandColor, onChat }) => {
+  const tabs: { key: Tab; icon: string; label: string }[] = [
+    { key: 'home', icon: 'home', label: 'Home' },
+    { key: 'finance', icon: 'calculate', label: 'Finance' },
+    { key: 'tour', icon: 'calendar_month', label: 'Tour' },
+    { key: 'contact', icon: 'call', label: 'Contact' },
+  ];
+
+  const handleTab = (key: Tab) => {
+    if (key === 'home') { onTab(key); return; }
+    if (key === 'finance') { onTab(key); return; }
+    if (key === 'tour') { onChat('home'); return; }
+    if (key === 'contact') { onChat('financing'); return; }
+  };
+
+  return (
+    <div
+      className="fixed bottom-0 left-0 right-0 z-30 flex justify-around border-t border-slate-200 bg-white/95 backdrop-blur-sm"
+      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+    >
+      {tabs.map(t => (
+        <button
+          key={t.key}
+          onClick={() => handleTab(t.key)}
+          className="flex flex-1 flex-col items-center gap-0.5 py-2.5 transition-colors"
+          style={{ color: active === t.key ? brandColor : '#94a3b8' }}
+        >
+          <span className="material-symbols-outlined text-[22px]">{t.icon}</span>
+          <span className="text-[10px] font-bold">{t.label}</span>
+        </button>
+      ))}
+    </div>
+  );
+};
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 const PartnerInvitePage: React.FC = () => {
@@ -316,10 +493,19 @@ const PartnerInvitePage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [chatMode, setChatMode] = useState<'home' | 'financing' | null>(null);
+  const [activeTab, setActiveTab] = useState<Tab>('home');
   const [showHowItWorks, setShowHowItWorks] = useState(false);
+  const [photoIndex, setPhotoIndex] = useState(0);
   const listingRef = useRef<HTMLDivElement>(null);
+  const financeRef = useRef<HTMLDivElement>(null);
 
   const scrollToListing = () => listingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  const handleTab = (t: Tab) => {
+    setActiveTab(t);
+    if (t === 'finance') financeRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (t === 'home') listingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   useEffect(() => {
     if (!token) { setError('Invalid link'); setLoading(false); return; }
@@ -356,42 +542,47 @@ const PartnerInvitePage: React.FC = () => {
   const agentInitial = agentName[0]?.toUpperCase() || 'A';
   const displayListing = listing || DEMO_LISTING;
   const botName = chatbot?.bot_name || `${lo.name.split(' ')[0]}'s Finance Assistant`;
-  const greeting = chatbot?.greeting || `Hi! I'm ${lo.name}'s AI assistant. Ask me anything about financing this home — rates, payments, programs, whatever's on your mind.`;
+  const greeting = chatbot?.greeting || `Hi! I'm ${lo.name}'s AI mortgage assistant. Ask me anything — how much you can qualify for, pre-approval steps, down payment options, loan programs. I'm here 24/7 and it won't affect your credit.`;
   const brandColor = brand?.color || lo.brandColor || '#2563eb';
   const officeLogo = brand?.logoUrl || null;
   const officeName = brand?.companyName || lo.company;
 
-  const monthlyPayment = Math.round(displayListing.price * 0.8 * 0.00716).toLocaleString();
+  const photos = displayListing.hero_photos.length ? displayListing.hero_photos : DEMO_LISTING.hero_photos;
+  const heroPhoto = photos[photoIndex] || photos[0];
   const market = displayListing.address.split(',').slice(-2).join(',').trim() || 'Your market';
-  const heroPhoto = displayListing.hero_photos[0] || 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?q=80&w=1200&auto=format&fit=crop';
 
   return (
-    <div className="min-h-screen bg-[#eef2f7]">
-      <div className="mx-auto max-w-[480px] bg-[#eef2f7] pb-10">
+    // Outer shell: treat as phone app — constrained width, native feel
+    <div className="min-h-screen bg-[#f1f5f9]" style={{ WebkitTapHighlightColor: 'transparent' }}>
+      <div className="mx-auto max-w-[480px] bg-[#f1f5f9]" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 64px)' }}>
 
-        {/* ── Invite bar (soft, no pressure) ── */}
-        <div className="sticky top-0 z-40 flex items-center gap-3 bg-slate-900 px-4 py-3 text-white">
+        {/* ── Status-bar-style invite strip ── */}
+        <div
+          className="sticky top-0 z-40 flex items-center gap-3 px-4 py-3 text-white shadow-sm"
+          style={{ background: 'rgba(15,23,42,0.97)', paddingTop: 'calc(env(safe-area-inset-top) + 0.75rem)' }}
+        >
           {officeLogo
-            ? <img src={officeLogo} alt={officeName || 'logo'} className="h-9 max-w-[120px] flex-shrink-0 object-contain" />
+            ? <img src={officeLogo} alt={officeName || 'logo'} className="h-8 max-w-[100px] flex-shrink-0 object-contain" />
             : lo.headshotUrl
-              ? <img src={lo.headshotUrl} alt={lo.name} className="h-9 w-9 flex-shrink-0 rounded-full object-cover" />
+              ? <img src={lo.headshotUrl} alt={lo.name} className="h-9 w-9 flex-shrink-0 rounded-full object-cover ring-2 ring-white/20" />
               : <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-sm font-extrabold text-white" style={{ background: brandColor }}>{lo.name[0]}</div>
           }
           <div className="min-w-0 flex-1">
-            <p className="truncate text-[13px] font-bold text-slate-300">{lo.name}{officeName ? ` · ${officeName}` : ''}</p>
-            <p className="text-[11px] text-slate-500">made you something — take a look 👇</p>
+            <p className="truncate text-[13px] font-bold text-white">{lo.name}{officeName ? ` · ${officeName}` : ''}</p>
+            <p className="text-[11px] text-slate-400">made you something — take a look 👇</p>
           </div>
           <button
             onClick={scrollToListing}
-            className="flex-shrink-0 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-[11px] font-bold text-slate-100 transition-colors hover:bg-white/20"
+            className="flex-shrink-0 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-[12px] font-bold text-white transition-all active:scale-95"
           >
             Take a Look
           </button>
         </div>
 
-        {/* ── Bigger pitch hero ── */}
-        <div className="relative overflow-hidden bg-gradient-to-b from-slate-900 to-[#1e3a5f] px-6 pb-9 pt-8 text-center text-white">
+        {/* ── Hero pitch ── */}
+        <div className="relative overflow-hidden bg-gradient-to-b from-slate-900 to-[#1e3a5f] px-6 pb-10 pt-8 text-center text-white">
           <div className="pointer-events-none absolute -right-12 -top-12 h-44 w-44 rounded-full bg-cyan-400/10" />
+          <div className="pointer-events-none absolute -left-8 bottom-0 h-32 w-32 rounded-full bg-blue-400/10" />
           <span className="inline-block rounded-full bg-cyan-400/15 px-3.5 py-1.5 text-[11px] font-extrabold uppercase tracking-widest text-cyan-300">
             A new way to show listings
           </span>
@@ -399,7 +590,7 @@ const PartnerInvitePage: React.FC = () => {
             What if your listings could <span className="text-[#28a7e8]">answer buyers</span> for you?
           </h1>
           <p className="mx-auto mt-3 max-w-[340px] text-sm leading-relaxed text-slate-300">
-            This is a real, live preview — an AI concierge built into the page that answers questions any hour and quietly flags the serious buyers for you. Nothing to sign up for. Just look around.
+            A real, live AI concierge built into every listing — answers questions 24/7 and quietly flags the serious buyers. Nothing to sign up for. Just look around.
           </p>
           <div className="mt-4 flex flex-wrap justify-center gap-2">
             {['🤖 Answers 24/7', '🔥 Warm leads, automatically', '📱 Feels like an app'].map(c => (
@@ -411,36 +602,54 @@ const PartnerInvitePage: React.FC = () => {
 
         {/* ── Listing card ── */}
         <div ref={listingRef} className="-mt-4 scroll-mt-4 px-3.5">
-          <div className="overflow-hidden rounded-[22px] bg-white shadow-[0_8px_28px_rgba(15,23,42,0.10)]">
-            <div className="relative h-60 bg-cover bg-center" style={{ backgroundImage: `url('${heroPhoto}')` }}>
-              <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/60" />
+          <div className="overflow-hidden rounded-[22px] bg-white shadow-[0_8px_28px_rgba(15,23,42,0.12)]">
+
+            {/* Photo with swipe dots */}
+            <div className="relative h-64 bg-cover bg-center" style={{ backgroundImage: `url('${heroPhoto}')` }}>
+              <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/65" />
               <span className="absolute left-3 top-3 z-10 rounded-full bg-white px-2.5 py-1 text-[10px] font-black" style={{ color: brandColor }}>LIVE PREVIEW</span>
+
+              {/* Photo nav dots */}
+              {photos.length > 1 && (
+                <div className="absolute bottom-14 left-0 right-0 flex justify-center gap-1.5 z-10">
+                  {photos.map((_, i) => (
+                    <button key={i} onClick={() => setPhotoIndex(i)}
+                      className={`h-1.5 rounded-full transition-all ${i === photoIndex ? 'w-5 bg-white' : 'w-1.5 bg-white/50'}`}
+                    />
+                  ))}
+                </div>
+              )}
+
               <div className="absolute bottom-3.5 left-4 z-10 text-white">
-                <p className="text-[26px] font-black leading-none">${displayListing.price.toLocaleString()}</p>
+                <p className="text-[28px] font-black leading-none">${displayListing.price.toLocaleString()}</p>
                 <p className="mt-1 text-[12px] opacity-85">{displayListing.address}</p>
               </div>
             </div>
+
+            {/* Talk to the Home CTA */}
             <button
               onClick={() => setChatMode('home')}
-              className="m-3.5 flex w-[calc(100%-1.75rem)] items-center justify-center gap-2 rounded-2xl py-4 text-base font-extrabold text-white shadow-[0_8px_22px_rgba(40,167,232,0.4)] transition-transform active:scale-[0.99]"
+              className="m-3.5 flex w-[calc(100%-1.75rem)] items-center justify-center gap-2.5 rounded-2xl py-4 text-[15px] font-extrabold text-white shadow-[0_8px_22px_rgba(40,167,232,0.35)] transition-transform active:scale-[0.99]"
               style={{ background: '#28a7e8' }}
             >
               💬 Talk to the Home
             </button>
-            <p className="-mt-1.5 mb-2 px-3.5 text-center text-[11px] font-semibold text-slate-500">Tap it — ask this listing anything, like you would a person</p>
-            <div className="mb-1 flex justify-around border-y border-slate-100 py-3.5">
+            <p className="-mt-1.5 mb-3 px-3.5 text-center text-[11px] font-semibold text-slate-400">Ask this listing anything — like you would a person</p>
+
+            {/* Stats */}
+            <div className="mb-1 flex justify-around border-y border-slate-100 py-4">
               {[[displayListing.beds, 'BEDS'], [displayListing.baths, 'BATHS'], [displayListing.sqft.toLocaleString(), 'SQFT']].map(([v, l]) => (
                 <div key={l} className="text-center">
-                  <b className="block text-[17px] font-extrabold text-slate-900">{v}</b>
-                  <span className="text-[10px] tracking-wide text-slate-400">{l}</span>
+                  <b className="block text-[20px] font-extrabold text-slate-900">{v}</b>
+                  <span className="text-[10px] tracking-widest text-slate-400">{l}</span>
                 </div>
               ))}
             </div>
           </div>
         </div>
 
-        {/* ── Agent card (the star) ── */}
-        <div className="m-3.5 overflow-hidden rounded-[18px] p-[18px] text-white" style={{ background: 'linear-gradient(135deg,#1e3a8a,#2563eb)' }}>
+        {/* ── Agent card ── */}
+        <div className="m-3.5 overflow-hidden rounded-[20px] p-[18px] text-white shadow-[0_8px_24px_rgba(30,58,138,0.25)]" style={{ background: 'linear-gradient(135deg,#1e3a8a,#2563eb)' }}>
           <div className="flex items-center gap-3.5">
             <div className="flex h-[58px] w-[58px] flex-shrink-0 items-center justify-center rounded-full border-2 border-white/40 bg-white/20 text-2xl font-black">
               {agentInitial}
@@ -450,14 +659,20 @@ const PartnerInvitePage: React.FC = () => {
                 <p className="text-xl font-black leading-none">{agentName}</p>
                 <span className="rounded-full bg-white/25 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide">Listing Agent</span>
               </div>
-              <p className="mt-1 text-xs opacity-80">{market}</p>
-              <p className="mt-2 text-xs font-bold opacity-95">👋 This is your page — your name, your brand, front and center.</p>
+              <p className="mt-1 text-xs opacity-75">{market}</p>
+              <p className="mt-2 text-xs font-bold opacity-90">👋 This is your page — your name, your brand, front and center.</p>
             </div>
           </div>
           <div className="mt-4 flex gap-2">
-            <button className="flex-1 rounded-xl bg-white py-2.5 text-[13px] font-extrabold text-[#1e3a8a]">📞 Call {agentName.split(' ')[0]}</button>
-            <button className="flex-1 rounded-xl border border-white/30 bg-white/15 py-2.5 text-[13px] font-extrabold text-white">✉️ Message</button>
-            <button className="flex-1 rounded-xl border border-white/30 bg-white/15 py-2.5 text-[13px] font-extrabold text-white">📅 Tour</button>
+            <button className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-white py-2.5 text-[13px] font-extrabold text-[#1e3a8a] transition-all active:scale-95">
+              📞 Call
+            </button>
+            <button className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/30 bg-white/15 py-2.5 text-[13px] font-extrabold text-white transition-all active:scale-95">
+              ✉️ Message
+            </button>
+            <button className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/30 bg-white/15 py-2.5 text-[13px] font-extrabold text-white transition-all active:scale-95">
+              📅 Tour
+            </button>
           </div>
         </div>
 
@@ -466,41 +681,62 @@ const PartnerInvitePage: React.FC = () => {
           {displayListing.description}
         </div>
 
-        {/* ── Payment ── */}
-        <div className="m-3.5 rounded-[18px] bg-white p-[18px] shadow-[0_4px_16px_rgba(15,23,42,0.05)]">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-[11px] font-extrabold uppercase tracking-wide text-emerald-600">Est. Monthly Payment</p>
-              <p className="text-2xl font-black text-emerald-800">${monthlyPayment}<span className="text-sm font-semibold">/mo</span></p>
-              <p className="mt-0.5 text-[11px] text-emerald-500">20% down · 30yr fixed · est. 7.1% rate</p>
-            </div>
+        {/* ── Mortgage Calculator ── */}
+        <div ref={financeRef} className="scroll-mt-4">
+          <MortgageCalculator
+            price={displayListing.price}
+            brandColor={brandColor}
+            onGetPreApproved={() => setChatMode('financing')}
+          />
+        </div>
+
+        {/* ── Pre-approval nudge card ── */}
+        <div className="m-3.5 overflow-hidden rounded-[20px] shadow-[0_4px_20px_rgba(5,150,105,0.15)]">
+          <div className="bg-gradient-to-br from-emerald-900 to-emerald-700 px-5 py-5 text-white">
+            <p className="text-[11px] font-extrabold uppercase tracking-widest text-emerald-300">Financing</p>
+            <h3 className="mt-1 text-[18px] font-black leading-snug">Ready to know your number?</h3>
+            <p className="mt-2 text-[13px] leading-relaxed text-emerald-100">
+              Chat with {lo.name.split(' ')[0]}'s AI financing assistant — ask about rates, programs, or what you qualify for. No forms. No hard credit pull.
+            </p>
+          </div>
+          <div className="bg-white px-5 pb-5 pt-4 space-y-2.5">
+            {['💬 What can I qualify for?', '📋 How do I get pre-approved?', '💰 Minimum down payment options'].map(q => (
+              <button
+                key={q}
+                onClick={() => { setChatMode('financing'); }}
+                className="flex w-full items-center gap-3 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-left text-[13px] font-semibold text-emerald-800 transition-colors hover:bg-emerald-100"
+              >
+                {q}
+              </button>
+            ))}
             <button
               onClick={() => setChatMode('financing')}
-              className="rounded-xl border-2 border-emerald-200 bg-white px-4 py-2.5 text-[13px] font-extrabold text-emerald-700 transition-colors hover:bg-emerald-50"
+              className="mt-1 flex w-full items-center justify-center gap-2 rounded-2xl py-3.5 text-[14px] font-extrabold text-white transition-all active:scale-[0.99]"
+              style={{ background: 'linear-gradient(135deg,#059669,#10b981)' }}
             >
-              Ask the AI
+              Start Pre-Approval Chat →
             </button>
           </div>
         </div>
 
         {/* ── Soft pitch block ── */}
-        <div className="m-3.5 rounded-[18px] bg-gradient-to-br from-slate-900 to-[#1e3a5f] p-[22px] text-center text-white">
+        <div className="m-3.5 rounded-[18px] bg-gradient-to-br from-slate-900 to-[#1e3a5f] p-[22px] text-center text-white shadow-[0_8px_24px_rgba(15,23,42,0.15)]">
           <p className="text-lg font-black leading-snug">This took 5 minutes to build.<br />Yours could too.</p>
           <p className="mt-2 text-[13px] leading-relaxed text-slate-300">
             No tech setup, no contracts, no catch. Curious how it works? Have a look — it's all yours to explore.
           </p>
           <button
             onClick={() => setShowHowItWorks(true)}
-            className="mt-4 w-full rounded-xl border border-cyan-400/40 bg-cyan-400/15 py-3.5 text-[15px] font-extrabold text-cyan-300 transition-colors hover:bg-cyan-400/25"
+            className="mt-4 w-full rounded-xl border border-cyan-400/40 bg-cyan-400/15 py-3.5 text-[15px] font-extrabold text-cyan-300 transition-colors active:scale-[0.99]"
           >
             See How It Works →
           </button>
           <p className="mt-2.5 text-[11px] text-slate-500">No account needed · Nothing happens until you decide</p>
         </div>
 
-        {/* ── Financing by (small, secondary) ── */}
+        {/* ── Financing by ── */}
         <div className="m-3.5 flex items-center gap-2.5 rounded-[13px] bg-white p-3 shadow-[0_4px_16px_rgba(15,23,42,0.05)]">
-          <span className="text-[10px] font-extrabold uppercase tracking-wide text-slate-400">Financing&nbsp;by</span>
+          <span className="text-[10px] font-extrabold uppercase tracking-wide text-slate-400">Financing by</span>
           {lo.headshotUrl
             ? <img src={lo.headshotUrl} alt={lo.name} className="h-[30px] w-[30px] flex-shrink-0 rounded-full object-cover" />
             : <div className="flex h-[30px] w-[30px] flex-shrink-0 items-center justify-center rounded-full bg-slate-300 text-xs font-bold text-white">{lo.name[0]}</div>
@@ -512,41 +748,68 @@ const PartnerInvitePage: React.FC = () => {
           <span className="flex-shrink-0 text-[11px] text-slate-400">Powers the AI →</span>
         </div>
 
-        {/* Subtle attribution */}
-        <p className="mt-4 text-center text-[10px] text-slate-400">Powered by HomeListingAI</p>
+        <p className="mt-4 mb-6 text-center text-[10px] text-slate-400">Powered by HomeListingAI</p>
       </div>
 
-      {/* ── Chat overlay — Talk to the Home (real estate AI) OR Financing (LO AI) ── */}
+      {/* ── Bottom Tab Bar ── */}
+      <BottomBar
+        active={activeTab}
+        onTab={handleTab}
+        brandColor={brandColor}
+        onChat={(mode) => setChatMode(mode)}
+      />
+
+      {/* ── Chat overlay ── */}
       {chatMode && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center" onClick={() => setChatMode(null)}>
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center"
+          onClick={() => setChatMode(null)}
+          style={{ backdropFilter: 'blur(4px)' }}
+        >
           <div
-            className="flex h-[85vh] w-full max-w-[480px] flex-col overflow-hidden rounded-t-[22px] bg-white shadow-2xl sm:h-[600px] sm:rounded-[22px]"
+            className="flex w-full max-w-[480px] flex-col overflow-hidden bg-white shadow-2xl"
+            style={{
+              height: '88vh',
+              borderRadius: '22px 22px 0 0',
+              paddingBottom: 'env(safe-area-inset-bottom)',
+              animation: 'slideUp 0.28s cubic-bezier(0.32,0.72,0,1)'
+            }}
             onClick={e => e.stopPropagation()}
           >
-            <div className="flex items-center justify-end border-b border-slate-100 px-3 py-2">
-              <button onClick={() => setChatMode(null)} className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100" aria-label="Close chat">
-                <span className="material-symbols-outlined text-[20px]">close</span>
-              </button>
+            <div className="flex items-center justify-between border-b border-slate-100 px-4 py-2">
+              <div className="h-1 w-10 rounded-full bg-slate-200 mx-auto" />
             </div>
+            <button
+              onClick={() => setChatMode(null)}
+              className="absolute right-4 top-14 z-10 rounded-full bg-white/90 p-1.5 text-slate-400 shadow-sm hover:bg-slate-100"
+              aria-label="Close"
+            >
+              <span className="material-symbols-outlined text-[20px]">close</span>
+            </button>
             <div className="min-h-0 flex-1">
               {chatMode === 'home'
                 ? <PropertyChat listing={displayListing} agentName={agentName} brandColor={brandColor} />
-                : <LiveChat lo={lo} listingId={displayListing.id} botName={botName} greeting={greeting} />
+                : <LiveChat lo={lo} listingId={displayListing.id} botName={botName} greeting={greeting} brandColor={brandColor} />
               }
             </div>
           </div>
         </div>
       )}
 
-      {/* ── How It Works explainer (soft, then signup) ── */}
+      {/* ── How It Works ── */}
       {showHowItWorks && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center" onClick={() => setShowHowItWorks(false)}>
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center"
+          onClick={() => setShowHowItWorks(false)}
+          style={{ backdropFilter: 'blur(4px)' }}
+        >
           <div
-            className="w-full max-w-[440px] overflow-hidden rounded-t-[22px] bg-white shadow-2xl sm:rounded-[22px]"
+            className="w-full max-w-[440px] overflow-hidden bg-white shadow-2xl"
+            style={{ borderRadius: '22px 22px 0 0', animation: 'slideUp 0.28s cubic-bezier(0.32,0.72,0,1)' }}
             onClick={e => e.stopPropagation()}
           >
             <div className="relative bg-gradient-to-br from-slate-900 to-[#1e3a5f] px-6 pb-6 pt-7 text-center text-white">
-              <button onClick={() => setShowHowItWorks(false)} className="absolute right-4 top-4 rounded-full p-1.5 text-white/60 hover:bg-white/10" aria-label="Close">
+              <button onClick={() => setShowHowItWorks(false)} className="absolute right-4 top-4 rounded-full p-1.5 text-white/60 hover:bg-white/10">
                 <span className="material-symbols-outlined text-[20px]">close</span>
               </button>
               <p className="text-[11px] font-extrabold uppercase tracking-widest text-cyan-300">How it works</p>
@@ -568,7 +831,7 @@ const PartnerInvitePage: React.FC = () => {
               ))}
               <button
                 onClick={() => navigate(`/agent/claim/${token}`)}
-                className="mt-2 w-full rounded-xl py-3.5 text-[15px] font-extrabold text-white shadow-md transition-all hover:brightness-110"
+                className="mt-2 w-full rounded-xl py-3.5 text-[15px] font-extrabold text-white shadow-md transition-all active:scale-[0.99]"
                 style={{ background: brandColor }}
               >
                 Start Free →
@@ -578,6 +841,14 @@ const PartnerInvitePage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Slide-up animation */}
+      <style>{`
+        @keyframes slideUp {
+          from { transform: translateY(100%); opacity: 0; }
+          to { transform: translateY(0); opacity: 1; }
+        }
+      `}</style>
     </div>
   );
 };
