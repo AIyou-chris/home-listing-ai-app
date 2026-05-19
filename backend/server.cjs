@@ -1541,8 +1541,8 @@ if (APP_RUNTIME_MODE !== 'worker') {
 // Agent Onboarding Endpoints
 app.post('/api/agents/register', async (req, res) => {
   try {
-    const { firstName, lastName, email } = req.body;
-    const result = await agentOnboardingService.registerAgent({ firstName, lastName, email });
+    const { firstName, lastName, email, accountType, phone, nmls } = req.body;
+    const result = await agentOnboardingService.registerAgent({ firstName, lastName, email, accountType, phone, nmls });
     res.json(result);
   } catch (error) {
     console.error('Registration error:', error);
@@ -33221,7 +33221,7 @@ app.get('/api/payments/providers', (_req, res) => {
 
 app.post('/api/payments/checkout-session', async (req, res) => {
   try {
-    const { slug, provider, amountCents, promoCode } = req.body || {}
+    const { slug, provider, amountCents, promoCode, plan } = req.body || {}
     if (!slug || typeof slug !== 'string') {
       return res.status(400).json({ success: false, error: 'Agent slug is required.' })
     }
@@ -33319,12 +33319,18 @@ app.post('/api/payments/checkout-session', async (req, res) => {
       }
     }
 
+    // Resolve price ID based on plan param
+    const loPriceId = process.env.STRIPE_LO_PRICE_ID || process.env.STRIPE_DEFAULT_PRICE_ID;
+    const loProPriceId = process.env.STRIPE_LO_PRO_PRICE_ID || process.env.STRIPE_DEFAULT_PRICE_ID;
+    const resolvedPriceId = plan === 'lo_pro' ? loProPriceId : (plan === 'lo' ? loPriceId : undefined);
+
     const session = await paymentService.createCheckoutSession({
       slug,
       email: agent.email,
       customerId: agent.stripe_customer_id, // Pass existing customer ID if we have it
       provider,
-      amountCents: 4900, // This is ignored by subscription mode in favor of priceId, but kept for signature
+      priceId: resolvedPriceId,
+      amountCents: plan === 'lo_pro' ? 29900 : 14900,
       trialPeriodDays: trialDays,
       discounts: explicitDiscounts
     })

@@ -48,6 +48,7 @@ const DmcaPolicyPage = lazy(() => import('./components/DmcaPolicyPage'));
 const PrivacyPolicyPage = lazy(() => import('./components/PrivacyPolicyPage'));
 const TermsOfServicePage = lazy(() => import('./components/TermsOfServicePage'));
 const MarketingGuidelinesPage = lazy(() => import('./components/MarketingGuidelinesPage'));
+const LOSignupPage = lazy(() => import('./components/LOSignupPage'));
 const TrialLock = lazy(() => import('./components/TrialLock'));
 
 // import KnowledgeBasePage from './components/KnowledgeBasePage';
@@ -515,6 +516,7 @@ const App: React.FC = () => {
             '/settings',
             '/signin',
             '/signup',
+            '/lo-signup',
             '/forgot-password',
             '/reset-password',
             '/checkout',
@@ -1535,6 +1537,7 @@ const App: React.FC = () => {
                     <Route path="/privacy" element={<PrivacyPolicyPage />} />
                     <Route path="/terms" element={<TermsOfServicePage />} />
                     <Route path="/marketing-guidelines" element={<MarketingGuidelinesPage />} />
+                    <Route path="/lo-signup" element={<LOSignupPage />} />
 
                     {/* Public Storefront Route */}
                     <Route path="/store/:slug" element={<StorefrontPage />} />

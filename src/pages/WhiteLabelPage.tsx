@@ -99,6 +99,7 @@ const WhiteLabelPage: React.FC<WhiteLabelPageProps> = ({
                                             setView={() => { }}
                                             isOpen={true}
                                             onClose={() => { }}
+                                            isDesktop={true}
                                         />
 
                                         {/* Main Content Area */}

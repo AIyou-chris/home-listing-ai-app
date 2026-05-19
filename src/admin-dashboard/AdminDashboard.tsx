@@ -101,6 +101,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'dashboard
   };
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(() => window.innerWidth >= 1280);
+
+  useEffect(() => {
+    const handleResize = () => {
+      const desktop = window.innerWidth >= 1280;
+      setIsDesktop(desktop);
+      if (desktop) setIsSidebarOpen(false);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const { leads, isLoading: isLeadsLoading, error: leadsError, refreshLeads, addLead, updateLead, deleteLead, addNote, fetchNotesForLead, notesByLeadId } =
     useAdminLeads();
@@ -394,9 +405,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'dashboard
 
   return (
     <div className="flex h-screen bg-slate-50">
-      <AdminDashboardSidebar activeView={activeView} setView={handleSetView} isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="md:hidden flex items-center justify-between p-3 sm:p-4 bg-white border-b border-slate-200 shadow-sm">
+      <AdminDashboardSidebar activeView={activeView} setView={handleSetView} isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} isDesktop={isDesktop} />
+      <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+        <header className="xl:hidden flex items-center justify-between p-3 sm:p-4 bg-white border-b border-slate-200 shadow-sm">
           <button onClick={() => setIsSidebarOpen(true)} className="p-2 -ml-1 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors" aria-label="Open menu">
             <span className="material-symbols-outlined text-xl">menu</span>
           </button>

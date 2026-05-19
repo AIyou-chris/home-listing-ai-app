@@ -484,7 +484,7 @@ module.exports = ({ supabaseAdmin, emailService, dashboardBaseUrl }) => {
     };
   };
 
-  const registerAgent = async ({ firstName, lastName, email }) => {
+  const registerAgent = async ({ firstName, lastName, email, accountType, phone, nmls }) => {
     if (!firstName || !lastName || !email) {
       throw new Error('Missing required fields for agent registration');
     }
@@ -505,17 +505,23 @@ module.exports = ({ supabaseAdmin, emailService, dashboardBaseUrl }) => {
 
     const slug = await generateUniqueSlug(supabaseAdmin, firstName, lastName);
 
+    const insertPayload = {
+      first_name: firstName.trim(),
+      last_name: lastName.trim(),
+      email: normalizedEmail,
+      slug,
+      status: 'active',
+      payment_status: 'awaiting_payment',
+      activated_at: new Date().toISOString()
+    };
+
+    if (accountType) insertPayload.account_type = accountType;
+    if (phone) insertPayload.phone = phone.trim();
+    if (nmls) insertPayload.nmls_number = nmls.trim();
+
     const { data, error } = await supabaseAdmin
       .from('agents')
-      .insert({
-        first_name: firstName.trim(),
-        last_name: lastName.trim(),
-        email: normalizedEmail,
-        slug,
-        status: 'active',
-        payment_status: 'awaiting_payment',
-        activated_at: new Date().toISOString()
-      })
+      .insert(insertPayload)
       .select('*')
       .limit(1);
 
