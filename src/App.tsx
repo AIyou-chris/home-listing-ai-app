@@ -66,6 +66,7 @@ const AdminDashboard = lazy(() => import('./admin-dashboard/AdminDashboard'));
 const LeadDetailDashboard = lazy(() => import('./admin-dashboard/LeadDetailDashboard'));
 import { NotFound } from './components/NotFound';
 const DemoListingPage = lazy(() => import('./components/DemoListingPage'));
+const DemoAssetGalleryPage = lazy(() => import('./pages/DemoAssetGalleryPage'));
 const ChatBotFAB = lazy(() => import('./components/ChatBotFAB'));
 const StorefrontPage = lazy(() => import('./pages/StorefrontPage').then(module => ({ default: module.StorefrontPage })));
 // Note: StorefrontPage is named export in original file based on import { StorefrontPage } ...
@@ -1579,6 +1580,8 @@ const App: React.FC = () => {
                         <Route path="lo-partners" element={<LOPartnersPage />} />
                         <Route path="lo-chatbot" element={<LOChatbotSetupPage />} />
                         <Route path="office" element={<OfficeDashboardPage />} />
+                        <Route path="gallery/:listingId" element={<DemoAssetGalleryPage />} />
+                        <Route path="gallery" element={<DemoAssetGalleryPage />} />
                         <Route path="billing" element={<BillingCommandPage />} />
                         <Route path="onboarding" element={<OnboardingCommandPage />} />
                         <Route path="lo-onboarding" element={<LOOnboardingPage />} />
