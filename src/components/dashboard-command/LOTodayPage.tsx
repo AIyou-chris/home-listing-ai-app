@@ -14,6 +14,7 @@ interface LOStats {
   preApprovalLeads: number
   showingLeads: number
   assignedListings: number
+  partnersReached: number
 }
 
 interface RecentLead {
@@ -56,7 +57,8 @@ const DEMO_DATA: LODashboardData = {
     newThisMonth: 24,
     preApprovalLeads: 14,
     showingLeads: 10,
-    assignedListings: 4
+    assignedListings: 4,
+    partnersReached: 7
   },
   recentLeads: [
     { id: '1', name: 'Jordan Kim', email: 'jordan@email.com', phone: '(512) 900-4421', status: 'New', intentLevel: 'Hot', context: 'pre_approval', sourceType: 'listing_page', listingId: 'l1', createdAt: new Date(Date.now() - 12 * 60000).toISOString() },
@@ -219,10 +221,13 @@ const LOTodayPage: React.FC = () => {
           <p className="text-3xl font-black text-emerald-700">{stats.preApprovalLeads}</p>
           <p className="text-xs text-emerald-500 mt-1">financing intent</p>
         </div>
-        <div className="rounded-2xl border border-sky-100 bg-sky-50 p-5 shadow-sm">
-          <p className="text-xs font-semibold text-sky-600 uppercase tracking-wide mb-2">Showings</p>
-          <p className="text-3xl font-black text-sky-700">{stats.showingLeads}</p>
-          <p className="text-xs text-sky-500 mt-1">tour requests</p>
+        <div
+          className="rounded-2xl border border-violet-100 bg-violet-50 p-5 shadow-sm cursor-pointer hover:shadow-md transition-shadow"
+          onClick={() => navTo('/lo-partners')}
+        >
+          <p className="text-xs font-semibold text-violet-600 uppercase tracking-wide mb-2">Partners Reached</p>
+          <p className="text-3xl font-black text-violet-700">{stats.partnersReached ?? 0}</p>
+          <p className="text-xs text-violet-500 mt-1">agents sent WOW links</p>
         </div>
       </div>
 

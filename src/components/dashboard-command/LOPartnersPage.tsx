@@ -18,6 +18,8 @@ interface PartnerListing {
   totalViews: number
 }
 
+type PartnerRating = 'hot' | 'warm' | 'cold' | null
+
 interface Partner {
   partnershipId: string
   agentId: string
@@ -29,6 +31,8 @@ interface Partner {
   totalLeads: number
   listings: PartnerListing[]
   joinedAt: string
+  rating?: PartnerRating
+  lastFollowUp?: string | null
 }
 
 interface PendingInvite {
@@ -71,6 +75,31 @@ const DEMO_PENDING: PendingInvite[] = [
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const formatPrice = (p: number | null) => p ? `$${(p / 1000).toFixed(0)}k` : '—'
+
+// localStorage-backed partner metadata (rating + follow-up)
+const STORAGE_KEY = 'lo_partner_meta'
+type PartnerMeta = Record<string, { rating: PartnerRating; lastFollowUp: string | null }>
+
+const loadMeta = (): PartnerMeta => {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') } catch { return {} }
+}
+const saveMeta = (meta: PartnerMeta) => {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(meta))
+}
+
+const toFollowUpLabel = (ts: string | null | undefined) => {
+  if (!ts) return null
+  const days = Math.round((Date.now() - new Date(ts).getTime()) / 86400000)
+  if (days === 0) return 'Contacted today'
+  if (days === 1) return 'Contacted yesterday'
+  return `Last contacted ${days}d ago`
+}
+
+const RATINGS: { key: PartnerRating; label: string; emoji: string; color: string }[] = [
+  { key: 'hot',  label: 'Hot',  emoji: '🔥', color: 'bg-red-50 border-red-200 text-red-600' },
+  { key: 'warm', label: 'Warm', emoji: '👍', color: 'bg-amber-50 border-amber-200 text-amber-600' },
+  { key: 'cold', label: 'Cold', emoji: '❄️', color: 'bg-slate-100 border-slate-200 text-slate-500' },
+]
 
 const toRelativeTime = (v: string) => {
   const mins = Math.round((Date.now() - new Date(v).getTime()) / 60000)
@@ -228,74 +257,128 @@ const InviteModal: React.FC<{ onClose: () => void; onSent: (wowLink: string) => 
 
 // ─── Partner Card ─────────────────────────────────────────────────────────────
 
-const PartnerCard: React.FC<{ partner: Partner; onViewListings: (p: Partner) => void }> = ({ partner, onViewListings }) => (
-  <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden hover:shadow-md transition-shadow">
-    {/* Header */}
-    <div className="flex items-center gap-4 p-5 border-b border-slate-100">
-      <Avatar src={partner.headshotUrl} name={partner.name} size={48} />
-      <div className="flex-1 min-w-0">
-        <p className="font-bold text-slate-900 text-base">{partner.name}</p>
-        <p className="text-slate-500 text-xs truncate">{partner.company || partner.email || '—'}</p>
-      </div>
-      <div className="text-right flex-shrink-0">
-        <p className="text-2xl font-black text-slate-900">{partner.totalLeads}</p>
-        <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wide">leads</p>
-      </div>
-    </div>
+const PartnerCard: React.FC<{ partner: Partner; onViewListings: (p: Partner) => void }> = ({ partner, onViewListings }) => {
+  const [meta, setMeta] = React.useState(() => {
+    const all = loadMeta()
+    return all[partner.partnershipId] || { rating: null as PartnerRating, lastFollowUp: null }
+  })
 
-    {/* Listings strip */}
-    <div className="divide-y divide-slate-50">
-      {partner.listings.slice(0, 3).map(listing => (
-        <div key={listing.listingId} className="flex items-center gap-3 px-5 py-3">
-          <div className="w-9 h-9 rounded-lg overflow-hidden bg-slate-100 flex-shrink-0">
-            {listing.heroPhoto
-              ? <img src={listing.heroPhoto} alt="" className="w-full h-full object-cover" />
-              : <div className="w-full h-full flex items-center justify-center text-slate-300">🏠</div>
-            }
+  const setRating = (rating: PartnerRating) => {
+    const all = loadMeta()
+    const next = { ...all[partner.partnershipId] || { lastFollowUp: null }, rating }
+    all[partner.partnershipId] = next
+    saveMeta(all)
+    setMeta(next)
+  }
+
+  const logFollowUp = () => {
+    const all = loadMeta()
+    const next = { ...all[partner.partnershipId] || { rating: null }, lastFollowUp: new Date().toISOString() }
+    all[partner.partnershipId] = next
+    saveMeta(all)
+    setMeta(next)
+    showToast.success(`Logged follow-up with ${partner.name.split(' ')[0]}`)
+  }
+
+  const followUpLabel = toFollowUpLabel(meta.lastFollowUp)
+  const activeRating = RATINGS.find(r => r.key === meta.rating)
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+      {/* Header */}
+      <div className="flex items-center gap-4 p-5 border-b border-slate-100">
+        <Avatar src={partner.headshotUrl} name={partner.name} size={48} />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <p className="font-bold text-slate-900 text-base">{partner.name}</p>
+            {activeRating && (
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${activeRating.color}`}>
+                {activeRating.emoji} {activeRating.label}
+              </span>
+            )}
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-semibold text-slate-800 truncate">{listing.address}</p>
-            <p className="text-[11px] text-slate-400">{formatPrice(listing.price)}</p>
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <span className="text-xs text-slate-500">{listing.totalLeads} leads</span>
-            {listing.status === 'published'
-              ? <span className="text-[10px] font-bold text-emerald-600">● Live</span>
-              : <span className="text-[10px] text-slate-400">Draft</span>
-            }
-          </div>
+          <p className="text-slate-500 text-xs truncate">{partner.company || partner.email || '—'}</p>
+          {followUpLabel && (
+            <p className="text-[11px] text-slate-400 mt-0.5">{followUpLabel}</p>
+          )}
         </div>
-      ))}
-      {partner.listings.length === 0 && (
-        <div className="px-5 py-3 text-xs text-slate-400">No listings yet</div>
-      )}
-    </div>
+        <div className="text-right flex-shrink-0">
+          <p className="text-2xl font-black text-slate-900">{partner.totalLeads}</p>
+          <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wide">leads</p>
+        </div>
+      </div>
 
-    {/* Actions */}
-    <div className="flex gap-2 p-4 bg-slate-50 border-t border-slate-100">
-      <button
-        onClick={() => onViewListings(partner)}
-        className="flex-1 bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold rounded-lg py-2.5 transition-all"
-      >
-        View Partner →
-      </button>
-      <a
-        href={`mailto:${partner.email || ''}`}
-        className="px-3 py-2.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-white text-xs font-semibold transition-all"
-      >
-        ✉️
-      </a>
-      {partner.phone && (
-        <a
-          href={`tel:${partner.phone}`}
-          className="px-3 py-2.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-white text-xs font-semibold transition-all"
+      {/* Rating row */}
+      <div className="flex items-center gap-2 px-5 py-3 border-b border-slate-100 bg-slate-50/60">
+        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mr-1">Rate</p>
+        {RATINGS.map(r => (
+          <button
+            key={r.key}
+            onClick={() => setRating(meta.rating === r.key ? null : r.key)}
+            className={`flex items-center gap-1 px-2.5 py-1 rounded-full border text-[11px] font-bold transition-all ${
+              meta.rating === r.key ? r.color : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300'
+            }`}
+          >
+            {r.emoji} {r.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Listings strip */}
+      <div className="divide-y divide-slate-50">
+        {partner.listings.slice(0, 3).map(listing => (
+          <div key={listing.listingId} className="flex items-center gap-3 px-5 py-3">
+            <div className="w-9 h-9 rounded-lg overflow-hidden bg-slate-100 flex-shrink-0">
+              {listing.heroPhoto
+                ? <img src={listing.heroPhoto} alt="" className="w-full h-full object-cover" />
+                : <div className="w-full h-full flex items-center justify-center text-slate-300">🏠</div>
+              }
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-slate-800 truncate">{listing.address}</p>
+              <p className="text-[11px] text-slate-400">{formatPrice(listing.price)}</p>
+            </div>
+            <div className="flex items-center gap-3 flex-shrink-0">
+              <span className="text-xs text-slate-500">{listing.totalLeads} leads</span>
+              {listing.status === 'published'
+                ? <span className="text-[10px] font-bold text-emerald-600">● Live</span>
+                : <span className="text-[10px] text-slate-400">Draft</span>
+              }
+            </div>
+          </div>
+        ))}
+        {partner.listings.length === 0 && (
+          <div className="px-5 py-3 text-xs text-slate-400">No listings yet</div>
+        )}
+      </div>
+
+      {/* Actions */}
+      <div className="flex gap-2 p-4 bg-slate-50 border-t border-slate-100">
+        <button
+          onClick={() => onViewListings(partner)}
+          className="flex-1 bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold rounded-lg py-2.5 transition-all"
         >
-          📞
-        </a>
-      )}
+          View Partner →
+        </button>
+        <button
+          onClick={logFollowUp}
+          className="px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-700 text-xs font-semibold transition-all"
+          title="Log follow-up"
+        >
+          📞 Follow Up
+        </button>
+        {partner.email && (
+          <a
+            href={`mailto:${partner.email}`}
+            className="px-3 py-2.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-white text-xs font-semibold transition-all"
+          >
+            ✉️
+          </a>
+        )}
+      </div>
     </div>
-  </div>
-)
+  )
+}
 
 // ─── Partner Detail Drawer ────────────────────────────────────────────────────
 
