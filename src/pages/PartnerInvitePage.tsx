@@ -75,6 +75,7 @@ const MortgageCalculator: React.FC<{
   brandColor: string;
   onGetPreApproved: () => void;
 }> = ({ price, brandColor, onGetPreApproved }) => {
+  const [isOpen, setIsOpen] = useState(false);
   const [downPct, setDownPct] = useState(20);
   const [rate, setRate] = useState(7.1);
   const [term, setTerm] = useState(30);
@@ -93,15 +94,28 @@ const MortgageCalculator: React.FC<{
 
   return (
     <div className="m-3.5 overflow-hidden rounded-[20px] bg-white shadow-[0_4px_20px_rgba(15,23,42,0.08)]">
-      {/* Header */}
-      <div className="px-5 pt-5 pb-3">
-        <p className="text-[11px] font-extrabold uppercase tracking-widest" style={{ color: brandColor }}>Monthly Payment</p>
-        <div className="mt-1 flex items-end gap-2">
-          <span className="text-[36px] font-black leading-none text-slate-900">${total.toLocaleString()}</span>
-          <span className="mb-1 text-sm font-semibold text-slate-400">/mo</span>
+      {/* Header — tap to expand/collapse */}
+      <button
+        onClick={() => setIsOpen(o => !o)}
+        className="flex w-full items-center justify-between px-5 pt-5 pb-4 active:bg-slate-50 transition-colors"
+        style={{ WebkitTapHighlightColor: 'transparent' }}
+      >
+        <div className="text-left">
+          <p className="text-[11px] font-extrabold uppercase tracking-widest" style={{ color: brandColor }}>Monthly Payment</p>
+          <div className="mt-1 flex items-end gap-2">
+            <span className="text-[36px] font-black leading-none text-slate-900">${total.toLocaleString()}</span>
+            <span className="mb-1 text-sm font-semibold text-slate-400">/mo</span>
+          </div>
+          <p className="mt-0.5 text-[11px] text-slate-400">{downPct}% down · {term}yr fixed · {rate.toFixed(1)}% rate</p>
         </div>
-        <p className="mt-0.5 text-[11px] text-slate-400">{downPct}% down · {term}yr fixed · {rate}% rate</p>
-      </div>
+        <span
+          className="material-symbols-outlined ml-3 flex-shrink-0 text-[22px] text-slate-400 transition-transform duration-300"
+          style={{ transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
+        >expand_more</span>
+      </button>
+
+      {/* Collapsible body */}
+      {isOpen && <>
 
       {/* Term picker */}
       <div className="flex gap-2 px-5 pb-3">
@@ -202,6 +216,8 @@ const MortgageCalculator: React.FC<{
         </button>
         <p className="mt-2 text-center text-[11px] text-slate-400">Talk to the AI — no forms, no hard pull</p>
       </div>
+
+      </>}
     </div>
   );
 };
@@ -509,6 +525,34 @@ const PartnerInvitePage: React.FC = () => {
 
   useEffect(() => {
     if (!token) { setError('Invalid link'); setLoading(false); return; }
+
+    // Demo mode — bypass API
+    if (token === 'demo') {
+      setData({
+        token: 'demo',
+        claimed: false,
+        inviteeName: 'Sarah Johnson',
+        lo: {
+          id: 'demo-lo',
+          name: 'Alex Rivera',
+          company: 'Summit Mortgage',
+          headshotUrl: null,
+          brandColor: '#2563eb',
+          email: 'alex@summitmortgage.com',
+          phone: '(512) 555-0192',
+        },
+        listing: DEMO_LISTING,
+        chatbot: {
+          bot_name: "Alex's Finance Assistant",
+          greeting: "Hi! I'm Alex's AI mortgage assistant. Ask me anything — how much you can qualify for, pre-approval steps, down payment options, loan programs. I'm here 24/7 and it won't affect your credit.",
+          is_active: true,
+        },
+      });
+      document.title = 'Alex Rivera built something for your listings';
+      setLoading(false);
+      return;
+    }
+
     fetch(buildApiUrl(`/api/public/partner-invite/${token}`))
       .then(r => r.json())
       .then((d: { success?: boolean; error?: string } & Partial<InviteData>) => {
