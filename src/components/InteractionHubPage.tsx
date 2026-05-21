@@ -3,12 +3,24 @@ import React, { useState, useEffect } from 'react';
 import { Interaction, Property, InteractionSourceType } from '../types';
 import AddLeadModal, { type NewLeadPayload } from './AddLeadModal';
 
+export interface InteractionThreadMessage {
+    id: string;
+    sender: 'lead' | 'agent' | 'ai';
+    channel: 'chat' | 'voice' | 'email' | 'sms';
+    timestamp: string;
+    text: string;
+}
+
 interface InteractionHubPageProps {
-    properties: Property[];
+    properties?: Property[];
     onBackToDashboard: () => void;
     onAddNewLead: (leadData: NewLeadPayload) => void;
     interactions: Interaction[];
     setInteractions: React.Dispatch<React.SetStateAction<Interaction[]>>;
+    isLoading?: boolean;
+    errorMessage?: string | null;
+    onArchiveInteraction?: (interactionId: string) => Promise<void>;
+    onLoadInteractionMessages?: (interactionId: string) => Promise<InteractionThreadMessage[]>;
 }
 
 const sourceIcons: Record<InteractionSourceType, React.ReactElement> = {
@@ -111,7 +123,7 @@ const InteractionDetail: React.FC<{
     );
 };
 
-const InteractionHubPage: React.FC<InteractionHubPageProps> = ({ properties, onBackToDashboard, onAddNewLead, interactions, setInteractions }) => {
+const InteractionHubPage: React.FC<InteractionHubPageProps> = ({ properties = [], onBackToDashboard, onAddNewLead, interactions, setInteractions }) => {
     const [selectedInteractionId, setSelectedInteractionId] = useState<string | null>(null);
     const [isAddLeadModalOpen, setIsAddLeadModalOpen] = useState(false);
     const [leadInitialData, setLeadInitialData] = useState<{ name: string; message: string } | undefined>(undefined);

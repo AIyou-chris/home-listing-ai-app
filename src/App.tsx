@@ -1130,7 +1130,7 @@ const App: React.FC = () => {
         if (!session) return;
 
         const path = location.pathname;
-        const isAuthPage = path === '/signin' || path === '/signup' || path === '/';
+        const isAuthPage = path === '/signup' || path === '/';
         const isPostAuthPage = path === '/post-auth';
 
         if (isAuthPage || isPostAuthPage) {
@@ -1489,7 +1489,7 @@ const App: React.FC = () => {
                                 <SignInPage
                                     onNavigateToSignUp={handleNavigateToSignUp}
                                     onNavigateToLanding={handleNavigateToLanding}
-                                    onEnterDemoMode={() => navigate('/demo-dashboard')}
+                                    onEnterDemoMode={() => navigate('/demo-dashboard/gallery/demo-listing-oak')}
                                     onNavigateToSection={(section) => { navigate('/'); setTimeout(() => setScrollToSection(section), 100); }}
                                 />
                             </Suspense>
