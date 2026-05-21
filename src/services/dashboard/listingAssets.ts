@@ -177,13 +177,14 @@ const downloadListingBinaryAsset = async (
     demoPath?: string;
   } = {}
 ) => {
-  const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
+  const isDemo = isDemoModeActive();
+  const agentId = isDemo ? null : (agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride);
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(query)) {
     if (value) params.set(key, value);
   }
   const queryString = params.toString();
-  const resolvedPath = isDemoModeActive()
+  const resolvedPath = isDemo
     ? `${options.demoPath || path}${queryString ? `?${queryString}` : ''}`
     : withAgentQuery(`${path}${queryString ? `?${queryString}` : ''}`, agentId);
   const response = await fetch(
