@@ -13,6 +13,7 @@ interface LOInfo {
   brandColor: string;
   email: string | null;
   phone: string | null;
+  nmlsNumber?: string | null;
 }
 
 interface ListingInfo {
@@ -613,7 +614,9 @@ const PartnerInvitePage: React.FC = () => {
           }
           <div className="min-w-0 flex-1">
             <p className="truncate text-[13px] font-bold text-white">{lo.name}{officeName ? ` · ${officeName}` : ''}</p>
-            <p className="text-[11px] text-slate-400">made you something — take a look 👇</p>
+            <p className="text-[11px] text-slate-400">
+              {lo.nmlsNumber ? `NMLS #${lo.nmlsNumber} · ` : ''}made you something 👇
+            </p>
           </div>
           <button
             onClick={scrollToListing}

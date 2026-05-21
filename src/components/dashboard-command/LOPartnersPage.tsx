@@ -37,6 +37,7 @@ interface Partner {
 
 interface PendingInvite {
   id: string
+  token: string | null
   email: string
   name: string | null
   sentAt: string
@@ -69,7 +70,7 @@ const DEMO_PARTNERS: Partner[] = [
 ]
 
 const DEMO_PENDING: PendingInvite[] = [
-  { id: 'i1', email: 'mike@realty.com', name: 'Mike Johnson', sentAt: new Date(Date.now() - 2 * 3600000).toISOString() }
+  { id: 'i1', token: 'demo', email: 'mike@realty.com', name: 'Mike Johnson', sentAt: new Date(Date.now() - 4 * 24 * 3600000).toISOString() }
 ]
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -100,14 +101,6 @@ const RATINGS: { key: PartnerRating; label: string; emoji: string; color: string
   { key: 'warm', label: 'Warm', emoji: '👍', color: 'bg-amber-50 border-amber-200 text-amber-600' },
   { key: 'cold', label: 'Cold', emoji: '❄️', color: 'bg-slate-100 border-slate-200 text-slate-500' },
 ]
-
-const toRelativeTime = (v: string) => {
-  const mins = Math.round((Date.now() - new Date(v).getTime()) / 60000)
-  if (mins < 60) return `${mins}m ago`
-  const hrs = Math.round(mins / 60)
-  if (hrs < 24) return `${hrs}h ago`
-  return `${Math.round(hrs / 24)}d ago`
-}
 
 function Avatar({ src, name, size = 40 }: { src?: string | null; name: string; size?: number }) {
   const initials = name.split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase()
@@ -556,17 +549,50 @@ const LOPartnersPage: React.FC = () => {
       {/* Pending invites */}
       {pendingInvites.length > 0 && (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
-          <p className="text-xs font-bold text-amber-700 uppercase tracking-wide mb-3">Pending Invites</p>
-          <div className="space-y-2">
-            {pendingInvites.map(invite => (
-              <div key={invite.id} className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-slate-800">{invite.name || invite.email}</p>
-                  <p className="text-xs text-slate-500">{invite.email} · sent {toRelativeTime(invite.sentAt)}</p>
+          <p className="text-xs font-bold text-amber-700 uppercase tracking-wide mb-3">
+            Pending Invites · {pendingInvites.length}
+          </p>
+          <div className="space-y-3">
+            {pendingInvites.map(invite => {
+              const daysSent = Math.round((Date.now() - new Date(invite.sentAt).getTime()) / 86400000)
+              const isOverdue = daysSent >= 3
+              const wowLink = invite.token ? `${window.location.origin}/partner-invite/${invite.token}` : null
+
+              return (
+                <div key={invite.id} className={`rounded-xl p-3.5 ${isOverdue ? 'bg-red-50 border border-red-200' : 'bg-white border border-amber-100'}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-bold text-slate-900">{invite.name || invite.email}</p>
+                        {isOverdue && (
+                          <span className="text-[10px] font-bold text-red-600 bg-red-100 px-2 py-0.5 rounded-full">Follow up needed</span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-500 mt-0.5">{invite.email}</p>
+                      <p className={`text-xs mt-0.5 font-semibold ${isOverdue ? 'text-red-500' : 'text-amber-600'}`}>
+                        Sent {daysSent === 0 ? 'today' : `${daysSent}d ago`} · hasn't claimed yet
+                      </p>
+                    </div>
+                  </div>
+                  {wowLink && (
+                    <div className="flex gap-2 mt-3">
+                      <button
+                        onClick={() => { navigator.clipboard.writeText(wowLink); showToast.success('WOW Link copied!') }}
+                        className="flex-1 rounded-lg border border-slate-200 bg-white py-2 text-xs font-semibold text-primary-600 hover:bg-primary-50 transition-all"
+                      >
+                        📋 Copy WOW Link
+                      </button>
+                      <a
+                        href={`mailto:${invite.email}?subject=Your listing platform is ready&body=Hey ${invite.name?.split(' ')[0] || 'there'},%0D%0A%0D%0AJust checking in — your listing platform is ready and waiting for you. Click here to claim it:%0D%0A%0D%0A${wowLink}%0D%0A%0D%0ATakes 60 seconds. No setup needed.`}
+                        className="flex-1 rounded-lg border border-slate-200 bg-white py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-all text-center"
+                      >
+                        ✉️ Follow Up
+                      </a>
+                    </div>
+                  )}
                 </div>
-                <span className="text-xs text-amber-600 font-semibold">Awaiting claim</span>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}
