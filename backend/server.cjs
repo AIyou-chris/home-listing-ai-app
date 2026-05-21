@@ -30547,7 +30547,7 @@ app.get('/api/public/partner-invite/:token', async (req, res) => {
     // Fetch LO display profile (agents table is keyed by id OR auth_user_id)
     const { data: lo } = await supabaseAdmin
       .from('agents')
-      .select('id, first_name, last_name, company, headshot_url, email, phone')
+      .select('id, first_name, last_name, company, headshot_url, email, phone, nmls_number')
       .or(`id.eq.${loAgentId},auth_user_id.eq.${loAgentId}`)
       .limit(1)
       .maybeSingle();
@@ -30588,7 +30588,8 @@ app.get('/api/public/partner-invite/:token', async (req, res) => {
         headshotUrl: lo?.headshot_url || null,
         brandColor: brand.brandColor,
         email: lo?.email || null,
-        phone: lo?.phone || null
+        phone: lo?.phone || null,
+        nmlsNumber: lo?.nmls_number || null
       },
       brand: { companyName: brand.companyName, logoUrl: brand.logoUrl, color: brand.brandColor, whiteLabel: brand.whiteLabel },
       listing,
@@ -31095,7 +31096,7 @@ app.get('/api/lo/partners', requireAuth, async (req, res) => {
   try {
     const loAgentId = req.authUserId;
     const { data: partnerships } = await supabaseAdmin.from('lo_agent_partnerships').select('id, status, created_at, agent:agent_id(id, first_name, last_name, email, phone, headshot_url, company)').eq('lo_agent_id', loAgentId).eq('status', 'active').order('created_at', { ascending: false });
-    const { data: pendingInvites } = await supabaseAdmin.from('agent_invites').select('id, invited_email, invited_name, created_at').eq('lo_agent_id', loAgentId).is('claimed_at', null).gt('expires_at', nowIso());
+    const { data: pendingInvites } = await supabaseAdmin.from('agent_invites').select('id, token, invited_email, invited_name, created_at').eq('lo_agent_id', loAgentId).is('claimed_at', null).gt('expires_at', nowIso());
     const partnerAgentIds = (partnerships || []).map(p => p.agent?.id).filter(Boolean);
     let listingsByAgent = {};
     if (partnerAgentIds.length > 0) {
@@ -31113,7 +31114,7 @@ app.get('/api/lo/partners', requireAuth, async (req, res) => {
       const listings = (listingsByAgent[agentId] || []).map(l => ({ listingId: l?.id, address: l?.address || 'Unknown', price: l?.price || null, status: l?.status || 'draft', heroPhoto: Array.isArray(l?.hero_photos) ? l.hero_photos[0] : null, totalLeads: l?.total_leads || 0, totalViews: l?.total_views || 0 }));
       return { partnershipId: p.id, agentId, name: [agent.first_name, agent.last_name].filter(Boolean).join(' ') || 'Agent', email: agent.email || null, phone: agent.phone || null, headshotUrl: agent.headshot_url || null, company: agent.company || null, totalLeads: leadCountByAgent[agentId] || 0, listings, joinedAt: p.created_at };
     });
-    res.json({ success: true, partners, pendingInvites: (pendingInvites || []).map(i => ({ id: i.id, email: i.invited_email, name: i.invited_name || null, sentAt: i.created_at })) });
+    res.json({ success: true, partners, pendingInvites: (pendingInvites || []).map(i => ({ id: i.id, token: i.token, email: i.invited_email, name: i.invited_name || null, sentAt: i.created_at })) });
   } catch (err) {
     console.error('[LO Partners] Failed:', err);
     res.status(500).json({ error: 'failed_to_load_partners' });
@@ -31222,7 +31223,8 @@ app.patch('/api/listings/:listingId/archive', requireAuth, async (req, res) => {
 // ── LO ROI Stats per Listing ──────────────────────────────────────────────────
 app.get('/api/lo/listings/:listingId/roi', requireAuth, async (req, res) => {
   try {
-    const loAgentId = req.authUserId;
+    const loAgentId = await resolveLoAgentId(req);
+    if (!loAgentId) return res.status(401).json({ error: 'unauthorized' });
     const { listingId } = req.params;
     const { data: assignment } = await supabaseAdmin.from('listing_lo_assignments').select('id').eq('listing_id', listingId).eq('lo_agent_id', loAgentId).single();
     if (!assignment) return res.status(403).json({ error: 'not_assigned_to_listing' });
@@ -31325,7 +31327,8 @@ app.patch('/api/leads/:leadId/contacted', requireAuth, async (req, res) => {
 // ── LO Listing Limit Check ────────────────────────────────────────────────────
 app.get('/api/lo/listing-limit', requireAuth, async (req, res) => {
   try {
-    const loAgentId = req.authUserId;
+    const loAgentId = await resolveLoAgentId(req);
+    if (!loAgentId) return res.status(401).json({ error: 'unauthorized' });
     const { data: assignments } = await supabaseAdmin.from('listing_lo_assignments').select('listing_id, listings!listing_lo_assignments_listing_id_fkey(status)').eq('lo_agent_id', loAgentId);
     const publishedCount = (assignments || []).filter(a => a.listings?.status === 'published').length;
     const { data: agentRow } = await supabaseAdmin.from('agents').select('plan_id').eq('id', loAgentId).single();

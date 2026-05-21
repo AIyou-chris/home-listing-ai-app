@@ -137,8 +137,9 @@ export const generateListingQrCode = async (
 };
 
 export const downloadOpenHouseFlyerPdf = async (listingId: string, agentIdOverride?: string | null) => {
-  const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
-  const path = isDemoModeActive()
+  const demo = isDemoModeActive();
+  const agentId = demo ? agentIdOverride ?? null : (agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride);
+  const path = demo
     ? `/api/demo/sharekit/listings/${encodeURIComponent(listingId)}/open-house-flyer.pdf`
     : withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}/open-house-flyer.pdf`, agentId);
   const response = await fetch(
@@ -151,6 +152,11 @@ export const downloadOpenHouseFlyerPdf = async (listingId: string, agentIdOverri
   if (!response.ok) {
     const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
     throw new Error(typeof payload.error === 'string' ? payload.error : `Request failed (${response.status})`);
+  }
+
+  const contentType = String(response.headers.get('content-type') || '').trim();
+  if (/text\/html/i.test(contentType)) {
+    throw new Error('unexpected_html_response');
   }
 
   return {

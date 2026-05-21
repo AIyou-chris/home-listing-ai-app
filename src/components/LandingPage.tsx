@@ -728,7 +728,8 @@ const Hero: React.FC<{ onNavigateToSignUp: () => void, onEnterDemoMode: () => vo
 
     useEffect(() => {
         if (!isDemoOpen || !qrRef.current) return;
-        const url = window.location.origin + '/demo-live/demo-124-oak-street-austin';
+        // QR points to the demo WOW link — this is intentionally demo-only behavior.
+        const url = window.location.origin + '/partner-invite/demo';
         QRCode.toCanvas(qrRef.current, url, { width: 130, margin: 1, color: { dark: '#ffffff', light: '#0B1121' } });
     }, [isDemoOpen]);
 
@@ -917,7 +918,7 @@ const Hero: React.FC<{ onNavigateToSignUp: () => void, onEnterDemoMode: () => vo
                         </div>
                         <div className="p-6">
                             {!demoSent ? (
-                                <form onSubmit={(e) => { e.preventDefault(); setDemoSent(true); }} className="space-y-3">
+                                <form onSubmit={(e) => { e.preventDefault(); window.open('/partner-invite/demo', '_blank'); setDemoSent(true); }} className="space-y-3">
                                     <div className="flex justify-center mb-4">
                                         <div className="flex flex-col items-center gap-2">
                                             <canvas ref={qrRef} className="rounded-xl" />
@@ -955,8 +956,8 @@ const Hero: React.FC<{ onNavigateToSignUp: () => void, onEnterDemoMode: () => vo
                                     <div className="w-14 h-14 rounded-full bg-cyan-950 border border-cyan-500 flex items-center justify-center mx-auto mb-4">
                                         <span className="material-symbols-outlined text-cyan-400 text-2xl">check</span>
                                     </div>
-                                    <h4 className="text-white font-bold text-lg mb-2">On its way, {demoName.split(' ')[0]}.</h4>
-                                    <p className="text-slate-400 text-sm mb-6">Check your inbox — a live demo listing is headed there now. That's exactly what your buyers and agent partners will see.</p>
+                                    <h4 className="text-white font-bold text-lg mb-2">There it is, {demoName.split(' ')[0]}.</h4>
+                                    <p className="text-slate-400 text-sm mb-6">The live demo opened in a new tab — that's exactly what your buyers and agent partners see when you send it.</p>
                                     <button onClick={() => setIsDemoOpen(false)} className="w-full py-3 border border-slate-700 hover:bg-slate-800 text-slate-300 font-semibold rounded-xl transition-all text-sm">
                                         Close
                                     </button>

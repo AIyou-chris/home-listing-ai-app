@@ -1,9 +1,10 @@
 module.exports = {
   root: true,
-  env: { 
-    browser: true, 
+  env: {
+    browser: true,
     es2020: true,
-    node: true
+    node: true,
+    webextensions: true
   },
   extends: [
     'eslint:recommended',

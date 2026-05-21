@@ -56,6 +56,8 @@ export const ConversionWedge: React.FC<ConversionWedgeProps> = ({ onNavigateToSi
 
     const handleDemoSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        // Open the live demo immediately — no email claim made until a real send is wired up.
+        window.open('/partner-invite/demo', '_blank');
         setDemoSent(true);
     };
 
@@ -461,8 +463,8 @@ export const ConversionWedge: React.FC<ConversionWedgeProps> = ({ onNavigateToSi
                                     <div className="w-14 h-14 rounded-full bg-cyan-950 border border-cyan-500 flex items-center justify-center mx-auto mb-4">
                                         <span className="material-symbols-outlined text-cyan-400 text-2xl">check</span>
                                     </div>
-                                    <h4 className="text-white font-bold text-lg mb-2">On its way, {demoName.split(' ')[0]}.</h4>
-                                    <p className="text-slate-400 text-sm mb-6">Check your inbox — the demo listing link is headed there now.</p>
+                                    <h4 className="text-white font-bold text-lg mb-2">There it is, {demoName.split(' ')[0]}.</h4>
+                                    <p className="text-slate-400 text-sm mb-6">The live demo just opened in a new tab — that's exactly what your agents and buyers see when you send it.</p>
                                     <button
                                         onClick={() => setIsDemoModalOpen(false)}
                                         className="w-full py-3 border border-slate-700 hover:bg-slate-800 text-slate-300 font-semibold rounded-xl transition-all text-sm"
