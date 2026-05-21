@@ -252,6 +252,14 @@ const LiveChat: React.FC<{
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  const DEMO_REPLIES: Record<string, string> = {
+    'how much can i qualify for?': 'Great question! Most buyers qualify for 3–5x their annual income. With strong credit and steady income, you could be looking at $400k–$700k+. Want to run through your numbers? I can help you get pre-approved without affecting your credit.',
+    'what do i need to get pre-approved?': 'Pre-approval is easier than most people think. You\'ll need: 2 months of pay stubs, last 2 years of W-2s, 2 months of bank statements, and a valid ID. The whole process takes about 24 hours. Want to get started?',
+    'what\'s the minimum down payment?': 'For a conventional loan, as low as 3% down. FHA loans go as low as 3.5%. VA and USDA loans can be 0% down if you qualify. On this $875k home, 3% would be about $26k. Want me to walk you through the best option for your situation?',
+    'how fast can i close?': 'With everything in order, we can close in 21–30 days. If you\'re pre-approved already, we can move even faster. Competitive markets often require speed — that\'s exactly where being pre-approved gives you an edge.',
+    'what loan programs are available?': 'Several great options depending on your situation: Conventional (best rates with 20%+ down), FHA (lower credit requirements), VA (0% down for veterans), Jumbo (for loans over $766k). This home would likely qualify for a jumbo loan. Want to talk through what fits you best?'
+  };
+
   const send = async (text: string) => {
     const clean = text.trim();
     if (!clean || sending) return;
@@ -260,6 +268,17 @@ const LiveChat: React.FC<{
     setMessages(prev => [...prev, userMsg]);
     setSending(true);
     historyRef.current = [...historyRef.current, { role: 'user', content: clean }];
+
+    // Demo mode — use canned replies instead of hitting the API
+    if (lo.id === 'demo-lo') {
+      await new Promise(r => setTimeout(r, 900));
+      const demoReply = DEMO_REPLIES[clean.toLowerCase()] || 'Great question! In a real session, Alex\'s AI would answer this instantly using real loan data. This is just a demo — the live version is fully connected.';
+      historyRef.current = [...historyRef.current, { role: 'assistant', content: demoReply }];
+      setMessages(prev => [...prev, { id: `b-${Date.now()}`, role: 'bot', text: demoReply }]);
+      setSending(false);
+      return;
+    }
+
     try {
       const res = await fetch(buildApiUrl('/api/public/lo-chat'), {
         method: 'POST',

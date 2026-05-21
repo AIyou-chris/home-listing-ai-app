@@ -28,6 +28,24 @@ const AgentClaimPage: React.FC = () => {
 
   useEffect(() => {
     if (!token) { setError('Invalid link'); setLoading(false); return }
+
+    // Demo bypass — show a preview of the claim flow without hitting the DB
+    if (token === 'demo') {
+      setInvite({
+        email: 'you@youragency.com',
+        name: 'Sarah Johnson',
+        claimed: false,
+        lo: {
+          name: 'Alex Rivera',
+          company: 'Summit Mortgage',
+          headshotUrl: null,
+          nmlsNumber: '1234567',
+        }
+      })
+      setLoading(false)
+      return
+    }
+
     fetch(buildApiUrl(`/api/agent/claim/${token}`))
       .then(r => r.json())
       .then((data: { success?: boolean; invite?: InviteInfo; error?: string }) => {
@@ -46,6 +64,15 @@ const AgentClaimPage: React.FC = () => {
     setFormError('')
     if (password.length < 8) { setFormError('Password must be at least 8 characters.'); return }
     if (password !== confirmPassword) { setFormError('Passwords do not match.'); return }
+
+    // Demo — just show success without hitting the API
+    if (token === 'demo') {
+      setSubmitting(true)
+      await new Promise(r => setTimeout(r, 800))
+      setSuccess(true)
+      setSubmitting(false)
+      return
+    }
 
     setSubmitting(true)
     try {
