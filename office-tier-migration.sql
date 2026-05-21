@@ -30,7 +30,12 @@ CREATE INDEX IF NOT EXISTS idx_office_lo_invites_email ON office_lo_invites(invi
 
 ALTER TABLE office_lo_invites ENABLE ROW LEVEL SECURITY;
 
--- Public can read an unclaimed invite by token (for the claim page).
+-- Token-specific invite lookup: only expose unclaimed, unexpired rows when the
+-- exact token is supplied.  Broader SELECT via the public API is not needed —
+-- the backend claim route uses a SECURITY DEFINER function / service-role key.
 DROP POLICY IF EXISTS office_lo_invites_public_read ON office_lo_invites;
-CREATE POLICY office_lo_invites_public_read ON office_lo_invites
-  FOR SELECT USING (true);
+CREATE POLICY office_lo_invites_token_claim ON office_lo_invites
+  FOR SELECT USING (
+    claimed = false
+    AND (expires_at IS NULL OR expires_at > now())
+  );

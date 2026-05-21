@@ -1,3 +1,6 @@
+const escapeHtml = (value = '') =>
+  String(value).replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch] || ch));
+
 const DEFAULT_SETTINGS = {
   apiBaseUrl: 'https://homelistingai.com',
   userId: '',
@@ -163,11 +166,11 @@ const renderResult = (result) => {
   } else {
     els.leadRead.className = 'lead-read';
     els.leadRead.innerHTML = `
-      <div><strong>Intent</strong><div class="muted">${result.leadInsights.intent}</div></div>
-      <div><strong>Urgency</strong><div class="muted">${result.leadInsights.urgency}</div></div>
-      <div><strong>Temperature</strong><div class="muted">${result.leadInsights.temperature}</div></div>
-      <div><strong>Fit score</strong><div class="muted">${result.leadInsights.fitScore}/100</div></div>
-      <div><strong>Next best action</strong><div class="muted">${result.leadInsights.nextBestAction}</div></div>
+      <div><strong>Intent</strong><div class="muted">${escapeHtml(result.leadInsights.intent)}</div></div>
+      <div><strong>Urgency</strong><div class="muted">${escapeHtml(result.leadInsights.urgency)}</div></div>
+      <div><strong>Temperature</strong><div class="muted">${escapeHtml(result.leadInsights.temperature)}</div></div>
+      <div><strong>Fit score</strong><div class="muted">${escapeHtml(result.leadInsights.fitScore)}/100</div></div>
+      <div><strong>Next best action</strong><div class="muted">${escapeHtml(result.leadInsights.nextBestAction)}</div></div>
     `;
   }
 
@@ -179,13 +182,13 @@ const renderResult = (result) => {
 
   const blocks = [];
   (result.automationIdeas || []).forEach((idea) => {
-    blocks.push(`<div class="stack-item"><strong>${idea.title}</strong><div class="muted">${idea.trigger}</div><p>${idea.action}</p></div>`);
+    blocks.push(`<div class="stack-item"><strong>${escapeHtml(idea.title)}</strong><div class="muted">${escapeHtml(idea.trigger)}</div><p>${escapeHtml(idea.action)}</p></div>`);
   });
   (result.followUpSequence || []).forEach((step) => {
-    blocks.push(`<div class="stack-item"><strong>Step ${step.step}</strong><div class="muted">Wait ${step.wait}</div><p>${step.message}</p></div>`);
+    blocks.push(`<div class="stack-item"><strong>Step ${escapeHtml(step.step)}</strong><div class="muted">Wait ${escapeHtml(step.wait)}</div><p>${escapeHtml(step.message)}</p></div>`);
   });
   (result.complianceNotes || []).forEach((note) => {
-    blocks.push(`<div class="stack-item"><strong>Safety note</strong><div class="muted">${note}</div></div>`);
+    blocks.push(`<div class="stack-item"><strong>Safety note</strong><div class="muted">${escapeHtml(note)}</div></div>`);
   });
 
   els.automation.className = 'stack';

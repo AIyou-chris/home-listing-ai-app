@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 interface PublicFooterProps {
     onNavigateToAdmin?: () => void;
@@ -39,7 +39,7 @@ export const PublicFooter: React.FC<PublicFooterProps> = ({ onNavigateToAdmin })
                             <li><a href="/#what-you-get" className="hover:text-white transition-colors">Features</a></li>
                             <li><a href="/#how-it-works" className="hover:text-white transition-colors">How It Works</a></li>
                             <li><a href="/#pricing" className="hover:text-white transition-colors">Pricing</a></li>
-                            <li><a href="/blog" onClick={(e) => { e.preventDefault(); navigate('/blog'); }} className="hover:text-white transition-colors">Blog</a></li>
+                            <li><Link to="/blog" className="hover:text-white transition-colors">Blog</Link></li>
                         </ul>
                     </div>
 
@@ -47,11 +47,11 @@ export const PublicFooter: React.FC<PublicFooterProps> = ({ onNavigateToAdmin })
                     <div>
                         <h3 className="text-sm font-semibold text-white mb-3">Legal</h3>
                         <ul className="space-y-2 text-sm">
-                            <li><a href="/terms" onClick={(e) => { e.preventDefault(); navigate('/terms'); }} className="hover:text-white transition-colors">Terms of Service</a></li>
-                            <li><a href="/privacy" onClick={(e) => { e.preventDefault(); navigate('/privacy'); }} className="hover:text-white transition-colors">Privacy Policy</a></li>
-                            <li><a href="/compliance" onClick={(e) => { e.preventDefault(); navigate('/compliance'); }} className="hover:text-white transition-colors">Compliance Policy</a></li>
-                            <li><a href="/marketing-guidelines" onClick={(e) => { e.preventDefault(); navigate('/marketing-guidelines'); }} className="hover:text-white transition-colors">Marketing Guidelines</a></li>
-                            <li><a href="/dmca" onClick={(e) => { e.preventDefault(); navigate('/dmca'); }} className="hover:text-white transition-colors">DMCA Policy</a></li>
+                            <li><Link to="/terms" className="hover:text-white transition-colors">Terms of Service</Link></li>
+                            <li><Link to="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link></li>
+                            <li><Link to="/compliance" className="hover:text-white transition-colors">Compliance Policy</Link></li>
+                            <li><Link to="/marketing-guidelines" className="hover:text-white transition-colors">Marketing Guidelines</Link></li>
+                            <li><Link to="/dmca" className="hover:text-white transition-colors">DMCA Policy</Link></li>
                         </ul>
                     </div>
 

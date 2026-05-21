@@ -1455,6 +1455,7 @@ const App: React.FC = () => {
                 securitySettings={{}}
                 onSaveSecuritySettings={async () => { }}
                 isBlueprintMode={isBlueprintMode}
+                isDemoMode={isDemoMode}
                 initialTab={initialTab}
             />
         );
