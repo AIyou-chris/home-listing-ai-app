@@ -1,17 +1,53 @@
-Name: HomeListingAI
-Description: Turn Every Listing Into a 24/7 Lead Machine.
-HomeListingAI is a web app for real estate agents that turns listings into lead-capture pages with an AI Listing Page and a 1-page Market Report.
+# HomeListingAI — AI Platform for Loan Officers and Real Estate Agents
 
-Core Value Proposition: 
-Share a link or QR code, capture buyer/seller leads automatically. AI handles inquiries 24/7.
+## What It Is
+HomeListingAI is an AI-powered operating system for loan officers (LOs) and real estate agent teams.
 
-Pricing:
-- Free tier available
-- Starter $34/mo
-- Pro $79/mo
+Primary users: Mortgage loan officers who want warm leads and stronger agent partnerships.
+Secondary users: Real estate agents who need AI-powered listing pages, lead capture, and share kits.
 
-Key URLs:
+## Core Value Proposition
+Loan officers send a "WOW link" to real estate agents. The agent sees a live demo of their listing with the LO's AI mortgage chatbot built in. When the agent signs up and publishes a listing, every buyer lead from that listing routes back to the loan officer — pre-qualified, with financing intent.
+
+Result: Loan officers build a pipeline of warm mortgage leads through agent partnerships, without cold calling.
+
+## How It Works (4-Step Flow)
+1. Loan officer sends a WOW link to a real estate agent (10 seconds, via email)
+2. Agent clicks the link, sees the live demo, claims their account in one tap
+3. Agent publishes their listing — share kit goes live with tracked QR code, social asset, open house flyer
+4. Loan officer receives warm, pre-qualified buyer leads from every listing the agent runs
+
+## Automated Reminders
+- If the agent doesn't open the WOW link within 24 hours, an automated follow-up email is sent
+- If still no action at 72 hours, a second reminder fires
+- The loan officer is notified via text + email the moment an agent claims their account
+
+## Features
+- WOW Link: personalized agent invite with live AI listing demo
+- Share Kit: QR code, social post asset, open house flyer, sign rider PDF — all tracked by source
+- AI Buyer Chatbot: answers financing questions 24/7 on every listing page
+- Lead Capture: every buyer who scans, clicks, or asks a question is captured
+- Lead Inbox: leads scored by intent (hot/warm/cold) and routed to the LO
+- LO Dashboard: agent partnerships, listing performance, lead pipeline
+- Agent Dashboard: listing builder, share kit, performance analytics
+
+## Pricing
+- Free tier: up to 5 WOW links/month, basic listing pages
+- LO Starter ($149/mo): up to 250 WOW links/month, full share kit, lead routing
+- LO Pro ($299/mo): unlimited WOW links, white label, priority lead alerts
+
+## Who This Is For
+- Mortgage loan officers (primary)
+- Real estate agents partnered with a loan officer (secondary)
+- Small broker teams and branch managers (office tier)
+
+## Key URLs
 - Main Website: https://homelistingai.com
+- How It Works: https://homelistingai.com/how-it-works
+- Sign Up: https://homelistingai.com/signup
+- Blog: https://homelistingai.com/blog
 - Privacy Policy: https://homelistingai.com/privacy-policy
 - Terms of Service: https://homelistingai.com/terms-of-service
-- Contact / Support: https://homelistingai.com
+
+## Company
+HomeListingAI — Founded by Chris Potter, 15+ years mortgage industry experience.

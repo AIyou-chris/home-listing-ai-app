@@ -2,16 +2,76 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PublicHeader } from '../components/layout/PublicHeader';
 import { PublicFooter } from '../components/layout/PublicFooter';
+import SEO from '../components/SEO';
+
+const HOW_IT_WORKS_SCHEMA = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'WebPage',
+      '@id': 'https://homelistingai.com/how-it-works',
+      'url': 'https://homelistingai.com/how-it-works',
+      'name': 'How HomeListingAI Works for Loan Officers',
+      'description': 'See how loan officers use HomeListingAI to send WOW links to real estate agents, capture warm mortgage leads automatically, and close more loans without cold outreach.',
+      'isPartOf': { '@id': 'https://homelistingai.com' }
+    },
+    {
+      '@type': 'HowTo',
+      'name': 'How Loan Officers Get Warm Leads With HomeListingAI',
+      'description': 'A 4-step system that turns agent partnerships into a steady stream of pre-qualified mortgage leads — no cold calls required.',
+      'totalTime': 'PT2M',
+      'estimatedCost': { '@type': 'MonetaryAmount', 'currency': 'USD', 'value': '0' },
+      'step': [
+        {
+          '@type': 'HowToStep',
+          'position': 1,
+          'name': 'Send a WOW link to a real estate agent',
+          'text': 'The loan officer sends a personalized WOW link to any real estate agent. The agent receives an email with a live AI listing demo — your mortgage chatbot is already built in. Takes 10 seconds to send. If the agent doesn\'t open it within 24 hours, an automated reminder fires. Another reminder goes out at 72 hours.',
+          'url': 'https://homelistingai.com/how-it-works#step-1'
+        },
+        {
+          '@type': 'HowToStep',
+          'position': 2,
+          'name': 'Agent claims their account and sets up their dashboard',
+          'text': 'The agent clicks the link and sees a live demo of their listing page with the loan officer\'s AI mortgage assistant running on it. One tap claims their account. Their dashboard is pre-loaded with the loan officer\'s branding. The loan officer receives a text and email the moment the agent signs up.',
+          'url': 'https://homelistingai.com/how-it-works#step-2'
+        },
+        {
+          '@type': 'HowToStep',
+          'position': 3,
+          'name': 'Agent publishes their listing — share kit and lead capture go live',
+          'text': 'The agent publishes their listing and instantly has a tracked QR code for their yard sign, a social media asset, and an open house flyer — all linked back to the loan officer. Every buyer who scans the QR code or asks a question is captured as a lead. The AI chatbot pre-qualifies buyers automatically.',
+          'url': 'https://homelistingai.com/how-it-works#step-3'
+        },
+        {
+          '@type': 'HowToStep',
+          'position': 4,
+          'name': 'Loan officer receives warm leads and closes loans',
+          'text': 'Every lead from the agent\'s listing routes directly to the loan officer — pre-qualified, with real financing intent. The agent sees the loan officer as their competitive advantage, creating a lasting partnership that generates consistent mortgage pipeline.',
+          'url': 'https://homelistingai.com/how-it-works#step-4'
+        }
+      ]
+    },
+    {
+      '@type': 'BreadcrumbList',
+      'itemListElement': [
+        { '@type': 'ListItem', 'position': 1, 'name': 'Home', 'item': 'https://homelistingai.com' },
+        { '@type': 'ListItem', 'position': 2, 'name': 'How It Works', 'item': 'https://homelistingai.com/how-it-works' }
+      ]
+    }
+  ]
+};
 
 const steps = [
   {
     number: '01',
     tag: 'Step One',
+    anchor: 'step-1',
     accent: 'from-cyan-400 to-blue-500',
     accentSolid: '#06b6d4',
     glow: 'rgba(6,182,212,0.15)',
     icon: '🔗',
-    heading: 'LO sends one WOW link',
+    heading: 'Loan officer sends one WOW link to any agent',
     subheading: 'One link. Instant impression.',
     body: 'You send a personalized WOW link to any agent — takes 10 seconds. They get a live demo of their listing page with your AI mortgage assistant already built in. No setup required on their end.',
     pill: '24hr + 72hr auto-reminders if they don\'t open',
@@ -38,12 +98,13 @@ const steps = [
   {
     number: '02',
     tag: 'Step Two',
+    anchor: 'step-2',
     accent: 'from-violet-400 to-blue-500',
     accentSolid: '#7c3aed',
     glow: 'rgba(124,58,237,0.15)',
     icon: '⚡',
-    heading: 'Agent clicks in — account claimed',
-    subheading: 'Zero friction signup.',
+    heading: 'Real estate agent claims their account in one tap',
+    subheading: 'Zero friction. No sales call.',
     body: 'The agent sees the live demo with your chatbot running. One tap claims their account. Their dashboard comes pre-loaded with your branding. You get a text + email the second they\'re in.',
     pill: 'LO notified instantly via text + email',
     phone: {
@@ -71,12 +132,13 @@ const steps = [
   {
     number: '03',
     tag: 'Step Three',
+    anchor: 'step-3',
     accent: 'from-emerald-400 to-cyan-500',
     accentSolid: '#059669',
     glow: 'rgba(5,150,105,0.15)',
     icon: '🔥',
-    heading: 'Share kit goes live — leads start flowing',
-    subheading: 'Every listing becomes a lead machine.',
+    heading: 'AI listing share kit goes live — buyer leads start flowing',
+    subheading: 'Every listing becomes a mortgage lead machine.',
     body: 'Agent publishes their listing. Instantly they have a tracked QR code, social asset, and open house flyer. Every buyer who scans or asks a question is captured. Your AI pre-qualifies them automatically.',
     pill: 'Sign QR · Social post · Open house flyer — all tracked',
     phone: {
@@ -104,12 +166,13 @@ const steps = [
   {
     number: '04',
     tag: 'Step Four',
+    anchor: 'step-4',
     accent: 'from-orange-400 to-rose-500',
     accentSolid: '#f86f1b',
     glow: 'rgba(248,111,27,0.15)',
     icon: '💰',
-    heading: 'LO gets warm leads — closes loans',
-    subheading: 'The payoff.',
+    heading: 'Loan officer gets pre-qualified mortgage leads and closes loans',
+    subheading: 'Warm leads. No cold calls.',
     body: 'Every lead from that agent\'s listing routes straight to you. Pre-qualified, with real financing intent. Not cold leads — warm conversations from buyers already curious about the property.',
     pill: 'Agent sees you as their unfair advantage',
     phone: {
@@ -139,6 +202,13 @@ const HowItWorksPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#0B0F19] text-white">
+      <SEO
+        title="How It Works — Loan Officer Lead System"
+        description="See how loan officers use HomeListingAI to send WOW links to agents, capture warm mortgage leads automatically, and close more loans. Free to start. No cold calls."
+        url="https://homelistingai.com/how-it-works"
+        image="https://homelistingai.com/og-image.png"
+        schema={HOW_IT_WORKS_SCHEMA}
+      />
 
       {/* Cyan top accent line — matches landing page */}
       <div className="h-px w-full bg-gradient-to-r from-transparent via-cyan-500 to-transparent shadow-[0_0_15px_rgba(6,182,212,0.6)]" />
@@ -188,6 +258,7 @@ const HowItWorksPage: React.FC = () => {
         {steps.map((step, index) => (
           <div
             key={step.number}
+            id={step.anchor}
             className={`flex flex-col ${index % 2 === 0 ? 'md:flex-row' : 'md:flex-row-reverse'} items-center gap-14`}
           >
 
