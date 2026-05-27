@@ -31018,9 +31018,9 @@ app.post('/api/public/partner-invite/:token/connect', async (req, res) => {
         title: `🤝 ${displayName} wants to work with you!`,
         content: `${displayName} just clicked "I'm in" on your WOW link.${displayPhone ? ` Phone: ${displayPhone}` : ''} Reach out now!`,
         type: 'partner',
-        read: false,
+        is_read: false,
         created_at: new Date().toISOString(),
-      }).then(() => {}).catch(() => {});
+      }).then(() => {}).catch((e) => console.warn('[partner-connect] notification insert failed:', e?.message));
     }
 
     // ── Email alert to LO ─────────────────────────────────────────────────────
@@ -31731,8 +31731,8 @@ app.post('/api/agent/claim/:token', async (req, res) => {
           user_id: loFull.auth_user_id,
           title: `🎉 ${displayName} just claimed their account!`,
           content: `${displayName} set up their agent dashboard. They're ready to list — check your partners page.`,
-          type: 'partner', read: false, created_at: nowIso()
-        }).then(() => {}).catch(() => {});
+          type: 'partner', is_read: false, created_at: nowIso()
+        }).then(() => {}).catch((e) => console.warn('[AgentClaim] notification insert failed:', e?.message));
       }
       // Email to LO
       if (loFull?.email) {
