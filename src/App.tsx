@@ -37,6 +37,7 @@ const LOPartnersPage = lazy(() => import('./components/dashboard-command/LOPartn
 const LOChatbotSetupPage = lazy(() => import('./components/dashboard-command/LOChatbotSetupPage'));
 const LOLeadsPage = lazy(() => import('./components/dashboard-command/LOLeadsPage'));
 const AgentClaimPage = lazy(() => import('./pages/AgentClaimPage'))
+const HowItWorksPage = lazy(() => import('./pages/HowItWorksPage'))
 const PartnerInvitePage = lazy(() => import('./pages/PartnerInvitePage'))
 const ListingDashboardPage = lazy(() => import('./pages/ListingDashboardPage'))
 const OfficeDashboardPage = lazy(() => import('./components/dashboard-command/OfficeDashboardPage'))
@@ -1788,6 +1789,7 @@ const App: React.FC = () => {
                     <Route path="/demo-listing" element={<DemoListingPage />} />
                     <Route path="/demo/listings/:id" element={<DemoListingPage />} />
                     <Route path="/new-landing" element={<NewLandingPage onNavigateToSignUp={handleNavigateToSignUp} onNavigateToSignIn={handleNavigateToSignIn} onEnterDemoMode={handleEnterDemoMode} />} />
+                    <Route path="/how-it-works" element={<HowItWorksPage />} />
 
                     {/* Fallback */}
                     <Route path="*" element={<NotFound />} />
