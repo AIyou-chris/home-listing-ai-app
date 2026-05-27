@@ -6,6 +6,7 @@ import {
   type DashboardLeadItem
 } from '../../services/dashboardCommandService'
 import { buildDashboardPath, useDemoMode } from '../../demo/useDemoMode'
+import { useBlueprintMode } from '../../demo/useBlueprintMode'
 import { useDashboardRealtimeStore } from '../../state/useDashboardRealtimeStore'
 
 const sortLeadsForInbox = (rows: DashboardLeadItem[]) => {
@@ -27,22 +28,60 @@ const sortLeadsForInbox = (rows: DashboardLeadItem[]) => {
     })
 }
 
+const exportLeadsCSV = (leads: DashboardLeadItem[]) => {
+  const headers = [
+    'Name', 'Phone', 'Email', 'Status', 'Intent', 'Timeline',
+    'Financing', 'Source', 'Listing Address', 'Summary', 'Created', 'Last Activity'
+  ]
+
+  const escape = (val: unknown) => {
+    const s = String(val ?? '').replace(/"/g, '""')
+    return `"${s}"`
+  }
+
+  const rows = leads.map((lead) => [
+    escape(lead.name),
+    escape(lead.phone),
+    escape(lead.email),
+    escape(lead.status),
+    escape(lead.intent_level),
+    escape(lead.timeline),
+    escape(lead.financing),
+    escape(lead.source_type?.replace(/_/g, ' ')),
+    escape(lead.listing?.address),
+    escape(lead.lead_summary || lead.last_message_preview),
+    escape(lead.created_at ? new Date(lead.created_at).toLocaleDateString() : ''),
+    escape(lead.last_activity_at ? new Date(lead.last_activity_at).toLocaleDateString() : '')
+  ].join(','))
+
+  const csv = [headers.map(escape).join(','), ...rows].join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `leads-${new Date().toISOString().slice(0, 10)}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 const LeadsInboxCommandPage: React.FC = () => {
   const navigate = useNavigate()
   const demoMode = useDemoMode()
+  const blueprintMode = useBlueprintMode()
   const leadsById = useDashboardRealtimeStore((state) => state.leadsById)
   const setInitialLeads = useDashboardRealtimeStore((state) => state.setInitialLeads)
 
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(!blueprintMode)
   const [error, setError] = useState<string | null>(null)
   const [tab, setTab] = useState<'New' | 'All'>('New')
 
-  const status = 'all'
-  const intent = 'all'
-  const listingId = 'all'
-  const timeframe = 'all' as const
+  const _timeframe = 'all' as const
 
   useEffect(() => {
+    if (blueprintMode) {
+      setLoading(false)
+      return
+    }
     const load = async () => {
       setLoading(true)
       setError(null)
@@ -56,37 +95,20 @@ const LeadsInboxCommandPage: React.FC = () => {
       }
     }
     void load()
-  }, [setInitialLeads])
+  }, [setInitialLeads, blueprintMode])
 
   const allLeads = useMemo(() => Object.values(leadsById), [leadsById])
 
   const filteredLeads = useMemo(() => {
-    const now = Date.now()
-    const minTs =
-      timeframe === '24h' as string
-        ? now - 24 * 60 * 60 * 1000
-        : timeframe === '7d' as string
-          ? now - 7 * 24 * 60 * 60 * 1000
-          : timeframe === '30d' as string
-            ? now - 30 * 24 * 60 * 60 * 1000
-            : null
-
     const rows = allLeads.filter((lead) => {
       if (tab === 'New' && lead.status !== 'New') return false
-      if (status !== 'all' && lead.status !== status) return false
-      if (intent !== 'all' && lead.intent_level !== intent) return false
-      if (listingId !== 'all' && lead.listing_id !== listingId) return false
-      if (minTs) {
-        const ts = new Date(lead.last_activity_at || lead.created_at).getTime()
-        if (!Number.isFinite(ts) || ts < minTs) return false
-      }
       return true
     })
-
     return sortLeadsForInbox(rows)
-  }, [allLeads, tab, status, intent, listingId, timeframe])
+  }, [allLeads, tab])
 
   const logOpen = async (leadId: string) => {
+    if (blueprintMode || demoMode) return
     await logDashboardAgentAction({
       lead_id: leadId,
       action: 'lead_opened',
@@ -96,9 +118,20 @@ const LeadsInboxCommandPage: React.FC = () => {
 
   return (
     <div className="mx-auto max-w-4xl space-y-6 px-4 py-8 md:px-8 font-sans">
-      <div className="mb-8">
-        <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Leads</h1>
-        <p className="mt-2 text-lg text-slate-500 font-medium">New leads and listing inquiries—organized by what matters most.</p>
+      <div className="mb-8 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Leads</h1>
+          <p className="mt-2 text-lg text-slate-500 font-medium">New leads and listing inquiries—organized by what matters most.</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => exportLeadsCSV(allLeads)}
+          disabled={loading}
+          className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          <span className="material-symbols-outlined text-[18px]">download</span>
+          Export CSV{allLeads.length > 0 ? ` (${allLeads.length})` : ''}
+        </button>
       </div>
 
       <div className="flex items-center gap-6 border-b border-slate-200 mb-6">
@@ -123,7 +156,21 @@ const LeadsInboxCommandPage: React.FC = () => {
       </div>
 
       <section className="space-y-4">
-        {loading && <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm font-medium text-slate-500">Loading leads...</div>}
+        {loading && (
+          <>
+            {Array.from({ length: 3 }).map((_, idx) => (
+              <div key={idx} className="rounded-2xl border border-slate-200 bg-white p-5 flex items-center gap-4 animate-pulse">
+                <div className="w-12 h-12 rounded-full bg-slate-100 flex-shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 bg-slate-100 rounded w-1/3" />
+                  <div className="h-3 bg-slate-100 rounded w-2/3" />
+                  <div className="h-3 bg-slate-100 rounded w-1/2" />
+                </div>
+                <div className="h-9 w-20 bg-slate-100 rounded-lg flex-shrink-0" />
+              </div>
+            ))}
+          </>
+        )}
         {!loading && error && <div className="rounded-2xl border border-rose-200 bg-rose-50 p-8 text-center text-sm font-medium text-rose-700">{error}</div>}
 
         {!loading && !error && filteredLeads.length === 0 && tab === 'New' && (

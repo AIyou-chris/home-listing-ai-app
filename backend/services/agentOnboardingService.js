@@ -515,7 +515,7 @@ module.exports = ({ supabaseAdmin, emailService, dashboardBaseUrl }) => {
       activated_at: new Date().toISOString()
     };
 
-    if (accountType) insertPayload.account_type = accountType;
+    insertPayload.account_type = accountType || 'lo';
     if (phone) insertPayload.phone = phone.trim();
     if (nmls) insertPayload.nmls_number = nmls.trim();
 
@@ -550,18 +550,18 @@ module.exports = ({ supabaseAdmin, emailService, dashboardBaseUrl }) => {
       finalAgent = updatedAgentRows?.[0] || agent;
     }
 
-    await emailService.sendWelcomeEmail({
-      to: finalAgent.email,
-      firstName: finalAgent.first_name,
-      dashboardUrl: dashboardTodayUrl,
-      billingUrl: billingSettingsUrl
-    });
-
     if (credentials.isNew && credentials.password) {
       await emailService.sendCredentialsEmail({
         to: finalAgent.email,
         firstName: finalAgent.first_name,
         password: credentials.password,
+        dashboardUrl: dashboardTodayUrl,
+        billingUrl: billingSettingsUrl
+      });
+    } else {
+      await emailService.sendWelcomeEmail({
+        to: finalAgent.email,
+        firstName: finalAgent.first_name,
         dashboardUrl: dashboardTodayUrl,
         billingUrl: billingSettingsUrl
       });
@@ -659,18 +659,18 @@ module.exports = ({ supabaseAdmin, emailService, dashboardBaseUrl }) => {
     }
     const dashboardUrl = dashboardTodayUrl;
 
-    await emailService.sendWelcomeEmail({
-      to: updatedAgent.email,
-      firstName: updatedAgent.first_name,
-      dashboardUrl,
-      billingUrl: billingSettingsUrl
-    });
-
     if (credentials.isNew && credentials.password) {
       await emailService.sendCredentialsEmail({
         to: updatedAgent.email,
         firstName: updatedAgent.first_name,
         password: credentials.password,
+        dashboardUrl,
+        billingUrl: billingSettingsUrl
+      });
+    } else {
+      await emailService.sendWelcomeEmail({
+        to: updatedAgent.email,
+        firstName: updatedAgent.first_name,
         dashboardUrl,
         billingUrl: billingSettingsUrl
       });

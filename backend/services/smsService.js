@@ -4,7 +4,7 @@ const TEXTBELT_MESSAGES_URL = 'https://textbelt.com/text';
 const SMS_PROVIDER = 'textbelt';
 
 const SMS_COMING_SOON =
-  String(process.env.SMS_COMING_SOON || 'true').toLowerCase() !== 'false';
+  String(process.env.SMS_COMING_SOON || 'false').toLowerCase() !== 'false';
 
 // SAFETY: In-memory rate limiter
 // Map<normalizedPhone, timestamp>

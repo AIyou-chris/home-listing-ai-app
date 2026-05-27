@@ -1,12 +1,18 @@
 import { useCallback, useEffect, useState } from 'react'
 import { fetchDashboardRoi, type DashboardRoiSummary } from '../../services/dashboardCommandService'
 
-export const useRoiMetrics = (range: '7d' | '30d' = '7d') => {
+interface UseRoiMetricsOptions {
+  enabled?: boolean
+}
+
+export const useRoiMetrics = (range: '7d' | '30d' = '7d', options: UseRoiMetricsOptions = {}) => {
+  const { enabled = true } = options
   const [data, setData] = useState<DashboardRoiSummary | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(enabled)
   const [error, setError] = useState<string | null>(null)
 
   const reload = useCallback(async () => {
+    if (!enabled) return
     setLoading(true)
     setError(null)
     try {
@@ -17,11 +23,15 @@ export const useRoiMetrics = (range: '7d' | '30d' = '7d') => {
     } finally {
       setLoading(false)
     }
-  }, [range])
+  }, [range, enabled])
 
   useEffect(() => {
+    if (!enabled) {
+      setLoading(false)
+      return
+    }
     void reload()
-  }, [reload])
+  }, [reload, enabled])
 
   return {
     data,

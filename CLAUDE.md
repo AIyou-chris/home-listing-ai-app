@@ -5,7 +5,21 @@
 
 ---
 
-## 0. Golden Rules (read this first — always)
+## 0. Design Standard (read this first — always)
+
+**The canonical app design is locked.** See `docs/design/listing-app-design.md`.
+
+- **Reference implementation:** `src/pages/PartnerInvitePage.tsx` — this IS what the app looks like
+- **Phone frame on desktop** — iPhone 15 Pro bezel, dynamic island, status bar, dark ambient background
+- **App background:** `#f2f2f7` (iOS system gray) with white section cards
+- **No marketing-page patterns** — no alternating gradient sections, no floating cards on gray, no hero banners
+- **"I'm In" button is always orange `#f86f1b`** — never green, never blue
+- **Partner CTA section** (`bg-[#eff6ff]` light blue) is the ONLY section that adapts between demo and live
+- Everything else in the WOW link page is locked — do not redesign without explicit owner approval
+
+---
+
+## 0b. Golden Rules
 
 See `GOLDEN_RULES.md` in the project root. Every feature decision is measured against these three rules:
 

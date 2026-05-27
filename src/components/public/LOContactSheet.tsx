@@ -9,6 +9,7 @@ interface LOInfo {
   email: string | null;
   phone: string | null;
   headshotUrl: string | null;
+  logoUrl: string | null;
   nmlsNumber: string | null;
   company: string | null;
 }
@@ -115,7 +116,7 @@ function PillRow({
   );
 }
 
-function FieldDisplay({ value }: { value: string }) {
+function _FieldDisplay({ value }: { value: string }) {
   return (
     <div className="bg-white/6 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-slate-300">
       {value || <span className="text-slate-600">—</span>}
@@ -347,6 +348,13 @@ const LOContactSheet: React.FC<Props> = ({ listingId, agent }) => {
                   </span>
                   {lo ? 'Agent · Loan Officer — here to help' : 'Agent — here to help'}
                 </div>
+                {lo?.logoUrl && (
+                  <img
+                    src={lo.logoUrl}
+                    alt={lo.company || 'Lender'}
+                    className="h-7 w-14 object-contain opacity-80 flex-shrink-0"
+                  />
+                )}
               </div>
 
               <p className="text-white font-bold text-sm text-center mb-4 leading-snug">

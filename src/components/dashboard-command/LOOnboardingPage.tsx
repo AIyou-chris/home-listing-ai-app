@@ -98,6 +98,7 @@ const LOOnboardingPage: React.FC = () => {
           nmls_number: profile.nmls_number.trim() || null,
           company: profile.company.trim() || null,
           phone: profile.phone.trim() || null,
+          email: profile.email.trim() || null,
           headshot_url: profile.headshot_url || null,
           lending_states: selectedStates
         })
@@ -159,10 +160,10 @@ const LOOnboardingPage: React.FC = () => {
           onboarding_step: 3
         })
       });
-      navigate(buildDashboardPath('/today', demoMode));
+      navigate(buildDashboardPath('/lo-today', demoMode));
     } catch {
       // Non-fatal — go to dashboard anyway
-      navigate(buildDashboardPath('/today', demoMode));
+      navigate(buildDashboardPath('/lo-today', demoMode));
     } finally {
       setSaving(false);
     }

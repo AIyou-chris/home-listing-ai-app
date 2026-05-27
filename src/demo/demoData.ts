@@ -822,6 +822,15 @@ export const getDemoListingShareKit = (listingId: string): ListingShareKitRespon
         created_at: latestReadyVideo.created_at
       }
       : null,
+    lo_partner: {
+      name: 'Marcus Rivera',
+      company: 'Pinnacle Home Loans',
+      headshot_url: null,
+      nmls_number: '1234567',
+      email: 'marcus@pinnaclehomeloans.com',
+      phone: '(512) 555-0182',
+      chatbot_active: true
+    },
     source_defaults: getDefaultSourceDefaults()
   })
 }

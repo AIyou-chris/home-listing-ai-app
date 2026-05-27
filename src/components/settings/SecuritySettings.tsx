@@ -22,7 +22,6 @@ const SecuritySettingsPage: React.FC<SecuritySettingsProps> = ({
     isLoading = false
 }) => {
     const [passwords, setPasswords] = useState({
-        currentPassword: '',
         newPassword: '',
         confirmNewPassword: ''
     });
@@ -62,7 +61,7 @@ const SecuritySettingsPage: React.FC<SecuritySettingsProps> = ({
             if (error) throw error;
 
             setPasswordMessage({ type: 'success', text: 'Password updated successfully' });
-            setPasswords({ currentPassword: '', newPassword: '', confirmNewPassword: '' });
+            setPasswords({ newPassword: '', confirmNewPassword: '' });
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : 'Failed to update password';
             setPasswordMessage({ type: 'error', text: message });
@@ -116,20 +115,6 @@ const SecuritySettingsPage: React.FC<SecuritySettingsProps> = ({
                         </div>
 
                         <div className="grid grid-cols-1 gap-6">
-                            {/* Current Password Field */}
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-2">Current Password</label>
-                                <input
-                                    type="password"
-                                    name="currentPassword"
-                                    autoComplete="current-password"
-                                    value={passwords.currentPassword}
-                                    onChange={handlePasswordChange}
-                                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                    placeholder="Enter current password"
-                                />
-                            </div>
-
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-2">New Password</label>
                                 <input

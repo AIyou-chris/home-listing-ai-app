@@ -7,7 +7,48 @@ export interface ExportOptions {
   timeFormat: '12h' | '24h';
 }
 
+// ── Generic table-based export ─────────────────────────────────────────────────
+// Used by the LO pages (leads, partners) — any array of rows can be exported.
+
+export interface GenericExportOptions {
+  headers: string[];
+  rows: (string | number | null | undefined)[][];
+  filename: string;
+}
+
 export class ExportService {
+  /** Build a CSV string from headers + rows and trigger a download. */
+  static exportTableToCSV({ headers, rows, filename }: GenericExportOptions): void {
+    const escape = (v: string | number | null | undefined) => {
+      const s = String(v ?? '');
+      return s.includes(',') || s.includes('"') || s.includes('\n')
+        ? `"${s.replace(/"/g, '""')}"`
+        : s;
+    };
+    const lines = [
+      headers.join(','),
+      ...rows.map(row => row.map(escape).join(','))
+    ];
+    const csv = lines.join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${filename}_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  /** Serialize data as JSON and trigger a download. */
+  static exportToJSON(data: unknown, filename: string): void {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${filename}_${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
   static exportLeadsToCSV(leads: Lead[], options: Partial<ExportOptions> = {}): string {
     const defaultOptions: ExportOptions = {
       format: 'csv',

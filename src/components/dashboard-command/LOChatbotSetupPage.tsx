@@ -248,6 +248,472 @@ const KnowledgeBaseSection: React.FC<{
   );
 };
 
+// ─── Listing KB Section ───────────────────────────────────────────────────────
+
+interface ListingDoc {
+  id: string;
+  address: string;
+  label: string | null;
+  content: string;
+  created_at: string;
+}
+
+// Helper: format payment fields into a clean content block
+const formatPaymentBlock = (p: {
+  loanProgram: string; rate: string; apr: string; downPct: string; monthlyPayment: string;
+}): string => {
+  const lines: string[] = ['--- Payment Details ---'];
+  if (p.loanProgram) lines.push(`Loan Program: ${p.loanProgram}`);
+  if (p.rate) lines.push(`Interest Rate: ${p.rate}%`);
+  if (p.apr) lines.push(`APR: ${p.apr}%`);
+  if (p.downPct) lines.push(`Down Payment: ${p.downPct}%`);
+  if (p.monthlyPayment) lines.push(`Est. Monthly Payment (PITI): $${p.monthlyPayment}/mo`);
+  return lines.join('\n');
+};
+
+const LOAN_PROGRAMS = ['FHA', 'Conventional', 'VA', 'USDA', 'Jumbo', 'Other'];
+
+const EMPTY_FORM = {
+  address: '', label: '', notes: '',
+  loanProgram: '', rate: '', apr: '', downPct: '', monthlyPayment: '',
+};
+
+const _ListingKnowledgeSection: React.FC<{
+  getHeaders: () => Promise<HeadersInit>;
+}> = ({ getHeaders }) => {
+  const [docs, setDocs] = useState<ListingDoc[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [adding, setAdding] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [showPayment, setShowPayment] = useState(false);
+  const [form, setForm] = useState(EMPTY_FORM);
+  // Edit state
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({ address: '', label: '', content: '' });
+  const [editSaving, setEditSaving] = useState(false);
+
+  const load = async () => {
+    try {
+      const headers = await getHeaders();
+      const res = await fetch(buildApiUrl('/api/lo/chatbot/listing-docs'), { headers });
+      if (res.ok) {
+        const data = await res.json();
+        setDocs(data.docs || []);
+      }
+    } catch (err) {
+      console.error('[ListingKB] load error', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { void load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleSave = async () => {
+    if (!form.address.trim()) {
+      toast.error('Property address is required.');
+      return;
+    }
+    const hasPayment = form.loanProgram || form.rate || form.apr || form.downPct || form.monthlyPayment;
+    const hasNotes = form.notes.trim();
+    if (!hasPayment && !hasNotes) {
+      toast.error('Add payment details or notes — at least one is required.');
+      return;
+    }
+
+    // Build content: payment block first (if any), then notes
+    const parts: string[] = [];
+    if (hasPayment) parts.push(formatPaymentBlock({
+      loanProgram: form.loanProgram, rate: form.rate, apr: form.apr,
+      downPct: form.downPct, monthlyPayment: form.monthlyPayment,
+    }));
+    if (hasNotes) parts.push(form.notes.trim());
+    const content = parts.join('\n\n');
+
+    setSaving(true);
+    try {
+      const headers = await getHeaders();
+      const res = await fetch(buildApiUrl('/api/lo/chatbot/listing-docs'), {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ address: form.address, label: form.label || null, content })
+      });
+      const responseText = await res.text();
+      if (!res.ok) {
+        console.error('[ListingKB] save failed', res.status, responseText);
+        throw new Error('save_failed');
+      }
+      setForm(EMPTY_FORM);
+      setShowPayment(false);
+      setAdding(false);
+      toast.success('Listing saved!');
+      await load();
+    } catch (err) {
+      console.error('[ListingKB] save error', err);
+      toast.error('Could not save. Check your connection and try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('Remove this listing from the knowledge base?')) return;
+    setDeleting(id);
+    try {
+      const headers = await getHeaders();
+      const res = await fetch(buildApiUrl(`/api/lo/chatbot/listing-docs/${id}`), {
+        method: 'DELETE',
+        headers
+      });
+      if (!res.ok) throw new Error('delete_failed');
+      setDocs((prev) => prev.filter((d) => d.id !== id));
+      toast.success('Removed.');
+    } catch {
+      toast.error('Could not delete. Try again.');
+    } finally {
+      setDeleting(null);
+    }
+  };
+
+  const cancelAdd = () => {
+    setAdding(false);
+    setShowPayment(false);
+    setForm(EMPTY_FORM);
+  };
+
+  const startEdit = (doc: ListingDoc) => {
+    setEditingId(doc.id);
+    setEditForm({ address: doc.address, label: doc.label || '', content: doc.content });
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditForm({ address: '', label: '', content: '' });
+  };
+
+  const handleEditSave = async (id: string) => {
+    if (!editForm.address.trim() || !editForm.content.trim()) {
+      toast.error('Address and notes are required.');
+      return;
+    }
+    setEditSaving(true);
+    try {
+      const headers = await getHeaders();
+      const res = await fetch(buildApiUrl(`/api/lo/chatbot/listing-docs/${id}`), {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ address: editForm.address, label: editForm.label || null, content: editForm.content })
+      });
+      if (!res.ok) throw new Error('update_failed');
+      cancelEdit();
+      toast.success('Updated!');
+      await load();
+    } catch {
+      toast.error('Could not update. Try again.');
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
+  // Detect if a doc has payment details stored
+  const hasPaymentInfo = (content: string) => content.includes('--- Payment Details ---');
+
+  return (
+    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-slate-500">
+          <span className="material-symbols-outlined text-base text-violet-500">home_pin</span>
+          Listing-Specific Knowledge
+        </h2>
+        {!adding && (
+          <button
+            onClick={() => setAdding(true)}
+            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+          >
+            <span className="material-symbols-outlined text-sm">add</span>
+            Add listing
+          </button>
+        )}
+      </div>
+
+      <p className="mb-4 text-xs text-slate-500">
+        Add notes and payment details for a specific property. The bot references them only when someone chats on that listing.
+      </p>
+
+      {/* Add form */}
+      {adding && (
+        <div className="mb-4 rounded-xl border border-violet-200 bg-violet-50 p-4 space-y-4">
+          {/* Address + Label */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-600">Property Address *</label>
+              <input
+                value={form.address}
+                onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
+                placeholder="123 Main St, Austin TX"
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-violet-400 focus:ring-1 focus:ring-violet-100"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-600">Label (optional)</label>
+              <input
+                value={form.label}
+                onChange={(e) => setForm((f) => ({ ...f, label: e.target.value }))}
+                placeholder="e.g. FHA approved, Seller concessions"
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-violet-400 focus:ring-1 focus:ring-violet-100"
+              />
+            </div>
+          </div>
+
+          {/* Payment Details toggle */}
+          <div>
+            <button
+              type="button"
+              onClick={() => setShowPayment((v) => !v)}
+              className="flex items-center gap-2 text-xs font-semibold text-violet-700 hover:text-violet-900 transition"
+            >
+              <span className="material-symbols-outlined text-sm">
+                {showPayment ? 'expand_less' : 'expand_more'}
+              </span>
+              <span className="material-symbols-outlined text-sm">payments</span>
+              {showPayment ? 'Hide payment details' : '+ Add payment & APR details'}
+            </button>
+
+            {showPayment && (
+              <div className="mt-3 rounded-xl border border-violet-300 bg-white p-4 space-y-3">
+                <p className="text-xs text-slate-500">These details will be included in the bot's context for this listing.</p>
+                {/* Loan Program */}
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-slate-600">Loan Program</label>
+                  <select
+                    value={form.loanProgram}
+                    onChange={(e) => setForm((f) => ({ ...f, loanProgram: e.target.value }))}
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-violet-400 focus:ring-1 focus:ring-violet-100"
+                  >
+                    <option value="">Select program...</option>
+                    {LOAN_PROGRAMS.map((p) => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                </div>
+                {/* Rate / APR */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-slate-600">Interest Rate (%)</label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        step="0.001"
+                        min="0"
+                        max="30"
+                        value={form.rate}
+                        onChange={(e) => setForm((f) => ({ ...f, rate: e.target.value }))}
+                        placeholder="6.875"
+                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 pr-7 text-sm outline-none transition focus:border-violet-400 focus:ring-1 focus:ring-violet-100"
+                      />
+                      <span className="absolute right-2.5 top-2 text-xs text-slate-400 pointer-events-none">%</span>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-slate-600">APR (%)</label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        step="0.001"
+                        min="0"
+                        max="30"
+                        value={form.apr}
+                        onChange={(e) => setForm((f) => ({ ...f, apr: e.target.value }))}
+                        placeholder="7.12"
+                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 pr-7 text-sm outline-none transition focus:border-violet-400 focus:ring-1 focus:ring-violet-100"
+                      />
+                      <span className="absolute right-2.5 top-2 text-xs text-slate-400 pointer-events-none">%</span>
+                    </div>
+                  </div>
+                </div>
+                {/* Down % / Monthly Payment */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-slate-600">Down Payment (%)</label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        max="100"
+                        value={form.downPct}
+                        onChange={(e) => setForm((f) => ({ ...f, downPct: e.target.value }))}
+                        placeholder="3.5"
+                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 pr-7 text-sm outline-none transition focus:border-violet-400 focus:ring-1 focus:ring-violet-100"
+                      />
+                      <span className="absolute right-2.5 top-2 text-xs text-slate-400 pointer-events-none">%</span>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-slate-600">Monthly Payment (PITI) $</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2 text-xs text-slate-400 pointer-events-none">$</span>
+                      <input
+                        type="number"
+                        step="1"
+                        min="0"
+                        value={form.monthlyPayment}
+                        onChange={(e) => setForm((f) => ({ ...f, monthlyPayment: e.target.value }))}
+                        placeholder="2847"
+                        className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-6 pr-3 text-sm outline-none transition focus:border-violet-400 focus:ring-1 focus:ring-violet-100"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Notes */}
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-slate-600">Notes (optional)</label>
+            <textarea
+              value={form.notes}
+              onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+              placeholder="HOA is $220/mo, seller paying 2 points, FHA approved, 3.5% down works, special financing available..."
+              rows={4}
+              className="w-full resize-none rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-violet-400 focus:ring-1 focus:ring-violet-100"
+            />
+          </div>
+
+          <div className="flex gap-2 justify-end">
+            <button
+              onClick={cancelAdd}
+              className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => void handleSave()}
+              disabled={saving}
+              className="flex items-center gap-1.5 rounded-lg bg-violet-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-violet-700 disabled:opacity-50"
+            >
+              {saving ? (
+                <span className="material-symbols-outlined animate-spin text-sm">progress_activity</span>
+              ) : (
+                <span className="material-symbols-outlined text-sm">save</span>
+              )}
+              {saving ? 'Saving...' : 'Save listing notes'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Doc list */}
+      {loading ? (
+        <p className="text-xs text-slate-400 py-4 text-center">Loading...</p>
+      ) : docs.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-slate-200 py-8 text-center">
+          <span className="material-symbols-outlined text-3xl text-slate-300">home_pin</span>
+          <p className="mt-2 text-sm text-slate-400 font-medium">No listing notes yet</p>
+          <p className="text-xs text-slate-400 mt-1">Add payment details or notes for a listing — the bot will reference them automatically.</p>
+        </div>
+      ) : (
+        <ul className="space-y-2">
+          {docs.map((doc) => {
+            const withPayment = hasPaymentInfo(doc.content);
+            const previewText = doc.content.replace('--- Payment Details ---\n', '').trim();
+            const isEditing = editingId === doc.id;
+
+            return (
+              <li key={doc.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                {isEditing ? (
+                  /* ── Inline edit form ── */
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      <div>
+                        <label className="mb-1 block text-xs font-semibold text-slate-600">Address *</label>
+                        <input
+                          value={editForm.address}
+                          onChange={(e) => setEditForm((f) => ({ ...f, address: e.target.value }))}
+                          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-violet-400"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs font-semibold text-slate-600">Label (optional)</label>
+                        <input
+                          value={editForm.label}
+                          onChange={(e) => setEditForm((f) => ({ ...f, label: e.target.value }))}
+                          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-violet-400"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold text-slate-600">Notes / Payment Details *</label>
+                      <textarea
+                        value={editForm.content}
+                        onChange={(e) => setEditForm((f) => ({ ...f, content: e.target.value }))}
+                        rows={6}
+                        className="w-full resize-none rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-violet-400"
+                      />
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <button onClick={cancelEdit} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100">Cancel</button>
+                      <button
+                        onClick={() => void handleEditSave(doc.id)}
+                        disabled={editSaving}
+                        className="flex items-center gap-1 rounded-lg bg-violet-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-violet-700 disabled:opacity-50"
+                      >
+                        {editSaving ? <span className="material-symbols-outlined animate-spin text-sm">progress_activity</span> : <span className="material-symbols-outlined text-sm">save</span>}
+                        {editSaving ? 'Saving…' : 'Save changes'}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  /* ── Doc row ── */
+                  <div className="flex items-start gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="material-symbols-outlined text-sm text-violet-500">home_pin</span>
+                        <p className="text-sm font-semibold text-slate-900 truncate">{doc.address}</p>
+                        {doc.label && (
+                          <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-bold text-violet-700">{doc.label}</span>
+                        )}
+                        {withPayment && (
+                          <span className="flex items-center gap-0.5 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+                            <span className="material-symbols-outlined text-[10px]">payments</span>
+                            Payment info
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-1 text-xs text-slate-500 line-clamp-2">{previewText}</p>
+                      <p className="mt-1 text-[10px] text-slate-400">{new Date(doc.created_at).toLocaleDateString()}</p>
+                    </div>
+                    <div className="flex flex-shrink-0 items-center gap-1">
+                      <button
+                        onClick={() => startEdit(doc)}
+                        title="Edit"
+                        className="rounded-lg p-1.5 text-slate-400 transition hover:bg-violet-50 hover:text-violet-600"
+                      >
+                        <span className="material-symbols-outlined text-sm">edit</span>
+                      </button>
+                      <button
+                        onClick={() => void handleDelete(doc.id)}
+                        disabled={deleting === doc.id}
+                        title="Remove — house sold or no longer needed"
+                        className="rounded-lg p-1.5 text-slate-400 transition hover:bg-rose-50 hover:text-rose-500 disabled:opacity-50"
+                      >
+                        {deleting === doc.id
+                          ? <span className="material-symbols-outlined animate-spin text-sm">progress_activity</span>
+                          : <span className="material-symbols-outlined text-sm">delete</span>
+                        }
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
+  );
+};
+
 // ─── Preview ─────────────────────────────────────────────────────────────────
 
 const BotPreview: React.FC<{ config: ChatbotConfig }> = ({ config }) => {

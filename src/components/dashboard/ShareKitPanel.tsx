@@ -1,8 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import VideoShareActions from './VideoShareActions';
-import SocialVideoWidget from '../dashboard-widgets/SocialVideoWidget';
 import { showToast } from '../../utils/toastService';
+import type { LoPartner } from '../../services/dashboard/listingAssets';
 import {
   fetchLightCmaConfig,
   fetchOpenHouseFlyerConfig,
@@ -49,15 +48,10 @@ export interface ShareKitPanelProps {
     showingRequestsCount: number;
     showingRequestsBySource: Array<{ label: string; total: number }>;
   };
-  latestVideo?: {
-    id: string;
-    title?: string | null;
-    caption?: string | null;
-    file_name?: string | null;
-  } | null;
   shareUrl?: string | null;
   qrCodeUrl?: string | null;
   qrCodeSvg?: string | null;
+  loPartner?: LoPartner | null;
   sourceDefaults?: Record<string, ListingSourceDefault>;
   performanceAnchorId?: string;
 }
@@ -188,19 +182,18 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
   onPublish,
   onTestLeadSubmit,
   stats = { leadsCaptured: 0, topSource: 'None', lastLeadAgo: 'N/A', showingRequestsCount: 0, showingRequestsBySource: [] },
-  latestVideo = null,
   shareUrl = null,
   qrCodeUrl = null,
   qrCodeSvg = null,
+  loPartner = null,
   sourceDefaults = {},
   performanceAnchorId = 'listing-performance'
 }) => {
   const [qrSource, setQrSource] = useState<ShareQrSource>('sign');
   const [isTestModalOpen, setIsTestModalOpen] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
-  const [copiedCaption, setCopiedCaption] = useState(false);
-  const [copiedFacebookPost, setCopiedFacebookPost] = useState(false);
-  const [copiedFacebookOpenHousePost, setCopiedFacebookOpenHousePost] = useState(false);
+  const [copiedFinancingLink, setCopiedFinancingLink] = useState(false);
+
   const [testName, setTestName] = useState('');
   const [testContact, setTestContact] = useState('');
   const [testSource, setTestSource] = useState<TestLeadSource>('sign');
@@ -228,6 +221,14 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
   const [openHouseFlyerSaving, setOpenHouseFlyerSaving] = useState(false);
 
   const noticeTimeoutRef = useRef<number | null>(null);
+  const qrAssetsBySourceRef = useRef(qrAssetsBySource);
+  qrAssetsBySourceRef.current = qrAssetsBySource;
+  const openHouseFlyerConfigRef = useRef(openHouseFlyerConfig);
+  openHouseFlyerConfigRef.current = openHouseFlyerConfig;
+  const propertyReportConfigRef = useRef(propertyReportConfig);
+  propertyReportConfigRef.current = propertyReportConfig;
+  const lightCmaConfigRef = useRef(lightCmaConfig);
+  lightCmaConfigRef.current = lightCmaConfig;
 
   const isDraft = listing.status === 'DRAFT';
   const baseUrl = 'https://homelistingai.com/l/';
@@ -250,13 +251,6 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
       .replace(/_/g, ' ')
       .replace(/\b\w/g, (char) => char.toUpperCase());
   }, [qrSource, trackedQrLink]);
-  const captionTemplate = `Just listed: ${listing.address} 🏡✨\nPrice: ${listing.price} | ${listing.beds} Beds | ${listing.baths} Baths\n\nGet the instant 1-page property report + request a showing right here: ${resolvedShareUrl || 'Live link unlocks after publish.'}`;
-  const facebookPostTemplate = `New listing in ${listing.address}.\n\n${listing.price} | ${listing.beds} beds | ${listing.baths} baths${listing.sqft ? ` | ${listing.sqft} sqft` : ''}\n\nTake a look at the full property page, get the report, and request a showing here:\n${resolvedShareUrl || 'Publish listing to unlock the live link.'}\n\nIf you want more details or want to schedule a private showing, message me directly.`;
-  const openHouseScheduleLine = [openHouseFlyerConfig.event_date, openHouseFlyerConfig.start_time, openHouseFlyerConfig.end_time]
-    .filter(Boolean)
-    .join(openHouseFlyerConfig.start_time && openHouseFlyerConfig.end_time ? ' • ' : ' ');
-  const facebookOpenHouseTemplate = `Open house at ${listing.address}.\n\n${openHouseScheduleLine || 'Come by and tour the home in person.'}\n\n${listing.price} | ${listing.beds} beds | ${listing.baths} baths${listing.sqft ? ` | ${listing.sqft} sqft` : ''}\n\nSee the full listing details and request a showing here:\n${resolvedShareUrl || 'Publish listing to unlock the live link.'}\n\nMessage me if you want a private showing or more details before the open house.`;
-  const effectiveVideoCaption = latestVideo?.caption?.trim() || captionTemplate;
   const shareLinkHostname = useMemo(() => {
     try {
       return new URL(resolvedShareUrl).hostname;
@@ -331,7 +325,7 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
 
   const ensureQrAsset = useCallback(
     async (sourceKey: ShareQrSource) => {
-      const cached = qrAssetsBySource[sourceKey];
+      const cached = qrAssetsBySourceRef.current[sourceKey];
       if (cached?.qr_code_url) return cached;
 
       if (isDraft) {
@@ -356,7 +350,7 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
         setQrLoading(false);
       }
     },
-    [buildQrAsset, isDraft, listing.id, qrAssetsBySource]
+    [buildQrAsset, isDraft, listing.id]
   );
 
   useEffect(() => {
@@ -456,9 +450,8 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
       showToast.success('Copied');
     } catch (err) {
       console.error('Failed to copy', err);
-      const errorCode = err instanceof Error ? err.message : 'copy_failed';
-      setTransientNotice('error', `Copy failed (${errorCode}).`);
-      showToast.error(`Could not copy (${errorCode}).`);
+      setTransientNotice('error', 'Could not copy — try selecting and copying manually.');
+      showToast.error('Could not copy to clipboard.');
     }
   };
 
@@ -480,36 +473,11 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
     }
   };
 
-  const handleDownloadSocialAsset = async (format: 'ig_post' | 'ig_story') => {
-    const fileName = `${flyerFileBase}-${format === 'ig_story' ? 'ig-story' : 'ig-post'}.png`;
-    try {
-      setExportingKey(fileName);
-      setTransientNotice('info', `Building ${fileName}...`);
-      await ensureQrAsset('social');
-      const { blob, fileName: resolvedFileName } = await listingShareKitService.getSocialAsset(listing.id, format);
-      listingShareKitService.saveBlobDownload(blob, resolvedFileName || fileName);
-      setTransientNotice('success', `${fileName} download started.`);
-      showToast.success('Downloaded');
-    } catch (error) {
-      console.error('Failed to create social asset', error);
-      const errorCode = error instanceof Error ? error.message : 'social_asset_failed';
-      if (errorCode === 'demo_export_unavailable_use_real_listing') {
-        setTransientNotice('info', 'Demo page is for layout only. Use your real listing page to download files.');
-        showToast.error('Use the real listing page for downloads.');
-      } else {
-        setTransientNotice('error', `Could not create ${fileName} (${errorCode}).`);
-        showToast.error(`Could not create image (${errorCode}).`);
-      }
-    } finally {
-      setExportingKey(null);
-    }
-  };
-
   const handleOpenOpenHouseFlyerModal = () => {
     setIsOpenHouseFlyerModalOpen(true);
   };
 
-  const handleOpenLightCmaModal = () => {
+  const _handleOpenLightCmaModal = () => {
     setIsLightCmaModalOpen(true);
   };
 
@@ -537,7 +505,7 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
     }
   };
 
-  const handleOpenPropertyReportModal = () => {
+  const _handleOpenPropertyReportModal = () => {
     setIsPropertyReportModalOpen(true);
   };
 
@@ -574,8 +542,8 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
   const handlePropertyReportPreview = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
     try {
       setPropertyReportPreviewing(true);
-      const response = await previewPropertyReport(listing.id, propertyReportConfig);
-      setPropertyReportConfig(response.config || propertyReportConfig);
+      const response = await previewPropertyReport(listing.id, propertyReportConfigRef.current);
+      setPropertyReportConfig(response.config || propertyReportConfigRef.current);
       if (!silent) {
         setTransientNotice('success', 'Preview refreshed.');
       }
@@ -589,13 +557,13 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
     } finally {
       setPropertyReportPreviewing(false);
     }
-  }, [listing.id, propertyReportConfig, setTransientNotice]);
+  }, [listing.id, setTransientNotice]);
 
   const handleOpenHouseFlyerPreview = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
     try {
       setOpenHouseFlyerPreviewing(true);
-      const response = await previewOpenHouseFlyer(listing.id, openHouseFlyerConfig);
-      setOpenHouseFlyerConfig(response.config || openHouseFlyerConfig);
+      const response = await previewOpenHouseFlyer(listing.id, openHouseFlyerConfigRef.current);
+      setOpenHouseFlyerConfig(response.config || openHouseFlyerConfigRef.current);
       if (!silent) {
         setTransientNotice('success', 'Open house preview refreshed.');
       }
@@ -609,13 +577,13 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
     } finally {
       setOpenHouseFlyerPreviewing(false);
     }
-  }, [listing.id, openHouseFlyerConfig, setTransientNotice]);
+  }, [listing.id, setTransientNotice]);
 
   const handleLightCmaPreview = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
     try {
       setLightCmaPreviewing(true);
-      const response = await previewLightCma(listing.id, lightCmaConfig);
-      setLightCmaConfig(response.config || lightCmaConfig);
+      const response = await previewLightCma(listing.id, lightCmaConfigRef.current);
+      setLightCmaConfig(response.config || lightCmaConfigRef.current);
       if (!silent) {
         setTransientNotice('success', 'Light CMA preview refreshed.');
       }
@@ -629,11 +597,11 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
     } finally {
       setLightCmaPreviewing(false);
     }
-  }, [lightCmaConfig, listing.id, setTransientNotice]);
+  }, [listing.id, setTransientNotice]);
 
   useEffect(() => {
     if (!isLightCmaModalOpen) return;
-    if (lightCmaLoading || lightCmaPreviewing || lightCmaSaving) return;
+    if (lightCmaLoading || lightCmaSaving) return;
     if (lightCmaPreviewReady) return;
 
     void handleLightCmaPreview({ silent: true });
@@ -642,13 +610,12 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
     isLightCmaModalOpen,
     lightCmaLoading,
     lightCmaPreviewReady,
-    lightCmaPreviewing,
     lightCmaSaving
   ]);
 
   useEffect(() => {
     if (!isPropertyReportModalOpen) return;
-    if (propertyReportLoading || propertyReportPreviewing || propertyReportSaving) return;
+    if (propertyReportLoading || propertyReportSaving) return;
     if (propertyReportPreviewReady) return;
 
     void handlePropertyReportPreview({ silent: true });
@@ -657,13 +624,12 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
     isPropertyReportModalOpen,
     propertyReportLoading,
     propertyReportPreviewReady,
-    propertyReportPreviewing,
     propertyReportSaving
   ]);
 
   useEffect(() => {
     if (!isOpenHouseFlyerModalOpen) return;
-    if (openHouseFlyerLoading || openHouseFlyerPreviewing || openHouseFlyerSaving) return;
+    if (openHouseFlyerLoading || openHouseFlyerSaving) return;
     if (openHouseFlyerPreviewReady) return;
 
     void handleOpenHouseFlyerPreview({ silent: true });
@@ -672,7 +638,6 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
     isOpenHouseFlyerModalOpen,
     openHouseFlyerLoading,
     openHouseFlyerPreviewReady,
-    openHouseFlyerPreviewing,
     openHouseFlyerSaving
   ]);
 
@@ -1114,35 +1079,13 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
           </div>
         </div>
 
-        <div className={`mb-8 ${isDraft ? 'opacity-50 pointer-events-none' : ''}`}>
-          <SocialVideoWidget
-            listingId={listing.id}
-            listingAddress={listing.address}
-            listingLink={resolvedShareUrl}
-          />
-        </div>
-
         <div className={`grid grid-cols-1 xl:grid-cols-[1.08fr,0.92fr] gap-6 ${isDraft ? 'opacity-50 pointer-events-none' : ''}`}>
           <div className="space-y-8">
             <div className="bg-[#040814] p-6 rounded-xl border border-slate-800">
-              <h3 className="text-white font-bold mb-2 text-lg">Reports + Print</h3>
-              <p className="text-slate-400 text-sm mb-5">Buyer reports, seller pricing, and print assets that route back to the same live listing and attribution path.</p>
+              <h3 className="text-white font-bold mb-2 text-lg">Print Assets</h3>
+              <p className="text-slate-400 text-sm mb-5">Print-ready marketing assets — each one uses the same live listing, tracked QR, and agent card.</p>
 
-              <div className="grid grid-cols-1 gap-4 mb-4 sm:grid-cols-2 xl:grid-cols-2">
-                <button
-                  onClick={handleOpenPropertyReportModal}
-                  disabled={Boolean(exportingKey) || propertyReportLoading}
-                  className="px-4 py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-lg transition-colors text-sm text-center border border-slate-700 disabled:opacity-60"
-                >
-                  {propertyReportLoading ? 'Loading...' : exportingKey === `${flyerFileBase}-property-report.pdf` ? 'Creating...' : 'Create Property Report (PDF)'}
-                </button>
-                <button
-                  onClick={handleOpenLightCmaModal}
-                  disabled={Boolean(exportingKey) || lightCmaLoading}
-                  className="px-4 py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-lg transition-colors text-sm text-center border border-slate-700 disabled:opacity-60"
-                >
-                  {lightCmaLoading ? 'Loading...' : exportingKey === `${flyerFileBase}-light-cma.pdf` ? 'Creating...' : 'Create Light CMA (PDF)'}
-                </button>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <button
                   onClick={handleOpenOpenHouseFlyerModal}
                   disabled={Boolean(exportingKey) || openHouseFlyerLoading}
@@ -1158,128 +1101,42 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
                   {exportingKey === `${flyerFileBase}-sign-rider.pdf` ? 'Creating...' : 'Create Sign Rider (PDF)'}
                 </button>
               </div>
-              <p className="text-slate-500 text-xs">Every report and print file uses the same live listing, tracked QR, and agent card.</p>
+            </div>
 
-              <div className="mt-5 rounded-xl border border-slate-800 bg-[#0B1121] p-4">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p className="text-sm font-bold text-white">Light CMA setup</p>
-                    <p className="text-xs text-slate-400">Open a guided sheet for pricing strategy, AI summary, and manual comps.</p>
+            {loPartner && (
+              <div className="bg-[#040814] p-6 rounded-xl border border-slate-800">
+                <h3 className="text-white font-bold mb-1 text-lg">LO Partner</h3>
+                <p className="text-slate-400 text-sm mb-5">Your LO is embedded on the listing page — buyers can get pre-qualified without ever leaving. Copy this link and send it to anyone with financing questions.</p>
+                <div className="flex items-center gap-4 mb-5">
+                  {loPartner.headshot_url ? (
+                    <img src={loPartner.headshot_url} alt={loPartner.name} className="w-12 h-12 rounded-full object-cover border border-slate-700 flex-shrink-0" />
+                  ) : (
+                    <div className="w-12 h-12 rounded-full bg-slate-700 flex items-center justify-center flex-shrink-0 text-white font-bold text-lg">
+                      {loPartner.name.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <p className="text-white font-bold text-sm truncate">{loPartner.name}</p>
+                    {loPartner.company && <p className="text-slate-400 text-xs truncate">{loPartner.company}</p>}
+                    {loPartner.nmls_number && <p className="text-slate-500 text-xs">NMLS #{loPartner.nmls_number}</p>}
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleOpenLightCmaModal}
-                    disabled={lightCmaLoading}
-                    className="rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-slate-800 disabled:opacity-60"
-                  >
-                    {lightCmaLoading ? 'Loading...' : 'Open Light CMA Setup'}
-                  </button>
+                  {loPartner.chatbot_active && (
+                    <span className="ml-auto flex-shrink-0 rounded-full bg-emerald-900/50 border border-emerald-700 px-2.5 py-1 text-[11px] font-bold text-emerald-400">Chatbot On</span>
+                  )}
                 </div>
-              </div>
-            </div>
-
-            <div className="bg-[#040814] p-6 rounded-xl border border-slate-800">
-              <h3 className="text-white font-bold mb-4 text-lg">Traffic Drivers</h3>
-              <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <div className="rounded-lg border border-slate-800 bg-[#0B1121] p-3">
-                  <p className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-500">Formats</p>
-                  <p className="mt-2 text-sm font-semibold text-white">IG + Facebook</p>
-                </div>
-                <div className="rounded-lg border border-slate-800 bg-[#0B1121] p-3">
-                  <p className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-500">Copy</p>
-                  <p className="mt-2 text-sm font-semibold text-white">Ready to paste</p>
-                </div>
-                <div className="rounded-lg border border-slate-800 bg-[#0B1121] p-3">
-                  <p className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-500">Video</p>
-                  <p className="mt-2 text-sm font-semibold text-white">{latestVideo ? 'Ready to share' : 'Generate first'}</p>
-                </div>
-              </div>
-
-              <div className="flex flex-col sm:flex-row gap-4 mb-6">
                 <button
-                  onClick={() => void handleDownloadSocialAsset('ig_post')}
-                  disabled={Boolean(exportingKey)}
-                  className="flex-1 px-4 py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-lg transition-colors text-sm text-center border border-slate-700 disabled:opacity-60"
+                  onClick={() => void handleCopy(
+                    resolvedShareUrl ? `${resolvedShareUrl}${resolvedShareUrl.includes('?') ? '&' : '?'}src=financing` : '',
+                    setCopiedFinancingLink
+                  )}
+                  disabled={!resolvedShareUrl}
+                  className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition-colors text-sm disabled:opacity-40"
                 >
-                  {exportingKey === `${flyerFileBase}-ig-post.png` ? 'Creating...' : 'Create IG Post'}
-                </button>
-                <button
-                  onClick={() => void handleDownloadSocialAsset('ig_post')}
-                  disabled={Boolean(exportingKey)}
-                  className="flex-1 px-4 py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-lg transition-colors text-sm text-center border border-slate-700 disabled:opacity-60"
-                >
-                  {exportingKey === `${flyerFileBase}-ig-post.png` ? 'Creating...' : 'Create Facebook Image'}
-                </button>
-                <button
-                  onClick={() => void handleDownloadSocialAsset('ig_story')}
-                  disabled={Boolean(exportingKey)}
-                  className="flex-1 px-4 py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-lg transition-colors text-sm text-center border border-slate-700 disabled:opacity-60"
-                >
-                  {exportingKey === `${flyerFileBase}-ig-story.png` ? 'Creating...' : 'Create IG Story'}
+                  {copiedFinancingLink ? '✓ Copied!' : 'Copy Pre-Qual + Financing Link'}
                 </button>
               </div>
+            )}
 
-              <div className="bg-[#0B1121] rounded-lg p-4 border border-slate-800">
-                <div className="flex justify-between items-center mb-3">
-                  <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">Caption Template</span>
-                  <button
-                    onClick={() => void handleCopy(captionTemplate, setCopiedCaption)}
-                    className="text-blue-500 text-xs font-bold hover:text-blue-400"
-                  >
-                    {copiedCaption ? 'Copied!' : 'Copy Caption'}
-                  </button>
-                </div>
-                <p className="text-slate-300 text-sm whitespace-pre-wrap font-mono">{captionTemplate}</p>
-              </div>
-
-              <div className="mt-4 bg-[#0B1121] rounded-lg p-4 border border-slate-800">
-                <div className="flex justify-between items-center mb-3">
-                  <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">Facebook Post · Just Listed</span>
-                  <button
-                    onClick={() => void handleCopy(facebookPostTemplate, setCopiedFacebookPost)}
-                    className="text-blue-500 text-xs font-bold hover:text-blue-400"
-                  >
-                    {copiedFacebookPost ? 'Copied!' : 'Copy Facebook Post'}
-                  </button>
-                </div>
-                <p className="text-slate-300 text-sm whitespace-pre-wrap font-mono">{facebookPostTemplate}</p>
-              </div>
-
-              <div className="mt-4 bg-[#0B1121] rounded-lg p-4 border border-slate-800">
-                <div className="flex justify-between items-center mb-3">
-                  <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">Facebook Post · Open House</span>
-                  <button
-                    onClick={() => void handleCopy(facebookOpenHouseTemplate, setCopiedFacebookOpenHousePost)}
-                    className="text-blue-500 text-xs font-bold hover:text-blue-400"
-                  >
-                    {copiedFacebookOpenHousePost ? 'Copied!' : 'Copy Open House Post'}
-                  </button>
-                </div>
-                <p className="text-slate-300 text-sm whitespace-pre-wrap font-mono">{facebookOpenHouseTemplate}</p>
-              </div>
-
-              {latestVideo ? (
-                <div className="mt-4 rounded-lg border border-slate-800 bg-[#0B1121] p-4">
-                  <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Video Share</p>
-                  <p className="mt-2 text-sm text-slate-300">{latestVideo.title || 'Listing video is ready to share.'}</p>
-                  <VideoShareActions
-                    videoId={latestVideo.id}
-                    fileName={latestVideo.file_name || `${listing.slug}.mp4`}
-                    captionText={effectiveVideoCaption}
-                    listingLink={resolvedShareUrl}
-                  />
-                </div>
-              ) : (
-                <div className="mt-4 rounded-lg border border-slate-800 bg-[#0B1121] p-4">
-                  <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Video Share</p>
-                  <p className="mt-2 text-sm text-slate-400">No video ready yet. Generate a listing video to enable Share + Download.</p>
-                </div>
-              )}
-
-              {exportingKey ? (
-                <p className="mt-4 text-xs font-semibold text-blue-300">Preparing your file now. Your download should start in a second.</p>
-              ) : null}
-            </div>
           </div>
 
           <div className="space-y-8">

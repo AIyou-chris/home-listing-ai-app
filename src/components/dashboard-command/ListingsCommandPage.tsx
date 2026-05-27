@@ -1,14 +1,15 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { useDemoMode, buildDashboardPath } from '../../demo/useDemoMode'
+import { useDemoMode } from '../../demo/useDemoMode'
+import { useBlueprintMode } from '../../demo/useBlueprintMode'
 import { supabase } from '../../services/supabase'
 import { buildApiUrl } from '../../lib/api'
 import { fetchListingShareKit } from '../../services/dashboardCommandService'
 import { subscribeDashboardInvalidation } from '../../services/dashboardInvalidation'
 import { createListingDraft } from '../../services/listingBuilderService'
 import { listingsService } from '../../services/listingsService'
-import { listLocalListingDrafts, saveLocalListingDraft } from '../../services/listingDraftStorage'
+import { listLocalListingDrafts, saveLocalListingDraft, clearAllLocalListingDrafts } from '../../services/listingDraftStorage'
 
 type ListingRow = {
   id: string
@@ -72,25 +73,10 @@ const ListingsCommandPage: React.FC = () => {
   const navigate = useNavigate()
   const location = useLocation()
   const demoMode = useDemoMode()
-  const [loading, setLoading] = useState(true)
+  const blueprintMode = useBlueprintMode()
+  const [loading, setLoading] = useState(!blueprintMode)
 
-  // LOs have their own listings page — redirect on mount
-  useEffect(() => {
-    supabase.auth.getUser().then(async ({ data }) => {
-      if (!data.user?.id) return;
-      try {
-        const res = await fetch(buildApiUrl('/api/onboarding'), {
-          headers: { 'x-user-id': data.user.id }
-        });
-        const json = await res.json();
-        if (json?.account_type === 'lo') {
-          navigate(buildDashboardPath('/lo-listings'), { replace: true });
-        }
-      } catch {
-        // non-fatal — stay on this page
-      }
-    });
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // LOs can now create their own listings — no redirect needed
   const [creatingDraft, setCreatingDraft] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [markingSoldId, setMarkingSoldId] = useState<string | null>(null)
@@ -162,19 +148,29 @@ const ListingsCommandPage: React.FC = () => {
           }
         })
       )
-      const localDraftRows: ListingRow[] = listLocalListingDrafts().map((draft) => ({
-        id: draft.id,
-        title: draft.title || 'Draft Listing',
-        address: draft.address || DEFAULT_LISTING_ADDRESS,
-        price: draft.price,
-        bedrooms: draft.bedrooms,
-        bathrooms: draft.bathrooms,
-        squareFeet: draft.squareFeet,
-        heroPhoto: draft.photos[0] || null,
-        isPublished: false,
-        statusLabel: 'Draft',
-        shareUrl: null
-      }))
+
+      // If we got real listings from the API, clear stale local session drafts —
+      // they're ghost entries from previous failed draft attempts.
+      if (kits.length > 0) {
+        clearAllLocalListingDrafts()
+      }
+
+      const localDraftRows: ListingRow[] = kits.length === 0
+        ? listLocalListingDrafts().map((draft) => ({
+            id: draft.id,
+            title: draft.title || 'Draft Listing',
+            address: draft.address || DEFAULT_LISTING_ADDRESS,
+            price: draft.price,
+            bedrooms: draft.bedrooms,
+            bathrooms: draft.bathrooms,
+            squareFeet: draft.squareFeet,
+            heroPhoto: draft.photos[0] || null,
+            isPublished: false,
+            statusLabel: 'Draft' as const,
+            shareUrl: null
+          }))
+        : []
+
       const merged = [...localDraftRows, ...kits].reduce<ListingRow[]>((acc, row) => {
         if (acc.some((item) => item.id === row.id)) return acc
         acc.push(row)
@@ -211,8 +207,9 @@ const ListingsCommandPage: React.FC = () => {
   }, [demoMode])
 
   useEffect(() => {
+    if (blueprintMode) return
     void loadRows()
-  }, [loadRows])
+  }, [loadRows, blueprintMode])
 
   const sortedRows = useMemo(
     () =>
@@ -224,10 +221,11 @@ const ListingsCommandPage: React.FC = () => {
     [rows]
   )
 
-  const dashboardRoot = useMemo(
-    () => (location.pathname.startsWith('/dashboard') ? '/dashboard' : '/demo-dashboard'),
-    [location.pathname]
-  )
+  const dashboardRoot = useMemo(() => {
+    if (location.pathname.startsWith('/blueprint-dashboard')) return '/blueprint-dashboard'
+    if (location.pathname.startsWith('/dashboard')) return '/dashboard'
+    return '/demo-dashboard'
+  }, [location.pathname])
 
   const appendDemoQuery = useMemo(
     () => (demoMode && dashboardRoot === '/dashboard' ? '?demo=1' : ''),
@@ -246,7 +244,7 @@ const ListingsCommandPage: React.FC = () => {
   const handleCreateDraft = async () => {
     setCreatingDraft(true)
     try {
-      if (demoMode) {
+      if (demoMode || blueprintMode) {
         saveDraftAndNavigate()
         return
       }
@@ -384,16 +382,45 @@ const ListingsCommandPage: React.FC = () => {
       )}
 
       {!loading && sortedRows.length === 0 && (
-        <div className="rounded-xl border border-slate-200 bg-white p-6">
-          <p className="text-base font-semibold text-slate-900">No listings yet</p>
-          <button
-            type="button"
-            onClick={handleCreateDraft}
-            disabled={creatingDraft}
-            className="mt-3 rounded-md bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white"
-          >
-            {creatingDraft ? 'Creating…' : 'Create your first listing'}
-          </button>
+        <div className="grid gap-4 sm:grid-cols-2">
+          {/* Example listing card — shown when agent has no listings yet */}
+          <article className="relative overflow-hidden rounded-xl border-2 border-dashed border-primary-200 bg-white shadow-sm">
+            <div className="relative">
+              <img
+                src="https://images.unsplash.com/photo-1568605114967-8130f3a36994?q=80&w=800&auto=format&fit=crop"
+                alt="Example listing"
+                className="h-48 w-full object-cover opacity-80"
+              />
+              <span className="absolute top-3 right-3 rounded-full bg-primary-600 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white shadow">
+                Example
+              </span>
+            </div>
+            <div className="space-y-3 p-4">
+              <div className="flex items-start justify-between gap-2">
+                <p className="text-base font-semibold text-slate-900">24 Maple Street, Austin, TX 78701</p>
+              </div>
+              <p className="text-sm font-semibold text-slate-900">$685,000</p>
+              <p className="text-xs text-slate-500">4 bd • 3 ba • 2,400 sqft</p>
+              <p className="text-xs text-slate-400 italic">This is what your listing will look like once you build it.</p>
+              <div className="flex flex-wrap gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => window.open('/partner-invite/demo', '_blank')}
+                  className="rounded-md border border-primary-200 bg-primary-50 px-3 py-1.5 text-xs font-semibold text-primary-700 hover:bg-primary-100 transition-colors"
+                >
+                  See how it works
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCreateDraft}
+                  disabled={creatingDraft}
+                  className="rounded-md bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-700 transition-colors disabled:opacity-50"
+                >
+                  {creatingDraft ? 'Creating…' : 'Build your first listing'}
+                </button>
+              </div>
+            </div>
+          </article>
         </div>
       )}
 

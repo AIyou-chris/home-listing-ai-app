@@ -27,6 +27,8 @@ export interface AgentProfile {
   };
   // Additional fields that might be needed across the app
   licenseNumber?: string;
+  nmlsNumber?: string;
+  accountType?: string;
   yearsExperience?: number;
   specialties?: string[];
   serviceAreas?: string[];

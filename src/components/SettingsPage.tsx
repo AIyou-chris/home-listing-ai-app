@@ -217,10 +217,31 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                             </div>
                         )}
                         {activeTab === 'profile' && (
-                            <ProfileSettings
-                                userProfile={userProfile}
-                                onSave={isDemoMode ? async () => { } : onSaveProfile}
-                            />
+                            <>
+                                <ProfileSettings
+                                    userProfile={userProfile}
+                                    onSave={isDemoMode ? async () => { } : onSaveProfile}
+                                />
+                                {/* Billing shortcut — second access point */}
+                                <div className="mx-6 mb-6 mt-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setActiveTab('billing')}
+                                        className="w-full flex items-center justify-between gap-4 rounded-2xl border border-primary-200 bg-primary-50 px-5 py-4 text-left hover:bg-primary-100 transition-colors group"
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary-600 text-white">
+                                                <span className="material-symbols-outlined text-[18px]">credit_card</span>
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-bold text-primary-900">Billing &amp; Plan</p>
+                                                <p className="text-xs text-primary-600">View your plan, upgrade, or manage your subscription</p>
+                                            </div>
+                                        </div>
+                                        <span className="material-symbols-outlined text-primary-400 group-hover:text-primary-600 transition-colors">chevron_right</span>
+                                    </button>
+                                </div>
+                            </>
                         )}
                         {activeTab === 'notifications' && (
                             <NotificationSettingsPage

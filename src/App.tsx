@@ -2,7 +2,7 @@ import React, { useState, useEffect, Suspense, lazy, useCallback, useRef } from 
 import { Routes, Route, useNavigate, useLocation, Navigate, Outlet, useParams } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from './services/supabase';
-import { Property, View, AgentProfile, NotificationSettings, EmailSettings, CalendarSettings, BillingSettings, Lead, Appointment, Interaction } from './types';
+import { Property, View, AgentProfile, NotificationSettings, EmailSettings, CalendarSettings, SecuritySettings, BillingSettings, Lead, Appointment, Interaction } from './types';
 import { DEMO_FAT_PROPERTIES, DEMO_FAT_LEADS, DEMO_FAT_APPOINTMENTS } from './demoConstants';
 import { SAMPLE_AGENT, SAMPLE_INTERACTIONS } from './constants';
 const LandingPage = lazy(() => import('./components/LandingPage'));
@@ -31,9 +31,11 @@ const ListingEditorPage = lazy(() => import('./components/dashboard-command/List
 const BillingCommandPage = lazy(() => import('./components/dashboard-command/BillingCommandPage'));
 const OnboardingCommandPage = lazy(() => import('./components/dashboard-command/OnboardingCommandPage'));
 const LOOnboardingPage = lazy(() => import('./components/dashboard-command/LOOnboardingPage'));
+const LOTodayPage = lazy(() => import('./components/dashboard-command/LOTodayPage'));
 const LOListingsPage = lazy(() => import('./components/dashboard-command/LOListingsPage'));
 const LOPartnersPage = lazy(() => import('./components/dashboard-command/LOPartnersPage'));
 const LOChatbotSetupPage = lazy(() => import('./components/dashboard-command/LOChatbotSetupPage'));
+const LOLeadsPage = lazy(() => import('./components/dashboard-command/LOLeadsPage'));
 const AgentClaimPage = lazy(() => import('./pages/AgentClaimPage'))
 const PartnerInvitePage = lazy(() => import('./pages/PartnerInvitePage'))
 const ListingDashboardPage = lazy(() => import('./pages/ListingDashboardPage'))
@@ -212,7 +214,7 @@ const RequireRole: React.FC<{ requiredRole: Exclude<AppRole, null> }> = ({ requi
 };
 
 const DashboardRouteGate = () => {
-    const [routeTarget, setRouteTarget] = useState<'loading' | 'today' | 'onboarding' | 'lo-onboarding'>('loading');
+    const [routeTarget, setRouteTarget] = useState<'loading' | 'today' | 'lo-today' | 'onboarding' | 'lo-onboarding'>('loading');
 
     useEffect(() => {
         let cancelled = false;
@@ -223,17 +225,18 @@ const DashboardRouteGate = () => {
                     new Promise<null>((resolve) => setTimeout(() => resolve(null), 1500))
                 ]);
                 if (cancelled) return;
+                const accountType = (onboarding as { account_type?: string } | null)?.account_type;
+                const isLO = accountType === 'lo';
                 if (!onboarding) {
                     setRouteTarget('today');
                     return;
                 }
                 if (onboarding.onboarding_completed) {
-                    setRouteTarget('today');
+                    setRouteTarget(isLO ? 'lo-today' : 'today');
                     return;
                 }
-                // Route LOs to the LO-specific onboarding flow
-                const accountType = (onboarding as { account_type?: string }).account_type;
-                if (accountType === 'lo' || !accountType) {
+                // Route to account-specific onboarding
+                if (isLO) {
                     setRouteTarget('lo-onboarding');
                 } else {
                     setRouteTarget('onboarding');
@@ -256,6 +259,10 @@ const DashboardRouteGate = () => {
                 <LoadingSpinner size="lg" type="dots" text="Loading your dashboard..." />
             </div>
         );
+    }
+
+    if (routeTarget === 'lo-today') {
+        return <Navigate to="/dashboard/lo-today" replace />;
     }
 
     if (routeTarget === 'lo-onboarding') {
@@ -621,8 +628,8 @@ const App: React.FC = () => {
         weeklyReport: true,
         monthlyInsights: true
     });
-    const [_emailSettings, setEmailSettings] = useState<EmailSettings>({ integrationType: 'oauth', aiEmailProcessing: true, autoReply: true, leadScoring: true, followUpSequences: true });
-    const [_calendarSettings, setCalendarSettings] = useState<CalendarSettings>({
+    const [emailSettings, setEmailSettings] = useState<EmailSettings>({ integrationType: 'oauth', aiEmailProcessing: true, autoReply: true, leadScoring: true, followUpSequences: true });
+    const [calendarSettings, setCalendarSettings] = useState<CalendarSettings>({
         integrationType: 'google',
         aiScheduling: true,
         conflictDetection: true,
@@ -634,6 +641,12 @@ const App: React.FC = () => {
         bufferTime: 15,
         smsReminders: true,
         newAppointmentAlerts: true
+    });
+    const [securitySettings, setSecuritySettings] = useState<SecuritySettings>({
+        loginNotifications: true,
+        sessionTimeout: 24,
+        analyticsEnabled: true,
+        twoFactorEnabled: false
     });
     const [billingSettings, setBillingSettings] = useState<BillingSettings>({ planName: 'Free Tier', history: [] });
     // Removed unused state variables
@@ -892,14 +905,14 @@ const App: React.FC = () => {
                     });
                 }
 
-                // 3. Load User Settings (Notifications, Calendar, Billing, Email)
+                // 3. Load User Settings (Notifications, Calendar, Billing, Email, Security)
                 try {
-                    console.log('⚙️ Loading user settings...');
-                    const [notifRes, calRes, billRes, emailRes] = await Promise.allSettled([
+                    const [notifRes, calRes, billRes, emailRes, secRes] = await Promise.allSettled([
                         notificationSettingsService.fetch(currentUser.uid),
                         calendarSettingsService.fetch(currentUser.uid),
                         billingSettingsService.get(currentUser.uid),
-                        emailSettingsService.fetch(currentUser.uid)
+                        emailSettingsService.fetch(currentUser.uid),
+                        securitySettingsService.fetch(currentUser.uid)
                     ]);
 
                     if (notifRes.status === 'fulfilled' && notifRes.value.settings) {
@@ -914,7 +927,9 @@ const App: React.FC = () => {
                     if (emailRes.status === 'fulfilled' && emailRes.value.settings) {
                         setEmailSettings(emailRes.value.settings);
                     }
-                    console.log('✅ User settings loaded');
+                    if (secRes.status === 'fulfilled' && secRes.value.settings) {
+                        setSecuritySettings(secRes.value.settings);
+                    }
                 } catch (settingsError) {
                     console.warn('Failed to load user settings:', settingsError);
                 }
@@ -1444,6 +1459,20 @@ const App: React.FC = () => {
                         await notificationSettingsService.update(user.uid, settings);
                     }
                 }}
+                emailSettings={emailSettings}
+                onSaveEmailSettings={async (settings) => {
+                    setEmailSettings(settings);
+                    if (user?.uid) {
+                        await emailSettingsService.update(user.uid, settings);
+                    }
+                }}
+                calendarSettings={calendarSettings}
+                onSaveCalendarSettings={async (settings) => {
+                    setCalendarSettings(settings);
+                    if (user?.uid) {
+                        await calendarSettingsService.update(user.uid, settings);
+                    }
+                }}
                 billingSettings={billingSettings}
                 onSaveBillingSettings={async (settings) => {
                     setBillingSettings(settings);
@@ -1452,8 +1481,13 @@ const App: React.FC = () => {
                     }
                 }}
                 onBackToDashboard={() => navigate('/dashboard')}
-                securitySettings={{}}
-                onSaveSecuritySettings={async () => { }}
+                securitySettings={securitySettings}
+                onSaveSecuritySettings={async (settings) => {
+                    setSecuritySettings(settings);
+                    if (user?.uid) {
+                        await securitySettingsService.update(user.uid, settings);
+                    }
+                }}
                 isBlueprintMode={isBlueprintMode}
                 isDemoMode={isDemoMode}
                 initialTab={initialTab}
@@ -1570,6 +1604,7 @@ const App: React.FC = () => {
                     <Route path="/demo-dashboard" element={<DemoDashboardLayout />}>
                         <Route index element={<Navigate to="/demo-dashboard/today" replace />} />
                         <Route path="today" element={<TodayDashboardPage />} />
+                        <Route path="lo-today" element={<LOTodayPage />} />
                         <Route path="command-center" element={<ConversionDashboardHome />} />
                         <Route path="leads" element={<LeadsInboxCommandPage />} />
                         <Route path="leads/:leadId" element={<LeadDetailCommandPage />} />
@@ -1580,6 +1615,7 @@ const App: React.FC = () => {
                         <Route path="lo-listings" element={<LOListingsPage />} />
                         <Route path="lo-partners" element={<LOPartnersPage />} />
                         <Route path="lo-chatbot" element={<LOChatbotSetupPage />} />
+                        <Route path="lo-leads" element={<LOLeadsPage />} />
                         <Route path="office" element={<OfficeDashboardPage />} />
                         <Route path="gallery/:listingId" element={<DemoAssetGalleryPage />} />
                         <Route path="gallery" element={<DemoAssetGalleryPage />} />
@@ -1591,6 +1627,7 @@ const App: React.FC = () => {
                     <Route path="/blueprint-dashboard" element={<BlueprintDashboardLayout />}>
                         <Route index element={<Navigate to="/blueprint-dashboard/today" replace />} />
                         <Route path="today" element={<TodayDashboardPage />} />
+                        <Route path="lo-today" element={<LOTodayPage />} />
                         <Route path="command-center" element={<ConversionDashboardHome />} />
                         <Route path="leads" element={<LeadsInboxCommandPage />} />
                         <Route path="leads/:leadId" element={<LeadDetailCommandPage />} />
@@ -1600,6 +1637,8 @@ const App: React.FC = () => {
                         <Route path="listings/:listingId/edit" element={<ListingEditorPage />} />
                         <Route path="lo-listings" element={<LOListingsPage />} />
                         <Route path="lo-partners" element={<LOPartnersPage />} />
+                        <Route path="lo-chatbot" element={<LOChatbotSetupPage />} />
+                        <Route path="lo-leads" element={<LOLeadsPage />} />
                         <Route path="billing" element={<BillingCommandPage />} />
                         <Route path="onboarding" element={<OnboardingCommandPage />} />
                         <Route path="lo-onboarding" element={<LOOnboardingPage />} />
@@ -1688,6 +1727,7 @@ const App: React.FC = () => {
                         <Route path="/daily-pulse" element={<Navigate to="/dashboard/today" replace />} />
 
                         <Route path="/dashboard/today" element={<TodayDashboardPage />} />
+                        <Route path="/dashboard/lo-today" element={<LOTodayPage />} />
                         <Route path="/dashboard/command-center" element={<ConversionDashboardHome />} />
                         <Route path="/dashboard/leads" element={<LeadsInboxCommandPage />} />
                         <Route path="/dashboard/leads/:leadId" element={<LeadDetailCommandPage />} />
@@ -1698,6 +1738,7 @@ const App: React.FC = () => {
                         <Route path="/dashboard/lo-listings" element={<LOListingsPage />} />
                         <Route path="/dashboard/lo-partners" element={<LOPartnersPage />} />
                         <Route path="/dashboard/lo-chatbot" element={<LOChatbotSetupPage />} />
+                        <Route path="/dashboard/lo-leads" element={<LOLeadsPage />} />
                         <Route path="/dashboard/office" element={<OfficeDashboardPage />} />
                         <Route path="/dashboard/billing" element={<Navigate to="/dashboard/settings/billing" replace />} />
                         <Route path="/dashboard/onboarding" element={<OnboardingCommandPage />} />

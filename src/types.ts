@@ -24,6 +24,8 @@ export interface AgentProfile {
     payment_status?: string;
     trial_warning_sent?: boolean;
     recovery_email_sent?: boolean;
+    nmlsNumber?: string;
+    accountType?: string;
 }
 
 export interface AIDescription {

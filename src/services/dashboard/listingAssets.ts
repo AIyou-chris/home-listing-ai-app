@@ -13,6 +13,16 @@ export interface ListingSourceDefault {
   source_key: string;
 }
 
+export interface LoPartner {
+  name: string;
+  company: string | null;
+  headshot_url: string | null;
+  nmls_number: string | null;
+  email: string | null;
+  phone: string | null;
+  chatbot_active: boolean;
+}
+
 export interface ListingShareKitResponse {
   success: boolean;
   listing_id: string;
@@ -22,15 +32,7 @@ export interface ListingShareKitResponse {
   share_url: string | null;
   qr_code_url: string | null;
   qr_code_svg: string | null;
-  latest_video?: {
-    id: string;
-    title: string | null;
-    caption: string | null;
-    file_name: string | null;
-    mime_type: string;
-    status: string;
-    created_at: string | null;
-  } | null;
+  lo_partner?: LoPartner | null;
   source_defaults: Record<string, ListingSourceDefault>;
 }
 
@@ -177,13 +179,14 @@ const downloadListingBinaryAsset = async (
     demoPath?: string;
   } = {}
 ) => {
-  const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
+  const isDemo = isDemoModeActive();
+  const agentId = isDemo ? null : (agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride);
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(query)) {
     if (value) params.set(key, value);
   }
   const queryString = params.toString();
-  const resolvedPath = isDemoModeActive()
+  const resolvedPath = isDemo
     ? `${options.demoPath || path}${queryString ? `?${queryString}` : ''}`
     : withAgentQuery(`${path}${queryString ? `?${queryString}` : ''}`, agentId);
   const response = await fetch(

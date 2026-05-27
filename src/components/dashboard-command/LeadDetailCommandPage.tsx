@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { buildDashboardPath, useDemoMode } from '../../demo/useDemoMode';
+import { useBlueprintMode } from '../../demo/useBlueprintMode';
 import {
   DashboardLeadConversationMessage,
   DashboardLeadAppointment,
@@ -34,6 +35,7 @@ const LeadDetailCommandPage: React.FC = () => {
   const { leadId = '' } = useParams<{ leadId: string }>();
   const navigate = useNavigate();
   const demoMode = useDemoMode();
+  const blueprintMode = useBlueprintMode();
   const realtimeLead = useDashboardRealtimeStore((state) => (leadId ? state.leadsById[leadId] : undefined));
   const appointmentsById = useDashboardRealtimeStore((state) => state.appointmentsById);
   const [detail, setDetail] = useState<DashboardLeadDetail | null>(null);
@@ -90,7 +92,7 @@ const LeadDetailCommandPage: React.FC = () => {
     action: 'call_clicked' | 'email_clicked' | 'lead_opened' | 'status_changed' | 'appointment_created' | 'appointment_updated',
     metadata?: Record<string, unknown>
   ) => {
-    if (!leadId) return;
+    if (!leadId || blueprintMode || demoMode) return;
     await logDashboardAgentAction({
       lead_id: leadId,
       action,
@@ -100,6 +102,10 @@ const LeadDetailCommandPage: React.FC = () => {
 
   const load = useCallback(async (refreshIntel = false) => {
     if (!leadId) return;
+    if (blueprintMode) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
 
@@ -117,7 +123,7 @@ const LeadDetailCommandPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [leadId]);
+  }, [leadId, blueprintMode]);
 
   useEffect(() => {
     void load(true);

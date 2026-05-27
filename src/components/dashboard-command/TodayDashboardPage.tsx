@@ -3,7 +3,6 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { buildDashboardPath, useDemoMode } from '../../demo/useDemoMode'
 import LOTodayPage from './LOTodayPage'
 import { buildBlueprintPath, useBlueprintMode } from '../../demo/useBlueprintMode'
-import { BLUEPRINT_PROPERTIES } from '../../constants/agentBlueprintData'
 import {
   fetchDashboardAppointments,
   fetchDashboardLeads,
@@ -14,13 +13,24 @@ import {
   type DashboardLeadItem,
   type ListingShareKitResponse
 } from '../../services/dashboardCommandService'
-import { fetchDashboardBilling, createBillingCheckoutSession, type DashboardBillingSnapshot } from '../../services/dashboardBillingService'
+import { createBillingCheckoutSession } from '../../services/dashboardBillingService'
 import { PENDING_PLAN_KEY } from '../ComparePlansModal'
 import { fetchOnboardingState, type OnboardingState } from '../../services/onboardingService'
 import { listingsService } from '../../services/listingsService'
 import { useDashboardRealtimeStore } from '../../state/useDashboardRealtimeStore'
 import { showToast } from '../../utils/toastService'
 import TodayROIStrip from '../dashboard-widgets/TodayROIStrip'
+import { buildApiUrl } from '../../lib/api'
+import { supabase } from '../../services/supabase'
+
+interface LoInfo {
+  name: string
+  email: string | null
+  phone: string | null
+  company: string | null
+  headshotUrl: string | null
+  nmlsNumber: string | null
+}
 
 const containerCardClass = 'rounded-2xl border border-slate-200 bg-white p-5 shadow-sm'
 
@@ -66,38 +76,18 @@ const dayPart = () => {
   return 'evening'
 }
 
-const percentUsed = (used?: number, limit?: number) => {
-  const safeLimit = Math.max(0, Number(limit || 0))
-  const safeUsed = Math.max(0, Number(used || 0))
-  if (safeLimit <= 0) return 0
-  return Math.min(100, Math.round((safeUsed / safeLimit) * 100))
-}
-
-const formatWarningLine = (billing: DashboardBillingSnapshot, key: string) => {
-  const meter = billing.usage?.[key as keyof DashboardBillingSnapshot['usage']]
-  if (!meter) return null
-  const used = Number(meter.used || 0)
-  const limit = Number(meter.limit || 0)
-  if (limit <= 0) return null
-  if (key === 'active_listings') return `Active listings: ${used}/${limit} used`
-  if (key === 'reports_per_month') return `Reports: ${used}/${limit} used`
-  if (key === 'reminder_calls_per_month') return `Reminder calls: ${used}/${limit} used`
-  if (key === 'stored_leads_cap') return `Stored leads: ${used}/${limit} used`
-  return null
-}
 
 const TodayDashboardPage: React.FC = () => {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const demoMode = useDemoMode()
   const blueprintMode = useBlueprintMode()
-  const [accountType, setAccountType] = useState<string | null>(null)
-
-  useEffect(() => {
-    fetchOnboardingState()
-      .then(s => setAccountType(s?.account_type || 'realtor'))
-      .catch(() => setAccountType('realtor'))
-  }, [])
+  // Read from localStorage immediately (same key Sidebar uses) so the correct
+  // dashboard renders on first paint — no flash of the wrong view.
+  const ACCT_KEY = 'hla_account_type'
+  const [accountType, setAccountType] = useState<string>(
+    () => localStorage.getItem(ACCT_KEY) || 'realtor'
+  )
 
   // Unified nav helper — routes to the correct base path regardless of mode
   const navTo = useCallback((path: string) => {
@@ -117,10 +107,12 @@ const TodayDashboardPage: React.FC = () => {
   const [onboarding, setOnboarding] = useState<OnboardingState | null>(null)
   const [recentListing, setRecentListing] = useState<RecentListing | null>(null)
   const [shareKit, setShareKit] = useState<ListingShareKitResponse | null>(null)
-  const [billing, setBilling] = useState<DashboardBillingSnapshot | null>(null)
+const [partnerLo, setPartnerLo] = useState<LoInfo | null>(null)
+  const [loFetchDone, setLoFetchDone] = useState(false)
   const hasFetchedInitialStateRef = useRef(false)
   const fetchInFlightRef = useRef(false)
   const isMountedRef = useRef(true)
+  const gridRef = useRef<HTMLElement>(null)
 
   // ── Banner state ──────────────────────────────────────────────────────────
   // ?upgraded=true or ?checkout=success → show upgrade success banner
@@ -169,45 +161,63 @@ const TodayDashboardPage: React.FC = () => {
     setLoading(true)
     setError(null)
     try {
-      const [leadRes, appointmentRes, listings, onboardingState, billingSnapshot] = await Promise.all([
+      const [leadRes, appointmentRes, listings, onboardingState] = await Promise.all([
         fetchDashboardLeads({ tab: 'New', sort: 'hot_first' }),
         fetchDashboardAppointments({ view: 'today' }),
         listingsService.listProperties(),
-        fetchOnboardingState().catch(() => null),
-        fetchDashboardBilling().catch(() => null)
+        fetchOnboardingState().catch(() => null)
       ])
 
       if (!isMountedRef.current) return
       setInitialLeads(leadRes.leads || [])
       setInitialAppointments(appointmentRes.appointments || [])
       setOnboarding(onboardingState)
-      setBilling(billingSnapshot)
+
+      // Sync account type from the single onboarding fetch (no second API call needed)
+      if (onboardingState?.account_type) {
+        const t = onboardingState.account_type
+        localStorage.setItem(ACCT_KEY, t)
+        setAccountType(t)
+
+        // Agents: fetch the LO who invited them
+        if (t === 'agent') {
+          supabase.auth.getSession().then(({ data: sess }) => {
+            const token = sess.session?.access_token
+            fetch(buildApiUrl('/api/agent/my-lo'), {
+              headers: token ? { Authorization: `Bearer ${token}` } : {}
+            })
+              .then(r => r.json())
+              .then((d: { success?: boolean; lo?: LoInfo | null }) => {
+                if (!isMountedRef.current) return
+                if (d.success && d.lo) setPartnerLo(d.lo)
+                setLoFetchDone(true)
+              })
+              .catch(() => { if (isMountedRef.current) setLoFetchDone(true) })
+          })
+        }
+      }
 
       const listingRows = listings || []
       if (listingRows.length > 0) {
-        let selectedListing = listingRows[0]
-        let selectedKit: ListingShareKitResponse | null = null
         const listingSample = listingRows.slice(0, 5)
 
-        for (const listing of listingSample) {
-          // Prefer first published listing so Share Kit actions are immediately useful.
-          const kit = await fetchListingShareKit(listing.id).catch(() => null)
-          if (!selectedKit && listing.id === selectedListing.id) {
-            selectedKit = kit
-          }
-          if (kit?.is_published) {
-            selectedListing = listing
-            selectedKit = kit
-            break
-          }
+        // Fetch all share kits in parallel instead of serially
+        const kits = await Promise.all(
+          listingSample.map(l => fetchListingShareKit(l.id).catch(() => null))
+        )
+
+        // Prefer first published listing; fall back to first listing
+        let selectedIdx = 0
+        for (let i = 0; i < kits.length; i++) {
+          if (kits[i]?.is_published) { selectedIdx = i; break }
         }
 
         if (!isMountedRef.current) return
         setRecentListing({
-          id: selectedListing.id,
-          address: selectedListing.address || 'Listing'
+          id: listingSample[selectedIdx].id,
+          address: listingSample[selectedIdx].address || 'Listing'
         })
-        setShareKit(selectedKit)
+        setShareKit(kits[selectedIdx])
       } else {
         if (!isMountedRef.current) return
         setRecentListing(null)
@@ -231,11 +241,7 @@ const TodayDashboardPage: React.FC = () => {
 
     if (blueprintMode) {
       // Blueprint mode: skip all API calls (no auth, would 401).
-      // Show one example listing in Share Kit; leads + appointments stay empty.
-      const bp = BLUEPRINT_PROPERTIES[0]
-      if (bp) {
-        setRecentListing({ id: bp.id, address: bp.address || '123 Inspiration Way, Future City, CA 90210' })
-      }
+      // recentListing stays null — the Share Kit section shows the example listing card instead.
       setLoading(false)
       return
     }
@@ -248,6 +254,18 @@ const TodayDashboardPage: React.FC = () => {
     return () => {
       isMountedRef.current = false
     }
+  }, [])
+
+  // Responsive 2-column grid — triggers at lg (1024px) with proper cleanup
+  useEffect(() => {
+    const el = gridRef.current
+    if (!el) return
+    const update = () => {
+      el.style.gridTemplateColumns = window.innerWidth >= 1024 ? 'minmax(0, 2fr) minmax(0, 1fr)' : 'minmax(0, 1fr)'
+    }
+    update()
+    window.addEventListener('resize', update)
+    return () => window.removeEventListener('resize', update)
   }, [])
 
   useEffect(() => {
@@ -279,8 +297,7 @@ const TodayDashboardPage: React.FC = () => {
       .filter((appointment) => {
         const startsAt = new Date(appointment.startsAt || appointment.startIso || '').getTime()
         if (Number.isNaN(startsAt)) return false
-        if (startsAt < now || startsAt > next24h) return false
-        return String(appointment.status || '').toLowerCase() !== 'confirmed'
+        return startsAt >= now && startsAt <= next24h
       })
       .sort((a, b) => {
         const aTs = new Date(a.startsAt || a.startIso || 0).getTime()
@@ -292,19 +309,11 @@ const TodayDashboardPage: React.FC = () => {
 
   const greetingName = useMemo(() => {
     const fullName = onboarding?.brand_profile?.full_name?.trim()
-    if (!fullName) return 'there'
-    return fullName.split(' ')[0] || 'there'
+    if (!fullName) return ''
+    return fullName.split(' ')[0] || ''
   }, [onboarding?.brand_profile?.full_name])
 
-  const billingWarningLines = useMemo(() => {
-    if (!billing) return []
-    return (billing.warnings || [])
-      .filter((warning) => Number(warning.percent || 0) >= 80 && Number(warning.percent || 0) < 100)
-      .map((warning) => formatWarningLine(billing, warning.key))
-      .filter((line): line is string => Boolean(line))
-  }, [billing])
-
-  const handleCopyLink = async () => {
+const handleCopyLink = async () => {
     if (!shareKit?.share_url) return
     try {
       await navigator.clipboard.writeText(shareKit.share_url)
@@ -315,11 +324,13 @@ const TodayDashboardPage: React.FC = () => {
   }
 
   const handleOpenLead = async (leadId: string) => {
-    await logDashboardAgentAction({
-      lead_id: leadId,
-      action: 'lead_opened',
-      metadata: { source: 'today_dashboard' }
-    }).catch(() => undefined)
+    if (!demoMode && !blueprintMode) {
+      await logDashboardAgentAction({
+        lead_id: leadId,
+        action: 'lead_opened',
+        metadata: { source: 'today_dashboard' }
+      }).catch(() => undefined)
+    }
     navTo(`/leads/${leadId}`)
   }
 
@@ -367,12 +378,12 @@ const TodayDashboardPage: React.FC = () => {
     <div className="mx-auto max-w-7xl space-y-6 px-4 py-6 md:px-8">
       <header>
         <h1 className="text-3xl font-bold text-slate-900">Today</h1>
-        <p className="mt-1 text-base text-slate-700">Good {dayPart()}, {greetingName}.</p>
-        <p className="mt-1 text-sm text-slate-500">Here’s what needs your attention right now.</p>
+        <p className="mt-1 text-base text-slate-700">Good {dayPart()}{greetingName ? `, ${greetingName}` : ''}.</p>
+        <p className="mt-1 text-sm text-slate-500">Here's what needs your attention right now.</p>
       </header>
 
       {/* ── Upgrade success banner (?upgraded=true / ?checkout=success) ─────── */}
-      {showUpgradedBanner && !demoMode && !blueprintMode && (
+      {showUpgradedBanner && !demoMode && !blueprintMode && accountType !== 'agent' && (
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 flex items-start gap-4">
           <span className="material-symbols-outlined text-emerald-500 text-2xl shrink-0 mt-0.5">celebration</span>
           <div className="flex-1">
@@ -386,12 +397,12 @@ const TodayDashboardPage: React.FC = () => {
       )}
 
       {/* ── Pending plan upgrade banner (set by ComparePlansModal) ──────────── */}
-      {pendingPlan && !loading && !demoMode && !blueprintMode && (
+      {pendingPlan && !loading && !demoMode && !blueprintMode && accountType !== 'agent' && (
         <div className="rounded-2xl border border-primary-200 bg-primary-50 p-5 flex items-start gap-4">
           <span className="material-symbols-outlined text-primary-500 text-2xl shrink-0 mt-0.5">workspace_premium</span>
           <div className="flex-1">
-            <h2 className="text-base font-bold text-primary-900">Complete your {pendingPlan === 'pro' ? 'Pro' : 'Starter'} upgrade</h2>
-            <p className="mt-0.5 text-sm text-primary-700">You selected the {pendingPlan === 'pro' ? 'Team ($79/mo)' : 'Pro ($39/mo)'} plan. Finish checkout to unlock all your features.</p>
+            <h2 className="text-base font-bold text-primary-900">Complete your {pendingPlan === 'pro' ? 'Pro' : 'Starter'} plan upgrade</h2>
+            <p className="mt-0.5 text-sm text-primary-700">You selected the {pendingPlan === 'pro' ? 'Pro ($79/mo)' : 'Starter ($39/mo)'} plan. Finish checkout to unlock all your features.</p>
             <div className="mt-3 flex gap-2">
               <button
                 type="button"
@@ -399,7 +410,7 @@ const TodayDashboardPage: React.FC = () => {
                 disabled={isStartingCheckout}
                 className="rounded-md bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700 transition-colors disabled:opacity-60"
               >
-                {isStartingCheckout ? 'Opening checkout…' : `Activate ${pendingPlan === 'pro' ? 'Team' : 'Pro'} →`}
+                {isStartingCheckout ? 'Opening checkout…' : `Activate ${pendingPlan === 'pro' ? 'Pro' : 'Starter'} →`}
               </button>
               <button type="button" onClick={dismissPendingPlan} className="rounded-md border border-primary-300 bg-white px-4 py-2 text-sm font-semibold text-primary-700 hover:bg-primary-50">
                 Maybe later
@@ -412,8 +423,8 @@ const TodayDashboardPage: React.FC = () => {
         </div>
       )}
 
-      {/* Welcome banner — brand new agents only (no listing yet, onboarding pending, real dashboard) */}
-      {!loading && !blueprintMode && !demoMode && onboarding && !onboarding.onboarding_completed && !recentListing && (
+      {/* Welcome banner — brand new realtors only (no listing yet, onboarding pending, real dashboard) */}
+      {!loading && !blueprintMode && !demoMode && accountType !== 'agent' && onboarding && !onboarding.onboarding_completed && !recentListing && (
         <div className="rounded-2xl border border-primary-200 bg-primary-50 p-5">
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1">
@@ -453,11 +464,15 @@ const TodayDashboardPage: React.FC = () => {
 
       <TodayROIStrip />
 
+      {loading && (
+        <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-500">Loading Today…</div>
+      )}
+
       {error && (
         <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>
       )}
 
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+      <section className="grid gap-4" ref={gridRef}>
         <div className="space-y-4">
           <article className={containerCardClass}>
             <button
@@ -481,7 +496,19 @@ const TodayDashboardPage: React.FC = () => {
             {leadsOpen && <div className="mt-4 space-y-3">
               {newLeads.length === 0 ? (
                 <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4">
-                  {!blueprintMode && !demoMode && onboarding && !onboarding.onboarding_checklist.first_listing_created ? (
+                  {accountType === 'agent' ? (
+                    <>
+                      <p className="font-semibold text-slate-900">No new leads yet.</p>
+                      <p className="mt-1 text-sm text-slate-500">Add a listing and publish it — buyers will start coming in automatically.</p>
+                      <button
+                        type="button"
+                        onClick={() => navTo('/listings')}
+                        className="mt-3 rounded-md bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white"
+                      >
+                        Add a listing
+                      </button>
+                    </>
+                  ) : !blueprintMode && !demoMode && onboarding && !onboarding.onboarding_checklist.first_listing_created ? (
                     <>
                       <p className="font-semibold text-slate-900">No leads yet — that's expected.</p>
                       <p className="mt-1 text-sm text-slate-500">Publish your first listing and leads start flowing in automatically.</p>
@@ -559,7 +586,7 @@ const TodayDashboardPage: React.FC = () => {
             >
               <div>
                 <h2 className="text-lg font-semibold text-slate-900">Appointments Coming Up</h2>
-                <p className="mt-1 text-sm text-slate-500">Confirm these to reduce no-shows.</p>
+                <p className="mt-1 text-sm text-slate-500">Your showings in the next 24 hours.</p>
               </div>
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -573,7 +600,19 @@ const TodayDashboardPage: React.FC = () => {
             {appointmentsOpen && <div className="mt-4 space-y-3">
               {upcomingAppointments.length === 0 ? (
                 <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4">
-                  {!blueprintMode && !demoMode && onboarding && !onboarding.onboarding_checklist.first_listing_created ? (
+                  {accountType === 'agent' ? (
+                    <>
+                      <p className="font-semibold text-slate-900">No showings today.</p>
+                      <p className="mt-1 text-sm text-slate-500">Once your listing is live, buyers can request showings and they'll appear here.</p>
+                      <button
+                        type="button"
+                        onClick={() => navTo('/appointments')}
+                        className="mt-3 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700"
+                      >
+                        View all appointments
+                      </button>
+                    </>
+                  ) : !blueprintMode && !demoMode && onboarding && !onboarding.onboarding_checklist.first_listing_created ? (
                     <>
                       <p className="font-semibold text-slate-900">Showings start here.</p>
                       <p className="mt-1 text-sm text-slate-500">Once your listing is live, buyers can request showings and they'll appear here.</p>
@@ -598,9 +637,11 @@ const TodayDashboardPage: React.FC = () => {
                     <p className="text-xs text-slate-500">{appointment.listing?.address || 'No listing address'}</p>
                     <div className="mt-2 flex items-center justify-between">
                       <p className="text-xs text-slate-500">{toLocalTime(appointment.startsAt || appointment.startIso)}</p>
-                      <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
-                        {appointmentBadge(appointment)}
-                      </span>
+                      {String(appointment.status || '').toLowerCase() === 'confirmed' ? (
+                        <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-800">Confirmed</span>
+                      ) : (
+                        <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800">{appointmentBadge(appointment)}</span>
+                      )}
                     </div>
                     <button
                       type="button"
@@ -652,14 +693,43 @@ const TodayDashboardPage: React.FC = () => {
             <p className="mt-1 text-sm text-slate-500">Copy your link or download a QR in seconds.</p>
             <div className="mt-4">
               {!recentListing ? (
-                <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4">
-                  <p className="font-semibold text-slate-900">No listings yet</p>
+                <div className="space-y-3">
+                  {/* Example listing — shows what the share kit looks like before they build one */}
+                  <div className="relative rounded-lg border border-primary-100 bg-primary-50/40 p-4 overflow-hidden">
+                    {/* Example badge */}
+                    <span className="absolute top-3 right-3 rounded-full bg-primary-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary-700">
+                      Example
+                    </span>
+
+                    <p className="text-sm font-semibold text-slate-900 pr-20">24 Maple Street, Austin, TX 78701</p>
+                    <p className="mt-1 text-xs text-slate-500">4 bed · 3 bath · 2,400 sqft · Listed at $685,000</p>
+
+                    {/* Fake share URL preview */}
+                    <div className="mt-3 flex items-center gap-2 rounded-md bg-white border border-slate-200 px-3 py-2">
+                      <span className="material-symbols-outlined text-[15px] text-primary-500 shrink-0">link</span>
+                      <p className="text-xs text-slate-400 truncate">homelistingai.com/l/maple-austin-demo</p>
+                    </div>
+
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => window.open('/partner-invite/demo', '_blank')}
+                        className="rounded-md border border-primary-200 bg-white px-3 py-1.5 text-xs font-semibold text-primary-700 transition hover:bg-primary-50"
+                      >
+                        See how it works
+                      </button>
+                    </div>
+
+                    {/* Subtle shimmer overlay to signal it's not real */}
+                    <div className="absolute inset-0 rounded-lg pointer-events-none border-2 border-dashed border-primary-200 opacity-50" />
+                  </div>
+
                   <button
                     type="button"
                     onClick={() => navTo('/listings')}
-                    className="mt-3 rounded-md bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90"
+                    className="w-full rounded-md bg-primary-600 px-3 py-2.5 text-xs font-semibold text-white transition-opacity hover:opacity-90"
                   >
-                    Create your first listing
+                    + Build your first listing
                   </button>
                 </div>
               ) : (
@@ -667,16 +737,32 @@ const TodayDashboardPage: React.FC = () => {
                   <div className="flex items-start justify-between gap-2">
                     <p className="text-sm font-semibold text-slate-900">{recentListing.address}</p>
                     <span
-                      className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${shareKit?.is_published ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
-                        }`}
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-semibold shrink-0 ${shareKit?.is_published ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}
                     >
                       {shareKit?.is_published ? 'Published' : 'Draft'}
                     </span>
                   </div>
+
+                  {/* LO branding strip — agents only, when LO info available */}
+                  {accountType === 'agent' && partnerLo && (
+                    <div className="mt-2 flex items-center gap-2 rounded-md bg-blue-50 border border-blue-100 px-2.5 py-1.5">
+                      {partnerLo.headshotUrl ? (
+                        <img src={partnerLo.headshotUrl} alt={partnerLo.name} className="h-5 w-5 rounded-full object-cover shrink-0" />
+                      ) : (
+                        <div className="h-5 w-5 rounded-full bg-primary-600 flex items-center justify-center text-white text-[9px] font-bold shrink-0">
+                          {partnerLo.name[0]}
+                        </div>
+                      )}
+                      <p className="text-[11px] text-blue-700 font-medium truncate">
+                        {partnerLo.name} · {partnerLo.company || 'Loan Officer'} featured on this listing
+                      </p>
+                    </div>
+                  )}
+
                   {shareKit?.is_published ? (
                     <>
                       {shareKit.share_url && (
-                        <p className="mt-1 line-clamp-2 text-xs text-slate-500">{shareKit.share_url}</p>
+                        <p className="mt-2 line-clamp-1 text-xs text-slate-400 break-all">{shareKit.share_url}</p>
                       )}
                       <div className="mt-3 flex flex-wrap gap-2">
                         <button
@@ -706,7 +792,7 @@ const TodayDashboardPage: React.FC = () => {
                     </>
                   ) : (
                     <>
-                      <p className="mt-1 text-xs text-slate-500">This listing is still a draft.</p>
+                      <p className="mt-2 text-xs text-slate-500">This listing is still a draft. Publish it to start capturing leads.</p>
                       <div className="mt-3 flex flex-wrap gap-2">
                         <button
                           type="button"
@@ -717,7 +803,7 @@ const TodayDashboardPage: React.FC = () => {
                         </button>
                         <button
                           type="button"
-                          onClick={() => navTo('/listings')}
+                          onClick={() => navTo(`/listings/${recentListing.id}`)}
                           className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700"
                         >
                           Open listing
@@ -730,97 +816,59 @@ const TodayDashboardPage: React.FC = () => {
             </div>
           </article>
 
-          <article className={containerCardClass}>
-            {!blueprintMode && !demoMode && (
-              <div className="mb-4 rounded-xl border border-primary-200 bg-primary-50 p-4">
-                <p className="text-base font-bold text-primary-900">Upgrade your plan</p>
-                <p className="mt-1 text-sm text-primary-700">Unlock more listings, video credits, team branding, compliance tools.</p>
-                <button
-                  type="button"
-                  onClick={() => navTo('/settings/billing')}
-                  className="mt-3 rounded-md bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white"
-                >
-                  View plans
-                </button>
-              </div>
-            )}
 
-            <h2 className="text-lg font-semibold text-slate-900">Plan & Limits</h2>
-            <p className="mt-1 text-sm text-slate-500">Clear limits. No surprise charges.</p>
-            <div className="mt-4 space-y-3">
-              {billing ? (
-                <>
-                  {billing.plan.id === 'free' && (
-                    <p className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
-                      On Free plan — 1 listing / 1 report
-                    </p>
-                  )}
-
-                  {[
-                    ['Active listings', billing.usage.active_listings.used, billing.usage.active_listings.limit],
-                    ['Reports this month', billing.usage.reports_per_month.used, billing.usage.reports_per_month.limit],
-                    ...(billing.plan.id === 'pro'
-                      ? [['Reminder calls', billing.usage.reminder_calls_per_month.used, billing.usage.reminder_calls_per_month.limit] as const]
-                      : [])
-                  ].map(([label, used, limit]) => (
-                    <div key={label}>
-                      <div className="mb-1 flex items-center justify-between text-xs">
-                        <span className="text-slate-600">{label}</span>
-                        <span className="font-semibold text-slate-700">
-                          {used}/{limit}
-                        </span>
+          {/* ── Your Loan Officer — agents only ─────────────────────────────────── */}
+          {accountType === 'agent' && (
+            <article className={containerCardClass}>
+              <h2 className="text-lg font-semibold text-slate-900">Your Loan Officer</h2>
+              <p className="mt-1 text-sm text-slate-500">Your mortgage partner on every deal.</p>
+              {partnerLo ? (
+                <div className="mt-4">
+                  <div className="flex items-center gap-3">
+                    {partnerLo.headshotUrl ? (
+                      <img src={partnerLo.headshotUrl} alt={partnerLo.name} className="h-12 w-12 rounded-full object-cover border-2 border-slate-200 shrink-0" />
+                    ) : (
+                      <div className="h-12 w-12 rounded-full bg-primary-600 flex items-center justify-center text-white font-bold text-lg shrink-0">
+                        {partnerLo.name[0]}
                       </div>
-                      <div className="h-2 rounded-full bg-slate-100">
-                        <div
-                          className="h-2 rounded-full bg-primary-600"
-                          style={{ width: `${percentUsed(Number(used), Number(limit))}%` }}
-                        />
-                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-slate-900 truncate">{partnerLo.name}</p>
+                      {partnerLo.company && <p className="text-xs text-slate-500 truncate">{partnerLo.company}</p>}
+                      {partnerLo.nmlsNumber && <p className="text-xs text-blue-600 mt-0.5">NMLS #{partnerLo.nmlsNumber}</p>}
                     </div>
-                  ))}
-
-                  {billingWarningLines.length > 0 && (
-                    <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                      <p className="font-semibold">You’re close to your limit.</p>
-                      <p>Upgrade to keep everything running without interruptions.</p>
-                      <div className="mt-1 space-y-0.5">
-                        {billingWarningLines.map((line) => (
-                          <p key={line}>{line}</p>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {(billing.plan.id === 'free' || billingWarningLines.length > 0) && (
-                    <button
-                    type="button"
-                    onClick={() => navTo('/settings/billing')}
-                      className="rounded-md bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white"
-                    >
-                      View plans
-                    </button>
-                  )}
-                </>
-              ) : blueprintMode ? (
-                <div className="space-y-3">
-                  <p className="text-xs text-slate-600">
-                    Your plan and usage limits will appear here once you sign up.
-                  </p>
-                  <div className="h-2 rounded-full bg-slate-100">
-                    <div className="h-2 w-0 rounded-full bg-primary-600" />
                   </div>
-                  <a
-                    href="/#signup"
-                    className="inline-block rounded-md bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white"
-                  >
-                    Start your app
-                  </a>
+                  <div className="mt-4 space-y-2">
+                    {partnerLo.phone && (
+                      <a href={`tel:${partnerLo.phone}`} className="flex items-center gap-2 text-sm text-slate-700 hover:text-primary-600 transition-colors">
+                        <span className="material-symbols-outlined text-[18px] text-slate-400">call</span>
+                        {partnerLo.phone}
+                      </a>
+                    )}
+                    {partnerLo.email && (
+                      <a href={`mailto:${partnerLo.email}`} className="flex items-center gap-2 text-sm text-slate-700 hover:text-primary-600 transition-colors">
+                        <span className="material-symbols-outlined text-[18px] text-slate-400">mail</span>
+                        {partnerLo.email}
+                      </a>
+                    )}
+                  </div>
+                  <div className="mt-4 rounded-lg bg-blue-50 border border-blue-100 px-3 py-2.5">
+                    <p className="text-xs text-blue-700 font-medium">Buyer leads from your listings go directly to {partnerLo.name.split(' ')[0]}.</p>
+                  </div>
+                </div>
+              ) : loFetchDone ? (
+                <div className="mt-4 rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4">
+                  <p className="text-sm font-medium text-slate-700">No loan officer assigned yet.</p>
+                  <p className="mt-1 text-xs text-slate-500">Your LO will appear here once they send you a WOW link invitation.</p>
                 </div>
               ) : (
-                <p className="text-xs text-slate-500">Loading plan usage...</p>
+                <div className="mt-4 space-y-2">
+                  <div className="h-4 w-2/3 animate-pulse rounded bg-slate-100" />
+                  <div className="h-3 w-1/2 animate-pulse rounded bg-slate-100" />
+                </div>
               )}
-            </div>
-          </article>
+            </article>
+          )}
 
           {/* Launch Checklist at BOTTOM — only once they have a listing (already moved to top before that) */}
           {onboarding && !onboarding.onboarding_completed && recentListing && (
@@ -853,10 +901,6 @@ const TodayDashboardPage: React.FC = () => {
           )}
         </div>
       </section>
-
-      {loading && (
-        <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-500">Loading Today…</div>
-      )}
     </div>
   )
 }

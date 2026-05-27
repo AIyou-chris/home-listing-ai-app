@@ -63,9 +63,22 @@ export interface UpdateSourceInput {
   trained_at?: string | null
 }
 
+type ListingAgentProfile = {
+  first_name?: string
+  last_name?: string
+  email?: string
+  phone?: string
+  headshot_url?: string
+  company?: string
+  nmls_number?: string
+  title?: string
+}
+
 type ListingPayloadResponse = {
   listing: ListingBuilderRecord
   brain_sources?: ListingSourceApi[]
+  viewer_role?: 'owner' | 'lo'
+  listing_agent_profile?: ListingAgentProfile | null
 }
 
 type ListingSourceApiType = 'text' | 'file' | 'url'
@@ -193,7 +206,9 @@ export const fetchListingBuilderPayload = async (listingId: string, agentIdOverr
   const payload = await parseResponse<ListingPayloadResponse>(response)
   return {
     listing: payload.listing,
-    brain_sources: (payload.brain_sources || []).map(mapSource)
+    brain_sources: (payload.brain_sources || []).map(mapSource),
+    viewer_role: payload.viewer_role || 'owner',
+    listing_agent_profile: payload.listing_agent_profile ?? null
   }
 }
 

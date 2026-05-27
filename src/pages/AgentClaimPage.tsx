@@ -92,7 +92,13 @@ const AgentClaimPage: React.FC = () => {
       <div className="max-w-sm w-full text-center">
         <div className="text-6xl mb-4">🎉</div>
         <h1 className="text-white font-bold text-2xl mb-2">You're in!</h1>
-        <p className="text-slate-400 text-sm">Your account is ready. Redirecting to sign in…</p>
+        <p className="text-slate-400 text-sm mb-6">Your account is ready. Sign in to see your listing dashboard.</p>
+        <button
+          onClick={() => navigate('/signin')}
+          className="w-full rounded-2xl bg-white py-3.5 text-[15px] font-extrabold text-slate-900 shadow-md transition-all hover:bg-slate-100 active:scale-[0.99]"
+        >
+          Sign In to My Dashboard →
+        </button>
       </div>
     </div>
   )

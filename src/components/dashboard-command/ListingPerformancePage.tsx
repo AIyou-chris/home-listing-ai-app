@@ -224,10 +224,10 @@ const ListingPerformancePage: React.FC = () => {
           sqft: listingDetails?.sqft ?? '-',
           photos: listingDetails?.photos || []
         }}
-        latestVideo={shareKit?.latest_video || null}
         shareUrl={shareKit?.share_url || null}
         qrCodeUrl={shareKit?.qr_code_url || null}
         qrCodeSvg={shareKit?.qr_code_svg || null}
+        loPartner={shareKit?.lo_partner || null}
         sourceDefaults={shareKit?.source_defaults || {}}
         stats={shareKitStats || undefined}
         performanceAnchorId="listing-performance"

@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+
 import { useDemoMode } from '../../demo/useDemoMode'
 import { buildApiUrl } from '../../lib/api'
 import { supabase } from '../../services/supabase'
 import { showToast } from '../../utils/toastService'
 import LOROIWidget from '../dashboard-widgets/LOROIWidget'
+import ExportButton from '../ExportButton'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -40,6 +41,26 @@ interface PendingInvite {
   email: string
   name: string | null
   sentAt: string
+  company: string
+  phone: string
+  website: string
+  notes: string
+  lastViewedAt: string | null
+  viewCount: number
+  followUpAt: string | null
+}
+
+// ─── Pending Invite Metadata (localStorage) ───────────────────────────────────
+
+const INVITE_META_KEY = 'lo_invite_meta'
+type InviteMetaEntry = { company: string; phone: string; website: string; notes: string }
+type InviteMeta = Record<string, InviteMetaEntry>
+
+const loadInviteMeta = (): InviteMeta => {
+  try { return JSON.parse(localStorage.getItem(INVITE_META_KEY) || '{}') } catch { return {} }
+}
+const saveInviteMeta = (meta: InviteMeta) => {
+  localStorage.setItem(INVITE_META_KEY, JSON.stringify(meta))
 }
 
 // ─── Demo Data ────────────────────────────────────────────────────────────────
@@ -69,7 +90,7 @@ const DEMO_PARTNERS: Partner[] = [
 ]
 
 const DEMO_PENDING: PendingInvite[] = [
-  { id: 'i1', email: 'mike@realty.com', name: 'Mike Johnson', sentAt: new Date(Date.now() - 2 * 3600000).toISOString() }
+  { id: 'i1', email: 'mike@realty.com', name: 'Mike Johnson', sentAt: new Date(Date.now() - 2 * 3600000).toISOString(), company: 'Compass Austin', phone: '', website: '', notes: '', lastViewedAt: new Date(Date.now() - 45 * 60000).toISOString(), viewCount: 3, followUpAt: null }
 ]
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -251,6 +272,214 @@ const InviteModal: React.FC<{ onClose: () => void; onSent: (wowLink: string) => 
           </>
         )}
       </div>
+    </div>
+  )
+}
+
+// ─── Pending Invite Card ──────────────────────────────────────────────────────
+
+const PendingInviteCard: React.FC<{ invite: PendingInvite }> = ({ invite }) => {
+  const demoMode = useDemoMode()
+  const [expanded, setExpanded] = useState(false)
+  const [fields, setFields] = useState<InviteMetaEntry>({
+    company: invite.company || '',
+    phone: invite.phone || '',
+    website: invite.website || '',
+    notes: invite.notes || ''
+  })
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [followUpAt, setFollowUpAt] = useState<string | null>(invite.followUpAt)
+  const [settingReminder, setSettingReminder] = useState(false)
+
+  const hasData = !!(fields.company || fields.phone || fields.website || fields.notes)
+
+  const wasOpened = !!invite.lastViewedAt
+  const isOverdue = followUpAt && new Date(followUpAt) < new Date()
+  const isDueSoon = followUpAt && !isOverdue && (new Date(followUpAt).getTime() - Date.now()) < 24 * 3600000
+
+  const save = async () => {
+    setSaving(true)
+    try {
+      if (demoMode) {
+        const meta = loadInviteMeta()
+        meta[invite.email.toLowerCase()] = fields
+        saveInviteMeta(meta)
+      } else {
+        const { data: { user } } = await supabase.auth.getUser()
+        const res = await fetch(buildApiUrl(`/api/lo/partners/invite/${invite.id}`), {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', 'x-user-id': user?.id || '' },
+          body: JSON.stringify(fields)
+        })
+        if (!res.ok) throw new Error('save_failed')
+      }
+      setSaved(true)
+      setTimeout(() => setSaved(false), 1800)
+    } catch {
+      showToast.error('Failed to save — try again')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const setReminder = async (daysFromNow: number | null) => {
+    const newDate = daysFromNow === null ? null : new Date(Date.now() + daysFromNow * 86400000).toISOString()
+    setSettingReminder(true)
+    try {
+      if (!demoMode) {
+        const { data: { user } } = await supabase.auth.getUser()
+        const res = await fetch(buildApiUrl(`/api/lo/partners/invite/${invite.id}/reminder`), {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', 'x-user-id': user?.id || '' },
+          body: JSON.stringify({ followUpAt: newDate })
+        })
+        if (!res.ok) throw new Error('failed')
+      }
+      setFollowUpAt(newDate)
+      showToast.success(newDate ? `Reminder set for ${new Date(newDate).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}` : 'Reminder cleared')
+    } catch {
+      showToast.error('Failed to set reminder')
+    } finally {
+      setSettingReminder(false)
+    }
+  }
+
+  return (
+    <div className="rounded-xl border border-amber-200 bg-white overflow-hidden transition-all">
+      {/* Main row */}
+      <div className="flex items-center gap-3 px-4 py-3">
+        {/* Avatar */}
+        <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 font-bold text-sm flex-shrink-0">
+          {((invite.name || invite.email)[0] || '?').toUpperCase()}
+        </div>
+
+        {/* Info */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-sm font-semibold text-slate-800 truncate">{invite.name || invite.email}</p>
+            {/* Opened badge */}
+            {wasOpened ? (
+              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700">
+                👁 Opened {toRelativeTime(invite.lastViewedAt!)}
+                {invite.viewCount > 1 && ` · ${invite.viewCount}×`}
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-slate-400">
+                Not opened yet
+              </span>
+            )}
+            {/* Reminder badge */}
+            {followUpAt && (
+              <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                isOverdue
+                  ? 'bg-red-50 border-red-200 text-red-600'
+                  : isDueSoon
+                  ? 'bg-amber-50 border-amber-200 text-amber-600'
+                  : 'bg-sky-50 border-sky-200 text-sky-600'
+              }`}>
+                {isOverdue ? '⚠️' : '⏰'} {isOverdue ? 'Overdue · ' : ''}{new Date(followUpAt).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-slate-500 truncate mt-0.5">
+            {invite.name ? invite.email + ' · ' : ''}sent {toRelativeTime(invite.sentAt)}
+            {hasData && <span className="ml-1.5 text-primary-500 font-semibold">· notes added</span>}
+          </p>
+        </div>
+
+        {/* Status + expand toggle */}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <span className="text-xs text-amber-600 font-semibold">Awaiting claim</span>
+          <button
+            onClick={() => setExpanded(e => !e)}
+            className={`w-7 h-7 flex items-center justify-center rounded-full transition-all ${
+              expanded ? 'bg-slate-100 text-slate-700' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'
+            }`}
+            title={expanded ? 'Collapse' : 'Add contact info'}
+          >
+            <svg
+              className={`w-3.5 h-3.5 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`}
+              fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      {/* Slide-down panel */}
+      {expanded && (
+        <div className="border-t border-amber-100 bg-slate-50 px-4 py-4 space-y-4">
+
+          {/* Follow-up reminder */}
+          <div>
+            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-2">Follow-up Reminder</p>
+            <div className="flex items-center gap-2 flex-wrap">
+              {([2, 7, 14] as const).map(days => (
+                <button
+                  key={days}
+                  onClick={() => setReminder(days)}
+                  disabled={settingReminder}
+                  className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:border-primary-300 hover:bg-primary-50 hover:text-primary-700 transition-all disabled:opacity-50"
+                >
+                  ⏰ {days === 2 ? '2 days' : days === 7 ? '1 week' : '2 weeks'}
+                </button>
+              ))}
+              {followUpAt && (
+                <button
+                  onClick={() => setReminder(null)}
+                  disabled={settingReminder}
+                  className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-400 hover:border-red-200 hover:text-red-500 transition-all disabled:opacity-50"
+                >
+                  × Clear
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Contact details */}
+          <div className="space-y-3">
+            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">Contact Details</p>
+            <input
+              className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-400 bg-white"
+              placeholder="Company / Brokerage"
+              value={fields.company}
+              onChange={e => setFields(f => ({ ...f, company: e.target.value }))}
+            />
+            <input
+              className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-400 bg-white"
+              placeholder="Phone number"
+              type="tel"
+              value={fields.phone}
+              onChange={e => setFields(f => ({ ...f, phone: e.target.value }))}
+            />
+            <input
+              className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-400 bg-white"
+              placeholder="Website (e.g. chrisrealtor.com)"
+              type="url"
+              value={fields.website}
+              onChange={e => setFields(f => ({ ...f, website: e.target.value }))}
+            />
+            <textarea
+              className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-400 bg-white resize-none"
+              placeholder="Notes — referral source, market they work, conversation summary…"
+              rows={3}
+              value={fields.notes}
+              onChange={e => setFields(f => ({ ...f, notes: e.target.value }))}
+            />
+            <button
+              onClick={save}
+              disabled={saving}
+              className={`w-full rounded-lg py-2.5 text-xs font-bold transition-all disabled:opacity-60 ${
+                saved ? 'bg-emerald-500 text-white' : 'bg-primary-600 hover:bg-primary-700 text-white'
+              }`}
+            >
+              {saving ? 'Saving…' : saved ? '✓ Saved' : 'Save Info'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -451,20 +680,25 @@ const PartnerDetail: React.FC<{ partner: Partner; onClose: () => void }> = ({ pa
           </div>
         </div>
 
-        {/* Referral link */}
-        <div className="rounded-xl border border-slate-200 p-4">
-          <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Share their co-brand link</p>
-          <p className="text-xs text-slate-500 mb-3">Send this to {partner.name.split(' ')[0]} so they can share their listing page.</p>
-          <button
-            onClick={() => {
-              navigator.clipboard.writeText(`${window.location.origin}/agent/${partner.agentId}`)
-              showToast.success('Link copied!')
-            }}
-            className="w-full border border-slate-200 rounded-lg py-2 text-xs font-semibold text-primary-600 hover:bg-primary-50 transition-all"
-          >
-            📋 Copy Partner Link
-          </button>
-        </div>
+        {/* Listing share link */}
+        {(() => {
+          const liveListing = partner.listings.find(l => l.status === 'published')
+          return liveListing ? (
+            <div className="rounded-xl border border-slate-200 p-4">
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Share their listing page</p>
+              <p className="text-xs text-slate-500 mb-3">Copy this link — it shows your co-brand on their live listing.</p>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(`${window.location.origin}/listing/${liveListing.listingId}`)
+                  showToast.success('Listing link copied!')
+                }}
+                className="w-full border border-slate-200 rounded-lg py-2 text-xs font-semibold text-primary-600 hover:bg-primary-50 transition-all"
+              >
+                📋 Copy Listing Link
+              </button>
+            </div>
+          ) : null
+        })()}
       </div>
     </div>
   </div>
@@ -473,7 +707,6 @@ const PartnerDetail: React.FC<{ partner: Partner; onClose: () => void }> = ({ pa
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 const LOPartnersPage: React.FC = () => {
-  const _navigate = useNavigate()
   const demoMode = useDemoMode()
   const [partners, setPartners] = useState<Partner[]>([])
   const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([])
@@ -520,7 +753,7 @@ const LOPartnersPage: React.FC = () => {
   return (
     <div className="space-y-6 pb-12">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black text-slate-900 tracking-tight">Partner Agents</h1>
           <p className="text-slate-500 text-sm mt-1">
@@ -528,12 +761,28 @@ const LOPartnersPage: React.FC = () => {
             {pendingInvites.length > 0 && ` · ${pendingInvites.length} invite pending`}
           </p>
         </div>
-        <button
-          onClick={() => setShowInvite(true)}
-          className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-xl px-5 py-2.5 text-sm transition-all shadow-sm"
-        >
-          + Add Partner
-        </button>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <ExportButton
+            filename="lo_partners"
+            headers={['Name', 'Email', 'Phone', 'Company', 'Total Leads', 'Rating', 'Partner Since']}
+            rows={partners.map(p => [
+              p.name,
+              p.email || '',
+              p.phone || '',
+              p.company || '',
+              p.totalLeads,
+              p.rating || '',
+              new Date(p.joinedAt).toLocaleDateString(),
+            ])}
+            jsonData={{ partners, pendingInvites }}
+          />
+          <button
+            onClick={() => setShowInvite(true)}
+            className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-xl px-5 py-2.5 text-sm transition-all shadow-sm"
+          >
+            + Add Partner
+          </button>
+        </div>
       </div>
 
       {/* Empty state */}
@@ -556,16 +805,13 @@ const LOPartnersPage: React.FC = () => {
       {/* Pending invites */}
       {pendingInvites.length > 0 && (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
-          <p className="text-xs font-bold text-amber-700 uppercase tracking-wide mb-3">Pending Invites</p>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs font-bold text-amber-700 uppercase tracking-wide">Pending Invites</p>
+            <p className="text-[11px] text-amber-600">Tap ↓ to add contact info</p>
+          </div>
           <div className="space-y-2">
             {pendingInvites.map(invite => (
-              <div key={invite.id} className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-slate-800">{invite.name || invite.email}</p>
-                  <p className="text-xs text-slate-500">{invite.email} · sent {toRelativeTime(invite.sentAt)}</p>
-                </div>
-                <span className="text-xs text-amber-600 font-semibold">Awaiting claim</span>
-              </div>
+              <PendingInviteCard key={invite.id} invite={invite} />
             ))}
           </div>
         </div>
