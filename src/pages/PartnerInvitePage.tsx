@@ -649,13 +649,35 @@ const PartnerInvitePage: React.FC = () => {
   const heroPhoto = photos[photoIndex] || photos[0];
   const market = displayListing.address.split(',').slice(-2).join(',').trim() || 'Your market';
 
+  const isDemo = token === 'demo';
+
   return (
     // Desktop: dark ambient bg with phone centered
     // Mobile: transparent, phone shell IS the viewport
     <div
-      className="flex items-start justify-center sm:min-h-screen sm:items-center sm:bg-[radial-gradient(ellipse_80%_80%_at_50%_40%,_#1e3a5f_0%,_#0a1628_50%,_#000_100%)] sm:p-8"
+      className="relative flex items-start justify-center sm:min-h-screen sm:items-center sm:bg-[radial-gradient(ellipse_80%_80%_at_50%_40%,_#1e3a5f_0%,_#0a1628_50%,_#000_100%)] sm:p-8"
       style={{ WebkitTapHighlightColor: 'transparent' } as React.CSSProperties}
     >
+      {/* ── Home button (desktop only, outside phone) ─────────────────────── */}
+      <a
+        href="/"
+        className="absolute top-6 left-6 hidden sm:flex items-center gap-2 text-white/60 hover:text-white transition-colors group"
+        title="HomeListingAI"
+      >
+        <div className="w-7 h-7 rounded-lg bg-white/10 group-hover:bg-white/20 flex items-center justify-center transition-all">
+          <span className="material-symbols-outlined text-[16px]">home</span>
+        </div>
+        <span className="text-[11px] font-semibold tracking-wide opacity-70 group-hover:opacity-100">homelistingai.com</span>
+      </a>
+
+      {/* ── Preview mode banner (desktop only, above phone) ──────────────── */}
+      {isDemo && (
+        <div className="absolute top-6 left-1/2 -translate-x-1/2 hidden sm:flex items-center gap-2 bg-amber-400/20 border border-amber-400/40 rounded-full px-4 py-1.5 backdrop-blur-sm">
+          <span className="text-amber-300 text-[11px] font-bold tracking-wide uppercase">👁️ Agent Preview Mode</span>
+          <span className="text-amber-200/60 text-[10px]">— this is what your agents see</span>
+        </div>
+      )}
+
       {/* ── Phone shell ──────────────────────────────────────────────────────── */}
       {/* Mobile: fills screen | Desktop: phone frame with bezel */}
       <div

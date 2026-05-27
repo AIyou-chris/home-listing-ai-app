@@ -148,20 +148,22 @@ interface LOListing {
   status: string
 }
 
-const InviteModal: React.FC<{ onClose: () => void; onSent: (wowLink: string) => void }> = ({ onClose, onSent }) => {
+const InviteModal: React.FC<{ onClose: () => void; onSent: (wowLink: string) => void; prefillEmail?: string }> = ({ onClose, onSent, prefillEmail }) => {
   const demoMode = useDemoMode()
   const [name, setName] = useState('')
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState(prefillEmail || '')
   const [listingId, setListingId] = useState<string>('')
   const [listings, setListings] = useState<LOListing[]>([])
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
   const [wowLink, setWowLink] = useState('')
+  const [loEmail, setLoEmail] = useState<string>('')
 
   useEffect(() => {
     if (demoMode) return
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return
+      if (user.email) setLoEmail(user.email)
       fetch(buildApiUrl('/api/lo/listings'), { headers: { 'x-user-id': user.id } })
         .then(r => r.json())
         .then((d: { listings?: LOListing[] }) => setListings((d.listings || []).filter(l => l.status === 'published')))
@@ -209,14 +211,24 @@ const InviteModal: React.FC<{ onClose: () => void; onSent: (wowLink: string) => 
             <div className="text-5xl mb-3">🚀</div>
             <h3 className="text-lg font-bold text-slate-900 mb-1">WOW Link sent!</h3>
             <p className="text-slate-500 text-sm mb-4">They'll get a live listing demo in their inbox — chatbot already working.</p>
-            {wowLink && (
-              <button
-                onClick={() => { navigator.clipboard.writeText(wowLink); showToast.success('Link copied!') }}
-                className="w-full border border-slate-200 rounded-xl py-2.5 text-xs font-semibold text-primary-600 hover:bg-primary-50 transition-all"
-              >
-                📋 Copy WOW Link
-              </button>
-            )}
+            <div className="space-y-2">
+              {wowLink && (
+                <button
+                  onClick={() => { window.open(wowLink, '_blank') }}
+                  className="w-full bg-primary-600 hover:bg-primary-700 text-white rounded-xl py-2.5 text-sm font-bold transition-all"
+                >
+                  👁️ See What They See →
+                </button>
+              )}
+              {wowLink && (
+                <button
+                  onClick={() => { navigator.clipboard.writeText(wowLink); showToast.success('Link copied!') }}
+                  className="w-full border border-slate-200 rounded-xl py-2.5 text-xs font-semibold text-primary-600 hover:bg-primary-50 transition-all"
+                >
+                  📋 Copy WOW Link
+                </button>
+              )}
+            </div>
           </div>
         ) : (
           <>
@@ -224,9 +236,18 @@ const InviteModal: React.FC<{ onClose: () => void; onSent: (wowLink: string) => 
               <h3 className="text-lg font-bold text-slate-900">Send a WOW Link</h3>
               <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl">×</button>
             </div>
-            <p className="text-sm text-slate-500 mb-5">
+            <p className="text-sm text-slate-500 mb-4">
               The agent gets a live listing demo with your financing chatbot already running — before they even sign up.
             </p>
+            {/* Send to myself shortcut */}
+            {loEmail && !email && (
+              <button
+                onClick={() => setEmail(loEmail)}
+                className="w-full mb-4 flex items-center justify-center gap-2 border border-dashed border-primary-300 rounded-xl py-2.5 text-xs font-semibold text-primary-600 hover:bg-primary-50 transition-all"
+              >
+                <span>👤</span> Send to myself — see the agent view
+              </button>
+            )}
             <div className="space-y-3 mb-5">
               <input
                 className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
@@ -761,7 +782,7 @@ const LOPartnersPage: React.FC = () => {
             {pendingInvites.length > 0 && ` · ${pendingInvites.length} invite pending`}
           </p>
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">
           <ExportButton
             filename="lo_partners"
             headers={['Name', 'Email', 'Phone', 'Company', 'Total Leads', 'Rating', 'Partner Since']}
@@ -776,6 +797,13 @@ const LOPartnersPage: React.FC = () => {
             ])}
             jsonData={{ partners, pendingInvites }}
           />
+          <button
+            onClick={() => window.open('/partner-invite/demo', '_blank')}
+            className="flex items-center gap-2 border border-slate-200 hover:border-primary-300 hover:bg-primary-50 text-slate-600 hover:text-primary-700 font-semibold rounded-xl px-4 py-2.5 text-sm transition-all"
+            title="See the agent experience"
+          >
+            <span className="text-base">👁️</span> Preview Agent View
+          </button>
           <button
             onClick={() => setShowInvite(true)}
             className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-xl px-5 py-2.5 text-sm transition-all shadow-sm"

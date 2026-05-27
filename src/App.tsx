@@ -38,6 +38,7 @@ const LOChatbotSetupPage = lazy(() => import('./components/dashboard-command/LOC
 const LOLeadsPage = lazy(() => import('./components/dashboard-command/LOLeadsPage'));
 const AgentClaimPage = lazy(() => import('./pages/AgentClaimPage'))
 const HowItWorksPage = lazy(() => import('./pages/HowItWorksPage'))
+const LODemoPage = lazy(() => import('./pages/LODemoPage'))
 const PartnerInvitePage = lazy(() => import('./pages/PartnerInvitePage'))
 const ListingDashboardPage = lazy(() => import('./pages/ListingDashboardPage'))
 const OfficeDashboardPage = lazy(() => import('./components/dashboard-command/OfficeDashboardPage'))
@@ -958,6 +959,7 @@ const App: React.FC = () => {
                 currentPath.startsWith('/checkout') || // Critical for checkout flow
                 currentPath.includes('/demo-') ||
                 currentPath.startsWith('/blog') || // Allow blog access
+                currentPath === '/lo-demo' || // Public LO demo page
                 currentPath.startsWith('/listing/') || // Public listing pages
                 currentPath.startsWith('/l/') || // Public listing short URLs
                 currentPath.startsWith('/card/') || // Public AI card pages
@@ -1790,6 +1792,7 @@ const App: React.FC = () => {
                     <Route path="/demo/listings/:id" element={<DemoListingPage />} />
                     <Route path="/new-landing" element={<NewLandingPage onNavigateToSignUp={handleNavigateToSignUp} onNavigateToSignIn={handleNavigateToSignIn} onEnterDemoMode={handleEnterDemoMode} />} />
                     <Route path="/how-it-works" element={<HowItWorksPage />} />
+                    <Route path="/lo-demo" element={<LODemoPage />} />
 
                     {/* Fallback */}
                     <Route path="*" element={<NotFound />} />
