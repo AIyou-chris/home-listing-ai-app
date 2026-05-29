@@ -94,111 +94,131 @@ const MortgageCalculator: React.FC<{
   const total = Math.round(pi + taxes + insurance);
 
   return (
-    <div>
-      {/* Tap to expand/collapse */}
+    <div className="m-3.5 overflow-hidden rounded-[20px] bg-white shadow-[0_4px_20px_rgba(15,23,42,0.08)]">
+      {/* Header — tap to expand/collapse */}
       <button
         onClick={() => setIsOpen(o => !o)}
-        className="flex w-full items-center justify-between px-4 py-4 active:bg-slate-50 transition-colors"
+        className="flex w-full items-center justify-between px-5 pt-5 pb-4 active:bg-slate-50 transition-colors"
         style={{ WebkitTapHighlightColor: 'transparent' }}
       >
         <div className="text-left">
-          <div className="flex items-end gap-1.5">
-            <span className="text-[32px] font-black leading-none text-slate-900">${total.toLocaleString()}</span>
-            <span className="mb-1.5 text-sm font-semibold text-slate-400">/mo</span>
+          <p className="text-[11px] font-extrabold uppercase tracking-widest" style={{ color: brandColor }}>Monthly Payment</p>
+          <div className="mt-1 flex items-end gap-2">
+            <span className="text-[36px] font-black leading-none text-slate-900">${total.toLocaleString()}</span>
+            <span className="mb-1 text-sm font-semibold text-slate-400">/mo</span>
           </div>
           <p className="mt-0.5 text-[11px] text-slate-400">{downPct}% down · {term}yr fixed · {rate.toFixed(1)}% rate</p>
         </div>
         <span
-          className="material-symbols-outlined text-[24px] text-slate-300 transition-transform duration-300"
+          className="material-symbols-outlined ml-3 flex-shrink-0 text-[22px] text-slate-400 transition-transform duration-300"
           style={{ transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
         >expand_more</span>
       </button>
 
-      {isOpen && (
-        <div className="border-t border-slate-100 px-4 pt-4 pb-5 space-y-4">
-          {/* Term picker */}
-          <div className="flex gap-2">
-            {[15, 20, 30].map(t => (
-              <button
-                key={t}
-                onClick={() => setTerm(t)}
-                className={`flex-1 rounded-xl py-2.5 text-[13px] font-bold transition-all ${term === t ? 'text-white' : 'bg-slate-100 text-slate-500'}`}
-                style={term === t ? { background: brandColor } : {}}
-              >
-                {t}yr
-              </button>
-            ))}
-          </div>
+      {/* Collapsible body */}
+      {isOpen && <>
 
-          {/* Down payment */}
-          <div>
-            <div className="flex justify-between mb-2">
-              <span className="text-[12px] font-semibold text-slate-600">Down Payment</span>
-              <span className="text-[12px] font-bold" style={{ color: brandColor }}>{downPct}% · ${downAmount.toLocaleString()}</span>
-            </div>
-            <input
-              type="range" min={3} max={50} step={1} value={downPct}
-              onChange={e => setDownPct(Number(e.target.value))}
-              className="w-full h-1.5 rounded-full appearance-none cursor-pointer"
-              style={{ accentColor: brandColor }}
-            />
-          </div>
-
-          {/* Rate */}
-          <div>
-            <div className="flex justify-between mb-2">
-              <span className="text-[12px] font-semibold text-slate-600">Interest Rate</span>
-              <span className="text-[12px] font-bold" style={{ color: brandColor }}>{rate.toFixed(1)}%</span>
-            </div>
-            <input
-              type="range" min={4.0} max={10.0} step={0.1} value={rate}
-              onChange={e => setRate(Number(e.target.value))}
-              className="w-full h-1.5 rounded-full appearance-none cursor-pointer"
-              style={{ accentColor: brandColor }}
-            />
-          </div>
-
-          {/* Breakdown toggle */}
+      {/* Term picker */}
+      <div className="flex gap-2 px-5 pb-3">
+        {[15, 20, 30].map(t => (
           <button
-            onClick={() => setShowBreakdown(s => !s)}
-            className="flex w-full items-center justify-between rounded-xl bg-slate-50 px-4 py-3 text-[12px] font-semibold text-slate-500"
+            key={t}
+            onClick={() => setTerm(t)}
+            className={`flex-1 rounded-xl py-2 text-[13px] font-extrabold transition-all ${term === t ? 'text-white shadow-sm' : 'bg-slate-100 text-slate-500'}`}
+            style={term === t ? { background: brandColor } : {}}
           >
-            <span>See payment breakdown</span>
-            <span className="material-symbols-outlined text-[16px] transition-transform" style={{ transform: showBreakdown ? 'rotate(180deg)' : 'none' }}>expand_more</span>
+            {t}yr
           </button>
+        ))}
+      </div>
 
-          {showBreakdown && (
-            <div className="rounded-xl bg-slate-50 px-4 py-3 space-y-2">
-              {[
-                { label: 'Principal & Interest', value: `$${Math.round(pi).toLocaleString()}` },
-                { label: 'Property Taxes (est.)', value: `$${taxes.toLocaleString()}` },
-                { label: 'Homeowners Insurance (est.)', value: `$${insurance}` },
-              ].map(row => (
-                <div key={row.label} className="flex justify-between">
-                  <span className="text-[12px] text-slate-500">{row.label}</span>
-                  <span className="text-[12px] font-bold text-slate-800">{row.value}</span>
-                </div>
-              ))}
-              <div className="flex justify-between border-t border-slate-200 pt-2 mt-1">
-                <span className="text-[13px] font-bold text-slate-900">Total / month</span>
-                <span className="text-[13px] font-bold" style={{ color: brandColor }}>${total.toLocaleString()}</span>
-              </div>
-              <p className="text-[10px] text-slate-400 leading-relaxed">Estimates only. Does not include HOA, PMI, or utilities.</p>
+      {/* Down payment slider */}
+      <div className="px-5 pb-3">
+        <div className="flex justify-between mb-1.5">
+          <span className="text-[12px] font-bold text-slate-600">Down Payment</span>
+          <span className="text-[12px] font-extrabold" style={{ color: brandColor }}>{downPct}% · ${downAmount.toLocaleString()}</span>
+        </div>
+        <input
+          type="range"
+          min={3}
+          max={50}
+          step={1}
+          value={downPct}
+          onChange={e => setDownPct(Number(e.target.value))}
+          className="w-full h-2 rounded-full appearance-none cursor-pointer"
+          style={{ accentColor: brandColor }}
+        />
+        <div className="flex justify-between mt-1">
+          <span className="text-[10px] text-slate-400">3%</span>
+          <span className="text-[10px] text-slate-400">50%</span>
+        </div>
+      </div>
+
+      {/* Rate input */}
+      <div className="px-5 pb-4">
+        <div className="flex justify-between mb-1.5">
+          <span className="text-[12px] font-bold text-slate-600">Interest Rate</span>
+          <span className="text-[12px] font-extrabold" style={{ color: brandColor }}>{rate.toFixed(1)}%</span>
+        </div>
+        <input
+          type="range"
+          min={4.0}
+          max={10.0}
+          step={0.1}
+          value={rate}
+          onChange={e => setRate(Number(e.target.value))}
+          className="w-full h-2 rounded-full appearance-none cursor-pointer"
+          style={{ accentColor: brandColor }}
+        />
+        <div className="flex justify-between mt-1">
+          <span className="text-[10px] text-slate-400">4%</span>
+          <span className="text-[10px] text-slate-400">10%</span>
+        </div>
+      </div>
+
+      {/* Breakdown toggle */}
+      <button
+        onClick={() => setShowBreakdown(s => !s)}
+        className="flex w-full items-center justify-between border-t border-slate-100 px-5 py-3 text-[12px] font-bold text-slate-500"
+      >
+        <span>See full breakdown</span>
+        <span className="material-symbols-outlined text-[16px] transition-transform" style={{ transform: showBreakdown ? 'rotate(180deg)' : 'none' }}>expand_more</span>
+      </button>
+
+      {showBreakdown && (
+        <div className="px-5 pb-4 space-y-2 border-t border-slate-100 pt-3">
+          {[
+            { label: 'Principal & Interest', value: `$${Math.round(pi).toLocaleString()}` },
+            { label: 'Property Taxes (est.)', value: `$${taxes.toLocaleString()}` },
+            { label: 'Homeowners Insurance (est.)', value: `$${insurance}` },
+          ].map(row => (
+            <div key={row.label} className="flex justify-between">
+              <span className="text-[12px] text-slate-500">{row.label}</span>
+              <span className="text-[12px] font-bold text-slate-800">{row.value}</span>
             </div>
-          )}
-
-          {/* Pre-approval CTA */}
-          <button
-            onClick={onGetPreApproved}
-            className="flex w-full items-center justify-center gap-2 rounded-2xl py-4 text-[15px] font-extrabold text-white transition-transform active:scale-[0.99]"
-            style={{ background: 'linear-gradient(135deg,#059669,#10b981)' }}
-          >
-            <span className="text-lg">✅</span>
-            Get Pre-Approved in 60 Seconds
-          </button>
-          <p className="text-center text-[11px] text-slate-400">AI-powered · No forms · No hard credit pull</p>
+          ))}
+          <div className="flex justify-between border-t border-slate-200 pt-2 mt-2">
+            <span className="text-[13px] font-extrabold text-slate-900">Total / month</span>
+            <span className="text-[13px] font-extrabold" style={{ color: brandColor }}>${total.toLocaleString()}</span>
+          </div>
+          <p className="text-[10px] text-slate-400 leading-relaxed">Estimates only. Does not include HOA, PMI, or utilities. Contact your lender for exact figures.</p>
         </div>
       )}
+
+      {/* Pre-approval CTA */}
+      <div className="px-5 pb-5 pt-1">
+        <button
+          onClick={onGetPreApproved}
+          className="flex w-full items-center justify-center gap-2 rounded-2xl py-4 text-[15px] font-extrabold text-white shadow-[0_6px_20px_rgba(0,0,0,0.15)] transition-transform active:scale-[0.99]"
+          style={{ background: `linear-gradient(135deg,#059669,#10b981)` }}
+        >
+          <span className="text-xl">✅</span>
+          Get Pre-Approved in 60 Seconds
+        </button>
+        <p className="mt-2 text-center text-[11px] text-slate-400">Talk to the AI — no forms, no hard pull</p>
+      </div>
+
+      </>}
     </div>
   );
 };
@@ -249,9 +269,10 @@ const LiveChat: React.FC<{
     setSending(true);
     historyRef.current = [...historyRef.current, { role: 'user', content: clean }];
 
+    // Demo mode — use canned replies instead of hitting the API
     if (lo.id === 'demo-lo') {
       await new Promise(r => setTimeout(r, 900));
-      const demoReply = DEMO_REPLIES[clean.toLowerCase()] || 'Great question! In a real session, the AI would answer this instantly using real loan data. This is just a demo — the live version is fully connected.';
+      const demoReply = DEMO_REPLIES[clean.toLowerCase()] || 'Great question! In a real session, Alex\'s AI would answer this instantly using real loan data. This is just a demo — the live version is fully connected.';
       historyRef.current = [...historyRef.current, { role: 'assistant', content: demoReply }];
       setMessages(prev => [...prev, { id: `b-${Date.now()}`, role: 'bot', text: demoReply }]);
       setSending(false);
@@ -459,7 +480,6 @@ const PropertyChat: React.FC<{ listing: ListingInfo; agentName: string; brandCol
 
 type Tab = 'home' | 'finance' | 'tour' | 'contact';
 
-// Note: no fixed positioning — parent (phone shell) handles layout via flex-none
 const BottomBar: React.FC<{
   active: Tab;
   onTab: (t: Tab) => void;
@@ -474,15 +494,16 @@ const BottomBar: React.FC<{
   ];
 
   const handleTab = (key: Tab) => {
+    if (key === 'home') { onTab(key); return; }
+    if (key === 'finance') { onTab(key); return; }
     if (key === 'tour') { onChat('home'); return; }
     if (key === 'contact') { onChat('financing'); return; }
-    onTab(key);
   };
 
   return (
     <div
-      className="flex justify-around border-t border-slate-200/80 bg-white/95 backdrop-blur-xl"
-      style={{ paddingBottom: 'env(safe-area-inset-bottom)', WebkitTapHighlightColor: 'transparent' } as React.CSSProperties}
+      className="fixed bottom-0 left-0 right-0 z-30 flex justify-around border-t border-slate-200 bg-white/95 backdrop-blur-sm"
+      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
       {tabs.map(t => (
         <button
@@ -491,10 +512,7 @@ const BottomBar: React.FC<{
           className="flex flex-1 flex-col items-center gap-0.5 py-2.5 transition-colors"
           style={{ color: active === t.key ? brandColor : '#94a3b8' }}
         >
-          <span
-            className="material-symbols-outlined text-[22px]"
-            style={{ fontVariationSettings: active === t.key ? "'FILL' 1" : "'FILL' 0" } as React.CSSProperties}
-          >{t.icon}</span>
+          <span className="material-symbols-outlined text-[22px]">{t.icon}</span>
           <span className="text-[10px] font-bold">{t.label}</span>
         </button>
       ))}
@@ -513,74 +531,22 @@ const PartnerInvitePage: React.FC = () => {
   const [chatMode, setChatMode] = useState<'home' | 'financing' | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('home');
   const [showHowItWorks, setShowHowItWorks] = useState(false);
-  const [showConnectSheet, setShowConnectSheet] = useState(false);
-  const [connectName, setConnectName] = useState('');
-  const [connectPhone, setConnectPhone] = useState('');
-  const [connectSending, setConnectSending] = useState(false);
-  const [connectDone, setConnectDone] = useState(false);
-  const [connectCountdown, setConnectCountdown] = useState(3);
   const [photoIndex, setPhotoIndex] = useState(0);
   const listingRef = useRef<HTMLDivElement>(null);
   const financeRef = useRef<HTMLDivElement>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
 
-  const scrollToSection = (ref: React.RefObject<HTMLDivElement>) => {
-    const scroller = scrollRef.current;
-    const target = ref.current;
-    if (!scroller || !target) return;
-    const offset = target.offsetTop - scroller.offsetTop - 56; // 56px for sticky header
-    scroller.scrollTo({ top: offset, behavior: 'smooth' });
-  };
-
-  const handleConnect = async () => {
-    if (!token || connectSending) return;
-    setConnectSending(true);
-    try {
-      if (token === 'demo') {
-        await new Promise(r => setTimeout(r, 700));
-        setConnectDone(true);
-        return;
-      }
-      await fetch(buildApiUrl(`/api/public/partner-invite/${token}/connect`), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ agentName: connectName.trim() || undefined, agentPhone: connectPhone.trim() || undefined }),
-      });
-      setConnectDone(true);
-    } catch {
-      setConnectDone(true);
-    } finally {
-      setConnectSending(false);
-    }
-  };
-
-  // After connect success, count down then navigate to the claim page.
-  // Demo token stays put — can't claim a demo invite.
-  useEffect(() => {
-    if (!connectDone || token === 'demo') return;
-    setConnectCountdown(3);
-    const interval = setInterval(() => {
-      setConnectCountdown(c => {
-        if (c <= 1) {
-          clearInterval(interval);
-          navigate(`/agent/claim/${token}`);
-          return 0;
-        }
-        return c - 1;
-      });
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [connectDone, token, navigate]);
+  const scrollToListing = () => listingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
   const handleTab = (t: Tab) => {
     setActiveTab(t);
-    if (t === 'finance') scrollToSection(financeRef);
-    if (t === 'home') scrollToSection(listingRef);
+    if (t === 'finance') financeRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (t === 'home') listingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   useEffect(() => {
     if (!token) { setError('Invalid link'); setLoading(false); return; }
 
+    // Demo mode — bypass API
     if (token === 'demo') {
       setData({
         token: 'demo',
@@ -590,7 +556,7 @@ const PartnerInvitePage: React.FC = () => {
           id: 'demo-lo',
           name: 'Alex Rivera',
           company: 'Summit Mortgage',
-          headshotUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=200&auto=format&fit=crop&crop=face',
+          headshotUrl: null,
           brandColor: '#2563eb',
           email: 'alex@summitmortgage.com',
           phone: '(512) 555-0192',
@@ -649,563 +615,298 @@ const PartnerInvitePage: React.FC = () => {
   const heroPhoto = photos[photoIndex] || photos[0];
   const market = displayListing.address.split(',').slice(-2).join(',').trim() || 'Your market';
 
-  const isDemo = token === 'demo';
-
   return (
-    // Desktop: dark ambient bg with phone centered
-    // Mobile: transparent, phone shell IS the viewport
-    <div
-      className="relative flex items-start justify-center sm:min-h-screen sm:items-center sm:bg-[radial-gradient(ellipse_80%_80%_at_50%_40%,_#1e3a5f_0%,_#0a1628_50%,_#000_100%)] sm:p-8"
-      style={{ WebkitTapHighlightColor: 'transparent' } as React.CSSProperties}
-    >
-      {/* ── Home button (desktop only, outside phone) ─────────────────────── */}
-      <a
-        href="/"
-        className="absolute top-6 left-6 hidden sm:flex items-center gap-2 text-white/60 hover:text-white transition-colors group"
-        title="HomeListingAI"
-      >
-        <div className="w-7 h-7 rounded-lg bg-white/10 group-hover:bg-white/20 flex items-center justify-center transition-all">
-          <span className="material-symbols-outlined text-[16px]">home</span>
-        </div>
-        <span className="text-[11px] font-semibold tracking-wide opacity-70 group-hover:opacity-100">homelistingai.com</span>
-      </a>
+    // Outer shell: treat as phone app — constrained width, native feel
+    <div className="min-h-screen bg-[#f1f5f9]" style={{ WebkitTapHighlightColor: 'transparent' }}>
+      <div className="mx-auto max-w-[480px] bg-[#f1f5f9]" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 64px)' }}>
 
-      {/* ── Preview mode banner (desktop only, above phone) ──────────────── */}
-      {isDemo && (
-        <div className="absolute top-6 left-1/2 -translate-x-1/2 hidden sm:flex items-center gap-2 bg-amber-400/20 border border-amber-400/40 rounded-full px-4 py-1.5 backdrop-blur-sm">
-          <span className="text-amber-300 text-[11px] font-bold tracking-wide uppercase">👁️ Agent Preview Mode</span>
-          <span className="text-amber-200/60 text-[10px]">— this is what your agents see</span>
+        {/* ── Status-bar-style invite strip ── */}
+        <div
+          className="sticky top-0 z-40 flex items-center gap-3 px-4 py-3 text-white shadow-sm"
+          style={{ background: 'rgba(15,23,42,0.97)', paddingTop: 'calc(env(safe-area-inset-top) + 0.75rem)' }}
+        >
+          {officeLogo
+            ? <img src={officeLogo} alt={officeName || 'logo'} className="h-8 max-w-[100px] flex-shrink-0 object-contain" />
+            : lo.headshotUrl
+              ? <img src={lo.headshotUrl} alt={lo.name} className="h-9 w-9 flex-shrink-0 rounded-full object-cover ring-2 ring-white/20" />
+              : <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-sm font-extrabold text-white" style={{ background: brandColor }}>{lo.name[0]}</div>
+          }
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[13px] font-bold text-white">{lo.name}{officeName ? ` · ${officeName}` : ''}</p>
+            <p className="text-[11px] text-slate-400">
+              {lo.nmlsNumber ? `NMLS #${lo.nmlsNumber} · ` : ''}made you something 👇
+            </p>
+          </div>
+          <button
+            onClick={scrollToListing}
+            className="flex-shrink-0 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-[12px] font-bold text-white transition-all active:scale-95"
+          >
+            Take a Look
+          </button>
+        </div>
+
+        {/* ── Hero pitch ── */}
+        <div className="relative overflow-hidden bg-gradient-to-b from-slate-900 to-[#1e3a5f] px-6 pb-10 pt-8 text-center text-white">
+          <div className="pointer-events-none absolute -right-12 -top-12 h-44 w-44 rounded-full bg-cyan-400/10" />
+          <div className="pointer-events-none absolute -left-8 bottom-0 h-32 w-32 rounded-full bg-blue-400/10" />
+          <span className="inline-block rounded-full bg-cyan-400/15 px-3.5 py-1.5 text-[11px] font-extrabold uppercase tracking-widest text-cyan-300">
+            A new way to show listings
+          </span>
+          <h1 className="mx-auto mt-4 max-w-[340px] text-[26px] font-black leading-[1.22] tracking-tight">
+            What if your listings could <span className="text-[#28a7e8]">answer buyers</span> for you?
+          </h1>
+          <p className="mx-auto mt-3 max-w-[340px] text-sm leading-relaxed text-slate-300">
+            A real, live AI concierge built into every listing — answers questions 24/7 and quietly flags the serious buyers. Nothing to sign up for. Just look around.
+          </p>
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
+            {['🤖 Answers 24/7', '🔥 Warm leads, automatically', '📱 Feels like an app'].map(c => (
+              <span key={c} className="rounded-full border border-white/15 bg-white/[0.07] px-3 py-2 text-[11px] text-slate-300">{c}</span>
+            ))}
+          </div>
+          <p className="mt-5 text-[12px] font-semibold tracking-wide text-slate-500">↓ Here's yours — scroll through it ↓</p>
+        </div>
+
+        {/* ── Listing card ── */}
+        <div ref={listingRef} className="-mt-4 scroll-mt-4 px-3.5">
+          <div className="overflow-hidden rounded-[22px] bg-white shadow-[0_8px_28px_rgba(15,23,42,0.12)]">
+
+            {/* Photo with swipe dots */}
+            <div className="relative h-64 bg-cover bg-center" style={{ backgroundImage: `url('${heroPhoto}')` }}>
+              <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/65" />
+              <span className="absolute left-3 top-3 z-10 rounded-full bg-white px-2.5 py-1 text-[10px] font-black" style={{ color: brandColor }}>LIVE PREVIEW</span>
+
+              {/* Photo nav dots */}
+              {photos.length > 1 && (
+                <div className="absolute bottom-14 left-0 right-0 flex justify-center gap-1.5 z-10">
+                  {photos.map((_, i) => (
+                    <button key={i} onClick={() => setPhotoIndex(i)}
+                      className={`h-1.5 rounded-full transition-all ${i === photoIndex ? 'w-5 bg-white' : 'w-1.5 bg-white/50'}`}
+                    />
+                  ))}
+                </div>
+              )}
+
+              <div className="absolute bottom-3.5 left-4 z-10 text-white">
+                <p className="text-[28px] font-black leading-none">${displayListing.price.toLocaleString()}</p>
+                <p className="mt-1 text-[12px] opacity-85">{displayListing.address}</p>
+              </div>
+            </div>
+
+            {/* Talk to the Home CTA */}
+            <button
+              onClick={() => setChatMode('home')}
+              className="m-3.5 flex w-[calc(100%-1.75rem)] items-center justify-center gap-2.5 rounded-2xl py-4 text-[15px] font-extrabold text-white shadow-[0_8px_22px_rgba(40,167,232,0.35)] transition-transform active:scale-[0.99]"
+              style={{ background: '#28a7e8' }}
+            >
+              💬 Talk to the Home
+            </button>
+            <p className="-mt-1.5 mb-3 px-3.5 text-center text-[11px] font-semibold text-slate-400">Ask this listing anything — like you would a person</p>
+
+            {/* Stats */}
+            <div className="mb-1 flex justify-around border-y border-slate-100 py-4">
+              {[[displayListing.beds, 'BEDS'], [displayListing.baths, 'BATHS'], [displayListing.sqft.toLocaleString(), 'SQFT']].map(([v, l]) => (
+                <div key={l} className="text-center">
+                  <b className="block text-[20px] font-extrabold text-slate-900">{v}</b>
+                  <span className="text-[10px] tracking-widest text-slate-400">{l}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* ── Agent card ── */}
+        <div className="m-3.5 overflow-hidden rounded-[20px] p-[18px] text-white shadow-[0_8px_24px_rgba(30,58,138,0.25)]" style={{ background: 'linear-gradient(135deg,#1e3a8a,#2563eb)' }}>
+          <div className="flex items-center gap-3.5">
+            <div className="flex h-[58px] w-[58px] flex-shrink-0 items-center justify-center rounded-full border-2 border-white/40 bg-white/20 text-2xl font-black">
+              {agentInitial}
+            </div>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-xl font-black leading-none">{agentName}</p>
+                <span className="rounded-full bg-white/25 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide">Listing Agent</span>
+              </div>
+              <p className="mt-1 text-xs opacity-75">{market}</p>
+              <p className="mt-2 text-xs font-bold opacity-90">👋 This is your page — your name, your brand, front and center.</p>
+            </div>
+          </div>
+          <div className="mt-4 flex gap-2">
+            <button className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-white py-2.5 text-[13px] font-extrabold text-[#1e3a8a] transition-all active:scale-95">
+              📞 Call
+            </button>
+            <button className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/30 bg-white/15 py-2.5 text-[13px] font-extrabold text-white transition-all active:scale-95">
+              ✉️ Message
+            </button>
+            <button className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/30 bg-white/15 py-2.5 text-[13px] font-extrabold text-white transition-all active:scale-95">
+              📅 Tour
+            </button>
+          </div>
+        </div>
+
+        {/* ── Description ── */}
+        <div className="m-3.5 rounded-[18px] bg-white p-[18px] text-sm leading-relaxed text-slate-600 shadow-[0_4px_16px_rgba(15,23,42,0.05)]">
+          {displayListing.description}
+        </div>
+
+        {/* ── Mortgage Calculator ── */}
+        <div ref={financeRef} className="scroll-mt-4">
+          <MortgageCalculator
+            price={displayListing.price}
+            brandColor={brandColor}
+            onGetPreApproved={() => setChatMode('financing')}
+          />
+        </div>
+
+        {/* ── Pre-approval nudge card ── */}
+        <div className="m-3.5 overflow-hidden rounded-[20px] shadow-[0_4px_20px_rgba(5,150,105,0.15)]">
+          <div className="bg-gradient-to-br from-emerald-900 to-emerald-700 px-5 py-5 text-white">
+            <p className="text-[11px] font-extrabold uppercase tracking-widest text-emerald-300">Financing</p>
+            <h3 className="mt-1 text-[18px] font-black leading-snug">Ready to know your number?</h3>
+            <p className="mt-2 text-[13px] leading-relaxed text-emerald-100">
+              Chat with {lo.name.split(' ')[0]}'s AI financing assistant — ask about rates, programs, or what you qualify for. No forms. No hard credit pull.
+            </p>
+          </div>
+          <div className="bg-white px-5 pb-5 pt-4 space-y-2.5">
+            {['💬 What can I qualify for?', '📋 How do I get pre-approved?', '💰 Minimum down payment options'].map(q => (
+              <button
+                key={q}
+                onClick={() => { setChatMode('financing'); }}
+                className="flex w-full items-center gap-3 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-left text-[13px] font-semibold text-emerald-800 transition-colors hover:bg-emerald-100"
+              >
+                {q}
+              </button>
+            ))}
+            <button
+              onClick={() => setChatMode('financing')}
+              className="mt-1 flex w-full items-center justify-center gap-2 rounded-2xl py-3.5 text-[14px] font-extrabold text-white transition-all active:scale-[0.99]"
+              style={{ background: 'linear-gradient(135deg,#059669,#10b981)' }}
+            >
+              Start Pre-Approval Chat →
+            </button>
+          </div>
+        </div>
+
+        {/* ── Soft pitch block ── */}
+        <div className="m-3.5 rounded-[18px] bg-gradient-to-br from-slate-900 to-[#1e3a5f] p-[22px] text-center text-white shadow-[0_8px_24px_rgba(15,23,42,0.15)]">
+          <p className="text-lg font-black leading-snug">This took 5 minutes to build.<br />Yours could too.</p>
+          <p className="mt-2 text-[13px] leading-relaxed text-slate-300">
+            No tech setup, no contracts, no catch. Curious how it works? Have a look — it's all yours to explore.
+          </p>
+          <button
+            onClick={() => setShowHowItWorks(true)}
+            className="mt-4 w-full rounded-xl border border-cyan-400/40 bg-cyan-400/15 py-3.5 text-[15px] font-extrabold text-cyan-300 transition-colors active:scale-[0.99]"
+          >
+            See How It Works →
+          </button>
+          <p className="mt-2.5 text-[11px] text-slate-500">No account needed · Nothing happens until you decide</p>
+        </div>
+
+        {/* ── Financing by ── */}
+        <div className="m-3.5 flex items-center gap-2.5 rounded-[13px] bg-white p-3 shadow-[0_4px_16px_rgba(15,23,42,0.05)]">
+          <span className="text-[10px] font-extrabold uppercase tracking-wide text-slate-400">Financing by</span>
+          {lo.headshotUrl
+            ? <img src={lo.headshotUrl} alt={lo.name} className="h-[30px] w-[30px] flex-shrink-0 rounded-full object-cover" />
+            : <div className="flex h-[30px] w-[30px] flex-shrink-0 items-center justify-center rounded-full bg-slate-300 text-xs font-bold text-white">{lo.name[0]}</div>
+          }
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[13px] font-bold text-slate-600">{lo.name}</p>
+            <p className="truncate text-[11px] text-slate-400">{lo.company}</p>
+          </div>
+          <span className="flex-shrink-0 text-[11px] text-slate-400">Powers the AI →</span>
+        </div>
+
+        <p className="mt-4 mb-6 text-center text-[10px] text-slate-400">Powered by HomeListingAI</p>
+      </div>
+
+      {/* ── Bottom Tab Bar ── */}
+      <BottomBar
+        active={activeTab}
+        onTab={handleTab}
+        brandColor={brandColor}
+        onChat={(mode) => setChatMode(mode)}
+      />
+
+      {/* ── Chat overlay ── */}
+      {chatMode && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center"
+          onClick={() => setChatMode(null)}
+          style={{ backdropFilter: 'blur(4px)' }}
+        >
+          <div
+            className="flex w-full max-w-[480px] flex-col overflow-hidden bg-white shadow-2xl"
+            style={{
+              height: '88vh',
+              borderRadius: '22px 22px 0 0',
+              paddingBottom: 'env(safe-area-inset-bottom)',
+              animation: 'slideUp 0.28s cubic-bezier(0.32,0.72,0,1)'
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 px-4 py-2">
+              <div className="h-1 w-10 rounded-full bg-slate-200 mx-auto" />
+            </div>
+            <button
+              onClick={() => setChatMode(null)}
+              className="absolute right-4 top-14 z-10 rounded-full bg-white/90 p-1.5 text-slate-400 shadow-sm hover:bg-slate-100"
+              aria-label="Close"
+            >
+              <span className="material-symbols-outlined text-[20px]">close</span>
+            </button>
+            <div className="min-h-0 flex-1">
+              {chatMode === 'home'
+                ? <PropertyChat listing={displayListing} agentName={agentName} brandColor={brandColor} />
+                : <LiveChat lo={lo} listingId={displayListing.id} botName={botName} greeting={greeting} brandColor={brandColor} />
+              }
+            </div>
+          </div>
         </div>
       )}
 
-      {/* ── Phone shell ──────────────────────────────────────────────────────── */}
-      {/* Mobile: fills screen | Desktop: phone frame with bezel */}
-      <div
-        className={[
-          'relative flex flex-col overflow-hidden bg-[#f2f2f7]',
-          'w-full h-screen', // mobile: full screen
-          'sm:w-[393px] sm:h-[852px]', // desktop: iPhone 15 Pro dimensions
-          'sm:rounded-[55px]',
-          // Bezel: inner black ring + thin titanium edge + ambient shadow
-          'sm:shadow-[0_0_0_10px_#1c1c1e,0_0_0_12px_#48484a,0_80px_160px_rgba(0,0,0,0.85),0_0_60px_rgba(30,58,95,0.4)]',
-        ].join(' ')}
-      >
-
-        {/* ── Dynamic Island + Status Bar (desktop only) ── */}
-        <div className="pointer-events-none absolute top-0 inset-x-0 z-50 hidden sm:block">
-          <div className="relative h-[54px] bg-[#f2f2f7]">
-            {/* Time */}
-            <span className="absolute left-7 top-[16px] text-[14px] font-semibold text-slate-800 tabular-nums">9:41</span>
-            {/* Dynamic Island pill */}
-            <div className="absolute top-[9px] left-1/2 -translate-x-1/2 w-[128px] h-[36px] bg-black rounded-full" />
-            {/* Status icons */}
-            <div className="absolute right-6 top-[17px] flex items-center gap-[6px]">
-              {/* Signal bars */}
-              <div className="flex items-end gap-[2px]">
-                {[3, 5, 7, 9].map((h, i) => (
-                  <div key={i} className="w-[3px] rounded-[1px] bg-slate-800" style={{ height: h }} />
-                ))}
-              </div>
-              {/* WiFi */}
-              <svg width="15" height="11" viewBox="0 0 15 11" fill="none">
-                <circle cx="7.5" cy="10" r="1.2" fill="#1e293b" />
-                <path d="M4 7a5 5 0 017 0" stroke="#1e293b" strokeWidth="1.3" strokeLinecap="round" />
-                <path d="M1 4a9 9 0 0113 0" stroke="#1e293b" strokeWidth="1.3" strokeLinecap="round" />
-              </svg>
-              {/* Battery */}
-              <div className="flex items-center gap-[1.5px]">
-                <div className="h-[11px] w-[22px] rounded-[3px] border-[1.5px] border-slate-800 p-[1.5px]">
-                  <div className="h-full w-full rounded-[1px] bg-slate-800" />
-                </div>
-                <div className="h-[5px] w-[2px] rounded-r-sm bg-slate-800" />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* ── Scrollable content area ── */}
+      {/* ── How It Works ── */}
+      {showHowItWorks && (
         <div
-          ref={scrollRef}
-          className="flex-1 min-h-0 overflow-y-auto"
-          style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' } as React.CSSProperties}
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center"
+          onClick={() => setShowHowItWorks(false)}
+          style={{ backdropFilter: 'blur(4px)' }}
         >
-          {/* Spacer for dynamic island on desktop */}
-          <div className="hidden sm:block h-[54px]" />
-
-          {/* ── Sticky LO header ── */}
           <div
-            className="sticky top-0 z-40 flex items-center gap-3 bg-white/95 px-4 py-3 border-b border-slate-100/80"
-            style={{ backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)' } as React.CSSProperties}
+            className="w-full max-w-[440px] overflow-hidden bg-white shadow-2xl"
+            style={{ borderRadius: '22px 22px 0 0', animation: 'slideUp 0.28s cubic-bezier(0.32,0.72,0,1)' }}
+            onClick={e => e.stopPropagation()}
           >
-            {officeLogo
-              ? <img src={officeLogo} alt={officeName || 'logo'} className="h-8 max-w-[90px] flex-shrink-0 object-contain" />
-              : lo.headshotUrl
-                ? <img src={lo.headshotUrl} alt={lo.name} className="h-9 w-9 flex-shrink-0 rounded-full object-cover ring-2 ring-slate-100" />
-                : <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-sm font-extrabold text-white" style={{ background: brandColor }}>{lo.name[0]}</div>
-            }
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-[13px] font-bold text-slate-900">
-                {lo.name}{officeName && officeName !== lo.name ? ` · ${officeName}` : ''}
-              </p>
-              <p className="text-[11px] text-slate-400">
-                {lo.nmlsNumber ? `NMLS #${lo.nmlsNumber} · ` : ''}built this for you 👇
-              </p>
+            <div className="relative bg-gradient-to-br from-slate-900 to-[#1e3a5f] px-6 pb-6 pt-7 text-center text-white">
+              <button onClick={() => setShowHowItWorks(false)} className="absolute right-4 top-4 rounded-full p-1.5 text-white/60 hover:bg-white/10">
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+              <p className="text-[11px] font-extrabold uppercase tracking-widest text-cyan-300">How it works</p>
+              <h2 className="mt-2 text-xl font-black leading-snug">Your own AI listing — in 3 steps</h2>
             </div>
-            <button
-              onClick={() => scrollToSection(listingRef)}
-              className="flex-shrink-0 rounded-full px-3.5 py-2 text-[12px] font-extrabold text-white transition-all active:scale-95"
-              style={{ background: brandColor }}
-            >
-              View
-            </button>
-          </div>
-
-          {/* ── Hero photo ── */}
-          <div ref={listingRef} className="relative bg-slate-900" style={{ height: 264 }}>
-            <img
-              src={heroPhoto}
-              alt={displayListing.address}
-              className="h-full w-full object-cover"
-            />
-            <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-transparent to-black/75" />
-
-            {/* Live badge */}
-            <span
-              className="absolute left-4 top-4 rounded-full bg-white px-2.5 py-1 text-[10px] font-black shadow-md"
-              style={{ color: brandColor }}
-            >
-              LIVE PREVIEW
-            </span>
-
-            {/* Photo nav dots */}
-            {photos.length > 1 && (
-              <div className="absolute bottom-[68px] left-0 right-0 flex justify-center gap-1.5 z-10">
-                {photos.map((_, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setPhotoIndex(i)}
-                    className={`h-1.5 rounded-full transition-all ${i === photoIndex ? 'w-5 bg-white' : 'w-1.5 bg-white/55'}`}
-                  />
-                ))}
-              </div>
-            )}
-
-            {/* Price overlay */}
-            <div className="absolute bottom-4 left-4">
-              <p className="text-[28px] font-black text-white leading-none">${displayListing.price.toLocaleString()}</p>
-            </div>
-          </div>
-
-          {/* ── Property details ── */}
-          <div className="bg-white px-4 pt-4 pb-5">
-            <p className="text-[13px] text-slate-500 leading-snug">{displayListing.address}</p>
-            <div className="mt-2 flex items-center gap-5">
-              {([[displayListing.beds, 'bd'], [displayListing.baths, 'ba'], [displayListing.sqft.toLocaleString(), 'sqft']] as [number | string, string][]).map(([v, l]) => (
-                <div key={l} className="flex items-baseline gap-1">
-                  <span className="text-[17px] font-black text-slate-900">{v}</span>
-                  <span className="text-[12px] text-slate-400">{l}</span>
+            <div className="space-y-4 px-6 py-6">
+              {[
+                { n: '1', t: 'Claim your free account', d: `${lo.name.split(' ')[0]} already set it up — just confirm your details. Takes a minute.` },
+                { n: '2', t: 'Add your listing', d: 'Drop in the address and photos. The AI reads it and is ready to answer buyers instantly.' },
+                { n: '3', t: 'Share the link', d: 'Every buyer who opens it gets answers 24/7 — and the warm ones come straight to you.' },
+              ].map(s => (
+                <div key={s.n} className="flex gap-3.5">
+                  <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-sm font-black text-white" style={{ background: brandColor }}>{s.n}</div>
+                  <div>
+                    <p className="text-[15px] font-bold text-slate-900">{s.t}</p>
+                    <p className="mt-0.5 text-[13px] leading-relaxed text-slate-500">{s.d}</p>
+                  </div>
                 </div>
               ))}
-            </div>
-
-            {/* Primary CTA */}
-            <button
-              onClick={() => setChatMode('home')}
-              className="mt-4 flex w-full items-center justify-center gap-2.5 rounded-2xl py-[14px] text-[15px] font-extrabold text-white shadow-[0_4px_20px_rgba(0,0,0,0.18)] transition-transform active:scale-[0.99]"
-              style={{ background: brandColor }}
-            >
-              <span className="text-[18px]">💬</span>
-              Talk to this Home
-            </button>
-            <p className="mt-1.5 text-center text-[11px] text-slate-400">AI answers buyer questions 24/7 — try it</p>
-          </div>
-
-          {/* ── Separator ── */}
-          <div className="h-2.5 bg-[#f2f2f7]" />
-
-          {/* ── About ── */}
-          <div className="bg-white px-4 py-4">
-            <p className="mb-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-400">About this home</p>
-            <p className="text-[14px] leading-relaxed text-slate-700">{displayListing.description}</p>
-          </div>
-
-          {/* ── Separator ── */}
-          <div className="h-2.5 bg-[#f2f2f7]" />
-
-          {/* ── Listing Agent card ── */}
-          <div className="bg-white px-4 py-4">
-            <p className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-400">Listing Agent</p>
-            <div className="flex items-center gap-3">
-              <img
-                src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=200&auto=format&fit=crop&crop=face"
-                alt={agentName}
-                className="h-12 w-12 flex-shrink-0 rounded-full object-cover"
-              />
-              <div className="min-w-0 flex-1">
-                <p className="font-bold text-slate-900">{agentName}</p>
-                <p className="text-[12px] text-slate-400">Keller Williams Realty</p>
-                <p className="text-[11px] text-slate-400">DRE #02198773 · (512) 555-0148</p>
-              </div>
-              <div className="flex gap-2">
-                <a href="tel:5125550148" className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100">
-                  <span className="material-symbols-outlined text-[18px] text-slate-600">call</span>
-                </a>
-                <a href="mailto:sarah@kwrealty.com" className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100">
-                  <span className="material-symbols-outlined text-[18px] text-slate-600">mail</span>
-                </a>
-              </div>
+              <button
+                onClick={() => navigate(`/agent/claim/${token}`)}
+                className="mt-2 w-full rounded-xl py-3.5 text-[15px] font-extrabold text-white shadow-md transition-all active:scale-[0.99]"
+                style={{ background: brandColor }}
+              >
+                Start Free →
+              </button>
+              <p className="text-center text-[11px] text-slate-400">Free for agents · No card · Cancel anytime</p>
             </div>
           </div>
-
-          {/* ── Separator ── */}
-          <div className="h-2.5 bg-[#f2f2f7]" />
-
-          {/* ── Mortgage calculator ── */}
-          <div ref={financeRef} className="bg-white">
-            <div className="px-4 pt-4">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Monthly Payment</p>
-            </div>
-            <MortgageCalculator
-              price={displayListing.price}
-              brandColor={brandColor}
-              onGetPreApproved={() => setChatMode('financing')}
-            />
-          </div>
-
-          {/* ── Separator ── */}
-          <div className="h-2.5 bg-[#f2f2f7]" />
-
-          {/* ── Financing expert ── */}
-          <div className="bg-white px-4 py-4">
-            <p className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-400">Your Financing Expert</p>
-
-            {/* LO card */}
-            <div className="mb-4 flex items-center gap-3">
-              {lo.headshotUrl
-                ? <img src={lo.headshotUrl} alt={lo.name} className="h-12 w-12 flex-shrink-0 rounded-full object-cover" />
-                : <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full text-lg font-black text-white" style={{ background: brandColor }}>{lo.name[0]}</div>
-              }
-              <div className="min-w-0 flex-1">
-                <p className="font-bold text-slate-900">{lo.name}</p>
-                <p className="text-[12px] text-slate-400">{lo.company}{lo.nmlsNumber ? ` · NMLS #${lo.nmlsNumber}` : ''}</p>
-              </div>
-              <div className="flex gap-2">
-                {lo.phone && (
-                  <a href={`tel:${lo.phone}`} className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100">
-                    <span className="material-symbols-outlined text-[18px] text-slate-600">call</span>
-                  </a>
-                )}
-                {lo.email && (
-                  <a href={`mailto:${lo.email}`} className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100">
-                    <span className="material-symbols-outlined text-[18px] text-slate-600">mail</span>
-                  </a>
-                )}
-              </div>
-            </div>
-
-            {/* Quick questions */}
-            <div className="mb-3 space-y-2">
-              {['💬 What can I qualify for?', '📋 How does pre-approval work?', '💰 What are current rates?'].map(q => (
-                <button
-                  key={q}
-                  onClick={() => setChatMode('financing')}
-                  className="flex w-full items-center gap-3 rounded-xl bg-slate-50 px-4 py-3 text-left text-[13px] font-medium text-slate-700 active:bg-slate-100 transition-colors"
-                >
-                  {q}
-                </button>
-              ))}
-            </div>
-
-            <button
-              onClick={() => setChatMode('financing')}
-              className="flex w-full items-center justify-center gap-2 rounded-2xl py-4 text-[15px] font-extrabold text-white shadow-sm transition-all active:scale-[0.99]"
-              style={{ background: 'linear-gradient(135deg,#059669,#10b981)' }}
-            >
-              ✅ Get Pre-Approved — Free, No Hard Pull
-            </button>
-          </div>
-
-          {/* ── Separator ── */}
-          <div className="h-2.5 bg-[#f2f2f7]" />
-
-          {/* ── Partner CTA ── */}
-          <div className="bg-[#eff6ff] px-4 py-5">
-            {/* Agent card */}
-            <div className="mb-4 flex items-center gap-3">
-              {lo.id === 'demo-lo' ? (
-                <img
-                  src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=200&auto=format&fit=crop&crop=face"
-                  alt={agentName}
-                  className="h-12 w-12 flex-shrink-0 rounded-full object-cover ring-2 ring-white shadow-sm"
-                />
-              ) : (
-                <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-blue-100 text-xl font-black text-blue-400">
-                  {agentInitial}
-                </div>
-              )}
-              <div>
-                <p className="font-bold text-slate-900">{agentName}</p>
-                <p className="text-[12px] text-slate-500">Listing Agent · {market}</p>
-              </div>
-            </div>
-
-            <h3 className="text-[17px] font-black text-slate-900 mb-1.5">This could be your listing page</h3>
-            <p className="text-[13px] leading-relaxed text-slate-500 mb-4">
-              {lo.name.split(' ')[0]} already set this up for you — explore it first, then let them know if you're in. No commitment, no contracts.
-            </p>
-
-            <button
-              onClick={() => setShowConnectSheet(true)}
-              className="flex w-full items-center justify-center gap-2 rounded-2xl py-4 text-[15px] font-extrabold text-white shadow-md transition-all active:scale-[0.99]"
-              style={{ background: 'linear-gradient(135deg,#f86f1b,#fb8c3a)' }}
-            >
-              <span className="material-symbols-outlined text-[20px]">handshake</span>
-              I'm In — Let's Work Together
-            </button>
-            <p className="mt-2 text-center text-[11px] text-slate-400">Free for agents · 30 seconds · No commitment</p>
-
-            <button
-              onClick={() => setShowHowItWorks(true)}
-              className="mt-3 w-full rounded-2xl border border-slate-200 py-3.5 text-[14px] font-bold text-slate-600 transition-all active:bg-slate-50"
-            >
-              See How It Works →
-            </button>
-          </div>
-
-          {/* ── Footer ── */}
-          <div className="h-2.5 bg-[#f2f2f7]" />
-          <div className="flex items-center gap-2.5 bg-white px-4 py-4">
-            {lo.headshotUrl
-              ? <img src={lo.headshotUrl} alt={lo.name} className="h-7 w-7 flex-shrink-0 rounded-full object-cover" />
-              : <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold text-white" style={{ background: brandColor }}>{lo.name[0]}</div>
-            }
-            <p className="flex-1 text-[12px] text-slate-500">
-              Financing by <span className="font-semibold text-slate-700">{lo.name}</span> · {lo.company}
-            </p>
-            <span className="flex-shrink-0 text-[10px] text-slate-300">HomeListingAI</span>
-          </div>
-          <div className="h-4 bg-[#f2f2f7]" />
         </div>
-
-        {/* ── Bottom Tab Bar — flex-none, sticks to bottom of shell ── */}
-        <div className="flex-none">
-          <BottomBar active={activeTab} onTab={handleTab} brandColor={brandColor} onChat={setChatMode} />
-        </div>
-
-        {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* OVERLAYS — absolute inside phone shell so they stay inside frame  */}
-        {/* ═══════════════════════════════════════════════════════════════════ */}
-
-        {/* ── Chat overlay ── */}
-        {chatMode && (
-          <div
-            className="absolute inset-0 z-50 flex items-end bg-black/60"
-            onClick={() => setChatMode(null)}
-            style={{ backdropFilter: 'blur(4px)' }}
-          >
-            <div
-              className="flex w-full flex-col overflow-hidden bg-white"
-              style={{
-                height: '88%',
-                borderRadius: '22px 22px 0 0',
-                paddingBottom: 'env(safe-area-inset-bottom)',
-                animation: 'slideUp 0.28s cubic-bezier(0.32,0.72,0,1)',
-              }}
-              onClick={e => e.stopPropagation()}
-            >
-              {/* Drag handle + close */}
-              <div className="relative flex items-center justify-center border-b border-slate-100 px-4 py-2.5 flex-shrink-0">
-                <div className="h-1 w-10 rounded-full bg-slate-200" />
-                <button
-                  onClick={() => setChatMode(null)}
-                  className="absolute right-4 rounded-full bg-slate-100 p-1.5 text-slate-500"
-                >
-                  <span className="material-symbols-outlined text-[18px]">close</span>
-                </button>
-              </div>
-              <div className="min-h-0 flex-1">
-                {chatMode === 'home'
-                  ? <PropertyChat listing={displayListing} agentName={agentName} brandColor={brandColor} />
-                  : <LiveChat lo={lo} listingId={displayListing.id} botName={botName} greeting={greeting} brandColor={brandColor} />
-                }
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── Connect sheet ── */}
-        {showConnectSheet && (
-          <div
-            className="absolute inset-0 z-50 flex items-end bg-black/60"
-            onClick={() => !connectSending && setShowConnectSheet(false)}
-            style={{ backdropFilter: 'blur(4px)' }}
-          >
-            <div
-              className="w-full overflow-hidden bg-white"
-              style={{
-                borderRadius: '22px 22px 0 0',
-                paddingBottom: 'env(safe-area-inset-bottom)',
-                animation: 'slideUp 0.28s cubic-bezier(0.32,0.72,0,1)',
-              }}
-              onClick={e => e.stopPropagation()}
-            >
-              {connectDone ? (
-                <div className="px-6 py-10 text-center">
-                  <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
-                    <span className="material-symbols-outlined text-3xl text-emerald-600">check_circle</span>
-                  </div>
-                  <h2 className="text-xl font-black text-slate-900">You're in! 🎉</h2>
-                  <p className="mt-2 text-[14px] leading-relaxed text-slate-500">
-                    {lo.name.split(' ')[0]} has been notified. One last step — create your password to access your dashboard.
-                  </p>
-                  {token === 'demo' ? (
-                    <>
-                      <div className="mt-4 rounded-xl bg-slate-50 border border-slate-200 px-4 py-3">
-                        <p className="text-[12px] text-slate-500">
-                          <span className="font-bold text-slate-700">Demo mode</span> — in the live app you'd set a password here and get instant access to your listing dashboard.
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => setShowConnectSheet(false)}
-                        className="mt-5 w-full rounded-2xl py-3.5 text-[15px] font-extrabold text-white"
-                        style={{ background: brandColor }}
-                      >
-                        Got it
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        onClick={() => navigate(`/agent/claim/${token}`)}
-                        className="mt-6 w-full rounded-2xl py-3.5 text-[15px] font-extrabold text-white shadow-md transition-all active:scale-[0.99]"
-                        style={{ background: 'linear-gradient(135deg,#f86f1b,#fb8c3a)' }}
-                      >
-                        Create My Account →
-                      </button>
-                      <p className="mt-2 text-[11px] text-slate-400">
-                        Redirecting in {connectCountdown}s…
-                      </p>
-                    </>
-                  )}
-                </div>
-              ) : (
-                <>
-                  <div className="flex items-center justify-between px-4 pt-5 pb-4 border-b border-slate-100">
-                    <div>
-                      <h2 className="text-[17px] font-black text-slate-900">Connect with {lo.name.split(' ')[0]}</h2>
-                      <p className="text-[12px] text-slate-400 mt-0.5">They'll reach out within 1 business day</p>
-                    </div>
-                    <button
-                      onClick={() => setShowConnectSheet(false)}
-                      className="rounded-full bg-slate-100 p-2 text-slate-500"
-                    >
-                      <span className="material-symbols-outlined text-[18px]">close</span>
-                    </button>
-                  </div>
-                  <div className="space-y-3 px-4 py-4">
-                    <div>
-                      <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-slate-400">Your Name</label>
-                      <input
-                        value={connectName}
-                        onChange={e => setConnectName(e.target.value)}
-                        placeholder={data?.inviteeName || 'Your full name'}
-                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-[15px] text-slate-900 placeholder-slate-400 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-emerald-400"
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-slate-400">Phone (optional)</label>
-                      <input
-                        value={connectPhone}
-                        onChange={e => setConnectPhone(e.target.value)}
-                        placeholder="(555) 000-0000"
-                        type="tel"
-                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-[15px] text-slate-900 placeholder-slate-400 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-emerald-400"
-                      />
-                    </div>
-                    <button
-                      onClick={() => void handleConnect()}
-                      disabled={connectSending}
-                      className="flex w-full items-center justify-center gap-2 rounded-2xl py-4 text-[15px] font-extrabold text-white shadow-md transition-all active:scale-[0.99] disabled:opacity-60"
-                      style={{ background: 'linear-gradient(135deg,#16a34a,#22c55e)' }}
-                    >
-                      {connectSending
-                        ? 'Sending…'
-                        : <><span className="material-symbols-outlined text-[20px]">send</span> Let's Do This!</>
-                      }
-                    </button>
-                    <p className="text-center text-[11px] text-slate-400">No commitment · Free for agents</p>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* ── How It Works sheet ── */}
-        {showHowItWorks && (
-          <div
-            className="absolute inset-0 z-50 flex items-end bg-black/60"
-            onClick={() => setShowHowItWorks(false)}
-            style={{ backdropFilter: 'blur(4px)' }}
-          >
-            <div
-              className="w-full overflow-hidden bg-white"
-              style={{
-                borderRadius: '22px 22px 0 0',
-                paddingBottom: 'env(safe-area-inset-bottom)',
-                animation: 'slideUp 0.28s cubic-bezier(0.32,0.72,0,1)',
-              }}
-              onClick={e => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between border-b border-slate-100 px-4 py-4">
-                <div>
-                  <h2 className="text-[17px] font-black text-slate-900">How it works</h2>
-                  <p className="text-[12px] text-slate-400 mt-0.5">Your AI listing — in 3 steps</p>
-                </div>
-                <button
-                  onClick={() => setShowHowItWorks(false)}
-                  className="rounded-full bg-slate-100 p-2 text-slate-500"
-                >
-                  <span className="material-symbols-outlined text-[18px]">close</span>
-                </button>
-              </div>
-              <div className="space-y-5 px-4 py-5">
-                {[
-                  { n: '1', t: 'Claim your free account', d: `${lo.name.split(' ')[0]} already set it up — just confirm your details. Takes a minute.` },
-                  { n: '2', t: 'Add your listing', d: 'Drop in the address and photos. The AI reads it and answers buyers instantly.' },
-                  { n: '3', t: 'Share the link', d: 'Every buyer who opens it gets answers 24/7 — and the warm ones come straight to you.' },
-                ].map(s => (
-                  <div key={s.n} className="flex gap-4">
-                    <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-sm font-black text-white" style={{ background: brandColor }}>
-                      {s.n}
-                    </div>
-                    <div>
-                      <p className="font-bold text-slate-900">{s.t}</p>
-                      <p className="mt-0.5 text-[13px] leading-relaxed text-slate-500">{s.d}</p>
-                    </div>
-                  </div>
-                ))}
-                <button
-                  onClick={() => {
-                    if (token === 'demo') {
-                      setShowHowItWorks(false);
-                      setShowConnectSheet(true);
-                    } else {
-                      navigate(`/agent/claim/${token}`);
-                    }
-                  }}
-                  className="w-full rounded-2xl py-4 text-[15px] font-extrabold text-white shadow-md transition-all active:scale-[0.99]"
-                  style={{ background: brandColor }}
-                >
-                  Start Free →
-                </button>
-                <p className="text-center text-[11px] text-slate-400">Free for agents · No card · Cancel anytime</p>
-              </div>
-            </div>
-          </div>
-        )}
-
-      </div>
+      )}
 
       {/* Slide-up animation */}
       <style>{`

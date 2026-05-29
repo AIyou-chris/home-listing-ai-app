@@ -10,7 +10,6 @@ interface LOChatbotInfo {
   greeting?: string;
   lo_name?: string;
   lo_photo?: string | null;
-  lo_logo?: string | null;
   lo_company?: string | null;
 }
 
@@ -34,97 +33,6 @@ const SUGGESTED = [
   'Can I qualify with less-than-perfect credit?'
 ];
 
-// ─── Lead capture form ────────────────────────────────────────────────────────
-
-const LeadCaptureForm: React.FC<{
-  loAgentId: string;
-  listingId: string;
-  loName?: string;
-  onDone: () => void;
-}> = ({ loAgentId, listingId, loName, onDone }) => {
-  const [form, setForm] = useState({ name: '', email: '', phone: '' });
-  const [submitting, setSubmitting] = useState(false);
-  const [done, setDone] = useState(false);
-
-  const handleSubmit = async () => {
-    if (!form.name.trim() && !form.email.trim() && !form.phone.trim()) return;
-    setSubmitting(true);
-    try {
-      await fetch(buildApiUrl('/api/lo/chatbot/capture-lead'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          lo_agent_id: loAgentId,
-          listing_id: listingId,
-          name: form.name || null,
-          email: form.email || null,
-          phone: form.phone || null,
-        })
-      });
-      setDone(true);
-      setTimeout(onDone, 3000);
-    } catch {
-      // non-fatal — still mark done so UX doesn't break
-      setDone(true);
-      setTimeout(onDone, 3000);
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  if (done) {
-    return (
-      <div className="mx-4 mb-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-center">
-        <span className="material-symbols-outlined text-xl text-emerald-600">check_circle</span>
-        <p className="mt-1 text-sm font-semibold text-emerald-800">Got it! {loName || 'Your loan officer'} will reach out soon.</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="mx-4 mb-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 space-y-2">
-      <p className="text-xs font-bold text-emerald-800">
-        Want {loName || 'the loan officer'} to reach out to you directly?
-      </p>
-      <input
-        value={form.name}
-        onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-        placeholder="Your name"
-        className="w-full rounded-lg border border-emerald-200 bg-white px-3 py-2 text-sm outline-none focus:border-emerald-400"
-      />
-      <input
-        value={form.email}
-        onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-        placeholder="Email address"
-        type="email"
-        className="w-full rounded-lg border border-emerald-200 bg-white px-3 py-2 text-sm outline-none focus:border-emerald-400"
-      />
-      <input
-        value={form.phone}
-        onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-        placeholder="Phone (optional)"
-        type="tel"
-        className="w-full rounded-lg border border-emerald-200 bg-white px-3 py-2 text-sm outline-none focus:border-emerald-400"
-      />
-      <div className="flex gap-2">
-        <button
-          onClick={onDone}
-          className="flex-1 rounded-lg border border-emerald-200 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
-        >
-          No thanks
-        </button>
-        <button
-          onClick={() => void handleSubmit()}
-          disabled={submitting || (!form.name.trim() && !form.email.trim())}
-          className="flex-1 rounded-lg bg-emerald-600 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
-        >
-          {submitting ? 'Sending…' : 'Connect me'}
-        </button>
-      </div>
-    </div>
-  );
-};
-
 // ─── Component ────────────────────────────────────────────────────────────────
 
 const LOFinanceChatPanel: React.FC<LOFinanceChatPanelProps> = ({ listingId, open, onClose }) => {
@@ -135,8 +43,6 @@ const LOFinanceChatPanel: React.FC<LOFinanceChatPanelProps> = ({ listingId, open
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [booted, setBooted] = useState(false);
-  const [showCapture, setShowCapture] = useState(false);
-  const [captureDismissed, setCaptureDismissed] = useState(false);
 
   const transcriptRef = useRef<HTMLDivElement>(null);
 
@@ -147,8 +53,6 @@ const LOFinanceChatPanel: React.FC<LOFinanceChatPanelProps> = ({ listingId, open
     setInfo(null);
     setBooted(false);
     setMessages([]);
-    setShowCapture(false);
-    setCaptureDismissed(false);
 
     fetch(buildApiUrl(`/api/public/listing/${encodeURIComponent(listingId)}/lo-chatbot`))
       .then((r) => r.json())
@@ -171,7 +75,7 @@ const LOFinanceChatPanel: React.FC<LOFinanceChatPanelProps> = ({ listingId, open
     if (transcriptRef.current) {
       transcriptRef.current.scrollTop = transcriptRef.current.scrollHeight;
     }
-  }, [messages, showCapture]);
+  }, [messages]);
 
   // ── Send message ──────────────────────────────────────────────────────────
   const send = async (text: string) => {
@@ -204,10 +108,6 @@ const LOFinanceChatPanel: React.FC<LOFinanceChatPanelProps> = ({ listingId, open
         ...prev,
         { id: `bot_${Date.now()}`, role: 'bot', text: String(data.reply || 'Please contact me directly for details.') }
       ]);
-      // Show lead capture if backend signals warm interest
-      if (data.showCapture && !captureDismissed) {
-        setShowCapture(true);
-      }
     } catch {
       setMessages((prev) => [
         ...prev,
@@ -250,7 +150,7 @@ const LOFinanceChatPanel: React.FC<LOFinanceChatPanelProps> = ({ listingId, open
                   <span className="material-symbols-outlined text-xl">person</span>
                 </div>
               )}
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0">
                 <p className="text-sm font-bold leading-tight">
                   {infoLoading ? 'Loading...' : (info?.bot_name || info?.lo_name || 'Financing Assistant')}
                 </p>
@@ -258,15 +158,6 @@ const LOFinanceChatPanel: React.FC<LOFinanceChatPanelProps> = ({ listingId, open
                   {info?.lo_company || 'Mortgage & Financing Questions'}
                 </p>
               </div>
-              {info?.lo_logo && (
-                <div className="flex-shrink-0 rounded-md bg-white/15 px-1.5 py-1">
-                  <img
-                    src={info.lo_logo}
-                    alt={info.lo_company || 'Lender'}
-                    className="h-5 w-14 object-contain"
-                  />
-                </div>
-              )}
             </div>
             <button
               onClick={onClose}
@@ -314,16 +205,6 @@ const LOFinanceChatPanel: React.FC<LOFinanceChatPanelProps> = ({ listingId, open
                 </div>
               )}
             </div>
-
-            {/* Lead capture — appears when bot signals warm interest */}
-            {showCapture && !captureDismissed && info.lo_agent_id && (
-              <LeadCaptureForm
-                loAgentId={info.lo_agent_id}
-                listingId={listingId}
-                loName={info.lo_name}
-                onDone={() => { setShowCapture(false); setCaptureDismissed(true); }}
-              />
-            )}
 
             {/* Input area */}
             <div className="space-y-2 border-t border-slate-200 px-4 py-3">

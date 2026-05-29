@@ -13,16 +13,6 @@ export interface ListingSourceDefault {
   source_key: string;
 }
 
-export interface LoPartner {
-  name: string;
-  company: string | null;
-  headshot_url: string | null;
-  nmls_number: string | null;
-  email: string | null;
-  phone: string | null;
-  chatbot_active: boolean;
-}
-
 export interface ListingShareKitResponse {
   success: boolean;
   listing_id: string;
@@ -32,7 +22,15 @@ export interface ListingShareKitResponse {
   share_url: string | null;
   qr_code_url: string | null;
   qr_code_svg: string | null;
-  lo_partner?: LoPartner | null;
+  latest_video?: {
+    id: string;
+    title: string | null;
+    caption: string | null;
+    file_name: string | null;
+    mime_type: string;
+    status: string;
+    created_at: string | null;
+  } | null;
   source_defaults: Record<string, ListingSourceDefault>;
 }
 

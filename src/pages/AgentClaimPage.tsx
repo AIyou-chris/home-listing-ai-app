@@ -28,6 +28,24 @@ const AgentClaimPage: React.FC = () => {
 
   useEffect(() => {
     if (!token) { setError('Invalid link'); setLoading(false); return }
+
+    // Demo bypass — show a preview of the claim flow without hitting the DB
+    if (token === 'demo') {
+      setInvite({
+        email: 'you@youragency.com',
+        name: 'Sarah Johnson',
+        claimed: false,
+        lo: {
+          name: 'Alex Rivera',
+          company: 'Summit Mortgage',
+          headshotUrl: null,
+          nmlsNumber: '1234567',
+        }
+      })
+      setLoading(false)
+      return
+    }
+
     fetch(buildApiUrl(`/api/agent/claim/${token}`))
       .then(r => r.json())
       .then((data: { success?: boolean; invite?: InviteInfo; error?: string }) => {
@@ -46,6 +64,15 @@ const AgentClaimPage: React.FC = () => {
     setFormError('')
     if (password.length < 8) { setFormError('Password must be at least 8 characters.'); return }
     if (password !== confirmPassword) { setFormError('Passwords do not match.'); return }
+
+    // Demo — just show success without hitting the API
+    if (token === 'demo') {
+      setSubmitting(true)
+      await new Promise(r => setTimeout(r, 800))
+      setSuccess(true)
+      setSubmitting(false)
+      return
+    }
 
     setSubmitting(true)
     try {
@@ -92,13 +119,7 @@ const AgentClaimPage: React.FC = () => {
       <div className="max-w-sm w-full text-center">
         <div className="text-6xl mb-4">🎉</div>
         <h1 className="text-white font-bold text-2xl mb-2">You're in!</h1>
-        <p className="text-slate-400 text-sm mb-6">Your account is ready. Sign in to see your listing dashboard.</p>
-        <button
-          onClick={() => navigate('/signin')}
-          className="w-full rounded-2xl bg-white py-3.5 text-[15px] font-extrabold text-slate-900 shadow-md transition-all hover:bg-slate-100 active:scale-[0.99]"
-        >
-          Sign In to My Dashboard →
-        </button>
+        <p className="text-slate-400 text-sm">Your account is ready. Redirecting to sign in…</p>
       </div>
     </div>
   )

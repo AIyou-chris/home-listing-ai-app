@@ -72,13 +72,13 @@ if (MAILGUN_WEBHOOK_SIGNING_KEY === MAILGUN_API_KEY) {
 }
 const APP_URL = process.env.VITE_APP_URL || process.env.APP_URL || 'http://localhost:5173';
 const SMS_COMING_SOON =
-  String(process.env.SMS_COMING_SOON || 'false').toLowerCase() !== 'false';
+  String(process.env.SMS_COMING_SOON || 'true').toLowerCase() !== 'false';
 const FEATURE_FLAG_EMAIL_ENABLED =
   String(process.env.FEATURE_FLAG_EMAIL_ENABLED || 'true').toLowerCase() !== 'false';
 const FEATURE_FLAG_VOICE_ENABLED =
   String(process.env.FEATURE_FLAG_VOICE_ENABLED || 'true').toLowerCase() !== 'false';
 const FEATURE_FLAG_SMS_ENABLED =
-  !SMS_COMING_SOON && String(process.env.FEATURE_FLAG_SMS_ENABLED || 'true').toLowerCase() === 'true';
+  !SMS_COMING_SOON && String(process.env.FEATURE_FLAG_SMS_ENABLED || 'false').toLowerCase() === 'true';
 const APPOINTMENT_REMINDER_TIMEZONE = process.env.APPOINTMENT_REMINDER_TIMEZONE || 'America/Los_Angeles';
 const APPOINTMENT_REMINDER_OFFSETS_MINUTES = [24 * 60, 2 * 60];
 const REMINDER_EXECUTION_BATCH_SIZE = 50;
@@ -7645,33 +7645,10 @@ const loadListingForVideoAccess = async ({ listingId, requesterUserId, accessTag
 };
 
 const resolveListingAccessContext = async ({ listingId, requesterUserId, accessTag = 'listing' }) => {
+  const listingRow = await loadListingForVideoAccess({ listingId, requesterUserId, accessTag });
+  if (!listingRow) return null;
+
   const scopedRequesterId = toTrimmedOrNull(requesterUserId);
-  let viewerRole = 'owner';
-  let listingRow = await loadListingForVideoAccess({ listingId, requesterUserId, accessTag });
-
-  if (!listingRow) {
-    // Fall back to LO assignment check — an assigned LO gets read + LO-brain-edit access
-    const scopedListingId = toTrimmedOrNull(listingId);
-    if (scopedListingId && scopedRequesterId) {
-      const { data: rawListing } = await supabaseAdmin
-        .from('properties').select('*').eq('id', scopedListingId).maybeSingle();
-      if (rawListing) {
-        const { data: loAgentRow } = await supabaseAdmin
-          .from('agents').select('id').eq('auth_user_id', scopedRequesterId).maybeSingle();
-        if (loAgentRow?.id) {
-          const { data: assignment } = await supabaseAdmin
-            .from('listing_lo_assignments').select('id')
-            .eq('listing_id', scopedListingId).eq('lo_agent_id', loAgentRow.id).maybeSingle();
-          if (assignment) {
-            listingRow = rawListing;
-            viewerRole = 'lo';
-          }
-        }
-      }
-    }
-    if (!listingRow) return null;
-  }
-
   const listingUserId = toTrimmedOrNull(listingRow.user_id);
   const listingAgentId = toTrimmedOrNull(listingRow.agent_id);
   const requesterAgentId = await resolveAgentIdForRequesterUser(scopedRequesterId).catch(() => null);
@@ -7698,8 +7675,7 @@ const resolveListingAccessContext = async ({ listingId, requesterUserId, accessT
     listingRow,
     requesterUserId: scopedRequesterId,
     sourceAgentIds,
-    primaryAgentId,
-    viewerRole   // 'owner' | 'lo'
+    primaryAgentId
   };
 };
 
@@ -15479,7 +15455,7 @@ async function verifyAdmin(req, res, next) {
 
     // Fallback: Check strictly against Env Var (both prefixed and unprefixed names)
     const adminEmailEnv = process.env.ADMIN_EMAIL || process.env.VITE_ADMIN_EMAIL;
-    const hardcodedAdminEmails = ['admin@homelistingai.com', 'us@homelistingai.com', 'anaiyou@pm.me'];
+    const hardcodedAdminEmails = ['admin@homelistingai.com', 'us@homelistingai.com'];
     if (adminEmailEnv) hardcodedAdminEmails.push(adminEmailEnv.toLowerCase());
     const isEnvAdmin = user.email && hardcodedAdminEmails.includes(user.email.toLowerCase());
 
@@ -21712,26 +21688,12 @@ app.get('/api/dashboard/leads/:leadId/conversation', async (req, res) => {
 app.patch('/api/dashboard/leads/:leadId/status', async (req, res) => {
   try {
     const { leadId } = req.params;
-    const agentId = String(req.query.agentId || req.headers['x-user-id'] || req.headers['x-agent-id'] || DEFAULT_LEAD_USER_ID || '');
     const updates = req.body || {};
     const allowedStatus = ['New', 'Contacted', 'Nurture', 'Closed-Lost'];
     const status = allowedStatus.includes(updates.status) ? updates.status : null;
 
     if (!status) {
       return res.status(400).json({ error: 'invalid_status' });
-    }
-
-    // Ownership check — verify this agent owns the lead before mutating
-    if (agentId) {
-      const { data: ownerCheck } = await supabaseAdmin
-        .from('leads')
-        .select('id')
-        .eq('id', leadId)
-        .or(`agent_id.eq.${agentId},user_id.eq.${agentId}`)
-        .maybeSingle();
-      if (!ownerCheck) {
-        return res.status(403).json({ error: 'lead_access_denied' });
-      }
     }
 
     const patch = {
@@ -21905,25 +21867,9 @@ app.get('/api/dashboard/listings/:id', async (req, res) => {
 
     const sources = await listListingBrainSources({ listingId: access.listingRow.id, agentId: access.sourceAgentIds });
 
-    // When LO is viewing, include the listing agent's profile so the People tab can show it
-    let listingAgentProfile = null;
-    if (access.viewerRole === 'lo') {
-      const ownerAgentId = toTrimmedOrNull(access.listingRow.agent_id) || toTrimmedOrNull(access.listingRow.user_id);
-      if (ownerAgentId) {
-        const { data: ap } = await supabaseAdmin
-          .from('agents')
-          .select('first_name, last_name, email, phone, headshot_url, company, nmls_number, title')
-          .eq('id', ownerAgentId)
-          .maybeSingle();
-        listingAgentProfile = ap || null;
-      }
-    }
-
     return res.json({
       listing: mapListingRowToDashboardPayload(access.listingRow),
-      brain_sources: sources,
-      viewer_role: access.viewerRole || 'owner',
-      listing_agent_profile: listingAgentProfile
+      brain_sources: sources
     });
   } catch (error) {
     console.error('[Dashboard] Failed to load listing editor payload:', error);
@@ -21941,12 +21887,6 @@ app.patch('/api/dashboard/listings/:id', async (req, res) => {
 
     const access = await resolveListingAccessContext({ listingId, requesterUserId, accessTag: 'dashboard.listing.patch' });
     if (!access) return res.status(404).json({ error: 'listing_not_found' });
-
-    // LOs can view the listing editor but cannot edit listing details (essentials/photos/description)
-    if (access.viewerRole === 'lo') {
-      return res.status(403).json({ error: 'lo_read_only', message: 'LOs can only edit the LO Financing Brain — listing details are managed by the listing agent.' });
-    }
-
     const listingRow = access.listingRow;
 
     const updates = {};
@@ -22595,40 +22535,24 @@ app.get('/api/dashboard/listings/:listingId/share-kit', async (req, res) => {
       return acc;
     }, {});
 
-    // Fetch assigned LO partner info for the Share Kit
-    let loPartner = null;
+    let latestVideo = null;
     try {
-      const { data: loAssignment } = await supabaseAdmin
-        .from('listing_lo_assignments')
-        .select('lo_agent_id')
+      const { data: videoRows, error: videoError } = await supabaseAdmin
+        .from('listing_videos')
+        .select('id, title, caption, file_name, mime_type, status, created_at')
         .eq('listing_id', listing.id)
-        .limit(1)
-        .maybeSingle();
-      if (loAssignment?.lo_agent_id) {
-        const { data: loAgent } = await supabaseAdmin
-          .from('agents')
-          .select('id, first_name, last_name, company, headshot_url, nmls_number, email, phone')
-          .eq('id', loAssignment.lo_agent_id)
-          .maybeSingle();
-        if (loAgent) {
-          const { data: chatbotConfig } = await supabaseAdmin
-            .from('lo_chatbot_configs')
-            .select('is_active')
-            .eq('lo_agent_id', loAssignment.lo_agent_id)
-            .maybeSingle();
-          loPartner = {
-            name: [loAgent.first_name, loAgent.last_name].filter(Boolean).join(' ') || loAgent.email || 'Your LO',
-            company: loAgent.company || null,
-            headshot_url: loAgent.headshot_url || null,
-            nmls_number: loAgent.nmls_number || null,
-            email: loAgent.email || null,
-            phone: loAgent.phone || null,
-            chatbot_active: chatbotConfig?.is_active !== false
-          };
-        }
+        .in('agent_id', access.sourceAgentIds)
+        .in('status', ['ready', 'completed', 'published', 'succeeded'])
+        .order('created_at', { ascending: false })
+        .limit(1);
+      if (videoError && !/does not exist|listing_videos/i.test(videoError.message || '')) {
+        throw videoError;
       }
-    } catch (loErr) {
-      console.warn('[sharekit] Failed to load LO partner info:', loErr?.message || loErr);
+      latestVideo = Array.isArray(videoRows) && videoRows.length > 0 ? videoRows[0] : null;
+    } catch (videoError) {
+      if (!/does not exist|listing_videos/i.test(videoError?.message || '')) {
+        console.warn('[Dashboard] Failed to load latest listing video:', videoError?.message || videoError);
+      }
     }
 
     res.json({
@@ -22641,7 +22565,17 @@ app.get('/api/dashboard/listings/:listingId/share-kit', async (req, res) => {
       share_url: shareUrl,
       qr_code_url: listing.qr_code_url || null,
       qr_code_svg: listing.qr_code_svg || null,
-      lo_partner: loPartner,
+      latest_video: latestVideo
+        ? {
+          id: latestVideo.id,
+          title: latestVideo.title || null,
+          caption: latestVideo.caption || null,
+          file_name: latestVideo.file_name || null,
+          mime_type: latestVideo.mime_type || 'video/mp4',
+          status: latestVideo.status || 'ready',
+          created_at: latestVideo.created_at || null
+        }
+        : null,
       source_defaults: sources
     });
   } catch (error) {
@@ -30445,7 +30379,7 @@ app.delete('/api/admin/appointments/:appointmentId', verifyAdmin, (req, res) => 
 app.patch('/api/lo/profile', requireAuth, async (req, res) => {
   try {
     const agentId = req.authUserId;
-    const { nmls_number, lending_states, company, full_name, phone, email, headshot_url } = req.body || {};
+    const { nmls_number, lending_states, company, full_name, phone, headshot_url } = req.body || {};
     const updatePayload = {};
     if (nmls_number !== undefined) updatePayload.nmls_number = toTrimmedOrNull(nmls_number);
     if (lending_states !== undefined) updatePayload.lending_states = Array.isArray(lending_states) ? lending_states.filter(s => typeof s === 'string' && s.trim()) : [];
@@ -30456,7 +30390,6 @@ app.patch('/api/lo/profile', requireAuth, async (req, res) => {
       else if (parts.length === 1 && parts[0]) updatePayload.first_name = parts[0];
     }
     if (phone !== undefined) updatePayload.phone = toTrimmedOrNull(phone);
-    if (email !== undefined) updatePayload.email = toTrimmedOrNull(email);
     if (headshot_url !== undefined) updatePayload.headshot_url = toTrimmedOrNull(headshot_url);
     if (Object.keys(updatePayload).length === 0) return res.json({ success: true, message: 'nothing_to_update' });
     updatePayload.updated_at = nowIso();
@@ -30502,10 +30435,10 @@ app.get('/api/public/listing/:listingId/lo', async (req, res) => {
     const { data: assignments } = await supabaseAdmin.from('listing_lo_assignments').select('lo_agent_id, branding_enabled').eq('listing_id', listingId).eq('branding_enabled', true).limit(1);
     if (!assignments || assignments.length === 0) return res.json({ success: true, lo: null });
     const loAssignId = assignments[0].lo_agent_id;
-    const { data: loRows } = await supabaseAdmin.from('agents').select('id, first_name, last_name, email, phone, headshot_url, logo_url, nmls_number, company').or(`id.eq.${loAssignId},auth_user_id.eq.${loAssignId}`).limit(1);
+    const { data: loRows } = await supabaseAdmin.from('agents').select('id, first_name, last_name, email, phone, headshot_url, nmls_number, company').or(`id.eq.${loAssignId},auth_user_id.eq.${loAssignId}`).limit(1);
     const lo = loRows?.[0];
     if (!lo) return res.json({ success: true, lo: null });
-    res.json({ success: true, lo: { id: lo.id, name: [lo.first_name, lo.last_name].filter(Boolean).join(' ') || 'Loan Officer', email: lo.email || null, phone: lo.phone || null, headshotUrl: lo.headshot_url || null, logoUrl: lo.logo_url || null, nmlsNumber: lo.nmls_number || null, company: lo.company || null } });
+    res.json({ success: true, lo: { id: lo.id, name: [lo.first_name, lo.last_name].filter(Boolean).join(' ') || 'Loan Officer', email: lo.email || null, phone: lo.phone || null, headshotUrl: lo.headshot_url || null, nmlsNumber: lo.nmls_number || null, company: lo.company || null } });
   } catch (error) {
     console.error('[LO Public] Failed:', error);
     res.status(500).json({ error: 'failed_to_fetch_lo' });
@@ -30515,211 +30448,55 @@ app.get('/api/public/listing/:listingId/lo', async (req, res) => {
 // ── LO Today Dashboard ────────────────────────────────────────────────────────
 app.get('/api/lo/dashboard/today', requireAuth, async (req, res) => {
   try {
-    const loAgentId = await resolveLoAgentId(req);
-    if (!loAgentId) return res.status(401).json({ error: 'unauthorized' });
+    const loAgentId = req.authUserId;
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
     const startOf7Days = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
     const startOf30Days = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-    const endOf7DaysAhead = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-
-    const loAuthId = req.authUserId;
-
-    // Fetch from all sources in parallel
-    const [
-      { data: allLeads },
-      { data: chatbotLeads },
-      { data: assignments },
-      { count: partnersReached },
-      { data: loProfile },
-      { data: upcomingApptRows },
-      { data: viewedInvites },
-      { data: allInvites }
-    ] = await Promise.all([
-      // 1. Traditional leads table (listing page leads tagged with lo_agent_id)
-      supabaseAdmin.from('leads').select('id, full_name, name, email, email_lower, phone, status, source_type, source_meta, intent_level, created_at, listing_id, lo_agent_id').eq('lo_agent_id', loAgentId).order('created_at', { ascending: false }).limit(200),
-      // 2. Chatbot/WOW Link leads (pre_qual_submissions)
-      supabaseAdmin.from('pre_qual_submissions').select('id, full_name, name, email, email_lower, phone, status, purchase_timeline, created_at, listing_id, lo_agent_id').eq('lo_agent_id', loAgentId).order('created_at', { ascending: false }).limit(200),
-      // 3. Assigned listings
-      supabaseAdmin.from('listing_lo_assignments').select('listing_id, branding_enabled, assigned_at, listings!listing_lo_assignments_listing_id_fkey(id, address, price, status, hero_photos)').eq('lo_agent_id', loAgentId).order('assigned_at', { ascending: false }),
-      // 4. Partners reached = distinct agents invited (agent_invites uses auth id)
-      supabaseAdmin.from('agent_invites').select('*', { count: 'exact', head: true }).eq('lo_agent_id', loAuthId),
-      // 5. LO profile (name + completeness fields)
-      supabaseAdmin.from('agents').select('first_name, last_name, headshot_url, company, nmls_number').or(`id.eq.${loAgentId},auth_user_id.eq.${loAgentId}`).limit(1).maybeSingle(),
-      // 6. Upcoming appointments (today → +7 days)
-      supabaseAdmin.from('appointments').select('id, kind, name, start_iso, end_iso, location, status, property_address').or(`agent_id.eq.${loAgentId},user_id.eq.${loAgentId}`).gte('start_iso', startOfToday).lte('start_iso', endOf7DaysAhead).order('start_iso', { ascending: true }).limit(5),
-      // 7. Invites viewed but not yet followed up (last_viewed_at set, follow_up_at <= now)
-      supabaseAdmin.from('agent_invites').select('id, invited_name, invited_email, last_viewed_at, follow_up_at, claimed_at').eq('lo_agent_id', loAuthId).not('last_viewed_at', 'is', null).is('claimed_at', null).lte('follow_up_at', new Date().toISOString()).limit(20),
-      // 8. All unclaimed invites (for uncontacted count)
-      supabaseAdmin.from('agent_invites').select('id, last_viewed_at, claimed_at').eq('lo_agent_id', loAuthId).is('claimed_at', null).limit(200)
-    ]);
-
-    // Merge both lead sources — dedupe by email
-    const leadsFromTable = (allLeads || []).map(l => ({
-      id: l.id, name: l.full_name || l.name || 'Unknown',
-      email: l.email_lower || l.email || null, phone: l.phone || null,
-      status: l.status || 'New', context: l.source_meta?.context || 'general_info',
-      intentLevel: l.intent_level || 'Cold',
-      listingId: l.listing_id || null, createdAt: l.created_at, source: 'listing'
-    }));
-    const leadsFromChatbot = (chatbotLeads || []).map(l => ({
-      id: `pq_${l.id}`, name: l.full_name || l.name || 'Unknown',
-      email: l.email_lower || l.email || null, phone: l.phone || null,
-      status: l.status || 'New', context: l.purchase_timeline ? 'pre_approval' : 'general_info',
-      intentLevel: l.purchase_timeline ? 'Hot' : 'Warm',
-      listingId: l.listing_id || null, createdAt: l.created_at, source: 'chatbot'
-    }));
-
-    // Merge, dedupe by email, sort by recency
-    const seenEmails = new Set();
-    const allMerged = [...leadsFromTable, ...leadsFromChatbot]
-      .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
-      .filter(l => {
-        if (!l.email) return true;
-        if (seenEmails.has(l.email)) return false;
-        seenEmails.add(l.email);
-        return true;
-      });
-
-    const totalLeads = allMerged.length;
-    const newToday = allMerged.filter(l => (l.createdAt || '') >= startOfToday).length;
-    const newThisWeek = allMerged.filter(l => (l.createdAt || '') >= startOf7Days).length;
-    const newThisMonth = allMerged.filter(l => (l.createdAt || '') >= startOf30Days).length;
-    const preApprovalLeads = allMerged.filter(l => l.context === 'pre_approval').length;
-    const showingLeads = allMerged.filter(l => l.context === 'showing_request').length;
-    const recentLeads = allMerged.slice(0, 10);
-
-    const listingLeadCounts = allMerged.reduce((acc, l) => { if (l.listingId) acc[l.listingId] = (acc[l.listingId] || 0) + 1; return acc; }, {});
-    const assignedListings = (assignments || []).map(a => {
-      const listing = a.listings;
-      return { listingId: a.listing_id, brandingEnabled: a.branding_enabled, address: listing?.address || 'Unknown', price: listing?.price || null, status: listing?.status || 'draft', heroPhoto: Array.isArray(listing?.hero_photos) ? listing.hero_photos[0] : null, leadCount: listingLeadCounts[a.listing_id] || 0 };
-    });
-
-    const loName = [loProfile?.first_name, loProfile?.last_name].filter(Boolean).join(' ') || null;
-    const profileIncomplete = !loProfile?.headshot_url || !loProfile?.company || !loProfile?.nmls_number;
-
-    const upcomingAppointments = (upcomingApptRows || []).map(a => ({
-      id: a.id,
-      kind: a.kind || 'Appointment',
-      name: a.name || null,
-      startIso: a.start_iso,
-      endIso: a.end_iso || null,
-      location: a.location || a.property_address || null,
-      status: a.status || 'scheduled'
-    }));
-
-    // Agents who viewed but haven't connected — need a follow-up nudge
-    const remindersToday = (viewedInvites || []).map(i => ({
-      id: i.id,
-      name: i.invited_name || i.invited_email || 'Agent',
-      email: i.invited_email,
-      lastViewedAt: i.last_viewed_at,
-      followUpAt: i.follow_up_at,
-    }));
-
-    // Invites never viewed at all
-    const uncontactedLeads = (allInvites || []).filter(i => !i.last_viewed_at).length;
-    // Invites viewed but not yet claimed
-    const viewedNoResponse = (allInvites || []).filter(i => i.last_viewed_at && !i.claimed_at).length;
-
-    res.json({
-      success: true,
-      loName,
-      profileIncomplete,
-      stats: { totalLeads, newToday, newThisWeek, newThisMonth, preApprovalLeads, showingLeads, assignedListings: assignedListings.length, partnersReached: partnersReached || 0, uncontactedLeads, viewedNoResponse },
-      recentLeads,
-      assignedListings,
-      upcomingAppointments,
-      remindersToday
-    });
+    const { data: allLeads } = await supabaseAdmin.from('leads').select('id, full_name, name, email, email_lower, phone, status, source_type, source_meta, created_at, listing_id, lo_agent_id').eq('lo_agent_id', loAgentId).order('created_at', { ascending: false }).limit(200);
+    const leads = allLeads || [];
+    const totalLeads = leads.length;
+    const newToday = leads.filter(l => l.created_at >= startOfToday).length;
+    const newThisWeek = leads.filter(l => l.created_at >= startOf7Days).length;
+    const newThisMonth = leads.filter(l => l.created_at >= startOf30Days).length;
+    const preApprovalLeads = leads.filter(l => l.source_meta?.context === 'pre_approval').length;
+    const showingLeads = leads.filter(l => l.source_meta?.context === 'showing_request').length;
+    const recentLeads = leads.slice(0, 10).map(l => ({ id: l.id, name: l.full_name || l.name || 'Unknown', email: l.email_lower || l.email || null, status: l.status || 'New', context: l.source_meta?.context || 'general_info', listingId: l.listing_id || null, createdAt: l.created_at }));
+    const { data: assignments } = await supabaseAdmin.from('listing_lo_assignments').select('listing_id, branding_enabled, assigned_at, listings!listing_lo_assignments_listing_id_fkey(id, address, price, status, hero_photos)').eq('lo_agent_id', loAgentId).order('assigned_at', { ascending: false });
+    const listingLeadCounts = leads.reduce((acc, l) => { if (l.listing_id) acc[l.listing_id] = (acc[l.listing_id] || 0) + 1; return acc; }, {});
+    const assignedListings = (assignments || []).map(a => { const listing = a.listings; return { listingId: a.listing_id, brandingEnabled: a.branding_enabled, address: listing?.address || 'Unknown', price: listing?.price || null, status: listing?.status || 'draft', heroPhoto: Array.isArray(listing?.hero_photos) ? listing.hero_photos[0] : null, leadCount: listingLeadCounts[a.listing_id] || 0 }; });
+    res.json({ success: true, stats: { totalLeads, newToday, newThisWeek, newThisMonth, preApprovalLeads, showingLeads, assignedListings: assignedListings.length }, recentLeads, assignedListings });
   } catch (err) {
     console.error('[LO Today] Failed:', err);
     res.status(500).json({ error: 'failed_to_load_lo_dashboard' });
   }
 });
 
-// ── LO WOW Invite limit — checks active Stripe subscription against LO price IDs ──
-// Returns: number of invites allowed per month (Infinity = unlimited)
-const resolveLoWowInviteLimit = async (loAgent) => {
-  const LO_PRICE_ID = process.env.STRIPE_LO_PRICE_ID;
-  const LO_PRO_PRICE_ID = process.env.STRIPE_LO_PRO_PRICE_ID;
-  if (!stripe || !loAgent?.stripe_customer_id) return 5;
-  try {
-    const subs = await stripe.subscriptions.list({
-      customer: loAgent.stripe_customer_id,
-      status: 'active',
-      limit: 5,
-    });
-    for (const sub of subs.data) {
-      for (const item of sub.items.data) {
-        if (LO_PRO_PRICE_ID && item.price.id === LO_PRO_PRICE_ID) return Infinity; // $299 — unlimited
-        if (LO_PRICE_ID && item.price.id === LO_PRICE_ID) return 250;             // $149 — 250/month
-      }
-    }
-  } catch (err) {
-    console.warn('[LO Invite] Stripe plan lookup failed (non-fatal):', err?.message);
-  }
-  return 5; // No active LO subscription — free tier
-};
-
 // ── LO Partners — Magic Link Invite System ────────────────────────────────────
 app.post('/api/lo/partners/invite', requireAuth, async (req, res) => {
   try {
-    // agent_invites uses auth id; listing_lo_assignments uses profile id
-    const loAuthId = req.authUserId;
-    const loProfileId = await resolveLoAgentId(req);
-    if (!loProfileId) return res.status(401).json({ error: 'unauthorized' });
+    const loAgentId = req.authUserId;
     const { email, name, listingId } = req.body || {};
     if (!email || !email.includes('@')) return res.status(400).json({ error: 'valid_email_required' });
     // Agent profile is used for email personalization only — never block the
     // invite if the profile row is missing (some accounts have no agents row).
-    const { data: loAgent } = await supabaseAdmin.from('agents').select('id, first_name, last_name, company, email, headshot_url').eq('id', loProfileId).limit(1).maybeSingle();
+    const { data: loAgent } = await supabaseAdmin.from('agents').select('id, first_name, last_name, company, email, headshot_url').or(`id.eq.${loAgentId},auth_user_id.eq.${loAgentId}`).limit(1).maybeSingle();
     const emailLower = email.trim().toLowerCase();
-
-    // ── WOW invite cap — enforce per-LO-plan monthly limit ───────────────────
-    // LO plans live on separate Stripe price IDs from realtor plans.
-    // Free LO: 5/mo · LO $149: 250/mo · LO Pro $299: unlimited
-    try {
-      const inviteLimit = await resolveLoWowInviteLimit(loAgent);
-      if (isFinite(inviteLimit)) {
-        const monthStart = new Date();
-        monthStart.setUTCDate(1); monthStart.setUTCHours(0, 0, 0, 0);
-        const { count: sentThisMonth } = await supabaseAdmin
-          .from('agent_invites')
-          .select('id', { count: 'exact', head: true })
-          .eq('lo_agent_id', loAuthId)
-          .gte('created_at', monthStart.toISOString());
-        if ((sentThisMonth || 0) >= inviteLimit) {
-          return res.status(403).json({
-            error: 'invite_limit_reached',
-            limit: inviteLimit,
-            used: sentThisMonth,
-            message: inviteLimit === 5
-              ? `Free accounts can send ${inviteLimit} WOW links per month. Upgrade to the LO plan to send more.`
-              : `Your plan allows ${inviteLimit} WOW link invites per month. You've reached your limit for this month.`
-          });
-        }
-      }
-      // inviteLimit === Infinity → LO Pro, skip count check
-    } catch (limitErr) {
-      console.warn('[LO Invite] Could not check invite limit (non-fatal):', limitErr?.message);
-      // Non-fatal — don't block the invite if the plan check fails
-    }
     // Validate listing belongs to this LO if provided
     let resolvedListingId = null;
     if (listingId) {
-      const { data: assignment } = await supabaseAdmin.from('listing_lo_assignments').select('listing_id').eq('listing_id', listingId).eq('lo_agent_id', loProfileId).limit(1).single();
+      const { data: assignment } = await supabaseAdmin.from('listing_lo_assignments').select('listing_id').eq('listing_id', listingId).eq('lo_agent_id', loAgentId).limit(1).single();
       if (assignment) resolvedListingId = listingId;
     }
     // Reuse unclaimed token if one exists
-    const { data: existing } = await supabaseAdmin.from('agent_invites').select('id, token, claimed_at').eq('lo_agent_id', loAuthId).eq('invited_email', emailLower).order('created_at', { ascending: false }).limit(1);
+    const { data: existing } = await supabaseAdmin.from('agent_invites').select('id, token, claimed_at').eq('lo_agent_id', loAgentId).eq('invited_email', emailLower).order('created_at', { ascending: false }).limit(1);
     let token;
     if (existing && existing.length > 0 && !existing[0].claimed_at) {
       token = existing[0].token;
       // Update listing_id on existing token if changed
       if (resolvedListingId) await supabaseAdmin.from('agent_invites').update({ listing_id: resolvedListingId }).eq('id', existing[0].id);
     } else {
-      const { data: invite, error: inviteError } = await supabaseAdmin.from('agent_invites').insert({ lo_agent_id: loAuthId, invited_email: emailLower, invited_name: name || null, listing_id: resolvedListingId, expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() }).select('token').single();
+      const { data: invite, error: inviteError } = await supabaseAdmin.from('agent_invites').insert({ lo_agent_id: loAgentId, invited_email: emailLower, invited_name: name || null, listing_id: resolvedListingId, expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() }).select('token').single();
       if (inviteError || !invite) throw inviteError || new Error('invite_create_failed');
       token = invite.token;
     }
@@ -30729,166 +30506,21 @@ app.post('/api/lo/partners/invite', requireAuth, async (req, res) => {
     const claimLink = `${appBase.replace(/\/$/, '')}/agent/claim/${token}`;
     const loName = [loAgent?.first_name, loAgent?.last_name].filter(Boolean).join(' ') || 'Your Loan Officer';
     const loBrand = await resolveBrandForLoAgent(loAgent?.id).catch(() => ({ whiteLabel: false, brandColor: '#2563eb', logoUrl: null, companyName: null }));
-    const emailHtml = `<!DOCTYPE html>
-<html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Your listing demo is ready</title></head>
-<body style="margin:0;padding:0;background:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:32px 16px;">
-  <tr><td align="center">
-  <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;">
-
-    <!-- ── DARK HERO ────────────────────────────────────────────────────── -->
-    <tr><td style="background:linear-gradient(145deg,#0f172a 0%,#1e3a5f 55%,#0f172a 100%);border-radius:20px 20px 0 0;padding:44px 40px 36px;text-align:center;">
-      <img src="${appBase}/newlogo.png" alt="HomeListingAI" width="52" height="52" style="border-radius:12px;display:block;margin:0 auto 20px;" />
-      <h1 style="margin:0 0 14px;font-size:30px;font-weight:800;color:#ffffff;line-height:1.25;letter-spacing:-0.5px;">
-        ${loName} built something<br>for your listings&nbsp;🚀
-      </h1>
-      <p style="margin:0;font-size:16px;color:#94a3b8;line-height:1.6;max-width:400px;display:inline-block;">
-        A live AI financing assistant — already running on a demo of your listing page.
-      </p>
-    </td></tr>
-
-    <!-- ── PHONE MOCKUP ──────────────────────────────────────────────────── -->
-    <tr><td style="background:linear-gradient(180deg,#1a2744 0%,#0a1628 100%);padding:4px 40px 36px;text-align:center;">
-
-      <!-- Phone shell: 10px black bezel, rounded like iPhone 15 Pro -->
-      <table align="center" cellpadding="0" cellspacing="0" style="width:240px;border-radius:38px;border:10px solid #1c1c1e;background:#f2f2f7;">
-
-        <!-- Status bar + dynamic island -->
-        <tr><td style="background:#f2f2f7;padding:8px 14px 4px;">
-          <table width="100%" cellpadding="0" cellspacing="0">
-            <tr>
-              <td style="font-size:9px;font-weight:700;color:#0f172a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">9:41</td>
-              <td align="center">
-                <table align="center" cellpadding="0" cellspacing="0"><tr><td style="background:#000000;border-radius:9px;width:60px;height:18px;font-size:1px;line-height:1px;">&nbsp;</td></tr></table>
-              </td>
-              <td align="right" style="font-size:8px;color:#0f172a;font-family:monospace;letter-spacing:1px;">▌▌▌ ⚡</td>
-            </tr>
-          </table>
-        </td></tr>
-
-        <!-- LO sticky header -->
-        <tr><td style="background:#ffffff;border-top:1px solid #f1f5f9;border-bottom:1px solid #f1f5f9;padding:7px 10px;">
-          <table width="100%" cellpadding="0" cellspacing="0">
-            <tr>
-              <td width="24">
-                ${loAgent?.headshot_url
-                  ? `<img src="${loAgent.headshot_url}" width="24" height="24" style="border-radius:12px;display:block;object-fit:cover;" />`
-                  : `<div style="width:24px;height:24px;border-radius:12px;background:${loBrand.brandColor || '#2563eb'};color:#fff;text-align:center;line-height:24px;font-size:10px;font-weight:800;font-family:-apple-system,sans-serif;display:inline-block;">${loName[0] || 'L'}</div>`
-                }
-              </td>
-              <td style="padding-left:7px;">
-                <p style="margin:0;font-size:8px;font-weight:800;color:#0f172a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">${loName}${loAgent?.company ? ' &middot; ' + loAgent.company : ''}</p>
-                <p style="margin:1px 0 0;font-size:7px;color:#94a3b8;font-family:-apple-system,sans-serif;">built this for you 👇</p>
-              </td>
-              <td align="right">
-                <span style="background:${loBrand.brandColor || '#2563eb'};color:#ffffff;font-size:7px;font-weight:800;padding:3px 8px;border-radius:8px;font-family:-apple-system,sans-serif;">View</span>
-              </td>
-            </tr>
-          </table>
-        </td></tr>
-
-        <!-- Hero listing photo -->
-        <tr><td style="padding:0;background:#0f172a;line-height:0;">
-          <img src="https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?q=80&w=480&auto=format&fit=crop" width="220" height="124" style="width:220px;height:124px;display:block;" />
-        </td></tr>
-
-        <!-- Property card -->
-        <tr><td style="background:#ffffff;padding:9px 10px 10px;">
-          <p style="margin:0 0 1px;font-size:16px;font-weight:900;color:#0f172a;letter-spacing:-0.3px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">$875,000</p>
-          <p style="margin:0 0 5px;font-size:7px;color:#64748b;font-family:-apple-system,sans-serif;">2847 Sunset Ridge Dr, Austin, TX 78746</p>
-          <p style="margin:0 0 8px;font-size:8px;color:#0f172a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;"><strong>4</strong>&nbsp;<span style="color:#94a3b8;font-weight:400;">bd</span>&nbsp;&nbsp;<strong>3</strong>&nbsp;<span style="color:#94a3b8;font-weight:400;">ba</span>&nbsp;&nbsp;<strong>2,840</strong>&nbsp;<span style="color:#94a3b8;font-weight:400;">sqft</span></p>
-          <!-- Talk to Home button -->
-          <table width="100%" cellpadding="0" cellspacing="0">
-            <tr><td style="background:${loBrand.brandColor || '#2563eb'};border-radius:10px;padding:8px 0;text-align:center;">
-              <span style="color:#ffffff;font-size:9px;font-weight:800;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">💬&nbsp; Talk to this Home</span>
-            </td></tr>
-          </table>
-          <p style="margin:5px 0 0;text-align:center;font-size:7px;color:#94a3b8;font-family:-apple-system,sans-serif;">AI answers buyer questions 24/7</p>
-        </td></tr>
-
-        <!-- Bottom tab bar -->
-        <tr><td style="background:#ffffff;border-top:1px solid #e2e8f0;padding:6px 0 8px;">
-          <table width="100%" cellpadding="0" cellspacing="0">
-            <tr>
-              <td align="center" style="font-size:14px;color:${loBrand.brandColor || '#2563eb'};">&#8962;<br><span style="font-size:6px;font-weight:700;font-family:-apple-system,sans-serif;">Home</span></td>
-              <td align="center" style="font-size:14px;color:#94a3b8;">&#9783;<br><span style="font-size:6px;font-family:-apple-system,sans-serif;">Finance</span></td>
-              <td align="center" style="font-size:14px;color:#94a3b8;">&#128197;<br><span style="font-size:6px;font-family:-apple-system,sans-serif;">Tour</span></td>
-              <td align="center" style="font-size:14px;color:#94a3b8;">&#128222;<br><span style="font-size:6px;font-family:-apple-system,sans-serif;">Contact</span></td>
-            </tr>
-          </table>
-        </td></tr>
-
-      </table>
-
-      <p style="margin:14px 0 0;font-size:12px;color:#64748b;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">👆 This is what ${name ? name.split(' ')[0] : 'agents'} tap to see your listing</p>
-
-    </td></tr>
-
-    <!-- ── WHITE BODY ────────────────────────────────────────────────────── -->
-    <tr><td style="background:#ffffff;border-radius:0 0 20px 20px;padding:36px 40px 44px;">
-
-      <p style="margin:0 0 6px;font-size:18px;font-weight:700;color:#0f172a;">Hi ${name ? name : 'there'},</p>
-      <p style="margin:0 0 28px;font-size:15px;color:#475569;line-height:1.75;">
-        I set up a live demo of what your listings look like with my AI mortgage assistant built right in. Buyers get instant answers to financing questions — 24/7, without waiting on anyone.
-      </p>
-
-      <!-- Value prop chips -->
-      <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:32px;">
-        <tr><td style="padding:12px 16px;background:#eff6ff;border-left:4px solid #2563eb;border-radius:0 10px 10px 0;margin-bottom:10px;">
-          <p style="margin:0;font-size:14px;color:#1d4ed8;font-weight:700;">💬 Buyers get instant mortgage answers</p>
-          <p style="margin:4px 0 0;font-size:13px;color:#3b82f6;">24/7, right on the listing page — no calls needed</p>
-        </td></tr>
-        <tr><td style="height:10px;"></td></tr>
-        <tr><td style="padding:12px 16px;background:#f0fdf4;border-left:4px solid #16a34a;border-radius:0 10px 10px 0;">
-          <p style="margin:0;font-size:14px;color:#15803d;font-weight:700;">🔥 Pre-qual leads go straight to you</p>
-          <p style="margin:4px 0 0;font-size:13px;color:#22c55e;">Serious buyers captured automatically — no extra work</p>
-        </td></tr>
-        <tr><td style="height:10px;"></td></tr>
-        <tr><td style="padding:12px 16px;background:#fdf4ff;border-left:4px solid #9333ea;border-radius:0 10px 10px 0;">
-          <p style="margin:0;font-size:14px;color:#7e22ce;font-weight:700;">⚡ Your brand on every listing you share</p>
-          <p style="margin:4px 0 0;font-size:13px;color:#a855f7;">Your name, your chatbot — looks like you built it</p>
-        </td></tr>
-      </table>
-
-      <!-- CTA button -->
-      <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:16px;">
-        <tr><td align="center">
-          <a href="${wowLink}" style="display:inline-block;background:linear-gradient(135deg,#2563eb 0%,#1d4ed8 100%);color:#ffffff;text-decoration:none;padding:20px 52px;border-radius:16px;font-weight:800;font-size:18px;letter-spacing:-0.3px;box-shadow:0 6px 20px rgba(37,99,235,0.45);">
-            See Your Listing Demo&nbsp;&rarr;
-          </a>
-        </td></tr>
-      </table>
-      <p style="margin:0 0 28px;text-align:center;font-size:12px;color:#94a3b8;">No account needed to view &middot; Link expires in 30 days</p>
-
-      <hr style="border:none;border-top:1px solid #e2e8f0;margin:0 0 20px;" />
-      <p style="margin:0;font-size:13px;color:#64748b;text-align:center;">
-        Ready to claim your account?&nbsp;<a href="${claimLink}" style="color:#2563eb;font-weight:700;text-decoration:none;">Click here &rarr;</a>
-      </p>
-    </td></tr>
-
-    <!-- ── FOOTER ─────────────────────────────────────────────────────────── -->
-    <tr><td style="padding:20px 0;text-align:center;">
-      <p style="margin:0;font-size:11px;color:#94a3b8;">Powered by HomeListingAI &middot; <a href="${appBase}" style="color:#94a3b8;text-decoration:none;">${appBase.replace(/^https?:\/\//, '')}</a></p>
-      <p style="margin:6px 0 0;font-size:11px;color:#cbd5e1;"><a href="${wowLink}" style="color:#94a3b8;text-decoration:underline;">unsubscribe</a></p>
-    </td></tr>
-
-  </table>
-  </td></tr>
-</table>
+    const emailHtml = `
+<!DOCTYPE html><html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#1e293b;">
+${buildBrandedEmailHeader(loBrand, `${loName} built something for your listings`)}
+<p style="font-size:16px;">Hi${name ? ` ${name}` : ''},</p>
+<p style="font-size:15px;color:#475569;line-height:1.6;">I put together a live demo of what your listings could look like with my AI financing assistant built in. Buyers get instant answers to mortgage questions — 24/7, right on the listing page.</p>
+<div style="text-align:center;margin:32px 0;">
+  <a href="${wowLink}" style="background:#2563eb;color:white;text-decoration:none;padding:16px 36px;border-radius:12px;font-weight:700;font-size:16px;display:inline-block;">See Your Listing Demo →</a>
+</div>
+<p style="font-size:13px;color:#94a3b8;text-align:center;">No account needed to view · Link expires in 30 days</p>
+<hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;">
+<p style="font-size:13px;color:#64748b;">Ready to claim your account? <a href="${claimLink}" style="color:#2563eb;">Click here →</a></p>
 </body></html>`;
-    const inviteSubject = `${loName} set up a live demo on your listings — see it here`;
     try {
-      await emailService.sendEmail({ to: emailLower, subject: inviteSubject, html: emailHtml });
+      await emailService.sendEmail({ to: emailLower, subject: `${loName} built a listing demo for you`, html: emailHtml });
     } catch (emailErr) { console.warn('[LO Invite] Email failed (non-fatal):', emailErr?.message); }
-    // Internal copy — every WOW link send goes to homelistingai@gmail.com for visibility
-    try {
-      await emailService.sendEmail({
-        to: 'homelistingai@gmail.com',
-        subject: `[WOW Link Sent] ${loName} → ${emailLower}`,
-        html: emailHtml,
-      });
-    } catch (copyErr) { console.warn('[LO Invite] Copy email failed (non-fatal):', copyErr?.message); }
     res.json({ success: true, message: 'Invite sent', wowLink, claimLink });
   } catch (err) {
     console.error('[LO Invite] Failed:', err);
@@ -30902,17 +30534,11 @@ app.get('/api/public/partner-invite/:token', async (req, res) => {
     const { token } = req.params;
     const { data: invite } = await supabaseAdmin
       .from('agent_invites')
-      .select('id, invited_email, invited_name, claimed_at, expires_at, listing_id, lo_agent_id, view_count')
+      .select('id, invited_email, invited_name, claimed_at, expires_at, listing_id, lo_agent_id')
       .eq('token', token)
       .maybeSingle();
     if (!invite) return res.status(404).json({ error: 'invite_not_found' });
     if (invite.expires_at && new Date(invite.expires_at) < new Date()) return res.status(410).json({ error: 'invite_expired' });
-
-    // Fire-and-forget: stamp first open time + increment view count
-    supabaseAdmin.from('agent_invites')
-      .update({ last_viewed_at: new Date().toISOString(), view_count: (invite.view_count || 0) + 1 })
-      .eq('id', invite.id)
-      .then(() => {}).catch(() => {});
 
     // lo_agent_id is the consistent LO key used across the platform
     // (chatbot configs, listing assignments, etc.)
@@ -30971,100 +30597,6 @@ app.get('/api/public/partner-invite/:token', async (req, res) => {
     });
   } catch (err) {
     console.error('[PartnerInvite] Failed:', err);
-    res.status(500).json({ error: 'server_error' });
-  }
-});
-
-// ── POST /api/public/partner-invite/:token/connect — agent says "I'm in" ────────
-// Public endpoint — the invited agent presses the CTA on the WOW link page.
-// Records the connection, notifies the LO via email + SMS + in-app notification.
-app.post('/api/public/partner-invite/:token/connect', async (req, res) => {
-  try {
-    const { token } = req.params;
-    const { agentName, agentPhone } = req.body || {};
-
-    const { data: invite } = await supabaseAdmin
-      .from('agent_invites')
-      .select('id, lo_agent_id, invited_email, invited_name, listing_id, claimed_at')
-      .eq('token', token)
-      .maybeSingle();
-
-    if (!invite) return res.status(404).json({ error: 'invite_not_found' });
-
-    const displayName = agentName?.trim() || invite.invited_name || 'the agent';
-    const displayPhone = agentPhone?.trim() || null;
-
-    // "I'm in" is an intent signal only — do NOT touch claimed_at.
-    // Setting claimed_at here would block the agent from creating their account later.
-    // The LO notification below is sufficient for this action.
-
-    // Resolve LO profile
-    const loAgentId = invite.lo_agent_id;
-    const { data: lo } = await supabaseAdmin
-      .from('agents')
-      .select('id, first_name, last_name, email, phone, auth_user_id, company')
-      .or(`id.eq.${loAgentId},auth_user_id.eq.${loAgentId}`)
-      .limit(1)
-      .maybeSingle();
-
-    const loFirstName = lo?.first_name || 'there';
-    const appBase = process.env.APP_BASE_URL || 'https://homelistingai.com';
-    const partnersUrl = `${appBase}/dashboard/lo-partners`;
-
-    // ── In-app notification for LO ────────────────────────────────────────────
-    if (lo?.auth_user_id) {
-      supabaseAdmin.from('notifications').insert({
-        user_id: lo.auth_user_id,
-        title: `🤝 ${displayName} wants to work with you!`,
-        content: `${displayName} just clicked "I'm in" on your WOW link.${displayPhone ? ` Phone: ${displayPhone}` : ''} Reach out now!`,
-        type: 'partner',
-        is_read: false,
-        created_at: new Date().toISOString(),
-      }).then(() => {}).catch((e) => console.warn('[partner-connect] notification insert failed:', e?.message));
-    }
-
-    // ── Email alert to LO ─────────────────────────────────────────────────────
-    if (lo?.email) {
-      emailService.sendEmail({
-        to: lo.email,
-        subject: `🤝 ${displayName} wants to work with you!`,
-        html: `
-<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;background:#fff;">
-  <p style="margin:0 0 20px;font-size:16px;color:#0f172a">Hi ${loFirstName}! 🎉</p>
-  <p style="margin:0 0 16px;font-size:15px;color:#374151;line-height:1.6">
-    <strong>${displayName}</strong> just clicked <em>"I'm in"</em> on your WOW link — they want to work with you!
-  </p>
-  <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:16px;margin:0 0 24px;font-size:14px;color:#374151;line-height:1.8">
-    <div>👤 <strong>Agent:</strong> ${displayName}</div>
-    ${displayPhone ? `<div>📱 <strong>Phone:</strong> <a href="tel:${displayPhone}" style="color:#16a34a">${displayPhone}</a></div>` : ''}
-    ${invite.invited_email ? `<div>📧 <strong>Email:</strong> <a href="mailto:${invite.invited_email}" style="color:#16a34a">${invite.invited_email}</a></div>` : ''}
-  </div>
-  <p style="margin:0 0 20px;font-size:15px;color:#374151;line-height:1.6">Strike while the iron is hot — reach out now!</p>
-  <a href="${partnersUrl}" style="display:inline-block;background:#16a34a;color:#fff;font-weight:700;font-size:14px;padding:14px 28px;border-radius:10px;text-decoration:none;margin-bottom:28px">
-    View Partners →
-  </a>
-  <p style="margin:0;font-size:11px;color:#d1d5db">Sent via <a href="${appBase}" style="color:#d1d5db">HomeListingAI</a></p>
-</div>`,
-        tags: { type: 'partner_connect_alert' }
-      }).catch(e => console.warn('[partner-connect] LO email failed:', e?.message));
-    }
-
-    // ── SMS alert to LO ───────────────────────────────────────────────────────
-    if (lo?.phone && !SMS_COMING_SOON && FEATURE_FLAG_SMS_ENABLED) {
-      const smsMsg = [
-        `🤝 ${displayName} wants to work with you!`,
-        displayPhone ? `Their phone: ${displayPhone}` : '',
-        invite.invited_email ? `Email: ${invite.invited_email}` : '',
-        `Reach out now!`,
-      ].filter(Boolean).join('\n');
-      sendSms(lo.phone, smsMsg, [], lo.id || loAgentId).catch(e =>
-        console.warn('[partner-connect] LO SMS failed:', e?.message)
-      );
-    }
-
-    res.json({ success: true });
-  } catch (err) {
-    console.error('[PartnerConnect] Failed:', err);
     res.status(500).json({ error: 'server_error' });
   }
 });
@@ -31562,118 +31094,34 @@ app.get('/api/office/overview', requireOffice, async (req, res) => {
 
 app.get('/api/lo/partners', requireAuth, async (req, res) => {
   try {
-    // agent_invites.lo_agent_id stores auth id (see CLAUDE.md); all other LO FK tables use profile id
-    const loAuthId = req.authUserId;
-    const loProfileId = await resolveLoAgentId(req);
-    if (!loProfileId) return res.status(401).json({ error: 'unauthorized' });
-    const { data: partnerships } = await supabaseAdmin.from('lo_agent_partnerships').select('id, status, created_at, agent:agent_id(id, first_name, last_name, email, phone, headshot_url, company)').eq('lo_agent_id', loProfileId).eq('status', 'active').order('created_at', { ascending: false });
-    const { data: pendingInvites } = await supabaseAdmin.from('agent_invites').select('id, token, invited_email, invited_name, created_at, company, phone, website, notes, last_viewed_at, view_count, follow_up_at').eq('lo_agent_id', loAuthId).is('claimed_at', null).gt('expires_at', nowIso());
+    const loAgentId = req.authUserId;
+    const { data: partnerships } = await supabaseAdmin.from('lo_agent_partnerships').select('id, status, created_at, agent:agent_id(id, first_name, last_name, email, phone, headshot_url, company)').eq('lo_agent_id', loAgentId).eq('status', 'active').order('created_at', { ascending: false });
+    const { data: pendingInvites } = await supabaseAdmin.from('agent_invites').select('id, token, invited_email, invited_name, created_at').eq('lo_agent_id', loAgentId).is('claimed_at', null).gt('expires_at', nowIso());
     const partnerAgentIds = (partnerships || []).map(p => p.agent?.id).filter(Boolean);
     let listingsByAgent = {};
     if (partnerAgentIds.length > 0) {
-      const { data: assignments } = await supabaseAdmin.from('listing_lo_assignments').select('listing_id, listings!listing_lo_assignments_listing_id_fkey(id, address, price, status, hero_photos, total_leads, total_views)').eq('lo_agent_id', loProfileId);
+      const { data: assignments } = await supabaseAdmin.from('listing_lo_assignments').select('listing_id, listings!listing_lo_assignments_listing_id_fkey(id, address, price, status, hero_photos, total_leads, total_views)').eq('lo_agent_id', loAgentId);
       const listingIds = (assignments || []).map(a => a.listing_id).filter(Boolean);
       if (listingIds.length > 0) {
         const { data: listingAgents } = await supabaseAdmin.from('listings').select('id, agent_id').in('id', listingIds);
         (listingAgents || []).forEach(la => { const a = (assignments || []).find(x => x.listing_id === la.id); if (!a) return; if (!listingsByAgent[la.agent_id]) listingsByAgent[la.agent_id] = []; listingsByAgent[la.agent_id].push(a.listings); });
       }
     }
-    const { data: leadCounts } = await supabaseAdmin.from('leads').select('agent_id').eq('lo_agent_id', loProfileId);
+    const { data: leadCounts } = await supabaseAdmin.from('leads').select('agent_id').eq('lo_agent_id', loAgentId);
     const leadCountByAgent = (leadCounts || []).reduce((acc, l) => { if (l.agent_id) acc[l.agent_id] = (acc[l.agent_id] || 0) + 1; return acc; }, {});
     const partners = (partnerships || []).map(p => {
       const agent = p.agent || {}; const agentId = agent.id;
       const listings = (listingsByAgent[agentId] || []).map(l => ({ listingId: l?.id, address: l?.address || 'Unknown', price: l?.price || null, status: l?.status || 'draft', heroPhoto: Array.isArray(l?.hero_photos) ? l.hero_photos[0] : null, totalLeads: l?.total_leads || 0, totalViews: l?.total_views || 0 }));
       return { partnershipId: p.id, agentId, name: [agent.first_name, agent.last_name].filter(Boolean).join(' ') || 'Agent', email: agent.email || null, phone: agent.phone || null, headshotUrl: agent.headshot_url || null, company: agent.company || null, totalLeads: leadCountByAgent[agentId] || 0, listings, joinedAt: p.created_at };
     });
-    res.json({ success: true, partners, pendingInvites: (pendingInvites || []).map(i => ({ id: i.id, token: i.token, email: i.invited_email, name: i.invited_name || null, sentAt: i.created_at, company: i.company || '', phone: i.phone || '', website: i.website || '', notes: i.notes || '', lastViewedAt: i.last_viewed_at || null, viewCount: i.view_count || 0, followUpAt: i.follow_up_at || null })) });
+    res.json({ success: true, partners, pendingInvites: (pendingInvites || []).map(i => ({ id: i.id, token: i.token, email: i.invited_email, name: i.invited_name || null, sentAt: i.created_at })) });
   } catch (err) {
     console.error('[LO Partners] Failed:', err);
     res.status(500).json({ error: 'failed_to_load_partners' });
   }
 });
 
-// ── PATCH /api/lo/partners/invite/:id — save contact details on a pending invite
-app.patch('/api/lo/partners/invite/:id', requireAuth, async (req, res) => {
-  try {
-    const loAgentId = req.authUserId; // agent_invites.lo_agent_id stores auth id
-    const { id } = req.params;
-    const { company, phone, website, notes } = req.body || {};
-
-    // Verify this invite belongs to the requesting LO
-    const { data: invite } = await supabaseAdmin
-      .from('agent_invites')
-      .select('id')
-      .eq('id', id)
-      .eq('lo_agent_id', loAgentId)
-      .is('claimed_at', null)
-      .maybeSingle();
-
-    if (!invite) return res.status(404).json({ error: 'invite_not_found' });
-
-    const { error } = await supabaseAdmin
-      .from('agent_invites')
-      .update({
-        company: company || null,
-        phone: phone || null,
-        website: website || null,
-        notes: notes || null
-      })
-      .eq('id', id);
-
-    if (error) throw error;
-    res.json({ success: true });
-  } catch (err) {
-    console.error('[LO Invite PATCH] Failed:', err);
-    res.status(500).json({ error: 'failed_to_update_invite' });
-  }
-});
-
-// ── PATCH /api/lo/partners/invite/:id/reminder — set follow-up reminder date ──
-app.patch('/api/lo/partners/invite/:id/reminder', requireAuth, async (req, res) => {
-  try {
-    const loAgentId = req.authUserId; // agent_invites.lo_agent_id stores auth id
-    const { id } = req.params;
-    const { followUpAt } = req.body || {};
-
-    const { data: invite } = await supabaseAdmin
-      .from('agent_invites')
-      .select('id')
-      .eq('id', id)
-      .eq('lo_agent_id', loAgentId)
-      .is('claimed_at', null)
-      .maybeSingle();
-
-    if (!invite) return res.status(404).json({ error: 'invite_not_found' });
-
-    await supabaseAdmin
-      .from('agent_invites')
-      .update({ follow_up_at: followUpAt || null })
-      .eq('id', id);
-
-    res.json({ success: true });
-  } catch (err) {
-    console.error('[LO Reminder] Failed:', err);
-    res.status(500).json({ error: 'server_error' });
-  }
-});
-
 // ── Agent Magic Link Claim ────────────────────────────────────────────────────
-// ── Agent: get the LO who invited them ───────────────────────────────────────
-app.get('/api/agent/my-lo', requireAuth, async (req, res) => {
-  try {
-    const authUserId = req.authUserId;
-    const { data: agentRow } = await supabaseAdmin.from('agents').select('id, invited_by_lo_id, account_type').eq('auth_user_id', authUserId).maybeSingle();
-    if (!agentRow || agentRow.account_type !== 'agent') return res.status(403).json({ error: 'not_an_agent' });
-    if (!agentRow.invited_by_lo_id) return res.json({ success: true, lo: null });
-    const loId = agentRow.invited_by_lo_id;
-    const { data: lo } = await supabaseAdmin.from('agents').select('first_name, last_name, email, phone, company, headshot_url, nmls_number').or(`id.eq.${loId},auth_user_id.eq.${loId}`).limit(1).maybeSingle();
-    res.json({ success: true, lo: lo ? { name: [lo.first_name, lo.last_name].filter(Boolean).join(' ') || 'Your Loan Officer', email: lo.email || null, phone: lo.phone || null, company: lo.company || null, headshotUrl: lo.headshot_url || null, nmlsNumber: lo.nmls_number || null } : null });
-  } catch (err) {
-    console.error('[Agent] my-lo failed:', err);
-    res.status(500).json({ error: 'my_lo_failed' });
-  }
-});
-
 app.get('/api/agent/claim/:token', async (req, res) => {
   try {
     const { token } = req.params;
@@ -31704,71 +31152,10 @@ app.post('/api/agent/claim/:token', async (req, res) => {
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({ email: invite.invited_email, password, email_confirm: true, user_metadata: { first_name: firstName, last_name: lastName } });
     if (authError) { if (authError.message?.includes('already')) return res.status(409).json({ error: 'email_already_registered' }); throw authError; }
     const authUserId = authData.user.id;
-    // Resolve LO profile ID — agent_invites.lo_agent_id stores auth id, but
-    // lo_agent_partnerships.lo_agent_id must be the agents.id (profile id) so
-    // GET /api/lo/partners can find it via resolveLoAgentId.
-    const { data: loProfileRow } = await supabaseAdmin.from('agents').select('id').or(`id.eq.${invite.lo_agent_id},auth_user_id.eq.${invite.lo_agent_id}`).limit(1).maybeSingle();
-    const loProfileId = loProfileRow?.id || invite.lo_agent_id;
-    // Generate a unique slug from name + random suffix
-    const slugBase = `${firstName}${lastName ? '-' + lastName : ''}`.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-    const slug = `${slugBase}-${Math.random().toString(36).slice(2, 7)}`;
-    const { data: agentRecord, error: agentError } = await supabaseAdmin.from('agents').insert({ auth_user_id: authUserId, email: invite.invited_email, first_name: firstName, last_name: lastName, slug, account_type: 'agent', invited_by_lo_id: loProfileId, onboarding_completed: true, referral_code: Math.random().toString(36).slice(2, 10) }).select('id').single();
+    const { data: agentRecord, error: agentError } = await supabaseAdmin.from('agents').insert({ auth_user_id: authUserId, email: invite.invited_email, first_name: firstName, last_name: lastName, account_type: 'agent', invited_by_lo_id: invite.lo_agent_id, onboarding_completed: true, referral_code: Math.random().toString(36).slice(2, 10) }).select('id').single();
     if (agentError || !agentRecord) throw agentError || new Error('agent_create_failed');
-    await supabaseAdmin.from('lo_agent_partnerships').insert({ lo_agent_id: loProfileId, agent_id: agentRecord.id, invite_id: invite.id, status: 'active' });
+    await supabaseAdmin.from('lo_agent_partnerships').insert({ lo_agent_id: invite.lo_agent_id, agent_id: agentRecord.id, invite_id: invite.id, status: 'active' });
     await supabaseAdmin.from('agent_invites').update({ claimed_at: nowIso(), claimed_agent_id: agentRecord.id }).eq('id', invite.id);
-
-    // ── Notify LO that agent claimed their account ────────────────────────────
-    try {
-      const { data: loFull } = await supabaseAdmin
-        .from('agents')
-        .select('auth_user_id, email, phone, first_name')
-        .eq('id', loProfileId).limit(1).maybeSingle();
-      const appBase = (process.env.APP_BASE_URL || 'https://homelistingai.com').replace(/\/$/, '');
-      const loFirstName = loFull?.first_name || 'there';
-      // In-app notification
-      if (loFull?.auth_user_id) {
-        supabaseAdmin.from('notifications').insert({
-          user_id: loFull.auth_user_id,
-          title: `🎉 ${displayName} just claimed their account!`,
-          content: `${displayName} set up their agent dashboard. They're ready to list — check your partners page.`,
-          type: 'partner', is_read: false, created_at: nowIso()
-        }).then(() => {}).catch((e) => console.warn('[AgentClaim] notification insert failed:', e?.message));
-      }
-      // Email to LO
-      if (loFull?.email) {
-        emailService.sendEmail({
-          to: loFull.email,
-          subject: `🎉 ${displayName} just joined — they're ready to list!`,
-          html: `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;background:#fff;">
-<p style="margin:0 0 16px;font-size:16px;color:#0f172a">Hi ${loFirstName}! 🎉</p>
-<p style="margin:0 0 16px;font-size:15px;color:#374151;line-height:1.7">
-  <strong>${displayName}</strong> just claimed their agent account on HomeListingAI. They're linked to you and ready to start listing.
-</p>
-<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:16px 20px;margin:0 0 24px;">
-  <p style="margin:0;font-size:14px;font-weight:700;color:#15803d;">✅ What's already set up for them:</p>
-  <ul style="margin:8px 0 0;padding-left:18px;font-size:13px;color:#374151;line-height:2;">
-    <li>Agent dashboard with share kit</li>
-    <li>Your branding on their listing pages</li>
-    <li>Leads route directly to you</li>
-  </ul>
-</div>
-<div style="text-align:center;margin:0 0 20px;">
-  <a href="${appBase}/dashboard/lo-partners" style="display:inline-block;background:#16a34a;color:#fff;font-weight:700;font-size:14px;padding:14px 32px;border-radius:12px;text-decoration:none;">View Partners →</a>
-</div>
-<p style="margin:0;font-size:11px;color:#94a3b8">Sent via HomeListingAI</p>
-</div>`,
-          tags: { type: 'agent_claimed_alert' }
-        }).catch(e => console.warn('[AgentClaim] LO email failed:', e?.message));
-      }
-      // SMS to LO
-      if (loFull?.phone && !SMS_COMING_SOON && FEATURE_FLAG_SMS_ENABLED) {
-        sendSms(loFull.phone, `🎉 ${displayName} just claimed their account on HomeListingAI! They're linked to you and ready to list. Check your partners: ${appBase}/dashboard/lo-partners`, [], loProfileId)
-          .catch(e => console.warn('[AgentClaim] LO SMS failed:', e?.message));
-      }
-    } catch (notifyErr) {
-      console.warn('[AgentClaim] LO notification failed (non-fatal):', notifyErr?.message);
-    }
-
     res.json({ success: true, message: 'Account created', agentId: agentRecord.id });
   } catch (err) {
     console.error('[Agent Claim] Account creation failed:', err);
@@ -31953,72 +31340,21 @@ app.get('/api/lo/listing-limit', requireAuth, async (req, res) => {
   }
 });
 
-// ── LO Listing Search ─────────────────────────────────────────────────────────
-app.get('/api/listings/search', requireAuth, async (req, res) => {
-  try {
-    const q = String(req.query.q || '').trim();
-    if (q.length < 2) return res.json({ success: true, listings: [] });
-
-    const { data: properties, error } = await supabaseAdmin
-      .from('properties')
-      .select('id, address, city, state, price, bedrooms, bathrooms, sqft, status, hero_photo_url, title')
-      .or(`address.ilike.%${q}%,city.ilike.%${q}%`)
-      .eq('status', 'published')
-      .order('created_at', { ascending: false })
-      .limit(10);
-
-    if (error) throw error;
-
-    const listings = (properties || []).map(p => ({
-      id: p.id,
-      address: [p.address, p.city, p.state].filter(Boolean).join(', ') || 'Unknown',
-      title: p.title || p.address || 'Listing',
-      price: Number(p.price) || 0,
-      bedrooms: Number(p.bedrooms) || 0,
-      bathrooms: Number(p.bathrooms) || 0,
-      sqft: Number(p.sqft) || 0,
-      status: p.status || 'draft',
-      heroPhoto: p.hero_photo_url || null
-    }));
-
-    res.json({ success: true, listings });
-  } catch (err) {
-    console.error('[Listings Search] Failed:', err);
-    res.status(500).json({ error: 'search_failed' });
-  }
-});
-
 // ── LO Listing Association ────────────────────────────────────────────────────
 app.get('/api/lo/listings', requireAuth, async (req, res) => {
   try {
-    const loAgentId = await resolveLoAgentId(req);
-    if (!loAgentId) return res.json({ success: true, listings: [] });
-    const { data: assignments, error: assignErr } = await supabaseAdmin.from('listing_lo_assignments').select('listing_id, branding_enabled, assigned_at').eq('lo_agent_id', loAgentId);
+    const agentId = req.authUserId;
+    const { data: agentRows } = await supabaseAdmin.from('agents').select('id').eq('auth_user_id', agentId).limit(1);
+    const agentRecord = agentRows?.[0];
+    if (!agentRecord) return res.json({ success: true, listings: [] });
+    const { data: assignments, error: assignErr } = await supabaseAdmin.from('listing_lo_assignments').select('listing_id, branding_enabled, assigned_at').eq('lo_agent_id', agentRecord.id);
     if (assignErr) throw assignErr;
     if (!assignments || assignments.length === 0) return res.json({ success: true, listings: [] });
     const listingIds = assignments.map(a => a.listing_id);
-    const [{ data: properties, error: propErr }, { data: leadCounts }] = await Promise.all([
-      supabaseAdmin.from('properties').select('id, address, city, state, price, bedrooms, bathrooms, sqft, status, hero_photo_url, title').in('id', listingIds),
-      supabaseAdmin.from('pre_qual_submissions').select('listing_id').eq('lo_agent_id', loAgentId).in('listing_id', listingIds)
-    ]);
+    const { data: properties, error: propErr } = await supabaseAdmin.from('properties').select('id, address, city, state, zip, price, bedrooms, bathrooms, sqft, status, hero_photo_url, title, agent_id, user_id').in('id', listingIds);
     if (propErr) throw propErr;
     const assignmentMap = Object.fromEntries(assignments.map(a => [a.listing_id, a]));
-    const leadCountMap = {};
-    (leadCounts || []).forEach(l => { leadCountMap[l.listing_id] = (leadCountMap[l.listing_id] || 0) + 1; });
-    const listings = (properties || []).map(p => ({
-      id: p.id,
-      address: [p.address, p.city, p.state].filter(Boolean).join(', ') || 'Unknown',
-      title: p.title || p.address || 'Listing',
-      price: Number(p.price) || 0,
-      bedrooms: Number(p.bedrooms) || 0,
-      bathrooms: Number(p.bathrooms) || 0,
-      sqft: Number(p.sqft) || 0,
-      status: p.status || 'draft',
-      heroPhoto: p.hero_photo_url || null,
-      brandingEnabled: assignmentMap[p.id]?.branding_enabled ?? true,
-      assignedAt: assignmentMap[p.id]?.assigned_at || null,
-      leadCount: leadCountMap[p.id] || 0
-    }));
+    const listings = (properties || []).map(p => ({ id: p.id, address: [p.address, p.city, p.state].filter(Boolean).join(', ') || 'Unknown', title: p.title || p.address || 'Listing', price: Number(p.price) || 0, bedrooms: Number(p.bedrooms) || 0, bathrooms: Number(p.bathrooms) || 0, sqft: Number(p.sqft) || 0, status: p.status || 'draft', heroPhoto: p.hero_photo_url || null, brandingEnabled: assignmentMap[p.id]?.branding_enabled ?? true, assignedAt: assignmentMap[p.id]?.assigned_at || null }));
     res.json({ success: true, listings });
   } catch (error) {
     console.error('[LO Listings] Failed:', error);
@@ -32028,13 +31364,15 @@ app.get('/api/lo/listings', requireAuth, async (req, res) => {
 
 app.post('/api/lo/listings/:listingId/assign', requireAuth, async (req, res) => {
   try {
-    const loAgentId = await resolveLoAgentId(req);
-    if (!loAgentId) return res.status(404).json({ error: 'agent_not_found' });
+    const agentId = req.authUserId;
     const { listingId } = req.params;
     if (!listingId) return res.status(400).json({ error: 'listing_id_required' });
+    const { data: agentRows } = await supabaseAdmin.from('agents').select('id').eq('auth_user_id', agentId).limit(1);
+    const agentRecord = agentRows?.[0];
+    if (!agentRecord) return res.status(404).json({ error: 'agent_not_found' });
     const { data: propRows } = await supabaseAdmin.from('properties').select('id').eq('id', listingId).limit(1);
     if (!propRows || propRows.length === 0) return res.status(404).json({ error: 'listing_not_found' });
-    const { error: upsertErr } = await supabaseAdmin.from('listing_lo_assignments').upsert({ listing_id: listingId, lo_agent_id: loAgentId, branding_enabled: true, assigned_at: nowIso() }, { onConflict: 'listing_id,lo_agent_id' });
+    const { error: upsertErr } = await supabaseAdmin.from('listing_lo_assignments').upsert({ listing_id: listingId, lo_agent_id: agentRecord.id, branding_enabled: true, assigned_at: nowIso() }, { onConflict: 'listing_id,lo_agent_id' });
     if (upsertErr) throw upsertErr;
     res.json({ success: true });
   } catch (error) {
@@ -32045,10 +31383,12 @@ app.post('/api/lo/listings/:listingId/assign', requireAuth, async (req, res) => 
 
 app.delete('/api/lo/listings/:listingId/assign', requireAuth, async (req, res) => {
   try {
-    const loAgentId = await resolveLoAgentId(req);
-    if (!loAgentId) return res.status(404).json({ error: 'agent_not_found' });
+    const agentId = req.authUserId;
     const { listingId } = req.params;
-    const { error: delErr } = await supabaseAdmin.from('listing_lo_assignments').delete().eq('listing_id', listingId).eq('lo_agent_id', loAgentId);
+    const { data: agentRows } = await supabaseAdmin.from('agents').select('id').eq('auth_user_id', agentId).limit(1);
+    const agentRecord = agentRows?.[0];
+    if (!agentRecord) return res.status(404).json({ error: 'agent_not_found' });
+    const { error: delErr } = await supabaseAdmin.from('listing_lo_assignments').delete().eq('listing_id', listingId).eq('lo_agent_id', agentRecord.id);
     if (delErr) throw delErr;
     res.json({ success: true });
   } catch (error) {
@@ -32060,55 +31400,6 @@ app.delete('/api/lo/listings/:listingId/assign', requireAuth, async (req, res) =
 // ─────────────────────────────────────────────────────────────────────────────
 // LO AI CHATBOT ENDPOINTS
 // ─────────────────────────────────────────────────────────────────────────────
-
-// GET /api/lo/leads — fetch chatbot leads (pre_qual_submissions) for this LO
-app.get('/api/lo/leads', requireLoAgent, async (req, res) => {
-  try {
-    const agentId = req.loAgentId;
-
-    const { data, error } = await supabaseAdmin
-      .from('pre_qual_submissions')
-      .select('id, lo_agent_id, listing_id, full_name, name, email, email_lower, phone, source, message, notes, status, created_at')
-      .eq('lo_agent_id', agentId)
-      .order('created_at', { ascending: false })
-      .limit(200);
-
-    if (error) throw error;
-
-    // Normalize field names and enrich with listing address
-    const listingIds = [...new Set((data || []).map(l => l.listing_id).filter(Boolean))];
-    let addressMap = {};
-    if (listingIds.length > 0) {
-      const { data: properties } = await supabaseAdmin
-        .from('properties')
-        .select('id, address, city, state')
-        .in('id', listingIds);
-      if (properties) {
-        properties.forEach(p => {
-          addressMap[p.id] = [p.address, p.city, p.state].filter(Boolean).join(', ') || p.address || null;
-        });
-      }
-    }
-
-    const leads = (data || []).map(l => ({
-      id: l.id,
-      name: l.full_name || l.name || null,
-      email: l.email || l.email_lower || null,
-      phone: l.phone || null,
-      source: l.source || 'chatbot',
-      notes: l.message || l.notes || null,
-      status: l.status || 'New',
-      listing_id: l.listing_id || null,
-      listing_address: l.listing_id ? (addressMap[l.listing_id] || null) : null,
-      created_at: l.created_at,
-    }));
-
-    res.json({ leads });
-  } catch (err) {
-    console.error('[LO Leads GET] Error:', err);
-    res.status(500).json({ error: 'failed_to_fetch_leads' });
-  }
-});
 
 // GET /api/lo/chatbot-config — fetch authenticated LO's chatbot config
 app.get('/api/lo/chatbot-config', requireLoAgent, async (req, res) => {
@@ -32178,14 +31469,11 @@ app.get('/api/public/listing/:listingId/lo-chatbot', async (req, res) => {
     const { listingId } = req.params;
 
     // Find the LO agent linked to this listing via listing_lo_assignments
-    // If multiple LOs are assigned, pick the most recently assigned one
-    const { data: assignments, error: assignErr } = await supabaseAdmin
+    const { data: assignment, error: assignErr } = await supabaseAdmin
       .from('listing_lo_assignments')
       .select('lo_agent_id')
       .eq('listing_id', listingId)
-      .order('assigned_at', { ascending: false })
-      .limit(1);
-    const assignment = assignments?.[0] ?? null;
+      .maybeSingle();
 
     if (assignErr) throw assignErr;
     if (!assignment || !assignment.lo_agent_id) {
@@ -32208,7 +31496,7 @@ app.get('/api/public/listing/:listingId/lo-chatbot', async (req, res) => {
     // Get LO's name and photo
     const { data: loAgent, error: agentErr } = await supabaseAdmin
       .from('agents')
-      .select('first_name, last_name, headshot_url, logo_url, company')
+      .select('first_name, last_name, headshot_url, company')
       .or(`id.eq.${loAgentId},auth_user_id.eq.${loAgentId}`)
       .limit(1)
       .maybeSingle();
@@ -32223,7 +31511,6 @@ app.get('/api/public/listing/:listingId/lo-chatbot', async (req, res) => {
       greeting: config.greeting,
       lo_name: loFullName || config.bot_name,
       lo_photo: loAgent?.headshot_url || null,
-      lo_logo: loAgent?.logo_url || null,
       lo_company: loAgent?.company || null
     });
   } catch (err) {
@@ -32330,378 +31617,6 @@ app.post('/api/lo/chatbot/extract-file', chatbotFileUpload.single('file'), requi
   }
 });
 
-// ── Listing-Specific Knowledge Base Docs ────────────────────────────────────
-
-// GET /api/lo/chatbot/listing-docs — list all listing KB docs for this LO
-// Accepts optional ?address= query param to filter by address (case-insensitive partial match)
-app.get('/api/lo/chatbot/listing-docs', requireAuth, async (req, res) => {
-  try {
-    const loAgentId = await resolveLoAgentId(req);
-    if (!loAgentId) return res.status(401).json({ error: 'unauthorized' });
-    const { address } = req.query;
-    let dbQuery = supabaseAdmin
-      .from('lo_listing_kb_docs')
-      .select('id, address, label, content, created_at')
-      .eq('lo_agent_id', loAgentId)
-      .order('created_at', { ascending: false });
-    if (address) dbQuery = dbQuery.ilike('address', `%${String(address).trim()}%`);
-    const { data, error } = await dbQuery;
-    if (error) throw error;
-    res.json({ docs: data || [] });
-  } catch (err) {
-    console.error('[listing-kb] GET error', err?.message || err);
-    res.status(500).json({ error: 'fetch_failed' });
-  }
-});
-
-// POST /api/lo/chatbot/listing-docs — add a listing KB doc
-app.post('/api/lo/chatbot/listing-docs', requireAuth, async (req, res) => {
-  try {
-    const loAgentId = await resolveLoAgentId(req);
-    if (!loAgentId) return res.status(401).json({ error: 'unauthorized' });
-    const { address, label, content } = req.body;
-    if (!address?.trim() || !content?.trim()) {
-      return res.status(400).json({ error: 'address and content are required' });
-    }
-    const { data, error } = await supabaseAdmin
-      .from('lo_listing_kb_docs')
-      .insert({ lo_agent_id: loAgentId, address: address.trim(), label: label?.trim() || null, content: content.trim() })
-      .select('id, address, label, content, created_at')
-      .single();
-    if (error) throw error;
-    res.json({ doc: data });
-  } catch (err) {
-    console.error('[listing-kb] POST error', err?.message || err);
-    res.status(500).json({ error: 'save_failed' });
-  }
-});
-
-// PATCH /api/lo/chatbot/listing-docs/:id — update a listing KB doc
-app.patch('/api/lo/chatbot/listing-docs/:id', requireAuth, async (req, res) => {
-  try {
-    const loAgentId = await resolveLoAgentId(req);
-    if (!loAgentId) return res.status(401).json({ error: 'unauthorized' });
-    const { address, label, content } = req.body;
-    if (!address?.trim() || !content?.trim()) {
-      return res.status(400).json({ error: 'address and content are required' });
-    }
-    const { data, error } = await supabaseAdmin
-      .from('lo_listing_kb_docs')
-      .update({ address: address.trim(), label: label?.trim() || null, content: content.trim() })
-      .eq('id', req.params.id)
-      .eq('lo_agent_id', loAgentId) // ownership check
-      .select('id, address, label, content, created_at')
-      .single();
-    if (error) throw error;
-    res.json({ doc: data });
-  } catch (err) {
-    console.error('[listing-kb] PATCH error', err?.message || err);
-    res.status(500).json({ error: 'update_failed' });
-  }
-});
-
-// DELETE /api/lo/chatbot/listing-docs/:id — delete a listing KB doc
-app.delete('/api/lo/chatbot/listing-docs/:id', requireAuth, async (req, res) => {
-  try {
-    const loAgentId = await resolveLoAgentId(req);
-    if (!loAgentId) return res.status(401).json({ error: 'unauthorized' });
-    const { error } = await supabaseAdmin
-      .from('lo_listing_kb_docs')
-      .delete()
-      .eq('id', req.params.id)
-      .eq('lo_agent_id', loAgentId); // ownership check
-    if (error) throw error;
-    res.json({ success: true });
-  } catch (err) {
-    console.error('[listing-kb] DELETE error', err?.message || err);
-    res.status(500).json({ error: 'delete_failed' });
-  }
-});
-
-// POST /api/lo/chatbot/capture-lead — visitor submits contact from chatbot
-app.post('/api/lo/chatbot/capture-lead', async (req, res) => {
-  try {
-    const { lo_agent_id, listing_id, name, email, phone, message } = req.body;
-    if (!lo_agent_id) return res.status(400).json({ error: 'lo_agent_id required' });
-
-    // Fetch LO agent info (include phone for SMS alert)
-    const { data: loAgent } = await supabaseAdmin
-      .from('agents')
-      .select('id, first_name, last_name, name, email, phone, auth_user_id')
-      .eq('id', lo_agent_id)
-      .maybeSingle();
-
-    // Fetch listing address + listing agent info
-    let listingAddress = '';
-    let listingAgent = null;
-    if (listing_id) {
-      const { data: listing } = await supabaseAdmin
-        .from('properties')
-        .select('address, city, state, user_id')
-        .eq('id', listing_id)
-        .maybeSingle();
-      listingAddress = [listing?.address, listing?.city, listing?.state].filter(Boolean).join(', ') || '';
-
-      // Fetch the agent who owns the listing (for their SMS alert)
-      if (listing?.user_id) {
-        const { data: agentRow } = await supabaseAdmin
-          .from('agents')
-          .select('id, first_name, last_name, phone')
-          .eq('auth_user_id', listing.user_id)
-          .maybeSingle();
-        listingAgent = agentRow || null;
-      }
-    }
-
-    // Save to pre_qual_submissions
-    try {
-      await supabaseAdmin.from('pre_qual_submissions').insert({
-        lo_agent_id,
-        listing_id: listing_id || null,
-        name: name || null,
-        email: email || null,
-        phone: phone || null,
-        message: message || null,
-        source: 'chatbot',
-        created_at: new Date().toISOString(),
-      });
-    } catch (insertErr) {
-      console.warn('[capture-lead] pre_qual_submissions insert warn:', insertErr?.message);
-    }
-
-    const leadName = name || 'Someone';
-    const shortAddress = listingAddress ? ` on ${listingAddress.split(',')[0]}` : '';
-    const loDisplayName = [loAgent?.first_name, loAgent?.last_name].filter(Boolean).join(' ') || 'Your Loan Officer';
-    const appBase = process.env.APP_BASE_URL || 'https://homelistingai.com';
-    const leadsUrl = `${appBase}/dashboard/lo-leads`;
-
-    // ── Auto-reply to buyer: email ────────────────────────────────────────────
-    if (email) {
-      const buyerFirstName = name ? name.split(' ')[0] : 'there';
-      emailService.sendEmail({
-        to: email,
-        subject: `Thanks for your interest — ${loDisplayName} will be in touch!`,
-        html: `
-<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;background:#fff;">
-  <p style="margin:0 0 20px;font-size:16px;color:#0f172a">Hi ${buyerFirstName}! 👋</p>
-  <p style="margin:0 0 16px;font-size:15px;color:#374151;line-height:1.6">
-    Thanks for connecting${listingAddress ? ` on <strong>${listingAddress}</strong>` : ''}! <strong>${loDisplayName}</strong> received your info and will be reaching out to you shortly.
-  </p>
-  <p style="margin:0 0 24px;font-size:15px;color:#374151;line-height:1.6">
-    In the meantime, you can reach ${loDisplayName} directly:
-  </p>
-  <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin:0 0 24px;font-size:14px;color:#374151;line-height:1.8">
-    ${loAgent?.phone ? `<div>📱 <strong>Phone/Text:</strong> <a href="tel:${loAgent.phone}" style="color:#7c3aed">${loAgent.phone}</a></div>` : ''}
-    ${loAgent?.email ? `<div>📧 <strong>Email:</strong> <a href="mailto:${loAgent.email}" style="color:#7c3aed">${loAgent.email}</a></div>` : ''}
-    ${loAgent?.company ? `<div>🏢 <strong>Company:</strong> ${loAgent.company}</div>` : ''}
-  </div>
-  <p style="margin:0;font-size:11px;color:#d1d5db">Sent via <a href="${appBase}" style="color:#d1d5db">HomeListingAI</a></p>
-</div>`,
-        tags: { type: 'buyer_auto_reply' }
-      }).catch(e => console.warn('[capture-lead] Buyer email reply failed:', e?.message));
-    }
-
-    // ── Auto-reply to buyer: SMS ──────────────────────────────────────────────
-    if (phone && !SMS_COMING_SOON && FEATURE_FLAG_SMS_ENABLED) {
-      const buyerFirstName = name ? name.split(' ')[0] : 'there';
-      const buyerSmsLines = [
-        `Hi ${buyerFirstName}! This is ${loDisplayName}${loAgent?.company ? ` with ${loAgent.company}` : ''}.`,
-        `I got your message${listingAddress ? ` about ${listingAddress.split(',')[0]}` : ''} and I'll be reaching out shortly.`,
-        loAgent?.phone ? `You can reach me anytime at ${loAgent.phone}.` : '',
-      ].filter(Boolean).join(' ');
-      sendSms(phone, buyerSmsLines, [], lo_agent_id).catch(e =>
-        console.warn('[capture-lead] Buyer SMS reply failed:', e?.message)
-      );
-    }
-
-    // ── In-app notification for LO ────────────────────────────────────────────
-    if (loAgent?.auth_user_id) {
-      try {
-        const notifBody = [
-          name && `Name: ${name}`,
-          email && `Email: ${email}`,
-          phone && `Phone: ${phone}`,
-          listingAddress && `Listing: ${listingAddress}`,
-          message && `Message: "${message}"`,
-        ].filter(Boolean).join('\n');
-
-        await supabaseAdmin.from('notifications').insert({
-          user_id: loAgent.auth_user_id,
-          title: `🔥 New chatbot lead${name ? ` — ${name}` : ''}`,
-          content: notifBody || 'A visitor requested to be connected from your financing bot.',
-          type: 'lead',
-          read: false,
-          created_at: new Date().toISOString(),
-        });
-      } catch (notifErr) {
-        console.warn('[capture-lead] notification insert warn:', notifErr?.message);
-      }
-    }
-
-    // ── Email alert to LO ─────────────────────────────────────────────────────
-    if (loAgent?.email) {
-      const loFirstName = loAgent.first_name || loAgent.name || 'there';
-      emailService.sendEmail({
-        to: loAgent.email,
-        subject: `🔥 New chatbot lead${name ? ` — ${name}` : ''}`,
-        html: `
-<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;background:#fff;">
-  <p style="margin:0 0 20px;font-size:16px;color:#0f172a">Hi ${loFirstName},</p>
-  <p style="margin:0 0 16px;font-size:15px;color:#374151;line-height:1.6">
-    You have a new lead from your AI financing bot${shortAddress ? ` on <strong>${shortAddress}</strong>` : ''}.
-  </p>
-  <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin:0 0 24px;font-size:14px;color:#374151;line-height:1.8">
-    ${name ? `<div>👤 <strong>Name:</strong> ${name}</div>` : ''}
-    ${phone ? `<div>📱 <strong>Phone:</strong> ${phone}</div>` : ''}
-    ${email ? `<div>📧 <strong>Email:</strong> ${email}</div>` : ''}
-    ${listingAddress ? `<div>🏠 <strong>Listing:</strong> ${listingAddress}</div>` : ''}
-    ${message ? `<div style="margin-top:8px">💬 <em>"${message}"</em></div>` : ''}
-  </div>
-  <a href="${leadsUrl}" style="display:inline-block;background:#7c3aed;color:#fff;font-weight:700;font-size:14px;padding:14px 28px;border-radius:10px;text-decoration:none;margin-bottom:28px">
-    View Lead →
-  </a>
-  <p style="margin:0;font-size:11px;color:#d1d5db">Sent via <a href="${appBase}" style="color:#d1d5db">HomeListingAI</a></p>
-</div>`,
-        tags: { type: 'chatbot_lead_alert_lo' }
-      }).catch(e => console.warn('[capture-lead] LO email failed:', e?.message));
-    }
-
-    // ── Email alert to listing agent ──────────────────────────────────────────
-    if (listingAgent) {
-      const { data: listingAgentUser } = await supabaseAdmin
-        .from('agents')
-        .select('email, first_name, name')
-        .eq('id', listingAgent.id)
-        .maybeSingle();
-
-      if (listingAgentUser?.email) {
-        const agentFirstName = listingAgentUser.first_name || listingAgentUser.name || 'there';
-        emailService.sendEmail({
-          to: listingAgentUser.email,
-          subject: `🔥 New buyer lead${shortAddress ? ` on ${shortAddress}` : ''} — via AI bot`,
-          html: `
-<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;background:#fff;">
-  <p style="margin:0 0 20px;font-size:16px;color:#0f172a">Hi ${agentFirstName},</p>
-  <p style="margin:0 0 16px;font-size:15px;color:#374151;line-height:1.6">
-    A buyer connected with <strong>${loDisplayName}</strong>'s AI financing bot${shortAddress ? ` on <strong>${shortAddress}</strong>` : ''} and submitted their contact info.
-  </p>
-  <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin:0 0 24px;font-size:14px;color:#374151;line-height:1.8">
-    ${name ? `<div>👤 <strong>Name:</strong> ${name}</div>` : ''}
-    ${phone ? `<div>📱 <strong>Phone:</strong> ${phone}</div>` : ''}
-    ${email ? `<div>📧 <strong>Email:</strong> ${email}</div>` : ''}
-    ${listingAddress ? `<div>🏠 <strong>Listing:</strong> ${listingAddress}</div>` : ''}
-    ${message ? `<div style="margin-top:8px">💬 <em>"${message}"</em></div>` : ''}
-  </div>
-  <p style="margin:0 0 28px;font-size:14px;color:#374151">${loDisplayName} will be following up. This lead is working the way it's supposed to 💪</p>
-  <p style="margin:0;font-size:11px;color:#d1d5db">Sent via <a href="${appBase}" style="color:#d1d5db">HomeListingAI</a></p>
-</div>`,
-          tags: { type: 'chatbot_lead_alert_agent' }
-        }).catch(e => console.warn('[capture-lead] Agent email failed:', e?.message));
-      }
-    }
-
-    // ── SMS alert to LO ───────────────────────────────────────────────────────
-    if (loAgent?.phone && !SMS_COMING_SOON && FEATURE_FLAG_SMS_ENABLED) {
-      const loSmsLines = [
-        `🔥 New chatbot lead${shortAddress}!`,
-        name && `Name: ${name}`,
-        phone && `Phone: ${phone}`,
-        email && `Email: ${email}`,
-        message && `Said: "${message.slice(0, 80)}${message.length > 80 ? '…' : ''}"`,
-      ].filter(Boolean).join('\n');
-      sendSms(loAgent.phone, loSmsLines, [], lo_agent_id).catch(e =>
-        console.warn('[capture-lead] LO SMS alert failed:', e?.message)
-      );
-    }
-
-    // ── SMS alert to listing agent ─────────────────────────────────────────────
-    if (listingAgent?.phone && !SMS_COMING_SOON && FEATURE_FLAG_SMS_ENABLED) {
-      const agentSmsLines = [
-        `🔥 New buyer lead${shortAddress}!`,
-        `${leadName} connected via ${loDisplayName}'s financing bot.`,
-        phone && `Their phone: ${phone}`,
-        email && `Their email: ${email}`,
-      ].filter(Boolean).join('\n');
-      sendSms(listingAgent.phone, agentSmsLines, [], listingAgent.id).catch(e =>
-        console.warn('[capture-lead] Agent SMS alert failed:', e?.message)
-      );
-    }
-
-    res.json({ success: true });
-  } catch (err) {
-    console.error('[capture-lead] error:', err?.message || err);
-    res.status(500).json({ error: 'capture_failed' });
-  }
-});
-
-// POST /api/lo/leads/:id/sms — LO texts a chatbot lead directly
-app.post('/api/lo/leads/:id/sms', requireAuth, async (req, res) => {
-  try {
-    const loAgentId = await resolveLoAgentId(req);
-    if (!loAgentId) return res.status(401).json({ error: 'unauthorized' });
-
-    const { id } = req.params;
-    const { message } = req.body;
-    if (!message?.trim()) return res.status(400).json({ error: 'message_required' });
-
-    // Verify lead belongs to this LO and has a phone number
-    const { data: lead, error: leadErr } = await supabaseAdmin
-      .from('pre_qual_submissions')
-      .select('id, phone, name, lo_agent_id')
-      .eq('id', id)
-      .eq('lo_agent_id', loAgentId)
-      .maybeSingle();
-
-    if (leadErr) throw leadErr;
-    if (!lead) return res.status(404).json({ error: 'lead_not_found' });
-    if (!lead.phone) return res.status(422).json({ error: 'no_phone_number' });
-
-    if (SMS_COMING_SOON || !FEATURE_FLAG_SMS_ENABLED) {
-      return res.status(503).json({ error: 'sms_coming_soon' });
-    }
-
-    const result = await sendSms(lead.phone, message.trim(), [], loAgentId);
-    if (!result) return res.status(500).json({ error: 'sms_send_failed' });
-
-    console.log(`📱 [LO SMS] Sent to lead ${id} (${lead.phone})`);
-    res.json({ success: true });
-  } catch (err) {
-    console.error('[LO SMS] Error:', err?.message || err);
-    res.status(500).json({ error: 'sms_failed' });
-  }
-});
-
-// PATCH /api/lo/leads/:id/status — update pipeline status for a chatbot lead
-app.patch('/api/lo/leads/:id/status', requireAuth, async (req, res) => {
-  try {
-    const loAgentId = await resolveLoAgentId(req);
-    if (!loAgentId) return res.status(401).json({ error: 'unauthorized' });
-
-    const { id } = req.params;
-    const { status } = req.body;
-    const VALID_STATUSES = ['New', 'Contacted', 'Qualified', 'Closed'];
-    if (!status || !VALID_STATUSES.includes(status)) {
-      return res.status(400).json({ error: 'invalid_status', valid: VALID_STATUSES });
-    }
-
-    const { data, error } = await supabaseAdmin
-      .from('pre_qual_submissions')
-      .update({ status })
-      .eq('id', id)
-      .eq('lo_agent_id', loAgentId)
-      .select('id, status')
-      .maybeSingle();
-
-    if (error) throw error;
-    if (!data) return res.status(404).json({ error: 'lead_not_found' });
-
-    res.json({ success: true, id: data.id, status: data.status });
-  } catch (err) {
-    console.error('[LO Lead Status] Error:', err?.message || err);
-    res.status(500).json({ error: 'status_update_failed' });
-  }
-});
-
 // POST /api/public/lo-chat — visitor sends message to LO chatbot
 app.post('/api/public/lo-chat', async (req, res) => {
   try {
@@ -32725,32 +31640,16 @@ app.post('/api/public/lo-chat', async (req, res) => {
       });
     }
 
-    // Fetch listing address for context (properties table is the source of truth for LO platform)
+    // Fetch listing address for context
     const { data: listing } = await supabaseAdmin
-      .from('properties')
-      .select('address, city, state, price')
+      .from('listings')
+      .select('address, price')
       .eq('id', listing_id)
       .maybeSingle();
 
-    const listingAddress = [listing?.address, listing?.city, listing?.state].filter(Boolean).join(', ') || '';
-    const listingContext = listingAddress
-      ? `The visitor is looking at a listing at ${listingAddress}${listing?.price ? ` listed at $${Number(listing.price).toLocaleString('en-US')}` : ''}.`
+    const listingContext = listing
+      ? `The visitor is looking at a listing at ${listing.address}${listing.price ? ` listed at $${Number(listing.price).toLocaleString('en-US')}` : ''}.`
       : '';
-
-    // Pull listing-specific KB docs that match this address
-    let listingKbText = '';
-    if (listingAddress && lo_agent_id) {
-      const { data: kbDocs } = await supabaseAdmin
-        .from('lo_listing_kb_docs')
-        .select('content, label')
-        .eq('lo_agent_id', lo_agent_id)
-        .ilike('address', `%${listingAddress.split(',')[0].trim()}%`)
-        .limit(5);
-      if (kbDocs && kbDocs.length > 0) {
-        listingKbText = '\n\nListing-specific information for this property:\n' +
-          kbDocs.map(d => (d.label ? `[${d.label}]\n` : '') + d.content).join('\n\n---\n\n');
-      }
-    }
 
     // Build FAQ context
     const faqText = Array.isArray(config.faq) && config.faq.length > 0
@@ -32765,7 +31664,6 @@ app.post('/api/public/lo-chat', async (req, res) => {
       config.personality,
       listingContext,
       config.knowledge_base ? `\nKnowledge base:\n${config.knowledge_base}` : '',
-      listingKbText,
       faqText,
       '\nKeep responses brief (2-4 sentences). Do not give specific rate quotes — encourage visitors to contact you directly for personalized numbers. Never discuss topics unrelated to real estate financing and mortgages.'
     ].filter(Boolean).join('\n');
@@ -32806,12 +31704,7 @@ app.post('/api/public/lo-chat', async (req, res) => {
     const reply = openaiData.choices?.[0]?.message?.content?.trim()
       || "I'm not able to answer that right now. Please reach out to me directly.";
 
-    // Detect warm interest — show lead capture form after 2+ exchanges or on key signals
-    const interestKeywords = /pre.?qual|get approved|application|contact|call me|reach out|interested|how much|afford|down payment|rate|my situation|speak with|talk to|connect/i;
-    const historyLength = Array.isArray(history) ? history.length : 0;
-    const showCapture = historyLength >= 3 || interestKeywords.test(message);
-
-    res.json({ reply, showCapture });
+    res.json({ reply });
   } catch (err) {
     console.error('[LO Chat] Error:', err);
     res.json({ reply: "Something went wrong. Please contact the loan officer directly for financing questions." });
@@ -33805,196 +32698,6 @@ app.use((err, req, res, next) => {
       error: err.message || 'Internal Server Error',
       requestId: req.header('x-request-id')
     });
-  }
-});
-
-// --- AGENT PROFILE ROUTES (full profile for listing People tab) ---
-
-app.get('/api/agent/profile', requireAuth, async (req, res) => {
-  try {
-    const userId = req.authUserId;
-    const { data: agent, error } = await supabaseAdmin
-      .from('agents')
-      .select('id, first_name, last_name, email, phone, headshot_url, logo_url, company, nmls_number, title, sender_name, sender_email')
-      .or(`id.eq.${userId},auth_user_id.eq.${userId}`)
-      .limit(1)
-      .maybeSingle();
-    if (error) throw error;
-    res.json({ success: true, profile: agent || {} });
-  } catch (err) {
-    console.error('[API] Get Agent Profile Error:', err);
-    res.status(500).json({ error: 'Failed to fetch agent profile' });
-  }
-});
-
-app.patch('/api/agent/profile', requireAuth, async (req, res) => {
-  try {
-    const userId = req.authUserId;
-    const { first_name, last_name, email, phone, headshot_url, logo_url, company, nmls_number, title } = req.body || {};
-    const payload = {};
-    if (first_name !== undefined) payload.first_name = toTrimmedOrNull(first_name);
-    if (last_name !== undefined) payload.last_name = toTrimmedOrNull(last_name);
-    if (email !== undefined) payload.email = toTrimmedOrNull(email);
-    if (phone !== undefined) payload.phone = toTrimmedOrNull(phone);
-    if (headshot_url !== undefined) payload.headshot_url = toTrimmedOrNull(headshot_url);
-    if (logo_url !== undefined) payload.logo_url = toTrimmedOrNull(logo_url);
-    if (company !== undefined) payload.company = toTrimmedOrNull(company);
-    if (nmls_number !== undefined) payload.nmls_number = toTrimmedOrNull(nmls_number);
-    if (title !== undefined) payload.title = toTrimmedOrNull(title);
-    if (Object.keys(payload).length === 0) return res.json({ success: true, message: 'nothing_to_update' });
-    payload.updated_at = nowIso();
-    const { error } = await supabaseAdmin.from('agents').update(payload).or(`id.eq.${userId},auth_user_id.eq.${userId}`);
-    if (error) throw error;
-    res.json({ success: true });
-  } catch (err) {
-    console.error('[API] Patch Agent Profile Error:', err);
-    res.status(500).json({ error: 'Failed to update agent profile' });
-  }
-});
-
-// --- LO SEARCH (for agent to find and attach an LO to their listing) ---
-
-app.get('/api/lo/search', requireAuth, async (req, res) => {
-  try {
-    const q = String(req.query.q || '').trim();
-    if (q.length < 2) return res.json({ success: true, results: [] });
-    const { data, error } = await supabaseAdmin
-      .from('agents')
-      .select('id, auth_user_id, first_name, last_name, email, phone, headshot_url, company, nmls_number')
-      .eq('account_type', 'lo')
-      .or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%,email.ilike.%${q}%,company.ilike.%${q}%`)
-      .order('first_name', { ascending: true })
-      .limit(10);
-    if (error) throw error;
-    const results = (data || []).map(lo => ({
-      id: lo.id,
-      auth_user_id: lo.auth_user_id,
-      name: [lo.first_name, lo.last_name].filter(Boolean).join(' ') || 'Loan Officer',
-      email: lo.email || null,
-      phone: lo.phone || null,
-      headshot_url: lo.headshot_url || null,
-      company: lo.company || null,
-      nmls_number: lo.nmls_number || null
-    }));
-    res.json({ success: true, results });
-  } catch (err) {
-    console.error('[API] LO Search Error:', err);
-    res.status(500).json({ error: 'Failed to search LOs' });
-  }
-});
-
-// --- LISTING LO ASSIGNMENT (agent side) ---
-
-// GET — which LO is attached to this listing?
-app.get('/api/listings/:listingId/lo-assignment', requireAuth, async (req, res) => {
-  try {
-    const { listingId } = req.params;
-    const userId = req.authUserId;
-    // Verify agent owns this listing
-    const { data: prop } = await supabaseAdmin.from('properties').select('id, agent_id').eq('id', listingId).maybeSingle();
-    if (!prop) return res.status(404).json({ error: 'listing_not_found' });
-    const { data: agentRow } = await supabaseAdmin.from('agents').select('id').or(`id.eq.${userId},auth_user_id.eq.${userId}`).limit(1).maybeSingle();
-    if (!agentRow) return res.status(403).json({ error: 'agent_not_found' });
-    if (prop.agent_id && prop.agent_id !== agentRow.id && prop.agent_id !== userId) {
-      return res.status(403).json({ error: 'listing_access_denied' });
-    }
-    const { data: assignments } = await supabaseAdmin
-      .from('listing_lo_assignments')
-      .select('lo_agent_id, branding_enabled, assigned_at')
-      .eq('listing_id', listingId)
-      .limit(1);
-    if (!assignments || assignments.length === 0) return res.json({ success: true, lo: null });
-    const loId = assignments[0].lo_agent_id;
-    const { data: loRows } = await supabaseAdmin
-      .from('agents')
-      .select('id, auth_user_id, first_name, last_name, email, phone, headshot_url, company, nmls_number')
-      .or(`id.eq.${loId},auth_user_id.eq.${loId}`)
-      .limit(1);
-    const lo = loRows?.[0];
-    if (!lo) return res.json({ success: true, lo: null });
-    res.json({
-      success: true,
-      lo: {
-        id: lo.id,
-        name: [lo.first_name, lo.last_name].filter(Boolean).join(' ') || 'Loan Officer',
-        email: lo.email || null,
-        phone: lo.phone || null,
-        headshot_url: lo.headshot_url || null,
-        company: lo.company || null,
-        nmls_number: lo.nmls_number || null,
-        branding_enabled: assignments[0].branding_enabled,
-        assigned_at: assignments[0].assigned_at
-      }
-    });
-  } catch (err) {
-    console.error('[API] Get LO Assignment Error:', err);
-    res.status(500).json({ error: 'Failed to fetch LO assignment' });
-  }
-});
-
-// POST — agent attaches an LO to their listing
-app.post('/api/listings/:listingId/lo-assignment', requireAuth, async (req, res) => {
-  try {
-    const { listingId } = req.params;
-    const { lo_id } = req.body || {};
-    if (!lo_id) return res.status(400).json({ error: 'lo_id_required' });
-    const userId = req.authUserId;
-    // Verify LO exists
-    const { data: loRows } = await supabaseAdmin
-      .from('agents')
-      .select('id, auth_user_id, first_name, last_name, email, phone, headshot_url, company, nmls_number')
-      .or(`id.eq.${lo_id},auth_user_id.eq.${lo_id}`)
-      .limit(1);
-    const lo = loRows?.[0];
-    if (!lo) return res.status(404).json({ error: 'lo_not_found' });
-    // Upsert assignment
-    const { error } = await supabaseAdmin
-      .from('listing_lo_assignments')
-      .upsert({
-        listing_id: listingId,
-        lo_agent_id: lo.id,
-        branding_enabled: true,
-        assigned_at: nowIso()
-      }, { onConflict: 'listing_id,lo_agent_id', ignoreDuplicates: false });
-    if (error) throw error;
-    res.json({
-      success: true,
-      lo: {
-        id: lo.id,
-        name: [lo.first_name, lo.last_name].filter(Boolean).join(' ') || 'Loan Officer',
-        email: lo.email || null,
-        phone: lo.phone || null,
-        headshot_url: lo.headshot_url || null,
-        company: lo.company || null,
-        nmls_number: lo.nmls_number || null,
-        branding_enabled: true
-      }
-    });
-  } catch (err) {
-    console.error('[API] Post LO Assignment Error:', err);
-    res.status(500).json({ error: 'Failed to assign LO' });
-  }
-});
-
-// DELETE — agent detaches LO from their listing
-app.delete('/api/listings/:listingId/lo-assignment', requireAuth, async (req, res) => {
-  try {
-    const { listingId } = req.params;
-    const { lo_id } = req.body || {};
-    if (!lo_id) return res.status(400).json({ error: 'lo_id_required' });
-    const { data: loRows } = await supabaseAdmin.from('agents').select('id').or(`id.eq.${lo_id},auth_user_id.eq.${lo_id}`).limit(1);
-    const lo = loRows?.[0];
-    if (!lo) return res.status(404).json({ error: 'lo_not_found' });
-    const { error } = await supabaseAdmin
-      .from('listing_lo_assignments')
-      .delete()
-      .eq('listing_id', listingId)
-      .eq('lo_agent_id', lo.id);
-    if (error) throw error;
-    res.json({ success: true });
-  } catch (err) {
-    console.error('[API] Delete LO Assignment Error:', err);
-    res.status(500).json({ error: 'Failed to remove LO assignment' });
   }
 });
 
@@ -35279,107 +33982,6 @@ const runDailyDigestSchedulerTick = async () => {
   }
 };
 
-// ── WOW Link Reminder Worker ─────────────────────────────────────────────────
-// Sends 24hr and 72hr follow-up emails to agents who received a WOW link
-// but haven't opened it yet (last_viewed_at IS NULL) and haven't claimed.
-const sendWowLinkReminders = async () => {
-  try {
-    const now = new Date();
-    const cutoff24h = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
-    const cutoff72h = new Date(now.getTime() - 72 * 60 * 60 * 1000).toISOString();
-    const appBase = (process.env.APP_BASE_URL || 'https://homelistingai.com').replace(/\/$/, '');
-
-    // Fetch all unclaimed, un-viewed invites that are within their expiry window
-    const { data: candidates } = await supabaseAdmin
-      .from('agent_invites')
-      .select('id, token, invited_email, invited_name, lo_agent_id, created_at, reminder_24h_sent_at, reminder_72h_sent_at')
-      .is('claimed_at', null)
-      .is('last_viewed_at', null)  // only those who never opened
-      .gt('expires_at', now.toISOString())
-      .lte('created_at', cutoff24h);  // at least 24h old
-
-    if (!candidates?.length) return;
-
-    for (const invite of candidates) {
-      const needs24h = !invite.reminder_24h_sent_at && invite.created_at <= cutoff24h;
-      const needs72h = !invite.reminder_72h_sent_at && invite.created_at <= cutoff72h;
-      if (!needs24h && !needs72h) continue;
-
-      // Resolve LO profile for email personalization
-      const loId = invite.lo_agent_id;
-      const { data: lo } = await supabaseAdmin
-        .from('agents')
-        .select('id, first_name, last_name, company, headshot_url')
-        .or(`id.eq.${loId},auth_user_id.eq.${loId}`)
-        .limit(1).maybeSingle();
-      const loName = [lo?.first_name, lo?.last_name].filter(Boolean).join(' ') || 'Your Loan Officer';
-      const agentFirst = invite.invited_name ? invite.invited_name.split(' ')[0] : 'there';
-      const wowLink = `${appBase}/partner-invite/${invite.token}`;
-      const loBrand = await resolveBrandForLoAgent(lo?.id).catch(() => ({ brandColor: '#2563eb' }));
-      const brandColor = loBrand.brandColor || '#2563eb';
-
-      // Send 72hr first (if needed) to avoid sending both on the same tick
-      if (needs72h) {
-        const subject72 = `${loName} is still waiting — your listing AI is ready 🏡`;
-        const html72 = `<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;background:#fff;">
-<p style="margin:0 0 18px;font-size:16px;color:#0f172a">Hey ${agentFirst},</p>
-<p style="margin:0 0 16px;font-size:15px;color:#374151;line-height:1.7">
-  ${loName} set up a live AI listing demo for you — and it's still there, waiting. This takes 60 seconds to see and it might change how your listings perform.
-</p>
-<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;padding:16px 20px;margin:0 0 24px;">
-  <p style="margin:0;font-size:14px;color:#9a3412;font-weight:700;">⏳ Your demo link expires soon</p>
-  <p style="margin:6px 0 0;font-size:13px;color:#c2410c;line-height:1.6">Once it's gone, you'll need to ask ${loName} to send a new one.</p>
-</div>
-<div style="text-align:center;margin:0 0 20px;">
-  <a href="${wowLink}" style="display:inline-block;background:${brandColor};color:#fff;font-weight:800;font-size:16px;padding:16px 40px;border-radius:14px;text-decoration:none;">
-    See My Listing Demo →
-  </a>
-</div>
-<p style="margin:0;font-size:12px;color:#94a3b8;text-align:center;">Sent by HomeListingAI on behalf of ${loName}</p>
-</body></html>`;
-        try {
-          await emailService.sendEmail({ to: invite.invited_email, subject: subject72, html: html72, tags: { type: 'wow_reminder_72h' } });
-          await supabaseAdmin.from('agent_invites').update({ reminder_72h_sent_at: now.toISOString() }).eq('id', invite.id);
-          console.log(`[WOWReminder] 72h reminder sent to ${invite.invited_email}`);
-        } catch (e) {
-          console.warn(`[WOWReminder] 72h email failed for ${invite.invited_email}:`, e?.message);
-        }
-      } else if (needs24h) {
-        const subject24 = `Did you see ${loName}'s listing demo? 👀`;
-        const html24 = `<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;background:#fff;">
-<p style="margin:0 0 18px;font-size:16px;color:#0f172a">Hey ${agentFirst} 👋</p>
-<p style="margin:0 0 16px;font-size:15px;color:#374151;line-height:1.7">
-  Just checking in — ${loName} sent you something yesterday that most agents find pretty useful. It's a live AI demo of your listings with a built-in mortgage assistant for buyers.
-</p>
-<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;padding:16px 20px;margin:0 0 24px;">
-  <p style="margin:0;font-size:14px;font-weight:700;color:#1e40af;">What you get:</p>
-  <ul style="margin:8px 0 0;padding-left:18px;font-size:13px;color:#3b82f6;line-height:2;">
-    <li>Buyers get instant mortgage answers on your listing</li>
-    <li>Pre-qual leads captured automatically</li>
-    <li>${loName}'s brand on every listing you share</li>
-  </ul>
-</div>
-<div style="text-align:center;margin:0 0 20px;">
-  <a href="${wowLink}" style="display:inline-block;background:${brandColor};color:#fff;font-weight:800;font-size:16px;padding:16px 40px;border-radius:14px;text-decoration:none;">
-    See the Demo →
-  </a>
-</div>
-<p style="margin:0;font-size:12px;color:#94a3b8;text-align:center;">Sent by HomeListingAI on behalf of ${loName}</p>
-</body></html>`;
-        try {
-          await emailService.sendEmail({ to: invite.invited_email, subject: subject24, html: html24, tags: { type: 'wow_reminder_24h' } });
-          await supabaseAdmin.from('agent_invites').update({ reminder_24h_sent_at: now.toISOString() }).eq('id', invite.id);
-          console.log(`[WOWReminder] 24h reminder sent to ${invite.invited_email}`);
-        } catch (e) {
-          console.warn(`[WOWReminder] 24h email failed for ${invite.invited_email}:`, e?.message);
-        }
-      }
-    }
-  } catch (err) {
-    console.warn('[WOWReminder] Worker tick failed:', err?.message || err);
-  }
-};
-
 if (RUN_BACKGROUND_TASKS) {
   // Start Scheduler (Every 60 seconds)
   setInterval(() => {
@@ -35391,15 +33993,6 @@ if (RUN_BACKGROUND_TASKS) {
     // checkLeadScores(); // DISABLED: Using V2 Event-Driven Scoring (LeadScoringService)
     funnelService.processBatch().catch((err) => console.error('Funnel Engine Loop Error:', err));
   }, 60 * 1000);
-
-  // WOW Link reminders — check every 15 minutes
-  setInterval(() => {
-    sendWowLinkReminders().catch((err) => console.warn('[WOWReminder] interval failed:', err?.message));
-  }, 15 * 60 * 1000);
-  // Run once shortly after startup
-  setTimeout(() => {
-    sendWowLinkReminders().catch((err) => console.warn('[WOWReminder] startup run failed:', err?.message));
-  }, 30 * 1000);
 }
 
 if (RUN_JOB_WORKER) {
