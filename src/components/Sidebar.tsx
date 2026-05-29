@@ -35,11 +35,11 @@ const REALTOR_NAV_ITEMS = [
 ] as const;
 
 const LO_NAV_ITEMS = [
-  { key: 'today', icon: 'today', label: 'Today', path: '/today', testid: 'nav-today' },
+  { key: 'lo-today', icon: 'today', label: 'Today', path: '/lo-today', testid: 'nav-today' },
   { key: 'lo-partners', icon: 'handshake', label: 'Partners', path: '/lo-partners', testid: 'nav-lo-partners' },
   { key: 'lo-listings', icon: 'storefront', label: 'Listings', path: '/lo-listings', testid: 'nav-lo-listings' },
   { key: 'lo-chatbot', icon: 'smart_toy', label: 'AI Bot', path: '/lo-chatbot', testid: 'nav-lo-chatbot' },
-  { key: 'leads', icon: 'groups', label: 'Leads', path: '/leads', testid: 'nav-leads' },
+  { key: 'lo-leads', icon: 'person_search', label: 'Leads', path: '/lo-leads', testid: 'nav-lo-leads' },
   { key: 'appointments', icon: 'event_available', label: 'Appointments', path: '/appointments', testid: 'nav-appointments' },
   { key: 'settings', icon: 'settings', label: 'Settings', path: '/settings', testid: 'nav-settings' }
 ] as const;
@@ -86,12 +86,19 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
   const isDesktop = useIsDesktop();
   const derivedDemoMode = isDemoMode || location.pathname.startsWith('/demo-dashboard');
   const derivedBlueprintMode = isBlueprintMode || location.pathname.startsWith('/agent-blueprint-dashboard') || location.pathname.startsWith('/blueprint-dashboard');
-  const [accountType, setAccountType] = useState<string>('realtor');
+  const ACCT_KEY = 'hla_account_type';
+  const [accountType, setAccountType] = useState<string>(
+    () => localStorage.getItem(ACCT_KEY) || 'realtor'
+  );
 
   useEffect(() => {
     fetchOnboardingState()
-      .then(s => setAccountType(s?.account_type || 'realtor'))
-      .catch(() => setAccountType('realtor'));
+      .then(s => {
+        const t = s?.account_type || 'realtor';
+        localStorage.setItem(ACCT_KEY, t);
+        setAccountType(t);
+      })
+      .catch(() => {/* keep cached value */});
   }, []);
 
   // Auto-close when screen grows to desktop (not needed, but close when shrinking)
@@ -109,11 +116,13 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
   const getPath = (path: string) => `${basePath}${path}`;
   const pathMap: Record<string, string> = {
     '/today': derivedDemoMode || derivedBlueprintMode ? getPath('/today') : '/dashboard/today',
+    '/lo-today': derivedDemoMode || derivedBlueprintMode ? getPath('/lo-today') : '/dashboard/lo-today',
     '/command-center': derivedDemoMode || derivedBlueprintMode ? getPath('/command-center') : '/dashboard/command-center',
     '/listings': derivedDemoMode || derivedBlueprintMode ? getPath('/listings') : '/dashboard/listings',
     '/lo-listings': '/dashboard/lo-listings',
     '/lo-partners': '/dashboard/lo-partners',
     '/lo-chatbot': '/dashboard/lo-chatbot',
+    '/lo-leads': '/dashboard/lo-leads',
     '/office': '/dashboard/office',
     '/leads': derivedDemoMode || derivedBlueprintMode ? getPath('/leads') : '/dashboard/leads',
     '/appointments': derivedDemoMode || derivedBlueprintMode ? getPath('/appointments') : '/dashboard/appointments',
@@ -167,7 +176,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
             className="group rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
           >
             <LogoWithName />
-            {!derivedDemoMode && !derivedBlueprintMode && (
+            {!derivedDemoMode && !derivedBlueprintMode && !isLO && !isOffice && (
               <div className="mt-2 flex items-center gap-2">
                 <span className="rounded-full border border-blue-100 bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-tight text-blue-600">
                   Trial Mode

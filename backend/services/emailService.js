@@ -364,6 +364,15 @@ module.exports = (supabaseAdmin) => {
       }
     }
 
+    // Handle BCC
+    if (bcc && bcc.length) {
+      if (Array.isArray(bcc)) {
+        bcc.forEach(b => formData.append('bcc', b));
+      } else {
+        formData.append('bcc', bcc);
+      }
+    }
+
     formData.append('subject', subject);
     formData.append('html', html);
 
@@ -415,7 +424,7 @@ module.exports = (supabaseAdmin) => {
 
   const emailTrackingService = require('./emailTrackingService');
 
-  const sendEmail = async ({ to, subject, html, cc = [], tags, options }) => {
+  const sendEmail = async ({ to, subject, html, cc = [], bcc = [], tags, options }) => {
     try {
       // 1. Prepare Tracking (if context available)
       let finalHtml = html;

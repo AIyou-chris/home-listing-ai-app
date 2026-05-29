@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useMemo, useState } from 'react'
 import ScheduleAppointmentModal, { ScheduleAppointmentFormData } from '../components/ScheduleAppointmentModal'
 import { scheduleAppointment, AppointmentKind } from '../services/schedulerService'
+import toast from 'react-hot-toast'
 
 interface OpenOptions {
   name?: string
@@ -74,11 +75,11 @@ export const SchedulerProvider: React.FC<{ children: React.ReactNode }> = ({
                 clientReminderMinutes: data.clientReminderMinutes
               })
               handleClose()
-              alert('Appointment scheduled successfully')
+              toast.success('Appointment scheduled!')
             } catch (error: unknown) {
               const message = error instanceof Error ? error.message : 'Failed to schedule appointment'
               console.error('Schedule error', error)
-              alert(message)
+              toast.error(message)
             } finally {
               setSubmitting(false)
             }

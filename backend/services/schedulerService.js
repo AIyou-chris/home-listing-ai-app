@@ -161,5 +161,162 @@ module.exports = (supabaseAdmin, emailService) => {
         }
     });
 
+    // 3. Partner Invite Follow-Up Reminders (Every Hour)
+    // Sends a follow-up email to the invited agent; BCC goes to INVITE_COPY_EMAIL if set.
+    cron.schedule('0 * * * *', async () => {
+        try {
+            const now = new Date().toISOString();
+            const copyEmail = process.env.INVITE_COPY_EMAIL || null;
+
+            const { data: dueInvites, error } = await supabaseAdmin
+                .from('agent_invites')
+                .select('id, token, invited_email, invited_name, last_viewed_at, view_count, lo_agent_id')
+                .lte('follow_up_at', now)
+                .is('claimed_at', null);
+
+            if (error) { console.error('[Follow-Up Reminder] DB error:', error); return; }
+            if (!dueInvites || dueInvites.length === 0) return;
+
+            console.log(`⏰ [Follow-Up Reminder] ${dueInvites.length} invite(s) due`);
+
+            for (const invite of dueInvites) {
+                // Look up LO name (lo_agent_id stores auth id in agent_invites)
+                const { data: lo } = await supabaseAdmin
+                    .from('agents')
+                    .select('first_name, last_name, company, email')
+                    .eq('auth_user_id', invite.lo_agent_id)
+                    .maybeSingle();
+
+                const agentName = invite.invited_name ? invite.invited_name.split(' ')[0] : 'there';
+                const loName = [lo?.first_name, lo?.last_name].filter(Boolean).join(' ') || 'Your Loan Officer';
+                const loCompany = lo?.company || 'HomeListingAI';
+                const appBase = process.env.APP_BASE_URL || 'https://homelistingai.com';
+                const wowLink = `${appBase}/partner-invite/${invite.token}`;
+
+                const bccList = [lo?.email, copyEmail].filter(Boolean);
+
+                await emailService.sendEmail({
+                    to: invite.invited_email,
+                    bcc: bccList,
+                    subject: `Following up — did you get a chance to see this?`,
+                    html: `
+<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 520px; margin: 0 auto; padding: 32px 24px; background: #ffffff;">
+  <p style="margin:0 0 20px; font-size:16px; color:#0f172a">Hi ${agentName},</p>
+  <p style="margin:0 0 16px; font-size:15px; color:#374151; line-height:1.6">I wanted to follow up on the listing demo I sent over a few days ago. I'd love to show you how I can help your buyers get pre-approved faster — right from the listing page.</p>
+  <p style="margin:0 0 24px; font-size:15px; color:#374151; line-height:1.6">Take a look when you get a chance:</p>
+  <a href="${wowLink}" style="display:inline-block; background:#2563eb; color:#fff; font-weight:700; font-size:14px; padding:14px 28px; border-radius:10px; text-decoration:none; margin-bottom:28px">
+    View the Demo →
+  </a>
+  <p style="margin:0 0 4px; font-size:15px; color:#0f172a; font-weight:600">${loName}</p>
+  <p style="margin:0 0 28px; font-size:14px; color:#6b7280">${loCompany}</p>
+  <p style="margin:0; font-size:11px; color:#d1d5db">Sent via <a href="${appBase}" style="color:#d1d5db">HomeListingAI</a></p>
+</div>`,
+                    tags: { type: 'partner_followup_reminder', invite_id: invite.id }
+                });
+
+                // Clear reminder so it doesn't fire again
+                await supabaseAdmin
+                    .from('agent_invites')
+                    .update({ follow_up_at: null })
+                    .eq('id', invite.id);
+
+                console.log(`✅ [Follow-Up Reminder] Sent to ${invite.invited_email} | bcc: ${bccList.join(', ')}`);
+            }
+        } catch (err) {
+            console.error('[Follow-Up Reminder] Exception:', err);
+        }
+    });
+
+    // 4. Weekly Value Email to Listing Agents (Monday 8:00 AM)
+    // For every listing that received at least 1 chatbot lead in the past 7 days,
+    // email the listing agent a summary — with a shout-out to the LO who powered it.
+    cron.schedule('0 8 * * 1', async () => {
+        try {
+            if (!emailService) return;
+            console.log('⏰ Scheduler: Running Weekly Value Email to Listing Agents...');
+
+            const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+            const appBase = process.env.APP_BASE_URL || 'https://homelistingai.com';
+
+            // Get all chatbot leads from the past 7 days that have a listing_id
+            const { data: recentLeads, error: leadsErr } = await supabaseAdmin
+                .from('pre_qual_submissions')
+                .select('listing_id, lo_agent_id, name, email, phone, created_at')
+                .gte('created_at', sevenDaysAgo)
+                .not('listing_id', 'is', null);
+
+            if (leadsErr || !recentLeads || recentLeads.length === 0) return;
+
+            // Group leads by listing_id
+            const byListing = {};
+            recentLeads.forEach(l => {
+                if (!byListing[l.listing_id]) byListing[l.listing_id] = { leads: [], lo_agent_id: l.lo_agent_id };
+                byListing[l.listing_id].leads.push(l);
+            });
+
+            for (const [listingId, { leads, lo_agent_id }] of Object.entries(byListing)) {
+                try {
+                    // Get listing owner
+                    const { data: property } = await supabaseAdmin
+                        .from('properties')
+                        .select('address, city, state, user_id')
+                        .eq('id', listingId)
+                        .maybeSingle();
+                    if (!property?.user_id) continue;
+
+                    const { data: listingAgentUser } = await supabaseAdmin
+                        .from('agents')
+                        .select('email, first_name, name')
+                        .eq('auth_user_id', property.user_id)
+                        .maybeSingle();
+                    if (!listingAgentUser?.email) continue;
+
+                    // Get LO name
+                    const { data: lo } = await supabaseAdmin
+                        .from('agents')
+                        .select('first_name, last_name, company')
+                        .or(`id.eq.${lo_agent_id},auth_user_id.eq.${lo_agent_id}`)
+                        .limit(1)
+                        .maybeSingle();
+
+                    const agentFirstName = listingAgentUser.first_name || listingAgentUser.name || 'there';
+                    const loName = [lo?.first_name, lo?.last_name].filter(Boolean).join(' ') || 'Your loan officer';
+                    const fullAddress = [property.address, property.city, property.state].filter(Boolean).join(', ') || 'your listing';
+                    const leadCount = leads.length;
+
+                    await emailService.sendEmail({
+                        to: listingAgentUser.email,
+                        subject: `📊 Your listing got ${leadCount} new buyer lead${leadCount > 1 ? 's' : ''} this week`,
+                        html: `
+<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;background:#fff;">
+  <p style="margin:0 0 20px;font-size:16px;color:#0f172a">Hi ${agentFirstName}! 👋</p>
+  <p style="margin:0 0 16px;font-size:15px;color:#374151;line-height:1.6">
+    Your listing at <strong>${fullAddress}</strong> attracted <strong>${leadCount} buyer lead${leadCount > 1 ? 's' : ''}</strong> this week through <strong>${loName}'s</strong> AI financing bot.
+  </p>
+  <div style="background:#faf5ff;border:1px solid #e9d5ff;border-radius:12px;padding:20px;margin:0 0 24px;text-align:center;">
+    <div style="font-size:40px;font-weight:900;color:#7c3aed">${leadCount}</div>
+    <div style="font-size:13px;color:#6b7280;margin-top:4px">Buyer Lead${leadCount > 1 ? 's' : ''} This Week</div>
+  </div>
+  <p style="margin:0 0 16px;font-size:14px;color:#374151;line-height:1.6">
+    These are real buyers who engaged with the property and shared their contact info — they're already in the pipeline with ${loName}.
+  </p>
+  <p style="margin:0 0 28px;font-size:14px;color:#374151;line-height:1.6">
+    This is the value of a great loan officer on your team. <strong>${loName}</strong> is working hard for your listings 💪
+  </p>
+  <p style="margin:0;font-size:11px;color:#d1d5db">Sent via <a href="${appBase}" style="color:#d1d5db">HomeListingAI</a></p>
+</div>`,
+                        tags: { type: 'weekly_value_email', listing_id: listingId }
+                    });
+
+                    console.log(`✅ [Weekly Value Email] Sent to ${listingAgentUser.email} for listing ${listingId} (${leadCount} leads)`);
+                } catch (innerErr) {
+                    console.error(`[Weekly Value Email] Failed for listing ${listingId}:`, innerErr?.message);
+                }
+            }
+        } catch (err) {
+            console.error('[Weekly Value Email] Exception:', err);
+        }
+    });
+
     console.log('⏰ Scheduler Service Initialized (Job: 1h Reminders)');
 };

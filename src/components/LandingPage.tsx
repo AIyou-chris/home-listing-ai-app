@@ -1248,7 +1248,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigat
                     "operatingSystem": "Web",
                     "offers": {
                         "@type": "Offer",
-                        "price": "34.00",
+                        "price": "0",
                         "priceCurrency": "USD"
                     },
                     "description": "AI-powered listing pages with built-in buyer chatbot, QR share kit, property reports, and automated lead follow-up — built for real estate agents."
@@ -1264,6 +1264,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigat
             <main className="pt-20"> {/* Add padding top to account for fixed header */}
                 <Hero onNavigateToSignUp={onNavigateToSignUp} onEnterDemoMode={onEnterDemoMode} onOpenChatBot={handleOpenChatBot} onOpenComparePlans={handleOpenComparePlans} />
 
+                <div id="demo" aria-hidden="true" />
                 <ConversionWedge onNavigateToSignUp={onNavigateToSignUp} onEnterDemoMode={onEnterDemoMode} />
 
                 <PlacementSection onNavigateToSignUp={onNavigateToSignUp} onEnterDemoMode={onEnterDemoMode} />
@@ -1278,6 +1279,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigat
 
                 <PricingSectionNew onNavigateToSignUp={onNavigateToSignUp} onEnterDemoMode={onEnterDemoMode} onOpenComparePlans={handleOpenComparePlans} />
 
+                <div id="contact" aria-hidden="true" />
                 <TeamsCTASection onOpenContact={handleOpenContact} />
 
                 <FaqSectionNew onNavigateToSignUp={onNavigateToSignUp} onEnterDemoMode={onEnterDemoMode} />

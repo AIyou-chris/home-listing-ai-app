@@ -24,8 +24,8 @@ type PaidPlanId = Exclude<PlanId, 'free'>;
 
 const planLabels: Record<PlanId, string> = {
   free: 'Free',
-  starter: 'Starter $39',
-  pro: 'Pro $79'
+  starter: 'LO — $149/mo',
+  pro: 'LO Pro — $299/mo'
 };
 
 const statusLabels: Record<string, string> = {
@@ -38,19 +38,20 @@ const statusLabels: Record<string, string> = {
 };
 
 const featureRows: Array<{ label: string; free: string; starter: string; pro: string }> = [
-  { label: 'Listings allowed', free: '1', starter: '10', pro: '50' },
-  { label: 'AI Listing Brain sources', free: '1 source/listing', starter: '10 sources/listing', pro: 'Unlimited' },
-  { label: 'Social Video credits/month', free: '2', starter: '25', pro: '100' },
-  { label: 'Multilingual support', free: 'Yes', starter: 'Yes', pro: 'Yes' },
-  { label: 'Fair-housing compliance scan', free: 'Coming soon', starter: 'Coming soon', pro: 'Coming soon' },
-  { label: 'Team / multi-agent branding', free: 'No', starter: 'Limited', pro: 'Full' },
-  { label: 'Support level', free: 'Email (48h)', starter: 'Priority email', pro: 'Priority + onboarding' }
+  { label: 'Active listings', free: '1', starter: '20', pro: '50' },
+  { label: 'AI buyer chatbot', free: '—', starter: '✓ Every listing', pro: '✓ Every listing' },
+  { label: 'Co-branded with your NMLS #', free: '—', starter: '✓', pro: '✓' },
+  { label: 'Pre-approval request capture', free: '—', starter: '✓', pro: '✓' },
+  { label: 'Warm lead alerts (LO + agent)', free: '—', starter: '✓', pro: '✓ Priority routing' },
+  { label: 'Automated SMS / month', free: '—', starter: '250', pro: 'Unlimited' },
+  { label: 'ROI dashboard', free: '—', starter: '—', pro: '✓' },
+  { label: 'Support', free: 'Email', starter: 'Priority email', pro: 'Priority + onboarding' }
 ];
 
 const inferPlanFromSettings = (settings: BillingSettings): PlanId => {
   const name = String(settings.planName || '').toLowerCase();
-  if (name.includes('team') || name.includes('pro') || name.includes('79')) return 'pro';
-  if (name.includes('starter') || name.includes('39')) return 'starter';
+  if (name.includes('team') || name.includes('pro') || name.includes('79') || name.includes('299')) return 'pro';
+  if (name.includes('starter') || name.includes('lo') || name.includes('39') || name.includes('149')) return 'starter';
   return 'free';
 };
 
@@ -197,15 +198,15 @@ const BillingSettingsPage: React.FC<BillingSettingsProps> = ({
                   disabled={planButtons.starterDisabled}
                   className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                 >
-                  {busy === 'starter' ? 'Opening checkout…' : 'Upgrade to $39'}
+                  {busy === 'starter' ? 'Opening checkout…' : 'Upgrade to LO — $149/mo'}
                 </button>
                 <button
                   type="button"
                   onClick={() => void startCheckout('pro')}
                   disabled={planButtons.proDisabled}
-                  className="rounded-lg bg-[#233074] px-3 py-2 text-sm font-semibold text-white hover:bg-[#1b275e] disabled:opacity-50"
+                  className="rounded-lg bg-primary-600 px-3 py-2 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50"
                 >
-                  {busy === 'pro' ? 'Opening checkout…' : 'Upgrade to $79'}
+                  {busy === 'pro' ? 'Opening checkout…' : 'Upgrade to LO Pro — $299/mo'}
                 </button>
               </>
             ) : (
@@ -250,11 +251,11 @@ const BillingSettingsPage: React.FC<BillingSettingsProps> = ({
                   <th className="px-4 py-3 text-left text-sm font-semibold text-slate-900">Free</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-slate-900">
                     <div className="inline-flex items-center gap-2">
-                      <span>Starter $39</span>
+                      <span>LO — $149/mo</span>
                       <span className="rounded-full bg-primary-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary-700">Most popular</span>
                     </div>
                   </th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-slate-900">Pro $79</th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-slate-900">LO Pro — $299/mo</th>
                 </tr>
               </thead>
               <tbody>
@@ -274,7 +275,7 @@ const BillingSettingsPage: React.FC<BillingSettingsProps> = ({
                       type="button"
                       onClick={() => void startCheckout('starter')}
                       disabled={planButtons.starterDisabled}
-                      className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+                      className="rounded-md border border-primary-400 bg-primary-50 px-3 py-2 text-xs font-semibold text-primary-700 hover:bg-primary-100 disabled:opacity-50"
                     >
                       {currentPlanId === 'starter' ? 'Current plan' : busy === 'starter' ? 'Opening…' : 'Choose plan'}
                     </button>
@@ -284,7 +285,7 @@ const BillingSettingsPage: React.FC<BillingSettingsProps> = ({
                       type="button"
                       onClick={() => void startCheckout('pro')}
                       disabled={planButtons.proDisabled}
-                      className="rounded-md bg-[#233074] px-3 py-2 text-xs font-semibold text-white hover:bg-[#1b275e] disabled:opacity-50"
+                      className="rounded-md bg-primary-600 px-3 py-2 text-xs font-semibold text-white hover:bg-primary-700 disabled:opacity-50"
                     >
                       {currentPlanId === 'pro' ? 'Current plan' : busy === 'pro' ? 'Opening…' : 'Choose plan'}
                     </button>

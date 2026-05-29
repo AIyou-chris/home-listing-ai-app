@@ -27,17 +27,17 @@ const planMeta: Record<PlanId, { name: string; monthly: string; subtitle: string
   free: {
     name: 'Free',
     monthly: '$0/mo',
-    subtitle: 'Start free and publish your first listing.'
+    subtitle: 'Start free and get your first WOW Link out the door.'
   },
   starter: {
-    name: 'Starter $39',
-    monthly: '$39/mo',
-    subtitle: 'More listings, reports, and faster growth.'
+    name: 'LO',
+    monthly: '$149/mo',
+    subtitle: '20 listings, 250 SMS/month, full co-branding on every page.'
   },
   pro: {
-    name: 'Pro $79',
-    monthly: '$79/mo',
-    subtitle: 'Higher limits, team support, and full automation.'
+    name: 'LO Pro',
+    monthly: '$299/mo',
+    subtitle: '50 listings, unlimited SMS, priority routing & ROI dashboard.'
   }
 };
 
@@ -191,7 +191,7 @@ const BillingCommandPage: React.FC = () => {
                   disabled={busy !== null}
                   className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                 >
-                  {busy === 'starter' ? 'Loading…' : 'Upgrade to $39'}
+                  {busy === 'starter' ? 'Loading…' : 'Upgrade to LO — $149/mo'}
                 </button>
                 <button
                   type="button"
@@ -199,7 +199,7 @@ const BillingCommandPage: React.FC = () => {
                   disabled={busy !== null}
                   className="rounded-lg bg-[#233074] px-3 py-2 text-sm font-semibold text-white hover:bg-[#1b275e] disabled:opacity-50"
                 >
-                  {busy === 'pro' ? 'Loading…' : 'Upgrade to $79'}
+                  {busy === 'pro' ? 'Loading…' : 'Upgrade to LO Pro — $299/mo'}
                 </button>
               </>
             ) : (
@@ -219,8 +219,8 @@ const BillingCommandPage: React.FC = () => {
                   className="rounded-lg bg-[#233074] px-3 py-2 text-sm font-semibold text-white hover:bg-[#1b275e] disabled:opacity-50"
                 >
                   {currentPlanId === 'starter'
-                    ? busy === 'pro' ? 'Loading…' : 'Change plan to $79'
-                    : busy === 'starter' ? 'Loading…' : 'Change plan to $39'}
+                    ? busy === 'pro' ? 'Loading…' : 'Upgrade to LO Pro — $299/mo'
+                    : busy === 'starter' ? 'Loading…' : 'Downgrade to LO — $149/mo'}
                 </button>
                 <button
                   type="button"
@@ -237,8 +237,8 @@ const BillingCommandPage: React.FC = () => {
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="text-xl font-bold text-slate-900">Plans</h2>
-        <p className="mt-1 text-sm text-slate-600">Upgrade happens only from Dashboard → Settings → Billing.</p>
+        <h2 className="text-xl font-bold text-slate-900">Plan comparison</h2>
+        <p className="mt-1 text-sm text-slate-600">No contracts. Cancel anytime. +$7/listing over your plan limit.</p>
 
         <div className="mt-4 overflow-x-auto">
           <table className="min-w-full text-left text-sm text-slate-700">
@@ -246,58 +246,58 @@ const BillingCommandPage: React.FC = () => {
               <tr className="border-b border-slate-200 text-slate-500">
                 <th className="px-3 py-3 font-semibold">Feature</th>
                 <th className="px-3 py-3 font-semibold">Free</th>
-                <th className="px-3 py-3 font-semibold">Starter $39</th>
-                <th className="px-3 py-3 font-semibold">Pro $79</th>
+                <th className="px-3 py-3 font-semibold text-primary-700">LO — $149/mo</th>
+                <th className="px-3 py-3 font-semibold">LO Pro — $299/mo</th>
               </tr>
             </thead>
             <tbody>
               <tr className="border-b border-slate-100">
-                <td className="px-3 py-3 font-medium">Listings allowed</td>
+                <td className="px-3 py-3 font-medium">Active listings</td>
                 <td className="px-3 py-3">1</td>
-                <td className="px-3 py-3">5</td>
-                <td className="px-3 py-3">25</td>
+                <td className="px-3 py-3">20</td>
+                <td className="px-3 py-3">50</td>
               </tr>
               <tr className="border-b border-slate-100">
-                <td className="px-3 py-3 font-medium">AI Listing Brain sources</td>
-                <td className="px-3 py-3">1 source/listing</td>
-                <td className="px-3 py-3">10 sources/listing</td>
-                <td className="px-3 py-3">Unlimited</td>
+                <td className="px-3 py-3 font-medium">AI buyer chatbot</td>
+                <td className="px-3 py-3">—</td>
+                <td className="px-3 py-3">✓ Every listing</td>
+                <td className="px-3 py-3">✓ Every listing</td>
               </tr>
               <tr className="border-b border-slate-100">
-                <td className="px-3 py-3 font-medium">Social video credits/month</td>
-                <td className="px-3 py-3">2</td>
-                <td className="px-3 py-3">25</td>
-                <td className="px-3 py-3">100</td>
+                <td className="px-3 py-3 font-medium">Co-branded with your NMLS #</td>
+                <td className="px-3 py-3">—</td>
+                <td className="px-3 py-3">✓</td>
+                <td className="px-3 py-3">✓</td>
               </tr>
               <tr className="border-b border-slate-100">
-                <td className="px-3 py-3 font-medium">Multilingual support</td>
-                <td className="px-3 py-3">Yes</td>
-                <td className="px-3 py-3">Yes</td>
-                <td className="px-3 py-3">Yes</td>
+                <td className="px-3 py-3 font-medium">Pre-approval request capture</td>
+                <td className="px-3 py-3">—</td>
+                <td className="px-3 py-3">✓</td>
+                <td className="px-3 py-3">✓</td>
+              </tr>
+              <tr className="border-b border-slate-100">
+                <td className="px-3 py-3 font-medium">Warm lead alerts (LO + agent)</td>
+                <td className="px-3 py-3">—</td>
+                <td className="px-3 py-3">✓</td>
+                <td className="px-3 py-3">✓ Priority routing</td>
               </tr>
               <tr className="border-b border-slate-100">
                 <td className="px-3 py-3 font-medium">Automated SMS / month</td>
-                <td className="px-3 py-3">0</td>
-                <td className="px-3 py-3">50</td>
+                <td className="px-3 py-3">—</td>
                 <td className="px-3 py-3">250</td>
+                <td className="px-3 py-3">Unlimited</td>
               </tr>
               <tr className="border-b border-slate-100">
-                <td className="px-3 py-3 font-medium">Fair-housing compliance scan</td>
-                <td className="px-3 py-3">Coming soon</td>
-                <td className="px-3 py-3">Coming soon</td>
-                <td className="px-3 py-3">Coming soon</td>
-              </tr>
-              <tr className="border-b border-slate-100">
-                <td className="px-3 py-3 font-medium">Team / multi-agent branding</td>
-                <td className="px-3 py-3">No</td>
-                <td className="px-3 py-3">Limited</td>
-                <td className="px-3 py-3">Full</td>
+                <td className="px-3 py-3 font-medium">ROI dashboard</td>
+                <td className="px-3 py-3">—</td>
+                <td className="px-3 py-3">—</td>
+                <td className="px-3 py-3">✓</td>
               </tr>
               <tr>
                 <td className="px-3 py-3 font-medium">Support</td>
                 <td className="px-3 py-3">Email</td>
                 <td className="px-3 py-3">Priority email</td>
-                <td className="px-3 py-3">Priority + team support</td>
+                <td className="px-3 py-3">Priority + onboarding</td>
               </tr>
             </tbody>
           </table>
@@ -307,16 +307,18 @@ const BillingCommandPage: React.FC = () => {
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
             <p className="text-xs uppercase tracking-wide text-slate-500">Free</p>
             <p className="mt-1 text-lg font-semibold text-slate-900">$0/mo</p>
+            <p className="text-xs text-slate-400 mt-0.5">1 listing, lead capture</p>
             <button type="button" disabled className="mt-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-500">
               {currentPlanId === 'free' ? 'Current plan' : 'Included'}
             </button>
           </div>
           <div className="rounded-xl border border-primary-200 bg-primary-50 p-3">
             <div className="flex items-center justify-between">
-              <p className="text-xs uppercase tracking-wide text-primary-700">Starter</p>
+              <p className="text-xs uppercase tracking-wide text-primary-700">LO</p>
               <span className="rounded-full bg-primary-100 px-2 py-0.5 text-[10px] font-bold uppercase text-primary-700">Most popular</span>
             </div>
-            <p className="mt-1 text-lg font-semibold text-slate-900">$39/mo</p>
+            <p className="mt-1 text-lg font-semibold text-slate-900">$149/mo</p>
+            <p className="text-xs text-slate-500 mt-0.5">20 listings · 250 SMS/mo</p>
             <button
               type="button"
               onClick={() => void startUpgrade('starter')}
@@ -327,8 +329,9 @@ const BillingCommandPage: React.FC = () => {
             </button>
           </div>
           <div className="rounded-xl border border-slate-200 bg-white p-3">
-            <p className="text-xs uppercase tracking-wide text-slate-500">Pro</p>
-            <p className="mt-1 text-lg font-semibold text-slate-900">$79/mo</p>
+            <p className="text-xs uppercase tracking-wide text-slate-500">LO Pro</p>
+            <p className="mt-1 text-lg font-semibold text-slate-900">$299/mo</p>
+            <p className="text-xs text-slate-400 mt-0.5">50 listings · Unlimited SMS</p>
             <button
               type="button"
               onClick={() => void startUpgrade('pro')}
@@ -368,7 +371,7 @@ const BillingCommandPage: React.FC = () => {
       </section>
 
       <section className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-        Starter includes 50 outbound SMS each month. Pro includes 250.
+        LO includes 250 outbound SMS per month. LO Pro includes unlimited. Only automated outbound texts count toward your limit.
       </section>
     </div>
   );

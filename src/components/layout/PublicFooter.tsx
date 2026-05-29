@@ -36,7 +36,7 @@ export const PublicFooter: React.FC<PublicFooterProps> = ({ onNavigateToAdmin })
                     <div>
                         <h3 className="text-sm font-semibold text-white mb-3">Product</h3>
                         <ul className="space-y-2 text-sm">
-                            <li><a href="/#what-you-get" className="hover:text-white transition-colors">Features</a></li>
+                            <li><a href="/#how-it-works" className="hover:text-white transition-colors">Features</a></li>
                             <li><a href="/#how-it-works" className="hover:text-white transition-colors">How It Works</a></li>
                             <li><a href="/#pricing" className="hover:text-white transition-colors">Pricing</a></li>
                             <li><Link to="/blog" className="hover:text-white transition-colors">Blog</Link></li>
@@ -59,7 +59,7 @@ export const PublicFooter: React.FC<PublicFooterProps> = ({ onNavigateToAdmin })
                     <div>
                         <h3 className="text-sm font-semibold text-white mb-3">Company</h3>
                         <ul className="space-y-2 text-sm">
-                            <li><a href="/#about-us" className="hover:text-white transition-colors">About Us</a></li>
+                            <li><a href="/blog" className="hover:text-white transition-colors">Blog</a></li>
                             <li><a href="/admin" onClick={handleAdminClick} className="hover:text-white transition-colors">Admin</a></li>
                         </ul>
                     </div>

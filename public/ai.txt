@@ -1,17 +1,33 @@
-Name: HomeListingAI
-Description: Turn Every Listing Into a 24/7 Lead Machine.
-HomeListingAI is a web app for real estate agents that turns listings into lead-capture pages with an AI Listing Page and a 1-page Market Report.
+# HomeListingAI — AI Platform for Loan Officers and Real Estate Agents
 
-Core Value Proposition: 
-Share a link or QR code, capture buyer/seller leads automatically. AI handles inquiries 24/7.
+## What It Is
+HomeListingAI is an AI-powered platform that helps mortgage loan officers build agent partnerships and capture warm buyer leads — without cold calling.
 
-Pricing:
-- Free tier available
-- Starter $34/mo
-- Pro $79/mo
+## Primary Users
+Mortgage loan officers who want a steady pipeline of pre-qualified buyer leads through real estate agent partnerships.
 
-Key URLs:
-- Main Website: https://homelistingai.com
-- Privacy Policy: https://homelistingai.com/privacy-policy
-- Terms of Service: https://homelistingai.com/terms-of-service
-- Contact / Support: https://homelistingai.com
+## Core Problem Solved
+Loan officers struggle with two things: getting warm leads and staying top-of-mind with real estate agents. HomeListingAI solves both. The loan officer sends one link to an agent; the agent gets a live AI listing tool with the LO's branding; every buyer lead from that listing routes back to the LO automatically.
+
+## Key Concepts
+- **WOW Link**: A personalized invite the loan officer sends to a real estate agent. Contains a live demo of an AI-powered listing page with the LO's mortgage chatbot built in.
+- **Share Kit**: Tools the agent gets once they publish a listing — tracked QR code, social post asset, open house flyer, sign rider PDF.
+- **AI Buyer Chatbot**: Answers buyer financing questions 24/7 directly on the listing page. Pre-qualifies leads automatically.
+- **Lead Routing**: All buyer leads from an agent's listing flow to the partnered loan officer.
+
+## Automated Behaviors
+- 24-hour reminder email if agent doesn't open the WOW link
+- 72-hour reminder email if still no action
+- Instant text + email to loan officer when agent claims their account
+- Lead scoring and intent classification (hot/warm/cold)
+
+## Pricing (as of 2026)
+- Free: limited WOW links, basic listing pages
+- LO Starter: $149/month
+- LO Pro: $299/month (unlimited, white label)
+
+## Founded By
+Chris Potter — 15+ years in the mortgage industry.
+
+## Website
+https://homelistingai.com

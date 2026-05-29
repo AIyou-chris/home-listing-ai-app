@@ -2,16 +2,19 @@ import React, { useMemo, useState } from 'react'
 import EmptyStateCard from './EmptyStateCard'
 import { useRoiMetrics } from '../../hooks/dashboard/useRoiMetrics'
 import { useRealtimeRoiUpdates } from '../../hooks/dashboard/useRealtimeRoiUpdates'
+import { useBlueprintMode } from '../../demo/useBlueprintMode'
 
 const metricCardClass = 'rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm'
 
 const TodayROIStrip: React.FC = () => {
+  const blueprintMode = useBlueprintMode()
   const [range, setRange] = useState<'7d' | '30d'>('7d')
-  const { data, loading, error, reload } = useRoiMetrics(range)
+  // Skip the API call entirely in blueprint mode — no auth, would 401
+  const { data, loading, error, reload } = useRoiMetrics(range, { enabled: !blueprintMode })
 
   useRealtimeRoiUpdates(() => {
     void reload()
-  })
+  }, { enabled: !blueprintMode })
 
   const hasData = useMemo(() => {
     if (!data) return false
@@ -27,7 +30,7 @@ const TodayROIStrip: React.FC = () => {
     <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h2 className="text-base font-semibold text-slate-900">Today ROI</h2>
+          <h2 className="text-base font-semibold text-slate-900">Performance</h2>
           <p className="text-xs text-slate-500">Leads captured, appointments set, and confirmations in one view.</p>
         </div>
         <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-1 text-xs font-semibold text-slate-600">

@@ -15,7 +15,6 @@ const ResetPasswordPage: React.FC = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [isPasswordVisible, setIsPasswordVisible] = useState(false);
     const [isLinkValid, setIsLinkValid] = useState(true);
-    const [debugSessionStatus, setDebugSessionStatus] = useState<string>('Initializing...');
 
     // Helper to get tokens from URL
     const getTokensFromUrl = React.useCallback(() => {
@@ -41,21 +40,17 @@ const ResetPasswordPage: React.FC = () => {
                 if ((event === 'PASSWORD_RECOVERY' || event === 'SIGNED_IN') && session) {
                     setIsLinkValid(true);
                     setError('');
-                    setDebugSessionStatus(event === 'PASSWORD_RECOVERY' ? 'Recovery Session Ready' : 'Signed In Session Ready');
                 }
             });
 
             try {
                 if (errorCode || errorDescription) {
-                    console.error('❌ Reset Link Error:', errorCode, errorDescription);
                     setIsLinkValid(false);
                     setError(formatErrorMessage(errorCode, errorDescription));
-                    setDebugSessionStatus(`Link Error: ${errorCode}`);
                     return;
                 }
 
                 if (authCode) {
-                    setDebugSessionStatus('Exchanging recovery code...');
                     const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(authCode);
                     if (exchangeError) {
                         throw exchangeError;
@@ -63,48 +58,40 @@ const ResetPasswordPage: React.FC = () => {
                 }
 
                 // Let Supabase process URL-based recovery sessions before we inspect state.
-                setDebugSessionStatus('Waiting for recovery session...');
                 await new Promise(resolve => setTimeout(resolve, 1000));
 
                 const { data: { session: existingSession } } = await supabase.auth.getSession();
 
                 if (existingSession) {
                     setIsLinkValid(true);
-                    setDebugSessionStatus('Session Restored');
                     return;
                 }
 
                 // Legacy recovery links still arrive with access/refresh tokens in the hash.
                 if (accessToken && refreshToken) {
-                    setDebugSessionStatus('Forcing recovery session...');
                     const { error } = await supabase.auth.setSession({
                         access_token: accessToken,
                         refresh_token: refreshToken
                     });
                     if (error) {
-                        console.error('❌ Failed to set session:', error);
-                        setDebugSessionStatus('Session Restore Failed: ' + error.message);
+                        setIsLinkValid(false);
+                        setError('This reset link is invalid or expired. Please request a new one.');
                     } else {
                         setIsLinkValid(true);
-                        setDebugSessionStatus('Session Restored');
                     }
                 } else {
                     const { data: { session } } = await supabase.auth.getSession();
-                    setDebugSessionStatus(session ? 'Active Session Found' : 'No Recovery Session Found');
                     if (session) {
                         setIsLinkValid(true);
                         return;
                     }
-
                     setIsLinkValid(false);
                     setError('This reset link is invalid or expired. Please request a new one.');
                 }
             } catch (err: unknown) {
-                console.error('❌ Reset init failed:', err);
                 const message = err instanceof Error ? err.message : 'Invalid reset link.';
                 setIsLinkValid(false);
                 setError(message);
-                setDebugSessionStatus('Recovery setup failed');
             } finally {
                 subscription.unsubscribe();
             }
@@ -132,16 +119,11 @@ const ResetPasswordPage: React.FC = () => {
         }
 
         setIsLoading(true);
-        console.log('🔄 SARTING UPDATE FLOW...');
 
         try {
-            // 1. FINAL SESSION CHECK (The Fix)
             const { data: { session: currentSession } } = await supabase.auth.getSession();
-            console.log('Session Status at Start:', currentSession ? 'Active' : 'Missing');
 
             if (!currentSession) {
-                // LAST DITCH RESCUE
-                console.warn('⚠️ No session! Attempting JIT Restore...');
                 const { accessToken, refreshToken } = getTokensFromUrl();
                 if (accessToken && refreshToken) {
                     const { error: restoreError } = await supabase.auth.setSession({
@@ -149,14 +131,11 @@ const ResetPasswordPage: React.FC = () => {
                         refresh_token: refreshToken
                     });
                     if (restoreError) throw new Error('Session lost and could not be restored.');
-                    console.log('✅ JIT Session Restored.');
                 } else {
                     throw new Error('No active session found. Please reload the link.');
                 }
             }
 
-            // 2. Perform Update with Timeout
-            console.log('🔄 Calling updateUser...');
             const updatePromise = supabase.auth.updateUser({ password });
 
             const timeoutPromise = new Promise<{ error: unknown; data?: unknown }>((_, reject) =>
@@ -166,17 +145,14 @@ const ResetPasswordPage: React.FC = () => {
             const result = await Promise.race([updatePromise, timeoutPromise]) as { error: unknown; data?: unknown };
 
             if (result.error) {
-                console.error('❌ Update failed:', result.error);
                 throw result.error;
             }
 
-            console.log('✅ Password updated!');
             setMessage('Success! Password updated. Redirecting to sign in...');
             await supabase.auth.signOut();
             setTimeout(() => navigate('/signin?reason=reset_success', { replace: true }), 1200);
 
         } catch (err: unknown) {
-            console.error('❌ Error caught:', err);
             const msg = err instanceof Error ? err.message : 'Update failed.';
             setError(msg);
         } finally {
@@ -216,11 +192,6 @@ const ResetPasswordPage: React.FC = () => {
                                 {error}
                             </div>
                         )}
-
-                        {/* Debug Indicator (Subtle) */}
-                        <div className="text-xs text-slate-600 text-center mt-2 font-mono">
-                            Status: {debugSessionStatus}
-                        </div>
 
                         {!isLinkValid ? (
                             <div className="mt-8">

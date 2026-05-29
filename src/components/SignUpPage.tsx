@@ -34,10 +34,6 @@ const SignUpPage = ({ onNavigateToSignIn, onNavigateToLanding: _onNavigateToLand
     const [firstName, setFirstName] = useState('');
     const [lastName, setLastName] = useState('');
     const [email, setEmail] = useState('');
-    const [promoCode, setPromoCode] = useState(() => {
-        const rawPromoCode = searchParams.get('promo') || searchParams.get('code') || '';
-        return rawPromoCode.trim().toUpperCase();
-    });
     const [error, setError] = useState<React.ReactNode>('');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -48,9 +44,6 @@ const SignUpPage = ({ onNavigateToSignIn, onNavigateToLanding: _onNavigateToLand
     const handleSignUp = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
-        const normalizedPromoCode = promoCode.trim().toUpperCase();
-        const hasPromoCode = normalizedPromoCode.length > 0;
-
         if (!firstName || !lastName || !email) {
             setError('Please fill in all fields');
             return;
@@ -65,10 +58,8 @@ const SignUpPage = ({ onNavigateToSignIn, onNavigateToLanding: _onNavigateToLand
         setIsSubmitting(true);
 
         // Store plan intent before navigating away
-        if (pendingPlan && !hasPromoCode) {
+        if (pendingPlan) {
             try { sessionStorage.setItem(PENDING_PLAN_KEY, pendingPlan); } catch (_) { /* ignore */ }
-        } else if (hasPromoCode) {
-            try { sessionStorage.removeItem(PENDING_PLAN_KEY); } catch (_) { /* ignore */ }
         }
 
         try {
@@ -90,20 +81,6 @@ const SignUpPage = ({ onNavigateToSignIn, onNavigateToLanding: _onNavigateToLand
 
             if (signInError) {
                 throw signInError;
-            }
-
-            if (hasPromoCode) {
-                const session = await agentOnboardingService.createCheckoutSession({
-                    slug: data.slug,
-                    promoCode: normalizedPromoCode
-                });
-
-                if (!session.url) {
-                    throw new Error('Promo code worked, but redirect failed. Please sign in and check Billing.');
-                }
-
-                window.location.replace(session.url);
-                return;
             }
 
             navigate('/dashboard/today', { replace: true });
@@ -207,23 +184,6 @@ const SignUpPage = ({ onNavigateToSignIn, onNavigateToLanding: _onNavigateToLand
                                 <div>
                                     <label htmlFor="email-address" className="block text-sm font-semibold text-slate-300 mb-2">Email Address</label>
                                     <input type="email" id="email-address" value={email} onChange={e => setEmail(e.target.value)} required className="w-full px-4 py-3.5 bg-white/5 border border-slate-700/50 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all font-light" placeholder="jane@example.com" />
-                                </div>
-                                <div>
-                                    <label htmlFor="promo-code" className="block text-sm font-semibold text-slate-300 mb-2">Promo Code (optional)</label>
-                                    <input
-                                        type="text"
-                                        id="promo-code"
-                                        value={promoCode}
-                                        onChange={e => setPromoCode(e.target.value.toUpperCase())}
-                                        className="w-full px-4 py-3.5 bg-white/5 border border-slate-700/50 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all font-light uppercase"
-                                        placeholder="LIFETIME"
-                                        autoCapitalize="characters"
-                                        autoCorrect="off"
-                                        spellCheck={false}
-                                    />
-                                    <p className="mt-2 text-xs text-slate-500 font-light">
-                                        Have a special code? Put it here before you create your account.
-                                    </p>
                                 </div>
 
                                 {error && (

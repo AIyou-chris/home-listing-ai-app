@@ -4,6 +4,7 @@ import { supabase } from '../../services/supabase';
 import { uploadAiCardAsset } from '../../services/aiCardService';
 import { updateAgentProfile as updateCentralAgentProfile } from '../../services/agentProfileService';
 import { showToast } from '../../utils/toastService';
+import { buildApiUrl } from '../../lib/api';
 import AgentBusinessCard from './AgentBusinessCard';
 
 interface AgentBusinessCardEditorProps {
@@ -18,7 +19,9 @@ type FormState = {
   phone: string;
   email: string;
   headshotUrl: string;
+  logoUrl: string;
   themeColor: string;
+  nmlsNumber: string;
 };
 
 const DEFAULT_THEME_COLOR = '#2563eb';
@@ -44,7 +47,9 @@ const mapProfileToForm = (profile: AgentProfile): FormState => ({
   phone: profile.phone || '',
   email: profile.email || '',
   headshotUrl: profile.headshotUrl || '',
-  themeColor: normalizeThemeColor(profile.brandColor)
+  logoUrl: profile.logoUrl || '',
+  themeColor: normalizeThemeColor(profile.brandColor),
+  nmlsNumber: profile.nmlsNumber || ''
 });
 
 const textInputClassName =
@@ -187,6 +192,65 @@ const AgentBusinessCardEditor: React.FC<AgentBusinessCardEditorProps> = ({ userP
     }
   };
 
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+
+  const uploadLogoToBucket = async (file: File): Promise<string | null> => {
+    const { data: authData } = await supabase.auth.getUser();
+    const userId = authData?.user?.id;
+    if (!userId) return null;
+
+    const extension = file.name.split('.').pop()?.toLowerCase() || 'png';
+    const safeExtension = extension.replace(/[^a-z0-9]/gi, '') || 'png';
+    const path = `${userId}/logo.${safeExtension}`;
+
+    const { error } = await supabase.storage.from('avatars').upload(path, file, {
+      contentType: file.type || 'image/png',
+      upsert: true
+    });
+
+    if (error) return null;
+
+    const { data } = supabase.storage.from('avatars').getPublicUrl(path);
+    return data?.publicUrl || null;
+  };
+
+  const handleLogoUpload = async (file?: File | null) => {
+    if (!file) return;
+    setErrorMessage('');
+    setIsUploadingLogo(true);
+
+    try {
+      const bucketUrl = await uploadLogoToBucket(file);
+      if (bucketUrl) {
+        setForm((prev) => ({ ...prev, logoUrl: bucketUrl }));
+        showToast.success('Logo uploaded.');
+        return;
+      }
+
+      const uploadResult = await uploadAiCardAsset('logo', file);
+      const fallbackUrl = uploadResult.url || uploadResult.path;
+      if (fallbackUrl) {
+        setForm((prev) => ({ ...prev, logoUrl: fallbackUrl }));
+        showToast.success('Logo uploaded.');
+        return;
+      }
+
+      throw new Error('Upload failed. Please use the URL field.');
+    } catch (error) {
+      try {
+        const localPreview = await readFileAsDataUrl(file);
+        setForm((prev) => ({ ...prev, logoUrl: localPreview }));
+        showToast.info('Using local image preview only.');
+      } catch {
+        const message = error instanceof Error ? error.message : 'Unable to upload logo.';
+        setErrorMessage(message);
+        showToast.error(message);
+      }
+    } finally {
+      setIsUploadingLogo(false);
+    }
+  };
+
   const handleSave = async () => {
     setErrorMessage('');
     setIsSaving(true);
@@ -199,8 +263,22 @@ const AgentBusinessCardEditor: React.FC<AgentBusinessCardEditorProps> = ({ userP
         phone: form.phone.trim(),
         email: form.email.trim(),
         headshotUrl: form.headshotUrl.trim() || null,
+        logoUrl: form.logoUrl.trim() || null,
         brandColor: normalizeThemeColor(form.themeColor)
       };
+
+      // Save NMLS number to agents table via LO profile endpoint (no-ops for non-LO accounts)
+      if (form.nmlsNumber.trim() !== (userProfile.nmlsNumber || '')) {
+        const { data: authData } = await supabase.auth.getSession();
+        const token = authData?.session?.access_token;
+        if (token) {
+          await fetch(buildApiUrl('/api/lo/profile'), {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ nmls_number: form.nmlsNumber.trim() || null })
+          });
+        }
+      }
 
       const saved = await updateCentralAgentProfile(payload);
 
@@ -212,7 +290,9 @@ const AgentBusinessCardEditor: React.FC<AgentBusinessCardEditorProps> = ({ userP
         phone: saved.phone || payload.phone,
         email: saved.email || payload.email,
         headshotUrl: saved.headshotUrl || payload.headshotUrl || '',
-        brandColor: normalizeThemeColor(saved.brandColor || payload.brandColor)
+        logoUrl: saved.logoUrl || payload.logoUrl || '',
+        brandColor: normalizeThemeColor(saved.brandColor || payload.brandColor),
+        nmlsNumber: form.nmlsNumber.trim() || userProfile.nmlsNumber || ''
       };
 
       await onSaveProfile(mergedProfile);
@@ -264,28 +344,88 @@ const AgentBusinessCardEditor: React.FC<AgentBusinessCardEditorProps> = ({ userP
 
       <div className="space-y-6">
         <div className="space-y-4">
+          {/* Headshot */}
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <p className="text-sm font-semibold text-slate-800">Headshot / Logo</p>
-            <p className="mt-1 text-xs text-slate-500">Upload a headshot or logo, or paste a direct image URL below.</p>
+            <p className="text-sm font-semibold text-slate-800">Headshot</p>
+            <p className="mt-1 text-xs text-slate-500">Your photo — shown on the business card, chat widget, and listing pages.</p>
             <div className="mt-3 flex items-center gap-4">
-              <div className="h-16 w-16 overflow-hidden rounded-full border border-slate-200 bg-white">
+              <div className="h-16 w-16 shrink-0 overflow-hidden rounded-full border border-slate-200 bg-white">
                 {form.headshotUrl ? (
-                  <img src={form.headshotUrl} alt="Headshot or logo preview" className="h-full w-full object-cover" />
+                  <img src={form.headshotUrl} alt="Headshot preview" className="h-full w-full object-cover" />
                 ) : (
                   <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-slate-400">
                     No photo
                   </div>
                 )}
               </div>
-              <label className="inline-flex cursor-pointer items-center rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100">
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(event) => void handleHeadshotUpload(event.target.files?.[0] || null)}
-                />
-                {isUploading ? 'Uploading...' : 'Upload headshot / logo'}
-              </label>
+              <div className="flex flex-col gap-2">
+                <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100">
+                  <span className="material-symbols-outlined text-[16px] text-slate-500">upload</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(event) => void handleHeadshotUpload(event.target.files?.[0] || null)}
+                  />
+                  {isUploading ? 'Uploading...' : 'Upload photo'}
+                </label>
+                {form.headshotUrl && (
+                  <button
+                    type="button"
+                    onClick={() => setForm((prev) => ({ ...prev, headshotUrl: '' }))}
+                    className="text-xs text-slate-400 hover:text-rose-500 transition-colors text-left"
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Brokerage Logo */}
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <p className="text-sm font-semibold text-slate-800">Brokerage Logo</p>
+            <p className="mt-1 text-xs text-slate-500">Your brokerage or team logo — shown alongside your headshot on co-branded listings.</p>
+            <div className="mt-3 flex items-center gap-4">
+              <div className="h-16 w-24 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-white">
+                {form.logoUrl ? (
+                  <img src={form.logoUrl} alt="Logo preview" className="h-full w-full object-contain p-1" />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-slate-400">
+                    No logo
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-col gap-2">
+                <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100">
+                  <span className="material-symbols-outlined text-[16px] text-slate-500">upload</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(event) => void handleLogoUpload(event.target.files?.[0] || null)}
+                  />
+                  {isUploadingLogo ? 'Uploading...' : 'Upload logo'}
+                </label>
+                {form.logoUrl && (
+                  <button
+                    type="button"
+                    onClick={() => setForm((prev) => ({ ...prev, logoUrl: '' }))}
+                    className="text-xs text-slate-400 hover:text-rose-500 transition-colors text-left"
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+            </div>
+            <div className="mt-3">
+              <input
+                type="url"
+                value={form.logoUrl}
+                onChange={(e) => setForm((prev) => ({ ...prev, logoUrl: e.target.value }))}
+                className={textInputClassName}
+                placeholder="https://... (or upload above)"
+              />
             </div>
           </div>
 
@@ -317,18 +457,34 @@ const AgentBusinessCardEditor: React.FC<AgentBusinessCardEditorProps> = ({ userP
             />
           </div>
 
-          <div>
-            <label htmlFor="business-card-title" className="mb-1.5 block text-sm font-medium text-slate-700">
-              Title
-            </label>
-            <input
-              id="business-card-title"
-              type="text"
-              value={form.title}
-              onChange={handleFieldChange('title')}
-              className={textInputClassName}
-              placeholder="Licensed Realtor(R)"
-            />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label htmlFor="business-card-title" className="mb-1.5 block text-sm font-medium text-slate-700">
+                Title
+              </label>
+              <input
+                id="business-card-title"
+                type="text"
+                value={form.title}
+                onChange={handleFieldChange('title')}
+                className={textInputClassName}
+                placeholder="Licensed Realtor(R)"
+              />
+            </div>
+            <div>
+              <label htmlFor="business-card-nmls" className="mb-1.5 block text-sm font-medium text-slate-700">
+                NMLS # <span className="text-slate-400 font-normal">(Loan Officers)</span>
+              </label>
+              <input
+                id="business-card-nmls"
+                type="text"
+                value={form.nmlsNumber}
+                onChange={handleFieldChange('nmlsNumber')}
+                className={textInputClassName}
+                placeholder="1234567"
+                maxLength={20}
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -401,7 +557,7 @@ const AgentBusinessCardEditor: React.FC<AgentBusinessCardEditorProps> = ({ userP
             <button
               type="button"
               onClick={() => void handleSave()}
-              disabled={isSaving || isUploading}
+              disabled={isSaving || isUploading || isUploadingLogo}
               className="inline-flex min-w-[150px] items-center justify-center rounded-xl bg-primary-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isSaving ? 'Saving...' : 'Save'}

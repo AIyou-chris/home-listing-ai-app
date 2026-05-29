@@ -4,6 +4,9 @@ module.exports = {
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
+  safelist: [
+    'xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]',
+  ],
   theme: {
     extend: {
       fontFamily: {
