@@ -45,11 +45,13 @@ export type DashboardView =
   | 'users'
   | 'broadcast'
   | 'blog'
-  | 'white-label';
+  | 'white-label'
+  | 'lo-platform';
 
 import AdminBroadcastPage from './components/AdminBroadcastPage';
 import BlogEditor from './Blog/BlogEditor';
 import AdminWhiteLabelPage from './components/AdminWhiteLabelPage';
+import { AdminLOPage } from './components/AdminLOPage';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const normalizeAppointment = (appt: any): Appointment => ({
@@ -383,6 +385,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'dashboard
             onArchiveInteraction={handleArchiveInteraction}
           />
         );
+      case 'lo-platform':
+        return <AdminLOPage />;
       case 'users':
         return <AdminUsersPage />;
       case 'broadcast':

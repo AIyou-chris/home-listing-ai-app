@@ -16462,6 +16462,106 @@ app.delete('/api/admin/users/:userId', verifyAdmin, async (req, res) => {
   }
 });
 
+// ── Admin: LO Platform ────────────────────────────────────────────────────────
+
+// GET /api/admin/lo/users — all LO accounts with plan + partner + listing counts
+app.get('/api/admin/lo/users', verifyAdmin, async (req, res) => {
+  try {
+    const { data: los, error } = await supabaseAdmin
+      .from('agents')
+      .select('id, auth_user_id, first_name, last_name, email, company, account_type, payment_status, stripe_customer_id, created_at, nmls_number')
+      .in('account_type', ['lo'])
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+
+    const enriched = await Promise.all((los || []).map(async (lo) => {
+      const [{ count: partnerCount }, { count: listingCount }, { count: preQualCount }] = await Promise.all([
+        supabaseAdmin.from('lo_agent_partnerships').select('id', { count: 'exact', head: true }).eq('lo_agent_id', lo.id).eq('status', 'active'),
+        supabaseAdmin.from('listing_lo_assignments').select('id', { count: 'exact', head: true }).eq('lo_agent_id', lo.id),
+        supabaseAdmin.from('pre_qual_submissions').select('id', { count: 'exact', head: true }).eq('lo_agent_id', lo.id),
+      ]);
+      return { ...lo, partnerCount: partnerCount || 0, listingCount: listingCount || 0, preQualCount: preQualCount || 0 };
+    }));
+
+    res.json({ los: enriched });
+  } catch (err) {
+    console.error('[Admin LO Users]', err);
+    res.status(500).json({ error: 'failed' });
+  }
+});
+
+// GET /api/admin/lo/invites — all WOW link partner invites across all LOs
+app.get('/api/admin/lo/invites', verifyAdmin, async (req, res) => {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('agent_invites')
+      .select('id, token, invited_email, invited_name, claimed_at, expires_at, created_at, lo_agent_id, listing_id')
+      .order('created_at', { ascending: false })
+      .limit(500);
+    if (error) throw error;
+
+    // Enrich with LO name
+    const loIds = [...new Set((data || []).map(r => r.lo_agent_id).filter(Boolean))];
+    const { data: loAgents } = await supabaseAdmin.from('agents').select('id, first_name, last_name, email').in('id', loIds);
+    const loMap = Object.fromEntries((loAgents || []).map(a => [a.id, a]));
+
+    const enriched = (data || []).map(inv => ({
+      ...inv,
+      lo: loMap[inv.lo_agent_id] || null,
+      status: inv.claimed_at ? 'claimed' : new Date(inv.expires_at) < new Date() ? 'expired' : 'pending',
+    }));
+
+    res.json({ invites: enriched });
+  } catch (err) {
+    console.error('[Admin LO Invites]', err);
+    res.status(500).json({ error: 'failed' });
+  }
+});
+
+// GET /api/admin/lo/pre-quals — all pre-qual submissions across all LOs
+app.get('/api/admin/lo/pre-quals', verifyAdmin, async (req, res) => {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('pre_qual_submissions')
+      .select('id, full_name, email, phone, purchase_timeline, credit_range, income_range, down_payment, property_type, notes, created_at, lo_agent_id, listing_id')
+      .order('created_at', { ascending: false })
+      .limit(500);
+    if (error) throw error;
+
+    const loIds = [...new Set((data || []).map(r => r.lo_agent_id).filter(Boolean))];
+    const { data: loAgents } = await supabaseAdmin.from('agents').select('id, first_name, last_name, email').in('id', loIds);
+    const loMap = Object.fromEntries((loAgents || []).map(a => [a.id, a]));
+
+    const enriched = (data || []).map(pq => ({ ...pq, lo: loMap[pq.lo_agent_id] || null }));
+    res.json({ preQuals: enriched });
+  } catch (err) {
+    console.error('[Admin Pre-Quals]', err);
+    res.status(500).json({ error: 'failed' });
+  }
+});
+
+// GET /api/admin/lo/offices — all office accounts with LO counts
+app.get('/api/admin/lo/offices', verifyAdmin, async (req, res) => {
+  try {
+    const { data: offices, error } = await supabaseAdmin
+      .from('agents')
+      .select('id, first_name, last_name, email, company, created_at')
+      .eq('account_type', 'office')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+
+    const enriched = await Promise.all((offices || []).map(async (office) => {
+      const { count: loCount } = await supabaseAdmin.from('agents').select('id', { count: 'exact', head: true }).eq('office_id', office.id).eq('account_type', 'lo');
+      return { ...office, loCount: loCount || 0 };
+    }));
+
+    res.json({ offices: enriched });
+  } catch (err) {
+    console.error('[Admin Offices]', err);
+    res.status(500).json({ error: 'failed' });
+  }
+});
+
 // ── #18 White Label: admin domain assignment ──────────────────────────────────
 
 // GET /api/admin/white-label/offices — list all office accounts with brand + domain info
@@ -32425,6 +32525,161 @@ app.put('/api/properties/:id', requireAuth, async (req, res) => {
 })
 
 // Admin Setup Endpoint (Local Replacement for Cloud Function)
+// ── Blog Control Center ───────────────────────────────────────────────────────
+
+// POST /api/admin/blog/generate — AI writes a full blog post from an idea
+app.post('/api/admin/blog/generate', verifyAdmin, async (req, res) => {
+  try {
+    const { idea, tone = 'professional', wordCount = 800 } = req.body;
+    if (!idea) return res.status(400).json({ error: 'idea_required' });
+
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [{
+        role: 'system',
+        content: `You are an expert real estate and mortgage content writer for HomeListingAI. Write SEO-optimized blog posts targeting loan officers, real estate agents, and home buyers. Tone: ${tone}. Always return valid JSON only — no markdown fences.`
+      }, {
+        role: 'user',
+        content: `Write a complete blog post (~${wordCount} words) about: "${idea}".
+
+Return this exact JSON:
+{
+  "title": "Blog post title",
+  "slug": "url-friendly-slug",
+  "content": "<p>Full HTML content with h2/h3 headings, paragraphs, bullet lists...</p>",
+  "excerpt": "2-3 sentence summary for preview cards",
+  "seo_title": "SEO title (60 chars max)",
+  "seo_description": "Meta description (155 chars max)",
+  "seo_keywords": ["keyword1", "keyword2", "keyword3", "keyword4", "keyword5"],
+  "image_search_query": "3-4 word Unsplash search query for hero image"
+}`
+      }],
+      temperature: 0.7,
+      max_tokens: 3000,
+    });
+
+    const raw = completion.choices[0]?.message?.content || '{}';
+    const parsed = JSON.parse(raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim());
+    res.json({ post: parsed });
+  } catch (err) {
+    console.error('[Blog Generate]', err);
+    res.status(500).json({ error: 'generation_failed' });
+  }
+});
+
+// POST /api/admin/blog/repurpose — rewrite a blog for social platforms
+app.post('/api/admin/blog/repurpose', verifyAdmin, async (req, res) => {
+  try {
+    const { title, content, excerpt } = req.body;
+    if (!title || !content) return res.status(400).json({ error: 'title_and_content_required' });
+
+    const plainText = content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 3000);
+
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [{
+        role: 'system',
+        content: 'You are a social media content expert for a real estate AI platform. Return valid JSON only — no markdown fences.'
+      }, {
+        role: 'user',
+        content: `Repurpose this blog post into social content. Blog title: "${title}". Content summary: "${excerpt || plainText.slice(0, 500)}".
+
+Return this exact JSON:
+{
+  "linkedin": "Professional LinkedIn post (150-300 words). Use line breaks. End with a call to action. No hashtags at start.",
+  "instagram": "Instagram caption (100-150 words). Punchy opener. 20-25 relevant hashtags at the end.",
+  "facebook": "Conversational Facebook post (100-200 words). Friendly tone, end with a question to drive comments.",
+  "facebook_group": "Facebook group post (150-250 words). Discussion-opener style, ask for opinions, position as a resource not an ad.",
+  "notion": "Notion-ready markdown version of the full post. Use ## headings, bullet lists, bold key terms. Ready to paste."
+}`
+      }],
+      temperature: 0.75,
+      max_tokens: 2500,
+    });
+
+    const raw = completion.choices[0]?.message?.content || '{}';
+    const parsed = JSON.parse(raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim());
+    res.json({ repurposed: parsed });
+  } catch (err) {
+    console.error('[Blog Repurpose]', err);
+    res.status(500).json({ error: 'repurpose_failed' });
+  }
+});
+
+// GET /api/admin/blog/images — search Unsplash for images
+app.get('/api/admin/blog/images', verifyAdmin, async (req, res) => {
+  try {
+    const { query } = req.query;
+    if (!query) return res.status(400).json({ error: 'query_required' });
+    const UNSPLASH_KEY = process.env.UNSPLASH_ACCESS_KEY;
+    if (!UNSPLASH_KEY) {
+      // Fallback: return curated real estate images from Unsplash CDN
+      const fallback = [
+        { id: '1', url: `https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800&auto=format&fit=crop`, thumb: `https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=200&auto=format&fit=crop`, credit: 'Unsplash', creditUrl: 'https://unsplash.com' },
+        { id: '2', url: `https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=800&auto=format&fit=crop`, thumb: `https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=200&auto=format&fit=crop`, credit: 'Unsplash', creditUrl: 'https://unsplash.com' },
+        { id: '3', url: `https://images.unsplash.com/photo-1582407947304-fd86f028f716?w=800&auto=format&fit=crop`, thumb: `https://images.unsplash.com/photo-1582407947304-fd86f028f716?w=200&auto=format&fit=crop`, credit: 'Unsplash', creditUrl: 'https://unsplash.com' },
+        { id: '4', url: `https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=800&auto=format&fit=crop`, thumb: `https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=200&auto=format&fit=crop`, credit: 'Unsplash', creditUrl: 'https://unsplash.com' },
+        { id: '5', url: `https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=800&auto=format&fit=crop`, thumb: `https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=200&auto=format&fit=crop`, credit: 'Unsplash', creditUrl: 'https://unsplash.com' },
+        { id: '6', url: `https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=800&auto=format&fit=crop`, thumb: `https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=200&auto=format&fit=crop`, credit: 'Unsplash', creditUrl: 'https://unsplash.com' },
+      ];
+      return res.json({ images: fallback });
+    }
+    const r = await fetch(`https://api.unsplash.com/search/photos?query=${encodeURIComponent(String(query))}&per_page=9&orientation=landscape&client_id=${UNSPLASH_KEY}`);
+    const data = await r.json();
+    const images = (data.results || []).map((img) => ({
+      id: img.id,
+      url: img.urls.regular,
+      thumb: img.urls.thumb,
+      credit: img.user.name,
+      creditUrl: img.user.links.html,
+    }));
+    res.json({ images });
+  } catch (err) {
+    console.error('[Blog Images]', err);
+    res.status(500).json({ error: 'image_search_failed' });
+  }
+});
+
+// POST /api/admin/blog/ping — ping Google + IndexNow after publish
+app.post('/api/admin/blog/ping', verifyAdmin, async (req, res) => {
+  try {
+    const { slug } = req.body;
+    const siteUrl = process.env.APP_BASE_URL || 'https://homelistingai.com';
+    const postUrl = `${siteUrl}/blog/${slug}`;
+    const sitemapUrl = `${siteUrl}/sitemap.xml`;
+    const results = {};
+
+    // IndexNow — hits Bing, Yandex, and others simultaneously
+    try {
+      const indexNowRes = await fetch('https://api.indexnow.org/indexnow', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          host: new URL(siteUrl).hostname,
+          key: process.env.INDEXNOW_KEY || 'homelistingai',
+          urlList: [postUrl, sitemapUrl],
+        }),
+      });
+      results.indexNow = indexNowRes.status < 300 ? 'ok' : `status ${indexNowRes.status}`;
+    } catch (e) {
+      results.indexNow = 'failed';
+    }
+
+    // Bing sitemap ping (direct)
+    try {
+      const bingRes = await fetch(`https://www.bing.com/ping?sitemap=${encodeURIComponent(sitemapUrl)}`);
+      results.bing = bingRes.status < 300 ? 'ok' : `status ${bingRes.status}`;
+    } catch (e) {
+      results.bing = 'failed';
+    }
+
+    res.json({ pinged: true, url: postUrl, results });
+  } catch (err) {
+    console.error('[Blog Ping]', err);
+    res.status(500).json({ error: 'ping_failed' });
+  }
+});
+
 app.post('/api/admin/setup', verifyAdmin, async (req, res) => {
   try {
     const { email, password } = req.body;
