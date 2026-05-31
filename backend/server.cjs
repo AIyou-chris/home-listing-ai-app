@@ -1331,38 +1331,13 @@ app.get('/api/admin/analytics/email', verifyAdmin, async (req, res) => {
 
 
 
-// PayPal REST helpers (for Smart Buttons + webhooks)
-const PAYPAL_ENV = (process.env.PAYPAL_ENV || 'sandbox').toLowerCase();
-const PAYPAL_API_BASE = process.env.PAYPAL_API_BASE || (PAYPAL_ENV === 'live'
-  ? 'https://api-m.paypal.com'
-  : 'https://api-m.sandbox.paypal.com');
-const PAYPAL_CLIENT_ID = process.env.PAYPAL_CLIENT_ID || '';
-const PAYPAL_CLIENT_SECRET = process.env.PAYPAL_CLIENT_SECRET || '';
-const PAYPAL_WEBHOOK_ID = process.env.PAYPAL_WEBHOOK_ID || '';
-const getPayPalAccessToken = async () => {
-  if (!PAYPAL_CLIENT_ID || !PAYPAL_CLIENT_SECRET) {
-    throw new Error('PayPal credentials not configured');
-  }
-  const auth = Buffer.from(`${PAYPAL_CLIENT_ID}:${PAYPAL_CLIENT_SECRET}`).toString('base64');
-  const res = await fetch(`${PAYPAL_API_BASE}/v1/oauth2/token`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Basic ${auth}`,
-      'Content-Type': 'application/x-www-form-urlencoded'
-    },
-    body: 'grant_type=client_credentials'
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`PayPal token error: ${res.status} ${text}`);
-  }
-  const data = await res.json();
-  return data.access_token;
-};
-
 // Initialize OpenAI
+if (!process.env.OPENAI_API_KEY) {
+  console.error('FATAL: OPENAI_API_KEY is not set');
+  process.exit(1);
+}
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || 'your-api-key-here'
+  apiKey: process.env.OPENAI_API_KEY
 });
 
 // Supabase (uses env when provided; falls back to client values for dev)
@@ -1902,10 +1877,6 @@ const paymentService = createPaymentService({
   defaultAmountCents: process.env.STRIPE_DEFAULT_AMOUNT_CENTS
     ? Number(process.env.STRIPE_DEFAULT_AMOUNT_CENTS)
     : undefined,
-  paypalClientId: process.env.PAYPAL_CLIENT_ID,
-  paypalClientSecret: process.env.PAYPAL_CLIENT_SECRET,
-  paypalEnv: process.env.PAYPAL_ENV,
-  paypalCurrency: process.env.PAYPAL_CURRENCY,
   baseAppUrl:
     process.env.APP_BASE_URL ||
     process.env.DASHBOARD_BASE_URL ||
@@ -14609,13 +14580,16 @@ app.post('/api/continue-conversation', async (req, res) => {
 });
 
 // Generate speech endpoint
-app.post('/api/generate-speech', async (req, res) => {
+app.post('/api/generate-speech', requireAuth, async (req, res) => {
   try {
     const { text, voice = 'alloy' } = req.body;
     const allowedVoices = ['nova', 'shimmer', 'echo', 'onyx', 'fable', 'alloy', 'ash', 'sage', 'coral'];
 
     if (!text) {
       return res.status(400).json({ error: 'Text is required' });
+    }
+    if (text.length > 4096) {
+      return res.status(400).json({ error: 'Text exceeds maximum length of 4096 characters' });
     }
     if (!allowedVoices.includes(voice)) {
       return res.status(400).json({ error: `Unsupported voice '${voice}'. Supported voices: ${allowedVoices.join(', ')}` });
@@ -28935,165 +28909,6 @@ app.get('/api/ai-card/profile', async (req, res) => {
   }
 });
 
-// ===== PayPal Smart Buttons endpoints (create & capture) =====
-app.post('/api/paypal/create-order', async (req, res) => {
-  try {
-    const { slug, amount, currency = 'USD', description, referenceId, plan, discountCode } = req.body || {};
-    const accessToken = await getPayPalAccessToken();
-
-    // Determine base value: use provided amount or default to plan price
-    let value = amount ? String(amount) : ((plan === 'Solo Agent' || plan === 'solo_agent') ? '39.00' : '99.00');
-
-    // Apply Coupon Logic
-    if (discountCode) {
-      try {
-        const { data: coupon } = await supabaseAdmin.from('coupons').select('*').eq('code', discountCode).single();
-        if (coupon) {
-          const now = new Date();
-          const expires = coupon.expires_at ? new Date(coupon.expires_at) : null;
-          const limit = coupon.usage_limit;
-          const count = coupon.usage_count || 0;
-
-          if ((!expires || expires > now) && (!limit || count < limit)) {
-            let originalValue = parseFloat(value);
-            let discountAmount = 0;
-            if (coupon.discount_type === 'percent') {
-              discountAmount = originalValue * (Number(coupon.amount) / 100);
-            } else {
-              discountAmount = Number(coupon.amount);
-            }
-            let finalValue = Math.max(0, originalValue - discountAmount);
-            value = finalValue.toFixed(2);
-
-            // Increment usage count tentatively (or do it on capture for strictness, but for now simple)
-            await supabaseAdmin.from('coupons').update({ usage_count: count + 1 }).eq('id', coupon.id);
-          }
-        }
-      } catch (err) {
-        console.warn('Failed to apply coupon', err);
-      }
-    }
-
-    const body = {
-      intent: 'CAPTURE',
-      purchase_units: [{
-        reference_id: slug || `plan_${plan}_${Date.now()}`,
-        amount: { currency_code: 'USD', value: value }
-      }],
-      application_context: {
-        brand_name: 'HomeListingAI',
-        landing_page: 'NO_PREFERENCE',
-        user_action: 'PAY_NOW',
-        return_url: `${APP_URL}/dashboard?checkout=success`,
-        cancel_url: `${APP_URL}/dashboard?checkout=cancel`
-      }
-    };
-    const r = await fetch(`${PAYPAL_API_BASE}/v2/checkout/orders`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(body)
-    });
-    const data = await r.json();
-    if (!r.ok) {
-      return res.status(400).json({ error: 'paypal_create_failed', details: data });
-    }
-    res.json({ id: data.id, status: data.status, links: data.links, discountedAmount: value });
-  } catch (e) {
-    console.error('paypal create-order error', e);
-    res.status(500).json({ error: 'internal_error' });
-  }
-});
-
-app.post('/api/paypal/capture-order', async (req, res) => {
-  try {
-    const { orderId } = req.body || {};
-    if (!orderId) return res.status(400).json({ error: 'orderId is required' });
-    const accessToken = await getPayPalAccessToken();
-    const r = await fetch(`${PAYPAL_API_BASE}/v2/checkout/orders/${orderId}/capture`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json'
-      }
-    });
-    const data = await r.json();
-    if (!r.ok) {
-      return res.status(400).json({ error: 'paypal_capture_failed', details: data });
-    }
-    // Try to set plan active for current user if provided
-    const userId = req.headers['x-user-id'];
-    if (userId) {
-      try {
-        await supabaseAdmin
-          .from('ai_card_profiles')
-          .update({ plan: 'Solo Agent', subscription_status: 'active', updated_at: new Date().toISOString() })
-          .eq('user_id', userId);
-      } catch (e) { console.warn('plan update failed', e?.message); }
-    }
-    res.json({ status: data.status, purchase_units: data.purchase_units });
-  } catch (e) {
-    console.error('paypal capture-order error', e);
-    res.status(500).json({ error: 'internal_error' });
-  }
-});
-
-// Webhook verification and plan update by reference_id when possible
-app.post('/api/paypal/webhook', async (req, res) => {
-  try {
-    if (!PAYPAL_WEBHOOK_ID) return res.status(500).json({ error: 'webhook_not_configured' });
-    const accessToken = await getPayPalAccessToken();
-    const headers = req.headers || {};
-    const verificationBody = {
-      auth_algo: headers['paypal-auth-algo'],
-      cert_url: headers['paypal-cert-url'],
-      transmission_id: headers['paypal-transmission-id'],
-      transmission_sig: headers['paypal-transmission-sig'],
-      transmission_time: headers['paypal-transmission-time'],
-      webhook_id: PAYPAL_WEBHOOK_ID,
-      webhook_event: req.body
-    };
-    const vr = await fetch(`${PAYPAL_API_BASE}/v1/notifications/verify-webhook-signature`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(verificationBody)
-    });
-    const vdata = await vr.json();
-    if (!vr.ok || vdata.verification_status !== 'SUCCESS') {
-      console.warn('paypal webhook verification failed', vdata);
-      return res.status(400).json({ error: 'verification_failed' });
-    }
-    const event = req.body;
-    try {
-      await supabaseAdmin.from('audit_logs').insert({
-        user_id: 'server',
-        action: 'paypal_webhook',
-        resource_type: 'billing',
-        severity: 'info',
-        details: { type: event?.event_type, resource: event?.resource?.id || null }
-      });
-    } catch {
-      // Ignore logging errors
-    }
-    // If capture completed, flip plan if we can resolve user by reference_id
-    if (event?.event_type === 'CHECKOUT.ORDER.APPROVED' || event?.event_type === 'PAYMENT.CAPTURE.COMPLETED') {
-      const pu = event?.resource?.purchase_units?.[0];
-      // const slug = pu?.reference_id || pu?.custom_id;
-      // If you maintain a slug->user map, update here. Placeholder shown:
-      // const { data: mapped } = await supabaseAdmin.from('agent_slugs').select('user_id').eq('slug', slug).maybeSingle();
-      // if (mapped?.user_id) await supabaseAdmin.from('ai_card_profiles').update({ plan: 'Solo Agent', subscription_status: 'active' }).eq('user_id', mapped.user_id);
-    }
-    return res.status(200).json({ ok: true });
-  } catch (e) {
-    console.error('paypal webhook error', e);
-    res.status(500).json({ error: 'internal_error' });
-  }
-});
 // Create new AI Card profile
 app.post('/api/ai-card/profile', async (req, res) => {
   try {
@@ -30472,6 +30287,37 @@ app.get('/api/lo/dashboard/today', requireAuth, async (req, res) => {
   }
 });
 
+// ── LO WOW Invite limit — checks active Stripe subscription against LO price IDs ──
+// Returns: number of invites allowed per month (Infinity = unlimited, 0 = fully blocked)
+const resolveLoWowInviteLimit = async (loAgent) => {
+  const LO_PRICE_ID = process.env.STRIPE_LO_PRICE_ID;
+  const LO_PRO_PRICE_ID = process.env.STRIPE_LO_PRO_PRICE_ID;
+
+  // 3-day free trial — full access while trial is active
+  if (loAgent?.payment_status === 'trialing' && loAgent?.created_at) {
+    const trialEnd = new Date(loAgent.created_at);
+    trialEnd.setDate(trialEnd.getDate() + 3);
+    if (new Date() < trialEnd) return Infinity; // still in trial
+  }
+
+  if (!stripe || !loAgent?.stripe_customer_id) return 0; // no plan, no trial → blocked
+  try {
+    const subs = await stripe.subscriptions.list({
+      customer: loAgent.stripe_customer_id,
+      status: 'active',
+      limit: 5,
+    });
+    for (const sub of subs.data) {
+      for (const item of sub.items.data) {
+        if (LO_PRO_PRICE_ID && item.price.id === LO_PRO_PRICE_ID) return Infinity; // $299 — unlimited
+        if (LO_PRICE_ID && item.price.id === LO_PRICE_ID) return 250;             // $149 — 250/month
+      }
+    }
+  } catch (err) {
+    console.warn('[LO Invite] Stripe plan lookup failed (non-fatal):', err?.message);
+  }
+  return 0; // No active LO subscription, trial expired → blocked
+};
 // ── LO Partners — Magic Link Invite System ────────────────────────────────────
 app.post('/api/lo/partners/invite', requireAuth, async (req, res) => {
   try {
@@ -30480,8 +30326,37 @@ app.post('/api/lo/partners/invite', requireAuth, async (req, res) => {
     if (!email || !email.includes('@')) return res.status(400).json({ error: 'valid_email_required' });
     // Agent profile is used for email personalization only — never block the
     // invite if the profile row is missing (some accounts have no agents row).
-    const { data: loAgent } = await supabaseAdmin.from('agents').select('id, first_name, last_name, company, email, headshot_url').or(`id.eq.${loAgentId},auth_user_id.eq.${loAgentId}`).limit(1).maybeSingle();
+    const { data: loAgent } = await supabaseAdmin.from('agents').select('id, first_name, last_name, company, email, headshot_url, stripe_customer_id, payment_status, created_at').eq('id', loProfileId).limit(1).maybeSingle();
     const emailLower = email.trim().toLowerCase();
+
+    // ── WOW invite cap — enforce per-LO-plan monthly limit ───────────────────
+    // Trial (3 days): unlimited · LO $149: 250/mo · LO Pro $299: unlimited · expired/no plan: 0
+    try {
+      const inviteLimit = await resolveLoWowInviteLimit(loAgent);
+      if (isFinite(inviteLimit)) {
+        const monthStart = new Date();
+        monthStart.setUTCDate(1); monthStart.setUTCHours(0, 0, 0, 0);
+        const { count: sentThisMonth } = await supabaseAdmin
+          .from('agent_invites')
+          .select('id', { count: 'exact', head: true })
+          .eq('lo_agent_id', loAuthId)
+          .gte('created_at', monthStart.toISOString());
+        if ((sentThisMonth || 0) >= inviteLimit) {
+          return res.status(403).json({
+            error: 'invite_limit_reached',
+            limit: inviteLimit,
+            used: sentThisMonth,
+            message: inviteLimit === 0
+              ? `Your 3-day free trial has ended. Upgrade to the LO plan to start sending WOW links.`
+              : `Your plan allows ${inviteLimit} WOW link invites per month. You've reached your limit for this month.`
+          });
+        }
+      }
+      // inviteLimit === Infinity → LO Pro, skip count check
+    } catch (limitErr) {
+      console.warn('[LO Invite] Could not check invite limit (non-fatal):', limitErr?.message);
+      // Non-fatal — don't block the invite if the plan check fails
+    }
     // Validate listing belongs to this LO if provided
     let resolvedListingId = null;
     if (listingId) {

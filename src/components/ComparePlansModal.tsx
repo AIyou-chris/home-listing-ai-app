@@ -41,27 +41,27 @@ const plans = [
     },
     {
         id: 'starter',
-        name: 'Starter',
-        price: '$39',
+        name: 'LO',
+        price: '$149',
         period: '/mo',
-        tagline: 'The paid plan for active follow-up.',
+        tagline: 'Build your agent network and fill your pipeline.',
         color: 'border-slate-200',
         badge: null,
-        ctaLabel: 'Get Starter',
+        ctaLabel: 'Get LO Plan',
         ctaStyle: 'bg-slate-800 text-white hover:bg-slate-700',
-        checkoutPath: '/signup?plan=starter',
+        checkoutPath: '/lo-signup?plan=lo',
     },
     {
         id: 'pro',
-        name: 'Pro',
-        price: '$79',
+        name: 'LO Pro',
+        price: '$299',
         period: '/mo',
-        tagline: 'Higher limits for agents running real volume.',
+        tagline: 'High-volume LOs running a serious agent network.',
         color: 'border-primary-500',
         badge: 'MOST POPULAR',
-        ctaLabel: 'Go Pro',
+        ctaLabel: 'Get LO Pro',
         ctaStyle: 'bg-primary-600 text-white hover:bg-primary-700',
-        checkoutPath: '/signup?plan=pro',
+        checkoutPath: '/lo-signup?plan=lo_pro',
     },
 ];
 
@@ -70,32 +70,27 @@ const plans = [
 type FeatureValue = boolean | string;
 const featureRows: { label: string; free: FeatureValue; starter: FeatureValue; pro: FeatureValue; section?: string }[] = [
     { section: 'Listings', label: '', free: false, starter: false, pro: false },
-    { label: 'Active listings', free: '1', starter: '5', pro: '25' },
-    { label: 'AI listing page', free: true, starter: true, pro: true },
-    { label: 'Share Kit (link + QR)', free: true, starter: true, pro: true },
-    { label: 'Listing performance reports', free: '1 / mo', starter: '10 / mo', pro: '50 / mo' },
+    { label: 'Active listings (partner network)', free: '1', starter: '20', pro: '50' },
+    { label: 'AI buyer chatbot on each listing', free: false, starter: true, pro: true },
+    { label: 'Full marketing package per listing', free: false, starter: true, pro: true },
 
     { section: 'Lead Machine', label: '', free: false, starter: false, pro: false },
-    { label: 'Lead capture', free: true, starter: true, pro: true },
-    { label: 'Stored leads', free: '25', starter: '250', pro: '2,000' },
-    { label: 'Lead pipeline & CRM', free: true, starter: true, pro: true },
-    { label: 'AI lead follow-up', free: false, starter: true, pro: true },
+    { label: 'Warm lead alerts (LO + agent)', free: false, starter: true, pro: true },
+    { label: 'Pre-approval request capture', free: false, starter: true, pro: true },
+    { label: 'Lead inbox + activity timeline', free: false, starter: true, pro: true },
+    { label: 'Priority lead routing', free: false, starter: false, pro: true },
 
-    { section: 'AI Features', label: '', free: false, starter: false, pro: false },
-    { label: 'AI Brain sources', free: '1', starter: '3', pro: 'Unlimited' },
-    { label: 'AI sidekick (chat)', free: true, starter: true, pro: true },
-    { label: 'Multilingual listings', free: false, starter: '3 languages', pro: 'All languages' },
-    { label: 'Compliance scan', free: false, starter: '1 / mo', pro: 'Unlimited' },
+    { section: 'Branding', label: '', free: false, starter: false, pro: false },
+    { label: 'Co-branded with your name + NMLS #', free: false, starter: true, pro: true },
+    { label: 'Agent partner management dashboard', free: false, starter: false, pro: true },
+    { label: 'ROI dashboard', free: false, starter: false, pro: true },
 
     { section: 'Communications', label: '', free: false, starter: false, pro: false },
-    { label: 'Social video credits', free: false, starter: '5 / mo', pro: '20 / mo' },
-    { label: 'Automated SMS included', free: false, starter: '50 / mo', pro: '250 / mo' },
-    { label: 'Appointment reminder texts', free: false, starter: true, pro: true },
+    { label: 'Automated SMS / month', free: false, starter: '250 / mo', pro: 'Unlimited' },
+    { label: 'Appointment reminder automation', free: false, starter: false, pro: true },
 
-    { section: 'Team & Branding', label: '', free: false, starter: false, pro: false },
-    { label: 'Custom agent branding', free: false, starter: true, pro: true },
-    { label: 'White-label (broker)', free: false, starter: false, pro: true },
-    { label: 'Team members', free: false, starter: false, pro: 'Up to 5' },
+    { section: 'Support', label: '', free: false, starter: false, pro: false },
+    { label: 'Support', free: 'Email', starter: 'Priority email', pro: 'Priority + onboarding' },
 ];
 
 const Cell: React.FC<{ value: FeatureValue; isPro?: boolean }> = ({ value, isPro }) => {
@@ -250,8 +245,8 @@ const ComparePlansModal: React.FC<ComparePlansModalProps> = ({
                     {/* Footer */}
                     <div className="px-5 py-4 bg-slate-50 border-t border-slate-100 text-center">
                         <p className="text-xs text-slate-500">
-                            Most agents recoup the cost with a single closed lead.{' '}
-                            <span className="font-medium text-slate-700">30-day money-back guarantee.</span>
+                            One closed loan covers 20+ months of the LO plan.{' '}
+                            <span className="font-medium text-slate-700">3-day free trial. No contracts. Cancel anytime.</span>
                         </p>
                     </div>
                 </div>

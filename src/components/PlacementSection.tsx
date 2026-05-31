@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 
 interface PlacementSectionProps {
     onNavigateToSignUp: () => void;
@@ -6,6 +7,7 @@ interface PlacementSectionProps {
 }
 
 export const PlacementSection: React.FC<PlacementSectionProps> = ({ onNavigateToSignUp, onEnterDemoMode }) => {
+    const navigate = useNavigate();
     return (
         <section id="use-cases" className="relative py-24 lg:py-32 bg-[#040814] overflow-hidden border-t border-slate-900">
             {/* Background elements */}
@@ -110,12 +112,22 @@ export const PlacementSection: React.FC<PlacementSectionProps> = ({ onNavigateTo
 
                 {/* CTA Row */}
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-20 pt-16 border-t border-slate-900/50">
-                    <button
-                        onClick={onEnterDemoMode}
-                        className="w-full sm:w-auto px-8 py-4 bg-transparent border border-cyan-500/50 hover:bg-cyan-500/10 text-cyan-400 font-semibold rounded-lg transition-all text-lg flex items-center justify-center gap-2"
-                    >
-                        See a Live Example
-                    </button>
+                    <div className="flex gap-2 w-full sm:w-auto">
+                        <button
+                            onClick={onEnterDemoMode}
+                            className="flex-1 sm:flex-none px-5 py-4 bg-transparent border border-cyan-500/50 hover:bg-cyan-500/10 text-cyan-400 font-semibold rounded-lg transition-all text-sm flex flex-col items-center justify-center gap-0.5"
+                        >
+                            <span>Agent Demo</span>
+                            <span className="text-[10px] text-cyan-600 font-normal">Dashboard view</span>
+                        </button>
+                        <button
+                            onClick={() => navigate('/lo-demo')}
+                            className="flex-1 sm:flex-none px-5 py-4 bg-transparent border border-cyan-500/50 hover:bg-cyan-500/10 text-cyan-400 font-semibold rounded-lg transition-all text-sm flex flex-col items-center justify-center gap-0.5"
+                        >
+                            <span>LO Demo</span>
+                            <span className="text-[10px] text-cyan-600 font-normal">Loan officer view</span>
+                        </button>
+                    </div>
                     <button
                         onClick={onNavigateToSignUp}
                         className="w-full sm:w-auto px-8 py-4 bg-white text-slate-950 hover:bg-slate-200 font-bold rounded-lg transition-all text-lg flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(255,255,255,0.2)]"

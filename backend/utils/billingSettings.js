@@ -1,23 +1,14 @@
 const { supabaseAdmin } = require('../services/supabase');
 
 const DEFAULT_BILLING_SETTINGS = {
-  planName: 'Complete AI Solution',
-  planStatus: 'active',
-  amount: 49,
+  planName: 'LO',
+  planStatus: 'none',
+  amount: 0,
   currency: 'USD',
-  managedBy: 'paypal',
+  managedBy: 'stripe',
   renewalDate: null,
   cancellationRequestedAt: null,
-  history: [
-    {
-      id: 'inv-0001',
-      date: '2024-07-15',
-      amount: 49,
-      status: 'Paid',
-      description: 'Complete AI Solution - Monthly',
-      invoiceUrl: null
-    }
-  ]
+  history: []
 };
 
 const demoStore = new Map();

@@ -390,8 +390,8 @@ const TodayDashboardPage: React.FC = () => {
         <div className="rounded-2xl border border-primary-200 bg-primary-50 p-5 flex items-start gap-4">
           <span className="material-symbols-outlined text-primary-500 text-2xl shrink-0 mt-0.5">workspace_premium</span>
           <div className="flex-1">
-            <h2 className="text-base font-bold text-primary-900">Complete your {pendingPlan === 'pro' ? 'Pro' : 'Starter'} upgrade</h2>
-            <p className="mt-0.5 text-sm text-primary-700">You selected the {pendingPlan === 'pro' ? 'Team ($79/mo)' : 'Pro ($39/mo)'} plan. Finish checkout to unlock all your features.</p>
+            <h2 className="text-base font-bold text-primary-900">Complete your {pendingPlan === 'pro' ? 'Pro' : 'Starter'} plan upgrade</h2>
+            <p className="mt-0.5 text-sm text-primary-700">You selected the {pendingPlan === 'pro' ? 'LO Pro ($299/mo)' : 'LO ($149/mo)'} plan. Finish checkout to unlock all your features.</p>
             <div className="mt-3 flex gap-2">
               <button
                 type="button"

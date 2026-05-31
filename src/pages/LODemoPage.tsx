@@ -140,7 +140,7 @@ function LeadRow({ lead }: { lead: typeof DEMO_LEADS[0] }) {
 const LODemoPage: React.FC = () => {
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState<'partners' | 'leads' | 'pipeline'>('partners')
-  const [activeParter, setActivePartner] = useState('p3')
+  const [activePartner, setActivePartner] = useState('p3')
 
   return (
     <div className="min-h-screen bg-[#0B0F19] text-white font-sans">
@@ -167,7 +167,7 @@ const LODemoPage: React.FC = () => {
           onClick={() => navigate('/signup')}
           className="bg-[#f86f1b] hover:bg-[#e55e0a] text-white font-black px-8 py-4 rounded-2xl text-base transition-all shadow-[0_0_30px_rgba(248,111,27,0.4)] hover:shadow-[0_0_40px_rgba(248,111,27,0.6)]"
         >
-          Start Free — Get Your First Partner Today →
+          Start Free — 3-Day Trial, No Contract →
         </button>
       </div>
 
@@ -301,7 +301,7 @@ const LODemoPage: React.FC = () => {
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {DEMO_PARTNERS.map(p => (
                       <div key={p.id} onClick={() => setActivePartner(p.id)} className="cursor-pointer">
-                        <PartnerCard p={p} active={activeParter === p.id} />
+                        <PartnerCard p={p} active={activePartner === p.id} />
                       </div>
                     ))}
                   </div>
@@ -394,7 +394,7 @@ const LODemoPage: React.FC = () => {
         <div className="mt-16 text-center bg-gradient-to-br from-[#0d1f3c] to-[#0B1121] border border-slate-700/50 rounded-3xl p-12">
           <h2 className="text-3xl font-black mb-3">Ready to build your lead pipeline?</h2>
           <p className="text-slate-400 mb-8 max-w-lg mx-auto">
-            Free to start. Your first 5 WOW links are on us — no card, no commitment.
+            3-day free trial. Full access. No card, no commitment.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <button

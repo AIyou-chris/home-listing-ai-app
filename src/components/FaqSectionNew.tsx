@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { BackgroundTechIcons } from './BackgroundTechIcons';
 import { FadeIn } from './FadeIn';
 
@@ -51,6 +52,7 @@ const faqs = [
 ];
 
 export const FaqSectionNew: React.FC<FaqSectionProps> = ({ onNavigateToSignUp, onEnterDemoMode }) => {
+    const navigate = useNavigate();
     const [openIndex, setOpenIndex] = useState<number | null>(null);
 
     const toggleFaq = (index: number) => {
@@ -116,12 +118,22 @@ export const FaqSectionNew: React.FC<FaqSectionProps> = ({ onNavigateToSignUp, o
                 {/* Bottom CTA Row */}
                 <FadeIn delay={400} className="flex flex-col items-center justify-center border-t border-slate-900/60 pt-16">
                     <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto mb-4">
-                        <button
-                            onClick={onEnterDemoMode}
-                            className="w-full sm:w-auto px-10 py-4 bg-transparent border border-cyan-500/50 hover:bg-cyan-500/10 hover:shadow-[0_0_15px_rgba(6,182,212,0.2)] text-cyan-400 font-semibold rounded-lg transition-all text-lg flex items-center justify-center gap-2"
-                        >
-                            See a Live Example
-                        </button>
+                        <div className="flex gap-2 w-full sm:w-auto">
+                            <button
+                                onClick={onEnterDemoMode}
+                                className="flex-1 sm:flex-none px-5 py-4 bg-transparent border border-cyan-500/50 hover:bg-cyan-500/10 hover:shadow-[0_0_15px_rgba(6,182,212,0.2)] text-cyan-400 font-semibold rounded-lg transition-all text-sm flex flex-col items-center justify-center gap-0.5"
+                            >
+                                <span>Agent Demo</span>
+                                <span className="text-[10px] text-cyan-600 font-normal">Dashboard view</span>
+                            </button>
+                            <button
+                                onClick={() => navigate('/lo-demo')}
+                                className="flex-1 sm:flex-none px-5 py-4 bg-transparent border border-cyan-500/50 hover:bg-cyan-500/10 hover:shadow-[0_0_15px_rgba(6,182,212,0.2)] text-cyan-400 font-semibold rounded-lg transition-all text-sm flex flex-col items-center justify-center gap-0.5"
+                            >
+                                <span>LO Demo</span>
+                                <span className="text-[10px] text-cyan-600 font-normal">Loan officer view</span>
+                            </button>
+                        </div>
                         <button
                             onClick={onNavigateToSignUp}
                             className="w-full sm:w-auto px-10 py-4 bg-white text-slate-950 hover:bg-slate-200 hover:shadow-[0_0_20px_rgba(255,255,255,0.3)] font-bold rounded-lg transition-all text-lg flex items-center justify-center gap-2"

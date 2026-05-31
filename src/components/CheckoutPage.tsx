@@ -1,7 +1,12 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 
-const CheckoutPage: React.FC = () => {
+interface CheckoutPageProps {
+  slug?: string;
+  onBackToSignup?: () => void;
+}
+
+const CheckoutPage: React.FC<CheckoutPageProps> = () => {
   const navigate = useNavigate();
 
   return (

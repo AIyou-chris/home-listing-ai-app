@@ -82,20 +82,12 @@ const _PricingSection: React.FC<{ onNavigateToSignUp: () => void; onOpenContact:
                             <div className="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-pink-400 to-blue-400 rounded-full blur-2xl"></div>
                         </div>
                         <div className="relative z-10">
-                            <div className="prose prose-lg max-w-none">
-                                <p className="text-slate-700 leading-relaxed mb-6" style={{ fontFamily: "'Caveat', cursive", fontSize: '1.2rem' }}>
-                                    I lived through the 2007 crash. And again in 2012. I know exactly what it feels like when deals stall, leads dry up, and every dollar needs to work overtime. That's why I built this AI tool specifically for realtors navigating today's tightening market. Not as a gimmick. Not for mass adoption. But because I remember how brutal these markets get. And I know smart tech—priced right—can be the difference between treading water and taking territory.
+                            <div className="max-w-none">
+                                <p className="text-slate-800 leading-relaxed mb-0" style={{ fontFamily: "'Caveat', cursive", fontSize: '1.45rem', lineHeight: '1.7' }}>
+                                    "I lived through the 2007 crash. I know what it feels like when your pipeline dries up and every dollar has to work twice as hard. I didn't build this to sell software. I built it because I needed it. And if you're an LO in this market, you need it too."
                                 </p>
-                                <div className="mt-6 pt-6 border-t-2 border-dashed border-slate-300">
-                                    <p className="text-slate-800 font-semibold text-xl" style={{ fontFamily: "'Caveat', cursive", fontSize: '1.3rem' }}>
-                                        👉 Start on the Free plan, then upgrade to <span className="text-primary-700">$39/mo or $79/mo</span> from your dashboard.
-                                    </p>
-                                </div>
-                                <p className="text-slate-800 font-medium mt-8" style={{ fontFamily: "'Caveat', cursive", fontSize: '1.3rem' }}>
-                                    — Chris Potter, Founder
-                                </p>
-                                <p className="text-sm text-slate-500 italic mt-4">
-                                    * Price subject to change. Lock in this rate today.
+                                <p className="text-slate-600 font-bold mt-6 text-base tracking-wide uppercase" style={{ fontFamily: "'Caveat', cursive", fontSize: '1.1rem' }}>
+                                    — Chris Potter, Founder · 15 Years in Mortgage
                                 </p>
                             </div>
                         </div>
@@ -108,10 +100,10 @@ const _PricingSection: React.FC<{ onNavigateToSignUp: () => void; onOpenContact:
                             <h3 className="text-2xl font-bold text-white text-center">HomeListingAI Plans</h3>
                             <p className="mt-2 text-slate-300 text-center">Start free. Upgrade in Dashboard → Settings → Billing when you need more power.</p>
                             <p className="mt-6 text-center">
-                                <span className="text-5xl font-extrabold text-white">Free</span>
-                                <span className="text-xl font-medium text-slate-300"> • Starter $39 • Pro $79</span>
+                                <span className="text-5xl font-extrabold text-white">LO $149</span>
+                                <span className="text-xl font-medium text-slate-300"> • LO Pro $299</span>
                             </p>
-                            <p className="mt-2 text-slate-300 text-sm text-center">Pick the plan that matches your volume and goals.</p>
+                            <p className="mt-2 text-slate-300 text-sm text-center">One closed loan covers 20 months. No contracts. Cancel anytime.</p>
 
                             <ul className="mt-10 grid md:grid-cols-2 gap-x-12 gap-y-6 text-left">
                                 {/* LEFT COLUMN */}
@@ -284,7 +276,7 @@ const _WhiteLabelSection: React.FC = () => {
                 <div className="bg-white p-8 sm:p-12 rounded-2xl shadow-xl border border-slate-200/80 text-center hover-lift">
                     <h2 className="text-3xl sm:text-4xl font-extrabold text-primary-700 tracking-tight animate-fade-in-up">White Label & Custom Services</h2>
                     <p className="mt-4 max-w-3xl mx-auto text-lg text-slate-600 animate-fade-in-up animation-delay-200">
-                        Want your own brand? We offer full white labeling, custom web design, design systems, automation, and digital marketing for real estate pros, teams, and brokerages. Get a seamless, premium experience—your brand, your way.
+                        Running a branch or lending team? We offer full white labeling — your domain, your brand, your colors — powered by HomeListingAI under the hood. Every LO on your team gets the same warm lead machine, all under your office identity.
                     </p>
 
                     <div className="mt-16 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-12 animate-fade-in-up animation-delay-400">
@@ -705,7 +697,7 @@ const _AboutUsSection: React.FC = () => (
                             <h4 className="font-bold text-slate-900 text-lg mb-2 group-hover:text-orange-600 transition-colors">
                                 AI-Powered Future
                             </h4>
-                            <p className="text-slate-600">Leading the AI revolution in real estate</p>
+                            <p className="text-slate-600">AI that does real work — not AI for show</p>
                         </div>
                     </div>
                 </div>
@@ -720,6 +712,7 @@ const _AboutUsSection: React.FC = () => (
 
 
 const Hero: React.FC<{ onNavigateToSignUp: () => void, onEnterDemoMode: () => void, onOpenChatBot?: () => void, onOpenComparePlans: () => void }> = ({ onNavigateToSignUp: _onNavigateToSignUp, onOpenChatBot: _onOpenChatBot, onOpenComparePlans }) => {
+    const navigate = useNavigate();
     const [isDemoOpen, setIsDemoOpen] = useState(false);
     const [demoName, setDemoName] = useState('');
     const [demoEmail, setDemoEmail] = useState('');
@@ -768,10 +761,17 @@ const Hero: React.FC<{ onNavigateToSignUp: () => void, onEnterDemoMode: () => vo
                     <p className="mt-8 max-w-xl mx-auto lg:mx-0 text-xl text-slate-400 animate-fade-in-up font-light leading-relaxed" style={{ animationDelay: "200ms" }}>
                         In this market, standing out isn't optional — it's everything. HomeListingAI gives you and your agent partners an unfair advantage that buyers notice and competitors can't match. Getting started takes 30 seconds. All you need is a name and an email.
                     </p>
-                    <div className="mt-10 animate-fade-in-up px-4 lg:px-0 flex justify-center lg:justify-center" style={{ animationDelay: "400ms" }}>
+                    <div className="mt-10 animate-fade-in-up px-4 lg:px-0 flex flex-col sm:flex-row justify-center lg:justify-start gap-3" style={{ animationDelay: "400ms" }}>
+                        <button
+                            onClick={() => navigate('/lo-signup')}
+                            className="w-full sm:w-auto px-10 py-4 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold rounded-lg transition-all text-lg shadow-[0_0_24px_rgba(6,182,212,0.4)] flex items-center justify-center gap-2"
+                        >
+                            Start Free — 3-Day Trial
+                            <span className="material-symbols-outlined text-xl">arrow_forward</span>
+                        </button>
                         <button
                             onClick={openDemo}
-                            className="w-full sm:w-auto px-12 py-4 bg-transparent border border-slate-700 hover:border-cyan-500/50 hover:bg-cyan-500/5 text-white font-semibold rounded-lg transition-all text-lg flex items-center justify-center gap-2"
+                            className="w-full sm:w-auto px-8 py-4 bg-transparent border border-slate-700 hover:border-cyan-500/50 hover:bg-cyan-500/5 text-white font-semibold rounded-lg transition-all text-lg flex items-center justify-center gap-2"
                         >
                             <span className="material-symbols-outlined text-cyan-500 text-xl">qr_code_scanner</span>
                             See What You Send Them
@@ -1238,8 +1238,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigat
     return (
         <div className="bg-white font-sans">
             <SEO
-                title="HomeListingAI — AI-Powered Listing Pages That Capture & Convert Buyers"
-                description="Give every listing its own AI buyer agent, QR share kit, property reports, and automated lead follow-up. Turn any listing into a 24/7 lead machine. Free to try."
+                title="HomeListingAI — Warm Leads & Agent Partnerships for Loan Officers"
+                description="Send one WOW Link. Get warm buyer leads from every agent listing — co-branded with your name and NMLS #. The LO's unfair advantage. 3-day free trial."
                 schema={{
                     "@context": "https://schema.org",
                     "@type": "SoftwareApplication",

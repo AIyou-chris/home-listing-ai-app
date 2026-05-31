@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { BackgroundTechIcons } from './BackgroundTechIcons';
 import { FadeIn } from './FadeIn';
 
@@ -8,6 +9,7 @@ interface FinalCtaProps {
 }
 
 export const FinalCtaNew: React.FC<FinalCtaProps> = ({ onNavigateToSignUp, onEnterDemoMode }) => {
+    const navigate = useNavigate();
     return (
         <section className="relative py-20 lg:py-24 bg-[#02050D] overflow-hidden border-t border-slate-900/60">
             {/* Ambient Background */}
@@ -36,12 +38,22 @@ export const FinalCtaNew: React.FC<FinalCtaProps> = ({ onNavigateToSignUp, onEnt
                         >
                             Create Free Account
                         </button>
-                        <button
-                            onClick={onEnterDemoMode}
-                            className="w-full sm:w-auto px-10 py-4 bg-transparent border border-cyan-500/50 hover:bg-cyan-500/10 hover:shadow-[0_0_15px_rgba(6,182,212,0.2)] text-cyan-400 font-semibold rounded-lg transition-all text-lg flex items-center justify-center gap-2"
-                        >
-                            See a Live Example
-                        </button>
+                        <div className="flex gap-2 w-full sm:w-auto">
+                            <button
+                                onClick={onEnterDemoMode}
+                                className="flex-1 sm:flex-none px-5 py-4 bg-transparent border border-cyan-500/50 hover:bg-cyan-500/10 hover:shadow-[0_0_15px_rgba(6,182,212,0.2)] text-cyan-400 font-semibold rounded-lg transition-all text-sm flex flex-col items-center justify-center gap-0.5"
+                            >
+                                <span>Agent Demo</span>
+                                <span className="text-[10px] text-cyan-600 font-normal">Dashboard view</span>
+                            </button>
+                            <button
+                                onClick={() => navigate('/lo-demo')}
+                                className="flex-1 sm:flex-none px-5 py-4 bg-transparent border border-cyan-500/50 hover:bg-cyan-500/10 hover:shadow-[0_0_15px_rgba(6,182,212,0.2)] text-cyan-400 font-semibold rounded-lg transition-all text-sm flex flex-col items-center justify-center gap-0.5"
+                            >
+                                <span>LO Demo</span>
+                                <span className="text-[10px] text-cyan-600 font-normal">Loan officer view</span>
+                            </button>
+                        </div>
                     </div>
 
                     <div className="flex flex-wrap justify-center gap-x-6 gap-y-3 text-sm text-slate-400 mb-8 font-medium">

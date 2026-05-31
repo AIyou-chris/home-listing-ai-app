@@ -92,7 +92,7 @@ export const PublicHeader: React.FC<PublicHeaderProps> = ({
         else navigate('/signin');
     };
 
-    const handleSignUp = () => {
+    const _handleSignUp = () => {
         if (analyticsWindow?.gtag) {
             analyticsWindow.gtag('event', 'click_signup_header', { event_category: 'engagement', event_label: 'header_desktop' });
         }
@@ -121,11 +121,14 @@ export const PublicHeader: React.FC<PublicHeaderProps> = ({
                     </div>
                     <div className="hidden lg:flex items-center gap-4">
                         <span className="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full border border-green-200">
-                            🛡️ 30-Day Money-Back Guarantee
+                            ✅ 3-Day Free Trial
                         </span>
                         <button onClick={handleLogin} className="text-sm font-semibold text-slate-700 hover:text-primary-600 transition-colors">Login</button>
-                        <button onClick={handleSignUp} className="px-5 py-2.5 bg-blue-600 text-white font-semibold text-sm rounded-lg shadow-md hover:bg-blue-700 transition-all">
-                            Sign Up
+                        <button
+                            onClick={() => navigate('/lo-signup')}
+                            className="px-5 py-2.5 bg-blue-600 text-white font-semibold text-sm rounded-lg shadow-md hover:bg-blue-700 transition-all"
+                        >
+                            Get Started →
                         </button>
                     </div>
                     <div className="lg:hidden">
@@ -147,7 +150,7 @@ export const PublicHeader: React.FC<PublicHeaderProps> = ({
                         ))}
                         <div className="border-t border-slate-200 pt-4 space-y-2">
                             <button onClick={handleLogin} className="w-full text-left block px-3 py-2 text-base font-medium text-slate-700 rounded-md hover:bg-slate-50">Login</button>
-                            <button onClick={handleSignUp} className="w-full text-left block px-3 py-2 text-base font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700">Sign Up</button>
+                            <button onClick={() => navigate('/lo-signup')} className="w-full text-left block px-3 py-2 text-base font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700">Get Started →</button>
                         </div>
                     </div>
                 )}
