@@ -186,6 +186,28 @@ const KnowledgeBaseSection: React.FC<{
               ✓ {value.length.toLocaleString()} characters in knowledge base
             </p>
           )}
+
+          {/* Rate Sheet Template Download */}
+          <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+            <div className="flex items-start gap-3">
+              <span className="material-symbols-outlined text-xl text-amber-600 flex-shrink-0">description</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-amber-900">Need a starting point?</p>
+                <p className="text-xs text-amber-700 mt-0.5">
+                  Download our rate sheet template — pre-built with Conventional, FHA, VA, USDA, Jumbo, and DPA programs.
+                  Fill in your actual rates, save as CSV, then upload here.
+                </p>
+                <a
+                  href="/lo-rate-sheet-template.csv"
+                  download="lo-rate-sheet-template.csv"
+                  className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-amber-700 hover:text-amber-900 underline"
+                >
+                  <span className="material-symbols-outlined text-sm">download</span>
+                  Download Rate Sheet Template (CSV)
+                </a>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
