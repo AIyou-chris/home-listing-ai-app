@@ -32640,7 +32640,37 @@ app.get('/api/admin/blog/images', verifyAdmin, async (req, res) => {
   }
 });
 
-// POST /api/admin/blog/ping — ping Google + IndexNow after publish
+// Helper — get a short-lived Google OAuth2 token from service account
+const getGoogleIndexingToken = async () => {
+  const sa = JSON.parse(process.env.GOOGLE_INDEXING_SERVICE_ACCOUNT || '{}');
+  if (!sa.private_key || !sa.client_email) return null;
+
+  const now = Math.floor(Date.now() / 1000);
+  const header = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url');
+  const payload = Buffer.from(JSON.stringify({
+    iss: sa.client_email,
+    scope: 'https://www.googleapis.com/auth/indexing',
+    aud: 'https://oauth2.googleapis.com/token',
+    iat: now,
+    exp: now + 3600,
+  })).toString('base64url');
+
+  const { createSign } = await import('crypto');
+  const sign = createSign('RSA-SHA256');
+  sign.update(`${header}.${payload}`);
+  const sig = sign.sign(sa.private_key, 'base64url');
+  const jwt = `${header}.${payload}.${sig}`;
+
+  const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`,
+  });
+  const tokenData = await tokenRes.json();
+  return tokenData.access_token || null;
+};
+
+// POST /api/admin/blog/ping — ping Google Indexing API + IndexNow + Bing after publish
 app.post('/api/admin/blog/ping', verifyAdmin, async (req, res) => {
   try {
     const { slug } = req.body;
@@ -32648,6 +32678,23 @@ app.post('/api/admin/blog/ping', verifyAdmin, async (req, res) => {
     const postUrl = `${siteUrl}/blog/${slug}`;
     const sitemapUrl = `${siteUrl}/sitemap.xml`;
     const results = {};
+
+    // Google Indexing API
+    try {
+      const token = await getGoogleIndexingToken();
+      if (token) {
+        const gRes = await fetch('https://indexing.googleapis.com/v3/urlNotifications:publish', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: postUrl, type: 'URL_UPDATED' }),
+        });
+        results.google = gRes.status < 300 ? 'ok' : `status ${gRes.status}`;
+      } else {
+        results.google = 'no_credentials';
+      }
+    } catch (e) {
+      results.google = 'failed';
+    }
 
     // IndexNow — hits Bing, Yandex, and others simultaneously
     try {
