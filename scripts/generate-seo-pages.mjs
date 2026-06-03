@@ -41,25 +41,38 @@ const supabase =
 const STATIC_ROUTES = [
   {
     route: '/',
-    title: 'HomeListingAI | Turn Listings Into Leads Automatically',
+    title: 'HomeListingAI | Warm Leads & Agent Partnerships for Loan Officers',
     description:
-      'Turn every listing into a 24/7 lead machine. AI listing pages, market reports, and fast lead capture for real estate agents.',
+      'Loan officers: send one WOW Link, get warm buyer leads from every agent listing — co-branded with your name and NMLS #. AI listing pages, a 24/7 buyer chatbot, and compliance guardrails you control. 3-day free trial.',
     image: '/og-image.png',
     type: 'website',
-    bodyHtml:
-      '<main><h1>Turn Listings Into Leads Automatically</h1><p>HomeListingAI helps real estate agents publish AI-powered listing pages, capture leads, and manage follow-up from one dashboard.</p></main>',
-    schema: [
-      {
-        '@context': 'https://schema.org',
-        '@type': 'SoftwareApplication',
-        name: 'HomeListingAI',
-        applicationCategory: 'BusinessApplication',
-        operatingSystem: 'Web',
-        url: SITE_URL,
-        description:
-          'HomeListingAI helps real estate agents turn listings into AI-powered lead capture pages and follow-up workflows.',
-      },
-    ],
+    // Preserve the rich JSON-LD baked into index.html (Organization, WebSite,
+    // SoftwareApplication, 12-question FAQPage). index.html is the single source.
+    preserveJsonLd: true,
+    bodyHtml: [
+      '<main>',
+      '<h1>HomeListingAI — Warm Leads &amp; Agent Partnerships for Loan Officers</h1>',
+      '<p>HomeListingAI is an AI-powered lead generation and agent-partnership platform built specifically for mortgage loan officers. Instead of buying cold internet leads, a loan officer sends a co-branded AI listing page — the WOW Link — to a real estate agent partner. Every buyer who engages with that page becomes a warm lead routed back to the loan officer in real time.</p>',
+      '<h2>How it works</h2>',
+      '<p>The loan officer invites an agent partner and sends a WOW Link. The agent&rsquo;s listing goes live with a 24/7 AI buyer chatbot, a full share kit (tracked QR code, social assets, open-house flyer, and property report), all co-branded with the loan officer&rsquo;s name and NMLS #. When a buyer asks about rates, pre-approval, or the property, the warm lead is delivered to both the agent and the loan officer at the same time.</p>',
+      '<h2>Why loan officers use it</h2>',
+      '<ul>',
+      '<li><strong>Warm leads, not cold lists:</strong> every lead is a buyer who already raised their hand on a live listing page.</li>',
+      '<li><strong>Agent partnerships that stick:</strong> the agent gets a free tool that makes their listings perform better, which builds loyalty to the loan officer who provided it.</li>',
+      '<li><strong>Compliance you control:</strong> platform guardrails are always on, and loan officers can upload their company&rsquo;s own compliance rules so the AI follows them in every chat and every piece of marketing it writes.</li>',
+      '<li><strong>Fast follow-up:</strong> automatic 24-hour and 72-hour reminders if an agent hasn&rsquo;t opened the WOW Link, plus instant alerts when an agent claims their account.</li>',
+      '</ul>',
+      '<h2>Pricing</h2>',
+      '<p>The LO plan is $149/month (20 active listings, 250 SMS/month, full co-branding, warm-lead alerts). LO Pro is $299/month (50 active listings, unlimited SMS, priority lead routing, ROI dashboard). Both are month-to-month with a 3-day free trial and no contract.</p>',
+      '<h2>Frequently asked questions</h2>',
+      '<h3>What is the best lead generation tool for mortgage loan officers?</h3>',
+      '<p>HomeListingAI is built specifically for loan officers. Rather than reselling the same internet leads to many LOs, it generates warm leads through agent partnerships — the loan officer gives agents a co-branded AI listing page, and every engaged buyer routes back to the LO. Plans start at $149/month with a 3-day free trial.</p>',
+      '<h3>How do loan officers get referrals from real estate agents?</h3>',
+      '<p>The most reliable way is to make the agent look good to their buyers. HomeListingAI gives the agent a free, AI-powered listing page with a 24/7 buyer chatbot and share kit, co-branded with the loan officer&rsquo;s name and NMLS #. The tool improves the agent&rsquo;s listings, which builds loyalty, while warm buyer leads route back to the loan officer.</p>',
+      '<h3>Is there an AI chatbot for real estate listings?</h3>',
+      '<p>Yes. HomeListingAI puts a 24/7 AI buyer chatbot on every listing page. It answers buyer questions about the property and financing, captures contact details, and routes warm leads in real time. Loan officers can upload their own compliance rules so the AI stays within their company&rsquo;s marketing guidelines.</p>',
+      '</main>',
+    ].join(''),
   },
   {
     route: '/blog',
@@ -245,7 +258,11 @@ const renderHtml = (template, page) => {
   html = setMetaByName(html, 'twitter:title', page.title);
   html = setMetaByName(html, 'twitter:description', page.description);
   html = setMetaByName(html, 'twitter:image', socialImage);
-  html = setJsonLd(html, page.schema || []);
+  // preserveJsonLd: keep the rich JSON-LD already baked into index.html (single source
+  // of truth for the landing page schema) instead of stripping + replacing it.
+  if (!page.preserveJsonLd) {
+    html = setJsonLd(html, page.schema || []);
+  }
   html = setRootFallback(html, page.bodyHtml || '');
   return html;
 };
