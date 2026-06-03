@@ -12,6 +12,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 
   <script>
+    // Password-recovery redirect — runs BEFORE any module (incl. the Supabase client,
+    // which would otherwise consume and strip the URL hash). Supabase frequently lands
+    // recovery links on the Site URL root regardless of the redirect allow-list; this
+    // forwards them to the branded /reset-password page with the token hash intact.
+    try {
+      if (window.location.hash &&
+          window.location.hash.indexOf('type=recovery') !== -1 &&
+          window.location.pathname !== '/reset-password') {
+        window.location.replace('/reset-password' + window.location.search + window.location.hash);
+      }
+    } catch (e) { /* ignore */ }
+  </script>
+
+  <script>
     window.dataLayer = window.dataLayer || [];
     function gtag() { dataLayer.push(arguments); }
     window.__hlaiLoadAnalytics = function () {

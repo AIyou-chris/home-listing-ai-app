@@ -591,6 +591,8 @@ const App: React.FC = () => {
     const [isAdminLoginOpen, setIsAdminLoginOpen] = useState(false);
     const [adminLoginError, setAdminLoginError] = useState<string | null>(null);
     const [isAdminLoginLoading, setIsAdminLoginLoading] = useState(false);
+    // True while a password-recovery flow is active, so post-auth redirects don't hijack it.
+    const recoveryModeRef = useRef(false);
 
 
 
@@ -1056,6 +1058,14 @@ const App: React.FC = () => {
         // Listen for auth changes (Sign In / Sign Out / Token Refresh)
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
             console.log("🔐 Auth Change:", event, session?.user?.email);
+
+            // Password recovery: Supabase fires this when it detects a recovery token
+            // (often after dumping the user on the Site URL root). Flag recovery mode
+            // so the post-auth effect routes to /reset-password instead of the dashboard.
+            if (event === 'PASSWORD_RECOVERY') {
+                recoveryModeRef.current = true;
+            }
+
             markAuthReady(event, session ?? null);
 
             // Helper: build AppUser from a Supabase User object
@@ -1125,9 +1135,34 @@ const App: React.FC = () => {
         };
     }, [navigate, isBlueprintMode, markAuthReady]);
 
+    // Password recovery: Supabase often lands the recovery token on the Site URL
+    // root (e.g. "/#access_token=...&type=recovery") regardless of the redirect
+    // allow-list. Forward it to the branded /reset-password page with the hash
+    // intact so the reset flow works no matter how Supabase is configured.
     useEffect(() => {
+        const hash = window.location.hash || '';
+        const isRecovery = hash.includes('type=recovery');
+        if (isRecovery && location.pathname !== '/reset-password') {
+            navigate('/reset-password' + hash, { replace: true });
+        }
+    }, [location.pathname, navigate]);
+
+    useEffect(() => {
+        // Password-recovery session: route to the branded reset page, never the dashboard.
+        // Detected via (a) an inline-script flag captured before Supabase strips the hash,
+        // (b) the PASSWORD_RECOVERY auth event, or (c) a surviving recovery hash.
+        if (recoveryModeRef.current || (window.location.hash || '').includes('type=recovery')) {
+            recoveryModeRef.current = true;
+            if (location.pathname !== '/reset-password') {
+                navigate('/reset-password', { replace: true });
+            }
+            return;
+        }
+
         if (!authReady || !roleReady) return;
         if (!session) return;
+
+        if (location.pathname === '/reset-password') return;
 
         const path = location.pathname;
         const isAuthPage = path === '/signup' || path === '/';
