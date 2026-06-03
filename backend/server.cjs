@@ -31385,6 +31385,7 @@ const PLATFORM_GUARDRAILS = `PLATFORM COMPLIANCE RULES — ALWAYS ENFORCED — C
 5. Never guarantee loan approval, closing timelines, or specific loan terms without qualification.`;
 
 function buildLoSystemPrompt(config, listingContext = '') {
+  if (!config) return PLATFORM_GUARDRAILS;
   const parts = [PLATFORM_GUARDRAILS];
 
   if (config.compliance_rules && config.compliance_rules.trim()) {
@@ -31413,7 +31414,7 @@ function buildLoSystemPrompt(config, listingContext = '') {
 
   if (faqText) parts.push(faqText);
 
-  parts.push('Keep responses brief (2-4 sentences).');
+  parts.push('Keep responses brief (2-4 sentences). Only answer questions related to real estate financing and mortgages — politely decline off-topic requests.');
 
   return parts.join('\n\n');
 }
