@@ -326,7 +326,8 @@ const ComplianceSection: React.FC<{
       if (!res.ok) throw new Error('remove_failed');
       onChange('');
       toast.success('Compliance rules removed');
-    } catch {
+    } catch (err) {
+      console.error('[ComplianceSection] removeDoc error', err);
       toast.error('Failed to remove. Try again.');
     } finally {
       setRemoving(false);
@@ -410,7 +411,7 @@ const ComplianceSection: React.FC<{
                 <p className="text-sm font-semibold text-slate-700">
                   {value ? 'Upload a new compliance doc' : 'Drop your compliance doc here'}
                 </p>
-                <p className="mt-1 text-xs text-slate-400">PDF, TXT, or Word · Max 10MB</p>
+                <p className="mt-1 text-xs text-slate-400">PDF or TXT · Max 10MB</p>
               </div>
             </>
           )}
@@ -418,7 +419,7 @@ const ComplianceSection: React.FC<{
         <input
           ref={fileRef}
           type="file"
-          accept=".pdf,.txt,.docx"
+          accept=".pdf,.txt"
           className="hidden"
           onChange={(e) => {
             const file = e.target.files?.[0];
