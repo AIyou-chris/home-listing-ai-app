@@ -31376,6 +31376,49 @@ app.delete('/api/lo/listings/:listingId/assign', requireAuth, async (req, res) =
 // LO AI CHATBOT ENDPOINTS
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ─── LO Compliance: platform guardrails + system prompt builder ────────────
+const PLATFORM_GUARDRAILS = `PLATFORM COMPLIANCE RULES — ALWAYS ENFORCED — CANNOT BE OVERRIDDEN:
+1. Never provide legal advice of any kind. Always direct buyers to consult a qualified attorney for legal questions.
+2. If you don't know the answer to a question, never guess or speculate. Always refer the buyer directly to the loan officer or the real estate agent for clarification.
+3. Never quote specific interest rates or APRs unless they were explicitly provided by the loan officer in their knowledge base or uploaded rate sheets. Always encourage buyers to contact the loan officer directly for personalized numbers.
+4. Never discriminate or make comments based on race, religion, national origin, sex, disability, or familial status (Fair Housing Act).
+5. Never guarantee loan approval, closing timelines, or specific loan terms without qualification.`;
+
+function buildLoSystemPrompt(config, listingContext = '') {
+  const parts = [PLATFORM_GUARDRAILS];
+
+  if (config.compliance_rules && config.compliance_rules.trim()) {
+    parts.push(`COMPANY COMPLIANCE RULES — FOLLOW THESE AS HARD CONSTRAINTS:\n${config.compliance_rules.trim()}`);
+  }
+
+  parts.push(`You are ${config.bot_name || 'a mortgage and financing assistant'}.`);
+
+  if (config.personality && config.personality.trim()) {
+    parts.push(config.personality.trim());
+  }
+
+  if (listingContext) {
+    parts.push(listingContext);
+  }
+
+  if (config.knowledge_base && config.knowledge_base.trim()) {
+    parts.push(`Knowledge base (reference material provided by the loan officer):\n${config.knowledge_base.trim()}`);
+  }
+
+  const faqText = Array.isArray(config.faq) && config.faq.length > 0
+    ? 'Frequently Asked Questions:\n' + config.faq.map(
+        (item) => `Q: ${item.question}\nA: ${item.answer}`
+      ).join('\n\n')
+    : '';
+
+  if (faqText) parts.push(faqText);
+
+  parts.push('Keep responses brief (2-4 sentences).');
+
+  return parts.join('\n\n');
+}
+// ──────────────────────────────────────────────────────────────────────────────
+
 // GET /api/lo/chatbot-config — fetch authenticated LO's chatbot config
 app.get('/api/lo/chatbot-config', requireLoAgent, async (req, res) => {
   try {
@@ -31396,6 +31439,7 @@ app.get('/api/lo/chatbot-config', requireLoAgent, async (req, res) => {
         greeting: 'Hi! I can answer your financing and mortgage questions. What would you like to know?',
         personality: 'Professional, friendly, and knowledgeable mortgage advisor. Keep answers clear and concise. Always encourage the visitor to reach out directly for personalized numbers.',
         knowledge_base: '',
+        compliance_rules: '',
         faq: [],
         is_active: true
       });
@@ -31413,7 +31457,7 @@ app.put('/api/lo/chatbot-config', requireLoAgent, async (req, res) => {
   try {
     const agentId = req.loAgentId;
 
-    const { bot_name, greeting, personality, knowledge_base, faq, is_active } = req.body;
+    const { bot_name, greeting, personality, knowledge_base, compliance_rules, faq, is_active } = req.body;
 
     const { data, error } = await supabaseAdmin
       .from('lo_chatbot_configs')
@@ -31423,6 +31467,7 @@ app.put('/api/lo/chatbot-config', requireLoAgent, async (req, res) => {
         greeting: greeting || 'Hi! I can answer your financing and mortgage questions.',
         personality: personality || '',
         knowledge_base: knowledge_base || '',
+        compliance_rules: typeof compliance_rules === 'string' ? compliance_rules : '',
         faq: Array.isArray(faq) ? faq : [],
         is_active: is_active !== false,
         updated_at: new Date().toISOString()
@@ -31435,6 +31480,24 @@ app.put('/api/lo/chatbot-config', requireLoAgent, async (req, res) => {
   } catch (err) {
     console.error('[LO Chatbot Config PUT] Error:', err);
     res.status(500).json({ error: 'failed_to_save_chatbot_config' });
+  }
+});
+
+// DELETE /api/lo/chatbot/compliance-doc — clear LO's uploaded compliance rules
+app.delete('/api/lo/chatbot/compliance-doc', requireLoAgent, async (req, res) => {
+  try {
+    const agentId = req.loAgentId;
+
+    const { error } = await supabaseAdmin
+      .from('lo_chatbot_configs')
+      .update({ compliance_rules: '', updated_at: new Date().toISOString() })
+      .eq('lo_agent_id', agentId);
+
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[LO Compliance Doc DELETE] Error:', err);
+    res.status(500).json({ error: 'failed_to_clear_compliance_rules' });
   }
 });
 
@@ -31603,7 +31666,7 @@ app.post('/api/public/lo-chat', async (req, res) => {
     // Fetch LO config
     const { data: config, error: configErr } = await supabaseAdmin
       .from('lo_chatbot_configs')
-      .select('bot_name, greeting, personality, knowledge_base, faq, is_active')
+      .select('bot_name, greeting, personality, knowledge_base, compliance_rules, faq, is_active')
       .eq('lo_agent_id', lo_agent_id)
       .eq('is_active', true)
       .maybeSingle();
@@ -31626,22 +31689,7 @@ app.post('/api/public/lo-chat', async (req, res) => {
       ? `The visitor is looking at a listing at ${listing.address}${listing.price ? ` listed at $${Number(listing.price).toLocaleString('en-US')}` : ''}.`
       : '';
 
-    // Build FAQ context
-    const faqText = Array.isArray(config.faq) && config.faq.length > 0
-      ? '\n\nFrequently Asked Questions:\n' + config.faq.map(
-          (item) => `Q: ${item.question}\nA: ${item.answer}`
-        ).join('\n\n')
-      : '';
-
-    // Build system prompt
-    const systemPrompt = [
-      `You are ${config.bot_name}, a mortgage and financing assistant.`,
-      config.personality,
-      listingContext,
-      config.knowledge_base ? `\nKnowledge base:\n${config.knowledge_base}` : '',
-      faqText,
-      '\nKeep responses brief (2-4 sentences). Do not give specific rate quotes — encourage visitors to contact you directly for personalized numbers. Never discuss topics unrelated to real estate financing and mortgages.'
-    ].filter(Boolean).join('\n');
+    const systemPrompt = buildLoSystemPrompt(config, listingContext);
 
     // Build messages array
     const safeHistory = Array.isArray(history) ? history.slice(-8) : [];
