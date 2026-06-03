@@ -9,6 +9,8 @@ import { StripeLogo } from './StripeLogo';
 import { PublicHeader } from './layout/PublicHeader';
 import { PublicFooter } from './layout/PublicFooter';
 import { ConversionWedge } from './ConversionWedge';
+import { HeroMotionBg } from './HeroMotionBg';
+import { Reveal } from './Reveal';
 import { PlacementSection } from './PlacementSection';
 import { PricingSectionNew } from './PricingSectionNew';
 import { FaqSectionNew } from './FaqSectionNew';
@@ -746,6 +748,9 @@ const Hero: React.FC<{ onNavigateToSignUp: () => void, onEnterDemoMode: () => vo
             <div className="absolute top-40 -left-40 w-96 h-96 bg-cyan-600 rounded-full mix-blend-screen filter blur-[120px] opacity-20 animate-[pulse_4s_ease-in-out_infinite]"></div>
         </div>
 
+        {/* Motion tech background — particle network, scan beams, floating orbs */}
+        <HeroMotionBg />
+
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="grid lg:grid-cols-2 gap-16 items-center">
                 <div className="text-center lg:text-left relative z-10">
@@ -755,7 +760,7 @@ const Hero: React.FC<{ onNavigateToSignUp: () => void, onEnterDemoMode: () => vo
                     </div>
                     <h1 className="text-5xl sm:text-6xl lg:text-7xl font-extrabold text-white tracking-tight leading-[1.1] animate-fade-in-up">
                         AI That Delivers{' '}<br className="hidden lg:block" />
-                        <span className="bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent drop-shadow-sm">Leads &amp; Partners to Your Pipeline.</span>
+                        <span className="shimmer-text drop-shadow-sm">Leads &amp; Partners to Your Pipeline.</span>
                     </h1>
                     <div className="sr-only">HomeListingAI is an AI-powered platform for loan officers and their real estate agent partners. Give your agents AI-powered listing pages that wow buyers — and get every warm lead routed back to you. Build the agent partnerships that fill your pipeline.</div>
                     <p className="mt-8 max-w-xl mx-auto lg:mx-0 text-xl text-slate-400 animate-fade-in-up font-light leading-relaxed" style={{ animationDelay: "200ms" }}>
@@ -764,7 +769,7 @@ const Hero: React.FC<{ onNavigateToSignUp: () => void, onEnterDemoMode: () => vo
                     <div className="mt-10 animate-fade-in-up px-4 lg:px-0 flex flex-col sm:flex-row justify-center lg:justify-start gap-3" style={{ animationDelay: "400ms" }}>
                         <button
                             onClick={() => navigate('/lo-signup')}
-                            className="w-full sm:w-auto px-10 py-4 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold rounded-lg transition-all text-lg shadow-[0_0_24px_rgba(6,182,212,0.4)] flex items-center justify-center gap-2"
+                            className="w-full sm:w-auto px-10 py-4 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold rounded-lg transition-all text-lg glow-pulse hover:scale-[1.02] flex items-center justify-center gap-2"
                         >
                             Start Free — 3-Day Trial
                             <span className="material-symbols-outlined text-xl">arrow_forward</span>
@@ -1236,7 +1241,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigat
     };
 
     return (
-        <div className="bg-white font-sans">
+        <div className="bg-slate-950 font-sans">
             <SEO
                 title="HomeListingAI — Warm Leads & Agent Partnerships for Loan Officers"
                 description="Send one WOW Link. Get warm buyer leads from every agent listing — co-branded with your name and NMLS #. The LO's unfair advantage. 3-day free trial."
@@ -1265,26 +1270,26 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigat
                 <Hero onNavigateToSignUp={onNavigateToSignUp} onEnterDemoMode={onEnterDemoMode} onOpenChatBot={handleOpenChatBot} onOpenComparePlans={handleOpenComparePlans} />
 
                 <div id="demo" aria-hidden="true" />
-                <ConversionWedge onNavigateToSignUp={onNavigateToSignUp} onEnterDemoMode={onEnterDemoMode} />
+                <Reveal direction="up"><ConversionWedge onNavigateToSignUp={onNavigateToSignUp} onEnterDemoMode={onEnterDemoMode} /></Reveal>
 
-                <PlacementSection onNavigateToSignUp={onNavigateToSignUp} onEnterDemoMode={onEnterDemoMode} />
+                <Reveal direction="left"><PlacementSection onNavigateToSignUp={onNavigateToSignUp} onEnterDemoMode={onEnterDemoMode} /></Reveal>
 
-                <ProofSectionNew onNavigateToSignUp={onNavigateToSignUp} onEnterDemoMode={onEnterDemoMode} />
+                <Reveal direction="right"><ProofSectionNew onNavigateToSignUp={onNavigateToSignUp} onEnterDemoMode={onEnterDemoMode} /></Reveal>
 
-                <StatStripNew />
+                <Reveal direction="scale"><StatStripNew /></Reveal>
 
-                <LeadMachineSection />
+                <Reveal direction="up"><LeadMachineSection /></Reveal>
 
-                <TrustComplianceSection />
+                <Reveal direction="fade"><TrustComplianceSection /></Reveal>
 
-                <PricingSectionNew onNavigateToSignUp={onNavigateToSignUp} onEnterDemoMode={onEnterDemoMode} onOpenComparePlans={handleOpenComparePlans} />
+                <Reveal direction="up"><PricingSectionNew onNavigateToSignUp={onNavigateToSignUp} onEnterDemoMode={onEnterDemoMode} onOpenComparePlans={handleOpenComparePlans} /></Reveal>
 
                 <div id="contact" aria-hidden="true" />
-                <TeamsCTASection onOpenContact={handleOpenContact} />
+                <Reveal direction="scale"><TeamsCTASection onOpenContact={handleOpenContact} /></Reveal>
 
-                <FaqSectionNew onNavigateToSignUp={onNavigateToSignUp} onEnterDemoMode={onEnterDemoMode} />
+                <Reveal direction="up"><FaqSectionNew onNavigateToSignUp={onNavigateToSignUp} onEnterDemoMode={onEnterDemoMode} /></Reveal>
 
-                <FinalCtaNew onNavigateToSignUp={onNavigateToSignUp} onEnterDemoMode={onEnterDemoMode} />
+                <Reveal direction="scale"><FinalCtaNew onNavigateToSignUp={onNavigateToSignUp} onEnterDemoMode={onEnterDemoMode} /></Reveal>
 
                 {/* Compliance Trust Strip */}
                 <div className="bg-[#02050D] border-t border-slate-900 py-10">
