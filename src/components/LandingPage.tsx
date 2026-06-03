@@ -1170,6 +1170,94 @@ const TrustComplianceSection: React.FC = () => (
     </section>
 );
 
+// ─── Compliance Guardrails Section (LO upload + locked platform rules) ─────────
+const COMPLIANCE_GUARDRAILS = [
+    'Never gives legal advice',
+    'Never guesses — defers to you or the agent',
+    'No rate quotes unless you provide them',
+    'Fair Housing Act enforced',
+    'Never guarantees approval or terms',
+];
+
+const ComplianceGuardrailsSection: React.FC<{ onNavigateToSignUp: () => void }> = ({ onNavigateToSignUp }) => (
+    <section id="compliance" className="relative py-20 lg:py-28 bg-[#02050D] overflow-hidden border-t border-slate-900">
+        <div className="absolute top-1/3 left-1/4 w-[520px] h-[520px] bg-emerald-900/10 rounded-full blur-[130px] pointer-events-none -translate-y-1/2" />
+        <div className="absolute bottom-0 right-1/4 w-[460px] h-[460px] bg-cyan-900/8 rounded-full blur-[130px] pointer-events-none" />
+        <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 z-10">
+            <div className="text-center mb-14">
+                <p className="text-emerald-400 font-bold tracking-widest text-sm uppercase mb-3">Built for Compliance Teams</p>
+                <h2 className="text-3xl md:text-5xl font-bold text-white tracking-tight mb-5">
+                    Your AI follows <span className="text-emerald-400">your</span> rules. Every time.
+                </h2>
+                <p className="text-lg text-slate-400 max-w-2xl mx-auto leading-relaxed">
+                    Platform guardrails are always on and can&apos;t be switched off. Upload your company&apos;s compliance
+                    guidelines and the AI enforces them in every chat and every piece of content it writes.
+                </p>
+            </div>
+
+            <div className="grid lg:grid-cols-2 gap-6 items-stretch">
+                {/* Left — locked platform guardrails */}
+                <div className="bg-[#0B1121] border border-slate-800 rounded-3xl p-7 sm:p-8">
+                    <div className="flex items-center gap-2.5 mb-6">
+                        <span className="material-symbols-outlined text-emerald-400 text-xl">verified_user</span>
+                        <span className="text-white font-bold">Platform Guardrails</span>
+                        <span className="ml-auto rounded-full bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-emerald-400">Always On</span>
+                    </div>
+                    <div className="space-y-3">
+                        {COMPLIANCE_GUARDRAILS.map((rule, i) => (
+                            <div key={i} className="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-900/40 px-4 py-3">
+                                <span className="material-symbols-outlined text-emerald-400/70 text-base flex-shrink-0">lock</span>
+                                <p className="text-sm text-slate-200">{rule}</p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Right — upload your own */}
+                <div className="bg-gradient-to-br from-[#0B1121] to-[#0A1A18] border border-emerald-900/40 rounded-3xl p-7 sm:p-8 flex flex-col">
+                    <div className="flex items-center gap-2.5 mb-6">
+                        <span className="material-symbols-outlined text-cyan-400 text-xl">upload_file</span>
+                        <span className="text-white font-bold">Your Company&apos;s Rules</span>
+                        <span className="ml-auto rounded-full bg-cyan-500/10 border border-cyan-500/30 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-cyan-400">Your Upload</span>
+                    </div>
+
+                    <div className="flex-1 flex flex-col items-center justify-center text-center rounded-2xl border-2 border-dashed border-slate-700/70 bg-slate-900/30 py-10 px-6 mb-6">
+                        <span className="material-symbols-outlined text-slate-500 text-4xl mb-3">description</span>
+                        <p className="text-white font-semibold">Drop in your compliance doc</p>
+                        <p className="text-sm text-slate-400 mt-1">Get it from your compliance officer — PDF or TXT</p>
+                    </div>
+
+                    <div className="space-y-3">
+                        <div className="flex items-start gap-3">
+                            <span className="material-symbols-outlined text-emerald-400 text-base mt-0.5">check_circle</span>
+                            <p className="text-sm text-slate-300">Enforced in every buyer chat on your listings</p>
+                        </div>
+                        <div className="flex items-start gap-3">
+                            <span className="material-symbols-outlined text-emerald-400 text-base mt-0.5">check_circle</span>
+                            <p className="text-sm text-slate-300">Applied to every piece of marketing the AI writes</p>
+                        </div>
+                        <div className="flex items-start gap-3">
+                            <span className="material-symbols-outlined text-emerald-400 text-base mt-0.5">check_circle</span>
+                            <p className="text-sm text-slate-300">Upload once — it just works, everywhere</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div className="text-center mt-12">
+                <button
+                    onClick={onNavigateToSignUp}
+                    className="inline-flex items-center gap-2 px-9 py-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl transition-all text-lg shadow-[0_0_30px_rgba(16,185,129,0.2)] hover:scale-[1.02]"
+                >
+                    Start Free — 3-Day Trial
+                    <span className="material-symbols-outlined text-xl">arrow_forward</span>
+                </button>
+                <p className="text-xs text-slate-600 mt-4">Not legal advice. You and your compliance team remain responsible for final review.</p>
+            </div>
+        </div>
+    </section>
+);
+
 // ─── Teams CTA Section ─────────────────────────────────────────────────────────
 const TeamsCTASection: React.FC<{ onOpenContact: () => void }> = ({ onOpenContact }) => (
     <section className="relative py-16 bg-[#02050D] border-t border-slate-900 overflow-hidden">
@@ -1281,6 +1369,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigat
                 <Reveal direction="up"><LeadMachineSection /></Reveal>
 
                 <Reveal direction="fade"><TrustComplianceSection /></Reveal>
+
+                <Reveal direction="up"><ComplianceGuardrailsSection onNavigateToSignUp={onNavigateToSignUp} /></Reveal>
 
                 <Reveal direction="up"><PricingSectionNew onNavigateToSignUp={onNavigateToSignUp} onEnterDemoMode={onEnterDemoMode} onOpenComparePlans={handleOpenComparePlans} /></Reveal>
 
