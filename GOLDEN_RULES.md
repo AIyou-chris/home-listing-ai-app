@@ -34,6 +34,16 @@ LOs are on their phones, in between calls, at open houses. Agents are the same. 
 - Speed of setup matters: an LO should be able to onboard a new agent in under 2 minutes
 - Beautiful > feature-rich. A thing that looks incredible and does 3 things well beats a thing that does 12 things badly
 
+### 4. 🛡️ Be Compliant by Default
+The AI never puts an LO's license or their company's reputation at risk.
+Hard-coded platform rules are always active and cannot be removed by any user.
+LOs can layer their own company's compliance guidelines on top — uploaded once, enforced everywhere the AI speaks or writes on their behalf.
+
+- If a prompt doesn't enforce compliance rules first → it doesn't ship
+- Platform guardrails cover: no legal advice, no rate guarantees, Fair Housing, no guessing
+- Company-specific rules sit above the knowledge base in every system prompt — they are constraints, not suggestions
+- Compliance upload is the unlock that lets us sell to banks, credit unions, and enterprise brokers
+
 ---
 
 ## What This App Actually Solves
