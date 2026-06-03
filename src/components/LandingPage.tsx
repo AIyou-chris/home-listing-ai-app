@@ -760,7 +760,7 @@ const Hero: React.FC<{ onNavigateToSignUp: () => void, onEnterDemoMode: () => vo
                     </div>
                     <h1 className="text-5xl sm:text-6xl lg:text-7xl font-extrabold text-white tracking-tight leading-[1.1] animate-fade-in-up">
                         AI That Delivers{' '}<br className="hidden lg:block" />
-                        <span className="shimmer-text drop-shadow-sm">Leads &amp; Partners to Your Pipeline.</span>
+                        <span className="drop-shadow-sm">Leads &amp; <span className="text-cyan-400">Partners</span> to Your <span className="text-cyan-400">Pipeline</span>.</span>
                     </h1>
                     <div className="sr-only">HomeListingAI is an AI-powered platform for loan officers and their real estate agent partners. Give your agents AI-powered listing pages that wow buyers — and get every warm lead routed back to you. Build the agent partnerships that fill your pipeline.</div>
                     <p className="mt-8 max-w-xl mx-auto lg:mx-0 text-xl text-slate-400 animate-fade-in-up font-light leading-relaxed" style={{ animationDelay: "200ms" }}>
