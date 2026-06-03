@@ -1,3 +1,49 @@
+# HomeListingAI — robots.txt
+# Default: allow all standard search crawlers
 User-agent: *
 Allow: /
+
+# ── AI answer engines & training crawlers (explicitly allowed) ──
+# Allowing these lets HomeListingAI be cited in AI-generated answers.
+
+# OpenAI (ChatGPT, search)
+User-agent: GPTBot
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+# Anthropic (Claude)
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: Claude-Web
+Allow: /
+
+# Perplexity
+User-agent: PerplexityBot
+Allow: /
+
+# Google (Gemini / AI Overviews training)
+User-agent: Google-Extended
+Allow: /
+
+# Common Crawl (feeds many AI training sets)
+User-agent: CCBot
+Allow: /
+
+# Apple Intelligence
+User-agent: Applebot-Extended
+Allow: /
+
+# Microsoft Copilot / Bing
+User-agent: bingbot
+Allow: /
+
 Sitemap: https://homelistingai.com/sitemap.xml
