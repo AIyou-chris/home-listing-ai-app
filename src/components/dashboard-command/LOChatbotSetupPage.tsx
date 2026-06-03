@@ -24,6 +24,7 @@ interface ChatbotConfig {
   greeting: string;
   personality: string;
   knowledge_base: string;
+  compliance_rules: string;
   faq: FaqItem[];
   is_active: boolean;
 }
@@ -270,6 +271,165 @@ const KnowledgeBaseSection: React.FC<{
   );
 };
 
+// ─── Compliance Section ───────────────────────────────────────────────────────
+
+const PLATFORM_RULES = [
+  "Never provide legal advice of any kind. Always direct buyers to consult a qualified attorney for legal questions.",
+  "If you don't know the answer to a question, never guess or speculate. Always refer the buyer directly to the loan officer or the real estate agent for clarification.",
+  "Never quote specific interest rates or APRs unless they were provided by the loan officer in their knowledge base or uploaded rate sheets. Always encourage buyers to contact the loan officer directly for personalized numbers.",
+  "Never discriminate or make comments based on race, religion, national origin, sex, disability, or familial status (Fair Housing Act).",
+  "Never guarantee loan approval, closing timelines, or specific loan terms without qualification.",
+];
+
+const ComplianceSection: React.FC<{
+  value: string;
+  onChange: (text: string) => void;
+  getHeaders: () => Promise<HeadersInit>;
+}> = ({ value, onChange, getHeaders }) => {
+  const [uploading, setUploading] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const uploadComplianceFile = async (file: File) => {
+    setUploading(true);
+    try {
+      const headers = await getHeaders();
+      const headerEntries = Object.entries(headers as Record<string, string>).filter(([k]) => k.toLowerCase() !== 'content-type');
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch(buildApiUrl('/api/lo/chatbot/extract-file'), {
+        method: 'POST',
+        headers: Object.fromEntries(headerEntries),
+        body: formData
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to extract file');
+      onChange(data.text);
+      toast.success('Compliance rules uploaded and active');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Could not read that file');
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  };
+
+  const removeDoc = async () => {
+    if (!window.confirm('Remove your uploaded compliance rules? Platform guardrails will still apply.')) return;
+    setRemoving(true);
+    try {
+      const headers = await getHeaders();
+      const res = await fetch(buildApiUrl('/api/lo/chatbot/compliance-doc'), {
+        method: 'DELETE',
+        headers
+      });
+      if (!res.ok) throw new Error('remove_failed');
+      onChange('');
+      toast.success('Compliance rules removed');
+    } catch {
+      toast.error('Failed to remove. Try again.');
+    } finally {
+      setRemoving(false);
+    }
+  };
+
+  return (
+    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <h2 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-slate-500">
+        <span className="material-symbols-outlined text-base text-red-500">shield_lock</span>
+        Compliance Rules
+      </h2>
+
+      {/* Platform guardrails — locked */}
+      <div className="mb-5">
+        <div className="mb-2 flex items-center gap-2">
+          <span className="text-xs font-semibold text-slate-700">Platform Guardrails</span>
+          <span className="rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide bg-red-100 text-red-700">Always On · Cannot Be Removed</span>
+        </div>
+        <div className="space-y-2">
+          {PLATFORM_RULES.map((rule, i) => (
+            <div key={i} className="flex items-start gap-3 rounded-lg border-l-4 border-red-300 bg-slate-50 px-4 py-2.5">
+              <span className="material-symbols-outlined mt-0.5 flex-shrink-0 text-sm text-red-400">lock</span>
+              <p className="text-xs text-slate-700">{rule}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <hr className="mb-5 border-slate-100" />
+
+      {/* Company compliance upload */}
+      <div>
+        <div className="mb-1 flex items-center gap-2">
+          <span className="text-xs font-semibold text-slate-700">Your Company's Compliance Rules</span>
+          <span className="rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide bg-amber-100 text-amber-700">Optional</span>
+        </div>
+        <p className="mb-3 text-xs text-slate-400">
+          Get a compliance doc from your compliance officer. Upload it here and the AI will follow those rules in every response and piece of content it generates.
+        </p>
+
+        {value ? (
+          <div className="mb-3 flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <span className="material-symbols-outlined flex-shrink-0 text-2xl text-red-400">picture_as_pdf</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-slate-900">Compliance rules active</p>
+              <p className="text-xs text-slate-500">{value.length.toLocaleString()} characters · Applied to all AI responses</p>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-green-400" />
+              <button
+                onClick={() => void removeDoc()}
+                disabled={removing}
+                className="text-xs text-slate-400 transition hover:text-red-500 disabled:opacity-50"
+              >
+                {removing ? 'Removing...' : 'Remove'}
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        <div
+          onClick={() => fileRef.current?.click()}
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => {
+            e.preventDefault();
+            const file = e.dataTransfer.files[0];
+            if (file) void uploadComplianceFile(file);
+          }}
+          className="flex cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 px-6 py-8 transition hover:border-primary-400 hover:bg-primary-50"
+        >
+          {uploading ? (
+            <>
+              <span className="material-symbols-outlined animate-spin text-3xl text-primary-500">progress_activity</span>
+              <p className="text-sm font-medium text-slate-600">Extracting compliance rules...</p>
+            </>
+          ) : (
+            <>
+              <span className="material-symbols-outlined text-3xl text-slate-400">upload_file</span>
+              <div className="text-center">
+                <p className="text-sm font-semibold text-slate-700">
+                  {value ? 'Upload a new compliance doc' : 'Drop your compliance doc here'}
+                </p>
+                <p className="mt-1 text-xs text-slate-400">PDF, TXT, or Word · Max 10MB</p>
+              </div>
+            </>
+          )}
+        </div>
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".pdf,.txt,.docx"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) void uploadComplianceFile(file);
+          }}
+        />
+      </div>
+    </section>
+  );
+};
+
 // ─── Preview ─────────────────────────────────────────────────────────────────
 
 const BotPreview: React.FC<{ config: ChatbotConfig }> = ({ config }) => {
@@ -370,11 +530,13 @@ const LOChatbotSetupPage: React.FC = () => {
     greeting: '',
     personality: '',
     knowledge_base: '',
+    compliance_rules: '',
     faq: [],
     is_active: true
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [activeTab, setActiveTab] = useState<'identity' | 'knowledge' | 'compliance' | 'faq'>('identity');
 
   // ── Load existing config ──────────────────────────────────────────────────
   useEffect(() => {
@@ -389,6 +551,7 @@ const LOChatbotSetupPage: React.FC = () => {
             greeting: data.greeting || '',
             personality: data.personality || '',
             knowledge_base: data.knowledge_base || '',
+            compliance_rules: data.compliance_rules || '',
             faq: Array.isArray(data.faq) ? data.faq.map((f: Omit<FaqItem, 'id'> & { id?: string }) => ({
               ...f,
               id: f.id || crypto.randomUUID()
@@ -488,113 +651,155 @@ const LOChatbotSetupPage: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
-        {/* Left: Config */}
-        <div className="space-y-6">
-
-          {/* Bot Identity */}
-          <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-slate-500">
-              <span className="material-symbols-outlined text-base text-emerald-500">smart_toy</span>
-              Bot Identity
-            </h2>
-            <div className="space-y-4">
-              <div>
-                <label className="mb-1.5 block text-xs font-semibold text-slate-600">Bot Name</label>
-                <input
-                  value={config.bot_name}
-                  onChange={(e) => setConfig((c) => ({ ...c, bot_name: e.target.value }))}
-                  placeholder="e.g. Jake's Financing Assistant"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-primary-400 focus:ring-1 focus:ring-primary-100"
-                />
-              </div>
-              <div>
-                <label className="mb-1.5 block text-xs font-semibold text-slate-600">Opening Greeting</label>
-                <textarea
-                  value={config.greeting}
-                  onChange={(e) => setConfig((c) => ({ ...c, greeting: e.target.value }))}
-                  placeholder="Hi! I can answer your mortgage and financing questions..."
-                  rows={3}
-                  className="w-full resize-none rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-primary-400 focus:ring-1 focus:ring-primary-100"
-                />
-                <p className="mt-1 text-xs text-slate-400">This is the first message visitors see when they open the chat.</p>
-              </div>
-            </div>
-          </section>
-
-          {/* Personality */}
-          <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-slate-500">
-              <span className="material-symbols-outlined text-base text-emerald-500">psychology</span>
-              Personality & Tone
-            </h2>
-            <textarea
-              value={config.personality}
-              onChange={(e) => setConfig((c) => ({ ...c, personality: e.target.value }))}
-              placeholder="Professional and friendly mortgage advisor. Use simple language. Always encourage visitors to reach out directly for personalized rates..."
-              rows={4}
-              className="w-full resize-none rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-primary-400 focus:ring-1 focus:ring-primary-100"
-            />
-            <p className="mt-1 text-xs text-slate-400">Describe how you want the bot to communicate. This shapes every reply.</p>
-          </section>
-
-          {/* Knowledge Base */}
-          <KnowledgeBaseSection
-            value={config.knowledge_base}
-            onChange={(text) => setConfig((c) => ({ ...c, knowledge_base: text }))}
-            getHeaders={getApiHeaders}
-          />
-
-          {/* FAQ */}
-          <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-slate-500">
-                <span className="material-symbols-outlined text-base text-emerald-500">quiz</span>
-                FAQ Pairs
-              </h2>
+        {/* Left: Config with tabs */}
+        <div>
+          {/* Tab nav */}
+          <div className="mb-5 flex gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1">
+            {(
+              [
+                { id: 'identity', label: 'Identity & Tone', icon: 'smart_toy' },
+                { id: 'knowledge', label: 'Knowledge Base', icon: 'library_books' },
+                { id: 'compliance', label: 'Compliance', icon: 'shield_lock' },
+                { id: 'faq', label: 'FAQ', icon: 'quiz' },
+              ] as const
+            ).map((tab) => (
               <button
-                onClick={addFaq}
-                className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-semibold transition ${
+                  activeTab === tab.id
+                    ? 'bg-white text-slate-900 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
               >
-                <span className="material-symbols-outlined text-sm">add</span>
-                Add Question
+                <span className="material-symbols-outlined text-sm">{tab.icon}</span>
+                <span className="hidden sm:inline">{tab.label}</span>
               </button>
-            </div>
+            ))}
+          </div>
 
-            {config.faq.length === 0 && (
-              <p className="rounded-lg border border-dashed border-slate-200 py-6 text-center text-xs text-slate-400">
-                No FAQ pairs yet. Add common financing questions visitors ask.
-              </p>
+          <div className="space-y-6">
+            {/* Identity & Tone tab */}
+            {activeTab === 'identity' && (
+              <>
+                <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <h2 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-slate-500">
+                    <span className="material-symbols-outlined text-base text-emerald-500">smart_toy</span>
+                    Bot Identity
+                  </h2>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="mb-1.5 block text-xs font-semibold text-slate-600">Bot Name</label>
+                      <input
+                        value={config.bot_name}
+                        onChange={(e) => setConfig((c) => ({ ...c, bot_name: e.target.value }))}
+                        placeholder="e.g. Jake's Financing Assistant"
+                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-primary-400 focus:ring-1 focus:ring-primary-100"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-xs font-semibold text-slate-600">Opening Greeting</label>
+                      <textarea
+                        value={config.greeting}
+                        onChange={(e) => setConfig((c) => ({ ...c, greeting: e.target.value }))}
+                        placeholder="Hi! I can answer your mortgage and financing questions..."
+                        rows={3}
+                        className="w-full resize-none rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-primary-400 focus:ring-1 focus:ring-primary-100"
+                      />
+                      <p className="mt-1 text-xs text-slate-400">This is the first message visitors see when they open the chat.</p>
+                    </div>
+                  </div>
+                </section>
+
+                <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <h2 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-slate-500">
+                    <span className="material-symbols-outlined text-base text-emerald-500">psychology</span>
+                    Personality & Tone
+                  </h2>
+                  <textarea
+                    value={config.personality}
+                    onChange={(e) => setConfig((c) => ({ ...c, personality: e.target.value }))}
+                    placeholder="Professional and friendly mortgage advisor. Use simple language. Always encourage visitors to reach out directly for personalized rates..."
+                    rows={4}
+                    className="w-full resize-none rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-primary-400 focus:ring-1 focus:ring-primary-100"
+                  />
+                  <p className="mt-1 text-xs text-slate-400">Describe how you want the bot to communicate. This shapes every reply.</p>
+                </section>
+              </>
             )}
 
-            <div className="space-y-4">
-              {config.faq.map((item) => (
-                <div key={item.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                  <div className="mb-2 flex items-center justify-between">
-                    <span className="text-xs font-semibold text-slate-500">Q&A Pair</span>
-                    <button
-                      onClick={() => removeFaq(item.id)}
-                      className="rounded p-0.5 text-slate-400 transition hover:bg-slate-200 hover:text-rose-500"
-                    >
-                      <span className="material-symbols-outlined text-sm">delete</span>
-                    </button>
-                  </div>
-                  <input
-                    value={item.question}
-                    onChange={(e) => updateFaq(item.id, 'question', e.target.value)}
-                    placeholder="Question (e.g. What's the minimum down payment?)"
-                    className="mb-2 w-full rounded border border-slate-200 bg-white px-3 py-1.5 text-xs outline-none transition focus:border-primary-400"
-                  />
-                  <textarea
-                    value={item.answer}
-                    onChange={(e) => updateFaq(item.id, 'answer', e.target.value)}
-                    placeholder="Answer..."
-                    rows={2}
-                    className="w-full resize-none rounded border border-slate-200 bg-white px-3 py-1.5 text-xs outline-none transition focus:border-primary-400"
-                  />
+            {/* Knowledge Base tab */}
+            {activeTab === 'knowledge' && (
+              <KnowledgeBaseSection
+                value={config.knowledge_base}
+                onChange={(text) => setConfig((c) => ({ ...c, knowledge_base: text }))}
+                getHeaders={getApiHeaders}
+              />
+            )}
+
+            {/* Compliance tab */}
+            {activeTab === 'compliance' && (
+              <ComplianceSection
+                value={config.compliance_rules}
+                onChange={(text) => setConfig((c) => ({ ...c, compliance_rules: text }))}
+                getHeaders={getApiHeaders}
+              />
+            )}
+
+            {/* FAQ tab */}
+            {activeTab === 'faq' && (
+              <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="mb-4 flex items-center justify-between">
+                  <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-slate-500">
+                    <span className="material-symbols-outlined text-base text-emerald-500">quiz</span>
+                    FAQ Pairs
+                  </h2>
+                  <button
+                    onClick={addFaq}
+                    className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                  >
+                    <span className="material-symbols-outlined text-sm">add</span>
+                    Add Question
+                  </button>
                 </div>
-              ))}
-            </div>
-          </section>
+
+                {config.faq.length === 0 && (
+                  <p className="rounded-lg border border-dashed border-slate-200 py-6 text-center text-xs text-slate-400">
+                    No FAQ pairs yet. Add common financing questions visitors ask.
+                  </p>
+                )}
+
+                <div className="space-y-4">
+                  {config.faq.map((item) => (
+                    <div key={item.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                      <div className="mb-2 flex items-center justify-between">
+                        <span className="text-xs font-semibold text-slate-500">Q&A Pair</span>
+                        <button
+                          onClick={() => removeFaq(item.id)}
+                          className="rounded p-0.5 text-slate-400 transition hover:bg-slate-200 hover:text-rose-500"
+                        >
+                          <span className="material-symbols-outlined text-sm">delete</span>
+                        </button>
+                      </div>
+                      <input
+                        value={item.question}
+                        onChange={(e) => updateFaq(item.id, 'question', e.target.value)}
+                        placeholder="Question (e.g. What's the minimum down payment?)"
+                        className="mb-2 w-full rounded border border-slate-200 bg-white px-3 py-1.5 text-xs outline-none transition focus:border-primary-400"
+                      />
+                      <textarea
+                        value={item.answer}
+                        onChange={(e) => updateFaq(item.id, 'answer', e.target.value)}
+                        placeholder="Answer..."
+                        rows={2}
+                        className="w-full resize-none rounded border border-slate-200 bg-white px-3 py-1.5 text-xs outline-none transition focus:border-primary-400"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+          </div>
         </div>
 
         {/* Right: Preview */}
@@ -607,7 +812,7 @@ const LOChatbotSetupPage: React.FC = () => {
             </span>
           </div>
           <BotPreview config={config} />
-          <p className="mt-3 text-xs text-slate-400 text-center">
+          <p className="mt-3 text-center text-xs text-slate-400">
             Preview uses FAQ matching only. Live bot uses OpenAI with your full knowledge base.
           </p>
         </div>
