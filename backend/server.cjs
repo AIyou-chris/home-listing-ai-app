@@ -419,7 +419,11 @@ app.get('/healthz', (_req, res) => {
 });
 
 // Lock the entire admin surface behind admin auth by default.
-app.use('/api/admin', (req, res, next) => verifyAdmin(req, res, next));
+// Exception: /api/admin/setup creates the FIRST admin (no admin exists yet to authorize it).
+app.use('/api/admin', (req, res, next) => {
+  if (req.path === '/setup') return next();
+  return verifyAdmin(req, res, next);
+});
 
 // ── #18 White Label: tenant resolution middleware ─────────────────────────────
 // Reads req.hostname, matches to an office account's custom_domain, attaches
@@ -32776,7 +32780,7 @@ app.post('/api/admin/blog/ping', verifyAdmin, async (req, res) => {
   }
 });
 
-app.post('/api/admin/setup', verifyAdmin, async (req, res) => {
+app.post('/api/admin/setup', async (req, res) => {
   try {
     const { email, password } = req.body;
 
@@ -32786,6 +32790,15 @@ app.post('/api/admin/setup', verifyAdmin, async (req, res) => {
 
     if (!supabaseAdmin || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
       return res.status(503).json({ error: 'Server not configured for admin operations (missing key)' });
+    }
+
+    // Guard: only allow if no admin users exist yet, or ADMIN_SETUP_TOKEN matches
+    const setupToken = process.env.ADMIN_SETUP_TOKEN;
+    const providedToken = req.headers['x-setup-token'] || req.body.setupToken;
+    const { count } = await supabaseAdmin.from('admin_users').select('*', { count: 'exact', head: true });
+    const hasExistingAdmin = count && count > 0;
+    if (hasExistingAdmin && (!setupToken || providedToken !== setupToken)) {
+      return res.status(403).json({ error: 'Admin already configured. Provide setup token to add another.' });
     }
 
     // 1. Create the user in Supabase Auth
