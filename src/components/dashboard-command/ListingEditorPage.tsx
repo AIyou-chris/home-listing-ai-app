@@ -653,6 +653,10 @@ const ListingEditorPage: React.FC = () => {
   // ── Viewer role ───────────────────────────────────────────────────────────────
   // 'owner' = listing agent (full edit), 'lo' = assigned LO (read + LO Brain edit)
   const [viewerRole, setViewerRole] = useState<'owner' | 'lo'>('owner')
+  // Whether the signed-in user is a loan officer (account_type 'lo'). Used to route the
+  // "Back" button to the LO listings page even for listings the LO owns (viewerRole 'owner').
+  const isLoUser = typeof window !== 'undefined' && localStorage.getItem('hla_account_type') === 'lo'
+  const backToListings = (viewerRole === 'lo' || isLoUser) ? '/lo-listings' : '/listings'
   // For LO view: the listing agent's profile (to show in People tab)
   const [listingAgentProfile, setListingAgentProfile] = useState<{
     first_name?: string; last_name?: string; email?: string; phone?: string;
@@ -1302,13 +1306,13 @@ const ListingEditorPage: React.FC = () => {
           <div className="min-w-0 space-y-1">
             <button
               type="button"
-              onClick={() => navigate(viewerRole === 'lo' ? buildListingPath('/lo-listings') : buildListingPath('/listings'))}
+              onClick={() => navigate(buildListingPath(backToListings))}
               className="flex items-center gap-1 text-xs font-semibold text-slate-500 transition hover:text-slate-800"
             >
               <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
               </svg>
-              {viewerRole === 'lo' ? 'Back to My Listings' : 'Back to Listings'}
+              {(viewerRole === 'lo' || isLoUser) ? 'Back to My Listings' : 'Back to Listings'}
             </button>
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="truncate text-lg font-bold text-slate-900">{listingLabel}</h1>
