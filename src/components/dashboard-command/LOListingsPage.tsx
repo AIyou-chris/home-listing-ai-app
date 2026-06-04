@@ -4,6 +4,7 @@ import { buildApiUrl } from '../../lib/api';
 import { supabase } from '../../services/supabase';
 import { showToast } from '../../utils/toastService';
 import { useDemoMode } from '../../demo/useDemoMode';
+import { createListingDraft } from '../../services/listingBuilderService';
 
 // ─── Branding toggle types ────────────────────────────────────────────────────
 
@@ -240,11 +241,12 @@ const ListingCard: React.FC<ListingCardProps> = ({ listing, mode, onRemove, onAd
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 const LOListingsPage: React.FC = () => {
-  const _navigate = useNavigate();
+  const navigate = useNavigate();
   const demoMode = useDemoMode();
 
   const [assigned, setAssigned] = useState<Listing[]>([]);
   const [loadingAssigned, setLoadingAssigned] = useState(true);
+  const [creating, setCreating] = useState(false);
 
   const [query, setQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Listing[]>([]);
@@ -336,6 +338,37 @@ const LOListingsPage: React.FC = () => {
     }
   };
 
+  // Build your own listing — reuses the EXACT same builder backend agents use
+  // (createListingDraft → POST /api/dashboard/listings, which inserts into `properties`).
+  // Then auto-assign the LO so the listing is co-branded to them and shows under
+  // "Listings I'm on", and open the shared ListingEditorPage builder.
+  const handleBuildListing = async () => {
+    if (demoMode) {
+      showToast.success("Demo mode — the listing builder is disabled in the demo.");
+      return;
+    }
+    setCreating(true);
+    try {
+      const payload = await createListingDraft({ status: 'draft', address: 'New Listing' });
+      const newId = payload.listing?.id;
+      if (!newId) throw new Error('no_listing_id');
+
+      // Co-brand the LO onto their own new listing (best-effort — the builder still opens).
+      try {
+        const headers = await getApiHeaders();
+        await fetch(buildApiUrl(`/api/lo/listings/${newId}/assign`), { method: 'POST', headers });
+      } catch {
+        // assignment is best-effort; LO can still build and we can assign later
+      }
+
+      navigate(`/dashboard/listings/${newId}/edit`);
+    } catch {
+      showToast.error('Could not start a new listing. Please try again.');
+    } finally {
+      setCreating(false);
+    }
+  };
+
   const handleRemove = async (listingId: string) => {
     if (demoMode) {
       setAssigned((prev) => prev.filter((l) => l.id !== listingId));
@@ -370,10 +403,30 @@ const LOListingsPage: React.FC = () => {
         </p>
       </div>
 
+      {/* Build your own listing — same builder agents use, co-branded to you */}
+      <div className="rounded-2xl border border-primary-200 bg-primary-50/60 p-6 shadow-sm">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-base font-semibold text-slate-800">Build a listing</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Create your own listing from scratch — the full builder, co-branded to you automatically.
+            </p>
+          </div>
+          <button
+            onClick={() => void handleBuildListing()}
+            disabled={creating}
+            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-700 disabled:opacity-60"
+          >
+            <span className="material-symbols-outlined text-lg">{creating ? 'progress_activity' : 'add_home_work'}</span>
+            {creating ? 'Starting…' : 'Build a Listing'}
+          </button>
+        </div>
+      </div>
+
       {/* Find a listing */}
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 className="mb-1 text-base font-semibold text-slate-800">Find a listing</h2>
-        <p className="mb-4 text-sm text-slate-500">Search by address or city to find a property to co-brand.</p>
+        <p className="mb-4 text-sm text-slate-500">Or search by address or city to co-brand an existing agent's listing.</p>
         <div className="relative">
           <input
             type="text"
