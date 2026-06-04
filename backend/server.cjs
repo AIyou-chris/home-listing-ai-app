@@ -21869,6 +21869,43 @@ app.post('/api/dashboard/listings', async (req, res) => {
       .single();
     if (insertError) throw insertError;
 
+    // Partnership auto-link: if the creating agent has active LO partner(s), auto-co-brand
+    // the new listing to them so it flows into the partner LO's dashboard automatically.
+    // Best-effort — never fails the listing create. (LO-created listings have no agent-side
+    // partnership row, so this is a no-op for them; their own Build flow self-assigns.)
+    try {
+      const { data: creatorProfile } = await supabaseAdmin
+        .from('agents')
+        .select('id')
+        .or(`id.eq.${agentId},auth_user_id.eq.${agentId}`)
+        .limit(1)
+        .maybeSingle();
+      if (creatorProfile?.id) {
+        const { data: partners } = await supabaseAdmin
+          .from('lo_agent_partnerships')
+          .select('lo_agent_id')
+          .eq('agent_id', creatorProfile.id)
+          .eq('status', 'active');
+        if (Array.isArray(partners) && partners.length > 0) {
+          const assignmentRows = partners
+            .filter((p) => p.lo_agent_id)
+            .map((p) => ({
+              listing_id: listingRow.id,
+              lo_agent_id: p.lo_agent_id,
+              branding_enabled: true,
+              assigned_at: nowIso()
+            }));
+          if (assignmentRows.length > 0) {
+            await supabaseAdmin
+              .from('listing_lo_assignments')
+              .upsert(assignmentRows, { onConflict: 'listing_id,lo_agent_id' });
+          }
+        }
+      }
+    } catch (linkErr) {
+      console.warn('[Dashboard] Partner LO auto-link skipped:', linkErr?.message || linkErr);
+    }
+
     emitListingRealtimeEvent({
       type: 'listing.updated',
       listingRow
