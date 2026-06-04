@@ -30434,8 +30434,9 @@ const resolveLoWowInviteLimit = async (loAgent) => {
   const LO_PRICE_ID = process.env.STRIPE_LO_PRICE_ID;
   const LO_PRO_PRICE_ID = process.env.STRIPE_LO_PRO_PRICE_ID;
 
-  // 3-day free trial — full access while trial is active
-  if (loAgent?.payment_status === 'trialing' && loAgent?.created_at) {
+  // 3-day free trial — full access while trial is active.
+  // NOTE: the agents.payment_status check constraint uses 'trial' (not 'trialing').
+  if (loAgent?.payment_status === 'trial' && loAgent?.created_at) {
     const trialEnd = new Date(loAgent.created_at);
     trialEnd.setDate(trialEnd.getDate() + 3);
     if (new Date() < trialEnd) return Infinity; // still in trial
@@ -30462,7 +30463,13 @@ const resolveLoWowInviteLimit = async (loAgent) => {
 // ── LO Partners — Magic Link Invite System ────────────────────────────────────
 app.post('/api/lo/partners/invite', requireAuth, async (req, res) => {
   try {
-    const loAgentId = req.authUserId;
+    // agent_invites.lo_agent_id stores the AUTH id; agents/listing_lo_assignments use the
+    // agents.id PROFILE id (resolveLoAgentId). Define both explicitly to avoid the prior
+    // ReferenceError on loProfileId/loAuthId.
+    const loAuthId = req.authUserId;
+    const loAgentId = loAuthId; // agent_invites keyed by auth id
+    let loProfileId = loAuthId;
+    try { loProfileId = (await resolveLoAgentId(req)) || loAuthId; } catch { /* fall back to auth id */ }
     const { email, name, listingId } = req.body || {};
     if (!email || !email.includes('@')) return res.status(400).json({ error: 'valid_email_required' });
     // Agent profile is used for email personalization only — never block the
@@ -30501,7 +30508,7 @@ app.post('/api/lo/partners/invite', requireAuth, async (req, res) => {
     // Validate listing belongs to this LO if provided
     let resolvedListingId = null;
     if (listingId) {
-      const { data: assignment } = await supabaseAdmin.from('listing_lo_assignments').select('listing_id').eq('listing_id', listingId).eq('lo_agent_id', loAgentId).limit(1).single();
+      const { data: assignment } = await supabaseAdmin.from('listing_lo_assignments').select('listing_id').eq('listing_id', listingId).eq('lo_agent_id', loProfileId).limit(1).single();
       if (assignment) resolvedListingId = listingId;
     }
     // Reuse unclaimed token if one exists
