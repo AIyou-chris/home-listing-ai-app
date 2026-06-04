@@ -13,6 +13,14 @@ export interface ListingSourceDefault {
   source_key: string;
 }
 
+export interface LoPartner {
+  name: string;
+  headshot_url: string | null;
+  company: string | null;
+  nmls_number: string | null;
+  chatbot_active: boolean;
+}
+
 export interface ListingShareKitResponse {
   success: boolean;
   listing_id: string;
@@ -22,6 +30,7 @@ export interface ListingShareKitResponse {
   share_url: string | null;
   qr_code_url: string | null;
   qr_code_svg: string | null;
+  lo_partner?: LoPartner | null;
   latest_video?: {
     id: string;
     title: string | null;

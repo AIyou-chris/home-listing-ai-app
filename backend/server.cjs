@@ -17,6 +17,18 @@ dotenv.config({
 });
 dotenv.config();
 
+const Sentry = require('@sentry/node');
+if (process.env.SENTRY_DSN) {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    environment: process.env.NODE_ENV || 'production',
+    tracesSampleRate: 0.1
+  });
+  console.info('[Sentry] Error monitoring initialized');
+} else {
+  console.warn('[Sentry] SENTRY_DSN not set — error monitoring disabled. Set it to enable production error tracking.');
+}
+
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
@@ -68,7 +80,7 @@ const MAILGUN_API_KEY = process.env.MAILGUN_API_KEY;
 const MAILGUN_WEBHOOK_SIGNING_KEY = process.env.MAILGUN_WEBHOOK_SIGNING_KEY || process.env.MAILGUN_SIGNING_KEY || process.env.MAILGUN_API_KEY;
 
 if (MAILGUN_WEBHOOK_SIGNING_KEY === MAILGUN_API_KEY) {
-  console.warn('⚠️ [Config] MAILGUN_WEBHOOK_SIGNING_KEY is using the Sending API Key as a fallback. Webhook verification WILL FAIL unless you provide the specialized Signing Key from the Mailgun dashboard.');
+  console.error('🚨 [Config] MAILGUN_WEBHOOK_SIGNING_KEY is not set correctly. Set MAILGUN_WEBHOOK_SIGNING_KEY in your environment to the Webhook Signing Key from the Mailgun dashboard (separate from your API key). Mailgun webhook events will be rejected until this is fixed.');
 }
 const APP_URL = process.env.VITE_APP_URL || process.env.APP_URL || 'http://localhost:5173';
 const SMS_COMING_SOON =
@@ -1904,7 +1916,11 @@ app.post('/api/webhooks/mailgun/inbound', async (req, res) => {
   try {
     const { signature } = req.body;
 
-    // 1. Verify Signature
+    // 1. Verify Signature — reject immediately if signing key is misconfigured
+    if (MAILGUN_WEBHOOK_SIGNING_KEY === MAILGUN_API_KEY) {
+      console.error('🚨 [Mailgun Inbound] Rejecting webhook: MAILGUN_WEBHOOK_SIGNING_KEY is not set. Set the Webhook Signing Key (not the API key) from the Mailgun dashboard.');
+      return res.status(500).json({ error: 'mailgun_webhook_signing_key_misconfigured' });
+    }
     if (!signature || !verifyMailgunSignature(MAILGUN_WEBHOOK_SIGNING_KEY, signature.timestamp, signature.token, signature.signature)) {
       console.error('[Mailgun Inbound] Signature verification failed');
       return res.status(401).json({ error: 'Invalid signature' });
@@ -2070,11 +2086,14 @@ app.post('/api/webhooks/mailgun', async (req, res) => {
   try {
     const { signature, 'event-data': eventData } = req.body;
 
-    // 1. Verify Signature
+    // 1. Verify Signature — reject immediately if signing key is misconfigured
+    if (MAILGUN_WEBHOOK_SIGNING_KEY === MAILGUN_API_KEY) {
+      console.error('🚨 [Mailgun Webhook] Rejecting webhook: MAILGUN_WEBHOOK_SIGNING_KEY is not set. Set the Webhook Signing Key (not the API key) from the Mailgun dashboard.');
+      return res.status(500).json({ error: 'mailgun_webhook_signing_key_misconfigured' });
+    }
     if (!signature || !verifyMailgunSignature(MAILGUN_WEBHOOK_SIGNING_KEY, signature.timestamp, signature.token, signature.signature)) {
       console.error('[Mailgun Webhook] Signature verification failed');
-      const keyLabel = (MAILGUN_WEBHOOK_SIGNING_KEY === MAILGUN_API_KEY) ? 'SENDING Key (Config Mismatch!)' : 'SIGNING Key';
-      return res.status(401).json({ error: 'Invalid signature', detail: 'Server checked against ' + keyLabel });
+      return res.status(401).json({ error: 'Invalid signature' });
     }
 
     if (!eventData) {
@@ -22670,6 +22689,40 @@ app.get('/api/dashboard/listings/:listingId/share-kit', async (req, res) => {
       }
     }
 
+    let loPartner = null;
+    try {
+      const { data: assign } = await supabaseAdmin
+        .from('listing_lo_assignments')
+        .select('lo_agent_id, branding_enabled')
+        .eq('listing_id', listing.id)
+        .eq('branding_enabled', true)
+        .limit(1)
+        .maybeSingle();
+      if (assign?.lo_agent_id) {
+        const { data: loAgent } = await supabaseAdmin
+          .from('agents')
+          .select('first_name, last_name, full_name, company, nmls_number, headshot_url')
+          .eq('id', assign.lo_agent_id)
+          .maybeSingle();
+        if (loAgent) {
+          const { data: chatbotCfg } = await supabaseAdmin
+            .from('lo_chatbot_configs')
+            .select('is_active')
+            .eq('lo_agent_id', assign.lo_agent_id)
+            .maybeSingle();
+          loPartner = {
+            name: loAgent.full_name || `${loAgent.first_name || ''} ${loAgent.last_name || ''}`.trim() || 'Loan Officer',
+            headshot_url: loAgent.headshot_url || null,
+            company: loAgent.company || null,
+            nmls_number: loAgent.nmls_number || null,
+            chatbot_active: chatbotCfg?.is_active === true
+          };
+        }
+      }
+    } catch (loErr) {
+      console.warn('[Dashboard] Failed to load LO partner for share kit:', loErr?.message || loErr);
+    }
+
     res.json({
       success: true,
       listing_id: listing.id,
@@ -22680,6 +22733,7 @@ app.get('/api/dashboard/listings/:listingId/share-kit', async (req, res) => {
       share_url: shareUrl,
       qr_code_url: listing.qr_code_url || null,
       qr_code_svg: listing.qr_code_svg || null,
+      lo_partner: loPartner,
       latest_video: latestVideo
         ? {
           id: latestVideo.id,
@@ -30428,6 +30482,56 @@ app.get('/api/lo/dashboard/today', requireAuth, async (req, res) => {
   }
 });
 
+// ── GET /api/lo/leads/export.csv — download all LO leads as CSV ──────────────
+app.get('/api/lo/leads/export.csv', requireAuth, async (req, res) => {
+  try {
+    const loAgentId = req.authUserId;
+
+    const { data: leads, error } = await supabaseAdmin
+      .from('leads')
+      .select('full_name, name, email_lower, email, phone, status, source_type, source_meta, created_at, listing_id')
+      .eq('lo_agent_id', loAgentId)
+      .order('created_at', { ascending: false })
+      .limit(5000);
+
+    if (error) throw error;
+
+    const listingIds = [...new Set((leads || []).map(l => l.listing_id).filter(Boolean))];
+    let addressMap = {};
+    if (listingIds.length > 0) {
+      const { data: listingRows } = await supabaseAdmin.from('listings').select('id, address').in('id', listingIds);
+      (listingRows || []).forEach(r => { addressMap[r.id] = r.address; });
+    }
+
+    const csvEscape = (v) => {
+      if (v === null || v === undefined) return '';
+      const str = String(v);
+      return (str.includes(',') || str.includes('"') || str.includes('\n'))
+        ? `"${str.replace(/"/g, '""')}"` : str;
+    };
+
+    const headers = ['Name', 'Email', 'Phone', 'Listing Address', 'Source', 'Context', 'Status', 'Created At'];
+    const rows = (leads || []).map(l => [
+      l.full_name || l.name || '',
+      l.email_lower || l.email || '',
+      l.phone || '',
+      addressMap[l.listing_id] || '',
+      l.source_type || '',
+      l.source_meta?.context || '',
+      l.status || 'new',
+      l.created_at ? new Date(l.created_at).toISOString().split('T')[0] : ''
+    ].map(csvEscape).join(','));
+
+    const csv = [headers.join(','), ...rows].join('\n');
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="leads-${new Date().toISOString().split('T')[0]}.csv"`);
+    res.send(csv);
+  } catch (err) {
+    console.error('[LO Lead Export] Failed:', err);
+    res.status(500).json({ error: 'export_failed' });
+  }
+});
+
 // ── LO WOW Invite limit — checks active Stripe subscription against LO price IDs ──
 // Returns: number of invites allowed per month (Infinity = unlimited, 0 = fully blocked)
 const resolveLoWowInviteLimit = async (loAgent) => {
@@ -30551,6 +30655,94 @@ ${buildBrandedEmailHeader(loBrand, `${loName} built something for your listings`
   }
 });
 
+// ── POST /api/lo/partners/invite/:inviteId/resend ─────────────────────────────
+app.post('/api/lo/partners/invite/:inviteId/resend', requireAuth, async (req, res) => {
+  try {
+    const loAuthId = req.authUserId;
+    const { inviteId } = req.params;
+
+    const { data: invite } = await supabaseAdmin
+      .from('agent_invites')
+      .select('id, token, invited_email, invited_name, claimed_at, expires_at, lo_agent_id')
+      .eq('id', inviteId)
+      .eq('lo_agent_id', loAuthId)
+      .maybeSingle();
+
+    if (!invite) return res.status(404).json({ error: 'invite_not_found' });
+    if (invite.claimed_at) return res.status(409).json({ error: 'already_claimed' });
+
+    // Extend expiry by 30 days from now
+    const newExpiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    await supabaseAdmin.from('agent_invites').update({ expires_at: newExpiry }).eq('id', inviteId);
+
+    let loProfileId = loAuthId;
+    try { loProfileId = (await resolveLoAgentId(req)) || loAuthId; } catch { /* fallback */ }
+
+    const { data: loAgent } = await supabaseAdmin.from('agents')
+      .select('id, first_name, last_name, company, headshot_url')
+      .eq('id', loProfileId).limit(1).maybeSingle();
+
+    const appBase = (process.env.APP_BASE_URL || process.env.DASHBOARD_BASE_URL || 'https://homelistingai.com').replace(/\/$/, '');
+    const wowLink = `${appBase}/partner-invite/${invite.token}`;
+    const claimLink = `${appBase}/agent/claim/${invite.token}`;
+    const loName = [loAgent?.first_name, loAgent?.last_name].filter(Boolean).join(' ') || 'Your Loan Officer';
+    const loBrand = await resolveBrandForLoAgent(loAgent?.id).catch(() => ({ whiteLabel: false, brandColor: '#2563eb', logoUrl: null, companyName: null }));
+    const name = invite.invited_name;
+
+    const emailHtml = `
+<!DOCTYPE html><html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#1e293b;">
+${buildBrandedEmailHeader(loBrand, `${loName} built something for your listings`)}
+<p style="font-size:16px;">Hi${name ? ` ${name}` : ''},</p>
+<p style="font-size:15px;color:#475569;line-height:1.6;">Resending this — I built a live demo of what your listings could look like with my AI financing assistant built in.</p>
+<div style="text-align:center;margin:32px 0;">
+  <a href="${wowLink}" style="background:#2563eb;color:white;text-decoration:none;padding:16px 36px;border-radius:12px;font-weight:700;font-size:16px;display:inline-block;">See Your Listing Demo →</a>
+</div>
+<p style="font-size:13px;color:#94a3b8;text-align:center;">No account needed to view · Link valid for 30 more days</p>
+<hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;">
+<p style="font-size:13px;color:#64748b;">Ready to claim your account? <a href="${claimLink}" style="color:#2563eb;">Click here →</a></p>
+</body></html>`;
+
+    await emailService.sendEmail({
+      to: invite.invited_email,
+      subject: `[Reminder] ${loName} built a listing demo for you`,
+      html: emailHtml
+    });
+
+    res.json({ success: true, wowLink });
+  } catch (err) {
+    console.error('[LO Invite Resend] Failed:', err);
+    res.status(500).json({ error: 'resend_failed' });
+  }
+});
+
+// ── DELETE /api/lo/partners/invite/:inviteId — revoke a pending invite ────────
+app.delete('/api/lo/partners/invite/:inviteId', requireAuth, async (req, res) => {
+  try {
+    const loAuthId = req.authUserId;
+    const { inviteId } = req.params;
+
+    const { data: invite } = await supabaseAdmin
+      .from('agent_invites')
+      .select('id, claimed_at, lo_agent_id')
+      .eq('id', inviteId)
+      .eq('lo_agent_id', loAuthId)
+      .maybeSingle();
+
+    if (!invite) return res.status(404).json({ error: 'invite_not_found' });
+    if (invite.claimed_at) return res.status(409).json({ error: 'already_claimed_cannot_revoke' });
+
+    // Expire immediately — PartnerInvitePage shows "Link Unavailable" for expired tokens
+    await supabaseAdmin.from('agent_invites')
+      .update({ expires_at: new Date().toISOString() })
+      .eq('id', inviteId);
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[LO Invite Revoke] Failed:', err);
+    res.status(500).json({ error: 'revoke_failed' });
+  }
+});
+
 // ── GET /api/public/partner-invite/:token — WOW Link data ────────────────────
 app.get('/api/public/partner-invite/:token', async (req, res) => {
   try {
@@ -30562,6 +30754,26 @@ app.get('/api/public/partner-invite/:token', async (req, res) => {
       .maybeSingle();
     if (!invite) return res.status(404).json({ error: 'invite_not_found' });
     if (invite.expires_at && new Date(invite.expires_at) < new Date()) return res.status(410).json({ error: 'invite_expired' });
+
+    // For claimed tokens, verify the partnership is still active
+    if (invite.claimed_at) {
+      const { data: claimedInvite } = await supabaseAdmin
+        .from('agent_invites')
+        .select('claimed_agent_id')
+        .eq('id', invite.id)
+        .maybeSingle();
+      if (claimedInvite?.claimed_agent_id) {
+        const { data: partnership } = await supabaseAdmin
+          .from('lo_agent_partnerships')
+          .select('status')
+          .eq('lo_agent_id', invite.lo_agent_id)
+          .eq('agent_id', claimedInvite.claimed_agent_id)
+          .maybeSingle();
+        if (partnership?.status === 'removed') {
+          return res.status(410).json({ error: 'partnership_ended' });
+        }
+      }
+    }
 
     // lo_agent_id is the consistent LO key used across the platform
     // (chatbot configs, listing assignments, etc.)
@@ -31141,6 +31353,59 @@ app.get('/api/lo/partners', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('[LO Partners] Failed:', err);
     res.status(500).json({ error: 'failed_to_load_partners' });
+  }
+});
+
+// ── DELETE /api/lo/partners/:partnershipId — remove agent partner ─────────────
+app.delete('/api/lo/partners/:partnershipId', requireAuth, async (req, res) => {
+  try {
+    const loAuthId = req.authUserId;
+    const { partnershipId } = req.params;
+
+    const { data: partnership } = await supabaseAdmin
+      .from('lo_agent_partnerships')
+      .select('id, lo_agent_id, agent_id, status')
+      .eq('id', partnershipId)
+      .eq('lo_agent_id', loAuthId)
+      .maybeSingle();
+
+    if (!partnership) return res.status(404).json({ error: 'partnership_not_found' });
+    if (partnership.status === 'removed') return res.status(409).json({ error: 'already_removed' });
+
+    // Mark partnership inactive
+    await supabaseAdmin.from('lo_agent_partnerships')
+      .update({ status: 'removed' })
+      .eq('id', partnershipId);
+
+    // Disable LO branding on listings for this agent
+    // Step 1: get listing IDs owned by the removed agent
+    const { data: agentListings } = await supabaseAdmin
+      .from('listings')
+      .select('id')
+      .eq('agent_id', partnership.agent_id);
+    const agentListingIds = (agentListings || []).map(l => l.id).filter(Boolean);
+    if (agentListingIds.length > 0) {
+      await supabaseAdmin.from('listing_lo_assignments')
+        .update({ branding_enabled: false })
+        .eq('lo_agent_id', loAuthId)
+        .in('listing_id', agentListingIds);
+    }
+
+    // Expire all unclaimed invite tokens for this LO+agent pair
+    const { data: agentRow } = await supabaseAdmin.from('agents')
+      .select('email').eq('id', partnership.agent_id).maybeSingle();
+    if (agentRow?.email) {
+      await supabaseAdmin.from('agent_invites')
+        .update({ expires_at: new Date().toISOString() })
+        .eq('lo_agent_id', loAuthId)
+        .eq('invited_email', agentRow.email.toLowerCase())
+        .is('claimed_at', null);
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[LO Partner Remove] Failed:', err);
+    res.status(500).json({ error: 'remove_failed' });
   }
 });
 
@@ -32952,6 +33217,7 @@ app.post('/api/vapi/call', async (req, res) => {
 
 // --- GLOBAL ERROR HANDLER ---
 app.use((err, req, res, next) => {
+  if (process.env.SENTRY_DSN) Sentry.captureException(err);
   console.error('Unhandled Error:', err);
 
   // Update Admin Health Metrics

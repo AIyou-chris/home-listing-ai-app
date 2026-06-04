@@ -1128,6 +1128,37 @@ const createBillingEngine = ({ supabaseAdmin, stripe, enqueueJob, appBaseUrl }) 
         stripeCustomerId: customerId
       });
 
+      // Send dunning email when payment fails
+      if (type === 'invoice.payment_failed') {
+        try {
+          const { data: agentRow } = await supabaseAdmin.from('agents')
+            .select('email, first_name')
+            .or(`id.eq.${agentId},auth_user_id.eq.${agentId}`)
+            .limit(1).maybeSingle();
+          if (agentRow?.email) {
+            const createEmailService = require('./emailService');
+            const emailSvc = createEmailService(supabaseAdmin);
+            const billingUrl = `${appBaseUrl}/dashboard/settings/billing`;
+            await emailSvc.sendEmail({
+              to: agentRow.email,
+              subject: 'Action required: your HomeListingAI payment failed',
+              html: `<!DOCTYPE html><html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#1e293b;">
+<h2 style="color:#dc2626;">Payment failed</h2>
+<p>Hi${agentRow.first_name ? ` ${agentRow.first_name}` : ''},</p>
+<p>We weren't able to process your most recent HomeListingAI payment. Your account is currently paused.</p>
+<p>To keep your WOW Links and AI assistant active, please update your payment method:</p>
+<div style="text-align:center;margin:28px 0;">
+  <a href="${billingUrl}" style="background:#2563eb;color:white;text-decoration:none;padding:14px 32px;border-radius:10px;font-weight:700;font-size:15px;display:inline-block;">Update Payment Method →</a>
+</div>
+<p style="color:#64748b;font-size:13px;">If you believe this is an error, reply to this email and we'll sort it out.</p>
+</body></html>`
+            });
+          }
+        } catch (emailErr) {
+          console.warn('[Billing] Dunning email failed (non-fatal):', emailErr?.message);
+        }
+      }
+
       return {
         processed: true,
         event: type,

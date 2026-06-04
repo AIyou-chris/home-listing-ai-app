@@ -1487,6 +1487,16 @@ const App: React.FC = () => {
                     }
                 }}
                 onBackToDashboard={() => navigate('/dashboard')}
+                emailSettings={_emailSettings}
+                onSaveEmailSettings={async (settings) => {
+                    setEmailSettings(settings);
+                    if (user?.uid) await emailSettingsService.update(user.uid, settings);
+                }}
+                calendarSettings={_calendarSettings}
+                onSaveCalendarSettings={async (settings) => {
+                    setCalendarSettings(settings);
+                    if (user?.uid) await calendarSettingsService.update(user.uid, settings);
+                }}
                 securitySettings={{}}
                 onSaveSecuritySettings={async () => { }}
                 isBlueprintMode={isBlueprintMode}
