@@ -4271,8 +4271,9 @@ const buildDemoShareKitContext = async (listingId, sourceKey = 'sign') => {
   };
 };
 
-const buildOpenHouseFlyerPdfBundle = async ({ listingRow, fallbackUserId = null, sourceAgentIds = [] }) => {
+const buildOpenHouseFlyerPdfBundle = async ({ listingRow, fallbackUserId = null, sourceAgentIds = [], brandName = null }) => {
   const listing = listingRow;
+  const resolvedBrandName = brandName || await resolveListingBrandName(listing.id).catch(() => 'HomeListingAI');
   const { publicSlug, shareUrl } = await ensureListingShareIdentity(listing);
   const trackedUrl = buildTrackedListingUrl({
     publicSlug,
@@ -4380,7 +4381,8 @@ const buildOpenHouseFlyerPdfBundle = async ({ listingRow, fallbackUserId = null,
     agentCompany: toTrimmedOrNull(aiCardProfile.company) || 'HomeListingAI',
     hostNote: toTrimmedOrNull(openHouseFlyerConfig.host_note),
     agentHeadshotDataUrl,
-    brandColor: toTrimmedOrNull(aiCardProfile.brandColor) || DEFAULT_AI_CARD_PROFILE.brandColor
+    brandColor: toTrimmedOrNull(aiCardProfile.brandColor) || DEFAULT_AI_CARD_PROFILE.brandColor,
+    brandName: resolvedBrandName
   });
 
   let browser = null;
@@ -23035,6 +23037,7 @@ app.get('/api/dashboard/listings/:listingId/sign-rider.pdf', async (req, res) =>
       })
       : null;
 
+    const signRiderBrandName = await resolveListingBrandName(listing.id).catch(() => 'HomeListingAI');
     const html = buildSignRiderHtml({
       logoDataUrl,
       address: toTrimmedOrNull(listing.address) || 'Listing address',
@@ -23047,7 +23050,8 @@ app.get('/api/dashboard/listings/:listingId/sign-rider.pdf', async (req, res) =>
       agentTitle: toTrimmedOrNull(aiCardProfile.professionalTitle) || 'Listing Specialist',
       agentCompany: toTrimmedOrNull(aiCardProfile.company) || 'HomeListingAI',
       agentHeadshotDataUrl,
-      brandColor: toTrimmedOrNull(aiCardProfile.brandColor) || DEFAULT_AI_CARD_PROFILE.brandColor
+      brandColor: toTrimmedOrNull(aiCardProfile.brandColor) || DEFAULT_AI_CARD_PROFILE.brandColor,
+      brandName: signRiderBrandName
     });
 
     browser = await launchPdfBrowser();
@@ -23308,7 +23312,8 @@ app.get('/api/dashboard/listings/:listingId/property-report.pdf', async (req, re
       agentPhone: toTrimmedOrNull(aiCardProfile.phone),
       agentEmail: toTrimmedOrNull(aiCardProfile.email),
       agentHeadshotDataUrl,
-      brandColor: toTrimmedOrNull(aiCardProfile.brandColor) || DEFAULT_AI_CARD_PROFILE.brandColor
+      brandColor: toTrimmedOrNull(aiCardProfile.brandColor) || DEFAULT_AI_CARD_PROFILE.brandColor,
+      brandName: await resolveListingBrandName(listing.id).catch(() => 'HomeListingAI')
     });
 
     browser = await launchPdfBrowser();
@@ -23499,7 +23504,8 @@ app.get('/api/dashboard/listings/:listingId/fair-housing-review.pdf', async (req
       logoDataUrl,
       address: toTrimmedOrNull(listing.address) || 'Listing address',
       scan,
-      brandColor: toTrimmedOrNull(aiCardProfile.brandColor) || DEFAULT_AI_CARD_PROFILE.brandColor
+      brandColor: toTrimmedOrNull(aiCardProfile.brandColor) || DEFAULT_AI_CARD_PROFILE.brandColor,
+      brandName: await resolveListingBrandName(listing.id).catch(() => 'HomeListingAI')
     });
 
     browser = await launchPdfBrowser();
@@ -23743,7 +23749,8 @@ app.get('/api/dashboard/listings/:listingId/light-cma.pdf', async (req, res) => 
       agentCompany: toTrimmedOrNull(aiCardProfile.company) || 'HomeListingAI',
       agentPhone: toTrimmedOrNull(aiCardProfile.phone),
       agentEmail: toTrimmedOrNull(aiCardProfile.email),
-      agentHeadshotDataUrl
+      agentHeadshotDataUrl,
+      brandName: await resolveListingBrandName(listing.id).catch(() => 'HomeListingAI')
     });
 
     browser = await launchPdfBrowser();
@@ -31230,6 +31237,25 @@ app.post('/api/office/branding/test-webhook', requireOffice, async (req, res) =>
     res.status(500).json({ error: 'server_error' });
   }
 });
+
+// Returns the white-label brand name for a listing's assigned LO, or 'HomeListingAI' if none.
+// Used when generating PDFs so brand-aware offices get their own name on the output.
+const resolveListingBrandName = async (listingId) => {
+  try {
+    const { data: assign } = await supabaseAdmin
+      .from('listing_lo_assignments')
+      .select('lo_agent_id, branding_enabled')
+      .eq('listing_id', listingId)
+      .eq('branding_enabled', true)
+      .limit(1)
+      .maybeSingle();
+    if (!assign?.lo_agent_id) return 'HomeListingAI';
+    const brand = await resolveBrandForLoAgent(assign.lo_agent_id);
+    return (brand?.whiteLabel && brand.companyName) ? brand.companyName : 'HomeListingAI';
+  } catch {
+    return 'HomeListingAI';
+  }
+};
 
 // Shared: resolve white-label brand for any LO agents.id (office inheritance).
 // Returns { companyName, brandColor, logoUrl } — office brand if the LO belongs
