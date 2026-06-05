@@ -3,7 +3,6 @@ import { buildApiUrl } from '../../lib/api';
 import { supabase } from '../../services/supabase';
 import { useDemoMode } from '../../demo/useDemoMode';
 import { showToast } from '../../utils/toastService';
-import ExportButton from '../ExportButton';
 
 type LeadStatus = 'New' | 'Contacted' | 'Qualified' | 'Closed';
 
@@ -376,21 +375,25 @@ const LOLeadsPage: React.FC = () => {
             Buyers who connected through your AI financing bot or pre-approval form.
           </p>
         </div>
-        <ExportButton
-          filename="lo_leads"
-          headers={['Name', 'Email', 'Phone', 'Status', 'Source', 'Listing Address', 'Notes', 'Date Added']}
-          rows={leads.map(l => [
-            l.name || '',
-            l.email || '',
-            l.phone || '',
-            l.status,
-            l.source,
-            l.listing_address || '',
-            l.notes || '',
-            new Date(l.created_at).toLocaleDateString(),
-          ])}
-          jsonData={leads}
-        />
+        <button
+          onClick={async () => {
+            try {
+              const headers = await getApiHeaders();
+              const res = await fetch(buildApiUrl('/api/lo/leads/export.csv'), { headers });
+              if (!res.ok) throw new Error();
+              const blob = await res.blob();
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `leads-${new Date().toISOString().split('T')[0]}.csv`;
+              a.click();
+              URL.revokeObjectURL(url);
+            } catch { showToast.error('Export failed. Try again.'); }
+          }}
+          className="flex-shrink-0 flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-all"
+        >
+          ↓ Export CSV
+        </button>
       </div>
 
       {/* List */}

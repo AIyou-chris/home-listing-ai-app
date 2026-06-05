@@ -257,7 +257,7 @@ const InviteModal: React.FC<{ onClose: () => void; onSent: (wowLink: string) => 
 
 // ─── Partner Card ─────────────────────────────────────────────────────────────
 
-const PartnerCard: React.FC<{ partner: Partner; onViewListings: (p: Partner) => void }> = ({ partner, onViewListings }) => {
+const PartnerCard: React.FC<{ partner: Partner; onViewListings: (p: Partner) => void; onRemoved: () => void }> = ({ partner, onViewListings, onRemoved }) => {
   const [meta, setMeta] = React.useState(() => {
     const all = loadMeta()
     return all[partner.partnershipId] || { rating: null as PartnerRating, lastFollowUp: null }
@@ -365,7 +365,7 @@ const PartnerCard: React.FC<{ partner: Partner; onViewListings: (p: Partner) => 
           className="px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-700 text-xs font-semibold transition-all"
           title="Log follow-up"
         >
-          📞 Follow Up
+          📞
         </button>
         {partner.email && (
           <a
@@ -375,6 +375,24 @@ const PartnerCard: React.FC<{ partner: Partner; onViewListings: (p: Partner) => 
             ✉️
           </a>
         )}
+        <button
+          onClick={async () => {
+            if (!window.confirm(`Remove ${partner.name} as a partner? This will disable their co-branded listing pages.`)) return
+            try {
+              const { data: { user } } = await supabase.auth.getUser()
+              const res = await fetch(buildApiUrl(`/api/lo/partners/${partner.partnershipId}`), {
+                method: 'DELETE', headers: { 'x-user-id': user?.id || '' }
+              })
+              if (!res.ok) throw new Error()
+              showToast.success(`${partner.name} removed`)
+              onRemoved()
+            } catch { showToast.error('Failed to remove partner') }
+          }}
+          className="px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-400 hover:bg-red-50 hover:border-red-200 hover:text-red-600 text-xs font-semibold transition-all"
+          title="Remove partner"
+        >
+          ✕
+        </button>
       </div>
     </div>
   )
@@ -557,14 +575,47 @@ const LOPartnersPage: React.FC = () => {
       {pendingInvites.length > 0 && (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
           <p className="text-xs font-bold text-amber-700 uppercase tracking-wide mb-3">Pending Invites</p>
-          <div className="space-y-2">
+          <div className="space-y-3">
             {pendingInvites.map(invite => (
-              <div key={invite.id} className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-slate-800">{invite.name || invite.email}</p>
-                  <p className="text-xs text-slate-500">{invite.email} · sent {toRelativeTime(invite.sentAt)}</p>
+              <div key={invite.id} className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-slate-800 truncate">{invite.name || invite.email}</p>
+                  <p className="text-xs text-slate-500 truncate">{invite.email} · sent {toRelativeTime(invite.sentAt)}</p>
                 </div>
-                <span className="text-xs text-amber-600 font-semibold">Awaiting claim</span>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button
+                    onClick={async () => {
+                      try {
+                        const { data: { user } } = await supabase.auth.getUser()
+                        const res = await fetch(buildApiUrl(`/api/lo/partners/invite/${invite.id}/resend`), {
+                          method: 'POST', headers: { 'x-user-id': user?.id || '' }
+                        })
+                        if (!res.ok) throw new Error()
+                        showToast.success('Invite resent!')
+                      } catch { showToast.error('Failed to resend') }
+                    }}
+                    className="text-xs font-semibold text-amber-700 hover:text-amber-900 border border-amber-300 bg-white rounded-lg px-3 py-1.5 transition-all hover:bg-amber-50"
+                  >
+                    Resend
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (!window.confirm(`Revoke invite for ${invite.email}?`)) return
+                      try {
+                        const { data: { user } } = await supabase.auth.getUser()
+                        const res = await fetch(buildApiUrl(`/api/lo/partners/invite/${invite.id}`), {
+                          method: 'DELETE', headers: { 'x-user-id': user?.id || '' }
+                        })
+                        if (!res.ok) throw new Error()
+                        showToast.success('Invite revoked')
+                        load()
+                      } catch { showToast.error('Failed to revoke') }
+                    }}
+                    className="text-xs font-semibold text-slate-400 hover:text-red-600 border border-slate-200 bg-white rounded-lg px-3 py-1.5 transition-all hover:border-red-200 hover:bg-red-50"
+                  >
+                    Revoke
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -579,6 +630,7 @@ const LOPartnersPage: React.FC = () => {
               key={partner.partnershipId}
               partner={partner}
               onViewListings={p => setSelectedPartner(p)}
+              onRemoved={load}
             />
           ))}
         </div>
