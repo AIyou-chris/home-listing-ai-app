@@ -52,7 +52,7 @@ export const YardSignRider: React.FC<YardSignRiderProps> = ({
                 {/* Brand Header */}
                 <div className="flex items-center gap-4 mb-6">
                     <img src="/newlogo.png" alt="" className="w-12 h-12 object-contain" />
-                    <span className="font-extrabold text-3xl text-slate-800 tracking-tight">HomeListingAI</span>
+                    <span className="font-extrabold text-3xl text-slate-800 tracking-tight">{agentCompany}</span>
                 </div>
 
                 <div className="flex flex-row flex-1 items-stretch gap-12">
@@ -161,7 +161,7 @@ export const YardSignRider: React.FC<YardSignRiderProps> = ({
                     </p>
                     <div className="flex items-center gap-2 opacity-60">
                         <img src="/newlogo.png" alt="" className="w-8 h-8 object-contain" />
-                        <span className="font-extrabold text-xl tracking-tight text-slate-900">HomeListingAI</span>
+                        <span className="font-extrabold text-xl tracking-tight text-slate-900">{agentCompany}</span>
                     </div>
                 </div>
             </div>

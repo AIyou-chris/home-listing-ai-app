@@ -4441,7 +4441,8 @@ const buildOpenHouseFlyerHtml = ({
   agentCompany,
   hostNote,
   agentHeadshotDataUrl,
-  brandColor
+  brandColor,
+  brandName = 'HomeListingAI'
 }) => {
   const safeBrandColor = String(brandColor || '#f97316').trim() || '#f97316';
   const darkerBrandColor = darkenHexColor(safeBrandColor, 0.8);
@@ -4887,15 +4888,15 @@ const buildOpenHouseFlyerHtml = ({
       <div class="shell">
         <div class="header">
           <div class="brand">
-            <img src="${logoDataUrl}" alt="HomeListingAI" />
-            <div class="brand-name">HomeListingAI</div>
+            <img src="${logoDataUrl}" alt="${escapeHtml(brandName)}" />
+            <div class="brand-name">${escapeHtml(brandName)}</div>
           </div>
           <div class="pill">Open House</div>
         </div>
 
         <div class="headline">
           <div>
-            <div class="kicker">HomeListingAI Report</div>
+            <div class="kicker">${escapeHtml(brandName)} Report</div>
             <h1>${escapeHtml(flyerHeadline || 'Open House')}</h1>
             <div class="headline-copy">${teaser}</div>
           </div>
@@ -4935,7 +4936,7 @@ const buildOpenHouseFlyerHtml = ({
                   }
                 </div>
                 <div>
-                  <div class="agent-kicker">HomeListingAI</div>
+                  <div class="agent-kicker">${escapeHtml(brandName)}</div>
                   <div class="agent-name">${escapeHtml(agentName)}</div>
                   <div class="agent-meta">${escapeHtml(agentTitle)}<br />${escapeHtml(agentCompany)}</div>
                   ${safeHostNote ? `<div class="agent-host-note">${safeHostNote}</div>` : ''}
@@ -4982,7 +4983,8 @@ const buildSignRiderHtml = ({
   agentTitle,
   agentCompany,
   agentHeadshotDataUrl,
-  brandColor
+  brandColor,
+  brandName = 'HomeListingAI'
 }) => {
   const safeBrandColor = String(brandColor || '#f97316').trim() || '#f97316';
   const darkerBrandColor = darkenHexColor(safeBrandColor, 0.78);
@@ -5312,8 +5314,8 @@ const buildSignRiderHtml = ({
           <div>
             <div class="header">
               <div class="brand">
-                <img src="${logoDataUrl}" alt="HomeListingAI" />
-                <div class="brand-name">HomeListingAI</div>
+                <img src="${logoDataUrl}" alt="${escapeHtml(brandName)}" />
+                <div class="brand-name">${escapeHtml(brandName)}</div>
               </div>
               <div class="pill">Sign Rider</div>
             </div>
@@ -5343,7 +5345,7 @@ const buildSignRiderHtml = ({
                 }
               </div>
               <div>
-                <div class="agent-kicker">HomeListingAI</div>
+                <div class="agent-kicker">${escapeHtml(brandName)}</div>
                 <div class="agent-name">${escapeHtml(agentName)}</div>
                 <div class="agent-meta">${escapeHtml(agentTitle)}<br />${escapeHtml(agentCompany)}</div>
               </div>
@@ -5628,8 +5630,8 @@ const buildSocialAssetHtml = ({
         <div>
           <div class="topbar">
             <div class="brand">
-              <img src="${logoDataUrl}" alt="HomeListingAI" />
-              <div class="brand-name">HomeListingAI</div>
+              <img src="${logoDataUrl}" alt="${escapeHtml(brandName)}" />
+              <div class="brand-name">${escapeHtml(brandName)}</div>
             </div>
             <div class="price-pill">${escapeHtml(priceLabel)}</div>
           </div>
@@ -5701,7 +5703,8 @@ const buildPropertyReportHtml = ({
   agentPhone,
   agentEmail,
   agentHeadshotDataUrl,
-  brandColor
+  brandColor,
+  brandName = 'HomeListingAI'
 }) => {
   const safeBrandColor = String(brandColor || '#f97316').trim() || '#f97316';
   const darkerBrandColor = darkenHexColor(safeBrandColor, 0.8);
@@ -6090,15 +6093,15 @@ const buildPropertyReportHtml = ({
       <div class="shell">
         <div class="brand">
           <div class="brand-left">
-            <img src="${logoDataUrl}" alt="HomeListingAI" />
-            <div class="brand-name">HomeListingAI</div>
+            <img src="${logoDataUrl}" alt="${escapeHtml(brandName)}" />
+            <div class="brand-name">${escapeHtml(brandName)}</div>
           </div>
           <div class="pill">Property Report</div>
         </div>
 
         <div class="hero">
           <div class="hero-copy">
-            <div class="kicker">HomeListingAI Report</div>
+            <div class="kicker">${escapeHtml(brandName)} Report</div>
             <h1>${headline}</h1>
             <p>${summary}</p>
           </div>
@@ -6153,8 +6156,8 @@ const buildPropertyReportHtml = ({
         <div>
           <div class="brand">
             <div class="brand-left">
-              <img src="${logoDataUrl}" alt="HomeListingAI" />
-              <div class="brand-name">HomeListingAI</div>
+              <img src="${logoDataUrl}" alt="${escapeHtml(brandName)}" />
+              <div class="brand-name">${escapeHtml(brandName)}</div>
             </div>
             <div class="pill">Gallery</div>
           </div>
@@ -6189,7 +6192,8 @@ const buildFairHousingReportHtml = ({
   logoDataUrl,
   address,
   scan,
-  brandColor
+  brandColor,
+  brandName = 'HomeListingAI'
 }) => {
   const safeBrandColor = String(brandColor || '#f97316').trim() || '#f97316';
   const darkerBrandColor = darkenHexColor(safeBrandColor, 0.8);
@@ -6442,8 +6446,8 @@ const buildFairHousingReportHtml = ({
       <div class="shell">
         <div class="brand">
           <div class="brand-left">
-            <img src="${logoDataUrl}" alt="HomeListingAI" />
-            <div class="brand-name">HomeListingAI</div>
+            <img src="${logoDataUrl}" alt="${escapeHtml(brandName)}" />
+            <div class="brand-name">${escapeHtml(brandName)}</div>
           </div>
           <div class="pill">Fair Housing Review</div>
         </div>
@@ -6486,7 +6490,7 @@ const buildFairHousingReportHtml = ({
           </div>
         </div>
         <div class="footer">
-          <div class="footer-note">HomeListingAI provides compliance support. Agents and brokers remain responsible for final Fair Housing compliance review before publication.</div>
+          <div class="footer-note">${escapeHtml(brandName)} provides compliance support. Agents and brokers remain responsible for final Fair Housing compliance review before publication.</div>
         </div>
       </div>
     </div>
@@ -6509,6 +6513,7 @@ const buildLightCmaHtml = ({
   anchorComp = null,
   census,
   brandColor,
+  brandName = 'HomeListingAI',
   pricingNotes = '',
   pricingPreview = null,
   manualCompCount = 0,
@@ -6906,8 +6911,8 @@ const buildLightCmaHtml = ({
       <div class="shell">
         <div class="brand">
           <div class="brand-left">
-            <img src="${logoDataUrl}" alt="HomeListingAI" />
-            <div class="brand-name">HomeListingAI</div>
+            <img src="${logoDataUrl}" alt="${escapeHtml(brandName)}" />
+            <div class="brand-name">${escapeHtml(brandName)}</div>
           </div>
           <div class="pill">Light CMA</div>
         </div>
@@ -6961,8 +6966,8 @@ const buildLightCmaHtml = ({
       <div class="shell">
         <div class="brand">
           <div class="brand-left">
-            <img src="${logoDataUrl}" alt="HomeListingAI" />
-            <div class="brand-name">HomeListingAI</div>
+            <img src="${logoDataUrl}" alt="${escapeHtml(brandName)}" />
+            <div class="brand-name">${escapeHtml(brandName)}</div>
           </div>
           <div class="pill">Market support</div>
         </div>
@@ -15397,7 +15402,7 @@ app.post(['/api/security/notify-login', '/api/security/notify_login'], async (re
       const html = `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
           <h2>New Login Detected</h2>
-          <p>We detected a new login to your HomeListingAI account.</p>
+          <p>We detected a new login to your account.</p>
           <div style="background: #f5f5f5; padding: 15px; border-radius: 8px; margin: 20px 0;">
             <p style="margin: 5px 0;"><strong>Time:</strong> ${new Date().toLocaleString()}</p>
             <p style="margin: 5px 0;"><strong>IP Address:</strong> ${ip || 'Unknown'}</p>
@@ -30445,14 +30450,16 @@ app.post('/api/lo/invite-realtor', requireAuth, async (req, res) => {
     const agentId = req.authUserId;
     const { realtor_name, realtor_email } = req.body || {};
     if (!realtor_email) return res.status(400).json({ error: 'realtor_email_required' });
-    const { data: loRows } = await supabaseAdmin.from('agents').select('first_name, last_name, email, nmls_number').eq('auth_user_id', agentId).limit(1);
+    const { data: loRows } = await supabaseAdmin.from('agents').select('first_name, last_name, email, nmls_number, company').eq('auth_user_id', agentId).limit(1);
     const lo = loRows?.[0];
     const loName = lo ? `${lo.first_name || ''} ${lo.last_name || ''}`.trim() : 'Your LO partner';
+    const loBrand = await resolveBrandForLoAgent(agentId).catch(() => ({ whiteLabel: false, companyName: null }));
+    const platformName = loBrand.companyName || 'HomeListingAI';
     try {
       await emailService.sendEmail({
         to: realtor_email.trim().toLowerCase(),
-        subject: `${loName} wants to co-brand listings with you on HomeListingAI`,
-        html: `<p>Hi${realtor_name ? ` ${realtor_name}` : ''},</p><p><strong>${loName}</strong> is inviting you to partner on HomeListingAI.</p><p>Create your free account at <a href="https://homelistingai.com/signup">homelistingai.com/signup</a>.</p><p>— The HomeListingAI Team</p>`
+        subject: `${loName} wants to co-brand listings with you`,
+        html: `<p>Hi${realtor_name ? ` ${realtor_name}` : ''},</p><p><strong>${loName}</strong> is inviting you to partner on ${platformName}.</p><p>Create your free account at <a href="https://homelistingai.com/signup">homelistingai.com/signup</a>.</p><p>— The ${platformName} Team</p>`
       });
     } catch (emailError) {
       console.warn('[LO Invite] Failed to send invite email (non-fatal):', emailError?.message);
@@ -31033,13 +31040,13 @@ app.post('/api/office/invite-lo', requireOffice, async (req, res) => {
     const html = `
 <!DOCTYPE html><html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#1e293b;">
 ${buildBrandedEmailHeader(officeBrand, `${officeName} added you to their team`)}
-<p style="font-size:15px;color:#475569;line-height:1.6;">Hi${name ? ` ${name}` : ''}, you've been invited to join <strong>${officeName}</strong> on HomeListingAI as a loan officer. Claim your account to get your AI financing assistant, agent partnerships, and warm-lead dashboard.</p>
+<p style="font-size:15px;color:#475569;line-height:1.6;">Hi${name ? ` ${name}` : ''}, you've been invited to join <strong>${officeName}</strong> as a loan officer. Claim your account to get your AI financing assistant, agent partnerships, and warm-lead dashboard.</p>
 <div style="text-align:center;margin:30px 0;">
   <a href="${link}" style="background:#2563eb;color:#fff;text-decoration:none;padding:15px 34px;border-radius:12px;font-weight:700;font-size:15px;display:inline-block;">Claim Your Account →</a>
 </div>
 <p style="font-size:12px;color:#94a3b8;text-align:center;">Link expires in 30 days</p>
 </body></html>`;
-    try { await emailService.sendEmail({ to: emailLower, subject: `${officeName} invited you to HomeListingAI`, html }); }
+    try { await emailService.sendEmail({ to: emailLower, subject: `${officeName} invited you to join their team`, html }); }
     catch (e) { console.warn('[OfficeInvite] email failed (non-fatal):', e?.message); }
     res.json({ success: true, link });
   } catch (err) {
@@ -34300,14 +34307,13 @@ const checkTrialWarnings = async () => {
             <div style="padding: 24px;">
               <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
                 <div style="background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); padding: 32px 24px; text-align: center;">
-                  <img src="https://homelistingai.com/newlogo.png" alt="HomeListingAI" style="width: 48px; height: 48px; background-color: white; border-radius: 8px; padding: 4px; margin-bottom: 16px; object-fit: contain;">
                   <h1 style="color: white; font-size: 24px; font-weight: bold; margin: 0;">Trial Ends Tomorrow</h1>
                 </div>
-                
+
                 <div style="padding: 32px 24px;">
                   <p style="font-size: 16px; line-height: 1.6; color: #334155;">Hi ${agent.first_name || 'Verified Agent'},</p>
                   <p style="font-size: 16px; line-height: 1.6; color: #334155;">
-                    Just a friendly heads-up that your 3-day free trial of HomeListingAI is ending in 24 hours.
+                    Just a friendly heads-up — your 3-day free trial is ending in 24 hours.
                   </p>
                   
                   <div style="background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 20px; margin: 24px 0;">
@@ -34328,7 +34334,7 @@ const checkTrialWarnings = async () => {
                 </div>
         
                 <div style="background-color: #f1f5f9; padding: 24px; text-align: center; font-size: 13px; color: #64748b;">
-                  <p>Sent with 💙 by the HomeListingAI Team</p>
+                  <p>Sent with 💙 by the Team</p>
                 </div>
               </div>
             </div>
@@ -34339,7 +34345,7 @@ const checkTrialWarnings = async () => {
         try {
           await emailService.sendEmail({
             to: agent.email,
-            subject: '⚠️ Your HomeListingAI Trial Ending Soon',
+            subject: '⚠️ Your free trial is ending soon',
             html: warningHtml,
             text: `Your trial ends tomorrow. Upgrade now: ${process.env.APP_BASE_URL}/billing`,
             from: process.env.MAILGUN_FROM_EMAIL || 'hello@homelistingai.app',
@@ -34423,7 +34429,7 @@ const checkExpiredTrials = async () => {
                 </div>
         
                 <div style="background-color: #f1f5f9; padding: 24px; text-align: center; font-size: 13px; color: #64748b;">
-                  <p>Sent with 💙 by the HomeListingAI Team</p>
+                  <p>Sent with 💙 by the Team</p>
                 </div>
               </div>
             </div>

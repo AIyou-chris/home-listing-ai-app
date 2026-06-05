@@ -78,7 +78,7 @@ export const EmailTemplateFollowUp: React.FC<EmailTemplateProps> = ({
                 <div className="mt-8 pt-6 border-t border-slate-200">
                     <p className="font-semibold text-slate-900">{agentName}</p>
                     <p className="text-slate-500 text-sm mt-1">{agentPhone}</p>
-                    <p className="text-slate-500 text-sm italic">Powered by HomeListingAI</p>
+                    <p className="text-slate-500 text-sm italic">Powered by AI</p>
                 </div>
             </div>
         </div>

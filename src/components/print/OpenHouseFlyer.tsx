@@ -88,8 +88,8 @@ export const OpenHouseFlyer: React.FC<OpenHouseFlyerProps> = ({
       >
         <div className="mb-10 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src="/newlogo.png" alt="HomeListingAI" className="h-10 w-10 object-contain" />
-            <span className="text-xl font-extrabold tracking-tight">HomeListingAI</span>
+            <img src="/newlogo.png" alt={agentCompany} className="h-10 w-10 object-contain" />
+            <span className="text-xl font-extrabold tracking-tight">{agentCompany}</span>
           </div>
           <div className="rounded-full border border-slate-300 px-4 py-2 text-xs font-black uppercase tracking-[0.28em] text-slate-700">
             Open House
@@ -128,8 +128,8 @@ export const OpenHouseFlyer: React.FC<OpenHouseFlyerProps> = ({
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <img src="/newlogo.png" alt="HomeListingAI" className="h-9 w-9 object-contain" />
-          <span className="text-lg font-extrabold tracking-tight text-slate-900">HomeListingAI</span>
+          <img src="/newlogo.png" alt={agentCompany} className="h-9 w-9 object-contain" />
+          <span className="text-lg font-extrabold tracking-tight text-slate-900">{agentCompany}</span>
         </div>
         <div
           className="rounded-full px-4 py-1.5 text-[11px] font-black uppercase tracking-[0.28em] text-white"
@@ -142,7 +142,7 @@ export const OpenHouseFlyer: React.FC<OpenHouseFlyerProps> = ({
       <div className="mt-5 rounded-[32px] border border-white/70 bg-gradient-to-br from-white via-[#fff8ef] to-[#f4ede4] p-6 shadow-[0_20px_60px_rgba(15,23,42,0.08)]">
         <div className="grid grid-cols-[1.08fr_0.92fr] gap-6">
           <div>
-            <p className="text-[11px] font-black uppercase tracking-[0.36em] text-slate-500">HomeListingAI Report</p>
+            <p className="text-[11px] font-black uppercase tracking-[0.36em] text-slate-500">{agentCompany} Report</p>
             <h1 className="mt-3 text-[3.05rem] font-black uppercase leading-[0.92] tracking-[-0.05em] text-slate-950">
               Scan for
               <br />

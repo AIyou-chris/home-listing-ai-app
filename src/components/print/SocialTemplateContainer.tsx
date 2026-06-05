@@ -110,7 +110,7 @@ export const SocialTemplateContainer: React.FC<SocialTemplateContainerProps> = (
                 <div className="flex items-center justify-between mb-8">
                     <div className="flex items-center gap-3">
                         <img src="/newlogo.png" alt="" className="w-10 h-10 object-contain filter brightness-0 invert opacity-90" />
-                        <span className="font-extrabold text-2xl tracking-tight opacity-90">HomeListingAI</span>
+                        <span className="font-extrabold text-2xl tracking-tight opacity-90">{agentCompany}</span>
                     </div>
                     {/* Floating badge for price */}
                     <div className="px-5 py-2 rounded-full bg-white/10 backdrop-blur-md border border-white/20 font-bold tracking-wider text-xl">

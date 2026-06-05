@@ -814,7 +814,7 @@ const PartnerInvitePage: React.FC = () => {
           <span className="flex-shrink-0 text-[11px] text-slate-400">Powers the AI →</span>
         </div>
 
-        <p className="mt-4 mb-6 text-center text-[10px] text-slate-400">Powered by HomeListingAI</p>
+        {!brand?.whiteLabel && <p className="mt-4 mb-6 text-center text-[10px] text-slate-400">Powered by HomeListingAI</p>}
       </div>
 
       {/* ── Bottom Tab Bar ── */}

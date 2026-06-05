@@ -197,7 +197,7 @@ const ListingDashboardPage: React.FC = () => {
         </div>
 
         <p className="mt-6 px-3.5 text-center text-[11px] text-slate-400">
-          🔒 Private dashboard · Powered by HomeListingAI
+          🔒 Private dashboard{!data?.brand?.whiteLabel ? ' · Powered by HomeListingAI' : ''}
         </p>
       </div>
     </div>

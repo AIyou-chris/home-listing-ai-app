@@ -1,5 +1,6 @@
 import React from 'react';
 import { Helmet } from 'react-helmet-async';
+import { useOfficeBrand } from '../hooks/useOfficeBrand';
 
 interface SEOProps {
     title: string;
@@ -18,7 +19,8 @@ const SEO: React.FC<SEOProps> = ({
     type = 'website',
     schema
 }) => {
-    const siteTitle = "HomeListingAI";
+    const officeBrand = useOfficeBrand();
+    const siteTitle = (officeBrand?.whiteLabel && officeBrand.companyName) ? officeBrand.companyName : "HomeListingAI";
     const fullTitle = title === siteTitle ? title : `${title} | ${siteTitle}`;
     const currentUrl = typeof window !== 'undefined' ? (url || window.location.href) : '';
     const metaDesc = description.substring(0, 160); // Standard SEO length
