@@ -2,6 +2,153 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../../services/supabase';
 import { FeatureSection } from './SettingsCommon';
 
+// ─── Two-Factor Authentication Section ───────────────────────────────────────
+
+const TwoFactorSection: React.FC = () => {
+  const [status, setStatus] = useState<'loading' | 'enabled' | 'disabled'>('loading')
+  const [factorId, setFactorId] = useState<string | null>(null)
+  const [enrolling, setEnrolling] = useState(false)
+  const [qrCode, setQrCode] = useState<string | null>(null)
+  const [secret, setSecret] = useState<string | null>(null)
+  const [enrollFactorId, setEnrollFactorId] = useState<string | null>(null)
+  const [code, setCode] = useState('')
+  const [verifying, setVerifying] = useState(false)
+  const [removing, setRemoving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
+
+  useEffect(() => {
+    supabase.auth.mfa.listFactors().then(({ data }) => {
+      const totp = data?.totp?.find(f => f.status === 'verified')
+      if (totp) { setStatus('enabled'); setFactorId(totp.id) }
+      else setStatus('disabled')
+    }).catch(() => setStatus('disabled'))
+  }, [])
+
+  const startEnroll = async () => {
+    setError(null); setEnrolling(true)
+    try {
+      const { data, error: err } = await supabase.auth.mfa.enroll({ factorType: 'totp', friendlyName: 'Authenticator App' })
+      if (err || !data) throw err
+      setQrCode(data.totp.qr_code)
+      setSecret(data.totp.secret)
+      setEnrollFactorId(data.id)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to start setup')
+    } finally { setEnrolling(false) }
+  }
+
+  const verifyEnroll = async () => {
+    if (!enrollFactorId || code.length !== 6) return
+    setError(null); setVerifying(true)
+    try {
+      const { data: challenge } = await supabase.auth.mfa.challenge({ factorId: enrollFactorId })
+      if (!challenge) throw new Error('Challenge failed')
+      const { error: verifyErr } = await supabase.auth.mfa.verify({ factorId: enrollFactorId, challengeId: challenge.id, code })
+      if (verifyErr) throw verifyErr
+      setStatus('enabled'); setFactorId(enrollFactorId)
+      setQrCode(null); setSecret(null); setEnrollFactorId(null); setCode('')
+      setSuccess('2-step verification enabled.')
+    } catch {
+      setError('Invalid code. Check your authenticator and try again.')
+    } finally { setVerifying(false) }
+  }
+
+  const remove2FA = async () => {
+    if (!factorId || !window.confirm('Remove 2-step verification? Your account will only require a password to sign in.')) return
+    setRemoving(true); setError(null)
+    try {
+      const { error: err } = await supabase.auth.mfa.unenroll({ factorId })
+      if (err) throw err
+      setStatus('disabled'); setFactorId(null); setSuccess('2-step verification removed.')
+    } catch { setError('Failed to remove. Try again.') }
+    finally { setRemoving(false) }
+  }
+
+  const cancelEnroll = async () => {
+    if (enrollFactorId) await supabase.auth.mfa.unenroll({ factorId: enrollFactorId }).catch(() => {})
+    setQrCode(null); setSecret(null); setEnrollFactorId(null); setCode(''); setError(null)
+  }
+
+  return (
+    <FeatureSection title="2-Step Verification" icon="verified_user" iconClassName="text-green-600">
+      <div className="space-y-4">
+        {success && <div className="p-3 rounded-lg bg-green-50 text-green-700 text-sm">{success}</div>}
+        {error && <div className="p-3 rounded-lg bg-red-50 text-red-700 text-sm">{error}</div>}
+
+        {status === 'loading' && <p className="text-sm text-slate-400">Checking status…</p>}
+
+        {status === 'enabled' && !qrCode && (
+          <div className="flex items-center justify-between p-4 bg-green-50 border border-green-200 rounded-xl">
+            <div>
+              <div className="flex items-center gap-2 mb-0.5">
+                <span className="text-sm font-bold text-green-800">Enabled</span>
+                <span className="text-xs bg-green-100 text-green-700 font-semibold px-2 py-0.5 rounded-full">Active</span>
+              </div>
+              <p className="text-xs text-green-700">Your account requires a code from your authenticator app on every login.</p>
+            </div>
+            <button onClick={remove2FA} disabled={removing}
+              className="flex-shrink-0 ml-4 px-4 py-2 rounded-lg border border-red-200 text-red-600 text-xs font-semibold hover:bg-red-50 disabled:opacity-50 transition-all">
+              {removing ? 'Removing…' : 'Remove'}
+            </button>
+          </div>
+        )}
+
+        {status === 'disabled' && !qrCode && (
+          <div className="flex items-center justify-between p-4 bg-slate-50 border border-slate-200 rounded-xl">
+            <div>
+              <p className="text-sm font-semibold text-slate-800 mb-0.5">Not enabled</p>
+              <p className="text-xs text-slate-500">Add a second layer of security — require a code from Google Authenticator or Authy on every login.</p>
+            </div>
+            <button onClick={startEnroll} disabled={enrolling}
+              className="flex-shrink-0 ml-4 px-4 py-2.5 rounded-xl bg-primary-600 text-white text-xs font-bold hover:bg-primary-700 disabled:opacity-50 transition-all">
+              {enrolling ? 'Setting up…' : 'Set Up'}
+            </button>
+          </div>
+        )}
+
+        {qrCode && (
+          <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-4">
+            <div>
+              <p className="text-sm font-bold text-slate-900 mb-1">Scan with your authenticator app</p>
+              <p className="text-xs text-slate-500">Use Google Authenticator, Authy, or 1Password to scan the QR code below.</p>
+            </div>
+            <div className="flex justify-center">
+              <img src={qrCode} alt="2FA QR Code" className="w-44 h-44 rounded-lg border border-slate-200" />
+            </div>
+            {secret && (
+              <div className="rounded-lg bg-slate-50 border border-slate-200 p-3">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Can't scan? Enter this code manually</p>
+                <p className="text-xs font-mono text-slate-700 break-all select-all">{secret}</p>
+              </div>
+            )}
+            <div>
+              <label className="block text-xs font-bold text-slate-600 mb-1.5 uppercase tracking-wide">Enter the 6-digit code from your app</label>
+              <input
+                type="text" inputMode="numeric" pattern="\d{6}" maxLength={6}
+                value={code} onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                onKeyDown={e => e.key === 'Enter' && verifyEnroll()}
+                placeholder="000000"
+                className="w-full rounded-xl border border-slate-200 px-4 py-3 text-lg font-mono tracking-[0.4em] text-center focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+            </div>
+            <div className="flex gap-2">
+              <button onClick={verifyEnroll} disabled={verifying || code.length !== 6}
+                className="flex-1 bg-primary-600 text-white font-bold rounded-xl py-2.5 text-sm hover:bg-primary-700 disabled:opacity-50 transition-all">
+                {verifying ? 'Verifying…' : 'Confirm & Enable →'}
+              </button>
+              <button onClick={cancelEnroll}
+                className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-500 text-sm font-semibold hover:bg-slate-50 transition-all">
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </FeatureSection>
+  )
+}
+
 interface SecuritySettingsProps {
     // Assuming security settings structure based on usage in SettingsPage
     settings: {
@@ -175,6 +322,8 @@ const SecuritySettingsPage: React.FC<SecuritySettingsProps> = ({
                     </div>
                 </FeatureSection>
             </form>
+
+            <TwoFactorSection />
 
             <FeatureSection title="Account Security" icon="security" iconClassName="text-purple-600">
                 <div className="space-y-4">
