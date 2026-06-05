@@ -276,7 +276,24 @@ const getGaClient = async () => {
 
 const app = express();
 
-// SECURITY: Rate Limiter (InMemory)
+// SECURITY: Rate Limiter — persists to disk so limits survive server restarts
+const RATE_LIMIT_FILE = path.join(__dirname, '../logs/rate-limits.json');
+const _loadPersistedRateLimits = (file = RATE_LIMIT_FILE) => {
+  try {
+    const raw = require('fs').readFileSync(file, 'utf8');
+    const obj = JSON.parse(raw);
+    const m = new Map();
+    for (const [k, v] of Object.entries(obj)) m.set(k, v);
+    return m;
+  } catch { return new Map(); }
+};
+const _persistRateLimits = (map, file) => {
+  try {
+    const obj = {};
+    for (const [k, v] of map.entries()) obj[k] = v;
+    require('fs').writeFileSync(file, JSON.stringify(obj));
+  } catch { /* non-fatal */ }
+};
 const rateLimits = new Map();
 const checkRateLimit = (userId) => {
   if (!userId) return true; // weak check for now
@@ -323,7 +340,8 @@ const checkPublicChatRateLimit = (visitorId) => {
   return { allowed: true };
 };
 
-const publicLeadCaptureRateLimits = new Map();
+const LEAD_CAPTURE_RL_FILE = path.join(__dirname, '../logs/lead-capture-rate-limits.json');
+const publicLeadCaptureRateLimits = _loadPersistedRateLimits(LEAD_CAPTURE_RL_FILE);
 const checkPublicLeadCaptureRateLimit = (key) => {
   if (!key) return { allowed: false, reason: 'rate_limit_key_required' };
 
@@ -337,6 +355,7 @@ const checkPublicLeadCaptureRateLimit = (key) => {
 
   if (tenMinuteCount >= PUBLIC_LEAD_CAPTURE_MAX_PER_10_MIN || hourCount >= PUBLIC_LEAD_CAPTURE_MAX_PER_HOUR) {
     publicLeadCaptureRateLimits.set(key, recent);
+    _persistRateLimits(publicLeadCaptureRateLimits, LEAD_CAPTURE_RL_FILE);
     return {
       allowed: false,
       reason: 'rate_limited',
@@ -346,6 +365,7 @@ const checkPublicLeadCaptureRateLimit = (key) => {
 
   recent.push(now);
   publicLeadCaptureRateLimits.set(key, recent);
+  _persistRateLimits(publicLeadCaptureRateLimits, LEAD_CAPTURE_RL_FILE);
   return { allowed: true };
 };
 const port = process.env.PORT || 3002;
@@ -19915,7 +19935,8 @@ app.post('/api/leads/capture', async (req, res) => {
       });
     }
 
-    const notificationResult = await enqueueLeadCaptureNotifications({
+    // Only notify for new leads — deduped contacts already triggered a notification on first capture
+    const notificationResult = isDeduped ? { attempts: [], skipped: 'deduped' } : await enqueueLeadCaptureNotifications({
       lead: { id: leadId, agent_id: agentId },
       listing,
       context,
@@ -30391,7 +30412,13 @@ app.patch('/api/lo/profile', requireAuth, async (req, res) => {
     const agentId = req.authUserId;
     const { nmls_number, lending_states, company, full_name, phone, headshot_url } = req.body || {};
     const updatePayload = {};
-    if (nmls_number !== undefined) updatePayload.nmls_number = toTrimmedOrNull(nmls_number);
+    if (nmls_number !== undefined) {
+      const nmlsStr = toTrimmedOrNull(nmls_number);
+      if (nmlsStr !== null && !/^\d{7,10}$/.test(nmlsStr)) {
+        return res.status(400).json({ error: 'invalid_nmls_number', message: 'NMLS# must be 7–10 digits.' });
+      }
+      updatePayload.nmls_number = nmlsStr;
+    }
     if (lending_states !== undefined) updatePayload.lending_states = Array.isArray(lending_states) ? lending_states.filter(s => typeof s === 'string' && s.trim()) : [];
     if (company !== undefined) updatePayload.company = toTrimmedOrNull(company);
     if (full_name !== undefined) {
@@ -31342,8 +31369,17 @@ app.get('/api/lo/partners', requireAuth, async (req, res) => {
         (listingAgents || []).forEach(la => { const a = (assignments || []).find(x => x.listing_id === la.id); if (!a) return; if (!listingsByAgent[la.agent_id]) listingsByAgent[la.agent_id] = []; listingsByAgent[la.agent_id].push(a.listings); });
       }
     }
-    const { data: leadCounts } = await supabaseAdmin.from('leads').select('agent_id').eq('lo_agent_id', loAgentId);
-    const leadCountByAgent = (leadCounts || []).reduce((acc, l) => { if (l.agent_id) acc[l.agent_id] = (acc[l.agent_id] || 0) + 1; return acc; }, {});
+    // Count leads per agent using only the agent_id column — single query, no full-row fetch
+    const partnerAgentIdsList = (partnerships || []).map(p => p.agent?.id).filter(Boolean);
+    const leadCountByAgent = {};
+    if (partnerAgentIdsList.length > 0) {
+      const { data: leadCounts } = await supabaseAdmin
+        .from('leads')
+        .select('agent_id')
+        .eq('lo_agent_id', loAgentId)
+        .in('agent_id', partnerAgentIdsList);
+      (leadCounts || []).forEach(l => { if (l.agent_id) leadCountByAgent[l.agent_id] = (leadCountByAgent[l.agent_id] || 0) + 1; });
+    }
     const partners = (partnerships || []).map(p => {
       const agent = p.agent || {}; const agentId = agent.id;
       const listings = (listingsByAgent[agentId] || []).map(l => ({ listingId: l?.id, address: l?.address || 'Unknown', price: l?.price || null, status: l?.status || 'draft', heroPhoto: Array.isArray(l?.hero_photos) ? l.hero_photos[0] : null, totalLeads: l?.total_leads || 0, totalViews: l?.total_views || 0 }));
