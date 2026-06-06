@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import { agentOnboardingService } from '../services/agentOnboardingService';
@@ -54,6 +54,13 @@ const SignUpPage = ({ onNavigateToSignIn, onNavigateToLanding: _onNavigateToLand
     // Preserve plan intent from ?plan= so the dashboard can auto-start upgrade
     const planParam = searchParams.get('plan');
     const pendingPlan = planParam === 'starter' || planParam === 'pro' ? planParam : null;
+
+    // Loan-officer signup: /signup?type=lo (or ?plan=lo / ?plan=lo_pro) → send to the
+    // dedicated LO flow, which collects NMLS + phone and starts the LO plan checkout.
+    const isLo = searchParams.get('type') === 'lo' || planParam === 'lo' || planParam === 'lo_pro';
+    useEffect(() => {
+        if (isLo) navigate('/lo-signup', { replace: true });
+    }, [isLo, navigate]);
 
     const handleSignUp = async (e: React.FormEvent) => {
         e.preventDefault();
