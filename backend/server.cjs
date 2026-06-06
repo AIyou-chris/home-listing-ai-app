@@ -28886,14 +28886,16 @@ app.get('/api/conversations/export/csv', async (req, res) => {
       return res.status(400).json({ error: 'userId is required for export' });
     }
 
-    // TRIAL LOCK: Block CSV export for trial users
+    // TRIAL LOCK: Block CSV export for trial users.
+    // The Stripe billing webhook writes subscription_status (not payment_status),
+    // so read that — it reflects the live Stripe status ('trialing' during the 3-day trial).
     const { data: agentProfile } = await supabaseAdmin
       .from('agents')
-      .select('payment_status')
+      .select('subscription_status')
       .eq('auth_user_id', ownerId)
       .single();
 
-    if (agentProfile?.payment_status === 'trialing') {
+    if (agentProfile?.subscription_status === 'trialing') {
       return res.status(403).json({
         error: 'Lead export is a Pro feature',
         code: 'TRIAL_RESTRICTED',
@@ -32805,15 +32807,16 @@ app.post('/api/properties', requireAuth, async (req, res) => {
   try {
     const { data: agentData, error: agentError } = await supabaseAdmin
       .from('agents')
-      .select('auth_user_id, payment_status')
+      .select('auth_user_id, subscription_status')
       .or(`id.eq.${agentId},auth_user_id.eq.${agentId}`)
       .limit(1)
       .maybeSingle()
 
     if (agentError) throw agentError;
 
-    // PROPERTY LIMIT: Block creation if trial user already has 1 property
-    if (agentData?.payment_status === 'trialing') {
+    // PROPERTY LIMIT: Block creation if trial user already has 1 property.
+    // Read subscription_status (set by the Stripe webhook), not payment_status.
+    if (agentData?.subscription_status === 'trialing') {
       const { count, error: countError } = await supabaseAdmin
         .from('properties')
         .select('*', { count: 'exact', head: true })
