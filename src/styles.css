@@ -50,3 +50,17 @@
 .mic-fab-bg {
   background: linear-gradient(145deg, #2563eb, #60a5fa);
 }
+
+/* Dark auth forms (sign in / sign up / lo-signup): keep autofilled fields dark
+   so white input text stays readable. Chrome's autofill forces a light background
+   otherwise, making text-white invisible. Scoped to .auth-dark so light dashboard
+   forms are unaffected. */
+.auth-dark input:-webkit-autofill,
+.auth-dark input:-webkit-autofill:hover,
+.auth-dark input:-webkit-autofill:focus,
+.auth-dark input:-webkit-autofill:active {
+  -webkit-text-fill-color: #ffffff !important;
+  -webkit-box-shadow: 0 0 0 1000px #1e293b inset !important;
+  caret-color: #ffffff;
+  transition: background-color 9999s ease-in-out 0s;
+}

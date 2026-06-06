@@ -123,7 +123,7 @@ const SignUpPage = ({ onNavigateToSignIn, onNavigateToLanding: _onNavigateToLand
     };
 
     return (
-        <div className="min-h-screen bg-[#02050D] font-sans flex flex-col relative overflow-hidden text-white">
+        <div className="auth-dark min-h-screen bg-[#02050D] font-sans flex flex-col relative overflow-hidden text-white">
 
             <PublicHeader
                 onNavigateToSignUp={() => { }}

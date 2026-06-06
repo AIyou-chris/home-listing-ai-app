@@ -131,7 +131,7 @@ const LOSignupPage: React.FC = () => {
     };
 
     return (
-        <div className="min-h-screen bg-[#02050D] font-sans flex flex-col text-white relative overflow-hidden">
+        <div className="auth-dark min-h-screen bg-[#02050D] font-sans flex flex-col text-white relative overflow-hidden">
             <PublicHeader
                 onNavigateToSignUp={() => { }}
                 onNavigateToSignIn={() => navigate('/signin')}
