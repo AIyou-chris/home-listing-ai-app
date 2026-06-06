@@ -604,6 +604,9 @@ const PartnerInvitePage: React.FC = () => {
   const { lo, listing, chatbot, inviteeName, brand } = data;
   const agentName = inviteeName?.trim() || 'Your Name Here';
   const agentInitial = agentName[0]?.toUpperCase() || 'A';
+  // Demo WOW Link (no real listing attached) → promote the LO.
+  // Live agent listing → contact the agent.
+  const isDemo = !listing;
   const displayListing = listing || DEMO_LISTING;
   const botName = chatbot?.bot_name || `${lo.name.split(' ')[0]}'s Finance Assistant`;
   const greeting = chatbot?.greeting || `Hi! I'm ${lo.name}'s AI mortgage assistant. Ask me anything — how much you can qualify for, pre-approval steps, down payment options, loan programs. I'm here 24/7 and it won't affect your credit.`;
@@ -729,17 +732,34 @@ const PartnerInvitePage: React.FC = () => {
               <p className="mt-2 text-xs font-bold opacity-90">👋 This is your page — your name, your brand, front and center.</p>
             </div>
           </div>
-          <div className="mt-4 flex gap-2">
-            <button className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-white py-2.5 text-[13px] font-extrabold text-[#1e3a8a] transition-all active:scale-95">
-              📞 Call
-            </button>
-            <button className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/30 bg-white/15 py-2.5 text-[13px] font-extrabold text-white transition-all active:scale-95">
-              ✉️ Message
-            </button>
-            <button className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/30 bg-white/15 py-2.5 text-[13px] font-extrabold text-white transition-all active:scale-95">
-              📅 Tour
-            </button>
-          </div>
+          {isDemo ? (
+            <div className="mt-4 flex gap-2">
+              <button
+                onClick={() => { setChatMode('financing'); handleTab('finance'); }}
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-white py-2.5 text-[13px] font-extrabold text-[#1e3a8a] transition-all active:scale-95"
+              >
+                💬 Contact the LO
+              </button>
+              <button
+                onClick={() => setShowHowItWorks(true)}
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/30 bg-white/15 py-2.5 text-[13px] font-extrabold text-white transition-all active:scale-95"
+              >
+                ✨ See How It Works
+              </button>
+            </div>
+          ) : (
+            <div className="mt-4 flex gap-2">
+              <button className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-white py-2.5 text-[13px] font-extrabold text-[#1e3a8a] transition-all active:scale-95">
+                📞 Call Agent
+              </button>
+              <button className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/30 bg-white/15 py-2.5 text-[13px] font-extrabold text-white transition-all active:scale-95">
+                ✉️ Message Agent
+              </button>
+              <button className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/30 bg-white/15 py-2.5 text-[13px] font-extrabold text-white transition-all active:scale-95">
+                📅 Tour
+              </button>
+            </div>
+          )}
         </div>
 
         {/* ── Description ── */}
