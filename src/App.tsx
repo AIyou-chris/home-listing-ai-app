@@ -1862,7 +1862,7 @@ const App: React.FC = () => {
                                 <AdminLogin onLogin={handleAdminLogin} onBack={handleAdminLoginClose} isLoading={isAdminLoginLoading} error={adminLoginError || undefined} />
                             </Suspense>
                         )}
-                        {view !== 'landing' && view !== 'new-landing' && (
+                        {view !== 'landing' && view !== 'new-landing' && !view.startsWith('partner-invite') && !view.startsWith('listing-dashboard') && (
                             <Suspense fallback={null}>
                                 <ChatBotFAB
                                     context={{
