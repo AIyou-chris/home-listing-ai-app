@@ -32088,10 +32088,13 @@ app.post('/api/public/lo-chat', async (req, res) => {
     const safeHistory = Array.isArray(history) ? history.slice(-8) : [];
     const messages = [
       { role: 'system', content: systemPrompt },
-      ...safeHistory.map((m) => ({
-        role: m.role === 'visitor' ? 'user' : 'assistant',
-        content: String(m.text || '')
-      })),
+      ...safeHistory
+        .map((m) => ({
+          // Frontend sends { role: 'user'|'assistant', content }; tolerate legacy { role:'visitor'|'bot', text }
+          role: (m.role === 'user' || m.role === 'visitor') ? 'user' : 'assistant',
+          content: String(m.content || m.text || '')
+        }))
+        .filter((m) => m.content),
       { role: 'user', content: message }
     ];
 
