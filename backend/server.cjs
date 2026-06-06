@@ -28886,22 +28886,7 @@ app.get('/api/conversations/export/csv', async (req, res) => {
       return res.status(400).json({ error: 'userId is required for export' });
     }
 
-    // TRIAL LOCK: Block CSV export for trial users.
-    // The Stripe billing webhook writes subscription_status (not payment_status),
-    // so read that — it reflects the live Stripe status ('trialing' during the 3-day trial).
-    const { data: agentProfile } = await supabaseAdmin
-      .from('agents')
-      .select('subscription_status')
-      .eq('auth_user_id', ownerId)
-      .single();
-
-    if (agentProfile?.subscription_status === 'trialing') {
-      return res.status(403).json({
-        error: 'Lead export is a Pro feature',
-        code: 'TRIAL_RESTRICTED',
-        message: 'Please upgrade to Pro to export your leads.'
-      });
-    }
+    // Model A: card-on-file 3-day trial grants full plan access — lead export included.
 
     let query = supabaseAdmin
       .from('ai_conversations')
@@ -30585,6 +30570,10 @@ app.get('/api/lo/leads/export.csv', requireAuth, async (req, res) => {
   }
 });
 
+// During the 3-day trial, WOW invites are capped low to limit AI-cost exposure
+// before the LO actually pays. Full plan limit kicks in once the sub is active.
+const LO_TRIAL_INVITE_CAP = 10;
+
 // ── LO WOW Invite limit — checks active Stripe subscription against LO price IDs ──
 // Returns: number of invites allowed per month (Infinity = unlimited, 0 = fully blocked)
 const resolveLoWowInviteLimit = async (loAgent) => {
@@ -30595,7 +30584,7 @@ const resolveLoWowInviteLimit = async (loAgent) => {
   if (loAgent?.payment_status === 'trial' && loAgent?.created_at) {
     const trialEnd = new Date(loAgent.created_at);
     trialEnd.setDate(trialEnd.getDate() + 3);
-    if (new Date() < trialEnd) return Infinity; // still in trial
+    if (new Date() < trialEnd) return LO_TRIAL_INVITE_CAP; // trial cap
   }
 
   if (!stripe || !loAgent?.stripe_customer_id) return 0; // no plan, no trial → blocked
@@ -30611,9 +30600,16 @@ const resolveLoWowInviteLimit = async (loAgent) => {
     });
     for (const sub of subs.data) {
       if (!ENTITLED_STATUSES.has(sub.status)) continue;
+      const isTrialing = sub.status === 'trialing';
       for (const item of sub.items.data) {
-        if (LO_PRO_PRICE_ID && item.price.id === LO_PRO_PRICE_ID) return Infinity; // $299 — unlimited
-        if (LO_PRICE_ID && item.price.id === LO_PRICE_ID) return 250;             // $149 — 250/month
+        const isLoPlan = (LO_PRO_PRICE_ID && item.price.id === LO_PRO_PRICE_ID)
+          || (LO_PRICE_ID && item.price.id === LO_PRICE_ID);
+        if (!isLoPlan) continue;
+        // During the 3-day trial, cap invites low to limit AI-cost exposure before
+        // they actually pay. Once the sub is 'active' (post-trial), grant the plan limit.
+        if (isTrialing) return LO_TRIAL_INVITE_CAP;
+        if (item.price.id === LO_PRO_PRICE_ID) return Infinity; // $299 — unlimited
+        return 250;                                             // $149 — 250/month
       }
     }
   } catch (err) {
@@ -30638,8 +30634,8 @@ app.post('/api/lo/partners/invite', requireAuth, async (req, res) => {
     const { data: loAgent } = await supabaseAdmin.from('agents').select('id, first_name, last_name, company, email, headshot_url, stripe_customer_id, payment_status, created_at').eq('id', loProfileId).limit(1).maybeSingle();
     const emailLower = email.trim().toLowerCase();
 
-    // ── WOW invite cap — enforce per-LO-plan monthly limit ───────────────────
-    // Trial (3 days): unlimited · LO $149: 250/mo · LO Pro $299: unlimited · expired/no plan: 0
+    // ── WOW invite cap — enforce per-LO-plan limit ───────────────────────────
+    // Trial (3 days): 10 · LO $149: 250/mo · LO Pro $299: unlimited · expired/no plan: 0
     try {
       const inviteLimit = await resolveLoWowInviteLimit(loAgent);
       if (isFinite(inviteLimit)) {
@@ -30657,7 +30653,9 @@ app.post('/api/lo/partners/invite', requireAuth, async (req, res) => {
             used: sentThisMonth,
             message: inviteLimit === 0
               ? `Your 3-day free trial has ended. Upgrade to the LO plan to start sending WOW links.`
-              : `Your plan allows ${inviteLimit} WOW link invites per month. You've reached your limit for this month.`
+              : inviteLimit === LO_TRIAL_INVITE_CAP
+                ? `Your free trial includes ${inviteLimit} WOW link invites. Upgrade to send more — your plan unlocks up to 250/month.`
+                : `Your plan allows ${inviteLimit} WOW link invites per month. You've reached your limit for this month.`
           });
         }
       }
@@ -32814,8 +32812,10 @@ app.post('/api/properties', requireAuth, async (req, res) => {
 
     if (agentError) throw agentError;
 
-    // PROPERTY LIMIT: Block creation if trial user already has 1 property.
+    // PROPERTY LIMIT during trial: allow up to TRIAL_PROPERTY_CAP listings so they can
+    // test with realistic data, while capping AI-cost exposure before they pay.
     // Read subscription_status (set by the Stripe webhook), not payment_status.
+    const TRIAL_PROPERTY_CAP = 5;
     if (agentData?.subscription_status === 'trialing') {
       const { count, error: countError } = await supabaseAdmin
         .from('properties')
@@ -32824,12 +32824,12 @@ app.post('/api/properties', requireAuth, async (req, res) => {
 
       if (countError) console.error('Error checking property count:', countError);
 
-      if (count !== null && count >= 1) {
-        console.warn(`🛑 Trial user ${agentId} attempted to create second property. Blocked.`);
+      if (count !== null && count >= TRIAL_PROPERTY_CAP) {
+        console.warn(`🛑 Trial user ${agentId} hit the ${TRIAL_PROPERTY_CAP}-property trial cap. Blocked.`);
         return res.status(403).json({
           error: 'Trial Limit Reached',
           code: 'PROPERTY_LIMIT_REACHED',
-          message: 'Your trial allows for 1 active property. Please upgrade to create more!',
+          message: `Your trial allows up to ${TRIAL_PROPERTY_CAP} listings. Upgrade to create more!`,
           requestId
         });
       }
