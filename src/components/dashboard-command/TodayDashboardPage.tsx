@@ -451,6 +451,41 @@ const TodayDashboardPage: React.FC = () => {
         </div>
       )}
 
+      {/* Launch Checklist — pinned to top; auto-hides once onboarding is complete */}
+      {!blueprintMode && !demoMode && onboarding && !onboarding.onboarding_completed && (
+        <article className={containerCardClass}>
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold text-slate-900">Launch Checklist</h2>
+            <span className="text-xs font-semibold text-primary-600">
+              {onboarding.progress.completed_items}/{onboarding.progress.total_items} done
+            </span>
+          </div>
+          <p className="mt-1 text-sm text-slate-500">Finish this once. Then it runs itself.</p>
+          <div className="mt-3 h-2 rounded-full bg-slate-100">
+            <div
+              className="h-2 rounded-full bg-primary-600 transition-all"
+              style={{
+                width: `${Math.round((onboarding.progress.completed_items / Math.max(onboarding.progress.total_items, 1)) * 100)}%`
+              }}
+            />
+          </div>
+          <ul className="mt-3 grid gap-2 text-sm text-slate-600 sm:grid-cols-2">
+            <li>{onboarding.onboarding_checklist.brand_profile ? '✓' : '○'} Add your details</li>
+            <li>{onboarding.onboarding_checklist.first_listing_created ? '✓' : '○'} Create a listing</li>
+            <li>{onboarding.onboarding_checklist.first_listing_published && onboarding.onboarding_checklist.share_kit_copied ? '✓' : '○'} Publish and copy link</li>
+            <li>{onboarding.onboarding_checklist.test_lead_sent ? '✓' : '○'} Send a test lead</li>
+            <li>{onboarding.onboarding_checklist.first_appointment_created ? '✓' : '○'} Schedule a showing</li>
+          </ul>
+          <button
+            type="button"
+            onClick={() => navTo('/onboarding')}
+            className="mt-3 rounded-md bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+          >
+            Continue setup
+          </button>
+        </article>
+      )}
+
       <TodayROIStrip />
 
       {error && (
@@ -617,36 +652,6 @@ const TodayDashboardPage: React.FC = () => {
         </div>
 
         <div className="space-y-4">
-          {/* Launch Checklist at TOP — only for brand new agents (no listing yet) */}
-          {!blueprintMode && !demoMode && onboarding && !onboarding.onboarding_completed && !recentListing && (
-            <article className={containerCardClass}>
-              <h2 className="text-lg font-semibold text-slate-900">Launch Checklist</h2>
-              <p className="mt-1 text-sm text-slate-500">Finish this once. Then it runs itself.</p>
-              <div className="mt-3 h-2 rounded-full bg-slate-100">
-                <div
-                  className="h-2 rounded-full bg-primary-600"
-                  style={{
-                    width: `${Math.round((onboarding.progress.completed_items / Math.max(onboarding.progress.total_items, 1)) * 100)}%`
-                  }}
-                />
-              </div>
-              <ul className="mt-3 space-y-2 text-xs text-slate-600">
-                <li>{onboarding.onboarding_checklist.brand_profile ? '✓' : '○'} Add your details</li>
-                <li>{onboarding.onboarding_checklist.first_listing_created ? '✓' : '○'} Create a listing</li>
-                <li>{onboarding.onboarding_checklist.first_listing_published && onboarding.onboarding_checklist.share_kit_copied ? '✓' : '○'} Publish and copy link</li>
-                <li>{onboarding.onboarding_checklist.test_lead_sent ? '✓' : '○'} Send a test lead</li>
-                <li>{onboarding.onboarding_checklist.first_appointment_created ? '✓' : '○'} Schedule a showing</li>
-              </ul>
-              <button
-                type="button"
-                onClick={() => navTo('/onboarding')}
-                className="mt-3 rounded-md bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white"
-              >
-                Continue setup
-              </button>
-            </article>
-          )}
-
           <article className={containerCardClass}>
             <h2 className="text-lg font-semibold text-slate-900">Share Kit</h2>
             <p className="mt-1 text-sm text-slate-500">Copy your link or download a QR in seconds.</p>
@@ -822,35 +827,6 @@ const TodayDashboardPage: React.FC = () => {
             </div>
           </article>
 
-          {/* Launch Checklist at BOTTOM — only once they have a listing (already moved to top before that) */}
-          {onboarding && !onboarding.onboarding_completed && recentListing && (
-            <article className={containerCardClass}>
-              <h2 className="text-lg font-semibold text-slate-900">Launch Checklist</h2>
-              <p className="mt-1 text-sm text-slate-500">Finish this once. Then it runs itself.</p>
-              <div className="mt-3 h-2 rounded-full bg-slate-100">
-                <div
-                  className="h-2 rounded-full bg-primary-600"
-                  style={{
-                    width: `${Math.round((onboarding.progress.completed_items / Math.max(onboarding.progress.total_items, 1)) * 100)}%`
-                  }}
-                />
-              </div>
-              <ul className="mt-3 space-y-2 text-xs text-slate-600">
-                <li>{onboarding.onboarding_checklist.brand_profile ? '✓' : '○'} Add your details</li>
-                <li>{onboarding.onboarding_checklist.first_listing_created ? '✓' : '○'} Create a listing</li>
-                <li>{onboarding.onboarding_checklist.first_listing_published && onboarding.onboarding_checklist.share_kit_copied ? '✓' : '○'} Publish and copy link</li>
-                <li>{onboarding.onboarding_checklist.test_lead_sent ? '✓' : '○'} Send a test lead</li>
-                <li>{onboarding.onboarding_checklist.first_appointment_created ? '✓' : '○'} Schedule a showing</li>
-              </ul>
-              <button
-                type="button"
-                onClick={() => navTo('/onboarding')}
-                className="mt-3 rounded-md bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white"
-              >
-                Continue setup
-              </button>
-            </article>
-          )}
         </div>
       </section>
 
