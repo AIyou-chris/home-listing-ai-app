@@ -11106,20 +11106,30 @@ const processEmailSendJob = async (job) => {
     const targetEmail = await getAgentEmailAddress(agentId);
     if (!targetEmail) throw new Error('missing_target_email');
 
-    const subject = `Unworked lead — ${payload.full_name || 'Unknown'} (${listingAddress})`;
+    const buyerName = payload.full_name || 'A buyer';
     const sourceLabel = payload.source_label || 'Unknown';
     const leadLink = `${dashboardBase}/dashboard/leads/${leadId}`;
+    const subject = `⏰ Follow up with ${buyerName} — they're still waiting`;
     await emailService.sendEmail({
       to: targetEmail,
       subject,
-      html: `
-        <div style="font-family: Arial, sans-serif; line-height: 1.5;">
-          <p>New lead is still unworked.</p>
-          <p><strong>${payload.full_name || 'Unknown'}</strong> — ${listingAddress}</p>
-          <p>Source: ${sourceLabel}</p>
-          <p><a href="${leadLink}" style="display:inline-block;padding:10px 16px;background:#233074;color:#fff;text-decoration:none;border-radius:8px;">Open lead</a></p>
-        </div>
-      `
+      html: `<!DOCTYPE html><html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#1e293b;">
+<div style="background:linear-gradient(135deg,#1e293b,#334155);border-radius:16px;padding:28px 24px;margin-bottom:24px;">
+  <p style="color:#94a3b8;font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;margin:0 0 8px;">Unworked Lead</p>
+  <h2 style="color:white;font-size:22px;font-weight:800;margin:0 0 4px;">${buyerName}</h2>
+  <p style="color:#cbd5e1;font-size:14px;margin:0;">${listingAddress}</p>
+</div>
+<p style="font-size:15px;color:#475569;line-height:1.6;">This lead came in through <strong>${sourceLabel}</strong> and hasn't been contacted yet. First contact within the hour dramatically increases the chance of converting.</p>
+<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin:20px 0;">
+  <p style="font-size:12px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.06em;margin:0 0 8px;">Lead Details</p>
+  <p style="margin:4px 0;font-size:14px;color:#334155;"><strong>Listing:</strong> ${listingAddress}</p>
+  <p style="margin:4px 0;font-size:14px;color:#334155;"><strong>Source:</strong> ${sourceLabel}</p>
+</div>
+<div style="text-align:center;margin:28px 0;">
+  <a href="${leadLink}" style="background:#2563eb;color:white;text-decoration:none;padding:14px 32px;border-radius:10px;font-weight:700;font-size:15px;display:inline-block;">View Lead & Follow Up →</a>
+</div>
+<p style="font-size:12px;color:#94a3b8;text-align:center;">You're receiving this because unworked lead alerts are enabled in your notification settings.</p>
+</body></html>`
     });
 
     await updateOutboundAttemptStatus({
