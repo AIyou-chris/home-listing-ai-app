@@ -211,6 +211,28 @@ const RequireRole: React.FC<{ requiredRole: Exclude<AppRole, null> }> = ({ requi
     return <Outlet />;
 };
 
+// Redirects to onboarding if the user hasn't completed their profile setup.
+// Runs on every protected dashboard route — prevents skipping onboarding via direct URL.
+const RequireOnboarding: React.FC = () => {
+    const [state, setState] = useState<'checking' | 'ok' | 'onboarding' | 'lo-onboarding'>('checking');
+
+    useEffect(() => {
+        let cancelled = false;
+        fetchOnboardingState().then(data => {
+            if (cancelled) return;
+            if (!data || data.onboarding_completed) { setState('ok'); return; }
+            const acct = data.account_type;
+            setState(acct === 'lo' || !acct ? 'lo-onboarding' : 'onboarding');
+        }).catch(() => { if (!cancelled) setState('ok'); }); // fail open — don't block on error
+        return () => { cancelled = true; };
+    }, []);
+
+    if (state === 'checking') return <AuthGateSpinner text="Loading your dashboard..." />;
+    if (state === 'lo-onboarding') return <Navigate to="/dashboard/lo-onboarding" replace />;
+    if (state === 'onboarding') return <Navigate to="/dashboard/onboarding" replace />;
+    return <Outlet />;
+};
+
 const DashboardRouteGate = () => {
     const [routeTarget, setRouteTarget] = useState<'loading' | 'today' | 'onboarding' | 'lo-onboarding'>('loading');
 
@@ -1732,7 +1754,11 @@ const App: React.FC = () => {
                         } />
                         <Route path="/daily-pulse" element={<Navigate to="/dashboard/today" replace />} />
 
+                        {/* Today + onboarding always accessible */}
                         <Route path="/dashboard/today" element={<TodayDashboardPage />} />
+
+                        {/* All feature routes gated — redirect to onboarding if profile incomplete */}
+                        <Route element={<RequireOnboarding />}>
                         <Route path="/dashboard/command-center" element={<ConversionDashboardHome />} />
                         <Route path="/dashboard/leads" element={<LeadsInboxCommandPage />} />
                         <Route path="/dashboard/leads/:leadId" element={<LeadDetailCommandPage />} />
@@ -1744,6 +1770,7 @@ const App: React.FC = () => {
                         <Route path="/dashboard/lo-partners" element={<LOPartnersPage />} />
                         <Route path="/dashboard/lo-chatbot" element={<LOChatbotSetupPage />} />
                         <Route path="/dashboard/office" element={<OfficeDashboardPage />} />
+                        </Route>
                         <Route path="/dashboard/billing" element={<Navigate to="/dashboard/settings/billing" replace />} />
                         <Route path="/dashboard/onboarding" element={<OnboardingCommandPage />} />
                         <Route path="/dashboard/lo-onboarding" element={<LOOnboardingPage />} />
