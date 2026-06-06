@@ -26,10 +26,6 @@
     "stop-server": "bash -c 'kill $(cat logs/vite.pid) 2>/dev/null || true; kill $(cat logs/backend.pid) 2>/dev/null || true; kill $(cat logs/preview.pid) 2>/dev/null || true; rm -f logs/*.pid; echo \"✅ Servers stopped\"'"
   },
   "dependencies": {
-    "@dnd-kit/core": "^6.3.1",
-    "@dnd-kit/sortable": "^10.0.0",
-    "@dnd-kit/utilities": "^3.2.2",
-    "@google/genai": "^0.14.0",
     "@sentry/node": "^10.56.0",
     "@supabase/supabase-js": "^2.56.1",
     "cors": "^2.8.5",
@@ -38,7 +34,6 @@
     "googleapis": "^171.1.0",
     "helmet": "^8.1.0",
     "html2canvas": "^1.4.1",
-    "immer": "^10.1.1",
     "jspdf": "^3.0.4",
     "lucide-react": "^0.552.0",
     "openai": "^5.12.2",
@@ -67,7 +62,6 @@
     "@vitejs/plugin-react": "^4.2.1",
     "autoprefixer": "^10.4.21",
     "eslint": "^8.57.0",
-    "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.20",
     "husky": "^9.1.7",
@@ -79,8 +73,7 @@
     "terser": "^5.43.1",
     "ts-jest": "^29.4.1",
     "typescript": "5.5.4",
-    "vite": "^7.2.2",
-    "vite-plugin-pwa": "^1.2.0"
+    "vite": "^7.2.2"
   },
   "jest": {
     "preset": "ts-jest",
