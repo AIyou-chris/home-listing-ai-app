@@ -30589,8 +30589,7 @@ const resolveLoWowInviteLimit = async (loAgent) => {
   const LO_PRICE_ID = process.env.STRIPE_LO_PRICE_ID;
   const LO_PRO_PRICE_ID = process.env.STRIPE_LO_PRO_PRICE_ID;
 
-  // 3-day free trial — full access while trial is active.
-  // NOTE: the agents.payment_status check constraint uses 'trial' (not 'trialing').
+  // Fallback: legacy app-level trial flag (date-based). Kept for defense in depth.
   if (loAgent?.payment_status === 'trial' && loAgent?.created_at) {
     const trialEnd = new Date(loAgent.created_at);
     trialEnd.setDate(trialEnd.getDate() + 3);
@@ -30599,12 +30598,17 @@ const resolveLoWowInviteLimit = async (loAgent) => {
 
   if (!stripe || !loAgent?.stripe_customer_id) return 0; // no plan, no trial → blocked
   try {
+    // Model A: card upfront + 3-day Stripe trial. During the trial the subscription
+    // status is 'trialing' (not 'active'), so we must accept both — otherwise a paying
+    // trial LO would be blocked from the core WOW-link feature for their first 3 days.
+    const ENTITLED_STATUSES = new Set(['active', 'trialing']);
     const subs = await stripe.subscriptions.list({
       customer: loAgent.stripe_customer_id,
-      status: 'active',
-      limit: 5,
+      status: 'all',
+      limit: 10,
     });
     for (const sub of subs.data) {
+      if (!ENTITLED_STATUSES.has(sub.status)) continue;
       for (const item of sub.items.data) {
         if (LO_PRO_PRICE_ID && item.price.id === LO_PRO_PRICE_ID) return Infinity; // $299 — unlimited
         if (LO_PRICE_ID && item.price.id === LO_PRICE_ID) return 250;             // $149 — 250/month
@@ -30613,7 +30617,7 @@ const resolveLoWowInviteLimit = async (loAgent) => {
   } catch (err) {
     console.warn('[LO Invite] Stripe plan lookup failed (non-fatal):', err?.message);
   }
-  return 0; // No active LO subscription, trial expired → blocked
+  return 0; // No active/trialing LO subscription → blocked
 };
 // ── LO Partners — Magic Link Invite System ────────────────────────────────────
 app.post('/api/lo/partners/invite', requireAuth, async (req, res) => {
