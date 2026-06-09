@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   fetchDashboardLeads,
@@ -27,6 +27,16 @@ const sortLeadsForInbox = (rows: DashboardLeadItem[]) => {
       if (rankA !== rankB) return rankA - rankB
       return new Date(b.last_activity_at || b.created_at).getTime() - new Date(a.last_activity_at || a.created_at).getTime()
     })
+}
+
+const timeAgo = (dateStr: string | null | undefined) => {
+  if (!dateStr) return ''
+  const ms = Date.now() - new Date(dateStr).getTime()
+  const mins = Math.floor(ms / 60000)
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  return `${Math.floor(hrs / 24)}d ago`
 }
 
 const exportConversationsCSV = async () => {
@@ -128,27 +138,30 @@ const LeadsInboxCommandPage: React.FC = () => {
   const [intentFilter, setIntentFilter] = useState<'All' | 'Hot' | 'Warm' | 'Cold'>('All')
   const [exportingConversations, setExportingConversations] = useState(false)
 
-  useEffect(() => {
-    if (blueprintMode) {
+  const load = useCallback(async () => {
+    if (blueprintMode) { setLoading(false); return }
+    setLoading(true)
+    setError(null)
+    try {
+      const response = await fetchDashboardLeads({ tab: 'All', sort: 'hot_first' })
+      setInitialLeads(response.leads || [])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load leads.')
+    } finally {
       setLoading(false)
-      return
     }
-    const load = async () => {
-      setLoading(true)
-      setError(null)
-      try {
-        const response = await fetchDashboardLeads({ tab: 'All', sort: 'hot_first' })
-        setInitialLeads(response.leads || [])
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load leads.')
-      } finally {
-        setLoading(false)
-      }
-    }
-    void load()
   }, [setInitialLeads, blueprintMode])
 
+  useEffect(() => { void load() }, [load])
+
   const allLeads = useMemo(() => Object.values(leadsById), [leadsById])
+
+  // Tab counts
+  const newCount = useMemo(() => allLeads.filter(l => l.status === 'New').length, [allLeads])
+  const allCount = allLeads.length
+
+  // Whether any filter is active (used for empty-state messaging)
+  const isFiltering = search.trim().length > 0 || intentFilter !== 'All'
 
   const filteredLeads = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -211,21 +224,31 @@ const LeadsInboxCommandPage: React.FC = () => {
       <div className="flex items-center gap-6 border-b border-slate-200 mb-6">
         <button
           onClick={() => setTab('New')}
-          className={`pb-4 text-sm font-bold uppercase tracking-widest transition-colors ${tab === 'New'
+          className={`flex items-center gap-2 pb-4 text-sm font-bold uppercase tracking-widest transition-colors ${tab === 'New'
             ? 'border-b-2 border-slate-900 text-slate-900'
             : 'text-slate-400 hover:text-slate-600'
             }`}
         >
           New
+          {newCount > 0 && (
+            <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${tab === 'New' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'}`}>
+              {newCount}
+            </span>
+          )}
         </button>
         <button
           onClick={() => setTab('All')}
-          className={`pb-4 text-sm font-bold uppercase tracking-widest transition-colors ${tab === 'All'
+          className={`flex items-center gap-2 pb-4 text-sm font-bold uppercase tracking-widest transition-colors ${tab === 'All'
             ? 'border-b-2 border-slate-900 text-slate-900'
             : 'text-slate-400 hover:text-slate-600'
             }`}
         >
           All
+          {allCount > 0 && (
+            <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${tab === 'All' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500'}`}>
+              {allCount}
+            </span>
+          )}
         </button>
       </div>
 
@@ -283,14 +306,21 @@ const LeadsInboxCommandPage: React.FC = () => {
         )}
         {!loading && error && <div className="rounded-2xl border border-rose-200 bg-rose-50 p-8 text-center text-sm font-medium text-rose-700">{error}</div>}
 
-        {!loading && !error && filteredLeads.length === 0 && tab === 'New' && (
+        {!loading && !error && filteredLeads.length === 0 && isFiltering && (
+          <div className="rounded-3xl border border-slate-200 bg-slate-50 p-12 text-center shadow-sm">
+            <h3 className="text-2xl font-bold text-slate-900 mb-2">No leads match your search.</h3>
+            <p className="text-slate-500 font-medium text-lg">Try a different name, address, or remove the filter.</p>
+          </div>
+        )}
+
+        {!loading && !error && filteredLeads.length === 0 && !isFiltering && tab === 'New' && (
           <div className="rounded-3xl border border-slate-200 bg-slate-50 p-12 text-center shadow-sm">
             <h3 className="text-2xl font-bold text-slate-900 mb-2">All caught up.</h3>
             <p className="text-slate-500 font-medium text-lg">New leads will appear here automatically.</p>
           </div>
         )}
 
-        {!loading && !error && filteredLeads.length === 0 && tab === 'All' && (
+        {!loading && !error && filteredLeads.length === 0 && !isFiltering && tab === 'All' && (
           <div className="rounded-3xl border border-slate-200 bg-slate-50 p-12 text-center shadow-sm">
             <h3 className="text-2xl font-bold text-slate-900 mb-2">No leads yet.</h3>
             <p className="text-slate-500 font-medium text-lg mb-8">Let's get your first property published.</p>
@@ -303,26 +333,14 @@ const LeadsInboxCommandPage: React.FC = () => {
           </div>
         )}
 
-        {!loading && !error && filteredLeads.map((lead) => {
-
-          // Format time ago
-          const timeAgo = () => {
-            const ms = Date.now() - new Date(lead.last_activity_at || lead.created_at).getTime();
-            const mins = Math.floor(ms / 60000);
-            if (mins < 60) return `${mins}m ago`;
-            const hrs = Math.floor(mins / 60);
-            if (hrs < 24) return `${hrs}h ago`;
-            return `${Math.floor(hrs / 24)}d ago`;
-          };
-
-          return (
+        {!loading && !error && filteredLeads.map((lead) => (
             <div key={lead.id} className="group rounded-2xl border border-slate-200 bg-white p-5 hover:border-slate-300 hover:shadow-md transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer" onClick={() => {
               void logOpen(lead.id)
               navigate(buildDashboardPath(`/leads/${lead.id}`, demoMode))
             }}>
               <div className="flex items-start gap-4 flex-1">
 
-                {/* Subtle Avatar */}
+                {/* Avatar */}
                 <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0 border border-slate-200">
                   <span className="material-symbols-outlined text-slate-400">person</span>
                 </div>
@@ -334,11 +352,13 @@ const LeadsInboxCommandPage: React.FC = () => {
                     {/* Badges */}
                     <div className="flex gap-1.5 flex-shrink-0 mt-0.5">
                       {lead.status === 'New' && <span className="rounded px-1.5 py-0.5 bg-blue-100 text-[10px] font-black uppercase tracking-wider text-blue-700">NEW</span>}
-                      {lead.intent_level === 'Hot' && <span className="rounded px-1.5 py-0.5 bg-rose-100 text-[10px] font-black uppercase tracking-wider text-rose-700">HOT</span>}
+                      {lead.intent_level === 'Hot' && <span className="rounded px-1.5 py-0.5 bg-rose-100 text-[10px] font-black uppercase tracking-wider text-rose-700">🔥 HOT</span>}
+                      {lead.intent_level === 'Warm' && <span className="rounded px-1.5 py-0.5 bg-amber-100 text-[10px] font-black uppercase tracking-wider text-amber-700">☀️ WARM</span>}
+                      {lead.intent_level === 'Cold' && <span className="rounded px-1.5 py-0.5 bg-slate-100 text-[10px] font-black uppercase tracking-wider text-slate-500">❄️ COLD</span>}
                     </div>
                   </div>
 
-                  {/* Quick Reason / Summary */}
+                  {/* Summary */}
                   <p className="text-slate-700 font-medium text-sm truncate mb-1">
                     {lead.lead_summary || lead.last_message_preview || 'New lead captured'}
                   </p>
@@ -349,7 +369,7 @@ const LeadsInboxCommandPage: React.FC = () => {
                     <span className="w-1 h-1 rounded-full bg-slate-300"></span>
                     <span className="capitalize">{lead.source_type?.replace(/_/g, ' ') || 'Unknown Source'}</span>
                     <span className="w-1 h-1 rounded-full bg-slate-300"></span>
-                    <span>{timeAgo()}</span>
+                    <span>{timeAgo(lead.last_activity_at || lead.created_at)}</span>
                   </div>
                   {lead.lo_name && (
                     <div className="mt-1 flex items-center gap-1 text-[11px] font-semibold text-primary-600">
@@ -360,8 +380,18 @@ const LeadsInboxCommandPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* The ONE action */}
-              <div className="flex-shrink-0">
+              {/* Actions */}
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {lead.phone && (
+                  <a
+                    href={`tel:${lead.phone}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="flex items-center justify-center w-9 h-9 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 transition-colors"
+                    title={lead.phone}
+                  >
+                    <span className="material-symbols-outlined text-[18px]">call</span>
+                  </a>
+                )}
                 <button
                   type="button"
                   onClick={(e) => {
@@ -369,14 +399,13 @@ const LeadsInboxCommandPage: React.FC = () => {
                     void logOpen(lead.id)
                     navigate(buildDashboardPath(`/leads/${lead.id}`, demoMode));
                   }}
-                  className="w-full sm:w-auto px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-900 font-bold rounded-lg transition-colors text-sm"
+                  className="px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-900 font-bold rounded-lg transition-colors text-sm"
                 >
                   Open
                 </button>
               </div>
             </div>
-          );
-        })}
+          ))}
       </section>
     </div>
   )

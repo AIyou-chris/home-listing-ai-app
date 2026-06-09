@@ -1,12 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import { buildDashboardPath, useDemoMode } from '../../demo/useDemoMode';
 import { useBlueprintMode } from '../../demo/useBlueprintMode';
 import {
   DashboardLeadConversationMessage,
   DashboardLeadAppointment,
   DashboardLeadDetail,
-  createLeadAppointment,
   fetchDashboardLeadConversation,
   fetchDashboardLeadDetail,
   logDashboardAgentAction,
@@ -14,6 +14,8 @@ import {
   updateDashboardLeadStatus
 } from '../../services/dashboardCommandService';
 import { useDashboardRealtimeStore } from '../../state/useDashboardRealtimeStore';
+import ScheduleAppointmentModal, { type ScheduleAppointmentFormData } from '../ScheduleAppointmentModal';
+import { scheduleAppointment } from '../../services/schedulerService';
 
 const prettyEventName = (value: string) =>
   value
@@ -50,10 +52,7 @@ const LeadDetailCommandPage: React.FC = () => {
   // UX State
   const [activeTab, setActiveTab] = useState<'activity' | 'appointment' | 'notes'>('activity');
   const [showAppointmentModal, setShowAppointmentModal] = useState(false);
-
-  // Form State
-  const [appointmentDateTime, setAppointmentDateTime] = useState('');
-  const [appointmentLocation, setAppointmentLocation] = useState('');
+  const [schedulingAppt, setSchedulingAppt] = useState(false);
 
   // Implicit Save State
   const [status, setStatus] = useState('New');
@@ -227,36 +226,31 @@ const LeadDetailCommandPage: React.FC = () => {
 
   // Removed legacy saveLeadProfile in favor of saveLeadProfilePartial
 
-  const createAppointment = async () => {
-    if (!appointmentDateTime) {
-      setError('Pick a date and time first.');
-      return;
-    }
-
-    const startsAtIso = new Date(appointmentDateTime).toISOString();
-    const listingId = String(lead.listing_id || detail?.listing?.id || '');
-
-    setSaving(true);
+  const handleScheduleAppointment = async (data: ScheduleAppointmentFormData) => {
+    if (schedulingAppt) return;
+    setSchedulingAppt(true);
     try {
-      await createLeadAppointment({
-        lead_id: leadId,
-        listing_id: listingId || undefined,
-        starts_at: startsAtIso,
-        timezone: 'America/Los_Angeles',
-        location: appointmentLocation || undefined
+      await scheduleAppointment({
+        name: data.name,
+        email: data.email,
+        phone: data.phone,
+        date: data.date,
+        time: data.time,
+        message: data.message,
+        kind: data.kind || 'Showing',
+        remindAgent: data.remindAgent,
+        remindClient: data.remindClient,
+        agentReminderMinutes: data.agentReminderMinutes,
+        clientReminderMinutes: data.clientReminderMinutes,
       });
-      await logAction('appointment_created', {
-        starts_at: startsAtIso,
-        location: appointmentLocation || null
-      });
+      await logAction('appointment_created', { source: 'lead_detail' });
       setShowAppointmentModal(false);
-      setAppointmentLocation('');
-      setAppointmentDateTime('');
+      toast.success('Appointment scheduled!');
       await load(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create appointment.');
+      toast.error(err instanceof Error ? err.message : 'Failed to schedule appointment.');
     } finally {
-      setSaving(false);
+      setSchedulingAppt(false);
     }
   };
 
@@ -743,50 +737,16 @@ const LeadDetailCommandPage: React.FC = () => {
       </div>
 
       {showAppointmentModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
-          <div className="w-full max-w-sm rounded-2xl bg-white shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center">
-              <h3 className="text-lg font-bold text-slate-900">Set Appointment</h3>
-              <button onClick={() => setShowAppointmentModal(false)} className="text-slate-400 hover:text-slate-600">
-                <span className="material-symbols-outlined">close</span>
-              </button>
-            </div>
-
-            <div className="p-6 space-y-4 bg-slate-50">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">Date & time</label>
-                <input
-                  type="datetime-local"
-                  value={appointmentDateTime}
-                  onChange={(event) => setAppointmentDateTime(event.target.value)}
-                  className="w-full rounded-xl border border-slate-300 px-4 py-3 font-medium text-slate-900 outline-none focus:border-slate-900"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">Location (optional)</label>
-                <input
-                  type="text"
-                  value={appointmentLocation}
-                  onChange={(event) => setAppointmentLocation(event.target.value)}
-                  placeholder="E.g. Listing Address or Phone Call"
-                  className="w-full rounded-xl border border-slate-300 px-4 py-3 font-medium text-slate-900 outline-none focus:border-slate-900"
-                />
-              </div>
-
-              <div className="pt-2">
-                <button
-                  type="button"
-                  onClick={() => void createAppointment()}
-                  disabled={saving}
-                  className="w-full rounded-xl bg-slate-900 py-3.5 text-sm font-bold text-white transition-transform active:scale-[0.98] disabled:opacity-50"
-                >
-                  {saving ? 'Saving...' : 'Confirm Appointment'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <ScheduleAppointmentModal
+          lead={null}
+          initialData={{
+            name: leadName !== 'Unknown' ? leadName : '',
+            phone: leadPhone,
+            email: leadEmail,
+          }}
+          onClose={() => setShowAppointmentModal(false)}
+          onSchedule={(data) => { void handleScheduleAppointment(data) }}
+        />
       )}
     </div>
   );
