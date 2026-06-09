@@ -21959,6 +21959,109 @@ app.get('/api/dashboard/leads/:leadId/conversation', async (req, res) => {
   }
 });
 
+// ── Export all conversations for an agent (3 queries, not N) ────────────────
+app.get('/api/dashboard/leads/export-conversations', async (req, res) => {
+  try {
+    const agentId = String(req.query.agentId || req.headers['x-user-id'] || req.headers['x-agent-id'] || DEFAULT_LEAD_USER_ID || '');
+    if (!agentId) return res.status(400).json({ error: 'agent_id_required' });
+
+    // 1. Fetch all leads for this agent
+    const runLeadsQuery = async (ownerMode = 'agent_or_user') => {
+      let q = supabaseAdmin
+        .from('leads')
+        .select('id, full_name, phone_e164, email_lower, listing_id, created_at')
+        .order('created_at', { ascending: false })
+        .limit(500);
+      if (agentId) {
+        q = ownerMode === 'agent_or_user'
+          ? q.or(`agent_id.eq.${agentId},user_id.eq.${agentId}`)
+          : q.eq('user_id', agentId);
+      }
+      return q;
+    };
+
+    let { data: leadsRaw, error: leadsErr } = await runLeadsQuery('agent_or_user');
+    if (leadsErr && /agent_id/i.test(leadsErr.message || '')) {
+      const fb = await runLeadsQuery('user_only');
+      leadsRaw = fb.data;
+      leadsErr = fb.error;
+    }
+    if (leadsErr) throw leadsErr;
+    if (!leadsRaw || leadsRaw.length === 0) return res.json({ success: true, leads: [] });
+
+    // Enrich with listing address
+    const listingIds = [...new Set(leadsRaw.map(l => l.listing_id).filter(Boolean))];
+    let listingMap = {};
+    if (listingIds.length > 0) {
+      const { data: propRows } = await supabaseAdmin
+        .from('properties')
+        .select('id, address')
+        .in('id', listingIds);
+      (propRows || []).forEach(p => { listingMap[p.id] = p.address || ''; });
+    }
+
+    const leadIds = leadsRaw.map(l => l.id);
+
+    // 2. Fetch most-recent conversation per lead
+    const { data: convRows, error: convErr } = await supabaseAdmin
+      .from('ai_conversations')
+      .select('id, lead_id, started_at, last_activity_at')
+      .in('lead_id', leadIds)
+      .order('updated_at', { ascending: false });
+    if (convErr) throw convErr;
+
+    // Keep only the most-recent conversation per lead
+    const convByLead = {};
+    (convRows || []).forEach(c => {
+      if (!convByLead[c.lead_id]) convByLead[c.lead_id] = c;
+    });
+
+    const convIds = Object.values(convByLead).map(c => c.id);
+    if (convIds.length === 0) return res.json({ success: true, leads: [] });
+
+    // 3. Fetch all messages for those conversations
+    const { data: msgRows, error: msgErr } = await supabaseAdmin
+      .from('ai_conversation_messages')
+      .select('id, conversation_id, sender, content, created_at')
+      .in('conversation_id', convIds)
+      .order('created_at', { ascending: true })
+      .limit(10000);
+    if (msgErr) throw msgErr;
+
+    const msgsByConv = {};
+    (msgRows || []).forEach(m => {
+      if (!msgsByConv[m.conversation_id]) msgsByConv[m.conversation_id] = [];
+      msgsByConv[m.conversation_id].push(m);
+    });
+
+    // Assemble output
+    const leads = leadsRaw
+      .filter(l => convByLead[l.id])
+      .map(l => {
+        const conv = convByLead[l.id];
+        const messages = (msgsByConv[conv.id] || []).map(m => ({
+          sender: m.sender,
+          text: m.content,
+          created_at: m.created_at
+        }));
+        return {
+          id: l.id,
+          name: l.full_name || '',
+          phone: l.phone_e164 || '',
+          email: l.email_lower || '',
+          listing_address: (l.listing_id && listingMap[l.listing_id]) || '',
+          conversation_started_at: conv.started_at || conv.last_activity_at || null,
+          messages
+        };
+      });
+
+    res.json({ success: true, leads });
+  } catch (err) {
+    console.error('[ExportConversations] Error:', err);
+    res.status(500).json({ error: 'export_conversations_failed' });
+  }
+});
+
 app.patch('/api/dashboard/leads/:leadId/status', async (req, res) => {
   try {
     const { leadId } = req.params;

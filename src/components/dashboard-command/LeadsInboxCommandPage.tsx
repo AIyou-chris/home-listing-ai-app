@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   fetchDashboardLeads,
+  fetchLeadConversationsForExport,
   logDashboardAgentAction,
   type DashboardLeadItem
 } from '../../services/dashboardCommandService'
@@ -26,6 +27,55 @@ const sortLeadsForInbox = (rows: DashboardLeadItem[]) => {
       if (rankA !== rankB) return rankA - rankB
       return new Date(b.last_activity_at || b.created_at).getTime() - new Date(a.last_activity_at || a.created_at).getTime()
     })
+}
+
+const exportConversationsCSV = async () => {
+  const leads = await fetchLeadConversationsForExport()
+  if (!leads.length) return
+
+  const escape = (val: unknown) => {
+    const s = String(val ?? '').replace(/"/g, '""')
+    return `"${s}"`
+  }
+
+  const headers = ['Lead Name', 'Phone', 'Email', 'Listing Address', 'Sender', 'Message', 'Timestamp']
+  const rows: string[] = []
+
+  for (const lead of leads) {
+    if (!lead.messages.length) {
+      // Lead with no messages — one row just to capture the contact
+      rows.push([
+        escape(lead.name),
+        escape(lead.phone),
+        escape(lead.email),
+        escape(lead.listing_address),
+        escape(''),
+        escape('(no messages)'),
+        escape(lead.conversation_started_at ? new Date(lead.conversation_started_at).toLocaleString() : '')
+      ].join(','))
+    } else {
+      for (const msg of lead.messages) {
+        rows.push([
+          escape(lead.name),
+          escape(lead.phone),
+          escape(lead.email),
+          escape(lead.listing_address),
+          escape(msg.sender === 'visitor' ? 'Buyer' : 'AI'),
+          escape(msg.text),
+          escape(new Date(msg.created_at).toLocaleString())
+        ].join(','))
+      }
+    }
+  }
+
+  const csv = [headers.map(escape).join(','), ...rows].join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `conversations-${new Date().toISOString().slice(0, 10)}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
 const exportLeadsCSV = (leads: DashboardLeadItem[]) => {
@@ -76,6 +126,7 @@ const LeadsInboxCommandPage: React.FC = () => {
   const [tab, setTab] = useState<'New' | 'All'>('New')
   const [search, setSearch] = useState('')
   const [intentFilter, setIntentFilter] = useState<'All' | 'Hot' | 'Warm' | 'Cold'>('All')
+  const [exportingConversations, setExportingConversations] = useState(false)
 
   useEffect(() => {
     if (blueprintMode) {
@@ -132,15 +183,29 @@ const LeadsInboxCommandPage: React.FC = () => {
           <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Leads</h1>
           <p className="mt-2 text-lg text-slate-500 font-medium">New leads and listing inquiries—organized by what matters most.</p>
         </div>
-        <button
-          type="button"
-          onClick={() => exportLeadsCSV(filteredLeads)}
-          disabled={loading || filteredLeads.length === 0}
-          className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          <span className="material-symbols-outlined text-[18px]">download</span>
-          Export CSV{filteredLeads.length > 0 ? ` (${filteredLeads.length})` : ''}
-        </button>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <button
+            type="button"
+            onClick={() => exportLeadsCSV(filteredLeads)}
+            disabled={loading || filteredLeads.length === 0}
+            className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <span className="material-symbols-outlined text-[18px]">download</span>
+            Export CSV{filteredLeads.length > 0 ? ` (${filteredLeads.length})` : ''}
+          </button>
+          <button
+            type="button"
+            onClick={async () => {
+              setExportingConversations(true)
+              try { await exportConversationsCSV() } finally { setExportingConversations(false) }
+            }}
+            disabled={loading || exportingConversations}
+            className="flex items-center gap-2 rounded-xl border border-primary-200 bg-primary-50 px-4 py-2.5 text-sm font-bold text-primary-700 shadow-sm transition hover:bg-primary-100 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <span className="material-symbols-outlined text-[18px]">forum</span>
+            {exportingConversations ? 'Exporting…' : 'Export Conversations'}
+          </button>
+        </div>
       </div>
 
       <div className="flex items-center gap-6 border-b border-slate-200 mb-6">

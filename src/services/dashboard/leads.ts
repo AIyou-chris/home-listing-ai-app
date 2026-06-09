@@ -202,6 +202,26 @@ export const fetchDashboardLeadConversation = async (leadId: string, agentIdOver
   return parseResponse<DashboardLeadConversationResponse>(response);
 };
 
+export interface ExportConversationLead {
+  id: string;
+  name: string;
+  phone: string;
+  email: string;
+  listing_address: string;
+  conversation_started_at: string | null;
+  messages: Array<{ sender: string; text: string; created_at: string }>;
+}
+
+export const fetchLeadConversationsForExport = async (agentIdOverride?: string | null): Promise<ExportConversationLead[]> => {
+  const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
+  const response = await fetch(
+    buildApiUrl(withAgentQuery('/api/dashboard/leads/export-conversations', agentId)),
+    { headers: defaultJsonHeaders(agentId) }
+  );
+  const data = await parseResponse<{ success: boolean; leads: ExportConversationLead[] }>(response);
+  return data.leads || [];
+};
+
 export const updateDashboardLeadStatus = async (
   leadId: string,
   payload: { status: string; timeline?: string; financing?: string; working_with_agent?: string; notes?: string },
