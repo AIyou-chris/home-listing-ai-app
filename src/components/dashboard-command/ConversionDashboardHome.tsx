@@ -200,22 +200,12 @@ const ConversionDashboardHome: React.FC = () => {
     }
   }
 
-  const handleReschedule = async (appointment: CommandCenterAppointmentQueueItem) => {
-    setWorkingItemId(appointment.appointment_id)
-    setError(null)
-    try {
-      await updateAppointmentStatus(appointment.appointment_id, 'reschedule_requested')
-      await logLeadAction(appointment.lead_id, 'appointment_updated', {
-        appointment_id: appointment.appointment_id,
-        status: 'reschedule_requested',
-        source: 'command_center'
-      })
-      void load()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update appointment.')
-    } finally {
-      setWorkingItemId(null)
-    }
+  const handleReschedule = (appointment: CommandCenterAppointmentQueueItem) => {
+    // Navigate to lead detail so agent can set a new appointment time
+    const target = appointment.lead_id
+      ? buildDashboardPath(`/leads/${appointment.lead_id}`, demoMode)
+      : buildDashboardPath('/appointments', demoMode)
+    navigate(target)
   }
 
   const handleRetryReminder = async (appointment: CommandCenterAppointmentQueueItem) => {
@@ -376,9 +366,13 @@ const ConversionDashboardHome: React.FC = () => {
             onClick={() => setNewLeadsOpen((o) => !o)}
             className="flex w-full items-center justify-between gap-2 text-left"
           >
-            <div>
+            <div className="flex items-center gap-2">
               <h2 className="text-base font-semibold text-slate-900">New leads to work</h2>
-              <p className="text-xs text-slate-500">Reply fast. Book the showing.</p>
+              {queues.new_leads_to_work.length > 0 && (
+                <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-bold text-rose-700">
+                  {queues.new_leads_to_work.length}
+                </span>
+              )}
             </div>
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"
               className={`h-5 w-5 flex-shrink-0 text-slate-400 transition-transform duration-200 ${newLeadsOpen ? 'rotate-180' : ''}`}>
@@ -440,6 +434,15 @@ const ConversionDashboardHome: React.FC = () => {
                 </div>
               </div>
             ))}
+            {queues.new_leads_to_work.length > 10 && (
+              <button
+                type="button"
+                onClick={() => navigate(buildDashboardPath('/leads', demoMode))}
+                className="w-full rounded-lg border border-dashed border-slate-300 py-2 text-xs font-semibold text-slate-500 hover:border-slate-400 hover:text-slate-700 transition-colors"
+              >
+                View all {queues.new_leads_to_work.length} leads →
+              </button>
+            )}
           </div>}
         </article>
 
@@ -449,9 +452,13 @@ const ConversionDashboardHome: React.FC = () => {
             onClick={() => setAppointmentsOpen((o) => !o)}
             className="flex w-full items-center justify-between gap-2 text-left"
           >
-            <div>
+            <div className="flex items-center gap-2">
               <h2 className="text-base font-semibold text-slate-900">Appointments coming up</h2>
-              <p className="text-xs text-slate-500">Confirm these to reduce no-shows.</p>
+              {queues.appointments_coming_up.length > 0 && (
+                <span className="rounded-full bg-primary-100 px-2 py-0.5 text-[11px] font-bold text-primary-700">
+                  {queues.appointments_coming_up.length}
+                </span>
+              )}
             </div>
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"
               className={`h-5 w-5 flex-shrink-0 text-slate-400 transition-transform duration-200 ${appointmentsOpen ? 'rotate-180' : ''}`}>
@@ -509,6 +516,15 @@ const ConversionDashboardHome: React.FC = () => {
               </div>
               )
             })}
+            {queues.appointments_coming_up.length > 10 && (
+              <button
+                type="button"
+                onClick={() => navigate(buildDashboardPath('/appointments', demoMode))}
+                className="w-full rounded-lg border border-dashed border-slate-300 py-2 text-xs font-semibold text-slate-500 hover:border-slate-400 hover:text-slate-700 transition-colors"
+              >
+                View all {queues.appointments_coming_up.length} appointments →
+              </button>
+            )}
           </div>}
         </article>
 
@@ -518,9 +534,13 @@ const ConversionDashboardHome: React.FC = () => {
             onClick={() => setAttentionOpen((o) => !o)}
             className="flex w-full items-center justify-between gap-2 text-left"
           >
-            <div>
+            <div className="flex items-center gap-2">
               <h2 className="text-base font-semibold text-slate-900">Needs attention</h2>
-              <p className="text-xs text-slate-500">Fix these and keep the pipeline clean.</p>
+              {queues.needs_attention.length > 0 && (
+                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-700">
+                  {queues.needs_attention.length}
+                </span>
+              )}
             </div>
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"
               className={`h-5 w-5 flex-shrink-0 text-slate-400 transition-transform duration-200 ${attentionOpen ? 'rotate-180' : ''}`}>
@@ -558,9 +578,8 @@ const ConversionDashboardHome: React.FC = () => {
                     {renderQueueActionButton('Call', () => void handleAppointmentCall(appointment), {
                       disabled: !appointment.lead_phone
                     })}
-                    {isRescheduleRequested && renderQueueActionButton('Reschedule', () => void handleReschedule(appointment), {
-                      tone: 'warning',
-                      disabled: workingItemId === appointment.appointment_id
+                    {isRescheduleRequested && renderQueueActionButton('Reschedule', () => handleReschedule(appointment), {
+                      tone: 'warning'
                     })}
                     {isFailedReminder && renderQueueActionButton('Retry reminder', () => void handleRetryReminder(appointment), {
                       tone: 'primary',
@@ -577,6 +596,15 @@ const ConversionDashboardHome: React.FC = () => {
                 </div>
               )
             })}
+            {queues.needs_attention.length > 10 && (
+              <button
+                type="button"
+                onClick={() => navigate(buildDashboardPath('/appointments', demoMode))}
+                className="w-full rounded-lg border border-dashed border-slate-300 py-2 text-xs font-semibold text-slate-500 hover:border-slate-400 hover:text-slate-700 transition-colors"
+              >
+                View all {queues.needs_attention.length} items →
+              </button>
+            )}
           </div>}
         </article>
       </section>
