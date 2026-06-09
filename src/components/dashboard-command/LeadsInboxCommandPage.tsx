@@ -196,29 +196,31 @@ const LeadsInboxCommandPage: React.FC = () => {
           <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Leads</h1>
           <p className="mt-2 text-lg text-slate-500 font-medium">New leads and listing inquiries—organized by what matters most.</p>
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <button
-            type="button"
-            onClick={() => exportLeadsCSV(filteredLeads)}
-            disabled={loading || filteredLeads.length === 0}
-            className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            <span className="material-symbols-outlined text-[18px]">download</span>
-            Export CSV{filteredLeads.length > 0 ? ` (${filteredLeads.length})` : ''}
-          </button>
-          <button
-            type="button"
-            onClick={async () => {
-              setExportingConversations(true)
-              try { await exportConversationsCSV() } finally { setExportingConversations(false) }
-            }}
-            disabled={loading || exportingConversations}
-            className="flex items-center gap-2 rounded-xl border border-primary-200 bg-primary-50 px-4 py-2.5 text-sm font-bold text-primary-700 shadow-sm transition hover:bg-primary-100 disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            <span className="material-symbols-outlined text-[18px]">forum</span>
-            {exportingConversations ? 'Exporting…' : 'Export Conversations'}
-          </button>
-        </div>
+        {!loading && allCount > 0 && (
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button
+              type="button"
+              onClick={() => exportLeadsCSV(filteredLeads)}
+              disabled={filteredLeads.length === 0}
+              className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <span className="material-symbols-outlined text-[18px]">download</span>
+              Export CSV{filteredLeads.length > 0 ? ` (${filteredLeads.length})` : ''}
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                setExportingConversations(true)
+                try { await exportConversationsCSV() } finally { setExportingConversations(false) }
+              }}
+              disabled={exportingConversations}
+              className="flex items-center gap-2 rounded-xl border border-primary-200 bg-primary-50 px-4 py-2.5 text-sm font-bold text-primary-700 shadow-sm transition hover:bg-primary-100 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <span className="material-symbols-outlined text-[18px]">forum</span>
+              {exportingConversations ? 'Exporting…' : 'Export Conversations'}
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="flex items-center gap-6 border-b border-slate-200 mb-6">
