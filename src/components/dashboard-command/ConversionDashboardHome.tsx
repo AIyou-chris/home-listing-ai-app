@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import toast from 'react-hot-toast'
 import { buildDashboardPath, useDemoMode } from '../../demo/useDemoMode'
 import { useBlueprintMode } from '../../demo/useBlueprintMode'
 import {
@@ -14,12 +15,20 @@ import {
 import { fetchOnboardingState, type OnboardingState } from '../../services/onboardingService'
 import { useDashboardRealtimeStore } from '../../state/useDashboardRealtimeStore'
 import { useRealtimeRoiUpdates } from '../../hooks/dashboard/useRealtimeRoiUpdates'
+import ScheduleAppointmentModal, { type ScheduleAppointmentFormData } from '../ScheduleAppointmentModal'
+import { scheduleAppointment } from '../../services/schedulerService'
 
-const formatDateTime = (value?: string | null) => {
+const formatAppointmentTime = (value?: string | null) => {
   if (!value) return 'Unknown time'
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return 'Unknown time'
-  return date.toLocaleString()
+  const now = new Date()
+  const tomorrow = new Date(now)
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  const timeStr = date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+  if (date.toDateString() === now.toDateString()) return `Today at ${timeStr}`
+  if (date.toDateString() === tomorrow.toDateString()) return `Tomorrow at ${timeStr}`
+  return date.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' }) + ` at ${timeStr}`
 }
 
 const normalizeAppointmentStatus = (value?: string | null) => {
@@ -53,6 +62,8 @@ const ConversionDashboardHome: React.FC = () => {
   const [newLeadsOpen, setNewLeadsOpen] = useState(true)
   const [appointmentsOpen, setAppointmentsOpen] = useState(true)
   const [attentionOpen, setAttentionOpen] = useState(true)
+  const [schedulingLead, setSchedulingLead] = useState<CommandCenterLeadQueueItem | null>(null)
+  const [schedulingAppt, setSchedulingAppt] = useState(false)
 
   const load = useCallback(async () => {
     // Blueprint mode has no auth — skip all API calls
@@ -130,10 +141,38 @@ const ConversionDashboardHome: React.FC = () => {
     try {
       await updateDashboardLeadStatus(lead.lead_id, { status: 'Contacted' })
       await logLeadAction(lead.lead_id, 'status_changed', { status: 'Contacted', source: 'command_center' })
+      void load()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update lead status.')
     } finally {
       setWorkingItemId(null)
+    }
+  }
+
+  const handleScheduleFromLead = async (data: ScheduleAppointmentFormData) => {
+    if (schedulingAppt) return
+    setSchedulingAppt(true)
+    try {
+      await scheduleAppointment({
+        name: data.name,
+        email: data.email,
+        phone: data.phone,
+        date: data.date,
+        time: data.time,
+        message: data.message,
+        kind: data.kind || 'Showing',
+        remindAgent: data.remindAgent,
+        remindClient: data.remindClient,
+        agentReminderMinutes: data.agentReminderMinutes,
+        clientReminderMinutes: data.clientReminderMinutes,
+      })
+      setSchedulingLead(null)
+      toast.success('Appointment scheduled!')
+      void load()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to schedule appointment.')
+    } finally {
+      setSchedulingAppt(false)
     }
   }
 
@@ -153,6 +192,7 @@ const ConversionDashboardHome: React.FC = () => {
         status: 'confirmed',
         source: 'command_center'
       })
+      void load()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to mark appointment confirmed.')
     } finally {
@@ -170,6 +210,7 @@ const ConversionDashboardHome: React.FC = () => {
         status: 'reschedule_requested',
         source: 'command_center'
       })
+      void load()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update appointment.')
     } finally {
@@ -187,6 +228,7 @@ const ConversionDashboardHome: React.FC = () => {
         retry: true,
         source: 'command_center'
       })
+      void load()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to retry reminder.')
     } finally {
@@ -293,22 +335,38 @@ const ConversionDashboardHome: React.FC = () => {
 
       {!loading && <>
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <article className={statCardClass}>
+        <button
+          type="button"
+          onClick={() => navigate(buildDashboardPath('/leads', demoMode))}
+          className={`${statCardClass} text-left transition hover:border-slate-300 hover:shadow-md`}
+        >
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">New leads today</p>
-          <p className="mt-2 text-2xl font-bold text-slate-900">{stats.new_leads_today}</p>
-        </article>
-        <article className={statCardClass}>
+          <p className={`mt-2 text-2xl font-bold ${stats.new_leads_today > 0 ? 'text-primary-600' : 'text-slate-900'}`}>{stats.new_leads_today}</p>
+        </button>
+        <button
+          type="button"
+          onClick={() => navigate(buildDashboardPath('/leads', demoMode))}
+          className={`${statCardClass} text-left transition hover:border-slate-300 hover:shadow-md`}
+        >
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Unworked leads</p>
-          <p className="mt-2 text-2xl font-bold text-slate-900">{stats.unworked_leads}</p>
-        </article>
-        <article className={statCardClass}>
+          <p className={`mt-2 text-2xl font-bold ${stats.unworked_leads > 0 ? 'text-amber-600' : 'text-slate-900'}`}>{stats.unworked_leads}</p>
+        </button>
+        <button
+          type="button"
+          onClick={() => navigate(buildDashboardPath('/appointments', demoMode))}
+          className={`${statCardClass} text-left transition hover:border-slate-300 hover:shadow-md`}
+        >
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Appointments today</p>
-          <p className="mt-2 text-2xl font-bold text-slate-900">{stats.appointments_today}</p>
-        </article>
-        <article className={statCardClass}>
+          <p className={`mt-2 text-2xl font-bold ${stats.appointments_today > 0 ? 'text-primary-600' : 'text-slate-900'}`}>{stats.appointments_today}</p>
+        </button>
+        <button
+          type="button"
+          onClick={() => navigate(buildDashboardPath('/appointments', demoMode))}
+          className={`${statCardClass} text-left transition hover:border-slate-300 hover:shadow-md`}
+        >
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Confirmations (7 days)</p>
-          <p className="mt-2 text-2xl font-bold text-slate-900">{stats.confirmations_7d}</p>
-        </article>
+          <p className={`mt-2 text-2xl font-bold ${stats.confirmations_7d > 0 ? 'text-emerald-600' : 'text-slate-900'}`}>{stats.confirmations_7d}</p>
+        </button>
       </section>
 
       <section className="grid gap-4 lg:grid-cols-3">
@@ -350,12 +408,18 @@ const ConversionDashboardHome: React.FC = () => {
                     <p className="text-sm font-semibold text-slate-900">{lead.full_name || 'Unknown'}</p>
                     <p className="text-xs text-slate-500">{lead.listing_address || 'No listing attached'}</p>
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1 flex-shrink-0">
                     {lead.status === 'New' && (
                       <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-700">NEW</span>
                     )}
                     {lead.intent_level === 'Hot' && (
-                      <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold text-rose-700">HOT</span>
+                      <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold text-rose-700">🔥 HOT</span>
+                    )}
+                    {lead.intent_level === 'Warm' && (
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">☀️ WARM</span>
+                    )}
+                    {lead.intent_level === 'Cold' && (
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500">❄️ COLD</span>
                     )}
                   </div>
                 </div>
@@ -363,7 +427,8 @@ const ConversionDashboardHome: React.FC = () => {
                 <div className="mt-2 flex flex-wrap gap-2">
                   {renderQueueActionButton('Call', () => void handleCallLead(lead), { disabled: !lead.phone })}
                   {renderQueueActionButton('Email', () => void handleEmailLead(lead), { disabled: !lead.email })}
-                  {renderQueueActionButton('Open', () => navigate(buildDashboardPath(`/leads/${lead.lead_id}`, demoMode)), { tone: 'primary' })}
+                  {renderQueueActionButton('Schedule', () => setSchedulingLead(lead), { tone: 'primary' })}
+                  {renderQueueActionButton('Open', () => navigate(buildDashboardPath(`/leads/${lead.lead_id}`, demoMode)))}
                   <button
                     type="button"
                     onClick={() => void handleMarkContacted(lead)}
@@ -409,16 +474,27 @@ const ConversionDashboardHome: React.FC = () => {
               </div>
             )}
 
-            {queues.appointments_coming_up.slice(0, 10).map((appointment) => (
+            {queues.appointments_coming_up.slice(0, 10).map((appointment) => {
+              const isConfirmed = normalizeAppointmentStatus(appointment.status) === 'confirmed'
+              return (
               <div key={appointment.appointment_id} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                <p className="text-sm font-semibold text-slate-900">{appointment.lead_name || 'Unknown'}</p>
-                <p className="text-xs text-slate-500">{appointment.listing_address || 'No listing attached'}</p>
-                <p className="mt-1 text-xs text-slate-500">{formatDateTime(appointment.starts_at)}</p>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-slate-900">{appointment.lead_name || 'Unknown'}</p>
+                    <p className="text-xs text-slate-500">{appointment.listing_address || 'No listing attached'}</p>
+                    <p className="mt-1 text-xs font-medium text-slate-700">{formatAppointmentTime(appointment.starts_at)}</p>
+                  </div>
+                  {isConfirmed && (
+                    <span className="shrink-0 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                      Confirmed ✓
+                    </span>
+                  )}
+                </div>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {renderQueueActionButton('Call lead', () => void handleAppointmentCall(appointment), {
                     disabled: !appointment.lead_phone
                   })}
-                  {renderQueueActionButton('Mark confirmed', () => void handleMarkConfirmed(appointment), {
+                  {!isConfirmed && renderQueueActionButton('Mark confirmed', () => void handleMarkConfirmed(appointment), {
                     tone: 'primary',
                     disabled: workingItemId === appointment.appointment_id
                   })}
@@ -431,7 +507,8 @@ const ConversionDashboardHome: React.FC = () => {
                   })}
                 </div>
               </div>
-            ))}
+              )
+            })}
           </div>}
         </article>
 
@@ -481,11 +558,11 @@ const ConversionDashboardHome: React.FC = () => {
                     {renderQueueActionButton('Call', () => void handleAppointmentCall(appointment), {
                       disabled: !appointment.lead_phone
                     })}
-                    {renderQueueActionButton('Reschedule', () => void handleReschedule(appointment), {
+                    {isRescheduleRequested && renderQueueActionButton('Reschedule', () => void handleReschedule(appointment), {
                       tone: 'warning',
                       disabled: workingItemId === appointment.appointment_id
                     })}
-                    {renderQueueActionButton('Retry reminder', () => void handleRetryReminder(appointment), {
+                    {isFailedReminder && renderQueueActionButton('Retry reminder', () => void handleRetryReminder(appointment), {
                       tone: 'primary',
                       disabled: workingItemId === appointment.appointment_id
                     })}
@@ -504,6 +581,19 @@ const ConversionDashboardHome: React.FC = () => {
         </article>
       </section>
       </>}
+
+      {schedulingLead && (
+        <ScheduleAppointmentModal
+          lead={null}
+          initialData={{
+            name: schedulingLead.full_name || '',
+            phone: schedulingLead.phone || '',
+            email: schedulingLead.email || '',
+          }}
+          onClose={() => setSchedulingLead(null)}
+          onSchedule={(data) => { void handleScheduleFromLead(data) }}
+        />
+      )}
     </div>
   )
 }

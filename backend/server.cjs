@@ -21430,7 +21430,7 @@ app.get('/api/dashboard/command-center', async (req, res) => {
     });
 
     const appointmentsComingUp = mappedAppointments
-      .filter((row) => row.status !== 'confirmed')
+      .slice()
       .sort((a, b) => new Date(a.starts_at || 0).getTime() - new Date(b.starts_at || 0).getTime());
 
     const needsAttentionMap = new Map();
