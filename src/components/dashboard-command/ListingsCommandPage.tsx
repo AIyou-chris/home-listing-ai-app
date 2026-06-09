@@ -93,12 +93,14 @@ const ListingsCommandPage: React.FC = () => {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [creatingDraft, setCreatingDraft] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
   const [markingSoldId, setMarkingSoldId] = useState<string | null>(null)
   const [soldPriceInput, setSoldPriceInput] = useState<string>('')
   const [soldPromptId, setSoldPromptId] = useState<string | null>(null)
   const [celebration, setCelebration] = useState<CelebrationData | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [rows, setRows] = useState<ListingRow[]>([])
+  const [listingFilter, setListingFilter] = useState<'All' | 'Published' | 'Draft' | 'Sold'>('All')
 
   const saveDraftAndNavigate = () => {
     const draftId = `draft-${Date.now()}`
@@ -224,6 +226,11 @@ const ListingsCommandPage: React.FC = () => {
     [rows]
   )
 
+  const filteredSortedRows = useMemo(() => {
+    if (listingFilter === 'All') return sortedRows
+    return sortedRows.filter((r) => r.statusLabel === listingFilter)
+  }, [sortedRows, listingFilter])
+
   const dashboardRoot = useMemo(
     () => (location.pathname.startsWith('/dashboard') ? '/dashboard' : '/demo-dashboard'),
     [location.pathname]
@@ -265,9 +272,7 @@ const ListingsCommandPage: React.FC = () => {
   }
 
   const handleDeleteListing = async (listingId: string) => {
-    const confirmed = window.confirm('Delete this listing? This cannot be undone.')
-    if (!confirmed) return
-
+    setDeleteConfirmId(null)
     setDeletingId(listingId)
     try {
       await listingsService.deleteProperty(listingId)
@@ -348,7 +353,8 @@ const ListingsCommandPage: React.FC = () => {
         'Content-Type': 'application/json',
         ...(userData.user?.id ? { 'x-user-id': userData.user.id } : {})
       }
-      await fetch(buildApiUrl(`/api/listings/${listingId}/archive`), { method: 'PATCH', headers })
+      const res = await fetch(buildApiUrl(`/api/listings/${listingId}/archive`), { method: 'PATCH', headers })
+      if (!res.ok) throw new Error('archive_failed')
       setRows((prev) => prev.filter((r) => r.id !== listingId))
       toast.success('Listing archived.')
     } catch {
@@ -383,6 +389,28 @@ const ListingsCommandPage: React.FC = () => {
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">{error}</div>
       )}
 
+      {!loading && sortedRows.length > 0 && (
+        <div className="flex items-center gap-5 border-b border-slate-200">
+          {(['All', 'Published', 'Draft', 'Sold'] as const).map((f) => (
+            <button
+              key={f}
+              type="button"
+              onClick={() => setListingFilter(f)}
+              className={`pb-3 text-sm font-semibold transition-colors ${
+                listingFilter === f
+                  ? 'border-b-2 border-slate-900 text-slate-900'
+                  : 'text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              {f}
+              <span className="ml-1.5 text-xs font-normal text-slate-400">
+                ({f === 'All' ? sortedRows.length : sortedRows.filter((r) => r.statusLabel === f).length})
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {!loading && sortedRows.length === 0 && (
         <div className="rounded-xl border border-slate-200 bg-white p-6">
           <p className="text-base font-semibold text-slate-900">No listings yet</p>
@@ -397,9 +425,15 @@ const ListingsCommandPage: React.FC = () => {
         </div>
       )}
 
-      {!loading && sortedRows.length > 0 && (
+      {!loading && filteredSortedRows.length === 0 && sortedRows.length > 0 && (
+        <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-500">
+          No {listingFilter.toLowerCase()} listings.
+        </div>
+      )}
+
+      {!loading && filteredSortedRows.length > 0 && (
         <div className="grid gap-4 sm:grid-cols-2">
-          {sortedRows.map((row) => {
+          {filteredSortedRows.map((row) => {
             const address = row.address || row.title || 'Listing'
             return (
               <article key={row.id} className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -428,7 +462,7 @@ const ListingsCommandPage: React.FC = () => {
                   </div>
                   <p className="text-sm font-semibold text-slate-900">{formatPrice(row.price)}</p>
                   <p className="text-xs text-slate-500">
-                    {row.bedrooms || 0} bd • {row.bathrooms || 0} ba • {row.squareFeet || 0} sqft
+                    {row.bedrooms ? `${row.bedrooms} bd` : '—'} • {row.bathrooms ? `${row.bathrooms} ba` : '—'} • {row.squareFeet ? `${row.squareFeet.toLocaleString()} sqft` : '—'}
                   </p>
                   {row.shareUrl && <p className="truncate text-xs text-slate-500">{row.shareUrl}</p>}
                   <div className="flex flex-wrap gap-2">
@@ -446,6 +480,15 @@ const ListingsCommandPage: React.FC = () => {
                     >
                       Share Kit
                     </button>
+                    {row.isPublished && row.shareUrl && (
+                      <button
+                        type="button"
+                        onClick={() => window.open(row.shareUrl!, '_blank')}
+                        className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                      >
+                        View Live ↗
+                      </button>
+                    )}
                     {row.isPublished && row.statusLabel !== 'Sold' && (
                       <button
                         type="button"
@@ -456,14 +499,34 @@ const ListingsCommandPage: React.FC = () => {
                         {markingSoldId === row.id ? 'Updating…' : '🎉 Mark Sold'}
                       </button>
                     )}
-                    <button
-                      type="button"
-                      onClick={() => void handleDeleteListing(row.id)}
-                      disabled={deletingId === row.id}
-                      className="rounded-md border border-rose-200 bg-white px-3 py-1.5 text-xs font-semibold text-rose-600 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {deletingId === row.id ? 'Deleting…' : 'Delete'}
-                    </button>
+                    {deleteConfirmId === row.id ? (
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => void handleDeleteListing(row.id)}
+                          disabled={deletingId === row.id}
+                          className="rounded-md bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-50"
+                        >
+                          {deletingId === row.id ? 'Deleting…' : 'Confirm'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDeleteConfirmId(null)}
+                          className="rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-50"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setDeleteConfirmId(row.id)}
+                        disabled={deletingId === row.id}
+                        className="rounded-md border border-rose-200 bg-white px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        Delete
+                      </button>
+                    )}
                   </div>
 
                   {/* Sold price prompt inline */}

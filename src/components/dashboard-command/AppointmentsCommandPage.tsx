@@ -85,6 +85,7 @@ const AppointmentsCommandPage: React.FC = () => {
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false)
   const [newApptOpen, setNewApptOpen] = useState(false)
   const [schedulingAppt, setSchedulingAppt] = useState(false)
+  const [cancelConfirmId, setCancelConfirmId] = useState<string | null>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -157,17 +158,17 @@ const AppointmentsCommandPage: React.FC = () => {
     [appointmentsById]
   )
 
-  const now = Date.now()
-  const next24h = now + 24 * 60 * 60 * 1000
-
   const needsConfirmation = useMemo(
-    () =>
-      allAppointments.filter((appointment) => {
+    () => {
+      const now = Date.now()
+      const next24h = now + 24 * 60 * 60 * 1000
+      return allAppointments.filter((appointment) => {
         const startsAt = new Date(appointment.startsAt || appointment.startIso || '').getTime()
         if (!Number.isFinite(startsAt) || startsAt < now || startsAt > next24h) return false
         return normalizeAppointmentStatus(appointment.normalizedStatus || appointment.status) !== 'confirmed'
-      }),
-    [allAppointments, now, next24h]
+      })
+    },
+    [allAppointments]
   )
 
   const confirmed = useMemo(
@@ -230,6 +231,20 @@ const AppointmentsCommandPage: React.FC = () => {
       })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to mark reschedule requested.')
+    } finally {
+      setWorkingId(null)
+    }
+  }
+
+  const handleCancelAppointment = async (appointment: DashboardAppointmentRow) => {
+    setCancelConfirmId(null)
+    setWorkingId(appointment.id)
+    setError(null)
+    try {
+      await updateAppointmentStatus(appointment.id, 'cancelled')
+      await logAction(appointment.lead?.id, 'appointment_updated', { appointment_id: appointment.id, status: 'cancelled' })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to cancel appointment.')
     } finally {
       setWorkingId(null)
     }
@@ -354,6 +369,36 @@ const AppointmentsCommandPage: React.FC = () => {
                 className="rounded-lg border border-rose-300 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 transition-colors hover:bg-rose-100 disabled:opacity-60"
               >
                 ↩ Retry reminder
+              </button>
+            )}
+
+            {/* Inline cancel confirm */}
+            {cancelConfirmId === appointment.id ? (
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => void handleCancelAppointment(appointment)}
+                  disabled={workingId === appointment.id}
+                  className="rounded-lg border border-rose-300 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100 disabled:opacity-60"
+                >
+                  Confirm cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCancelConfirmId(null)}
+                  className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-50"
+                >
+                  ✕
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setCancelConfirmId(appointment.id)}
+                disabled={workingId === appointment.id}
+                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-50 disabled:opacity-60"
+              >
+                Cancel
               </button>
             )}
 

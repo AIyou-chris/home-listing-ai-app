@@ -74,8 +74,8 @@ const LeadsInboxCommandPage: React.FC = () => {
   const [loading, setLoading] = useState(!blueprintMode)
   const [error, setError] = useState<string | null>(null)
   const [tab, setTab] = useState<'New' | 'All'>('New')
-
-  const _timeframe = 'all' as const
+  const [search, setSearch] = useState('')
+  const [intentFilter, setIntentFilter] = useState<'All' | 'Hot' | 'Warm' | 'Cold'>('All')
 
   useEffect(() => {
     if (blueprintMode) {
@@ -100,12 +100,21 @@ const LeadsInboxCommandPage: React.FC = () => {
   const allLeads = useMemo(() => Object.values(leadsById), [leadsById])
 
   const filteredLeads = useMemo(() => {
+    const q = search.trim().toLowerCase()
     const rows = allLeads.filter((lead) => {
       if (tab === 'New' && lead.status !== 'New') return false
+      if (intentFilter !== 'All' && lead.intent_level !== intentFilter) return false
+      if (q) {
+        const name = String(lead.name || '').toLowerCase()
+        const addr = String(lead.listing?.address || '').toLowerCase()
+        const phone = String(lead.phone || '').toLowerCase()
+        const email = String(lead.email || '').toLowerCase()
+        if (!name.includes(q) && !addr.includes(q) && !phone.includes(q) && !email.includes(q)) return false
+      }
       return true
     })
     return sortLeadsForInbox(rows)
-  }, [allLeads, tab])
+  }, [allLeads, tab, search, intentFilter])
 
   const logOpen = async (leadId: string) => {
     if (blueprintMode || demoMode) return
@@ -125,12 +134,12 @@ const LeadsInboxCommandPage: React.FC = () => {
         </div>
         <button
           type="button"
-          onClick={() => exportLeadsCSV(allLeads)}
-          disabled={loading}
+          onClick={() => exportLeadsCSV(filteredLeads)}
+          disabled={loading || filteredLeads.length === 0}
           className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
         >
           <span className="material-symbols-outlined text-[18px]">download</span>
-          Export CSV{allLeads.length > 0 ? ` (${allLeads.length})` : ''}
+          Export CSV{filteredLeads.length > 0 ? ` (${filteredLeads.length})` : ''}
         </button>
       </div>
 
@@ -153,6 +162,42 @@ const LeadsInboxCommandPage: React.FC = () => {
         >
           All
         </button>
+      </div>
+
+      {/* Search + intent filter */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="relative flex-1">
+          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-slate-400">search</span>
+          <input
+            type="text"
+            placeholder="Search by name, address, phone, or email…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-4 text-sm text-slate-800 placeholder-slate-400 shadow-sm focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-100"
+          />
+        </div>
+        <div className="flex items-center gap-1.5">
+          {(['All', 'Hot', 'Warm', 'Cold'] as const).map((level) => (
+            <button
+              key={level}
+              type="button"
+              onClick={() => setIntentFilter(level)}
+              className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
+                intentFilter === level
+                  ? level === 'Hot'
+                    ? 'bg-rose-100 text-rose-700'
+                    : level === 'Warm'
+                    ? 'bg-amber-100 text-amber-700'
+                    : level === 'Cold'
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'bg-slate-900 text-white'
+                  : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+              }`}
+            >
+              {level === 'Hot' ? '🔥' : level === 'Warm' ? '☀️' : level === 'Cold' ? '❄️' : ''} {level}
+            </button>
+          ))}
+        </div>
       </div>
 
       <section className="space-y-4">

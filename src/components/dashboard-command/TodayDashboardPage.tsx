@@ -288,8 +288,7 @@ const TodayDashboardPage: React.FC = () => {
       .filter((appointment) => {
         const startsAt = new Date(appointment.startsAt || appointment.startIso || '').getTime()
         if (Number.isNaN(startsAt)) return false
-        if (startsAt < now || startsAt > next24h) return false
-        return String(appointment.status || '').toLowerCase() !== 'confirmed'
+        return startsAt >= now && startsAt <= next24h
       })
       .sort((a, b) => {
         const aTs = new Date(a.startsAt || a.startIso || 0).getTime()
@@ -400,7 +399,7 @@ const TodayDashboardPage: React.FC = () => {
           <span className="material-symbols-outlined text-primary-500 text-2xl shrink-0 mt-0.5">workspace_premium</span>
           <div className="flex-1">
             <h2 className="text-base font-bold text-primary-900">Complete your {pendingPlan === 'pro' ? 'Pro' : 'Starter'} plan upgrade</h2>
-            <p className="mt-0.5 text-sm text-primary-700">You selected the {pendingPlan === 'pro' ? 'LO Pro ($299/mo)' : 'LO ($149/mo)'} plan. Finish checkout to unlock all your features.</p>
+            <p className="mt-0.5 text-sm text-primary-700">You selected the {pendingPlan === 'pro' ? 'Pro' : 'Starter'} plan. Finish checkout to unlock all your features.</p>
             <div className="mt-3 flex gap-2">
               <button
                 type="button"
@@ -408,7 +407,7 @@ const TodayDashboardPage: React.FC = () => {
                 disabled={isStartingCheckout}
                 className="rounded-md bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700 transition-colors disabled:opacity-60"
               >
-                {isStartingCheckout ? 'Opening checkout…' : `Activate ${pendingPlan === 'pro' ? 'Team' : 'Pro'} →`}
+                {isStartingCheckout ? 'Opening checkout…' : `Activate ${pendingPlan === 'pro' ? 'Pro' : 'Starter'} →`}
               </button>
               <button type="button" onClick={dismissPendingPlan} className="rounded-md border border-primary-300 bg-white px-4 py-2 text-sm font-semibold text-primary-700 hover:bg-primary-50">
                 Maybe later
@@ -636,14 +635,20 @@ const TodayDashboardPage: React.FC = () => {
                   )}
                 </div>
               ) : (
-                upcomingAppointments.map((appointment) => (
+                upcomingAppointments.map((appointment) => {
+                  const isConfirmed = String(appointment.status || '').toLowerCase() === 'confirmed'
+                  return (
                   <div key={appointment.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
                     <p className="text-sm font-semibold text-slate-900">{appointment.lead?.name || 'Unknown'}</p>
                     <p className="text-xs text-slate-500">{appointment.listing?.address || 'No listing address'}</p>
                     <div className="mt-2 flex items-center justify-between">
                       <p className="text-xs text-slate-500">{toLocalTime(appointment.startsAt || appointment.startIso)}</p>
-                      <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
-                        {appointmentBadge(appointment)}
+                      <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${
+                        isConfirmed
+                          ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                          : 'border-amber-200 bg-amber-50 text-amber-800'
+                      }`}>
+                        {isConfirmed ? 'Confirmed ✓' : appointmentBadge(appointment)}
                       </span>
                     </div>
                     <button
@@ -654,7 +659,8 @@ const TodayDashboardPage: React.FC = () => {
                       Open
                     </button>
                   </div>
-                ))
+                  )
+                })
               )}
             </div>}
           </article>
