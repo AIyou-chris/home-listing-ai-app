@@ -40,6 +40,10 @@ const AgentContactSheet: React.FC<AgentContactSheetProps> = ({
   const safeCompany = agent.company?.trim() || 'HomeListingAI';
   const safeTitle = agent.title?.trim() || 'Listing Specialist';
 
+  const website = agent.website?.trim() || '';
+  const websiteHref = website ? (/^https?:\/\//i.test(website) ? website : `https://${website}`) : '';
+  const websiteLabel = website.replace(/^https?:\/\//i, '').replace(/\/$/, '');
+
   const introText = useMemo(() => {
     if (agent.email?.trim()) {
       return `This sends a message to ${agent.email.trim()}.`;
@@ -86,6 +90,21 @@ const AgentContactSheet: React.FC<AgentContactSheetProps> = ({
           onMoreInfo={onOpenFlyer}
           showMoreInfo
         />
+
+        {websiteHref && (
+          <div className="mt-3 flex justify-center">
+            <a
+              href={websiteHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-full border border-white/12 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+              style={{ color: brandColor }}
+            >
+              <span className="material-symbols-outlined text-[18px]">language</span>
+              {websiteLabel}
+            </a>
+          </div>
+        )}
 
         {showContactForm ? (
           <div className="mx-auto mt-3 w-full max-w-[420px] rounded-[20px] border border-white/10 bg-[rgba(7,14,28,0.88)] p-2.5 shadow-[0_18px_42px_rgba(2,6,23,0.24)] backdrop-blur-xl">

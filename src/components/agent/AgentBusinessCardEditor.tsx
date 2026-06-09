@@ -18,6 +18,7 @@ type FormState = {
   title: string;
   phone: string;
   email: string;
+  website: string;
   headshotUrl: string;
   logoUrl: string;
   themeColor: string;
@@ -46,6 +47,7 @@ const mapProfileToForm = (profile: AgentProfile): FormState => ({
   title: profile.title || '',
   phone: profile.phone || '',
   email: profile.email || '',
+  website: profile.website || '',
   headshotUrl: profile.headshotUrl || '',
   logoUrl: profile.logoUrl || '',
   themeColor: normalizeThemeColor(profile.brandColor),
@@ -262,6 +264,7 @@ const AgentBusinessCardEditor: React.FC<AgentBusinessCardEditorProps> = ({ userP
         title: form.title.trim(),
         phone: form.phone.trim(),
         email: form.email.trim(),
+        website: form.website.trim(),
         headshotUrl: form.headshotUrl.trim() || null,
         logoUrl: form.logoUrl.trim() || null,
         brandColor: normalizeThemeColor(form.themeColor)
@@ -289,6 +292,7 @@ const AgentBusinessCardEditor: React.FC<AgentBusinessCardEditorProps> = ({ userP
         title: saved.title || payload.title,
         phone: saved.phone || payload.phone,
         email: saved.email || payload.email,
+        website: saved.website || payload.website || '',
         headshotUrl: saved.headshotUrl || payload.headshotUrl || '',
         logoUrl: saved.logoUrl || payload.logoUrl || '',
         brandColor: normalizeThemeColor(saved.brandColor || payload.brandColor),
@@ -514,6 +518,21 @@ const AgentBusinessCardEditor: React.FC<AgentBusinessCardEditorProps> = ({ userP
                 placeholder="jane@acmerealty.com"
               />
             </div>
+          </div>
+
+          <div>
+            <label htmlFor="business-card-website" className="mb-1.5 block text-sm font-medium text-slate-700">
+              Website (optional)
+            </label>
+            <input
+              id="business-card-website"
+              type="url"
+              value={form.website}
+              onChange={handleFieldChange('website')}
+              className={textInputClassName}
+              placeholder="https://janedoe.com"
+            />
+            <p className="mt-1 text-xs text-slate-400">Shows as a link on every listing's contact card.</p>
           </div>
 
           <div>
