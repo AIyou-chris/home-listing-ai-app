@@ -9988,7 +9988,7 @@ const mapReminderProvider = (reminderType) => {
 };
 
 const REMINDER_PENDING_STATUSES = ['queued', 'suppressed', 'failed'];
-const TERMINAL_APPOINTMENT_STATUSES = new Set(['canceled', 'completed']);
+const TERMINAL_APPOINTMENT_STATUSES = new Set(['canceled', 'completed', 'no_show']);
 
 const isMissingAppointmentReminderColumnError = (error, columnName) =>
   /column/i.test(error?.message || '') && new RegExp(columnName, 'i').test(error?.message || '');
@@ -12764,6 +12764,7 @@ const normalizeAppointmentStatusValue = (value) => {
   if (normalized === 'reschedule_requested' || normalized === 'rescheduled_requested' || normalized === 'rescheduled') return 'reschedule_requested';
   if (normalized === 'cancelled' || normalized === 'canceled') return 'canceled';
   if (normalized === 'completed') return 'completed';
+  if (normalized === 'no_show' || normalized === 'no-show' || normalized === 'noshow') return 'no_show';
   return normalized;
 };
 
@@ -12774,6 +12775,7 @@ const formatAppointmentStatusForUi = (status) => {
   if (normalized === 'reschedule_requested') return 'Reschedule Requested';
   if (normalized === 'canceled') return 'Cancelled';
   if (normalized === 'completed') return 'Completed';
+  if (normalized === 'no_show') return 'No-show';
   return status || 'Scheduled';
 };
 

@@ -101,6 +101,32 @@ export const updateAppointmentStatus = async (appointmentId: string, status: str
   return parseResponse<{ success: boolean }>(response);
 };
 
+export const rescheduleAppointment = async (
+  appointmentId: string,
+  payload: { date: string; time: string; location?: string | null },
+  agentIdOverride?: string | null
+) => {
+  if (isDemoModeActive()) {
+    return updateDemoAppointmentStatus(appointmentId, 'scheduled');
+  }
+
+  const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
+  const response = await fetch(buildApiUrl(`/api/appointments/${encodeURIComponent(appointmentId)}`), {
+    method: 'PUT',
+    headers: defaultJsonHeaders(agentId),
+    body: JSON.stringify({
+      date: payload.date,
+      time: payload.time,
+      timeLabel: payload.time,
+      location: payload.location ?? undefined,
+      status: 'scheduled',
+      confirmation_status: 'needs_confirmation',
+      agentId
+    })
+  });
+  return parseResponse<{ success: boolean }>(response);
+};
+
 export const fetchDashboardAppointments = async (
   options: { view?: 'today' | 'week' } = {},
   agentIdOverride?: string | null

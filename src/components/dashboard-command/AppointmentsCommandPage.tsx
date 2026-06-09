@@ -5,6 +5,7 @@ import {
   fetchAppointmentReminders,
   fetchDashboardAppointments,
   logDashboardAgentAction,
+  rescheduleAppointment,
   retryAppointmentReminder,
   retryDashboardReminder,
   sendAppointmentReminderNow,
@@ -34,6 +35,7 @@ const normalizeAppointmentStatus = (status?: string | null) => {
   }
   if (normalized === 'canceled' || normalized === 'cancelled') return 'canceled'
   if (normalized === 'completed') return 'completed'
+  if (normalized === 'no_show' || normalized === 'no-show' || normalized === 'noshow') return 'no_show'
   return 'scheduled'
 }
 
@@ -47,6 +49,15 @@ const normalizeReminderOutcome = (status?: string | null) => {
 const appointmentBadge = (appointment: DashboardAppointmentRow) => {
   const status = normalizeAppointmentStatus(appointment.normalizedStatus || appointment.status)
   const lastOutcome = normalizeReminderOutcome(appointment.last_reminder_outcome?.status)
+  if (status === 'canceled') {
+    return { label: 'Canceled', className: 'bg-slate-100 text-slate-500 border border-slate-200' }
+  }
+  if (status === 'completed') {
+    return { label: 'Completed', className: 'bg-emerald-100 text-emerald-700 border border-emerald-200' }
+  }
+  if (status === 'no_show') {
+    return { label: 'No-show', className: 'bg-rose-100 text-rose-700 border border-rose-200' }
+  }
   if (status === 'reschedule_requested') {
     return { label: 'Reschedule requested', className: 'bg-amber-100 text-amber-700 border border-amber-200' }
   }
@@ -58,6 +69,12 @@ const appointmentBadge = (appointment: DashboardAppointmentRow) => {
   }
   return { label: 'Needs confirmation', className: 'bg-slate-100 text-slate-600 border border-slate-200' }
 }
+
+const RESOLVED_STATUSES = new Set(['canceled', 'completed', 'no_show'])
+const isResolved = (appointment: DashboardAppointmentRow) =>
+  RESOLVED_STATUSES.has(normalizeAppointmentStatus(appointment.normalizedStatus || appointment.status))
+const startMs = (appointment: DashboardAppointmentRow) =>
+  new Date(appointment.startsAt || appointment.startIso || '').getTime()
 
 const sortByStartAsc = (appointments: DashboardAppointmentRow[]) =>
   [...appointments].sort(
@@ -86,6 +103,7 @@ const AppointmentsCommandPage: React.FC = () => {
   const [newApptOpen, setNewApptOpen] = useState(false)
   const [schedulingAppt, setSchedulingAppt] = useState(false)
   const [cancelConfirmId, setCancelConfirmId] = useState<string | null>(null)
+  const [reschedulingAppt, setReschedulingAppt] = useState<DashboardAppointmentRow | null>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -150,6 +168,7 @@ const AppointmentsCommandPage: React.FC = () => {
     }
   }, [loading, searchParams, appointmentsById])
 
+  // All appointments with a start time — resolved ones (canceled/completed/no-show) are dropped from active views.
   const allAppointments = useMemo(
     () =>
       sortByStartAsc(
@@ -158,38 +177,72 @@ const AppointmentsCommandPage: React.FC = () => {
     [appointmentsById]
   )
 
+  const activeAppointments = useMemo(
+    () => allAppointments.filter((appointment) => !isResolved(appointment)),
+    [allAppointments]
+  )
+
+  // Past appointments still awaiting an outcome (not yet completed/canceled/no-show).
+  const pastNeedsOutcome = useMemo(
+    () => {
+      const now = Date.now()
+      return activeAppointments.filter((appointment) => {
+        const start = startMs(appointment)
+        return Number.isFinite(start) && start < now
+      })
+    },
+    [activeAppointments]
+  )
+
   const needsConfirmation = useMemo(
     () => {
       const now = Date.now()
       const next24h = now + 24 * 60 * 60 * 1000
-      return allAppointments.filter((appointment) => {
-        const startsAt = new Date(appointment.startsAt || appointment.startIso || '').getTime()
-        if (!Number.isFinite(startsAt) || startsAt < now || startsAt > next24h) return false
+      return activeAppointments.filter((appointment) => {
+        const start = startMs(appointment)
+        if (!Number.isFinite(start) || start < now || start > next24h) return false
         return normalizeAppointmentStatus(appointment.normalizedStatus || appointment.status) !== 'confirmed'
       })
     },
-    [allAppointments]
+    [activeAppointments]
   )
 
+  // Confirmed AND still in the future — past confirmed showings fall through to "needs outcome".
   const confirmed = useMemo(
-    () =>
-      allAppointments.filter(
-        (appointment) => normalizeAppointmentStatus(appointment.normalizedStatus || appointment.status) === 'confirmed'
-      ),
-    [allAppointments]
+    () => {
+      const now = Date.now()
+      return activeAppointments.filter(
+        (appointment) =>
+          startMs(appointment) >= now &&
+          normalizeAppointmentStatus(appointment.normalizedStatus || appointment.status) === 'confirmed'
+      )
+    },
+    [activeAppointments]
   )
 
   const needsAttention = useMemo(
-    () =>
-      allAppointments.filter((appointment) => {
+    () => {
+      const now = Date.now()
+      return activeAppointments.filter((appointment) => {
+        if (startMs(appointment) < now) return false
         const status = normalizeAppointmentStatus(appointment.normalizedStatus || appointment.status)
         const outcome = normalizeReminderOutcome(appointment.last_reminder_outcome?.status)
         return status === 'reschedule_requested' || outcome === 'failed'
-      }),
-    [allAppointments]
+      })
+    },
+    [activeAppointments]
   )
 
   const remindersLocked = planId === 'free'
+
+  const refreshAppointments = async () => {
+    try {
+      const response = await fetchDashboardAppointments({ view: 'week' })
+      setInitialAppointments(response.appointments || [])
+    } catch {
+      // Keep current realtime state if the refresh fails.
+    }
+  }
 
   const logAction = async (
     leadId: string | null | undefined,
@@ -213,6 +266,7 @@ const AppointmentsCommandPage: React.FC = () => {
     try {
       await updateAppointmentStatus(appointment.id, 'confirmed')
       await logAction(appointment.lead?.id, 'appointment_updated', { appointment_id: appointment.id, status: 'confirmed' })
+      await refreshAppointments()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to mark confirmed.')
     } finally {
@@ -220,18 +274,35 @@ const AppointmentsCommandPage: React.FC = () => {
     }
   }
 
-  const handleReschedule = async (appointment: DashboardAppointmentRow) => {
-    setWorkingId(appointment.id)
-    setError(null)
+  // Reschedule opens the scheduler so the agent can pick a new date/time for THIS appointment.
+  const handleReschedule = (appointment: DashboardAppointmentRow) => {
+    setReschedulingAppt(appointment)
+  }
+
+  const handleRescheduleSubmit = async (data: ScheduleAppointmentFormData) => {
+    if (!reschedulingAppt || schedulingAppt) return
+    const target = reschedulingAppt
+    setSchedulingAppt(true)
+    setWorkingId(target.id)
     try {
-      await updateAppointmentStatus(appointment.id, 'reschedule_requested')
-      await logAction(appointment.lead?.id, 'appointment_updated', {
-        appointment_id: appointment.id,
-        status: 'reschedule_requested'
+      await rescheduleAppointment(target.id, {
+        date: data.date,
+        time: data.time,
+        location: data.location || target.listing?.address || null
       })
+      await logAction(target.lead?.id, 'appointment_updated', {
+        appointment_id: target.id,
+        rescheduled: true,
+        date: data.date,
+        time: data.time
+      })
+      setReschedulingAppt(null)
+      toast.success('Appointment rescheduled — reminders updated.')
+      await refreshAppointments()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to mark reschedule requested.')
+      toast.error(err instanceof Error ? err.message : 'Failed to reschedule appointment.')
     } finally {
+      setSchedulingAppt(false)
       setWorkingId(null)
     }
   }
@@ -243,8 +314,23 @@ const AppointmentsCommandPage: React.FC = () => {
     try {
       await updateAppointmentStatus(appointment.id, 'cancelled')
       await logAction(appointment.lead?.id, 'appointment_updated', { appointment_id: appointment.id, status: 'cancelled' })
+      await refreshAppointments()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to cancel appointment.')
+    } finally {
+      setWorkingId(null)
+    }
+  }
+
+  const handleMarkOutcome = async (appointment: DashboardAppointmentRow, outcome: 'completed' | 'no_show') => {
+    setWorkingId(appointment.id)
+    setError(null)
+    try {
+      await updateAppointmentStatus(appointment.id, outcome)
+      await logAction(appointment.lead?.id, 'appointment_updated', { appointment_id: appointment.id, status: outcome })
+      await refreshAppointments()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update appointment outcome.')
     } finally {
       setWorkingId(null)
     }
@@ -300,6 +386,8 @@ const AppointmentsCommandPage: React.FC = () => {
     const lastReminderStatus = normalizeReminderOutcome(appointment.last_reminder_outcome?.status)
     const isExpanded = expandedId === appointment.id
     const timelineRows = remindersByAppointment[appointment.id] || []
+    const apptStatus = normalizeAppointmentStatus(appointment.normalizedStatus || appointment.status)
+    const isPast = startMs(appointment) < Date.now()
 
     return (
       <div key={appointment.id} id={`appt-card-${appointment.id}`} className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -336,70 +424,100 @@ const AppointmentsCommandPage: React.FC = () => {
               📞 Call
             </button>
 
-            {normalizeAppointmentStatus(appointment.normalizedStatus || appointment.status) !== 'confirmed' && (
-              <button
-                type="button"
-                onClick={() => void handleMarkConfirmed(appointment)}
-                disabled={workingId === appointment.id}
-                className="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-100 disabled:opacity-60"
-              >
-                ✓ Confirm
-              </button>
-            )}
-
-            {normalizeAppointmentStatus(appointment.normalizedStatus || appointment.status) === 'reschedule_requested' && (
-              <button
-                type="button"
-                onClick={() => void handleReschedule(appointment)}
-                disabled={workingId === appointment.id}
-                className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 transition-colors hover:bg-amber-100 disabled:opacity-60"
-              >
-                ↻ Reschedule
-              </button>
-            )}
-
-            {(lastReminderStatus === 'failed' || lastReminderStatus === 'no_answer') && (
-              <button
-                type="button"
-                onClick={() => {
-                  if (remindersLocked) { setUpgradeModalOpen(true); return }
-                  void handleRetryReminder(appointment)
-                }}
-                disabled={workingId === appointment.id}
-                className="rounded-lg border border-rose-300 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 transition-colors hover:bg-rose-100 disabled:opacity-60"
-              >
-                ↩ Retry reminder
-              </button>
-            )}
-
-            {/* Inline cancel confirm */}
-            {cancelConfirmId === appointment.id ? (
-              <div className="flex items-center gap-1">
+            {/* Past appointment → record what happened */}
+            {isPast ? (
+              <>
                 <button
                   type="button"
-                  onClick={() => void handleCancelAppointment(appointment)}
+                  onClick={() => void handleMarkOutcome(appointment, 'completed')}
                   disabled={workingId === appointment.id}
-                  className="rounded-lg border border-rose-300 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100 disabled:opacity-60"
+                  className="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-100 disabled:opacity-60"
                 >
-                  Confirm cancel
+                  ✓ Completed
                 </button>
                 <button
                   type="button"
-                  onClick={() => setCancelConfirmId(null)}
-                  className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-50"
+                  onClick={() => void handleMarkOutcome(appointment, 'no_show')}
+                  disabled={workingId === appointment.id}
+                  className="rounded-lg border border-rose-300 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 transition-colors hover:bg-rose-100 disabled:opacity-60"
                 >
-                  ✕
+                  ✗ No-show
                 </button>
-              </div>
+                <button
+                  type="button"
+                  onClick={() => handleReschedule(appointment)}
+                  disabled={workingId === appointment.id}
+                  className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 transition-colors hover:bg-amber-100 disabled:opacity-60"
+                >
+                  ↻ Reschedule
+                </button>
+              </>
             ) : (
-              <button
-                type="button"
-                onClick={() => setCancelConfirmId(appointment.id)}
-                disabled={workingId === appointment.id}
-                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-50 disabled:opacity-60"
-              >
-                Cancel
-              </button>
+              <>
+                {apptStatus !== 'confirmed' && (
+                  <button
+                    type="button"
+                    onClick={() => void handleMarkConfirmed(appointment)}
+                    disabled={workingId === appointment.id}
+                    className="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-100 disabled:opacity-60"
+                  >
+                    ✓ Confirm
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => handleReschedule(appointment)}
+                  disabled={workingId === appointment.id}
+                  className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 transition-colors hover:bg-amber-100 disabled:opacity-60"
+                >
+                  ↻ Reschedule
+                </button>
+
+                {(lastReminderStatus === 'failed' || lastReminderStatus === 'no_answer') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (remindersLocked) { setUpgradeModalOpen(true); return }
+                      void handleRetryReminder(appointment)
+                    }}
+                    disabled={workingId === appointment.id}
+                    className="rounded-lg border border-rose-300 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 transition-colors hover:bg-rose-100 disabled:opacity-60"
+                  >
+                    ↩ Retry reminder
+                  </button>
+                )}
+
+                {/* Inline cancel confirm */}
+                {cancelConfirmId === appointment.id ? (
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => void handleCancelAppointment(appointment)}
+                      disabled={workingId === appointment.id}
+                      className="rounded-lg border border-rose-300 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100 disabled:opacity-60"
+                    >
+                      Confirm cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCancelConfirmId(null)}
+                      className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-50"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setCancelConfirmId(appointment.id)}
+                    disabled={workingId === appointment.id}
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-50 disabled:opacity-60"
+                  >
+                    Cancel
+                  </button>
+                )}
+              </>
             )}
 
             {/* Details toggle — rightmost, always last */}
@@ -644,9 +762,10 @@ const AppointmentsCommandPage: React.FC = () => {
             )}
           </div>
 
-          {/* All upcoming (deduplicated from above sections for reference) */}
-          {allAppointments.some(
+          {/* All upcoming — future, active, not already shown above */}
+          {activeAppointments.some(
             (a) =>
+              startMs(a) >= Date.now() &&
               !needsConfirmation.includes(a) &&
               !needsAttention.includes(a) &&
               normalizeAppointmentStatus(a.normalizedStatus || a.status) !== 'confirmed'
@@ -656,14 +775,30 @@ const AppointmentsCommandPage: React.FC = () => {
                 <span className="h-2 w-2 rounded-full bg-slate-300" />
                 <h2 className="text-sm font-semibold text-slate-700">All upcoming</h2>
               </div>
-              {allAppointments
+              {activeAppointments
                 .filter(
                   (a) =>
+                    startMs(a) >= Date.now() &&
                     !needsConfirmation.includes(a) &&
                     !needsAttention.includes(a) &&
                     normalizeAppointmentStatus(a.normalizedStatus || a.status) !== 'confirmed'
                 )
                 .map(renderCard)}
+            </div>
+          )}
+
+          {/* Past — needs outcome: showings that already happened but aren't marked completed/no-show */}
+          {pastNeedsOutcome.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-slate-400" />
+                <h2 className="text-sm font-semibold text-slate-700">Past · needs outcome</h2>
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500">
+                  {pastNeedsOutcome.length}
+                </span>
+              </div>
+              <p className="text-xs text-slate-500">Mark how each one went to keep your no-show rate accurate.</p>
+              {pastNeedsOutcome.map(renderCard)}
             </div>
           )}
         </>
@@ -701,6 +836,21 @@ const AppointmentsCommandPage: React.FC = () => {
               setSchedulingAppt(false)
             }
           }}
+        />
+      )}
+
+      {/* Reschedule modal — picks a new date/time for an existing appointment */}
+      {reschedulingAppt && (
+        <ScheduleAppointmentModal
+          lead={null}
+          initialData={{
+            name: reschedulingAppt.lead?.name || '',
+            phone: reschedulingAppt.lead?.phone || '',
+            email: reschedulingAppt.lead?.email || '',
+            location: reschedulingAppt.listing?.address || '',
+          }}
+          onClose={() => setReschedulingAppt(null)}
+          onSchedule={(data) => { void handleRescheduleSubmit(data) }}
         />
       )}
 
