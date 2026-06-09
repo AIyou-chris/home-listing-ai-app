@@ -3,8 +3,9 @@ const axios = require('axios');
 const TEXTBELT_MESSAGES_URL = 'https://textbelt.com/text';
 const SMS_PROVIDER = 'textbelt';
 
+// Kept in sync with server.cjs — SMS is only suppressed when SMS_COMING_SOON=true is set explicitly.
 const SMS_COMING_SOON =
-  String(process.env.SMS_COMING_SOON || 'false').toLowerCase() !== 'false';
+  String(process.env.SMS_COMING_SOON || 'false').toLowerCase() === 'true';
 
 // SAFETY: In-memory rate limiter
 // Map<normalizedPhone, timestamp>

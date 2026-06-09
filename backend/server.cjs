@@ -83,14 +83,20 @@ if (MAILGUN_WEBHOOK_SIGNING_KEY === MAILGUN_API_KEY) {
   console.error('🚨 [Config] MAILGUN_WEBHOOK_SIGNING_KEY is not set correctly. Set MAILGUN_WEBHOOK_SIGNING_KEY in your environment to the Webhook Signing Key from the Mailgun dashboard (separate from your API key). Mailgun webhook events will be rejected until this is fixed.');
 }
 const APP_URL = process.env.VITE_APP_URL || process.env.APP_URL || 'http://localhost:5173';
+// SMS gate — single source of truth, kept in sync with backend/services/smsService.js.
+// Default is "live": SMS is only suppressed when SMS_COMING_SOON=true is set explicitly.
 const SMS_COMING_SOON =
-  String(process.env.SMS_COMING_SOON || 'true').toLowerCase() !== 'false';
+  String(process.env.SMS_COMING_SOON || 'false').toLowerCase() === 'true';
 const FEATURE_FLAG_EMAIL_ENABLED =
   String(process.env.FEATURE_FLAG_EMAIL_ENABLED || 'true').toLowerCase() !== 'false';
 const FEATURE_FLAG_VOICE_ENABLED =
   String(process.env.FEATURE_FLAG_VOICE_ENABLED || 'true').toLowerCase() !== 'false';
+// SMS is enabled when it isn't gated off AND a Textbelt provider key is configured.
+// FEATURE_FLAG_SMS_ENABLED=true can force-enable for testing even without a key.
 const FEATURE_FLAG_SMS_ENABLED =
-  !SMS_COMING_SOON && String(process.env.FEATURE_FLAG_SMS_ENABLED || 'false').toLowerCase() === 'true';
+  !SMS_COMING_SOON &&
+  (Boolean(process.env.TEXTBELT_API_KEY) ||
+    String(process.env.FEATURE_FLAG_SMS_ENABLED || 'false').toLowerCase() === 'true');
 const APPOINTMENT_REMINDER_TIMEZONE = process.env.APPOINTMENT_REMINDER_TIMEZONE || 'America/Los_Angeles';
 const APPOINTMENT_REMINDER_OFFSETS_MINUTES = [24 * 60, 2 * 60];
 const REMINDER_EXECUTION_BATCH_SIZE = 50;
