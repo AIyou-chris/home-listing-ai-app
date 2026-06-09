@@ -34154,6 +34154,159 @@ app.post(['/api/voice/hume/connect', '/api/voice/telnyx/events'], async (req, re
   res.status(410).json({ error: 'Legacy Hume/Telnyx bridge is removed. Use /api/voice/vapi/webhook.' });
 });
 
+// ── last_seen_at middleware — fire-and-forget on all authenticated dashboard calls ──
+app.use('/api/dashboard', (req, res, next) => {
+  const agentId = String(req.headers['x-user-id'] || req.headers['x-agent-id'] || req.query.agentId || '');
+  if (agentId && agentId.length > 10) {
+    supabaseAdmin
+      .from('agents')
+      .update({ last_seen_at: new Date().toISOString() })
+      .or(`id.eq.${agentId},auth_user_id.eq.${agentId}`)
+      .then(() => undefined)
+      .catch(() => undefined);
+  }
+  next();
+});
+
+// ── Inactivity check — called by pg_cron weekly ──────────────────────────────
+app.post('/api/cron/inactivity-check', async (req, res) => {
+  const secret = req.headers['x-cron-secret'] || req.body?.secret;
+  if (secret !== (process.env.CRON_SECRET || 'hlai-cron-secret')) {
+    return res.status(401).json({ error: 'unauthorized' });
+  }
+
+  const results = { emailed: 0, cleaned: 0, archived: 0, errors: [] };
+
+  try {
+    // Source of truth for last activity: last_seen_at (dashboard use) OR auth last_sign_in_at
+    const { data: agents, error: agentsErr } = await supabaseAdmin
+      .from('agents')
+      .select('id, email, first_name, last_seen_at, inactivity_email_sent_at, archived_at, auth_user_id, is_demo, account_type')
+      .is('archived_at', null)
+      .neq('is_demo', true);
+
+    if (agentsErr) throw agentsErr;
+
+    // Pull auth last_sign_in_at for all agents in one query
+    const authIds = (agents || []).map(a => a.auth_user_id).filter(Boolean);
+    const authMap = {};
+    if (authIds.length > 0) {
+      const { data: authRows } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 });
+      (authRows?.users || []).forEach(u => { authMap[u.id] = u.last_sign_in_at || null; });
+    }
+
+    const now = Date.now();
+    const DAY = 86400000;
+
+    for (const agent of (agents || [])) {
+      try {
+        // Use the most recent of last_seen_at and auth last_sign_in_at
+        const lastSeenStr = agent.last_seen_at || authMap[agent.auth_user_id] || null;
+        const lastSeen = lastSeenStr ? new Date(lastSeenStr).getTime() : null;
+        const daysSinceActive = lastSeen ? Math.floor((now - lastSeen) / DAY) : null;
+
+        // Skip if recently active (< 30 days) or never logged in (brand new)
+        if (!lastSeen || daysSinceActive < 30) continue;
+
+        // ── STAGE 3: 180+ days → archive ────────────────────────────────────
+        if (daysSinceActive >= 180) {
+          await supabaseAdmin
+            .from('agents')
+            .update({ archived_at: new Date().toISOString(), archived_reason: 'auto_inactivity_180d' })
+            .eq('id', agent.id);
+          results.archived++;
+          continue;
+        }
+
+        // ── STAGE 2: 90+ days + email already sent → clean old data ─────────
+        if (daysSinceActive >= 90 && agent.inactivity_email_sent_at) {
+          const emailSentMs = new Date(agent.inactivity_email_sent_at).getTime();
+          const daysSinceEmail = Math.floor((now - emailSentMs) / DAY);
+          if (daysSinceEmail >= 30) {
+            // Delete leads older than 90 days for this agent
+            await supabaseAdmin
+              .from('leads')
+              .delete()
+              .or(`agent_id.eq.${agent.id},user_id.eq.${agent.id}`)
+              .lt('created_at', new Date(now - 90 * DAY).toISOString());
+
+            // Delete their old AI conversation messages (via conversations)
+            const { data: convIds } = await supabaseAdmin
+              .from('ai_conversations')
+              .select('id')
+              .or(`agent_id.eq.${agent.id},user_id.eq.${agent.id}`)
+              .lt('created_at', new Date(now - 90 * DAY).toISOString());
+
+            if (convIds && convIds.length > 0) {
+              await supabaseAdmin
+                .from('ai_conversation_messages')
+                .delete()
+                .in('conversation_id', convIds.map(c => c.id));
+            }
+
+            results.cleaned++;
+          }
+          continue;
+        }
+
+        // ── STAGE 1: 30+ days → send re-engagement email (once) ─────────────
+        if (!agent.inactivity_email_sent_at) {
+          const firstName = agent.first_name || 'there';
+          const dashboardUrl = `${process.env.APP_BASE_URL || 'https://homelistingai.com'}/dashboard/today`;
+          await emailService.sendEmail({
+            to: agent.email,
+            subject: `${firstName}, your HomeListingAI dashboard is waiting`,
+            html: `<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:0;background:#f1f5f9;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
+<div style="max-width:600px;margin:0 auto;padding:24px 16px;">
+  <div style="background:linear-gradient(135deg,#0B1121 0%,#0f172a 100%);border-radius:16px 16px 0 0;padding:40px 32px;text-align:center;">
+    <img src="https://homelistingai.com/newlogo.png" alt="HomeListingAI" style="width:48px;height:48px;border-radius:12px;margin-bottom:16px;display:block;margin-left:auto;margin-right:auto;">
+    <h1 style="color:#fff;font-size:24px;font-weight:800;margin:0 0 8px;">We miss you, ${firstName}.</h1>
+    <p style="color:#94a3b8;font-size:15px;margin:0;">Your dashboard is ready and waiting.</p>
+  </div>
+  <div style="background:#fff;padding:36px 32px;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 16px 16px;">
+    <p style="font-size:15px;color:#475569;line-height:1.7;margin:0 0 24px;">
+      It's been a while since you've logged in. Your AI listing tools, lead inbox, and smart follow-ups are all ready to go — you just need to show up.
+    </p>
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:20px 24px;margin-bottom:28px;">
+      <p style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#64748b;margin:0 0 12px;">What's waiting for you</p>
+      <p style="margin:6px 0;font-size:14px;color:#334155;">🔥 Any new leads from your active listings</p>
+      <p style="margin:6px 0;font-size:14px;color:#334155;">📅 Appointments that may need attention</p>
+      <p style="margin:6px 0;font-size:14px;color:#334155;">🤝 Agent partnership activity</p>
+    </div>
+    <div style="text-align:center;margin:28px 0;">
+      <a href="${dashboardUrl}" style="background:#2563eb;color:#fff;text-decoration:none;padding:16px 40px;border-radius:12px;font-weight:700;font-size:15px;display:inline-block;box-shadow:0 4px 16px rgba(37,99,235,0.3);">Back to My Dashboard →</a>
+    </div>
+    <p style="font-size:12px;color:#94a3b8;text-align:center;margin:0;">
+      If you no longer need your account, just reply to this email and we'll sort it out.
+    </p>
+  </div>
+</div>
+</body>
+</html>`
+          });
+
+          await supabaseAdmin
+            .from('agents')
+            .update({ inactivity_email_sent_at: new Date().toISOString() })
+            .eq('id', agent.id);
+
+          results.emailed++;
+        }
+      } catch (agentErr) {
+        results.errors.push({ agent_id: agent.id, error: agentErr?.message || 'unknown' });
+      }
+    }
+
+    console.log('[InactivityCheck] Done:', results);
+    res.json({ success: true, ...results });
+  } catch (err) {
+    console.error('[InactivityCheck] Fatal:', err);
+    res.status(500).json({ error: 'inactivity_check_failed', detail: err?.message });
+  }
+});
+
 let server = null;
 if (RUN_HTTP_SERVER) {
   server = app.listen(port, '0.0.0.0', () => {
