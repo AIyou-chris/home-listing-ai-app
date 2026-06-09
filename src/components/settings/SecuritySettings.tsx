@@ -14,6 +14,7 @@ const TwoFactorSection: React.FC = () => {
   const [code, setCode] = useState('')
   const [verifying, setVerifying] = useState(false)
   const [removing, setRemoving] = useState(false)
+  const [removeConfirm, setRemoveConfirm] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
@@ -55,8 +56,8 @@ const TwoFactorSection: React.FC = () => {
   }
 
   const remove2FA = async () => {
-    if (!factorId || !window.confirm('Remove 2-step verification? Your account will only require a password to sign in.')) return
-    setRemoving(true); setError(null)
+    if (!factorId) return
+    setRemoving(true); setError(null); setRemoveConfirm(false)
     try {
       const { error: err } = await supabase.auth.mfa.unenroll({ factorId })
       if (err) throw err
@@ -79,7 +80,7 @@ const TwoFactorSection: React.FC = () => {
         {status === 'loading' && <p className="text-sm text-slate-400">Checking status…</p>}
 
         {status === 'enabled' && !qrCode && (
-          <div className="flex items-center justify-between p-4 bg-green-50 border border-green-200 rounded-xl">
+          <div className="flex items-start justify-between p-4 bg-green-50 border border-green-200 rounded-xl gap-4">
             <div>
               <div className="flex items-center gap-2 mb-0.5">
                 <span className="text-sm font-bold text-green-800">Enabled</span>
@@ -87,10 +88,26 @@ const TwoFactorSection: React.FC = () => {
               </div>
               <p className="text-xs text-green-700">Your account requires a code from your authenticator app on every login.</p>
             </div>
-            <button onClick={remove2FA} disabled={removing}
-              className="flex-shrink-0 ml-4 px-4 py-2 rounded-lg border border-red-200 text-red-600 text-xs font-semibold hover:bg-red-50 disabled:opacity-50 transition-all">
-              {removing ? 'Removing…' : 'Remove'}
-            </button>
+            {removeConfirm ? (
+              <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                <p className="text-xs font-semibold text-red-700">Remove 2-step verification?</p>
+                <div className="flex gap-2">
+                  <button onClick={remove2FA} disabled={removing}
+                    className="px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-bold hover:bg-red-700 disabled:opacity-50 transition-all">
+                    {removing ? 'Removing…' : 'Yes, remove'}
+                  </button>
+                  <button onClick={() => setRemoveConfirm(false)}
+                    className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-500 text-xs font-semibold hover:bg-slate-50 transition-all">
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button onClick={() => setRemoveConfirm(true)} disabled={removing}
+                className="flex-shrink-0 px-4 py-2 rounded-lg border border-red-200 text-red-600 text-xs font-semibold hover:bg-red-50 disabled:opacity-50 transition-all">
+                Remove
+              </button>
+            )}
           </div>
         )}
 

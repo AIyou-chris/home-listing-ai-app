@@ -1,4 +1,5 @@
 import React from 'react';
+import toast from 'react-hot-toast';
 import { EmailSettings } from '../../types';
 import { FeatureSection } from './SettingsCommon';
 
@@ -18,11 +19,14 @@ const EmailSettingsPage: React.FC<EmailSettingsProps> = ({
 }) => {
     const normalizedSlug = agentSlug?.trim().toLowerCase() || '';
     const inboundEmail = normalizedSlug ? `${normalizedSlug}@leads.homelistingai.com` : 'your-slug@leads.homelistingai.com';
-    const dashboardSlugPath = normalizedSlug ? `/dashboard/${normalizedSlug}` : '/dashboard/your-slug';
+    const publicStoreUrl = normalizedSlug ? `/store/${normalizedSlug}` : '/store/your-slug';
 
     const copyToClipboard = () => {
-        navigator.clipboard.writeText(inboundEmail);
-        // Could add toast here
+        navigator.clipboard.writeText(inboundEmail).then(() => {
+            toast.success('Copied to clipboard!');
+        }).catch(() => {
+            toast.error('Could not copy. Please select and copy manually.');
+        });
     };
 
     return (
@@ -44,9 +48,9 @@ const EmailSettingsPage: React.FC<EmailSettingsProps> = ({
                             <div className="mt-1 text-sm text-slate-500">This is the slug your dashboard and lead inbox share.</div>
                         </div>
                         <div className="rounded-lg border border-slate-200 bg-white p-4">
-                            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Slug path</div>
-                            <div className="mt-2 text-base font-bold text-slate-900">{dashboardSlugPath}</div>
-                            <div className="mt-1 text-sm text-slate-500">If the slug changes, the lead inbox address changes with it.</div>
+                            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Public listing page</div>
+                            <div className="mt-2 text-base font-bold text-slate-900">{publicStoreUrl}</div>
+                            <div className="mt-1 text-sm text-slate-500">Your public-facing store URL — share this with buyers and agents.</div>
                         </div>
                     </div>
                 </div>

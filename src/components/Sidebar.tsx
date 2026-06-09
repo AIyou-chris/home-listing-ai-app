@@ -40,7 +40,7 @@ const LO_NAV_ITEMS = [
   { key: 'lo-listings', icon: 'storefront', label: 'Listings', path: '/lo-listings', testid: 'nav-lo-listings' },
   { key: 'lo-chatbot', icon: 'smart_toy', label: 'AI Bot', path: '/lo-chatbot', testid: 'nav-lo-chatbot' },
   { key: 'lo-leads', icon: 'person_search', label: 'Leads', path: '/lo-leads', testid: 'nav-lo-leads' },
-  { key: 'appointments', icon: 'event_available', label: 'Appointments', path: '/appointments', testid: 'nav-appointments' },
+  { key: 'lo-appointments', icon: 'event_available', label: 'Appointments', path: '/lo-appointments', testid: 'nav-lo-appointments' },
   { key: 'settings', icon: 'settings', label: 'Settings', path: '/settings', testid: 'nav-settings' }
 ] as const;
 
@@ -123,6 +123,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
     '/lo-partners': '/dashboard/lo-partners',
     '/lo-chatbot': '/dashboard/lo-chatbot',
     '/lo-leads': '/dashboard/lo-leads',
+    '/lo-appointments': '/dashboard/lo-appointments',
     '/office': '/dashboard/office',
     '/leads': derivedDemoMode || derivedBlueprintMode ? getPath('/leads') : '/dashboard/leads',
     '/appointments': derivedDemoMode || derivedBlueprintMode ? getPath('/appointments') : '/dashboard/appointments',

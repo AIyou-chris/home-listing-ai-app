@@ -52,6 +52,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
     isBlueprintMode,
     initialTab = 'profile'
 }) => {
+    const accountType = localStorage.getItem('hla_account_type') || 'realtor';
+    const isLO = accountType === 'lo';
     const [activeTab, setActiveTab] = useState<'profile' | 'notifications' | 'email' | 'calendar' | 'security' | 'billing'>(initialTab);
     const [refreshingApp, setRefreshingApp] = useState(false);
 
@@ -78,14 +80,15 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
         setActiveTab(initialTab);
     }, [initialTab]);
 
-    const tabs = [
-        { id: 'profile', label: 'Profile', icon: 'person' },
-        { id: 'notifications', label: 'Notifications', icon: 'notifications' },
-        { id: 'email', label: 'Email', icon: 'mail' },
-        { id: 'calendar', label: 'Calendar', icon: 'calendar_month' },
-        { id: 'security', label: 'Security', icon: 'security' },
-        { id: 'billing', label: 'Billing', icon: 'receipt_long' },
+    const allTabs = [
+        { id: 'profile', label: 'Profile', icon: 'person', loVisible: true },
+        { id: 'notifications', label: 'Notifications', icon: 'notifications', loVisible: true },
+        { id: 'email', label: 'Email', icon: 'mail', loVisible: false },
+        { id: 'calendar', label: 'Calendar', icon: 'calendar_month', loVisible: false },
+        { id: 'security', label: 'Security', icon: 'security', loVisible: true },
+        { id: 'billing', label: 'Billing', icon: 'receipt_long', loVisible: true },
     ];
+    const tabs = isLO ? allTabs.filter(t => t.loVisible) : allTabs;
 
     const demoShowroomLinks = [
         { label: 'Open Demo Gallery', href: '/demo-dashboard/gallery/demo-listing-oak', tone: 'dark' as const },

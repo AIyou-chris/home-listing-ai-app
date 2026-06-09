@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useDemoMode } from '../../demo/useDemoMode'
+import { useDemoMode, buildDashboardPath } from '../../demo/useDemoMode'
 import { buildApiUrl } from '../../lib/api'
 import { supabase } from '../../services/supabase'
 import { showToast } from '../../utils/toastService'
@@ -26,11 +26,13 @@ interface Partner {
   name: string
   email: string | null
   phone: string | null
+  website: string | null
   headshotUrl: string | null
   company: string | null
   totalLeads: number
   listings: PartnerListing[]
   joinedAt: string
+  notes?: string
   rating?: PartnerRating
   lastFollowUp?: string | null
 }
@@ -40,6 +42,8 @@ interface PendingInvite {
   email: string
   name: string | null
   sentAt: string
+  openedAt: string | null
+  ctaClickedAt: string | null
 }
 
 // ─── Demo Data ────────────────────────────────────────────────────────────────
@@ -47,7 +51,7 @@ interface PendingInvite {
 const DEMO_PARTNERS: Partner[] = [
   {
     partnershipId: 'p1', agentId: 'a1',
-    name: 'Chris Potter', email: 'chris@prestigeproperties.com', phone: '(512) 448-7731',
+    name: 'Chris Potter', email: 'chris@prestigeproperties.com', phone: '(512) 448-7731', website: 'https://prestigeproperties.com',
     headshotUrl: 'https://images.unsplash.com/photo-1607746882042-944635dfe10e?q=80&w=200&auto=format&fit=crop',
     company: 'Prestige Properties', totalLeads: 14,
     listings: [
@@ -58,7 +62,7 @@ const DEMO_PARTNERS: Partner[] = [
   },
   {
     partnershipId: 'p2', agentId: 'a2',
-    name: 'Sarah Mitchell', email: 'sarah@compass.com', phone: '(737) 214-8830',
+    name: 'Sarah Mitchell', email: 'sarah@compass.com', phone: '(737) 214-8830', website: 'https://compass.com',
     headshotUrl: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?q=80&w=200&auto=format&fit=crop',
     company: 'Compass Austin', totalLeads: 3,
     listings: [
@@ -69,22 +73,34 @@ const DEMO_PARTNERS: Partner[] = [
 ]
 
 const DEMO_PENDING: PendingInvite[] = [
-  { id: 'i1', email: 'mike@realty.com', name: 'Mike Johnson', sentAt: new Date(Date.now() - 2 * 3600000).toISOString() }
+  { id: 'i1', email: 'mike@realty.com', name: 'Mike Johnson', sentAt: new Date(Date.now() - 2 * 3600000).toISOString(), openedAt: new Date(Date.now() - 1 * 3600000).toISOString(), ctaClickedAt: null }
 ]
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const formatPrice = (p: number | null) => p ? `$${(p / 1000).toFixed(0)}k` : '—'
 
-// localStorage-backed partner metadata (rating + follow-up)
+// localStorage-backed partner metadata (rating + follow-up + notes)
 const STORAGE_KEY = 'lo_partner_meta'
-type PartnerMeta = Record<string, { rating: PartnerRating; lastFollowUp: string | null }>
+type PartnerMeta = Record<string, { rating: PartnerRating; lastFollowUp: string | null; notes?: string }>
 
 const loadMeta = (): PartnerMeta => {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') } catch { return {} }
 }
 const saveMeta = (meta: PartnerMeta) => {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(meta))
+}
+
+// Fire-and-forget backend sync for partner meta — localStorage stays the fast layer
+const patchPartnerMeta = async (partnershipId: string, updates: { notes?: string; rating?: PartnerRating | null; last_follow_up?: string | null }) => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    await fetch(buildApiUrl(`/api/lo/partners/${partnershipId}`), {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'x-user-id': user?.id || '' },
+      body: JSON.stringify(updates)
+    })
+  } catch { /* silently fail — localStorage remains source of truth during session */ }
 }
 
 const toFollowUpLabel = (ts: string | null | undefined) => {
@@ -166,8 +182,15 @@ const InviteModal: React.FC<{ onClose: () => void; onSent: (wowLink: string) => 
         headers: { 'Content-Type': 'application/json', 'x-user-id': user?.id || '' },
         body: JSON.stringify({ email: email.trim(), name: name.trim() || undefined, listingId: listingId || undefined })
       })
-      const json = await res.json() as { success?: boolean; wowLink?: string }
-      if (!res.ok) throw new Error('send_failed')
+      const json = await res.json() as { success?: boolean; wowLink?: string; error?: string; message?: string }
+      if (!res.ok) {
+        if (json.error === 'invite_limit_reached') {
+          showToast.error(json.message || 'Upgrade your plan to send WOW Links.')
+        } else {
+          showToast.error('Failed to send invite. Try again.')
+        }
+        return
+      }
       const link = json.wowLink || ''
       setWowLink(link)
       setSent(true)
@@ -258,26 +281,46 @@ const InviteModal: React.FC<{ onClose: () => void; onSent: (wowLink: string) => 
 // ─── Partner Card ─────────────────────────────────────────────────────────────
 
 const PartnerCard: React.FC<{ partner: Partner; onViewListings: (p: Partner) => void; onRemoved: () => void }> = ({ partner, onViewListings, onRemoved }) => {
+  const navigate = useNavigate()
+  const demoMode = useDemoMode()
   const [meta, setMeta] = React.useState(() => {
     const all = loadMeta()
-    return all[partner.partnershipId] || { rating: null as PartnerRating, lastFollowUp: null }
+    return all[partner.partnershipId] || { rating: null as PartnerRating, lastFollowUp: null, notes: '' }
   })
+  const [expanded, setExpanded] = React.useState(false)
+  const [notesDraft, setNotesDraft] = React.useState(meta.notes || '')
+  const [notesSaved, setNotesSaved] = React.useState(false)
+  const [removeConfirm, setRemoveConfirm] = React.useState(false)
 
-  const setRating = (rating: PartnerRating) => {
+  const setRating = (rating: PartnerRating | null) => {
     const all = loadMeta()
-    const next = { ...all[partner.partnershipId] || { lastFollowUp: null }, rating }
+    const next = { ...all[partner.partnershipId] || { lastFollowUp: null, notes: '' }, rating }
     all[partner.partnershipId] = next
     saveMeta(all)
     setMeta(next)
+    void patchPartnerMeta(partner.partnershipId, { rating })
   }
 
   const logFollowUp = () => {
+    const ts = new Date().toISOString()
     const all = loadMeta()
-    const next = { ...all[partner.partnershipId] || { rating: null }, lastFollowUp: new Date().toISOString() }
+    const next = { ...all[partner.partnershipId] || { rating: null, notes: '' }, lastFollowUp: ts }
     all[partner.partnershipId] = next
     saveMeta(all)
     setMeta(next)
     showToast.success(`Logged follow-up with ${partner.name.split(' ')[0]}`)
+    void patchPartnerMeta(partner.partnershipId, { last_follow_up: ts })
+  }
+
+  const saveNotes = () => {
+    const all = loadMeta()
+    const next = { ...all[partner.partnershipId] || { rating: null, lastFollowUp: null }, notes: notesDraft }
+    all[partner.partnershipId] = next
+    saveMeta(all)
+    setMeta(next)
+    setNotesSaved(true)
+    setTimeout(() => setNotesSaved(false), 2000)
+    void patchPartnerMeta(partner.partnershipId, { notes: notesDraft })
   }
 
   const followUpLabel = toFollowUpLabel(meta.lastFollowUp)
@@ -302,11 +345,84 @@ const PartnerCard: React.FC<{ partner: Partner; onViewListings: (p: Partner) => 
             <p className="text-[11px] text-slate-400 mt-0.5">{followUpLabel}</p>
           )}
         </div>
-        <div className="text-right flex-shrink-0">
-          <p className="text-2xl font-black text-slate-900">{partner.totalLeads}</p>
-          <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wide">leads</p>
+        <div className="flex items-center gap-3 flex-shrink-0">
+          <div className="text-right">
+            <p className="text-2xl font-black text-slate-900">{partner.totalLeads}</p>
+            <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wide">leads</p>
+          </div>
+          <button
+            onClick={() => setExpanded(v => !v)}
+            className={`w-7 h-7 rounded-full flex items-center justify-center border text-xs font-bold transition-all ${expanded ? 'bg-primary-600 border-primary-600 text-white' : 'border-slate-200 text-slate-400 hover:border-primary-300 hover:text-primary-600'}`}
+            title={expanded ? 'Collapse' : 'Show details'}
+          >
+            {expanded ? '▲' : '▼'}
+          </button>
         </div>
       </div>
+
+      {/* Expandable contact + notes panel */}
+      {expanded && (
+        <div className="border-b border-slate-100 bg-slate-50/40 px-5 py-4 space-y-4">
+          {/* Contact info */}
+          <div className="grid grid-cols-1 gap-2">
+            {partner.phone && (
+              <div className="flex items-center gap-3">
+                <span className="text-base">📞</span>
+                <div className="flex items-center gap-2 flex-1">
+                  <a href={`tel:${partner.phone}`} className="text-sm font-semibold text-slate-800 hover:text-primary-600 transition-colors">{partner.phone}</a>
+                  <span className="text-slate-300">·</span>
+                  <a href={`sms:${partner.phone}`} className="text-xs text-slate-500 hover:text-primary-600 transition-colors">Text</a>
+                </div>
+              </div>
+            )}
+            {partner.email && (
+              <div className="flex items-center gap-3">
+                <span className="text-base">✉️</span>
+                <a href={`mailto:${partner.email}`} className="text-sm font-semibold text-slate-800 hover:text-primary-600 transition-colors truncate">{partner.email}</a>
+              </div>
+            )}
+            {partner.website && (
+              <div className="flex items-center gap-3">
+                <span className="text-base">🌐</span>
+                <a href={partner.website} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-primary-600 hover:text-primary-700 transition-colors truncate">{partner.website.replace(/^https?:\/\//, '')}</a>
+              </div>
+            )}
+            {!partner.phone && !partner.email && !partner.website && (
+              <p className="text-xs text-slate-400 italic">No contact details on file</p>
+            )}
+          </div>
+
+          {/* Notes */}
+          <div>
+            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-1.5">Notes</p>
+            <textarea
+              className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-primary-400 resize-none bg-white"
+              rows={2}
+              placeholder={`Notes about ${partner.name.split(' ')[0]}…`}
+              value={notesDraft}
+              onChange={e => setNotesDraft(e.target.value)}
+            />
+            <div className="flex justify-end mt-1.5">
+              <button
+                onClick={saveNotes}
+                disabled={notesDraft === (meta.notes || '')}
+                className="text-xs font-semibold px-3 py-1 rounded-lg bg-primary-600 text-white disabled:opacity-40 hover:bg-primary-700 transition-all"
+              >
+                {notesSaved ? '✓ Saved' : 'Save'}
+              </button>
+            </div>
+          </div>
+
+          {/* Schedule appointment */}
+          <button
+            type="button"
+            onClick={() => navigate(buildDashboardPath('/appointments', demoMode))}
+            className="flex items-center justify-center gap-2 w-full border border-primary-200 rounded-xl py-2.5 text-sm font-bold text-primary-600 bg-primary-50 hover:bg-primary-100 transition-all"
+          >
+            📅 Schedule Appointment
+          </button>
+        </div>
+      )}
 
       {/* Rating row */}
       <div className="flex items-center gap-2 px-5 py-3 border-b border-slate-100 bg-slate-50/60">
@@ -314,7 +430,7 @@ const PartnerCard: React.FC<{ partner: Partner; onViewListings: (p: Partner) => 
         {RATINGS.map(r => (
           <button
             key={r.key}
-            onClick={() => setRating(meta.rating === r.key ? null : r.key)}
+            onClick={() => setRating(meta.rating === r.key ? null : r.key as PartnerRating)}
             className={`flex items-center gap-1 px-2.5 py-1 rounded-full border text-[11px] font-bold transition-all ${
               meta.rating === r.key ? r.color : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300'
             }`}
@@ -375,24 +491,41 @@ const PartnerCard: React.FC<{ partner: Partner; onViewListings: (p: Partner) => 
             ✉️
           </a>
         )}
-        <button
-          onClick={async () => {
-            if (!window.confirm(`Remove ${partner.name} as a partner? This will disable their co-branded listing pages.`)) return
-            try {
-              const { data: { user } } = await supabase.auth.getUser()
-              const res = await fetch(buildApiUrl(`/api/lo/partners/${partner.partnershipId}`), {
-                method: 'DELETE', headers: { 'x-user-id': user?.id || '' }
-              })
-              if (!res.ok) throw new Error()
-              showToast.success(`${partner.name} removed`)
-              onRemoved()
-            } catch { showToast.error('Failed to remove partner') }
-          }}
-          className="px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-400 hover:bg-red-50 hover:border-red-200 hover:text-red-600 text-xs font-semibold transition-all"
-          title="Remove partner"
-        >
-          ✕
-        </button>
+        {removeConfirm ? (
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={async () => {
+                setRemoveConfirm(false)
+                try {
+                  const { data: { user } } = await supabase.auth.getUser()
+                  const res = await fetch(buildApiUrl(`/api/lo/partners/${partner.partnershipId}`), {
+                    method: 'DELETE', headers: { 'x-user-id': user?.id || '' }
+                  })
+                  if (!res.ok) throw new Error()
+                  showToast.success(`${partner.name} removed`)
+                  onRemoved()
+                } catch { showToast.error('Failed to remove partner') }
+              }}
+              className="px-2.5 py-2 rounded-lg bg-red-600 text-white text-xs font-bold hover:bg-red-700 transition-all"
+            >
+              Remove
+            </button>
+            <button
+              onClick={() => setRemoveConfirm(false)}
+              className="px-2.5 py-2 rounded-lg border border-slate-200 bg-white text-slate-600 text-xs font-semibold hover:bg-slate-50 transition-all"
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setRemoveConfirm(true)}
+            className="px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-400 hover:bg-red-50 hover:border-red-200 hover:text-red-600 text-xs font-semibold transition-all"
+            title="Remove partner"
+          >
+            ✕
+          </button>
+        )}
       </div>
     </div>
   )
@@ -400,7 +533,26 @@ const PartnerCard: React.FC<{ partner: Partner; onViewListings: (p: Partner) => 
 
 // ─── Partner Detail Drawer ────────────────────────────────────────────────────
 
-const PartnerDetail: React.FC<{ partner: Partner; onClose: () => void }> = ({ partner, onClose }) => (
+const PartnerDetail: React.FC<{ partner: Partner; onClose: () => void }> = ({ partner, onClose }) => {
+  const navigate = useNavigate()
+  const demoMode = useDemoMode()
+  const [notesDraft, setNotesDraft] = React.useState(() => {
+    const all = loadMeta()
+    return all[partner.partnershipId]?.notes || ''
+  })
+  const [notesSaved, setNotesSaved] = React.useState(false)
+
+  const saveNotes = () => {
+    const all = loadMeta()
+    const next = { ...all[partner.partnershipId] || { rating: null, lastFollowUp: null }, notes: notesDraft }
+    all[partner.partnershipId] = next
+    saveMeta(all)
+    setNotesSaved(true)
+    setTimeout(() => setNotesSaved(false), 2000)
+    void patchPartnerMeta(partner.partnershipId, { notes: notesDraft })
+  }
+
+  return (
   <div className="fixed inset-0 z-40 flex">
     <div className="flex-1 bg-black/30" onClick={onClose} />
     <div className="w-full max-w-lg bg-white h-full overflow-y-auto shadow-2xl">
@@ -432,12 +584,60 @@ const PartnerDetail: React.FC<{ partner: Partner; onClose: () => void }> = ({ pa
         </div>
 
         {/* Contact */}
-        <div className="rounded-xl border border-slate-200 p-4 space-y-2">
+        <div className="rounded-xl border border-slate-200 p-4 space-y-2.5">
           <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">Contact</p>
-          {partner.email && <p className="text-sm text-slate-700">✉️ {partner.email}</p>}
-          {partner.phone && <p className="text-sm text-slate-700">📞 {partner.phone}</p>}
-          <p className="text-xs text-slate-400">Partner since {new Date(partner.joinedAt).toLocaleDateString()}</p>
+          {partner.phone && (
+            <div className="flex items-center gap-2">
+              <span>📞</span>
+              <a href={`tel:${partner.phone}`} className="text-sm font-semibold text-slate-800 hover:text-primary-600">{partner.phone}</a>
+              <span className="text-slate-300">·</span>
+              <a href={`sms:${partner.phone}`} className="text-xs text-slate-500 hover:text-primary-600">Text</a>
+            </div>
+          )}
+          {partner.email && (
+            <div className="flex items-center gap-2">
+              <span>✉️</span>
+              <a href={`mailto:${partner.email}`} className="text-sm font-semibold text-slate-800 hover:text-primary-600">{partner.email}</a>
+            </div>
+          )}
+          {partner.website && (
+            <div className="flex items-center gap-2">
+              <span>🌐</span>
+              <a href={partner.website} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-primary-600 hover:text-primary-700">{partner.website.replace(/^https?:\/\//, '')}</a>
+            </div>
+          )}
+          <p className="text-xs text-slate-400 pt-1">Partner since {new Date(partner.joinedAt).toLocaleDateString()}</p>
         </div>
+
+        {/* Notes */}
+        <div className="rounded-xl border border-slate-200 p-4">
+          <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">Notes</p>
+          <textarea
+            className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-primary-400 resize-none"
+            rows={3}
+            placeholder={`Notes about ${partner.name.split(' ')[0]}…`}
+            value={notesDraft}
+            onChange={e => setNotesDraft(e.target.value)}
+          />
+          <div className="flex justify-end mt-2">
+            <button
+              onClick={saveNotes}
+              disabled={notesDraft === (loadMeta()[partner.partnershipId]?.notes || '')}
+              className="text-xs font-semibold px-4 py-1.5 rounded-lg bg-primary-600 text-white disabled:opacity-40 hover:bg-primary-700 transition-all"
+            >
+              {notesSaved ? '✓ Saved' : 'Save Notes'}
+            </button>
+          </div>
+        </div>
+
+        {/* Schedule appointment */}
+        <button
+          type="button"
+          onClick={() => navigate(buildDashboardPath('/appointments', demoMode))}
+          className="flex items-center justify-center gap-2 w-full bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-xl py-3 text-sm transition-all"
+        >
+          📅 Schedule Appointment
+        </button>
 
         {/* Listings */}
         <div>
@@ -469,35 +669,22 @@ const PartnerDetail: React.FC<{ partner: Partner; onClose: () => void }> = ({ pa
           </div>
         </div>
 
-        {/* Referral link */}
-        <div className="rounded-xl border border-slate-200 p-4">
-          <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Share their co-brand link</p>
-          <p className="text-xs text-slate-500 mb-3">Send this to {partner.name.split(' ')[0]} so they can share their listing page.</p>
-          <button
-            onClick={() => {
-              navigator.clipboard.writeText(`${window.location.origin}/agent/${partner.agentId}`)
-              showToast.success('Link copied!')
-            }}
-            className="w-full border border-slate-200 rounded-lg py-2 text-xs font-semibold text-primary-600 hover:bg-primary-50 transition-all"
-          >
-            📋 Copy Partner Link
-          </button>
-        </div>
       </div>
     </div>
   </div>
-)
+  )
+}
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 const LOPartnersPage: React.FC = () => {
-  const _navigate = useNavigate()
   const demoMode = useDemoMode()
   const [partners, setPartners] = useState<Partner[]>([])
   const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([])
   const [loading, setLoading] = useState(true)
   const [showInvite, setShowInvite] = useState(false)
   const [selectedPartner, setSelectedPartner] = useState<Partner | null>(null)
+  const [revokeConfirmId, setRevokeConfirmId] = useState<string | null>(null)
   const mountedRef = useRef(true)
 
   const load = useCallback(async () => {
@@ -514,6 +701,16 @@ const LOPartnersPage: React.FC = () => {
       })
       const json = await res.json() as { success: boolean; partners: Partner[]; pendingInvites: PendingInvite[] }
       if (!mountedRef.current) return
+      // Seed localStorage from server — server is authoritative after migration
+      const meta = loadMeta()
+      ;(json.partners || []).forEach((p: Partner) => {
+        meta[p.partnershipId] = {
+          rating: p.rating || null,
+          lastFollowUp: p.lastFollowUp || null,
+          notes: p.notes || ''
+        }
+      })
+      saveMeta(meta)
       setPartners(json.partners || [])
       setPendingInvites(json.pendingInvites || [])
     } catch {
@@ -538,20 +735,12 @@ const LOPartnersPage: React.FC = () => {
   return (
     <div className="space-y-6 pb-12">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight">Partner Agents</h1>
-          <p className="text-slate-500 text-sm mt-1">
-            {partners.length} active partner{partners.length !== 1 ? 's' : ''}
-            {pendingInvites.length > 0 && ` · ${pendingInvites.length} invite pending`}
-          </p>
-        </div>
-        <button
-          onClick={() => setShowInvite(true)}
-          className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-xl px-5 py-2.5 text-sm transition-all shadow-sm"
-        >
-          + Add Partner
-        </button>
+      <div>
+        <h1 className="text-2xl font-black text-slate-900 tracking-tight">Partner Agents</h1>
+        <p className="text-slate-500 text-sm mt-1">
+          {partners.length} active partner{partners.length !== 1 ? 's' : ''}
+          {pendingInvites.length > 0 && ` · ${pendingInvites.length} invite pending`}
+        </p>
       </div>
 
       {/* Empty state */}
@@ -581,8 +770,44 @@ const LOPartnersPage: React.FC = () => {
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-slate-800 truncate">{invite.name || invite.email}</p>
                   <p className="text-xs text-slate-500 truncate">{invite.email} · sent {toRelativeTime(invite.sentAt)}</p>
+                  <div className="mt-1 flex flex-wrap items-center gap-2">
+                    {invite.ctaClickedAt ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-bold text-green-700">
+                        🔥 Clicked through · {toRelativeTime(invite.ctaClickedAt)}
+                      </span>
+                    ) : invite.openedAt ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-700">
+                        👀 Opened · {toRelativeTime(invite.openedAt)}
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-400">
+                        Not opened yet
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
+                  {/* Nudge — only show if >24hrs old and not yet opened */}
+                  {!invite.openedAt && (Date.now() - new Date(invite.sentAt).getTime()) > 24 * 3600 * 1000 && (
+                    <button
+                      onClick={async () => {
+                        try {
+                          const { data: { user } } = await supabase.auth.getUser()
+                          const res = await fetch(buildApiUrl(`/api/lo/partners/invite/${invite.id}/nudge`), {
+                            method: 'POST', headers: { 'x-user-id': user?.id || '' }
+                          })
+                          const json = await res.json() as { error?: string; message?: string }
+                          if (!res.ok) throw new Error(json.message || 'nudge_failed')
+                          showToast.success('Reminder sent! 👋')
+                        } catch (e: unknown) {
+                          showToast.error(e instanceof Error ? e.message : 'Failed to send reminder')
+                        }
+                      }}
+                      className="text-xs font-semibold text-blue-700 hover:text-blue-900 border border-blue-300 bg-white rounded-lg px-3 py-1.5 transition-all hover:bg-blue-50"
+                    >
+                      Nudge 👋
+                    </button>
+                  )}
                   <button
                     onClick={async () => {
                       try {
@@ -598,27 +823,56 @@ const LOPartnersPage: React.FC = () => {
                   >
                     Resend
                   </button>
-                  <button
-                    onClick={async () => {
-                      if (!window.confirm(`Revoke invite for ${invite.email}?`)) return
-                      try {
-                        const { data: { user } } = await supabase.auth.getUser()
-                        const res = await fetch(buildApiUrl(`/api/lo/partners/invite/${invite.id}`), {
-                          method: 'DELETE', headers: { 'x-user-id': user?.id || '' }
-                        })
-                        if (!res.ok) throw new Error()
-                        showToast.success('Invite revoked')
-                        load()
-                      } catch { showToast.error('Failed to revoke') }
-                    }}
-                    className="text-xs font-semibold text-slate-400 hover:text-red-600 border border-slate-200 bg-white rounded-lg px-3 py-1.5 transition-all hover:border-red-200 hover:bg-red-50"
-                  >
-                    Revoke
-                  </button>
+                  {revokeConfirmId === invite.id ? (
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={async () => {
+                          setRevokeConfirmId(null)
+                          try {
+                            const { data: { user } } = await supabase.auth.getUser()
+                            const res = await fetch(buildApiUrl(`/api/lo/partners/invite/${invite.id}`), {
+                              method: 'DELETE', headers: { 'x-user-id': user?.id || '' }
+                            })
+                            if (!res.ok) throw new Error()
+                            showToast.success('Invite revoked')
+                            load()
+                          } catch { showToast.error('Failed to revoke') }
+                        }}
+                        className="text-xs font-bold text-white bg-red-600 border border-red-600 rounded-lg px-3 py-1.5 hover:bg-red-700 transition-all"
+                      >
+                        Confirm
+                      </button>
+                      <button
+                        onClick={() => setRevokeConfirmId(null)}
+                        className="text-xs font-semibold text-slate-400 border border-slate-200 bg-white rounded-lg px-2 py-1.5 hover:bg-slate-50 transition-all"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setRevokeConfirmId(invite.id)}
+                      className="text-xs font-semibold text-slate-400 hover:text-red-600 border border-slate-200 bg-white rounded-lg px-3 py-1.5 transition-all hover:border-red-200 hover:bg-red-50"
+                    >
+                      Revoke
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Add partner button — only when there's content (empty state has its own CTA) */}
+      {(partners.length > 0 || pendingInvites.length > 0) && (
+        <div className="flex justify-end">
+          <button
+            onClick={() => setShowInvite(true)}
+            className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-xl px-5 py-2.5 text-sm transition-all shadow-sm"
+          >
+            + Add Partner
+          </button>
         </div>
       )}
 

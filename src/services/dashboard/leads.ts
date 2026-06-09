@@ -30,6 +30,7 @@ export interface DashboardLeadItem {
   last_message_preview: string | null;
   created_at: string;
   listing_id: string | null;
+  lo_name?: string | null;
   last_agent_action_at?: string | null;
   listing: {
     id: string;
@@ -72,6 +73,13 @@ export interface DashboardLeadAppointment {
 export interface DashboardLeadDetail {
   lead: Record<string, unknown>;
   listing: Record<string, unknown> | null;
+  lo_partner: {
+    name: string;
+    company: string | null;
+    phone: string | null;
+    email: string | null;
+    photo: string | null;
+  } | null;
   intel: {
     intent_score: number;
     intent_level: LeadIntentLevel;

@@ -344,12 +344,40 @@ const LeadDetailCommandPage: React.FC = () => {
           Back to Inbox
         </button>
 
-        <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">{leadName}</h1>
-        <div className="flex items-center gap-2 mt-2">
+        <div className="flex items-center gap-3 flex-wrap mb-1">
+          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">{leadName}</h1>
+          {detail.intel.intent_level === 'Hot' && (
+            <span className="rounded-full px-2.5 py-1 text-[11px] font-black uppercase tracking-wide bg-rose-100 text-rose-700">🔥 Hot</span>
+          )}
+          {detail.intel.intent_level === 'Warm' && (
+            <span className="rounded-full px-2.5 py-1 text-[11px] font-black uppercase tracking-wide bg-amber-100 text-amber-700">Warm</span>
+          )}
+          {detail.intel.intent_level === 'Cold' && (
+            <span className="rounded-full px-2.5 py-1 text-[11px] font-black uppercase tracking-wide bg-slate-100 text-slate-500">Cold</span>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-2 mt-2">
           <span className="text-slate-500 font-medium">{String(detail.listing?.address || 'No listing attached')}</span>
           <span className="w-1 h-1 rounded-full bg-slate-300"></span>
-          <span className="text-slate-500 font-medium">From: {detail.lead.source_type?.toString().replace(/_/g, ' ') || 'Unknown'}</span>
+          <span className="text-slate-500 font-medium capitalize">{detail.lead.source_type?.toString().replace(/_/g, ' ') || 'Unknown'}</span>
         </div>
+        {(leadPhone || leadEmail) && (
+          <div className="flex flex-wrap items-center gap-3 mt-3">
+            {leadPhone && (
+              <a href={`tel:${leadPhone}`} className="flex items-center gap-1.5 text-sm font-semibold text-slate-700 hover:text-slate-900 transition-colors">
+                <span className="material-symbols-outlined text-[16px] text-slate-400">call</span>
+                {leadPhone}
+              </a>
+            )}
+            {leadPhone && leadEmail && <span className="w-1 h-1 rounded-full bg-slate-300"></span>}
+            {leadEmail && (
+              <a href={`mailto:${leadEmail}`} className="flex items-center gap-1.5 text-sm font-semibold text-slate-700 hover:text-slate-900 transition-colors">
+                <span className="material-symbols-outlined text-[16px] text-slate-400">mail</span>
+                {leadEmail}
+              </a>
+            )}
+          </div>
+        )}
       </div>
 
       {/* STICKY ACTION BAR */}
@@ -386,6 +414,36 @@ const LeadDetailCommandPage: React.FC = () => {
           Set appointment
         </button>
       </div>
+
+      {/* LO PARTNER BLOCK */}
+      {detail.lo_partner && (
+        <div className="mb-6 flex items-center gap-4 rounded-2xl border border-primary-100 bg-primary-50 px-5 py-4">
+          <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-primary-600 text-white font-bold text-base">
+            {detail.lo_partner.photo
+              ? <img src={detail.lo_partner.photo} alt={detail.lo_partner.name} className="h-11 w-11 rounded-full object-cover" />
+              : detail.lo_partner.name.charAt(0).toUpperCase()}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-bold uppercase tracking-widest text-primary-500 mb-0.5">Mortgage Partner</p>
+            <p className="text-sm font-bold text-slate-900 truncate">{detail.lo_partner.name}{detail.lo_partner.company ? ` · ${detail.lo_partner.company}` : ''}</p>
+            <p className="text-xs text-slate-500 mt-0.5">Notified — ready to help this buyer with financing</p>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {detail.lo_partner.phone && (
+              <a href={`tel:${detail.lo_partner.phone}`} className="flex items-center gap-1 rounded-lg bg-white border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition shadow-sm">
+                <span className="material-symbols-outlined text-[14px]">call</span>
+                Call
+              </a>
+            )}
+            {detail.lo_partner.email && (
+              <a href={`mailto:${detail.lo_partner.email}`} className="flex items-center gap-1 rounded-lg bg-white border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition shadow-sm">
+                <span className="material-symbols-outlined text-[14px]">mail</span>
+                Email
+              </a>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* SUMMARY */}
       <div className="bg-slate-50 rounded-2xl p-6 border border-slate-200">
@@ -441,6 +499,28 @@ const LeadDetailCommandPage: React.FC = () => {
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {/* AI NEXT BEST ACTION */}
+        {detail.intel.next_best_action && (
+          <div className="mt-5 flex items-start gap-3 rounded-xl bg-blue-50 border border-blue-100 px-4 py-3">
+            <span className="material-symbols-outlined text-blue-500 text-[20px] flex-shrink-0 mt-0.5">auto_awesome</span>
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-widest text-blue-500 mb-0.5">AI Recommendation</p>
+              <p className="text-sm font-semibold text-blue-900">{detail.intel.next_best_action}</p>
+            </div>
+          </div>
+        )}
+
+        {/* INTENT TAGS */}
+        {detail.intel.intent_tags && detail.intel.intent_tags.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {detail.intel.intent_tags.map((tag) => (
+              <span key={tag} className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-semibold text-slate-600 capitalize">
+                {tag.replace(/_/g, ' ')}
+              </span>
+            ))}
           </div>
         )}
 
@@ -542,7 +622,13 @@ const LeadDetailCommandPage: React.FC = () => {
               <div key={event.id} className="flex gap-4 p-4 border border-slate-100 rounded-xl bg-white shadow-sm">
                 <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center flex-shrink-0 border border-slate-200">
                   <span className="material-symbols-outlined text-[18px] text-slate-400">
-                    {event.type.includes('appointment') ? 'event' : event.type.includes('email') ? 'mail' : 'forum'}
+                    {event.type.includes('appointment') ? 'event'
+                      : event.type.includes('email') ? 'mail'
+                      : event.type.includes('call') ? 'call'
+                      : event.type.includes('status') ? 'edit'
+                      : event.type.includes('captured') || event.type.includes('lead_open') ? 'person_add'
+                      : event.type.includes('note') ? 'sticky_note_2'
+                      : 'forum'}
                   </span>
                 </div>
                 <div>
@@ -601,7 +687,7 @@ const LeadDetailCommandPage: React.FC = () => {
                       onClick={() => setShowAppointmentModal(true)}
                       className="flex-1 bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 font-bold py-2.5 px-4 rounded-lg text-sm transition-colors"
                     >
-                      Reschedule
+                      Add Appointment
                     </button>
                     <button
                       onClick={() => void setAppointmentState(appointment, 'canceled')}

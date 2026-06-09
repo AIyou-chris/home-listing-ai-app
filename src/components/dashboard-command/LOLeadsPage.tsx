@@ -14,8 +14,10 @@ interface Lead {
   source: string;
   notes: string | null;
   status: LeadStatus;
+  intent_level: 'Hot' | 'Warm' | 'Cold';
   listing_id: string | null;
   listing_address: string | null;
+  agent_name: string | null;
   created_at: string;
 }
 
@@ -47,7 +49,9 @@ const timeAgo = (iso: string) => {
 };
 
 const sourceLabel = (source: string) => {
-  if (source === 'chatbot') return { label: 'Chatbot', color: 'bg-emerald-100 text-emerald-700' };
+  if (source === 'pre_qual') return { label: '🔥 Pre-Qual', color: 'bg-emerald-100 text-emerald-700' };
+  if (source === 'chatbot' || source === 'general_info') return { label: '💬 Chat', color: 'bg-blue-100 text-blue-700' };
+  if (source === 'pre_approval') return { label: '✅ Pre-Approval', color: 'bg-violet-100 text-violet-700' };
   if (source === 'form') return { label: 'Form', color: 'bg-blue-100 text-blue-700' };
   return { label: source, color: 'bg-slate-100 text-slate-600' };
 };
@@ -63,8 +67,10 @@ const DEMO_LEADS: Lead[] = [
     source: 'chatbot',
     notes: 'Asked about monthly payments on FHA loan',
     status: 'New',
+    intent_level: 'Hot',
     listing_id: 'demo-listing-1',
     listing_address: '1280 Sunset Blvd, Santa Monica, CA',
+    agent_name: 'Jennifer Walsh',
     created_at: new Date(Date.now() - 25 * 60000).toISOString(),
   },
   {
@@ -77,6 +83,8 @@ const DEMO_LEADS: Lead[] = [
     status: 'Contacted',
     listing_id: 'demo-listing-1',
     listing_address: '1280 Sunset Blvd, Santa Monica, CA',
+    agent_name: 'Jennifer Walsh',
+    intent_level: 'Warm',
     created_at: new Date(Date.now() - 3 * 3600000).toISOString(),
   },
   {
@@ -87,8 +95,10 @@ const DEMO_LEADS: Lead[] = [
     source: 'chatbot',
     notes: 'Wants to know about VA loan eligibility',
     status: 'Qualified',
+    intent_level: 'Warm',
     listing_id: 'demo-listing-2',
     listing_address: '742 Evergreen Terrace, Springfield, IL',
+    agent_name: 'Marcus Lee',
     created_at: new Date(Date.now() - 2 * 86400000).toISOString(),
   },
 ];
@@ -193,6 +203,12 @@ const LeadCard: React.FC<{ lead: Lead; expanded: boolean; onToggle: () => void; 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <p className="text-sm font-semibold text-slate-900 truncate">{displayName}</p>
+            {lead.intent_level === 'Hot' && (
+              <span className="rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wide bg-rose-100 text-rose-700">🔥 Hot</span>
+            )}
+            {lead.intent_level === 'Warm' && (
+              <span className="rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wide bg-amber-100 text-amber-700">Warm</span>
+            )}
             <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${src.color}`}>{src.label}</span>
             <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${STATUS_OPTIONS.find(s => s.value === status)?.color || 'bg-slate-100 text-slate-500'}`}>
               {status}
@@ -202,6 +218,12 @@ const LeadCard: React.FC<{ lead: Lead; expanded: boolean; onToggle: () => void; 
             <p className="text-xs text-slate-500 truncate mt-0.5">
               <span className="material-symbols-outlined text-[11px] align-middle mr-0.5">home_pin</span>
               {lead.listing_address}
+            </p>
+          )}
+          {lead.agent_name && (
+            <p className="text-[11px] font-semibold text-primary-600 truncate mt-0.5">
+              <span className="material-symbols-outlined text-[11px] align-middle mr-0.5">real_estate_agent</span>
+              {lead.agent_name}'s listing
             </p>
           )}
         </div>
@@ -301,7 +323,9 @@ const LeadCard: React.FC<{ lead: Lead; expanded: boolean; onToggle: () => void; 
               />
 
               <div className="flex items-center justify-between">
-                <span className="text-[10px] text-slate-400">{smsText.length}/160 chars</span>
+                <span className={`text-[10px] ${smsText.length > 160 ? 'text-red-500 font-semibold' : smsText.length > 140 ? 'text-amber-500' : 'text-slate-400'}`}>
+                  {smsText.length}/160 chars{smsText.length > 160 ? ' — will split into 2 messages' : ''}
+                </span>
                 <button
                   onClick={() => void handleSendSms()}
                   disabled={sending || !smsText.trim() || sent}
@@ -350,7 +374,39 @@ const LOLeadsPage: React.FC = () => {
         const headers = await getApiHeaders();
         const res = await fetch(buildApiUrl('/api/lo/leads'), { headers });
         const data = await res.json();
-        if (data.leads) setLeads(data.leads);
+        if (data.success) {
+          // Merge pre-quals + chat leads into a unified list
+          const preQuals = (data.preQuals || []).map((p: Record<string, unknown>) => ({
+            id: p.id,
+            name: p.name as string || null,
+            email: p.email as string || null,
+            phone: p.phone as string || null,
+            source: 'pre_qual',
+            notes: (p.notes as string) || [(p.timeline as string) && `Timeline: ${p.timeline}`, (p.creditRange as string) && `Credit: ${p.creditRange}`, (p.incomeRange as string) && `Income: ${p.incomeRange}`, (p.downPayment as string) && `Down: ${p.downPayment}`].filter(Boolean).join(' · ') || null,
+            status: 'New' as LeadStatus,
+            intent_level: 'Hot' as const,
+            listing_id: p.listingId as string || null,
+            listing_address: p.listingAddress as string || null,
+            agent_name: p.agentName as string || null,
+            created_at: p.createdAt as string,
+          }));
+          const chatLeads = (data.chatLeads || []).map((l: Record<string, unknown>) => ({
+            id: l.id,
+            name: l.name as string || null,
+            email: l.email as string || null,
+            phone: l.phone as string || null,
+            source: l.context as string || 'chatbot',
+            notes: null,
+            status: (l.status as LeadStatus) || 'New',
+            intent_level: ((l.intentLevel as string) || 'Warm') as 'Hot' | 'Warm' | 'Cold',
+            listing_id: l.listingId as string || null,
+            listing_address: l.listingAddress as string || null,
+            agent_name: l.agentName as string || null,
+            created_at: l.createdAt as string,
+          }));
+          // Merge and sort newest first
+          setLeads([...preQuals, ...chatLeads].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
+        }
       } catch {
         // non-fatal
       } finally {

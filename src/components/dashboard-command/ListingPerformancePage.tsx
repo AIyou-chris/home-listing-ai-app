@@ -202,6 +202,24 @@ const ListingPerformancePage: React.FC = () => {
 
   return (
     <div className="mx-auto max-w-6xl space-y-4 px-4 py-6 md:px-8">
+      <div className="flex items-center justify-between gap-4">
+        <button
+          type="button"
+          onClick={() => navigate(buildDashboardPath('/listings', demoMode))}
+          className="flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-slate-900 transition-colors"
+        >
+          <span className="material-symbols-outlined text-[18px]">arrow_back</span>
+          All Listings
+        </button>
+        <button
+          type="button"
+          onClick={() => navigate(buildDashboardPath(`/listings/${listingId}/edit`, demoMode))}
+          className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+        >
+          <span className="material-symbols-outlined text-[18px]">edit</span>
+          Edit Listing
+        </button>
+      </div>
       {activeListingWarning ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           <p className="font-semibold">You’re close to your limit.</p>

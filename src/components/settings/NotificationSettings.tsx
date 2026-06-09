@@ -333,13 +333,37 @@ const NotificationSettingsPage: React.FC<NotificationSettingsProps> = ({
                     </label>
                     <label className="space-y-1">
                         <span className="text-sm font-medium text-slate-700">Timezone</span>
-                        <input
-                            type="text"
+                        <select
                             value={localSettings.timeZone || 'America/Los_Angeles'}
                             onChange={(event) => handleFieldChange('timeZone', event.target.value)}
-                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                            placeholder="America/Los_Angeles"
-                        />
+                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
+                        >
+                            <optgroup label="United States">
+                                <option value="America/New_York">Eastern (New York)</option>
+                                <option value="America/Chicago">Central (Chicago)</option>
+                                <option value="America/Denver">Mountain (Denver)</option>
+                                <option value="America/Los_Angeles">Pacific (Los Angeles)</option>
+                                <option value="America/Phoenix">Arizona (Phoenix)</option>
+                                <option value="America/Anchorage">Alaska (Anchorage)</option>
+                                <option value="Pacific/Honolulu">Hawaii (Honolulu)</option>
+                                <option value="America/Puerto_Rico">Puerto Rico</option>
+                            </optgroup>
+                            <optgroup label="Canada">
+                                <option value="America/Toronto">Eastern (Toronto)</option>
+                                <option value="America/Winnipeg">Central (Winnipeg)</option>
+                                <option value="America/Edmonton">Mountain (Edmonton)</option>
+                                <option value="America/Vancouver">Pacific (Vancouver)</option>
+                            </optgroup>
+                            <optgroup label="International">
+                                <option value="Europe/London">London</option>
+                                <option value="Europe/Paris">Paris / Berlin</option>
+                                <option value="Asia/Dubai">Dubai</option>
+                                <option value="Asia/Kolkata">India (Kolkata)</option>
+                                <option value="Asia/Singapore">Singapore</option>
+                                <option value="Asia/Tokyo">Tokyo</option>
+                                <option value="Australia/Sydney">Sydney</option>
+                            </optgroup>
+                        </select>
                     </label>
                 </div>
             </FeatureSection>

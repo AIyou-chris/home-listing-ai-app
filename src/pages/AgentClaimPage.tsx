@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { buildApiUrl } from '../lib/api'
+import { supabase } from '../services/supabase'
 
 interface InviteInfo {
   email: string
@@ -89,6 +90,9 @@ const AgentClaimPage: React.FC = () => {
         return
       }
       setSuccess(true)
+      // Sign out any existing session so the LO (or anyone) isn't auto-redirected
+      // back to their own dashboard — the new agent must sign in fresh.
+      await supabase.auth.signOut().catch(() => {})
       setTimeout(() => navigate('/signin'), 3000)
     } catch {
       setFormError('Network error. Please try again.')
@@ -119,7 +123,9 @@ const AgentClaimPage: React.FC = () => {
       <div className="max-w-sm w-full text-center">
         <div className="text-6xl mb-4">🎉</div>
         <h1 className="text-white font-bold text-2xl mb-2">You're in!</h1>
-        <p className="text-slate-400 text-sm">Your account is ready. Redirecting to sign in…</p>
+        <p className="text-slate-300 text-sm mb-2">Your account is ready.</p>
+        <p className="text-slate-400 text-sm">Sign in with <strong className="text-white">{invite?.email}</strong></p>
+        <p className="text-slate-500 text-xs mt-3">Redirecting to sign in…</p>
       </div>
     </div>
   )

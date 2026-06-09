@@ -522,6 +522,16 @@ const BottomBar: React.FC<{
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
+// Fire-and-forget engagement event — never blocks the page
+const fireInviteEvent = (token: string, event: 'opened' | 'cta_clicked') => {
+  if (token === 'demo') return; // never track demo
+  fetch(buildApiUrl(`/api/public/partner-invite/${token}/event`), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ event }),
+  }).catch(() => { /* silent */ });
+};
+
 const PartnerInvitePage: React.FC = () => {
   const { token } = useParams<{ token: string }>();
   const navigate = useNavigate();
@@ -534,8 +544,14 @@ const PartnerInvitePage: React.FC = () => {
   const [photoIndex, setPhotoIndex] = useState(0);
   const listingRef = useRef<HTMLDivElement>(null);
   const financeRef = useRef<HTMLDivElement>(null);
+  const openedFired = useRef(false);
 
   const scrollToListing = () => listingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  const handleTakeALook = () => {
+    if (token) fireInviteEvent(token, 'cta_clicked');
+    scrollToListing();
+  };
 
   const handleTab = (t: Tab) => {
     setActiveTab(t);
@@ -579,6 +595,11 @@ const PartnerInvitePage: React.FC = () => {
         if (d.success && d.lo) {
           setData(d as InviteData);
           document.title = `${d.lo!.name} built something for your listings`;
+          // Record first open — fire once, never again
+          if (!openedFired.current) {
+            openedFired.current = true;
+            fireInviteEvent(token, 'opened');
+          }
         } else {
           setError(d.error === 'invite_expired' ? 'This invite link has expired.' : 'Invalid or expired invite link.');
         }
@@ -641,7 +662,7 @@ const PartnerInvitePage: React.FC = () => {
             </p>
           </div>
           <button
-            onClick={scrollToListing}
+            onClick={handleTakeALook}
             className="flex-shrink-0 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-[12px] font-bold text-white transition-all active:scale-95"
           >
             Take a Look

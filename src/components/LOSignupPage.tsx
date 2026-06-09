@@ -230,7 +230,7 @@ const LOSignupPage: React.FC = () => {
                                         type="text"
                                         value={firstName}
                                         onChange={e => setFirstName(e.target.value)}
-                                        className="w-full bg-slate-800/60 border border-slate-700 rounded-lg px-3 py-2.5 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition-colors"
+                                        className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition-colors"
                                         placeholder="Chris"
                                         required
                                     />
@@ -241,7 +241,7 @@ const LOSignupPage: React.FC = () => {
                                         type="text"
                                         value={lastName}
                                         onChange={e => setLastName(e.target.value)}
-                                        className="w-full bg-slate-800/60 border border-slate-700 rounded-lg px-3 py-2.5 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition-colors"
+                                        className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition-colors"
                                         placeholder="Johnson"
                                         required
                                     />
@@ -254,7 +254,7 @@ const LOSignupPage: React.FC = () => {
                                     type="email"
                                     value={email}
                                     onChange={e => setEmail(e.target.value)}
-                                    className="w-full bg-slate-800/60 border border-slate-700 rounded-lg px-3 py-2.5 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition-colors"
+                                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition-colors"
                                     placeholder="you@example.com"
                                     required
                                 />
@@ -270,7 +270,7 @@ const LOSignupPage: React.FC = () => {
                                         type={showPassword ? 'text' : 'password'}
                                         value={password}
                                         onChange={e => setPassword(e.target.value)}
-                                        className="w-full bg-slate-800/60 border border-slate-700 rounded-lg px-3 py-2.5 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition-colors pr-10"
+                                        className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition-colors pr-10"
                                         placeholder="••••••••"
                                         required
                                     />
@@ -291,7 +291,7 @@ const LOSignupPage: React.FC = () => {
                                         type="text"
                                         value={nmls}
                                         onChange={e => setNmls(e.target.value)}
-                                        className="w-full bg-slate-800/60 border border-slate-700 rounded-lg px-3 py-2.5 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition-colors"
+                                        className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition-colors"
                                         placeholder="1234567"
                                         required
                                     />
@@ -302,7 +302,7 @@ const LOSignupPage: React.FC = () => {
                                         type="tel"
                                         value={phone}
                                         onChange={e => setPhone(e.target.value)}
-                                        className="w-full bg-slate-800/60 border border-slate-700 rounded-lg px-3 py-2.5 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition-colors"
+                                        className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2.5 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition-colors"
                                         placeholder="(949) 555-0100"
                                     />
                                 </div>

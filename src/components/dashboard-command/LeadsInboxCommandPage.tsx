@@ -241,6 +241,12 @@ const LeadsInboxCommandPage: React.FC = () => {
                     <span className="w-1 h-1 rounded-full bg-slate-300"></span>
                     <span>{timeAgo()}</span>
                   </div>
+                  {lead.lo_name && (
+                    <div className="mt-1 flex items-center gap-1 text-[11px] font-semibold text-primary-600">
+                      <span className="material-symbols-outlined text-[13px]">handshake</span>
+                      Shared with {lead.lo_name}
+                    </div>
+                  )}
                 </div>
               </div>
 

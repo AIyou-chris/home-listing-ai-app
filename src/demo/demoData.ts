@@ -624,6 +624,13 @@ export const getDemoLeadDetail = (leadId: string): DashboardLeadDetail => {
         sqft: listing.sqft
       }
       : null,
+    lo_partner: {
+      name: 'Chris Martinez',
+      company: 'Premier Lending Group',
+      phone: '(512) 555-0199',
+      email: 'chris.martinez@premierlending.com',
+      photo: null
+    },
     intel: {
       intent_score: lead.intent_score,
       intent_level: lead.intent_level,

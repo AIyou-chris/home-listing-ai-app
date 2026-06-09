@@ -55,12 +55,6 @@ type ListingDraftState = {
   description: string
 }
 
-type FairHousingResult = {
-  risk: 'Low' | 'Moderate' | 'High'
-  flagged: string[]
-  rewrite: string
-}
-
 const SECTIONS: Array<{ key: EditorSection; label: string }> = [
   { key: 'essentials', label: 'Essentials' },
   { key: 'photos', label: 'Photos' },
@@ -116,36 +110,7 @@ const sanitizeDecimal = (raw: string): string => {
   return cleaned.slice(0, dot + 2)
 }
 
-const FAIR_HOUSING_FLAG_PHRASES = [
-  'perfect for families',
-  'safe neighborhood',
-  'walk to church',
-  'ideal for young couples',
-  'exclusive community',
-  'quiet retirees',
-  'christian',
-  'jewish',
-  'muslim',
-  'white neighborhood'
-]
 const DEFAULT_LISTING_ADDRESS = '123 Main St'
-
-const runLocalFairHousingScan = (value: string): FairHousingResult => {
-  const normalized = value.toLowerCase()
-  const flagged = FAIR_HOUSING_FLAG_PHRASES.filter((term) => normalized.includes(term))
-  const risk: FairHousingResult['risk'] = flagged.length >= 3 ? 'High' : flagged.length >= 1 ? 'Moderate' : 'Low'
-  let rewrite = value.trim()
-  if (!rewrite) {
-    rewrite = 'Highlight the property features, upgrades, layout, and location convenience without describing people who should live there.'
-  }
-  rewrite = rewrite
-    .replace(/perfect for families/gi, 'great layout for everyday living')
-    .replace(/safe neighborhood/gi, 'well-located neighborhood')
-    .replace(/ideal for young couples/gi, 'ideal for buyers seeking convenience')
-    .replace(/quiet retirees/gi, 'quiet setting')
-    .replace(/walk to church/gi, 'close to local amenities')
-  return { risk, flagged, rewrite }
-}
 
 // ── Shared style tokens ────────────────────────────────────────────────────────
 
@@ -627,6 +592,7 @@ const ListingEditorPage: React.FC = () => {
   const [activeSection, setActiveSection] = useState<EditorSection>('essentials')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [isDirty, setIsDirty] = useState(false)
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -643,9 +609,6 @@ const ListingEditorPage: React.FC = () => {
   const [generatingDesc, setGeneratingDesc] = useState(false)
   const [publishing, setPublishing] = useState(false)
   const [fairHousingOpen, setFairHousingOpen] = useState(false)
-  const [fairHousingText, setFairHousingText] = useState('')
-  const [fairHousingResult, setFairHousingResult] = useState<FairHousingResult | null>(null)
-  const [runningFairHousing, setRunningFairHousing] = useState(false)
 
   // Brain modal — replaces window.prompt()
   const [brainModal, setBrainModal] = useState<{ type: 'text' | 'url'; value: string } | null>(null)
@@ -810,21 +773,12 @@ const ListingEditorPage: React.FC = () => {
     return () => { cancelled = true }
   }, [blueprintMode, listingId])
 
-  const openFairHousing = () => {
-    setFairHousingText(draft.description || '')
-    setFairHousingResult(null)
-    setFairHousingOpen(true)
-  }
+  const openFairHousing = () => setFairHousingOpen(true)
 
-  const handleRunFairHousing = async () => {
-    setRunningFairHousing(true)
-    await new Promise((resolve) => window.setTimeout(resolve, 380))
-    setFairHousingResult(runLocalFairHousingScan(fairHousingText))
-    setRunningFairHousing(false)
-  }
-
-  const updateDraft = (key: keyof ListingDraftState, value: string | number) =>
+  const updateDraft = (key: keyof ListingDraftState, value: string | number) => {
     setDraft((prev) => ({ ...prev, [key]: value }))
+    setIsDirty(true)
+  }
 
   // ── Photo actions ─────────────────────────────────────────────────────────
 
@@ -1015,6 +969,7 @@ const ListingEditorPage: React.FC = () => {
       const refreshed = await fetchListingBuilderPayload(listingId)
       setListingStatus(refreshed.listing.status || 'draft')
       setSources(refreshed.brain_sources || [])
+      setIsDirty(false)
       setNotice(null)
       toast.success('Listing saved.')
     } catch (err) {
@@ -1335,8 +1290,11 @@ const ListingEditorPage: React.FC = () => {
                 type="button"
                 onClick={handleSave}
                 disabled={saving}
-                className="rounded-lg bg-primary-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-60"
+                className="relative rounded-lg bg-primary-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
+                {isDirty && !saving && (
+                  <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-amber-400 ring-2 ring-white" />
+                )}
                 {saving ? 'Saving…' : 'Save'}
               </button>
               <button
@@ -1436,7 +1394,7 @@ const ListingEditorPage: React.FC = () => {
                         inputMode="numeric"
                         value={priceDisplay}
                         readOnly={viewerRole === 'lo'}
-                        onChange={(e) => setPriceDisplay(formatWithCommas(e.target.value))}
+                        onChange={(e) => { setPriceDisplay(formatWithCommas(e.target.value)); setIsDirty(true); }}
                         placeholder="0"
                         className={`${fieldCls} pl-6 ${viewerRole === 'lo' ? 'cursor-default bg-slate-100 text-slate-600' : ''}`}
                       />
@@ -1450,7 +1408,7 @@ const ListingEditorPage: React.FC = () => {
                       inputMode="numeric"
                       value={bedsDisplay}
                       readOnly={viewerRole === 'lo'}
-                      onChange={(e) => setBedsDisplay(digitsOnly(e.target.value))}
+                      onChange={(e) => { setBedsDisplay(digitsOnly(e.target.value)); setIsDirty(true); }}
                       placeholder="0"
                       className={`${fieldCls} ${viewerRole === 'lo' ? 'cursor-default bg-slate-100 text-slate-600' : ''}`}
                     />
@@ -1463,7 +1421,7 @@ const ListingEditorPage: React.FC = () => {
                       inputMode="numeric"
                       value={bathsDisplay}
                       readOnly={viewerRole === 'lo'}
-                      onChange={(e) => setBathsDisplay(sanitizeDecimal(e.target.value))}
+                      onChange={(e) => { setBathsDisplay(sanitizeDecimal(e.target.value)); setIsDirty(true); }}
                       placeholder="0"
                       className={`${fieldCls} ${viewerRole === 'lo' ? 'cursor-default bg-slate-100 text-slate-600' : ''}`}
                     />
@@ -1476,7 +1434,7 @@ const ListingEditorPage: React.FC = () => {
                       inputMode="numeric"
                       value={sqftDisplay}
                       readOnly={viewerRole === 'lo'}
-                      onChange={(e) => setSqftDisplay(digitsOnly(e.target.value))}
+                      onChange={(e) => { setSqftDisplay(digitsOnly(e.target.value)); setIsDirty(true); }}
                       placeholder="0"
                       className={`${fieldCls} ${viewerRole === 'lo' ? 'cursor-default bg-slate-100 text-slate-600' : ''}`}
                     />
@@ -1812,8 +1770,8 @@ const ListingEditorPage: React.FC = () => {
                     </div>
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                       <div>
-                        <label className={sectionLabel}>MLS #</label>
-                        <input value={agentProfile.nmls_number} onChange={e => setAgentProfile(p => ({ ...p, nmls_number: e.target.value }))} placeholder="12345678" className={fieldCls} />
+                        <label className={sectionLabel}>License #</label>
+                        <input value={agentProfile.nmls_number} onChange={e => setAgentProfile(p => ({ ...p, nmls_number: e.target.value }))} placeholder="DRE / License #" className={fieldCls} />
                       </div>
                       <div>
                         <label className={sectionLabel}>Phone</label>
@@ -2155,99 +2113,6 @@ const ListingEditorPage: React.FC = () => {
         </div>
       </div>
     </div>
-
-    {/* ── Fair housing scan modal ── */}
-    {fairHousingOpen && (
-      <div className="fixed inset-0 z-[10000] flex items-end justify-center p-0 md:items-center md:p-4">
-        <div className="absolute inset-0 bg-slate-900/45 backdrop-blur-sm" onClick={() => setFairHousingOpen(false)} />
-        <div className="relative flex h-[90vh] w-full flex-col rounded-t-3xl border border-slate-200 bg-white shadow-2xl md:h-auto md:max-h-[92vh] md:max-w-3xl md:rounded-2xl">
-          <header className="border-b border-slate-200 px-5 py-4">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <h2 className="text-lg font-bold text-slate-900">Fair Housing Scan</h2>
-                <p className="text-sm text-slate-500">Flag risky wording and get safer rewrites for your listing copy.</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setFairHousingOpen(false)}
-                className="rounded-full bg-slate-100 p-2 text-slate-500 transition hover:bg-slate-200 hover:text-slate-700"
-                aria-label="Close fair housing scan"
-              >
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-          </header>
-
-          <div className="grid flex-1 gap-4 overflow-y-auto p-5 md:grid-cols-2">
-            <div className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">Scan Text</p>
-              <textarea
-                rows={12}
-                value={fairHousingText}
-                onChange={(event) => setFairHousingText(event.target.value)}
-                placeholder="Paste listing remarks, captions, SMS copy, or email text..."
-                className={`${fieldCls} min-h-[240px] resize-y bg-white`}
-              />
-              <p className="text-xs text-slate-500">TODO: Wire this modal to the full ChatKit fair housing workflow when production workflow ID is enabled on this branch.</p>
-            </div>
-
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">Scan Result</p>
-              {!fairHousingResult ? (
-                <p className="mt-3 text-sm text-slate-500">Run a scan to see risk level, flagged language, and a safer rewrite.</p>
-              ) : (
-                <div className="mt-3 space-y-3 text-sm text-slate-700">
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-slate-800">Risk</span>
-                    <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                      fairHousingResult.risk === 'High'
-                        ? 'bg-rose-100 text-rose-700'
-                        : fairHousingResult.risk === 'Moderate'
-                          ? 'bg-amber-100 text-amber-700'
-                          : 'bg-emerald-100 text-emerald-700'
-                    }`}>
-                      {fairHousingResult.risk}
-                    </span>
-                  </div>
-                  <div>
-                    <p className="mb-1 font-semibold text-slate-800">Flagged phrases</p>
-                    {fairHousingResult.flagged.length === 0 ? (
-                      <p className="text-xs text-emerald-700">No common risky phrases detected in this draft.</p>
-                    ) : (
-                      <ul className="list-disc space-y-1 pl-5 text-xs text-slate-600">
-                        {fairHousingResult.flagged.map((phrase) => (
-                          <li key={phrase}>{phrase}</li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                  <div>
-                    <p className="mb-1 font-semibold text-slate-800">Suggested rewrite</p>
-                    <p className="rounded-xl border border-slate-200 bg-white p-3 text-xs leading-relaxed text-slate-700">{fairHousingResult.rewrite}</p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <footer className="flex flex-wrap justify-end gap-2 border-t border-slate-200 px-5 py-4">
-            <button type="button" onClick={() => setFairHousingOpen(false)} className={outlineBtn}>
-              Close
-            </button>
-            <button
-              type="button"
-              onClick={() => void handleRunFairHousing()}
-              disabled={runningFairHousing || !fairHousingText.trim()}
-              className="rounded-lg bg-primary-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {runningFairHousing ? 'Scanning…' : 'Run scan'}
-            </button>
-          </footer>
-        </div>
-      </div>
-    )}
 
     {/* ── Brain source modal ── */}
     {brainModal && (

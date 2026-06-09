@@ -156,6 +156,7 @@ const BrandingTogglePanel: React.FC<{ listingId: string; demo?: boolean }> = ({ 
 const ListingCard: React.FC<ListingCardProps> = ({ listing, mode, onRemove, onAdd, loading }) => {
   const [showToggles, setShowToggles] = useState(false);
   const [sharingDash, setSharingDash] = useState(false);
+  const [removeConfirm, setRemoveConfirm] = useState(false);
 
   const handleShareDashboard = async () => {
     setSharingDash(true);
@@ -212,13 +213,31 @@ const ListingCard: React.FC<ListingCardProps> = ({ listing, mode, onRemove, onAd
               >
                 {showToggles ? 'Hide Branding' : '⚙️ Branding'}
               </button>
-              <button
-                onClick={() => onRemove?.(listing.id)}
-                disabled={loading}
-                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-500 hover:border-red-200 hover:text-red-600 disabled:opacity-40"
-              >
-                Remove
-              </button>
+              {removeConfirm ? (
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => { setRemoveConfirm(false); onRemove?.(listing.id); }}
+                    disabled={loading}
+                    className="rounded-lg bg-red-500 px-3 py-1.5 text-xs font-bold text-white hover:bg-red-600 disabled:opacity-40"
+                  >
+                    Confirm
+                  </button>
+                  <button
+                    onClick={() => setRemoveConfirm(false)}
+                    className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs text-slate-400 hover:text-slate-600"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setRemoveConfirm(true)}
+                  disabled={loading}
+                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-500 hover:border-red-200 hover:text-red-600 disabled:opacity-40"
+                >
+                  Remove
+                </button>
+              )}
             </>
           ) : (
             <button

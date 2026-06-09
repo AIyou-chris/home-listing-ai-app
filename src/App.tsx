@@ -34,6 +34,9 @@ const LOOnboardingPage = lazy(() => import('./components/dashboard-command/LOOnb
 const LOListingsPage = lazy(() => import('./components/dashboard-command/LOListingsPage'));
 const LOPartnersPage = lazy(() => import('./components/dashboard-command/LOPartnersPage'));
 const LOChatbotSetupPage = lazy(() => import('./components/dashboard-command/LOChatbotSetupPage'));
+const LOLeadsPage = lazy(() => import('./components/dashboard-command/LOLeadsPage'));
+const LOAppointmentsPage = lazy(() => import('./components/dashboard-command/LOAppointmentsPage'));
+const LOTodayPage = lazy(() => import('./components/dashboard-command/LOTodayPage'));
 const AgentClaimPage = lazy(() => import('./pages/AgentClaimPage'))
 const PartnerInvitePage = lazy(() => import('./pages/PartnerInvitePage'))
 const ListingDashboardPage = lazy(() => import('./pages/ListingDashboardPage'))
@@ -242,7 +245,7 @@ const DashboardRouteGate = () => {
             try {
                 const onboarding = await Promise.race([
                     fetchOnboardingState(),
-                    new Promise<null>((resolve) => setTimeout(() => resolve(null), 1500))
+                    new Promise<null>((resolve) => setTimeout(() => resolve(null), 4000))
                 ]);
                 if (cancelled) return;
                 if (!onboarding) {
@@ -1644,8 +1647,10 @@ const App: React.FC = () => {
                         <Route path="listings" element={<ListingsCommandPage />} />
                         <Route path="listings/:listingId" element={<ListingPerformancePage />} />
                         <Route path="listings/:listingId/edit" element={<ListingEditorPage />} />
+                        <Route path="lo-today" element={<LOTodayPage />} />
                         <Route path="lo-listings" element={<LOListingsPage />} />
                         <Route path="lo-partners" element={<LOPartnersPage />} />
+                        <Route path="lo-appointments" element={<LOAppointmentsPage />} />
                         <Route path="lo-chatbot" element={<LOChatbotSetupPage />} />
                         <Route path="office" element={<OfficeDashboardPage />} />
                         <Route path="gallery/:listingId" element={<DemoAssetGalleryPage />} />
@@ -1756,6 +1761,7 @@ const App: React.FC = () => {
 
                         {/* Today + onboarding always accessible */}
                         <Route path="/dashboard/today" element={<TodayDashboardPage />} />
+                        <Route path="/dashboard/lo-today" element={<LOTodayPage />} />
 
                         {/* All feature routes gated — redirect to onboarding if profile incomplete */}
                         <Route element={<RequireOnboarding />}>
@@ -1769,6 +1775,8 @@ const App: React.FC = () => {
                         <Route path="/dashboard/lo-listings" element={<LOListingsPage />} />
                         <Route path="/dashboard/lo-partners" element={<LOPartnersPage />} />
                         <Route path="/dashboard/lo-chatbot" element={<LOChatbotSetupPage />} />
+                        <Route path="/dashboard/lo-leads" element={<LOLeadsPage />} />
+                        <Route path="/dashboard/lo-appointments" element={<LOAppointmentsPage />} />
                         <Route path="/dashboard/office" element={<OfficeDashboardPage />} />
                         </Route>
                         <Route path="/dashboard/billing" element={<Navigate to="/dashboard/settings/billing" replace />} />

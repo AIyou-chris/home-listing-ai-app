@@ -2,6 +2,75 @@ import React, { useEffect, useRef, useState } from 'react'
 import { supabase } from '../../services/supabase'
 import { buildApiUrl } from '../../lib/api'
 
+// ─── US States ────────────────────────────────────────────────────────────────
+
+const US_STATES = [
+  'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA',
+  'HI','ID','IL','IN','IA','KS','KY','LA','ME','MD',
+  'MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ',
+  'NM','NY','NC','ND','OH','OK','OR','PA','RI','SC',
+  'SD','TN','TX','UT','VT','VA','WA','WV','WI','WY','DC'
+]
+
+// ─── Multi-select state dropdown ─────────────────────────────────────────────
+
+const StatesMultiSelect: React.FC<{ selected: string[]; onChange: (s: string[]) => void }> = ({ selected, onChange }) => {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [])
+
+  const filtered = search.trim() ? US_STATES.filter(s => s.toLowerCase().includes(search.toLowerCase())) : US_STATES
+  const toggle = (s: string) => onChange(selected.includes(s) ? selected.filter(x => x !== s) : [...selected, s])
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="w-full min-h-[42px] rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-left focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100 flex flex-wrap gap-1.5 items-center shadow-sm"
+      >
+        {selected.length === 0
+          ? <span className="text-slate-400">Select states…</span>
+          : selected.map(s => (
+            <span key={s} className="inline-flex items-center gap-1 rounded-md bg-primary-100 px-2 py-0.5 text-xs font-semibold text-primary-700">
+              {s}
+              <span onClick={e => { e.stopPropagation(); onChange(selected.filter(x => x !== s)) }} className="cursor-pointer text-primary-400 hover:text-primary-700">×</span>
+            </span>
+          ))
+        }
+        <span className="ml-auto text-slate-400 text-xs flex-shrink-0">{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div className="absolute z-50 mt-1 w-full rounded-xl border border-slate-200 bg-white shadow-lg">
+          <div className="p-2 border-b border-slate-100">
+            <input autoFocus value={search} onChange={e => setSearch(e.target.value)} placeholder="Search states…" className="w-full rounded-md border border-slate-200 px-3 py-1.5 text-sm focus:border-primary-500 focus:outline-none" />
+          </div>
+          <div className="flex gap-2 px-3 py-1.5 border-b border-slate-100">
+            <button type="button" onClick={() => onChange(US_STATES)} className="text-xs text-primary-600 font-semibold hover:underline">Select all</button>
+            <span className="text-slate-300">|</span>
+            <button type="button" onClick={() => onChange([])} className="text-xs text-slate-500 font-semibold hover:underline">Clear</button>
+            {selected.length > 0 && <span className="ml-auto text-xs text-slate-400">{selected.length} selected</span>}
+          </div>
+          <div className="max-h-52 overflow-y-auto py-1">
+            {filtered.map(state => (
+              <label key={state} className="flex items-center gap-2.5 px-3 py-1.5 hover:bg-slate-50 cursor-pointer">
+                <input type="checkbox" checked={selected.includes(state)} onChange={() => toggle(state)} className="accent-primary-600 w-4 h-4 flex-shrink-0" />
+                <span className="text-sm text-slate-700">{state}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type LOProfile = {
@@ -13,12 +82,14 @@ type LOProfile = {
   logo_url: string
   company: string
   nmls_number: string
+  state_license_number: string
   title: string
 }
 
 const empty = (): LOProfile => ({
   first_name: '', last_name: '', email: '', phone: '',
-  headshot_url: '', logo_url: '', company: '', nmls_number: '', title: ''
+  headshot_url: '', logo_url: '', company: '', nmls_number: '',
+  state_license_number: '', title: ''
 })
 
 const fieldCls =
@@ -30,6 +101,7 @@ const label = 'mb-1 block text-[10px] font-semibold uppercase tracking-widest te
 
 const LOProfileSettings: React.FC = () => {
   const [profile, setProfile] = useState<LOProfile>(empty())
+  const [lendingStates, setLendingStates] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -59,11 +131,13 @@ const LOProfileSettings: React.FC = () => {
             email: j.profile.email || '',
             phone: j.profile.phone || '',
             headshot_url: j.profile.headshot_url || '',
-            logo_url: j.profile.logo_url || '',
+            logo_url: j.profile.brand_logo_url || '',
             company: j.profile.company || '',
             nmls_number: j.profile.nmls_number || '',
+            state_license_number: j.profile.state_license_number || '',
             title: j.profile.title || ''
           })
+          if (Array.isArray(j.profile.lending_states)) setLendingStates(j.profile.lending_states)
         }
       } catch {
         // silently fail — blank form still usable
@@ -87,7 +161,7 @@ const LOProfileSettings: React.FC = () => {
       const res = await fetch(buildApiUrl('/api/agent/profile'), {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', 'x-user-id': user.id },
-        body: JSON.stringify(profile)
+        body: JSON.stringify({ ...profile, lending_states: lendingStates })
       })
       if (!res.ok) throw new Error('save_failed')
       setSaved(true)
@@ -313,10 +387,10 @@ const LOProfileSettings: React.FC = () => {
         </div>
       </div>
 
-      {/* NMLS + Phone + Email */}
+      {/* NMLS + State License + Phone */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div>
-          <label className={label}>NMLS #</label>
+          <label className={label}>NMLS # <span className="normal-case font-normal text-slate-400">(federal)</span></label>
           <input
             value={profile.nmls_number}
             onChange={up('nmls_number')}
@@ -326,13 +400,31 @@ const LOProfileSettings: React.FC = () => {
           />
         </div>
         <div>
+          <label className={label}>State License #</label>
+          <input
+            value={profile.state_license_number}
+            onChange={up('state_license_number')}
+            placeholder="e.g. LO-12345"
+            className={fieldCls}
+          />
+        </div>
+        <div>
           <label className={label}>Phone</label>
           <input value={profile.phone} onChange={up('phone')} placeholder="(555) 000-0000" className={fieldCls} />
         </div>
-        <div>
-          <label className={label}>Email</label>
-          <input value={profile.email} onChange={up('email')} type="email" placeholder="you@lender.com" className={fieldCls} />
-        </div>
+      </div>
+
+      {/* Email */}
+      <div>
+        <label className={label}>Email</label>
+        <input value={profile.email} onChange={up('email')} type="email" placeholder="you@lender.com" className={fieldCls} />
+      </div>
+
+      {/* States licensed in */}
+      <div>
+        <label className={label}>States Licensed In</label>
+        <p className="mb-2 text-xs text-slate-400">Shown on your LO AI chatbot so buyers know if you can help them.</p>
+        <StatesMultiSelect selected={lendingStates} onChange={setLendingStates} />
       </div>
 
       {/* Error */}

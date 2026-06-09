@@ -126,6 +126,91 @@ const _StatCard: React.FC<{
   </div>
 )
 
+// ─── Setup Checklist ──────────────────────────────────────────────────────────
+
+interface LOSetupState {
+  profileDone: boolean
+  partnerInvited: boolean
+  onboardingCompleted: boolean
+}
+
+const LOSetupChecklist: React.FC<{ setup: LOSetupState; onDismiss: () => void; navTo: (p: string) => void }> = ({ setup, onDismiss, navTo }) => {
+  const steps = [
+    {
+      label: 'Complete your LO profile',
+      sub: 'Add your name, NMLS #, company, and headshot',
+      done: setup.profileDone,
+      action: () => navTo('/lo-onboarding'),
+    },
+    {
+      label: 'Invite your first agent partner',
+      sub: 'Send a WOW Link — give an agent\'s listing an AI upgrade',
+      done: setup.partnerInvited,
+      action: () => navTo('/lo-partners'),
+    },
+    {
+      label: 'You\'re live — start capturing leads',
+      sub: 'Your AI financing chatbot is active on every listing',
+      done: setup.onboardingCompleted,
+      action: () => navTo('/lo-listings'),
+    },
+  ]
+  const doneCount = steps.filter(s => s.done).length
+  const pct = Math.round((doneCount / steps.length) * 100)
+
+  return (
+    <div className="rounded-2xl border border-primary-200 bg-gradient-to-br from-primary-50 to-white shadow-sm overflow-hidden">
+      <div className="px-5 py-4 border-b border-primary-100 flex items-center justify-between">
+        <div>
+          <h2 className="font-bold text-slate-900 text-sm">🚀 Get set up — {doneCount} of {steps.length} done</h2>
+          <p className="text-xs text-slate-500 mt-0.5">Complete these steps to start getting warm leads from your agent partners.</p>
+        </div>
+        <button
+          onClick={onDismiss}
+          className="text-slate-400 hover:text-slate-600 text-xs font-semibold ml-4 flex-shrink-0"
+          title="Dismiss"
+        >
+          Dismiss
+        </button>
+      </div>
+
+      {/* Progress bar */}
+      <div className="h-1.5 bg-primary-100">
+        <div
+          className="h-full bg-primary-600 transition-all duration-500"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+
+      <ul className="divide-y divide-slate-100">
+        {steps.map((step, i) => (
+          <li
+            key={i}
+            className={`flex items-center gap-4 px-5 py-4 ${!step.done ? 'cursor-pointer hover:bg-primary-50 transition-colors' : ''}`}
+            onClick={!step.done ? step.action : undefined}
+          >
+            {/* Check circle */}
+            <div className={`w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center text-sm font-bold border-2 ${
+              step.done
+                ? 'bg-emerald-500 border-emerald-500 text-white'
+                : 'border-slate-300 text-slate-400 bg-white'
+            }`}>
+              {step.done ? '✓' : i + 1}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className={`text-sm font-semibold ${step.done ? 'text-slate-400 line-through' : 'text-slate-900'}`}>{step.label}</p>
+              <p className="text-xs text-slate-400 mt-0.5">{step.sub}</p>
+            </div>
+            {!step.done && (
+              <span className="text-xs text-primary-600 font-semibold flex-shrink-0">Start →</span>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 const LOTodayPage: React.FC = () => {
@@ -134,6 +219,8 @@ const LOTodayPage: React.FC = () => {
   const [data, setData] = useState<LODashboardData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [setup, setSetup] = useState<LOSetupState | null>(null)
+  const [setupDismissed, setSetupDismissed] = useState(false)
   const mountedRef = useRef(true)
 
   const navTo = useCallback((path: string) => {
@@ -151,13 +238,33 @@ const LOTodayPage: React.FC = () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('unauthenticated')
 
-      const res = await fetch(buildApiUrl('/api/lo/dashboard/today'), {
-        headers: { 'x-user-id': user.id }
-      })
+      // Fetch dashboard + onboarding state in parallel
+      const [res, onboardingRes] = await Promise.all([
+        fetch(buildApiUrl('/api/lo/dashboard/today'), { headers: { 'x-user-id': user.id } }),
+        fetch(buildApiUrl('/api/dashboard/onboarding'), { headers: { 'x-user-id': user.id } }).catch(() => null),
+      ])
+
       if (!res.ok) throw new Error('fetch_failed')
-      const json = await res.json() as { success: boolean } & LODashboardData
+      const json = await res.json() as { success: boolean; loProfileComplete?: boolean; partnerInvited?: boolean } & LODashboardData
       if (!mountedRef.current) return
       setData(json)
+
+      // Parse onboarding completed flag (we only need this one field from onboarding)
+      let obCompleted = false
+      if (onboardingRes?.ok) {
+        const ob = await onboardingRes.json().catch(() => null) as { onboarding_completed?: boolean } | null
+        obCompleted = Boolean(ob?.onboarding_completed)
+      }
+
+      // Use authoritative flags from the dashboard API:
+      //   loProfileComplete = checks lo_chatbot_configs.full_name (not the signup name, which was a false positive)
+      //   partnerInvited    = checks agent_invites count > 0
+      const profileDone = Boolean(json.loProfileComplete)
+      const partnerInvited = Boolean(json.partnerInvited || (json.stats?.partnersReached ?? 0) > 0)
+      const allDone = profileDone && partnerInvited && obCompleted
+
+      setSetup({ profileDone, partnerInvited, onboardingCompleted: obCompleted })
+      if (allDone) setSetupDismissed(true)
     } catch (err) {
       console.error('[LOToday] load failed', err)
       if (mountedRef.current) setError('Failed to load dashboard')
@@ -204,6 +311,15 @@ const LOTodayPage: React.FC = () => {
         </p>
       </div>
 
+      {/* ── Setup Checklist (shown until onboarding complete or dismissed) ────── */}
+      {setup && !setupDismissed && (
+        <LOSetupChecklist
+          setup={setup}
+          onDismiss={() => setSetupDismissed(true)}
+          navTo={navTo}
+        />
+      )}
+
       {/* ── Stat row ─────────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -239,7 +355,7 @@ const LOTodayPage: React.FC = () => {
           <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
             <h2 className="font-bold text-slate-900 text-sm">Recent Leads</h2>
             <button
-              onClick={() => navTo('/leads')}
+              onClick={() => navTo('/lo-leads')}
               className="text-xs text-primary-600 font-semibold hover:underline"
             >
               View all →
@@ -355,7 +471,7 @@ const LOTodayPage: React.FC = () => {
         <h2 className="font-bold text-slate-900 text-sm mb-4">Quick Actions</h2>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <button
-            onClick={() => navTo('/leads')}
+            onClick={() => navTo('/lo-leads')}
             className="flex flex-col items-center gap-2 rounded-xl border border-slate-200 p-4 hover:border-primary-300 hover:bg-primary-50 transition-all text-center"
           >
             <span className="text-2xl">👥</span>
@@ -369,7 +485,7 @@ const LOTodayPage: React.FC = () => {
             <span className="text-xs font-semibold text-slate-700">My Listings</span>
           </button>
           <button
-            onClick={() => navTo('/appointments')}
+            onClick={() => navTo('/lo-appointments')}
             className="flex flex-col items-center gap-2 rounded-xl border border-slate-200 p-4 hover:border-primary-300 hover:bg-primary-50 transition-all text-center"
           >
             <span className="text-2xl">📅</span>

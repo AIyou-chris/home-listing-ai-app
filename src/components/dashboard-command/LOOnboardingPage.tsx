@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { buildDashboardPath, useDemoMode } from '../../demo/useDemoMode';
 import { buildApiUrl } from '../../lib/api';
@@ -13,6 +13,111 @@ const US_STATES = [
   'NM','NY','NC','ND','OH','OK','OR','PA','RI','SC',
   'SD','TN','TX','UT','VT','VA','WA','WV','WI','WY','DC'
 ];
+
+// ─── Multi-select state dropdown ─────────────────────────────────────────────
+const StatesMultiSelect: React.FC<{
+  selected: string[];
+  onChange: (states: string[]) => void;
+}> = ({ selected, onChange }) => {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Close on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const filtered = search.trim()
+    ? US_STATES.filter(s => s.toLowerCase().includes(search.toLowerCase()))
+    : US_STATES;
+
+  const toggle = (state: string) => {
+    onChange(selected.includes(state) ? selected.filter(s => s !== state) : [...selected, state]);
+  };
+
+  const removeState = (state: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    onChange(selected.filter(s => s !== state));
+  };
+
+  return (
+    <div ref={containerRef} className="relative">
+      {/* Trigger */}
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="w-full min-h-[42px] rounded-lg border border-slate-300 px-3 py-2 text-sm text-left focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 bg-white flex flex-wrap gap-1.5 items-center"
+      >
+        {selected.length === 0 ? (
+          <span className="text-slate-400">Select states…</span>
+        ) : (
+          <>
+            {selected.map(s => (
+              <span key={s} className="inline-flex items-center gap-1 rounded-md bg-primary-100 px-2 py-0.5 text-xs font-semibold text-primary-700">
+                {s}
+                <span
+                  onClick={(e) => removeState(s, e)}
+                  className="cursor-pointer text-primary-400 hover:text-primary-700 leading-none"
+                >×</span>
+              </span>
+            ))}
+          </>
+        )}
+        <span className="ml-auto text-slate-400 text-xs flex-shrink-0">
+          {open ? '▲' : '▼'}
+        </span>
+      </button>
+
+      {/* Dropdown panel */}
+      {open && (
+        <div className="absolute z-50 mt-1 w-full rounded-xl border border-slate-200 bg-white shadow-lg">
+          {/* Search */}
+          <div className="p-2 border-b border-slate-100">
+            <input
+              autoFocus
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search states…"
+              className="w-full rounded-md border border-slate-200 px-3 py-1.5 text-sm focus:border-primary-500 focus:outline-none"
+            />
+          </div>
+          {/* Select all / clear */}
+          <div className="flex gap-2 px-3 py-1.5 border-b border-slate-100">
+            <button type="button" onClick={() => onChange(US_STATES)} className="text-xs text-primary-600 font-semibold hover:underline">Select all</button>
+            <span className="text-slate-300">|</span>
+            <button type="button" onClick={() => onChange([])} className="text-xs text-slate-500 font-semibold hover:underline">Clear</button>
+            {selected.length > 0 && <span className="ml-auto text-xs text-slate-400">{selected.length} selected</span>}
+          </div>
+          {/* State list */}
+          <div className="max-h-52 overflow-y-auto py-1">
+            {filtered.length === 0 ? (
+              <p className="px-4 py-3 text-xs text-slate-400">No states match "{search}"</p>
+            ) : (
+              filtered.map(state => (
+                <label key={state} className="flex items-center gap-2.5 px-3 py-1.5 hover:bg-slate-50 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={selected.includes(state)}
+                    onChange={() => toggle(state)}
+                    className="accent-primary-600 w-4 h-4 flex-shrink-0"
+                  />
+                  <span className="text-sm text-slate-700">{state}</span>
+                </label>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 const cardClass = 'rounded-2xl border border-slate-200 bg-white p-6 shadow-sm';
 
@@ -46,6 +151,7 @@ const LOOnboardingPage: React.FC = () => {
   const [profile, setProfile] = useState({
     full_name: '',
     nmls_number: '',
+    state_license_number: '',
     company: '',
     phone: '',
     email: '',
@@ -65,12 +171,6 @@ const LOOnboardingPage: React.FC = () => {
       }
     });
   }, []);
-
-  const toggleState = (state: string) => {
-    setSelectedStates((prev) =>
-      prev.includes(state) ? prev.filter((s) => s !== state) : [...prev, state]
-    );
-  };
 
   const handleHeadshotUpload = async (file?: File | null) => {
     if (!file) return;
@@ -96,6 +196,7 @@ const LOOnboardingPage: React.FC = () => {
         body: JSON.stringify({
           full_name: profile.full_name.trim(),
           nmls_number: profile.nmls_number.trim() || null,
+          state_license_number: profile.state_license_number.trim() || null,
           company: profile.company.trim() || null,
           phone: profile.phone.trim() || null,
           headshot_url: profile.headshot_url || null,
@@ -240,7 +341,7 @@ const LOOnboardingPage: React.FC = () => {
             {/* NMLS */}
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">
-                NMLS # (recommended)
+                NMLS # <span className="text-slate-400 font-normal normal-case">(recommended)</span>
               </label>
               <input
                 value={profile.nmls_number}
@@ -248,7 +349,21 @@ const LOOnboardingPage: React.FC = () => {
                 placeholder="1234567"
                 className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
               />
-              <p className="mt-1 text-xs text-slate-400">Required on all marketing in most states</p>
+              <p className="mt-1 text-xs text-slate-400">Federal license — required on most marketing</p>
+            </div>
+
+            {/* State License # */}
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">
+                State License #
+              </label>
+              <input
+                value={profile.state_license_number}
+                onChange={(e) => setProfile((p) => ({ ...p, state_license_number: e.target.value }))}
+                placeholder="e.g. LO-12345"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+              />
+              <p className="mt-1 text-xs text-slate-400">Your state-issued mortgage license number</p>
             </div>
 
             {/* Company */}
@@ -320,33 +435,13 @@ const LOOnboardingPage: React.FC = () => {
 
           {/* States licensed in */}
           <div className="mt-6">
-            <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
+            <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">
               States you're licensed in
             </label>
-            <p className="mb-3 text-xs text-slate-400">
+            <p className="mb-2 text-xs text-slate-400">
               Shown on your LO AI chatbot so buyers know if you can help them.
             </p>
-            <div className="flex flex-wrap gap-1.5">
-              {US_STATES.map((state) => (
-                <button
-                  key={state}
-                  type="button"
-                  onClick={() => toggleState(state)}
-                  className={`rounded-md px-2.5 py-1 text-xs font-semibold transition-colors ${
-                    selectedStates.includes(state)
-                      ? 'bg-primary-600 text-white'
-                      : 'border border-slate-200 bg-slate-50 text-slate-600 hover:border-primary-400'
-                  }`}
-                >
-                  {state}
-                </button>
-              ))}
-            </div>
-            {selectedStates.length > 0 && (
-              <p className="mt-2 text-xs text-slate-500">
-                {selectedStates.length} state{selectedStates.length !== 1 ? 's' : ''} selected
-              </p>
-            )}
+            <StatesMultiSelect selected={selectedStates} onChange={setSelectedStates} />
           </div>
 
           <div className="mt-6 flex flex-wrap gap-3">

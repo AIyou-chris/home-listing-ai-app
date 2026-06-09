@@ -134,6 +134,13 @@ const WhiteLabelCard: React.FC = () => {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [testing, setTesting] = useState(false)
+  const [isDirty, setIsDirty] = useState(false)
+
+  // Convenience: update a field and mark as dirty
+  const updateB = (partial: Partial<Branding>) => {
+    setB(prev => ({ ...prev, ...partial }))
+    setIsDirty(true)
+  }
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -156,6 +163,7 @@ const WhiteLabelCard: React.FC = () => {
       })
       const j = await res.json() as { success?: boolean; error?: string }
       if (!res.ok || !j.success) throw new Error(j.error || 'failed')
+      setIsDirty(false)
       showToast.success('Branding saved — live on all your LO pages')
     } catch (e) {
       showToast.error(e instanceof Error && e.message === 'webhook_must_be_https' ? 'Webhook URL must start with https://' : 'Save failed. Try again.')
@@ -194,7 +202,7 @@ const WhiteLabelCard: React.FC = () => {
       <div className="grid gap-4 md:grid-cols-2">
         <div>
           <label className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500">Company Name</label>
-          <input value={b.companyName} onChange={e => setB({ ...b, companyName: e.target.value })}
+          <input value={b.companyName} onChange={e => updateB({ companyName: e.target.value })}
             className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             placeholder="Summit Mortgage Group" />
         </div>
@@ -202,16 +210,16 @@ const WhiteLabelCard: React.FC = () => {
           <label className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500">Brand Color</label>
           <div className="flex items-center gap-3">
             <input type="color" value={/^#[0-9a-fA-F]{6}$/.test(b.brandColor) ? b.brandColor : '#2563eb'}
-              onChange={e => setB({ ...b, brandColor: e.target.value })}
+              onChange={e => updateB({ brandColor: e.target.value })}
               className="h-10 w-14 cursor-pointer rounded-lg border border-slate-200" />
-            <input value={b.brandColor} onChange={e => setB({ ...b, brandColor: e.target.value })}
+            <input value={b.brandColor} onChange={e => updateB({ brandColor: e.target.value })}
               className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
               placeholder="#2563eb" />
           </div>
         </div>
         <div className="md:col-span-2">
           <label className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500">Logo URL</label>
-          <input value={b.logoUrl} onChange={e => setB({ ...b, logoUrl: e.target.value })}
+          <input value={b.logoUrl} onChange={e => updateB({ logoUrl: e.target.value })}
             className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             placeholder="https://yourdomain.com/logo.png" />
         </div>
@@ -220,7 +228,7 @@ const WhiteLabelCard: React.FC = () => {
             Lead Webhook URL <span className="font-normal text-slate-400">— warm leads POST here (CRM / Zapier / Make)</span>
           </label>
           <div className="flex gap-2">
-            <input value={b.leadWebhookUrl} onChange={e => setB({ ...b, leadWebhookUrl: e.target.value })}
+            <input value={b.leadWebhookUrl} onChange={e => updateB({ leadWebhookUrl: e.target.value })}
               className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
               placeholder="https://hooks.zapier.com/…" />
             <button onClick={testWebhook} disabled={testing}
@@ -233,10 +241,17 @@ const WhiteLabelCard: React.FC = () => {
           <label className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-500">
             Custom Domain <span className="font-normal text-slate-400">— your LOs' public pages load on your domain</span>
           </label>
-          <input value={b.customDomain} onChange={e => setB({ ...b, customDomain: e.target.value })}
+          <input value={b.customDomain} onChange={e => updateB({ customDomain: e.target.value })}
             className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             placeholder="app.summitmortgage.com" />
-          <p className="mt-1.5 text-[11px] text-slate-400">Point a CNAME at your host, then enter the hostname here. Changes take effect within minutes.</p>
+          <div className="mt-2 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-[11px] text-slate-500 space-y-1">
+            <p className="font-semibold text-slate-600">DNS setup (one-time):</p>
+            <p>1. In your DNS provider, add a <strong className="text-slate-700">CNAME</strong> record:</p>
+            <p className="pl-3 font-mono text-slate-600">Name: <span className="text-primary-600">app</span> (or your chosen subdomain)</p>
+            <p className="pl-3 font-mono text-slate-600">Value: <span className="text-primary-600">homelistingai.com</span></p>
+            <p>2. Enter the full hostname above (e.g. <span className="font-mono">app.summitmortgage.com</span>) and save.</p>
+            <p>3. DNS propagation takes 5–30 minutes. Your brand loads instantly once it resolves.</p>
+          </div>
         </div>
       </div>
 
@@ -252,7 +267,10 @@ const WhiteLabelCard: React.FC = () => {
 
       <div className="mt-5 flex justify-end">
         <button onClick={save} disabled={saving}
-          className="rounded-xl bg-primary-600 px-6 py-2.5 text-sm font-bold text-white hover:bg-primary-700 disabled:opacity-50">
+          className="relative rounded-xl bg-primary-600 px-6 py-2.5 text-sm font-bold text-white hover:bg-primary-700 disabled:opacity-50">
+          {isDirty && !saving && (
+            <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-amber-400 ring-2 ring-white" />
+          )}
           {saving ? 'Saving…' : 'Save Branding'}
         </button>
       </div>

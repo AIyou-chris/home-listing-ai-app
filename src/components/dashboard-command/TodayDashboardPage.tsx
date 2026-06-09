@@ -20,6 +20,7 @@ import { fetchOnboardingState, type OnboardingState } from '../../services/onboa
 import { listingsService } from '../../services/listingsService'
 import { useDashboardRealtimeStore } from '../../state/useDashboardRealtimeStore'
 import { showToast } from '../../utils/toastService'
+import { supabase } from '../../services/supabase'
 import TodayROIStrip from '../dashboard-widgets/TodayROIStrip'
 
 const containerCardClass = 'rounded-2xl border border-slate-200 bg-white p-5 shadow-sm'
@@ -115,6 +116,7 @@ const TodayDashboardPage: React.FC = () => {
   const [leadsOpen, setLeadsOpen] = useState(true)
   const [appointmentsOpen, setAppointmentsOpen] = useState(true)
   const [onboarding, setOnboarding] = useState<OnboardingState | null>(null)
+  const [authFirstName, setAuthFirstName] = useState<string | null>(null)
   const [recentListing, setRecentListing] = useState<RecentListing | null>(null)
   const [shareKit, setShareKit] = useState<ListingShareKitResponse | null>(null)
   const [billing, setBilling] = useState<DashboardBillingSnapshot | null>(null)
@@ -226,6 +228,13 @@ const TodayDashboardPage: React.FC = () => {
   }, [setInitialAppointments, setInitialLeads])
 
   useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      const name = user?.user_metadata?.first_name || user?.user_metadata?.full_name?.split(' ')[0] || null
+      if (name) setAuthFirstName(name)
+    }).catch(() => {})
+  }, [])
+
+  useEffect(() => {
     if (hasFetchedInitialStateRef.current) return
     hasFetchedInitialStateRef.current = true
 
@@ -292,9 +301,9 @@ const TodayDashboardPage: React.FC = () => {
 
   const greetingName = useMemo(() => {
     const fullName = onboarding?.brand_profile?.full_name?.trim()
-    if (!fullName) return 'there'
-    return fullName.split(' ')[0] || 'there'
-  }, [onboarding?.brand_profile?.full_name])
+    if (fullName) return fullName.split(' ')[0] || 'there'
+    return authFirstName || 'there'
+  }, [onboarding?.brand_profile?.full_name, authFirstName])
 
   const billingWarningLines = useMemo(() => {
     if (!billing) return []

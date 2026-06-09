@@ -36,19 +36,41 @@ type KbTab = 'text' | 'file' | 'url';
 const KnowledgeBaseSection: React.FC<{
   value: string;
   onChange: (text: string) => void;
+  onAutoSave: (text: string, successMsg?: string) => Promise<void>;
   getHeaders: () => Promise<HeadersInit>;
-}> = ({ value, onChange, getHeaders }) => {
+}> = ({ value, onChange, onAutoSave, getHeaders }) => {
   const [tab, setTab] = useState<KbTab>('text');
   const [urlInput, setUrlInput] = useState('');
   const [scanning, setScanning] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const appendText = (newText: string) => {
+  const SEPARATOR = '\n\n---\n\n';
+
+  const parseChunks = (text: string) => {
+    if (!text.trim()) return [];
+    return text.split(SEPARATOR).map((chunk, i) => {
+      const trimmed = chunk.trim();
+      const labelMatch = trimmed.match(/^\[From:\s*(.+?)\]/);
+      const label = labelMatch ? labelMatch[1] : `Entry ${i + 1}`;
+      const preview = trimmed.replace(/^\[From:[^\]]+\]\n?/, '').slice(0, 80).trim();
+      return { index: i, label, preview, raw: chunk };
+    }).filter(c => c.raw.trim());
+  };
+
+  const deleteChunk = async (indexToRemove: number) => {
+    const chunks = value.split(SEPARATOR);
+    const next = chunks.filter((_, i) => i !== indexToRemove).join(SEPARATOR);
+    onChange(next);
+    await onAutoSave(next, 'Source removed');
+  };
+
+  const appendAndSave = async (newText: string, label: string) => {
     const trimmed = newText.trim();
     if (!trimmed) return;
-    onChange(value ? `${value}\n\n---\n\n${trimmed}` : trimmed);
-    toast.success('Added to knowledge base');
+    const next = value ? `${value}${SEPARATOR}${trimmed}` : trimmed;
+    onChange(next);
+    await onAutoSave(next, `"${label}" added and saved`);
   };
 
   const scanUrl = async () => {
@@ -64,7 +86,7 @@ const KnowledgeBaseSection: React.FC<{
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Failed to scan');
-      appendText(`[From: ${url}]\n${data.text}`);
+      await appendAndSave(`[From: ${url}]\n${data.text}`, url);
       setUrlInput('');
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Could not scan that URL');
@@ -88,7 +110,7 @@ const KnowledgeBaseSection: React.FC<{
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Failed to extract file');
-      appendText(`[From: ${file.name}]\n${data.text}`);
+      await appendAndSave(`[From: ${file.name}]\n${data.text}`, file.name);
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Could not read that file');
     } finally {
@@ -134,12 +156,13 @@ const KnowledgeBaseSection: React.FC<{
           <textarea
             value={value}
             onChange={(e) => onChange(e.target.value)}
+            onBlur={(e) => { if (e.target.value.trim()) void onAutoSave(e.target.value, 'Knowledge base saved'); }}
             placeholder="Paste your rate sheet, loan programs, down payment assistance info, or any other content you want the bot to reference..."
             rows={8}
             className="w-full resize-none rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-primary-400 focus:ring-1 focus:ring-primary-100"
           />
           <p className="mt-1 text-xs text-slate-400">
-            Paste rate sheets, program details, eligibility — anything you want the bot to know.
+            Paste rate sheets, program details, eligibility — anything you want the bot to know. Saves automatically when you click away.
           </p>
         </div>
       )}
@@ -167,7 +190,7 @@ const KnowledgeBaseSection: React.FC<{
                 <span className="material-symbols-outlined text-3xl text-slate-400">upload_file</span>
                 <div className="text-center">
                   <p className="text-sm font-semibold text-slate-700">Drop a file here or click to browse</p>
-                  <p className="mt-1 text-xs text-slate-400">Supports PDF, TXT, CSV — up to 10MB</p>
+                  <p className="mt-1 text-xs text-slate-400">Supports PDF, TXT, CSV — up to 25MB</p>
                 </div>
               </>
             )}
@@ -247,26 +270,46 @@ const KnowledgeBaseSection: React.FC<{
         </div>
       )}
 
-      {/* Current KB preview (shown when not in text mode) */}
-      {tab !== 'text' && value && (
-        <div className="mt-4">
-          <div className="flex items-center justify-between mb-1.5">
-            <p className="text-xs font-semibold text-slate-500">Current Knowledge Base</p>
-            <button
-              onClick={() => { if (window.confirm('Clear the entire knowledge base?')) onChange(''); }}
-              className="text-xs text-rose-500 hover:underline"
-            >
-              Clear all
-            </button>
+      {/* Sources list — always visible when there's content */}
+      {value && (() => {
+        const chunks = parseChunks(value);
+        if (!chunks.length) return null;
+        return (
+          <div className="mt-5">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">
+                📚 In Knowledge Base ({chunks.length} {chunks.length === 1 ? 'source' : 'sources'} · {value.length.toLocaleString()} chars)
+              </p>
+              <button
+                onClick={async () => { if (window.confirm('Clear the entire knowledge base?')) { onChange(''); await onAutoSave('', 'Knowledge base cleared'); } }}
+                className="text-xs text-rose-400 hover:text-rose-600 hover:underline transition-colors"
+              >
+                Clear all
+              </button>
+            </div>
+            <div className="space-y-2">
+              {chunks.map((chunk) => (
+                <div key={chunk.index} className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
+                  <span className="material-symbols-outlined text-base text-emerald-500 flex-shrink-0">check_circle</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-slate-800 truncate">{chunk.label}</p>
+                    {chunk.preview && (
+                      <p className="text-[11px] text-slate-400 truncate mt-0.5">{chunk.preview}…</p>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => { void deleteChunk(chunk.index); }}
+                    className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-slate-400 hover:bg-rose-100 hover:text-rose-600 transition-all"
+                    title="Remove this source"
+                  >
+                    <span className="material-symbols-outlined text-sm">close</span>
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
-          <textarea
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            rows={5}
-            className="w-full resize-none rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 outline-none transition focus:border-slate-300"
-          />
-        </div>
-      )}
+        );
+      })()}
     </section>
   );
 };
@@ -284,8 +327,9 @@ const PLATFORM_RULES = [
 const ComplianceSection: React.FC<{
   value: string;
   onChange: (text: string) => void;
+  onAutoSave: (text: string, successMsg?: string) => Promise<void>;
   getHeaders: () => Promise<HeadersInit>;
-}> = ({ value, onChange, getHeaders }) => {
+}> = ({ value, onChange, onAutoSave, getHeaders }) => {
   const [uploading, setUploading] = useState(false);
   const [removing, setRemoving] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -305,6 +349,7 @@ const ComplianceSection: React.FC<{
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Failed to extract file');
       onChange(data.text);
+      await onAutoSave(data.text);
       toast.success('Compliance rules uploaded and active');
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Could not read that file');
@@ -411,7 +456,7 @@ const ComplianceSection: React.FC<{
                 <p className="text-sm font-semibold text-slate-700">
                   {value ? 'Upload a new compliance doc' : 'Drop your compliance doc here'}
                 </p>
-                <p className="mt-1 text-xs text-slate-400">PDF or TXT · Max 10MB</p>
+                <p className="mt-1 text-xs text-slate-400">PDF or TXT · Max 25MB</p>
               </div>
             </>
           )}
@@ -537,6 +582,7 @@ const LOChatbotSetupPage: React.FC = () => {
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
   const [activeTab, setActiveTab] = useState<'identity' | 'knowledge' | 'compliance' | 'faq'>('identity');
 
   // ── Load existing config ──────────────────────────────────────────────────
@@ -583,6 +629,7 @@ const LOChatbotSetupPage: React.FC = () => {
         })
       });
       if (!res.ok) throw new Error('save_failed');
+      setIsDirty(false);
       toast.success('Chatbot saved!');
     } catch {
       toast.error('Failed to save. Try again.');
@@ -591,21 +638,72 @@ const LOChatbotSetupPage: React.FC = () => {
     }
   };
 
+  // Auto-save compliance rules after upload
+  const autoSaveComplianceRules = async (newRules: string, _successMsg?: string) => {
+    setSaving(true);
+    try {
+      const headers = await getApiHeaders();
+      const res = await fetch(buildApiUrl('/api/lo/chatbot-config'), {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({
+          ...config,
+          compliance_rules: newRules,
+          faq: config.faq.map(({ question, answer }) => ({ question, answer }))
+        })
+      });
+      if (!res.ok) throw new Error('save_failed');
+    } catch {
+      toast.error('Failed to auto-save compliance rules. Hit Save Changes manually.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Auto-save after file/URL upload — receives the new KB text directly to avoid state timing issues
+  const autoSaveKnowledgeBase = async (newKbText: string, successMsg?: string) => {
+    setSaving(true);
+    try {
+      const headers = await getApiHeaders();
+      const res = await fetch(buildApiUrl('/api/lo/chatbot-config'), {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({
+          ...config,
+          knowledge_base: newKbText,
+          faq: config.faq.map(({ question, answer }) => ({ question, answer }))
+        })
+      });
+      if (!res.ok) throw new Error('save_failed');
+      if (successMsg) toast.success(successMsg);
+    } catch {
+      toast.error('Failed to auto-save. Hit Save Changes manually.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   // ── FAQ helpers ───────────────────────────────────────────────────────────
-  const addFaq = () =>
+  const addFaq = () => {
     setConfig((c) => ({
       ...c,
       faq: [...c.faq, { id: crypto.randomUUID(), question: '', answer: '' }]
     }));
+    setIsDirty(true);
+  };
 
-  const updateFaq = (id: string, field: 'question' | 'answer', value: string) =>
+  const updateFaq = (id: string, field: 'question' | 'answer', value: string) => {
     setConfig((c) => ({
       ...c,
       faq: c.faq.map((f) => (f.id === id ? { ...f, [field]: value } : f))
     }));
+    setIsDirty(true);
+  };
 
-  const removeFaq = (id: string) =>
+  const removeFaq = (id: string) => {
     setConfig((c) => ({ ...c, faq: c.faq.filter((f) => f.id !== id) }));
+    setIsDirty(true);
+  };
 
   if (loading) {
     return (
@@ -626,26 +724,38 @@ const LOChatbotSetupPage: React.FC = () => {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm">
-            <div
+          <div className="flex flex-col items-end gap-1">
+            <label
               onClick={() => setConfig((c) => ({ ...c, is_active: !c.is_active }))}
-              className={`relative h-5 w-9 rounded-full transition-colors ${
-                config.is_active ? 'bg-emerald-500' : 'bg-slate-300'
-              }`}
+              className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm select-none"
             >
-              <span
-                className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${
-                  config.is_active ? 'translate-x-4' : 'translate-x-0.5'
+              <div
+                className={`relative h-5 w-9 rounded-full transition-colors ${
+                  config.is_active ? 'bg-emerald-500' : 'bg-slate-300'
                 }`}
-              />
-            </div>
-            <span className="font-medium">{config.is_active ? 'Active' : 'Off'}</span>
-          </label>
+              >
+                <span
+                  className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                    config.is_active ? 'translate-x-4' : 'translate-x-0.5'
+                  }`}
+                />
+              </div>
+              <span className="font-medium">{config.is_active ? 'Active' : 'Off'}</span>
+            </label>
+            <p className="text-[11px] text-slate-400 pr-1">
+              {config.is_active
+                ? '✅ Bot is live on your listing pages'
+                : '⭕ Bot is hidden from all listing pages'}
+            </p>
+          </div>
           <button
             onClick={() => void save()}
             disabled={saving}
-            className="rounded-lg bg-primary-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-700 disabled:opacity-60"
+            className="relative rounded-lg bg-primary-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-700 disabled:opacity-60"
           >
+            {isDirty && !saving && (
+              <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-amber-400 ring-2 ring-white" />
+            )}
             {saving ? 'Saving...' : 'Save Changes'}
           </button>
         </div>
@@ -693,7 +803,7 @@ const LOChatbotSetupPage: React.FC = () => {
                       <label className="mb-1.5 block text-xs font-semibold text-slate-600">Bot Name</label>
                       <input
                         value={config.bot_name}
-                        onChange={(e) => setConfig((c) => ({ ...c, bot_name: e.target.value }))}
+                        onChange={(e) => { setConfig((c) => ({ ...c, bot_name: e.target.value })); setIsDirty(true); }}
                         placeholder="e.g. Jake's Financing Assistant"
                         className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-primary-400 focus:ring-1 focus:ring-primary-100"
                       />
@@ -702,7 +812,7 @@ const LOChatbotSetupPage: React.FC = () => {
                       <label className="mb-1.5 block text-xs font-semibold text-slate-600">Opening Greeting</label>
                       <textarea
                         value={config.greeting}
-                        onChange={(e) => setConfig((c) => ({ ...c, greeting: e.target.value }))}
+                        onChange={(e) => { setConfig((c) => ({ ...c, greeting: e.target.value })); setIsDirty(true); }}
                         placeholder="Hi! I can answer your mortgage and financing questions..."
                         rows={3}
                         className="w-full resize-none rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-primary-400 focus:ring-1 focus:ring-primary-100"
@@ -719,7 +829,7 @@ const LOChatbotSetupPage: React.FC = () => {
                   </h2>
                   <textarea
                     value={config.personality}
-                    onChange={(e) => setConfig((c) => ({ ...c, personality: e.target.value }))}
+                    onChange={(e) => { setConfig((c) => ({ ...c, personality: e.target.value })); setIsDirty(true); }}
                     placeholder="Professional and friendly mortgage advisor. Use simple language. Always encourage visitors to reach out directly for personalized rates..."
                     rows={4}
                     className="w-full resize-none rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-primary-400 focus:ring-1 focus:ring-primary-100"
@@ -734,6 +844,7 @@ const LOChatbotSetupPage: React.FC = () => {
               <KnowledgeBaseSection
                 value={config.knowledge_base}
                 onChange={(text) => setConfig((c) => ({ ...c, knowledge_base: text }))}
+                onAutoSave={autoSaveKnowledgeBase}
                 getHeaders={getApiHeaders}
               />
             )}
@@ -743,6 +854,7 @@ const LOChatbotSetupPage: React.FC = () => {
               <ComplianceSection
                 value={config.compliance_rules}
                 onChange={(text) => setConfig((c) => ({ ...c, compliance_rules: text }))}
+                onAutoSave={autoSaveComplianceRules}
                 getHeaders={getApiHeaders}
               />
             )}

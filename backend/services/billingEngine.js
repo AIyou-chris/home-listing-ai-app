@@ -1019,6 +1019,27 @@ const createBillingEngine = ({ supabaseAdmin, stripe, enqueueJob, appBaseUrl }) 
         subscription: updatedSubscription
       });
 
+      // Send subscription confirmed email
+      try {
+        const { data: agentRow } = await supabaseAdmin
+          .from('agents')
+          .select('email, first_name')
+          .or(`id.eq.${agentId},auth_user_id.eq.${agentId}`)
+          .limit(1).maybeSingle();
+        if (agentRow?.email) {
+          const createEmailService = require('./emailService');
+          const emailSvc = createEmailService(supabaseAdmin);
+          await emailSvc.sendSubscriptionConfirmedEmail({
+            to: agentRow.email,
+            firstName: agentRow.first_name || 'there',
+            planId,
+            dashboardUrl: `${appBaseUrl}/dashboard/lo-listings`
+          });
+        }
+      } catch (emailErr) {
+        console.warn('[Billing] Subscription confirmed email failed (non-fatal):', emailErr?.message);
+      }
+
       return { processed: true, event: type, agent_id: agentId, plan_id: planId };
     }
 
@@ -1035,6 +1056,10 @@ const createBillingEngine = ({ supabaseAdmin, stripe, enqueueJob, appBaseUrl }) 
         fallbackAgentId: null
       });
       if (!agentId) return { processed: true, reason: 'agent_not_resolved' };
+
+      // Fetch current plan before updating so we can detect an upgrade
+      const currentSub = await getOrCreateSubscription(agentId);
+      const previousPlanId = currentSub?.plan_id;
 
       const updatedSubscription = await upsertSubscription({
         agentId,
@@ -1059,6 +1084,30 @@ const createBillingEngine = ({ supabaseAdmin, stripe, enqueueJob, appBaseUrl }) 
         agentId,
         subscription: updatedSubscription
       });
+
+      // Send upgrade email if plan actually changed upward and subscription is active
+      const isUpgrade = planId !== previousPlanId && normalizeSubscriptionStatus(object.status || 'active') === 'active';
+      if (isUpgrade) {
+        try {
+          const { data: agentRow } = await supabaseAdmin
+            .from('agents')
+            .select('email, first_name')
+            .or(`id.eq.${agentId},auth_user_id.eq.${agentId}`)
+            .limit(1).maybeSingle();
+          if (agentRow?.email) {
+            const createEmailService = require('./emailService');
+            const emailSvc = createEmailService(supabaseAdmin);
+            await emailSvc.sendUpgradeEmail({
+              to: agentRow.email,
+              firstName: agentRow.first_name || 'there',
+              planId,
+              dashboardUrl: `${appBaseUrl}/dashboard/lo-listings`
+            });
+          }
+        } catch (emailErr) {
+          console.warn('[Billing] Upgrade email failed (non-fatal):', emailErr?.message);
+        }
+      }
 
       return { processed: true, event: type, agent_id: agentId, plan_id: planId };
     }
@@ -1093,6 +1142,30 @@ const createBillingEngine = ({ supabaseAdmin, stripe, enqueueJob, appBaseUrl }) 
         agentId,
         subscription: updatedSubscription
       });
+
+      // Send cancellation email
+      try {
+        const { data: agentRow } = await supabaseAdmin
+          .from('agents')
+          .select('email, first_name')
+          .or(`id.eq.${agentId},auth_user_id.eq.${agentId}`)
+          .limit(1).maybeSingle();
+        if (agentRow?.email) {
+          const createEmailService = require('./emailService');
+          const emailSvc = createEmailService(supabaseAdmin);
+          const periodEnd = object.current_period_end
+            ? new Date(object.current_period_end * 1000).toISOString()
+            : null;
+          await emailSvc.sendCancellationEmail({
+            to: agentRow.email,
+            firstName: agentRow.first_name || 'there',
+            periodEnd,
+            dashboardUrl: `${appBaseUrl}/dashboard`
+          });
+        }
+      } catch (emailErr) {
+        console.warn('[Billing] Cancellation email failed (non-fatal):', emailErr?.message);
+      }
 
       return { processed: true, event: type, agent_id: agentId, plan_id: PLAN_IDS.FREE };
     }

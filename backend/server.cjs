@@ -19691,6 +19691,18 @@ app.post('/api/leads/capture', async (req, res) => {
 
     const agentId = listing.agentId || DEFAULT_LEAD_USER_ID;
     const timestamp = nowIso();
+
+    // Resolve LO partner for this listing so the lead is visible on the LO dashboard
+    let loAgentIdForLead = null;
+    try {
+      const { data: loAssignment } = await supabaseAdmin
+        .from('listing_lo_assignments')
+        .select('lo_agent_id')
+        .eq('listing_id', listingId)
+        .limit(1)
+        .maybeSingle();
+      loAgentIdForLead = loAssignment?.lo_agent_id || null;
+    } catch (_e) { /* non-fatal */ }
     const normalizedSourceKey = toSourceKey(sourceKeyInput);
     const normalizedSourceType = toSourceType(sourceType || inferSourceTypeFromKey(normalizedSourceKey));
     let conversationMetadata = {};
@@ -19788,6 +19800,7 @@ app.post('/api/leads/capture', async (req, res) => {
         phone_e164: phoneE164 || undefined,
         email: emailLower || undefined,
         email_lower: emailLower || undefined,
+        lo_agent_id: loAgentIdForLead || undefined,
         source_type: effectiveSourceType,
         source: effectiveSourceType,
         source_key: effectiveSourceKey || undefined,
@@ -19819,6 +19832,7 @@ app.post('/api/leads/capture', async (req, res) => {
       const insertPayload = {
         user_id: agentId,
         agent_id: agentId,
+        lo_agent_id: loAgentIdForLead,
         listing_id: listingId,
         full_name: fullName || null,
         name: fullName || null,
@@ -19961,6 +19975,19 @@ app.post('/api/leads/capture', async (req, res) => {
       phoneE164,
       emailLower
     });
+
+    // Notify LO partner — they need to know immediately so they can reach out about financing
+    if (!isDeduped && loAgentIdForLead) {
+      const displayName = fullName || (phoneE164 ? 'A buyer' : 'Someone');
+      await supabaseAdmin.from('notifications').insert({
+        user_id: loAgentIdForLead,
+        title: '🔥 New lead on your listing',
+        content: `${displayName} just engaged at ${listing.address || 'a listing'}. They may need financing — reach out now.`,
+        type: 'lead',
+        priority: 'high',
+        is_read: false
+      }).catch(() => null);
+    }
 
     const unworkedNudgeResult = await enqueueUnworkedLeadNudge({
       leadId,
@@ -20283,6 +20310,56 @@ app.post('/api/dashboard/onboarding/resend-welcome-email', async (req, res) => {
   } catch (error) {
     console.error('[Onboarding] Failed to resend welcome email:', error);
     return res.status(500).json({ error: error.message || 'failed_to_resend_welcome_email' });
+  }
+});
+
+// ── POST /api/auth/forgot-password ────────────────────────────────────────────
+// Custom branded password reset — generates a Supabase reset link and sends
+// our own HTML email instead of the default Supabase template.
+app.post('/api/auth/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body || {};
+    if (!email || typeof email !== 'string') {
+      return res.status(400).json({ error: 'email_required' });
+    }
+    const emailLower = email.trim().toLowerCase();
+
+    // Look up first name for personalisation (non-blocking — we always respond success)
+    let firstName = 'there';
+    try {
+      const { data: agentRow } = await supabaseAdmin
+        .from('agents')
+        .select('first_name')
+        .eq('email', emailLower)
+        .maybeSingle();
+      if (agentRow?.first_name) firstName = agentRow.first_name;
+    } catch (_) { /* ignore */ }
+
+    // Generate a Supabase magic reset link
+    const appUrl = (process.env.APP_BASE_URL || 'https://homelistingai.com').replace(/\/$/, '');
+    const redirectTo = `${appUrl}/reset-password`;
+    const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+      type: 'recovery',
+      email: emailLower,
+      options: { redirectTo }
+    });
+
+    if (linkError || !linkData?.properties?.action_link) {
+      // Don't leak whether the email exists — just return success
+      console.warn('[Auth] Password reset link generation failed:', linkError?.message);
+      return res.json({ success: true });
+    }
+
+    const resetUrl = linkData.properties.action_link;
+    const createEmailService = require('./services/emailService');
+    const emailSvc = createEmailService(supabaseAdmin);
+    await emailSvc.sendPasswordResetEmail({ to: emailLower, firstName, resetUrl });
+
+    return res.json({ success: true });
+  } catch (error) {
+    console.error('[Auth] forgot-password error:', error);
+    // Always return success to avoid email enumeration
+    return res.json({ success: true });
   }
 });
 
@@ -21470,6 +21547,31 @@ app.get('/api/dashboard/leads', async (req, res) => {
       }, {});
     }
 
+    // Resolve LO name for each listing so agent can see their partner got the lead
+    let loNameByListingId = {};
+    if (listingIds.length > 0) {
+      const { data: assignments } = await supabaseAdmin
+        .from('listing_lo_assignments')
+        .select('listing_id, lo_agent_id')
+        .in('listing_id', listingIds);
+      if (assignments && assignments.length > 0) {
+        const loIds = [...new Set(assignments.map(a => a.lo_agent_id).filter(Boolean))];
+        const { data: loAgents } = await supabaseAdmin
+          .from('agents')
+          .select('id, auth_user_id, first_name, last_name, company')
+          .or(loIds.map(id => `id.eq.${id}`).join(','));
+        const loById = (loAgents || []).reduce((acc, a) => {
+          acc[a.id] = a;
+          acc[a.auth_user_id] = a;
+          return acc;
+        }, {});
+        assignments.forEach(a => {
+          const lo = loById[a.lo_agent_id];
+          if (lo) loNameByListingId[a.listing_id] = [lo.first_name, lo.last_name].filter(Boolean).join(' ') || lo.company || null;
+        });
+      }
+    }
+
     const leadIds = Array.from(new Set((leads || []).map((lead) => lead.id).filter(Boolean)));
     const recentActionMap = await fetchRecentAgentActionsByLeadIds({
       agentId,
@@ -21496,6 +21598,7 @@ app.get('/api/dashboard/leads', async (req, res) => {
       created_at: lead.created_at,
       listing_id: lead.listing_id || null,
       listing: lead.listing_id ? (listingMap[lead.listing_id] || null) : null,
+      lo_name: lead.listing_id ? (loNameByListingId[lead.listing_id] || null) : null,
       last_agent_action_at: recentActionMap[lead.id] || null
     }));
 
@@ -21578,6 +21681,41 @@ app.get('/api/dashboard/leads/:leadId', async (req, res) => {
         .eq('id', lead.listing_id)
         .single();
       listing = listingRow || null;
+    }
+
+    // Resolve LO partner for this lead's listing
+    let loPartner = null;
+    const loIdToResolve = lead.lo_agent_id || null;
+    if (loIdToResolve || lead.listing_id) {
+      try {
+        let loId = loIdToResolve;
+        if (!loId && lead.listing_id) {
+          const { data: assignment } = await supabaseAdmin
+            .from('listing_lo_assignments')
+            .select('lo_agent_id')
+            .eq('listing_id', lead.listing_id)
+            .limit(1)
+            .maybeSingle();
+          loId = assignment?.lo_agent_id || null;
+        }
+        if (loId) {
+          const { data: loAgent } = await supabaseAdmin
+            .from('agents')
+            .select('id, first_name, last_name, company, phone, email, headshot_url')
+            .or(`id.eq.${loId},auth_user_id.eq.${loId}`)
+            .limit(1)
+            .maybeSingle();
+          if (loAgent) {
+            loPartner = {
+              name: [loAgent.first_name, loAgent.last_name].filter(Boolean).join(' ') || loAgent.company || 'Your LO Partner',
+              company: loAgent.company || null,
+              phone: loAgent.phone || null,
+              email: loAgent.email || null,
+              photo: loAgent.headshot_url || null
+            };
+          }
+        }
+      } catch (_e) { /* non-fatal */ }
     }
 
     const { data: leadConversationSummary } = await supabaseAdmin
@@ -21701,6 +21839,7 @@ app.get('/api/dashboard/leads/:leadId', async (req, res) => {
       success: true,
       lead,
       listing,
+      lo_partner: loPartner,
       intel: intelSnapshot,
       actionBar: {
         canCall: Boolean(lead.phone_e164 || lead.phone),
@@ -30419,7 +30558,7 @@ app.delete('/api/admin/appointments/:appointmentId', verifyAdmin, (req, res) => 
 app.patch('/api/lo/profile', requireAuth, async (req, res) => {
   try {
     const agentId = req.authUserId;
-    const { nmls_number, lending_states, company, full_name, phone, headshot_url } = req.body || {};
+    const { nmls_number, state_license_number, lending_states, company, full_name, phone, headshot_url } = req.body || {};
     const updatePayload = {};
     if (nmls_number !== undefined) {
       const nmlsStr = toTrimmedOrNull(nmls_number);
@@ -30428,6 +30567,7 @@ app.patch('/api/lo/profile', requireAuth, async (req, res) => {
       }
       updatePayload.nmls_number = nmlsStr;
     }
+    if (state_license_number !== undefined) updatePayload.state_license_number = toTrimmedOrNull(state_license_number);
     if (lending_states !== undefined) updatePayload.lending_states = Array.isArray(lending_states) ? lending_states.filter(s => typeof s === 'string' && s.trim()) : [];
     if (company !== undefined) updatePayload.company = toTrimmedOrNull(company);
     if (full_name !== undefined) {
@@ -30513,10 +30653,121 @@ app.get('/api/lo/dashboard/today', requireAuth, async (req, res) => {
     const { data: assignments } = await supabaseAdmin.from('listing_lo_assignments').select('listing_id, branding_enabled, assigned_at, listings!listing_lo_assignments_listing_id_fkey(id, address, price, status, hero_photos)').eq('lo_agent_id', loAgentId).order('assigned_at', { ascending: false });
     const listingLeadCounts = leads.reduce((acc, l) => { if (l.listing_id) acc[l.listing_id] = (acc[l.listing_id] || 0) + 1; return acc; }, {});
     const assignedListings = (assignments || []).map(a => { const listing = a.listings; return { listingId: a.listing_id, brandingEnabled: a.branding_enabled, address: listing?.address || 'Unknown', price: listing?.price || null, status: listing?.status || 'draft', heroPhoto: Array.isArray(listing?.hero_photos) ? listing.hero_photos[0] : null, leadCount: listingLeadCounts[a.listing_id] || 0 }; });
-    res.json({ success: true, stats: { totalLeads, newToday, newThisWeek, newThisMonth, preApprovalLeads, showingLeads, assignedListings: assignedListings.length }, recentLeads, assignedListings });
+    // Check if LO has completed their profile (has a lo_chatbot_configs row with full_name)
+    const { data: loConfig } = await supabaseAdmin.from('lo_chatbot_configs').select('full_name, headshot_url, nmls_number').eq('lo_agent_id', loAgentId).maybeSingle();
+    const loProfileComplete = Boolean(loConfig?.full_name);
+    // Check partner invites sent
+    const { count: partnerInviteCount } = await supabaseAdmin.from('agent_invites').select('id', { count: 'exact', head: true }).eq('lo_agent_id', loAgentId);
+    const partnerInvited = (partnerInviteCount || 0) > 0;
+    res.json({ success: true, stats: { totalLeads, newToday, newThisWeek, newThisMonth, preApprovalLeads, showingLeads, assignedListings: assignedListings.length, partnersReached: partnerInviteCount || 0 }, recentLeads, assignedListings, loProfileComplete, partnerInvited });
   } catch (err) {
     console.error('[LO Today] Failed:', err);
     res.status(500).json({ error: 'failed_to_load_lo_dashboard' });
+  }
+});
+
+// ── GET /api/lo/leads — all leads for this LO (pre-quals + chat leads) ────────
+app.get('/api/lo/leads', requireAuth, async (req, res) => {
+  try {
+    let loAgentId = req.authUserId;
+    try { loAgentId = (await resolveLoAgentId(req)) || loAgentId; } catch { /* fallback */ }
+
+    const { status, search, limit: limitParam = '100', offset: offsetParam = '0' } = req.query;
+    const limit = Math.min(Number(limitParam) || 100, 500);
+    const offset = Number(offsetParam) || 0;
+
+    // ── Pre-qual submissions (financing intent) ──────────────────────────────
+    let pqQuery = supabaseAdmin
+      .from('pre_qual_submissions')
+      .select('id, full_name, email, phone, purchase_timeline, credit_range, income_range, down_payment, notes, created_at, listing_id', { count: 'exact' })
+      .eq('lo_agent_id', loAgentId)
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+    if (search) pqQuery = pqQuery.or(`full_name.ilike.%${search}%,email.ilike.%${search}%`);
+    const { data: preQuals, count: pqCount } = await pqQuery;
+
+    // ── Chat / general leads ──────────────────────────────────────────────────
+    let leadsQuery = supabaseAdmin
+      .from('leads')
+      .select('id, full_name, name, email_lower, email, phone, status, intent_level, source_type, source_meta, created_at, listing_id', { count: 'exact' })
+      .eq('lo_agent_id', loAgentId)
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+    if (status) leadsQuery = leadsQuery.eq('status', status);
+    if (search) leadsQuery = leadsQuery.or(`full_name.ilike.%${search}%,name.ilike.%${search}%,email_lower.ilike.%${search}%`);
+    const { data: chatLeads, count: chatCount } = await leadsQuery;
+
+    // ── Resolve listing addresses + agent names ───────────────────────────────
+    const allListingIds = [...new Set([
+      ...(preQuals || []).map(p => p.listing_id),
+      ...(chatLeads || []).map(l => l.listing_id)
+    ].filter(Boolean))];
+    let addressMap = {};
+    let agentNameByListingId = {};
+    if (allListingIds.length > 0) {
+      const { data: listings } = await supabaseAdmin.from('properties').select('id, address, agent_id').in('id', allListingIds);
+      (listings || []).forEach(r => { addressMap[r.id] = r.address; });
+      // Resolve agent names from listings
+      const agentIds = [...new Set((listings || []).map(r => r.agent_id).filter(Boolean))];
+      if (agentIds.length > 0) {
+        const { data: agentRows } = await supabaseAdmin.from('agents').select('id, auth_user_id, first_name, last_name, company').or(agentIds.map(id => `id.eq.${id},auth_user_id.eq.${id}`).join(','));
+        const agentById = (agentRows || []).reduce((acc, a) => { acc[a.id] = a; acc[a.auth_user_id] = a; return acc; }, {});
+        (listings || []).forEach(r => {
+          const agent = agentById[r.agent_id];
+          if (agent) agentNameByListingId[r.id] = [agent.first_name, agent.last_name].filter(Boolean).join(' ') || agent.company || null;
+        });
+      }
+      // fallback: legacy listings table
+      const missingIds = allListingIds.filter(id => !addressMap[id]);
+      if (missingIds.length > 0) {
+        const { data: legacyListings } = await supabaseAdmin.from('listings').select('id, address').in('id', missingIds);
+        (legacyListings || []).forEach(r => { addressMap[r.id] = r.address; });
+      }
+    }
+
+    const preQualsMapped = (preQuals || []).map(p => ({
+      id: p.id,
+      type: 'pre_qual',
+      name: p.full_name || 'Unknown',
+      email: p.email || null,
+      phone: p.phone || null,
+      status: 'New',
+      intentLevel: 'Hot', // pre-qual = buyer raised their hand, always hot
+      timeline: p.purchase_timeline || null,
+      creditRange: p.credit_range || null,
+      incomeRange: p.income_range || null,
+      downPayment: p.down_payment || null,
+      notes: p.notes || null,
+      listingId: p.listing_id || null,
+      listingAddress: addressMap[p.listing_id] || null,
+      agentName: agentNameByListingId[p.listing_id] || null,
+      createdAt: p.created_at,
+    }));
+
+    const chatLeadsMapped = (chatLeads || []).map(l => ({
+      id: l.id,
+      type: 'chat',
+      name: l.full_name || l.name || 'Unknown',
+      email: l.email_lower || l.email || null,
+      phone: l.phone || null,
+      status: l.status || 'New',
+      intentLevel: l.intent_level || 'Warm',
+      context: l.source_meta?.context || null,
+      listingId: l.listing_id || null,
+      listingAddress: addressMap[l.listing_id] || null,
+      agentName: agentNameByListingId[l.listing_id] || null,
+      createdAt: l.created_at,
+    }));
+
+    res.json({
+      success: true,
+      preQuals: preQualsMapped,
+      chatLeads: chatLeadsMapped,
+      totals: { preQuals: pqCount || 0, chatLeads: chatCount || 0 },
+    });
+  } catch (err) {
+    console.error('[LO Leads] Failed:', err);
+    res.status(500).json({ error: 'fetch_failed' });
   }
 });
 
@@ -30580,8 +30831,11 @@ const resolveLoWowInviteLimit = async (loAgent) => {
   const LO_PRICE_ID = process.env.STRIPE_LO_PRICE_ID;
   const LO_PRO_PRICE_ID = process.env.STRIPE_LO_PRO_PRICE_ID;
 
-  // Fallback: legacy app-level trial flag (date-based). Kept for defense in depth.
-  if (loAgent?.payment_status === 'trial' && loAgent?.created_at) {
+  // Fallback: app-level trial flag (date-based). 'awaiting_payment' is the status
+  // assigned to brand-new LO signups before they go through Stripe — treat it the
+  // same as 'trial' so fresh accounts can send WOW links during the 3-day window.
+  const TRIAL_STATUSES = new Set(['trial', 'awaiting_payment']);
+  if (TRIAL_STATUSES.has(loAgent?.payment_status) && loAgent?.created_at) {
     const trialEnd = new Date(loAgent.created_at);
     trialEnd.setDate(trialEnd.getDate() + 3);
     if (new Date() < trialEnd) return LO_TRIAL_INVITE_CAP; // trial cap
@@ -30688,18 +30942,7 @@ app.post('/api/lo/partners/invite', requireAuth, async (req, res) => {
     const claimLink = `${appBase.replace(/\/$/, '')}/agent/claim/${token}`;
     const loName = [loAgent?.first_name, loAgent?.last_name].filter(Boolean).join(' ') || 'Your Loan Officer';
     const loBrand = await resolveBrandForLoAgent(loAgent?.id).catch(() => ({ whiteLabel: false, brandColor: '#2563eb', logoUrl: null, companyName: null }));
-    const emailHtml = `
-<!DOCTYPE html><html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#1e293b;">
-${buildBrandedEmailHeader(loBrand, `${loName} built something for your listings`)}
-<p style="font-size:16px;">Hi${name ? ` ${name}` : ''},</p>
-<p style="font-size:15px;color:#475569;line-height:1.6;">I put together a live demo of what your listings could look like with my AI financing assistant built in. Buyers get instant answers to mortgage questions — 24/7, right on the listing page.</p>
-<div style="text-align:center;margin:32px 0;">
-  <a href="${wowLink}" style="background:#2563eb;color:white;text-decoration:none;padding:16px 36px;border-radius:12px;font-weight:700;font-size:16px;display:inline-block;">See Your Listing Demo →</a>
-</div>
-<p style="font-size:13px;color:#94a3b8;text-align:center;">No account needed to view · Link expires in 30 days</p>
-<hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;">
-<p style="font-size:13px;color:#64748b;">Ready to claim your account? <a href="${claimLink}" style="color:#2563eb;">Click here →</a></p>
-</body></html>`;
+    const emailHtml = buildWowLinkEmail({ name, loName, loBrand, wowLink, claimLink });
     try {
       await emailService.sendEmail({ to: emailLower, subject: `${loName} built a listing demo for you`, html: emailHtml });
     } catch (emailErr) { console.warn('[LO Invite] Email failed (non-fatal):', emailErr?.message); }
@@ -30744,18 +30987,7 @@ app.post('/api/lo/partners/invite/:inviteId/resend', requireAuth, async (req, re
     const loBrand = await resolveBrandForLoAgent(loAgent?.id).catch(() => ({ whiteLabel: false, brandColor: '#2563eb', logoUrl: null, companyName: null }));
     const name = invite.invited_name;
 
-    const emailHtml = `
-<!DOCTYPE html><html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#1e293b;">
-${buildBrandedEmailHeader(loBrand, `${loName} built something for your listings`)}
-<p style="font-size:16px;">Hi${name ? ` ${name}` : ''},</p>
-<p style="font-size:15px;color:#475569;line-height:1.6;">Resending this — I built a live demo of what your listings could look like with my AI financing assistant built in.</p>
-<div style="text-align:center;margin:32px 0;">
-  <a href="${wowLink}" style="background:#2563eb;color:white;text-decoration:none;padding:16px 36px;border-radius:12px;font-weight:700;font-size:16px;display:inline-block;">See Your Listing Demo →</a>
-</div>
-<p style="font-size:13px;color:#94a3b8;text-align:center;">No account needed to view · Link valid for 30 more days</p>
-<hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;">
-<p style="font-size:13px;color:#64748b;">Ready to claim your account? <a href="${claimLink}" style="color:#2563eb;">Click here →</a></p>
-</body></html>`;
+    const emailHtml = buildWowLinkEmail({ name, loName, loBrand, wowLink, claimLink });
 
     await emailService.sendEmail({
       to: invite.invited_email,
@@ -30767,6 +30999,53 @@ ${buildBrandedEmailHeader(loBrand, `${loName} built something for your listings`
   } catch (err) {
     console.error('[LO Invite Resend] Failed:', err);
     res.status(500).json({ error: 'resend_failed' });
+  }
+});
+
+// ── POST /api/lo/partners/invite/:inviteId/nudge — 24hr reminder email ────────
+app.post('/api/lo/partners/invite/:inviteId/nudge', requireAuth, async (req, res) => {
+  try {
+    const loAuthId = req.authUserId;
+    const { inviteId } = req.params;
+
+    const { data: invite } = await supabaseAdmin
+      .from('agent_invites')
+      .select('id, token, invited_email, invited_name, claimed_at, created_at, opened_at, lo_agent_id')
+      .eq('id', inviteId)
+      .eq('lo_agent_id', loAuthId)
+      .maybeSingle();
+
+    if (!invite) return res.status(404).json({ error: 'invite_not_found' });
+    if (invite.claimed_at) return res.status(409).json({ error: 'already_claimed' });
+
+    // Must be at least 24 hours old
+    const hoursSinceSent = (Date.now() - new Date(invite.created_at).getTime()) / 3600000;
+    if (hoursSinceSent < 24) {
+      return res.status(429).json({ error: 'too_soon', message: 'Wait at least 24 hours before sending a reminder.' });
+    }
+
+    let loProfileId = loAuthId;
+    try { loProfileId = (await resolveLoAgentId(req)) || loAuthId; } catch { /* fallback */ }
+    const { data: loAgent } = await supabaseAdmin.from('agents')
+      .select('id, first_name, last_name, company')
+      .eq('id', loProfileId).limit(1).maybeSingle();
+
+    const appBase = (process.env.APP_BASE_URL || process.env.DASHBOARD_BASE_URL || 'https://homelistingai.com').replace(/\/$/, '');
+    const wowLink = `${appBase}/partner-invite/${invite.token}`;
+    const loName = [loAgent?.first_name, loAgent?.last_name].filter(Boolean).join(' ') || 'Your Loan Officer';
+
+    await emailService.sendWowLinkReminderEmail({
+      to: invite.invited_email,
+      agentName: invite.invited_name || null,
+      loName,
+      loCompany: loAgent?.company || null,
+      wowLink,
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[LO Invite Nudge] Failed:', err);
+    res.status(500).json({ error: 'nudge_failed' });
   }
 });
 
@@ -30888,6 +31167,28 @@ app.get('/api/public/partner-invite/:token', async (req, res) => {
   } catch (err) {
     console.error('[PartnerInvite] Failed:', err);
     res.status(500).json({ error: 'server_error' });
+  }
+});
+
+// ── POST /api/public/partner-invite/:token/event — record engagement event ────
+// Public, no auth. Fire-and-forget — records opened_at / cta_clicked_at once.
+app.post('/api/public/partner-invite/:token/event', async (req, res) => {
+  const { token } = req.params;
+  const { event } = req.body || {};
+  if (!token || !['opened', 'cta_clicked'].includes(event)) {
+    return res.status(400).json({ error: 'invalid_event' });
+  }
+  try {
+    const field = event === 'opened' ? 'opened_at' : 'cta_clicked_at';
+    // Only record the first occurrence — never overwrite
+    await supabaseAdmin
+      .from('agent_invites')
+      .update({ [field]: new Date().toISOString() })
+      .eq('token', token)
+      .is(field, null);
+    res.json({ success: true });
+  } catch {
+    res.json({ success: true }); // always silent — never block the WOW link page
   }
 });
 
@@ -31159,7 +31460,7 @@ app.post('/api/public/office-invite/:token/claim', async (req, res) => {
 
 // GET /api/me/brand — returns the office brand for the calling user (any account type).
 // LOs and agents under a branded office inherit that brand. Others get whiteLabel:false.
-app.get('/api/me/brand', async (req, res) => {
+app.get('/api/me/brand', requireAuth, async (req, res) => {
   try {
     const loAgentsId = await resolveLoAgentId(req);
     const brand = await resolveBrandForLoAgent(loAgentsId);
@@ -31326,6 +31627,104 @@ const resolveOfficeBrand = async (officeId) => {
 };
 
 // Build a branded email header block. Falls back to HomeListingAI styling when whiteLabel:false.
+const buildWowLinkEmail = ({ name, loName, loBrand, wowLink, claimLink }) => {
+  const brandColor = (loBrand?.whiteLabel && loBrand?.brandColor) ? loBrand.brandColor : '#2563eb';
+  const logoUrl = (loBrand?.whiteLabel && loBrand?.logoUrl) ? loBrand.logoUrl : 'https://homelistingai.com/newlogo.png';
+  const companyName = (loBrand?.whiteLabel && loBrand?.companyName) ? loBrand.companyName : 'HomeListingAI';
+  const firstName = loName.split(' ')[0];
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${loName} has something for you</title></head>
+<body style="margin:0;padding:0;background-color:#0a0f1e;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#0a0f1e;min-height:100vh;">
+    <tr><td align="center" style="padding:40px 20px;">
+
+      <table role="presentation" width="100%" style="max-width:580px;">
+
+        <!-- Logo row -->
+        <tr><td align="center" style="padding-bottom:28px;">
+          <img src="${logoUrl}" alt="${companyName}" style="width:48px;height:48px;border-radius:12px;object-fit:contain;background:#ffffff;padding:6px;">
+        </td></tr>
+
+        <!-- Hero card -->
+        <tr><td style="background:linear-gradient(145deg,#0f172a 0%,#1e3a5f 50%,#0f2744 100%);border-radius:20px;overflow:hidden;border:1px solid rgba(255,255,255,0.08);">
+
+          <!-- Top accent bar -->
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+            <tr><td style="background:linear-gradient(90deg,${brandColor},#6366f1);height:4px;"></td></tr>
+          </table>
+
+          <!-- Hero content -->
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+            <tr><td style="padding:48px 48px 16px;">
+              <p style="margin:0 0 16px;font-size:13px;font-weight:700;letter-spacing:0.12em;color:${brandColor};text-transform:uppercase;">For Real Estate Agents</p>
+              <h1 style="margin:0 0 20px;font-size:30px;font-weight:800;color:#ffffff;line-height:1.25;">${firstName} built something for your listings 🏠</h1>
+              <p style="margin:0;font-size:16px;color:rgba(255,255,255,0.72);line-height:1.7;">Hi${name ? ` ${name}` : ''},<br><br>I set up a live demo of what your listings could look like with an AI mortgage assistant built right in. Buyers get instant answers to financing questions — 24/7, no waiting.</p>
+            </td></tr>
+
+            <!-- Feature pills -->
+            <tr><td style="padding:24px 48px;">
+              <table role="presentation" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.1);border-radius:100px;padding:8px 16px;margin-right:8px;">
+                    <span style="font-size:13px;color:rgba(255,255,255,0.85);font-weight:600;">⚡ AI answers buyer questions live</span>
+                  </td>
+                </tr>
+                <tr><td style="height:8px;"></td></tr>
+                <tr>
+                  <td style="background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.1);border-radius:100px;padding:8px 16px;">
+                    <span style="font-size:13px;color:rgba(255,255,255,0.85);font-weight:600;">🎯 Pre-qualifies buyers automatically</span>
+                  </td>
+                </tr>
+                <tr><td style="height:8px;"></td></tr>
+                <tr>
+                  <td style="background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.1);border-radius:100px;padding:8px 16px;">
+                    <span style="font-size:13px;color:rgba(255,255,255,0.85);font-weight:600;">📊 You see every lead in real time</span>
+                  </td>
+                </tr>
+              </table>
+            </td></tr>
+
+            <!-- CTA -->
+            <tr><td style="padding:8px 48px 48px;text-align:center;">
+              <a href="${wowLink}" style="display:inline-block;background:linear-gradient(135deg,${brandColor},#6366f1);color:#ffffff;text-decoration:none;padding:18px 48px;border-radius:14px;font-weight:800;font-size:17px;letter-spacing:0.01em;box-shadow:0 8px 32px rgba(37,99,235,0.45);">See the Live Demo →</a>
+              <p style="margin:16px 0 0;font-size:12px;color:rgba(255,255,255,0.35);">No sign-up needed · Opens instantly · Expires in 30 days</p>
+            </td></tr>
+          </table>
+
+        </td></tr>
+
+        <!-- Divider -->
+        <tr><td style="padding:32px 0 0;"></td></tr>
+
+        <!-- Claim account nudge -->
+        <tr><td style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);border-radius:16px;padding:24px 32px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+            <tr>
+              <td style="vertical-align:middle;">
+                <p style="margin:0 0 4px;font-size:14px;font-weight:700;color:#ffffff;">Ready to claim your free account?</p>
+                <p style="margin:0;font-size:13px;color:rgba(255,255,255,0.5);">Take control of your listing platform — it's already set up.</p>
+              </td>
+              <td style="vertical-align:middle;text-align:right;white-space:nowrap;padding-left:16px;">
+                <a href="${claimLink}" style="display:inline-block;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.15);color:#ffffff;text-decoration:none;padding:10px 20px;border-radius:10px;font-weight:700;font-size:13px;">Claim Account →</a>
+              </td>
+            </tr>
+          </table>
+        </td></tr>
+
+        <!-- Footer -->
+        <tr><td style="padding:28px 0;text-align:center;">
+          <p style="margin:0;font-size:12px;color:rgba(255,255,255,0.25);">Sent by ${loName} via ${companyName} · You received this because an agent invited you</p>
+        </td></tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+};
+
 const buildBrandedEmailHeader = (brand, title) => {
   const bgColor = brand?.whiteLabel ? (brand.brandColor || '#2563eb') : null;
   const background = bgColor
@@ -31403,13 +31802,17 @@ app.get('/api/office/overview', requireOffice, async (req, res) => {
 
 app.get('/api/lo/partners', requireAuth, async (req, res) => {
   try {
-    const loAgentId = req.authUserId;
-    const { data: partnerships } = await supabaseAdmin.from('lo_agent_partnerships').select('id, status, created_at, agent:agent_id(id, first_name, last_name, email, phone, headshot_url, company)').eq('lo_agent_id', loAgentId).eq('status', 'active').order('created_at', { ascending: false });
-    const { data: pendingInvites } = await supabaseAdmin.from('agent_invites').select('id, token, invited_email, invited_name, created_at').eq('lo_agent_id', loAgentId).is('claimed_at', null).gt('expires_at', nowIso());
+    const loAuthId = req.authUserId;
+    // lo_agent_partnerships.lo_agent_id FKs to agents.id (profile id), so we must resolve it
+    let loProfileId = loAuthId;
+    try { loProfileId = (await resolveLoAgentId(req)) || loAuthId; } catch { /* fall back */ }
+    const { data: partnerships } = await supabaseAdmin.from('lo_agent_partnerships').select('id, status, created_at, notes, rating, last_follow_up, agent:agent_id(id, first_name, last_name, email, phone, headshot_url, company, website)').eq('lo_agent_id', loProfileId).eq('status', 'active').order('created_at', { ascending: false });
+    // agent_invites.lo_agent_id stores the auth id — keep using loAuthId here
+    const { data: pendingInvites } = await supabaseAdmin.from('agent_invites').select('id, token, invited_email, invited_name, created_at, opened_at, cta_clicked_at').eq('lo_agent_id', loAuthId).is('claimed_at', null).gt('expires_at', nowIso());
     const partnerAgentIds = (partnerships || []).map(p => p.agent?.id).filter(Boolean);
     let listingsByAgent = {};
     if (partnerAgentIds.length > 0) {
-      const { data: assignments } = await supabaseAdmin.from('listing_lo_assignments').select('listing_id, listings!listing_lo_assignments_listing_id_fkey(id, address, price, status, hero_photos, total_leads, total_views)').eq('lo_agent_id', loAgentId);
+      const { data: assignments } = await supabaseAdmin.from('listing_lo_assignments').select('listing_id, listings!listing_lo_assignments_listing_id_fkey(id, address, price, status, hero_photos, total_leads, total_views)').eq('lo_agent_id', loProfileId);
       const listingIds = (assignments || []).map(a => a.listing_id).filter(Boolean);
       if (listingIds.length > 0) {
         const { data: listingAgents } = await supabaseAdmin.from('listings').select('id, agent_id').in('id', listingIds);
@@ -31423,19 +31826,53 @@ app.get('/api/lo/partners', requireAuth, async (req, res) => {
       const { data: leadCounts } = await supabaseAdmin
         .from('leads')
         .select('agent_id')
-        .eq('lo_agent_id', loAgentId)
+        .eq('lo_agent_id', loProfileId)
         .in('agent_id', partnerAgentIdsList);
       (leadCounts || []).forEach(l => { if (l.agent_id) leadCountByAgent[l.agent_id] = (leadCountByAgent[l.agent_id] || 0) + 1; });
     }
     const partners = (partnerships || []).map(p => {
       const agent = p.agent || {}; const agentId = agent.id;
       const listings = (listingsByAgent[agentId] || []).map(l => ({ listingId: l?.id, address: l?.address || 'Unknown', price: l?.price || null, status: l?.status || 'draft', heroPhoto: Array.isArray(l?.hero_photos) ? l.hero_photos[0] : null, totalLeads: l?.total_leads || 0, totalViews: l?.total_views || 0 }));
-      return { partnershipId: p.id, agentId, name: [agent.first_name, agent.last_name].filter(Boolean).join(' ') || 'Agent', email: agent.email || null, phone: agent.phone || null, headshotUrl: agent.headshot_url || null, company: agent.company || null, totalLeads: leadCountByAgent[agentId] || 0, listings, joinedAt: p.created_at };
+      return { partnershipId: p.id, agentId, name: [agent.first_name, agent.last_name].filter(Boolean).join(' ') || 'Agent', email: agent.email || null, phone: agent.phone || null, website: agent.website || null, headshotUrl: agent.headshot_url || null, company: agent.company || null, totalLeads: leadCountByAgent[agentId] || 0, listings, joinedAt: p.created_at, notes: p.notes || '', rating: p.rating || null, lastFollowUp: p.last_follow_up || null };
     });
-    res.json({ success: true, partners, pendingInvites: (pendingInvites || []).map(i => ({ id: i.id, token: i.token, email: i.invited_email, name: i.invited_name || null, sentAt: i.created_at })) });
+    res.json({ success: true, partners, pendingInvites: (pendingInvites || []).map(i => ({ id: i.id, token: i.token, email: i.invited_email, name: i.invited_name || null, sentAt: i.created_at, openedAt: i.opened_at || null, ctaClickedAt: i.cta_clicked_at || null })) });
   } catch (err) {
     console.error('[LO Partners] Failed:', err);
     res.status(500).json({ error: 'failed_to_load_partners' });
+  }
+});
+
+// ── PATCH /api/lo/partners/:partnershipId — update partner meta (notes/rating/follow-up) ──
+app.patch('/api/lo/partners/:partnershipId', requireAuth, async (req, res) => {
+  try {
+    const loAuthId = req.authUserId;
+    let loProfileId = loAuthId;
+    try { loProfileId = (await resolveLoAgentId(req)) || loAuthId; } catch { /* fall back */ }
+    const { partnershipId } = req.params;
+    const { notes, rating, last_follow_up } = req.body;
+
+    const { data: partnership } = await supabaseAdmin
+      .from('lo_agent_partnerships')
+      .select('id')
+      .eq('id', partnershipId)
+      .eq('lo_agent_id', loProfileId)
+      .maybeSingle();
+
+    if (!partnership) return res.status(403).json({ error: 'not_found' });
+
+    const update = {};
+    if (notes !== undefined) update.notes = notes;
+    if (rating !== undefined) update.rating = rating;
+    if (last_follow_up !== undefined) update.last_follow_up = last_follow_up;
+
+    if (Object.keys(update).length > 0) {
+      await supabaseAdmin.from('lo_agent_partnerships').update(update).eq('id', partnershipId);
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[LO Partners] PATCH failed:', err);
+    res.status(500).json({ error: 'failed_to_update_partner' });
   }
 });
 
@@ -31443,13 +31880,15 @@ app.get('/api/lo/partners', requireAuth, async (req, res) => {
 app.delete('/api/lo/partners/:partnershipId', requireAuth, async (req, res) => {
   try {
     const loAuthId = req.authUserId;
+    let loProfileId = loAuthId;
+    try { loProfileId = (await resolveLoAgentId(req)) || loAuthId; } catch { /* fall back */ }
     const { partnershipId } = req.params;
 
     const { data: partnership } = await supabaseAdmin
       .from('lo_agent_partnerships')
       .select('id, lo_agent_id, agent_id, status')
       .eq('id', partnershipId)
-      .eq('lo_agent_id', loAuthId)
+      .eq('lo_agent_id', loProfileId)
       .maybeSingle();
 
     if (!partnership) return res.status(404).json({ error: 'partnership_not_found' });
@@ -31523,10 +31962,37 @@ app.post('/api/agent/claim/:token', async (req, res) => {
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({ email: invite.invited_email, password, email_confirm: true, user_metadata: { first_name: firstName, last_name: lastName } });
     if (authError) { if (authError.message?.includes('already')) return res.status(409).json({ error: 'email_already_registered' }); throw authError; }
     const authUserId = authData.user.id;
-    const { data: agentRecord, error: agentError } = await supabaseAdmin.from('agents').insert({ auth_user_id: authUserId, email: invite.invited_email, first_name: firstName, last_name: lastName, account_type: 'agent', invited_by_lo_id: invite.lo_agent_id, onboarding_completed: true, referral_code: Math.random().toString(36).slice(2, 10) }).select('id').single();
+
+    // Resolve LO's agents.id profile ID — invite.lo_agent_id stores the auth id,
+    // but invited_by_lo_id and lo_agent_partnerships.lo_agent_id both FK to agents.id
+    const { data: loAgentRow } = await supabaseAdmin.from('agents').select('id').eq('auth_user_id', invite.lo_agent_id).maybeSingle();
+    const loProfileId = loAgentRow?.id || null;
+
+    // Generate a unique slug for the new agent
+    const slugBase = `${firstName}${lastName ? `-${lastName}` : ''}`.toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 30);
+    const { data: existingSlugs } = await supabaseAdmin.from('agents').select('slug').ilike('slug', `${slugBase}%`);
+    const taken = new Set((existingSlugs || []).map(r => r.slug?.toLowerCase()));
+    let agentSlug = slugBase || 'agent';
+    if (taken.has(agentSlug)) {
+      let i = 2;
+      while (taken.has(`${slugBase}-${i}`)) i++;
+      agentSlug = `${slugBase}-${i}`;
+    }
+
+    const { data: agentRecord, error: agentError } = await supabaseAdmin.from('agents').insert({ auth_user_id: authUserId, email: invite.invited_email, first_name: firstName, last_name: lastName, slug: agentSlug, account_type: 'agent', invited_by_lo_id: loProfileId, onboarding_completed: true, referral_code: Math.random().toString(36).slice(2, 10) }).select('id').single();
     if (agentError || !agentRecord) throw agentError || new Error('agent_create_failed');
-    await supabaseAdmin.from('lo_agent_partnerships').insert({ lo_agent_id: invite.lo_agent_id, agent_id: agentRecord.id, invite_id: invite.id, status: 'active' });
+    await supabaseAdmin.from('lo_agent_partnerships').insert({ lo_agent_id: loProfileId, agent_id: agentRecord.id, invite_id: invite.id, status: 'active' });
     await supabaseAdmin.from('agent_invites').update({ claimed_at: nowIso(), claimed_agent_id: agentRecord.id }).eq('id', invite.id);
+
+    // Send welcome email to the new agent
+    const appBase = (process.env.APP_BASE_URL || process.env.DASHBOARD_BASE_URL || 'https://homelistingai.com').replace(/\/$/, '');
+    emailService.sendWelcomeEmail({
+      to: invite.invited_email,
+      firstName,
+      dashboardUrl: `${appBase}/dashboard/today`,
+      password: null, // they set their own password
+    }).catch(err => console.warn('[Agent Claim] Welcome email failed (non-fatal):', err?.message));
+
     res.json({ success: true, message: 'Account created', agentId: agentRecord.id });
   } catch (err) {
     console.error('[Agent Claim] Account creation failed:', err);
@@ -31712,6 +32178,35 @@ app.get('/api/lo/listing-limit', requireAuth, async (req, res) => {
 });
 
 // ── LO Listing Association ────────────────────────────────────────────────────
+// ── GET /api/listings/search?q= — search published listings by address ────────
+app.get('/api/listings/search', requireAuth, async (req, res) => {
+  try {
+    const q = (req.query.q || '').toString().trim();
+    if (!q || q.length < 2) return res.json({ listings: [] });
+    const { data: properties } = await supabaseAdmin
+      .from('properties')
+      .select('id, address, city, state, zip, price, bedrooms, bathrooms, sqft, status, hero_photo_url, title, agent_id')
+      .or(`address.ilike.%${q}%,city.ilike.%${q}%,title.ilike.%${q}%`)
+      .eq('status', 'published')
+      .limit(10);
+    const listings = (properties || []).map(p => ({
+      id: p.id,
+      address: [p.address, p.city, p.state].filter(Boolean).join(', ') || 'Unknown',
+      title: p.title || p.address || 'Listing',
+      price: Number(p.price) || 0,
+      bedrooms: Number(p.bedrooms) || 0,
+      bathrooms: Number(p.bathrooms) || 0,
+      sqft: Number(p.sqft) || 0,
+      status: p.status || 'published',
+      heroPhoto: p.hero_photo_url || null,
+    }));
+    res.json({ listings });
+  } catch (error) {
+    console.error('[Listings Search] Failed:', error);
+    res.status(500).json({ error: 'search_failed', listings: [] });
+  }
+});
+
 app.get('/api/lo/listings', requireAuth, async (req, res) => {
   try {
     const agentId = req.authUserId;
@@ -32010,7 +32505,7 @@ app.post('/api/lo/chatbot/extract-url', requireAuth, async (req, res) => {
 // POST /api/lo/chatbot/extract-file — extract text from uploaded PDF or TXT (auth required)
 const chatbotFileUpload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 },
+  limits: { fileSize: 25 * 1024 * 1024 }, // 25MB
   fileFilter: (_req, file, cb) => {
     const allowed = ['application/pdf', 'text/plain', 'text/csv'];
     if (allowed.includes(file.mimetype) || file.originalname.endsWith('.txt') || file.originalname.endsWith('.pdf') || file.originalname.endsWith('.csv')) {
@@ -32021,7 +32516,20 @@ const chatbotFileUpload = multer({
   }
 });
 
-app.post('/api/lo/chatbot/extract-file', chatbotFileUpload.single('file'), requireAuth, async (req, res) => {
+app.post('/api/lo/chatbot/extract-file', (req, res, next) => {
+  chatbotFileUpload.single('file')(req, res, (err) => {
+    if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(500).json({ error: 'File too large', message: 'File exceeds 25MB limit.' });
+      }
+      if (err.message === 'unsupported_file_type') {
+        return res.status(400).json({ error: 'unsupported_file_type', message: 'Only PDF, TXT, and CSV files are supported.' });
+      }
+      return res.status(500).json({ error: 'upload_failed', message: err.message });
+    }
+    next();
+  });
+}, requireAuth, async (req, res) => {
   try {
     const agentId = req.authUserId;
 
@@ -32043,7 +32551,7 @@ app.post('/api/lo/chatbot/extract-file', chatbotFileUpload.single('file'), requi
       .replace(/\r\n/g, '\n')
       .replace(/\n{3,}/g, '\n\n')
       .trim()
-      .slice(0, 20000); // cap at 20k chars
+      .slice(0, 50000); // cap at 50k chars
 
     res.json({ text, chars: text.length, filename: originalname });
   } catch (err) {
@@ -32875,6 +33383,35 @@ app.post('/api/properties', requireAuth, async (req, res) => {
       console.warn(`[${requestId}] Failed to update onboarding after property create:`, onboardingError?.message || onboardingError)
     });
 
+    // Auto-assign partner LO — if this agent was invited by an LO and has an active
+    // partnership, wire the LO's branding onto the new listing automatically.
+    try {
+      const { data: agentProfile } = await supabaseAdmin
+        .from('agents')
+        .select('id')
+        .or(`id.eq.${agentId},auth_user_id.eq.${agentId}`)
+        .limit(1)
+        .maybeSingle();
+      if (agentProfile?.id) {
+        const { data: partnership } = await supabaseAdmin
+          .from('lo_agent_partnerships')
+          .select('lo_agent_id')
+          .eq('agent_id', agentProfile.id)
+          .eq('status', 'active')
+          .limit(1)
+          .maybeSingle();
+        if (partnership?.lo_agent_id) {
+          await supabaseAdmin.from('listing_lo_assignments').upsert(
+            { listing_id: data.id, lo_agent_id: partnership.lo_agent_id, branding_enabled: true, assigned_at: nowIso() },
+            { onConflict: 'listing_id,lo_agent_id' }
+          );
+          console.info(`[${requestId}] Auto-assigned LO ${partnership.lo_agent_id} to listing ${data.id}`);
+        }
+      }
+    } catch (autoAssignErr) {
+      console.warn(`[${requestId}] Auto LO assignment failed (non-fatal):`, autoAssignErr?.message);
+    }
+
     console.info(`[${requestId}] Property created`, { agentId, propertyId: data?.id })
     return res.json({ property: data })
   } catch (insertError) {
@@ -33383,6 +33920,48 @@ app.put('/api/agent/identity', async (req, res) => {
   } catch (err) {
     console.error('[API] Update Identity Error:', err);
     res.status(500).json({ error: 'Failed to update identity' });
+  }
+});
+
+// ── LO agent profile GET/PATCH ───────────────────────────────────────────────
+app.get('/api/agent/profile', requireAuth, async (req, res) => {
+  try {
+    const { data: agent, error } = await supabaseAdmin
+      .from('agents')
+      .select('first_name, last_name, email, phone, headshot_url, brand_logo_url, company, nmls_number, state_license_number, title, lending_states')
+      .eq('auth_user_id', req.authUserId)
+      .maybeSingle();
+    if (error) throw error;
+    res.json({ profile: agent || {} });
+  } catch (err) {
+    console.error('[Agent Profile] GET failed:', err);
+    res.status(500).json({ error: 'failed_to_load_profile' });
+  }
+});
+
+app.patch('/api/agent/profile', requireAuth, async (req, res) => {
+  try {
+    const { first_name, last_name, email, phone, headshot_url, logo_url, company, nmls_number, state_license_number, title, lending_states } = req.body || {};
+    const payload = {};
+    if (first_name !== undefined) payload.first_name = toTrimmedOrNull(first_name);
+    if (last_name !== undefined) payload.last_name = toTrimmedOrNull(last_name);
+    if (email !== undefined) payload.email = toTrimmedOrNull(email);
+    if (phone !== undefined) payload.phone = toTrimmedOrNull(phone);
+    if (headshot_url !== undefined) payload.headshot_url = toTrimmedOrNull(headshot_url);
+    if (logo_url !== undefined) payload.brand_logo_url = toTrimmedOrNull(logo_url);
+    if (company !== undefined) payload.company = toTrimmedOrNull(company);
+    if (title !== undefined) payload.title = toTrimmedOrNull(title);
+    if (nmls_number !== undefined) payload.nmls_number = toTrimmedOrNull(nmls_number);
+    if (state_license_number !== undefined) payload.state_license_number = toTrimmedOrNull(state_license_number);
+    if (lending_states !== undefined) payload.lending_states = Array.isArray(lending_states) ? lending_states : [];
+    if (Object.keys(payload).length === 0) return res.json({ success: true });
+    payload.updated_at = nowIso();
+    const { error } = await supabaseAdmin.from('agents').update(payload).eq('auth_user_id', req.authUserId);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[Agent Profile] PATCH failed:', err);
+    res.status(500).json({ error: 'failed_to_save_profile' });
   }
 });
 

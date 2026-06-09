@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { supabase } from '../services/supabase';
-import { getEnvVar } from '../lib/env';
+import { buildApiUrl } from '../lib/api';
 import { PublicHeader } from './layout/PublicHeader';
 import { PublicFooter } from './layout/PublicFooter';
 import { BackgroundTechIcons } from './BackgroundTechIcons';
@@ -11,7 +10,7 @@ interface ForgotPasswordPageProps {
     onNavigateToSignIn: () => void;
 }
 
-const ForgotPasswordPage: React.FC<ForgotPasswordPageProps> = ({ onNavigateToSignUp, onNavigateToLanding, onNavigateToSignIn }) => {
+const ForgotPasswordPage: React.FC<ForgotPasswordPageProps> = ({ onNavigateToSignUp, onNavigateToLanding: _onNavigateToLanding, onNavigateToSignIn }) => {
     const [email, setEmail] = useState('');
     const [message, setMessage] = useState(''); // Success message
     const [error, setError] = useState('');
@@ -24,15 +23,12 @@ const ForgotPasswordPage: React.FC<ForgotPasswordPageProps> = ({ onNavigateToSig
         setIsLoading(true);
 
         try {
-            const configuredAppUrl = getEnvVar('VITE_APP_URL')?.trim();
-            const redirectBase = configuredAppUrl ? configuredAppUrl.replace(/\/+$/, '') : window.location.origin;
-            const redirectUrl = `${redirectBase}/reset-password`;
-            const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
-                redirectTo: redirectUrl,
+            const res = await fetch(buildApiUrl('/api/auth/forgot-password'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: email.trim().toLowerCase() }),
             });
-
-            if (error) throw error;
-
+            if (!res.ok) throw new Error('Request failed. Please try again.');
             setMessage('Check your email and your spam folder. If the account exists, the reset link is on the way.');
         } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : 'Failed to send reset email.';

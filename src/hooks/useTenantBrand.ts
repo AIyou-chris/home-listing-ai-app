@@ -1,6 +1,6 @@
-// PROTOTYPE — validates pre-auth white-label brand resolution on custom domains.
-// If this works cleanly (no flash, fast enough), promote to a real hook.
-// If it flashes or is too slow, we need a server-side render or a loading state strategy.
+// Resolves the white-label brand for the current hostname before the user authenticates.
+// Returns null while loading (no data yet) or when running on the default app domain.
+// Used by the sign-in page to show the right logo and color on custom domains.
 import { useEffect, useState } from 'react'
 import { buildApiUrl } from '../lib/api'
 
@@ -16,7 +16,8 @@ export const useTenantBrand = (): TenantBrand | null => {
   useEffect(() => {
     const hostname = window.location.hostname
     const isTest = new URLSearchParams(window.location.search).has('__tenant_test')
-    // localhost and the default app host don't need tenant resolution (unless __tenant_test param present)
+
+    // Skip on localhost unless explicitly testing
     if (!isTest && (!hostname || hostname === 'localhost' || hostname.endsWith('.localhost'))) return
 
     fetch(buildApiUrl(`/api/public/tenant?hostname=${encodeURIComponent(hostname)}`))

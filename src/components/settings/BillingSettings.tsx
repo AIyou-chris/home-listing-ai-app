@@ -146,11 +146,6 @@ const BillingSettingsPage: React.FC<BillingSettingsProps> = ({
       return;
     }
 
-    const confirmed = window.confirm(
-      'Delete your entire account and all associated data? This cannot be undone.'
-    );
-    if (!confirmed) return;
-
     try {
       setDeleteBusy(true);
       await deleteDashboardAccount('DELETE');
