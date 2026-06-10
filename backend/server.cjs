@@ -30761,9 +30761,10 @@ app.get('/api/lo/dashboard/today', requireAuth, async (req, res) => {
     const preApprovalLeads = leads.filter(l => l.source_meta?.context === 'pre_approval').length;
     const showingLeads = leads.filter(l => l.source_meta?.context === 'showing_request').length;
     const recentLeads = leads.slice(0, 10).map(l => ({ id: l.id, name: l.full_name || l.name || 'Unknown', email: l.email_lower || l.email || null, status: l.status || 'New', context: l.source_meta?.context || 'general_info', listingId: l.listing_id || null, createdAt: l.created_at }));
-    const { data: assignments } = await supabaseAdmin.from('listing_lo_assignments').select('listing_id, branding_enabled, assigned_at, listings!listing_lo_assignments_listing_id_fkey(id, address, price, status, hero_photos)').eq('lo_agent_id', loAgentId).order('assigned_at', { ascending: false });
+    const loProfileId = (await resolveLoAgentId(req)) || loAgentId;
+    const assignedRows = await fetchLoAssignedListings(loProfileId);
     const listingLeadCounts = leads.reduce((acc, l) => { if (l.listing_id) acc[l.listing_id] = (acc[l.listing_id] || 0) + 1; return acc; }, {});
-    const assignedListings = (assignments || []).map(a => { const listing = a.listings; return { listingId: a.listing_id, brandingEnabled: a.branding_enabled, address: listing?.address || 'Unknown', price: listing?.price || null, status: listing?.status || 'draft', heroPhoto: Array.isArray(listing?.hero_photos) ? listing.hero_photos[0] : null, leadCount: listingLeadCounts[a.listing_id] || 0 }; });
+    const assignedListings = assignedRows.map(r => ({ listingId: r.listingId, brandingEnabled: r.brandingEnabled, address: r.address, price: r.price, status: r.status, heroPhoto: r.heroPhoto, leadCount: listingLeadCounts[r.listingId] || 0 }));
     // Check if LO has completed their profile (has a lo_chatbot_configs row with full_name)
     const { data: loConfig } = await supabaseAdmin.from('lo_chatbot_configs').select('full_name, headshot_url, nmls_number').eq('lo_agent_id', loAgentId).maybeSingle();
     const loProfileComplete = Boolean(loConfig?.full_name);
@@ -31917,19 +31918,21 @@ app.get('/api/lo/partners', requireAuth, async (req, res) => {
     // lo_agent_partnerships.lo_agent_id FKs to agents.id (profile id), so we must resolve it
     let loProfileId = loAuthId;
     try { loProfileId = (await resolveLoAgentId(req)) || loAuthId; } catch { /* fall back */ }
-    const { data: partnerships } = await supabaseAdmin.from('lo_agent_partnerships').select('id, status, created_at, notes, rating, last_follow_up, agent:agent_id(id, first_name, last_name, email, phone, headshot_url, company, website)').eq('lo_agent_id', loProfileId).eq('status', 'active').order('created_at', { ascending: false });
+    const { data: partnerships } = await supabaseAdmin.from('lo_agent_partnerships').select('id, status, created_at, notes, rating, last_follow_up, agent:agent_id(id, auth_user_id, first_name, last_name, email, phone, headshot_url, company, website)').eq('lo_agent_id', loProfileId).eq('status', 'active').order('created_at', { ascending: false });
     // agent_invites.lo_agent_id stores the auth id — keep using loAuthId here
     const { data: pendingInvites } = await supabaseAdmin.from('agent_invites').select('id, token, invited_email, invited_name, created_at, opened_at, cta_clicked_at').eq('lo_agent_id', loAuthId).is('claimed_at', null).gt('expires_at', nowIso());
-    const partnerAgentIds = (partnerships || []).map(p => p.agent?.id).filter(Boolean);
-    let listingsByAgent = {};
-    if (partnerAgentIds.length > 0) {
-      const { data: assignments } = await supabaseAdmin.from('listing_lo_assignments').select('listing_id, listings!listing_lo_assignments_listing_id_fkey(id, address, price, status, hero_photos, total_leads, total_views)').eq('lo_agent_id', loProfileId);
-      const listingIds = (assignments || []).map(a => a.listing_id).filter(Boolean);
-      if (listingIds.length > 0) {
-        const { data: listingAgents } = await supabaseAdmin.from('listings').select('id, agent_id').in('id', listingIds);
-        (listingAgents || []).forEach(la => { const a = (assignments || []).find(x => x.listing_id === la.id); if (!a) return; if (!listingsByAgent[la.agent_id]) listingsByAgent[la.agent_id] = []; listingsByAgent[la.agent_id].push(a.listings); });
-      }
-    }
+    // Group the LO's co-branded listings under the partner agent who owns each one.
+    // properties.agent_id holds the owner's AUTH id, so map partner auth id -> profile id.
+    const assignedRows = await fetchLoAssignedListings(loProfileId);
+    const authToPartnerProfile = {};
+    (partnerships || []).forEach(p => { const a = p.agent; if (a?.auth_user_id) authToPartnerProfile[a.auth_user_id] = a.id; });
+    const listingsByAgent = {};
+    assignedRows.forEach(r => {
+      const partnerProfileId = r.ownerAuthId ? authToPartnerProfile[r.ownerAuthId] : null;
+      if (!partnerProfileId) return;
+      if (!listingsByAgent[partnerProfileId]) listingsByAgent[partnerProfileId] = [];
+      listingsByAgent[partnerProfileId].push(r);
+    });
     // Count leads per agent using only the agent_id column — single query, no full-row fetch
     const partnerAgentIdsList = (partnerships || []).map(p => p.agent?.id).filter(Boolean);
     const leadCountByAgent = {};
@@ -31943,7 +31946,7 @@ app.get('/api/lo/partners', requireAuth, async (req, res) => {
     }
     const partners = (partnerships || []).map(p => {
       const agent = p.agent || {}; const agentId = agent.id;
-      const listings = (listingsByAgent[agentId] || []).map(l => ({ listingId: l?.id, address: l?.address || 'Unknown', price: l?.price || null, status: l?.status || 'draft', heroPhoto: Array.isArray(l?.hero_photos) ? l.hero_photos[0] : null, totalLeads: l?.total_leads || 0, totalViews: l?.total_views || 0 }));
+      const listings = (listingsByAgent[agentId] || []).map(l => ({ listingId: l.listingId, address: l.address || 'Unknown', price: l.price || null, status: l.status || 'draft', heroPhoto: l.heroPhoto || null, totalLeads: 0, totalViews: 0 }));
       return { partnershipId: p.id, agentId, name: [agent.first_name, agent.last_name].filter(Boolean).join(' ') || 'Agent', email: agent.email || null, phone: agent.phone || null, website: agent.website || null, headshotUrl: agent.headshot_url || null, company: agent.company || null, totalLeads: leadCountByAgent[agentId] || 0, listings, joinedAt: p.created_at, notes: p.notes || '', rating: p.rating || null, lastFollowUp: p.last_follow_up || null };
     });
     res.json({ success: true, partners, pendingInvites: (pendingInvites || []).map(i => ({ id: i.id, token: i.token, email: i.invited_email, name: i.invited_name || null, sentAt: i.created_at, openedAt: i.opened_at || null, ctaClickedAt: i.cta_clicked_at || null })) });
@@ -32277,8 +32280,8 @@ app.get('/api/lo/listing-limit', requireAuth, async (req, res) => {
   try {
     const loAgentId = await resolveLoAgentId(req);
     if (!loAgentId) return res.status(401).json({ error: 'unauthorized' });
-    const { data: assignments } = await supabaseAdmin.from('listing_lo_assignments').select('listing_id, listings!listing_lo_assignments_listing_id_fkey(status)').eq('lo_agent_id', loAgentId);
-    const publishedCount = (assignments || []).filter(a => a.listings?.status === 'published').length;
+    const assignedRows = await fetchLoAssignedListings(loAgentId);
+    const publishedCount = assignedRows.filter(r => r.status === 'published').length;
     const { data: agentRow } = await supabaseAdmin.from('agents').select('plan_id').eq('id', loAgentId).single();
     const plan = agentRow?.plan_id || 'lo_partner';
     const limit = (plan === 'office' || plan === 'white_label') ? -1 : 25;
@@ -32293,45 +32296,109 @@ app.get('/api/lo/listing-limit', requireAuth, async (req, res) => {
 app.get('/api/listings/search', requireAuth, async (req, res) => {
   try {
     const q = (req.query.q || '').toString().trim();
-    if (!q || q.length < 2) return res.json({ listings: [] });
+    if (!q || q.length < 2) return res.json({ success: true, listings: [] });
+
+    // Scope results to listings owned by the LO's active partner agents (or the
+    // LO's own listings). properties.agent_id/user_id hold the owner's AUTH id.
+    const ownAuthId = req.authUserId;
+    const loProfileId = await resolveLoAgentId(req);
+    const allowedOwnerAuthIds = new Set();
+    if (ownAuthId) allowedOwnerAuthIds.add(ownAuthId);
+    if (loProfileId) {
+      const { data: partnerships } = await supabaseAdmin
+        .from('lo_agent_partnerships')
+        .select('agent:agent_id(auth_user_id)')
+        .eq('lo_agent_id', loProfileId)
+        .eq('status', 'active');
+      (partnerships || []).forEach(p => { if (p.agent?.auth_user_id) allowedOwnerAuthIds.add(p.agent.auth_user_id); });
+    }
+    if (allowedOwnerAuthIds.size === 0) return res.json({ success: true, listings: [] });
+
+    const ownerList = Array.from(allowedOwnerAuthIds);
     const { data: properties } = await supabaseAdmin
       .from('properties')
-      .select('id, address, city, state, zip, price, bedrooms, bathrooms, sqft, status, hero_photo_url, title, agent_id')
-      .or(`address.ilike.%${q}%,city.ilike.%${q}%,title.ilike.%${q}%`)
+      .select('id, address, price, bedrooms, bathrooms, sqft, status, hero_photos, title, agent_id, user_id')
+      .or(`agent_id.in.(${ownerList.join(',')}),user_id.in.(${ownerList.join(',')})`)
       .eq('status', 'published')
+      .ilike('address', `%${q}%`)
       .limit(10);
     const listings = (properties || []).map(p => ({
       id: p.id,
-      address: [p.address, p.city, p.state].filter(Boolean).join(', ') || 'Unknown',
+      address: p.address || 'Unknown',
       title: p.title || p.address || 'Listing',
       price: Number(p.price) || 0,
       bedrooms: Number(p.bedrooms) || 0,
       bathrooms: Number(p.bathrooms) || 0,
       sqft: Number(p.sqft) || 0,
       status: p.status || 'published',
-      heroPhoto: p.hero_photo_url || null,
+      heroPhoto: Array.isArray(p.hero_photos) ? (p.hero_photos[0] || null) : null,
     }));
-    res.json({ listings });
+    res.json({ success: true, listings });
   } catch (error) {
     console.error('[Listings Search] Failed:', error);
-    res.status(500).json({ error: 'search_failed', listings: [] });
+    res.status(500).json({ success: false, error: 'search_failed', listings: [] });
   }
 });
 
+// ─── Shared LO listing reader ─────────────────────────────────────────────────
+// Single source of truth for "listings this LO is co-branded on". Reads the
+// canonical `properties` table directly. `loProfileId` MUST be the agents.id
+// profile id (listing_lo_assignments.lo_agent_id), not the auth id. Replaces the
+// legacy `listings!...fkey` embeds that pointed at the wrong table and the stale
+// city/state/zip/hero_photo_url column references that don't exist on properties.
+async function fetchLoAssignedListings(loProfileId) {
+  if (!loProfileId) return [];
+  const { data: assignments, error: assignErr } = await supabaseAdmin
+    .from('listing_lo_assignments')
+    .select('listing_id, branding_enabled, assigned_at')
+    .eq('lo_agent_id', loProfileId)
+    .order('assigned_at', { ascending: false });
+  if (assignErr || !assignments || assignments.length === 0) return [];
+  const listingIds = assignments.map((a) => a.listing_id).filter(Boolean);
+  if (listingIds.length === 0) return [];
+  const { data: props } = await supabaseAdmin
+    .from('properties')
+    .select('id, address, price, bedrooms, bathrooms, sqft, status, hero_photos, title, agent_id, user_id')
+    .in('id', listingIds);
+  const byId = Object.fromEntries((props || []).map((p) => [p.id, p]));
+  return assignments.map((a) => {
+    const p = byId[a.listing_id] || {};
+    return {
+      listingId: a.listing_id,
+      id: a.listing_id,
+      address: p.address || 'Unknown',
+      title: p.title || p.address || 'Listing',
+      price: Number(p.price) || 0,
+      bedrooms: Number(p.bedrooms) || 0,
+      bathrooms: Number(p.bathrooms) || 0,
+      sqft: Number(p.sqft) || 0,
+      status: p.status || 'draft',
+      heroPhoto: Array.isArray(p.hero_photos) ? (p.hero_photos[0] || null) : null,
+      brandingEnabled: a.branding_enabled ?? true,
+      assignedAt: a.assigned_at || null,
+      ownerAuthId: p.agent_id || p.user_id || null
+    };
+  });
+}
+
 app.get('/api/lo/listings', requireAuth, async (req, res) => {
   try {
-    const agentId = req.authUserId;
-    const { data: agentRows } = await supabaseAdmin.from('agents').select('id').eq('auth_user_id', agentId).limit(1);
-    const agentRecord = agentRows?.[0];
-    if (!agentRecord) return res.json({ success: true, listings: [] });
-    const { data: assignments, error: assignErr } = await supabaseAdmin.from('listing_lo_assignments').select('listing_id, branding_enabled, assigned_at').eq('lo_agent_id', agentRecord.id);
-    if (assignErr) throw assignErr;
-    if (!assignments || assignments.length === 0) return res.json({ success: true, listings: [] });
-    const listingIds = assignments.map(a => a.listing_id);
-    const { data: properties, error: propErr } = await supabaseAdmin.from('properties').select('id, address, city, state, zip, price, bedrooms, bathrooms, sqft, status, hero_photo_url, title, agent_id, user_id').in('id', listingIds);
-    if (propErr) throw propErr;
-    const assignmentMap = Object.fromEntries(assignments.map(a => [a.listing_id, a]));
-    const listings = (properties || []).map(p => ({ id: p.id, address: [p.address, p.city, p.state].filter(Boolean).join(', ') || 'Unknown', title: p.title || p.address || 'Listing', price: Number(p.price) || 0, bedrooms: Number(p.bedrooms) || 0, bathrooms: Number(p.bathrooms) || 0, sqft: Number(p.sqft) || 0, status: p.status || 'draft', heroPhoto: p.hero_photo_url || null, brandingEnabled: assignmentMap[p.id]?.branding_enabled ?? true, assignedAt: assignmentMap[p.id]?.assigned_at || null }));
+    const loProfileId = await resolveLoAgentId(req);
+    if (!loProfileId) return res.json({ success: true, listings: [] });
+    const rows = await fetchLoAssignedListings(loProfileId);
+    const listings = rows.map((r) => ({
+      id: r.id,
+      address: r.address,
+      title: r.title,
+      price: r.price,
+      bedrooms: r.bedrooms,
+      bathrooms: r.bathrooms,
+      sqft: r.sqft,
+      status: r.status,
+      heroPhoto: r.heroPhoto,
+      brandingEnabled: r.brandingEnabled,
+      assignedAt: r.assignedAt
+    }));
     res.json({ success: true, listings });
   } catch (error) {
     console.error('[LO Listings] Failed:', error);
@@ -32341,15 +32408,36 @@ app.get('/api/lo/listings', requireAuth, async (req, res) => {
 
 app.post('/api/lo/listings/:listingId/assign', requireAuth, async (req, res) => {
   try {
-    const agentId = req.authUserId;
+    const authId = req.authUserId;
     const { listingId } = req.params;
     if (!listingId) return res.status(400).json({ error: 'listing_id_required' });
-    const { data: agentRows } = await supabaseAdmin.from('agents').select('id').eq('auth_user_id', agentId).limit(1);
-    const agentRecord = agentRows?.[0];
-    if (!agentRecord) return res.status(404).json({ error: 'agent_not_found' });
-    const { data: propRows } = await supabaseAdmin.from('properties').select('id').eq('id', listingId).limit(1);
-    if (!propRows || propRows.length === 0) return res.status(404).json({ error: 'listing_not_found' });
-    const { error: upsertErr } = await supabaseAdmin.from('listing_lo_assignments').upsert({ listing_id: listingId, lo_agent_id: agentRecord.id, branding_enabled: true, assigned_at: nowIso() }, { onConflict: 'listing_id,lo_agent_id' });
+    const loProfileId = await resolveLoAgentId(req);
+    if (!loProfileId) return res.status(404).json({ error: 'agent_not_found' });
+    const { data: prop } = await supabaseAdmin.from('properties').select('id, agent_id, user_id').eq('id', listingId).maybeSingle();
+    if (!prop) return res.status(404).json({ error: 'listing_not_found' });
+
+    // Authorization: an LO may co-brand a listing only if they own it (self-built)
+    // or have an active partnership with the agent who owns it. properties.agent_id
+    // holds the owner's AUTH id; lo_agent_partnerships.agent_id is the profile id.
+    const ownerAuthId = prop.agent_id || prop.user_id || null;
+    let allowed = Boolean(ownerAuthId && ownerAuthId === authId);
+    if (!allowed && ownerAuthId) {
+      const { data: ownerProfile } = await supabaseAdmin
+        .from('agents').select('id').or(`id.eq.${ownerAuthId},auth_user_id.eq.${ownerAuthId}`).limit(1).maybeSingle();
+      if (ownerProfile?.id) {
+        const { data: partnership } = await supabaseAdmin
+          .from('lo_agent_partnerships')
+          .select('id')
+          .eq('lo_agent_id', loProfileId)
+          .eq('agent_id', ownerProfile.id)
+          .eq('status', 'active')
+          .maybeSingle();
+        allowed = Boolean(partnership);
+      }
+    }
+    if (!allowed) return res.status(403).json({ error: 'not_partnered_with_listing_owner' });
+
+    const { error: upsertErr } = await supabaseAdmin.from('listing_lo_assignments').upsert({ listing_id: listingId, lo_agent_id: loProfileId, branding_enabled: true, assigned_at: nowIso() }, { onConflict: 'listing_id,lo_agent_id' });
     if (upsertErr) throw upsertErr;
     res.json({ success: true });
   } catch (error) {
