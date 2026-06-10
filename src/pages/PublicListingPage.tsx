@@ -155,7 +155,7 @@ const PublicListingPage: React.FC = () => {
     const [notPublished, setNotPublished] = useState(false);
     const [talkToHomeOpen, setTalkToHomeOpen] = useState(false);
     const [loFinanceChatOpen, setLoFinanceChatOpen] = useState(false);
-    const [loHasBot, setLoHasBot] = useState(false);
+    const [loBot, setLoBot] = useState<{ enabled: boolean; name?: string | null; photo?: string | null; company?: string | null } | null>(null);
     const safePublicSlug = useMemo(() => normalizeRouteSlug(publicSlug), [publicSlug]);
     useEffect(() => {
         document.body.classList.add('public-listing-fullscreen');
@@ -227,15 +227,17 @@ const PublicListingPage: React.FC = () => {
                 setProperty(loaded);
                 document.title = `${loaded.address} | HomeListingAI`;
 
-                // Check if the listing's LO has a financing bot enabled
+                // Check if the listing's LO has a financing bot enabled (+ grab LO identity for the "Financing by" strip)
                 try {
                     const loInfoRes = await fetch(buildApiUrl(`/api/public/listing/${encodeURIComponent(loaded.id)}/lo-chatbot`));
                     if (loInfoRes.ok) {
-                        const loInfo = await loInfoRes.json() as { enabled?: boolean };
-                        setLoHasBot(loInfo.enabled === true);
+                        const loInfo = await loInfoRes.json() as { enabled?: boolean; lo_name?: string | null; lo_photo?: string | null; lo_company?: string | null };
+                        setLoBot(loInfo.enabled === true
+                            ? { enabled: true, name: loInfo.lo_name || null, photo: loInfo.lo_photo || null, company: loInfo.lo_company || null }
+                            : { enabled: false });
                     }
                 } catch {
-                    setLoHasBot(false);
+                    setLoBot(null);
                 }
 
                 const params = new URLSearchParams(location.search || '');
@@ -331,6 +333,8 @@ const PublicListingPage: React.FC = () => {
                 showBackButton={false} // Clean look for standalone page
                 onTalkToHome={() => setTalkToHomeOpen(true)}
                 publicSlug={safePublicSlug || undefined}
+                loBot={loBot}
+                onAskFinancing={() => setLoFinanceChatOpen(true)}
             />
             <PublicListingChatModule
                 property={property}
@@ -339,18 +343,6 @@ const PublicListingPage: React.FC = () => {
                 hideLauncher
                 onOpenChange={setTalkToHomeOpen}
             />
-            {/* LO Financing Bot button — only shows when LO has a bot configured */}
-            {loHasBot && !loFinanceChatOpen && !talkToHomeOpen && (
-                <div className="fixed bottom-4 right-4 z-50">
-                    <button
-                        onClick={() => setLoFinanceChatOpen(true)}
-                        className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-700 to-teal-600 px-4 py-3 text-sm font-semibold text-white shadow-xl transition hover:brightness-110"
-                    >
-                        <span className="material-symbols-outlined text-[18px]">calculate</span>
-                        Ask About Financing
-                    </button>
-                </div>
-            )}
             <LOFinanceChatPanel
                 listingId={property.id}
                 open={loFinanceChatOpen}

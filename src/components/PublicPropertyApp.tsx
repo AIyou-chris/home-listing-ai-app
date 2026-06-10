@@ -3,8 +3,16 @@ import ViewingModal from './ViewingModal';
 import { Property, isAIDescription } from '../types';
 import SEO from './SEO';
 import AgentContactSheet, { type AgentContactInfo } from './public/AgentContactSheet';
+import MortgageCalculator from './public/MortgageCalculator';
 import { showToast } from '../utils/toastService';
 import { buildPublicFlyerUrl, openInNewTab } from '../services/listingShareAssetsService';
+
+export interface PublicListingLoBot {
+    enabled: boolean;
+    name?: string | null;
+    photo?: string | null;
+    company?: string | null;
+}
 
 interface PublicPropertyAppProps {
     property: Property;
@@ -13,6 +21,8 @@ interface PublicPropertyAppProps {
     onTalkToHome?: () => void;
     publicSlug?: string;
     isDemo?: boolean;
+    loBot?: PublicListingLoBot | null;
+    onAskFinancing?: () => void;
 }
 
 const FALLBACK_AGENT: AgentContactInfo = {
@@ -42,7 +52,7 @@ const adjustColor = (value: string, amount: number) => {
 const ActionPillButton: React.FC<{ icon: string; label: string; onClick: () => void }> = ({ icon, label, onClick }) => (
     <button
         onClick={onClick}
-        className="group inline-flex min-w-[74px] flex-col items-center justify-center gap-1 rounded-2xl border border-white/60 bg-white/55 px-3 py-2 text-slate-800 shadow-sm backdrop-blur-md transition hover:bg-white/80 active:scale-95"
+        className="group inline-flex min-w-[74px] flex-col items-center justify-center gap-1 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 shadow-sm transition hover:bg-slate-100 active:scale-95"
     >
         <span className="material-symbols-outlined text-[20px] transition group-hover:scale-105">{icon}</span>
         <span className="text-[10px] font-bold uppercase tracking-wide">{label}</span>
@@ -63,13 +73,21 @@ const toAgentContactInfo = (property: Property): AgentContactInfo => {
     };
 };
 
+const FINANCING_CHIPS = [
+    '💬 What can I qualify for?',
+    '📋 How do I get pre-approved?',
+    '💰 Minimum down payment options'
+];
+
 const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({
     property,
     onExit,
     showBackButton = true,
     onTalkToHome,
     publicSlug,
-    isDemo = false
+    isDemo = false,
+    loBot = null,
+    onAskFinancing
 }) => {
     const descriptionText = isAIDescription(property.description)
         ? property.description.paragraphs.join(' ')
@@ -99,8 +117,11 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({
 
     const hasMultiplePhotos = allPhotos.length > 1;
     const agent = useMemo(() => toAgentContactInfo(property), [property]);
-    const talkButtonStart = useMemo(() => adjustColor(agent.brandColor || '#28a7e8', -30), [agent.brandColor]);
-    const talkButtonEnd = useMemo(() => adjustColor(agent.brandColor || '#28a7e8', 18), [agent.brandColor]);
+    const brandColor = agent.brandColor || '#28a7e8';
+    const agentCardStart = useMemo(() => adjustColor(brandColor, -60), [brandColor]);
+    const agentInitial = (agent.name || 'A')[0]?.toUpperCase() || 'A';
+    const websiteLabel = (agent.website || '').replace(/^https?:\/\//i, '').replace(/\/$/, '');
+    const financingEnabled = Boolean(loBot?.enabled && onAskFinancing);
 
     useEffect(() => {
         if (!hasMultiplePhotos || modalSubState.gallery) return;
@@ -125,7 +146,7 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({
         }
     }, [onTalkToHome]);
 
-    const backgroundImage = allPhotos[currentPhotoIndex] || property.imageUrl;
+    const heroPhoto = allPhotos[currentPhotoIndex] || property.imageUrl;
 
     const handleFlyer = () => {
         const mediaUrl =
@@ -150,6 +171,14 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({
     const openGallery = () => {
         setGalleryIndex(currentPhotoIndex);
         setModalSubState((prev) => ({ ...prev, gallery: true }));
+    };
+
+    const handleCallAgent = () => {
+        if (agent.phone) {
+            window.location.href = `tel:${agent.phone}`;
+            return;
+        }
+        setContactOpen(true);
     };
 
     const listingSchema = {
@@ -180,77 +209,220 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({
                 schema={listingSchema}
             />
 
-            <div className="relative flex h-[100dvh] min-h-[100dvh] w-[100vw] flex-col items-center overflow-hidden bg-white shadow-2xl md:my-4 md:h-[calc(100svh-2rem)] md:min-h-0 md:max-h-[920px] md:max-w-md md:rounded-[40px]">
-                <div className="absolute inset-0 z-0">
-                    <img src={backgroundImage} alt={property.title} className="h-full w-full object-cover" />
-                    <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-transparent to-black/60" />
-                </div>
+            <div className="relative flex h-[100dvh] min-h-[100dvh] w-[100vw] flex-col overflow-hidden bg-[#f1f5f9] shadow-2xl md:my-4 md:h-[calc(100svh-2rem)] md:min-h-0 md:max-h-[920px] md:max-w-md md:rounded-[40px]">
 
+                {/* ── Scrollable WOW-style body ── */}
                 <div
-                    className="absolute left-4 right-4 z-20 flex items-center justify-between md:left-6 md:right-6 md:top-6"
-                    style={{ top: 'calc(env(safe-area-inset-top, 0px) + 1rem)' }}
+                    className="flex-1 overflow-y-auto"
+                    style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 8rem)', WebkitTapHighlightColor: 'transparent' }}
                 >
-                    {showBackButton ? (
-                        <button
-                            onClick={onExit}
-                            className="flex h-10 w-10 items-center justify-center rounded-full border border-white/30 bg-white/20 text-white shadow-lg backdrop-blur-md transition hover:bg-white/30"
-                            aria-label="Back"
-                        >
-                            <span className="material-symbols-outlined text-lg">arrow_back</span>
-                        </button>
-                    ) : (
-                        <span />
-                    )}
-                </div>
+                    {/* ── Listing card ── */}
+                    <div className="px-3.5" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.875rem)' }}>
+                        <div className="overflow-hidden rounded-[22px] bg-white shadow-[0_8px_28px_rgba(15,23,42,0.12)]">
 
-                {onTalkToHome && (
+                            {/* Photo with swipe dots */}
+                            <div className="relative h-64 bg-slate-200 bg-cover bg-center" style={{ backgroundImage: `url('${heroPhoto}')` }}>
+                                <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/65" />
+
+                                {showBackButton && (
+                                    <button
+                                        onClick={onExit}
+                                        className="absolute left-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-white/30 bg-black/30 text-white backdrop-blur-md transition hover:bg-black/45"
+                                        aria-label="Back"
+                                    >
+                                        <span className="material-symbols-outlined text-[18px]">arrow_back</span>
+                                    </button>
+                                )}
+
+                                <span
+                                    className={`absolute top-3 z-10 rounded-full bg-white px-2.5 py-1 text-[10px] font-black uppercase tracking-wide ${showBackButton ? 'left-14' : 'left-3'}`}
+                                    style={{ color: brandColor }}
+                                >
+                                    {property.status === 'Sold' ? 'Sold' : 'For Sale'}
+                                </span>
+
+                                {hasMultiplePhotos && (
+                                    <div className="absolute bottom-16 left-0 right-0 z-10 flex justify-center gap-1.5">
+                                        {allPhotos.slice(0, 8).map((_, i) => (
+                                            <button
+                                                key={i}
+                                                onClick={() => setCurrentPhotoIndex(i)}
+                                                aria-label={`Photo ${i + 1}`}
+                                                className={`h-1.5 rounded-full transition-all ${i === currentPhotoIndex ? 'w-5 bg-white' : 'w-1.5 bg-white/50'}`}
+                                            />
+                                        ))}
+                                    </div>
+                                )}
+
+                                <button onClick={openGallery} className="absolute bottom-3.5 left-4 z-10 text-left text-white">
+                                    <p className="text-[28px] font-black leading-none">${property.price.toLocaleString('en-US')}</p>
+                                    <p className="mt-1 flex items-center gap-1 text-[12px] opacity-85">
+                                        <span className="material-symbols-outlined text-[14px]">location_on</span>
+                                        {property.address}
+                                    </p>
+                                </button>
+                            </div>
+
+                            {/* Talk to the Home CTA */}
+                            {onTalkToHome && (
+                                <>
+                                    <button
+                                        onClick={onTalkToHome}
+                                        className="m-3.5 flex w-[calc(100%-1.75rem)] items-center justify-center gap-2.5 rounded-2xl py-4 text-[15px] font-extrabold text-white shadow-[0_8px_22px_rgba(40,167,232,0.35)] transition-transform active:scale-[0.99]"
+                                        style={{ background: brandColor }}
+                                    >
+                                        💬 Talk to the Home
+                                    </button>
+                                    <p className="-mt-1.5 mb-3 px-3.5 text-center text-[11px] font-semibold text-slate-400">
+                                        Ask this listing anything — like you would a person
+                                    </p>
+                                </>
+                            )}
+
+                            {/* Stats */}
+                            <div className="flex justify-around border-t border-slate-100 py-4">
+                                {[
+                                    [property.bedrooms, 'BEDS'],
+                                    [property.bathrooms, 'BATHS'],
+                                    [property.squareFeet.toLocaleString(), 'SQFT']
+                                ].map(([value, label]) => (
+                                    <div key={String(label)} className="text-center">
+                                        <b className="block text-[20px] font-extrabold text-slate-900">{value}</b>
+                                        <span className="text-[10px] tracking-widest text-slate-400">{label}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* ── Agent card ── */}
                     <div
-                        className="absolute left-4 right-4 z-20"
-                        style={{ top: 'calc(env(safe-area-inset-top, 0px) + 4.5rem)' }}
+                        className="m-3.5 overflow-hidden rounded-[20px] p-[18px] text-white shadow-[0_8px_24px_rgba(15,23,42,0.25)]"
+                        style={{ background: `linear-gradient(135deg, ${agentCardStart}, ${brandColor})` }}
                     >
-                        <button
-                            onClick={onTalkToHome}
-                            className="w-full rounded-2xl border border-white/20 px-4 py-3 text-center text-sm font-bold text-white shadow-xl backdrop-blur-xl transition hover:brightness-105"
-                            style={{
-                                backgroundImage: `linear-gradient(90deg, ${talkButtonStart}, ${talkButtonEnd})`
-                            }}
-                        >
-                            Talk to the Home
-                        </button>
-                    </div>
-                )}
-
-                <div className="absolute bottom-[8.75rem] left-4 right-4 z-20 md:bottom-36">
-                    <div className="rounded-3xl border border-white/20 bg-white/10 p-6 text-center text-white shadow-2xl backdrop-blur-xl">
-                        <h2 className="mb-1 text-3xl font-bold tracking-tight text-shadow-sm">
-                            ${property.price.toLocaleString('en-US')}
-                        </h2>
-                        <div className="mb-4 flex items-center justify-center gap-1 text-sm font-medium text-white/90">
-                            <span className="material-symbols-outlined text-[16px]">location_on</span>
-                            {property.address}
-                        </div>
-
-                        <div className="flex items-center justify-center gap-6 border-t border-white/20 pt-4">
-                            <div className="text-center">
-                                <span className="block text-xl font-bold">{property.bedrooms}</span>
-                                <span className="text-[10px] uppercase tracking-wider opacity-80">Beds</span>
-                            </div>
-                            <div className="h-8 w-px bg-white/20" />
-                            <div className="text-center">
-                                <span className="block text-xl font-bold">{property.bathrooms}</span>
-                                <span className="text-[10px] uppercase tracking-wider opacity-80">Baths</span>
-                            </div>
-                            <div className="h-8 w-px bg-white/20" />
-                            <div className="text-center">
-                                <span className="block text-xl font-bold">{property.squareFeet.toLocaleString()}</span>
-                                <span className="text-[10px] uppercase tracking-wider opacity-80">Sq Ft</span>
+                        <div className="flex items-center gap-3.5">
+                            {agent.headshotUrl ? (
+                                <img
+                                    src={agent.headshotUrl}
+                                    alt={agent.name}
+                                    className="h-[58px] w-[58px] flex-shrink-0 rounded-full border-2 border-white/40 object-cover"
+                                />
+                            ) : (
+                                <div className="flex h-[58px] w-[58px] flex-shrink-0 items-center justify-center rounded-full border-2 border-white/40 bg-white/20 text-2xl font-black">
+                                    {agentInitial}
+                                </div>
+                            )}
+                            <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <p className="text-xl font-black leading-none">{agent.name}</p>
+                                    <span className="rounded-full bg-white/25 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide">
+                                        Listing Agent
+                                    </span>
+                                </div>
+                                <p className="mt-1 text-xs opacity-80">
+                                    {agent.company}
+                                    {websiteLabel ? ` · ${websiteLabel}` : ''}
+                                </p>
+                                {agent.title && <p className="mt-0.5 text-[11px] opacity-60">{agent.title}</p>}
                             </div>
                         </div>
+                        <div className="mt-4 flex gap-2">
+                            <button
+                                onClick={handleCallAgent}
+                                className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-white py-2.5 text-[13px] font-extrabold transition-all active:scale-95"
+                                style={{ color: agentCardStart }}
+                            >
+                                📞 Call
+                            </button>
+                            <button
+                                onClick={() => setContactOpen(true)}
+                                className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/30 bg-white/15 py-2.5 text-[13px] font-extrabold text-white transition-all active:scale-95"
+                            >
+                                ✉️ Message
+                            </button>
+                            <button
+                                onClick={() => setModalSubState((prev) => ({ ...prev, viewing: true }))}
+                                className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/30 bg-white/15 py-2.5 text-[13px] font-extrabold text-white transition-all active:scale-95"
+                            >
+                                📅 Tour
+                            </button>
+                        </div>
                     </div>
+
+                    {/* ── Description ── */}
+                    {descriptionText && (
+                        <div className="m-3.5 rounded-[18px] bg-white p-[18px] text-sm leading-relaxed text-slate-600 shadow-[0_4px_16px_rgba(15,23,42,0.05)]">
+                            {descriptionText}
+                        </div>
+                    )}
+
+                    {/* ── Mortgage Calculator ── */}
+                    {property.price > 0 && (
+                        <MortgageCalculator
+                            price={property.price}
+                            brandColor={brandColor}
+                            showCta={financingEnabled}
+                            ctaLabel="Ask About Financing"
+                            onGetPreApproved={() => onAskFinancing?.()}
+                        />
+                    )}
+
+                    {/* ── Financing nudge — only when the listing has an LO bot ── */}
+                    {financingEnabled && (
+                        <div className="m-3.5 overflow-hidden rounded-[20px] shadow-[0_4px_20px_rgba(5,150,105,0.15)]">
+                            <div className="bg-gradient-to-br from-emerald-900 to-emerald-700 px-5 py-5 text-white">
+                                <p className="text-[11px] font-extrabold uppercase tracking-widest text-emerald-300">Financing</p>
+                                <h3 className="mt-1 text-[18px] font-black leading-snug">Ready to know your number?</h3>
+                                <p className="mt-2 text-[13px] leading-relaxed text-emerald-100">
+                                    Chat with the AI financing assistant — ask about rates, programs, or what you qualify for. No forms. No hard credit pull.
+                                </p>
+                            </div>
+                            <div className="space-y-2.5 bg-white px-5 pb-5 pt-4">
+                                {FINANCING_CHIPS.map((chip) => (
+                                    <button
+                                        key={chip}
+                                        onClick={() => onAskFinancing?.()}
+                                        className="flex w-full items-center gap-3 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-left text-[13px] font-semibold text-emerald-800 transition-colors hover:bg-emerald-100"
+                                    >
+                                        {chip}
+                                    </button>
+                                ))}
+                                <button
+                                    onClick={() => onAskFinancing?.()}
+                                    className="mt-1 flex w-full items-center justify-center gap-2 rounded-2xl py-3.5 text-[14px] font-extrabold text-white transition-all active:scale-[0.99]"
+                                    style={{ background: 'linear-gradient(135deg,#059669,#10b981)' }}
+                                >
+                                    Ask About Financing →
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ── Financing by ── */}
+                    {financingEnabled && loBot?.name && (
+                        <div className="m-3.5 flex items-center gap-2.5 rounded-[13px] bg-white p-3 shadow-[0_4px_16px_rgba(15,23,42,0.05)]">
+                            <span className="text-[10px] font-extrabold uppercase tracking-wide text-slate-400">Financing by</span>
+                            {loBot.photo ? (
+                                <img src={loBot.photo} alt={loBot.name} className="h-[30px] w-[30px] flex-shrink-0 rounded-full object-cover" />
+                            ) : (
+                                <div className="flex h-[30px] w-[30px] flex-shrink-0 items-center justify-center rounded-full bg-slate-300 text-xs font-bold text-white">
+                                    {loBot.name[0]}
+                                </div>
+                            )}
+                            <div className="min-w-0 flex-1">
+                                <p className="truncate text-[13px] font-bold text-slate-600">{loBot.name}</p>
+                                {loBot.company && <p className="truncate text-[11px] text-slate-400">{loBot.company}</p>}
+                            </div>
+                            <span className="flex-shrink-0 text-[11px] text-slate-400">Powers the AI →</span>
+                        </div>
+                    )}
+
+                    <p className="mb-2 mt-4 text-center text-[10px] text-slate-400">Powered by HomeListingAI</p>
                 </div>
 
+                {/* ── Bottom action menu — unchanged ── */}
                 <div
-                    className="absolute bottom-0 left-0 right-0 z-30 flex h-28 items-center justify-around rounded-t-[32px] border-t border-white/40 bg-white/30 px-2 shadow-[0_-8px_32px_rgba(0,0,0,0.1)] backdrop-blur-xl"
+                    className="absolute bottom-0 left-0 right-0 z-30 flex h-28 items-center justify-around rounded-t-[32px] border-t border-slate-200 bg-white/90 px-2 shadow-[0_-8px_32px_rgba(0,0,0,0.1)] backdrop-blur-xl"
                     style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)' }}
                 >
                     <ActionPillButton icon="photo_library" label="Gallery" onClick={openGallery} />
