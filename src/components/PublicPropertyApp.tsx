@@ -52,7 +52,7 @@ const adjustColor = (value: string, amount: number) => {
 const ActionPillButton: React.FC<{ icon: string; label: string; onClick: () => void }> = ({ icon, label, onClick }) => (
     <button
         onClick={onClick}
-        className="group inline-flex min-w-[74px] flex-col items-center justify-center gap-1 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 shadow-sm transition hover:bg-slate-100 active:scale-95"
+        className="group inline-flex min-w-[74px] flex-col items-center justify-center gap-1 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-slate-800 shadow-sm transition hover:bg-slate-100 active:scale-95 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
     >
         <span className="material-symbols-outlined text-[20px] transition group-hover:scale-105">{icon}</span>
         <span className="text-[10px] font-bold uppercase tracking-wide">{label}</span>
@@ -209,7 +209,7 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({
                 schema={listingSchema}
             />
 
-            <div className="relative flex h-[100dvh] min-h-[100dvh] w-[100vw] flex-col overflow-hidden bg-[#f1f5f9] shadow-2xl md:my-4 md:h-[calc(100svh-2rem)] md:min-h-0 md:max-h-[920px] md:max-w-md md:rounded-[40px]">
+            <div className="relative flex h-[100dvh] min-h-[100dvh] w-[100vw] flex-col overflow-hidden bg-[#f1f5f9] shadow-2xl dark:bg-[#050507] md:my-4 md:h-[calc(100svh-2rem)] md:min-h-0 md:max-h-[920px] md:max-w-md md:rounded-[40px]">
 
                 {/* ── Scrollable WOW-style body ── */}
                 <div
@@ -218,10 +218,10 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({
                 >
                     {/* ── Listing card ── */}
                     <div className="px-3.5" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.875rem)' }}>
-                        <div className="overflow-hidden rounded-[22px] bg-white shadow-[0_8px_28px_rgba(15,23,42,0.12)]">
+                        <div className="overflow-hidden rounded-[22px] bg-white shadow-[0_8px_28px_rgba(15,23,42,0.12)] dark:bg-[#0f172a]">
 
                             {/* Photo with swipe dots */}
-                            <div className="relative h-64 bg-slate-200 bg-cover bg-center" style={{ backgroundImage: `url('${heroPhoto}')` }}>
+                            <div className="relative h-64 bg-slate-200 bg-cover bg-center dark:bg-slate-800" style={{ backgroundImage: `url('${heroPhoto}')` }}>
                                 <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/65" />
 
                                 {showBackButton && (
@@ -273,22 +273,22 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({
                                     >
                                         💬 Talk to the Home
                                     </button>
-                                    <p className="-mt-1.5 mb-3 px-3.5 text-center text-[11px] font-semibold text-slate-400">
+                                    <p className="-mt-1.5 mb-3 px-3.5 text-center text-[11px] font-semibold text-slate-400 dark:text-slate-500">
                                         Ask this listing anything — like you would a person
                                     </p>
                                 </>
                             )}
 
                             {/* Stats */}
-                            <div className="flex justify-around border-t border-slate-100 py-4">
+                            <div className="flex justify-around border-t border-slate-100 py-4 dark:border-slate-800">
                                 {[
                                     [property.bedrooms, 'BEDS'],
                                     [property.bathrooms, 'BATHS'],
                                     [property.squareFeet.toLocaleString(), 'SQFT']
                                 ].map(([value, label]) => (
                                     <div key={String(label)} className="text-center">
-                                        <b className="block text-[20px] font-extrabold text-slate-900">{value}</b>
-                                        <span className="text-[10px] tracking-widest text-slate-400">{label}</span>
+                                        <b className="block text-[20px] font-extrabold text-slate-900 dark:text-slate-100">{value}</b>
+                                        <span className="text-[10px] tracking-widest text-slate-400 dark:text-slate-500">{label}</span>
                                     </div>
                                 ))}
                             </div>
@@ -351,7 +351,7 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({
 
                     {/* ── Description ── */}
                     {descriptionText && (
-                        <div className="m-3.5 rounded-[18px] bg-white p-[18px] text-sm leading-relaxed text-slate-600 shadow-[0_4px_16px_rgba(15,23,42,0.05)]">
+                        <div className="m-3.5 rounded-[18px] bg-white p-[18px] text-sm leading-relaxed text-slate-600 shadow-[0_4px_16px_rgba(15,23,42,0.05)] dark:bg-[#0f172a] dark:text-slate-400">
                             {descriptionText}
                         </div>
                     )}
@@ -363,6 +363,7 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({
                             brandColor={brandColor}
                             showCta={financingEnabled}
                             ctaLabel="Ask About Financing"
+                            autoDark
                             onGetPreApproved={() => onAskFinancing?.()}
                         />
                     )}
@@ -377,12 +378,12 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({
                                     Chat with the AI financing assistant — ask about rates, programs, or what you qualify for. No forms. No hard credit pull.
                                 </p>
                             </div>
-                            <div className="space-y-2.5 bg-white px-5 pb-5 pt-4">
+                            <div className="space-y-2.5 bg-white px-5 pb-5 pt-4 dark:bg-[#0f172a]">
                                 {FINANCING_CHIPS.map((chip) => (
                                     <button
                                         key={chip}
                                         onClick={() => onAskFinancing?.()}
-                                        className="flex w-full items-center gap-3 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-left text-[13px] font-semibold text-emerald-800 transition-colors hover:bg-emerald-100"
+                                        className="flex w-full items-center gap-3 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-left text-[13px] font-semibold text-emerald-800 transition-colors hover:bg-emerald-100 dark:border-emerald-900 dark:bg-emerald-900/25 dark:text-emerald-300 dark:hover:bg-emerald-900/40"
                                     >
                                         {chip}
                                     </button>
@@ -400,7 +401,7 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({
 
                     {/* ── Financing by ── */}
                     {financingEnabled && loBot?.name && (
-                        <div className="m-3.5 flex items-center gap-2.5 rounded-[13px] bg-white p-3 shadow-[0_4px_16px_rgba(15,23,42,0.05)]">
+                        <div className="m-3.5 flex items-center gap-2.5 rounded-[13px] bg-white p-3 shadow-[0_4px_16px_rgba(15,23,42,0.05)] dark:bg-[#0f172a]">
                             <span className="text-[10px] font-extrabold uppercase tracking-wide text-slate-400">Financing by</span>
                             {loBot.photo ? (
                                 <img src={loBot.photo} alt={loBot.name} className="h-[30px] w-[30px] flex-shrink-0 rounded-full object-cover" />
@@ -410,19 +411,19 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({
                                 </div>
                             )}
                             <div className="min-w-0 flex-1">
-                                <p className="truncate text-[13px] font-bold text-slate-600">{loBot.name}</p>
+                                <p className="truncate text-[13px] font-bold text-slate-600 dark:text-slate-300">{loBot.name}</p>
                                 {loBot.company && <p className="truncate text-[11px] text-slate-400">{loBot.company}</p>}
                             </div>
                             <span className="flex-shrink-0 text-[11px] text-slate-400">Powers the AI →</span>
                         </div>
                     )}
 
-                    <p className="mb-2 mt-4 text-center text-[10px] text-slate-400">Powered by HomeListingAI</p>
+                    <p className="mb-2 mt-4 text-center text-[10px] text-slate-400 dark:text-slate-600">Powered by HomeListingAI</p>
                 </div>
 
                 {/* ── Bottom action menu — unchanged ── */}
                 <div
-                    className="absolute bottom-0 left-0 right-0 z-30 flex h-28 items-center justify-around rounded-t-[32px] border-t border-slate-200 bg-white/90 px-2 shadow-[0_-8px_32px_rgba(0,0,0,0.1)] backdrop-blur-xl"
+                    className="absolute bottom-0 left-0 right-0 z-30 flex h-28 items-center justify-around rounded-t-[32px] border-t border-slate-200 bg-white/90 px-2 shadow-[0_-8px_32px_rgba(0,0,0,0.1)] backdrop-blur-xl dark:border-slate-800 dark:bg-[#0a0c12]/90"
                     style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)' }}
                 >
                     <ActionPillButton icon="photo_library" label="Gallery" onClick={openGallery} />
