@@ -506,6 +506,7 @@ export const getDemoOnboardingState = (): OnboardingState =>
       share_kit_copied: true,
       test_lead_sent: true,
       first_appointment_created: true,
+      brain_seeded: true,
       first_listing_id: 'demo-listing-oak',
       last_test_lead_id: 'demo-lead-1'
     },

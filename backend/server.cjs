@@ -4620,7 +4620,7 @@ const buildOpenHouseFlyerHtml = ({
       .left-column {
         display: flex;
         flex-direction: column;
-        gap: 0.08in;
+        gap: 0.32in;
         min-height: 0;
       }
       .card {
@@ -4919,7 +4919,6 @@ const buildOpenHouseFlyerHtml = ({
               <div class="metric"><div class="metric-label">Sq Ft</div><div class="metric-value">${escapeHtml(sqft)}</div></div>
             </div>
             <div class="event-line">${safeScheduleLine}</div>
-            <div class="hero-summary-copy">${teaser}</div>
           </div>
         </div>
 

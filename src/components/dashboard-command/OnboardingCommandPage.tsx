@@ -11,6 +11,7 @@ import {
   type ListingShareKitResponse
 } from '../../services/dashboardCommandService';
 import { listingsService } from '../../services/listingsService';
+import { createListingBuilderSource } from '../../services/listingBuilderService';
 import {
   fetchOnboardingState,
   patchOnboardingState,
@@ -18,7 +19,7 @@ import {
 } from '../../services/onboardingService';
 import { showToast } from '../../utils/toastService';
 
-const STEP_COUNT = 5;
+const STEP_COUNT = 6;
 
 const clampStep = (value: number) => Math.max(1, Math.min(STEP_COUNT, Number.isFinite(value) ? value : 1));
 
@@ -55,6 +56,8 @@ const OnboardingCommandPage: React.FC = () => {
     professional_title: ''
   });
 
+  const profileComplete = Boolean(brandForm.full_name && (brandForm.phone || brandForm.email));
+
   const [listingForm, setListingForm] = useState({
     address: '',
     price: '1250000',
@@ -63,6 +66,8 @@ const OnboardingCommandPage: React.FC = () => {
     sqft: '2800'
   });
   const [listingPrimaryPhoto, setListingPrimaryPhoto] = useState('');
+
+  const [brainNotes, setBrainNotes] = useState('');
 
   const [testLeadForm, setTestLeadForm] = useState({
     full_name: 'Test Lead',
@@ -150,40 +155,6 @@ const OnboardingCommandPage: React.FC = () => {
     }
   };
 
-  const handleBrandSave = async () => {
-    setSaving(true);
-    try {
-      await patchState({
-        onboarding_step: 2,
-        onboarding_checklist: { brand_profile: true },
-        brand_profile: {
-          full_name: brandForm.full_name,
-          phone: brandForm.phone || null,
-          email: brandForm.email || null,
-          brokerage: brandForm.brokerage || null,
-          headshot_url: brandForm.headshot_url || null
-        }
-      });
-      setCurrentStep(2);
-      setSearchParams({ step: '2' }, { replace: true });
-      showToast.success('Profile saved.');
-    } catch (error) {
-      showToast.error(error instanceof Error ? error.message : 'Failed to save profile.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleHeadshotUpload = async (file?: File | null) => {
-    if (!file) return;
-    try {
-      const dataUrl = await readFileAsDataUrl(file);
-      setBrandForm((prev) => ({ ...prev, headshot_url: dataUrl }));
-    } catch (error) {
-      showToast.error(error instanceof Error ? error.message : 'Failed to attach image.');
-    }
-  };
-
   const handleCreateListing = async () => {
     setSaving(true);
     try {
@@ -235,12 +206,15 @@ const OnboardingCommandPage: React.FC = () => {
     try {
       const published = await publishListingShareKit(listingId, true);
       setShareKit(published);
-      const openHouse = await generateListingQrCode(listingId, {
-        source_type: 'open_house',
-        source_key: 'open_house'
-      }).catch(() => null);
-      if (openHouse?.qr_code_url) {
-        setOpenHouseQr(openHouse.qr_code_url);
+      if (published.public_slug) {
+        const flyerUrl = `${window.location.origin.includes('localhost') ? 'http://localhost:3002' : window.location.origin}/api/public/listings/${encodeURIComponent(published.public_slug)}/open-house-flyer.pdf`;
+        setOpenHouseQr(`https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(flyerUrl)}`);
+      } else {
+        const openHouse = await generateListingQrCode(listingId, {
+          source_type: 'open_house',
+          source_key: 'open_house'
+        }).catch(() => null);
+        if (openHouse?.qr_code_url) setOpenHouseQr(openHouse.qr_code_url);
       }
 
       await patchState({
@@ -279,10 +253,32 @@ const OnboardingCommandPage: React.FC = () => {
     a.click();
   };
 
+  const handleSaveBrain = async () => {
+    if (!listingId) { await gotoStep(5); return; }
+    setSaving(true);
+    try {
+      const trimmed = brainNotes.trim();
+      if (trimmed) {
+        await createListingBuilderSource(listingId, {
+          type: 'text',
+          title: 'Agent notes — key facts about this home',
+          content: trimmed
+        });
+      }
+      await patchState({ onboarding_checklist: { brain_seeded: true } });
+      await gotoStep(4);
+    } catch {
+      showToast.error('Could not save notes — skip for now and add them later.');
+      await gotoStep(4);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleStepThreeContinue = async () => {
     setSaving(true);
     try {
-      await gotoStep(4);
+      await gotoStep(5);
     } finally {
       setSaving(false);
     }
@@ -307,14 +303,14 @@ const OnboardingCommandPage: React.FC = () => {
       });
       setTestLeadId(response.lead_id || null);
       await patchState({
-        onboarding_step: 5,
+        onboarding_step: 6,
         onboarding_checklist: {
           test_lead_sent: true,
           last_test_lead_id: response.lead_id || null
         }
       });
-      setCurrentStep(5);
-      setSearchParams({ step: '5' }, { replace: true });
+      setCurrentStep(6);
+      setSearchParams({ step: '6' }, { replace: true });
       showToast.success('Test lead created — it just appeared in your inbox.');
     } catch (error) {
       showToast.error(error instanceof Error ? error.message : 'Failed to create test lead.');
@@ -358,7 +354,7 @@ const OnboardingCommandPage: React.FC = () => {
     try {
       const updated = await patchState({
         onboarding_completed: true,
-        onboarding_step: 5
+        onboarding_step: 6
       });
       setState(updated);
       showToast.success('Nice — you’re live.');
@@ -428,31 +424,54 @@ const OnboardingCommandPage: React.FC = () => {
 
       {currentStep === 1 && (
         <section className={cardClass}>
-          <h2 className="text-xl font-semibold text-slate-900">Set up your AI Card profile</h2>
-          <p className="mt-1 text-sm text-slate-600">This is your main profile. It is used throughout the app for your branding, contact info, listings, share pages, and lead capture.</p>
-          <p className="mt-2 text-xs font-medium text-slate-500">Why this matters: trust goes up when buyers see a real face and contact info, and the rest of the app stays consistent.</p>
-          <div className="mt-4 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">
-            You can fill this out here now, and you can always edit it later in Settings.
+          <h2 className="text-xl font-semibold text-slate-900">Set up your agent profile</h2>
+          <p className="mt-1 text-sm text-slate-600">Your profile is used everywhere — listings, share pages, AI card, lead capture, and marketing. Fill it out once in Settings and it carries through the whole app.</p>
+
+          {/* Profile preview */}
+          <div className="mt-5 flex items-center gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            {brandForm.headshot_url ? (
+              <img src={brandForm.headshot_url} alt="Headshot" className="h-16 w-16 rounded-full object-cover border-2 border-white shadow" />
+            ) : (
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-200 text-slate-400 text-2xl font-bold flex-shrink-0">
+                {brandForm.full_name ? brandForm.full_name.charAt(0).toUpperCase() : '?'}
+              </div>
+            )}
+            <div className="min-w-0">
+              {brandForm.full_name ? (
+                <p className="font-semibold text-slate-900 truncate">{brandForm.full_name}</p>
+              ) : (
+                <p className="text-sm text-slate-400 italic">No name set</p>
+              )}
+              {brandForm.brokerage && <p className="text-sm text-slate-500 truncate">{brandForm.brokerage}</p>}
+              {brandForm.professional_title && <p className="text-xs text-slate-400 truncate">{brandForm.professional_title}</p>}
+              <div className="mt-1 flex flex-wrap gap-2">
+                {brandForm.phone && <span className="inline-flex items-center gap-1 text-xs text-emerald-700 bg-emerald-50 rounded-full px-2 py-0.5">✓ {brandForm.phone}</span>}
+                {brandForm.email && <span className="inline-flex items-center gap-1 text-xs text-emerald-700 bg-emerald-50 rounded-full px-2 py-0.5">✓ {brandForm.email}</span>}
+              </div>
+            </div>
           </div>
-          <div className="mt-5 grid gap-3 md:grid-cols-2">
-            <input value={brandForm.full_name} onChange={(e) => setBrandForm((prev) => ({ ...prev, full_name: e.target.value }))} placeholder="Full name" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-            <input value={brandForm.phone} onChange={(e) => setBrandForm((prev) => ({ ...prev, phone: e.target.value }))} placeholder="Phone" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-            <input value={brandForm.email} onChange={(e) => setBrandForm((prev) => ({ ...prev, email: e.target.value }))} placeholder="Email" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-            <input value={brandForm.brokerage} onChange={(e) => setBrandForm((prev) => ({ ...prev, brokerage: e.target.value }))} placeholder="Brokerage (optional)" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-            <label className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-600">
-              Headshot upload (optional)
-              <input type="file" accept="image/*" className="mt-2 block text-xs" onChange={(e) => void handleHeadshotUpload(e.target.files?.[0])} />
-            </label>
-          </div>
+
+          {!profileComplete && (
+            <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+              Add your name and at least one contact method (phone or email) so buyers can reach you.
+            </div>
+          )}
+
           <div className="mt-5 flex flex-wrap gap-3">
-            <button type="button" onClick={() => void handleBrandSave()} disabled={saving} className="rounded-xl bg-primary-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
-              Save & Continue
+            <button
+              type="button"
+              onClick={() => navigate(buildDashboardPath('/settings', demoMode) + '?from=onboarding')}
+              className="rounded-xl bg-primary-600 px-4 py-2 text-sm font-semibold text-white"
+            >
+              Open Settings →
             </button>
-            <button type="button" onClick={() => navigate(buildDashboardPath('/settings', demoMode))} className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700">
-              Open Settings
-            </button>
-            <button type="button" onClick={() => void handleSkip()} disabled={saving} className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50">
-              Skip for now
+            <button
+              type="button"
+              onClick={() => void gotoStep(2)}
+              disabled={saving}
+              className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50"
+            >
+              {profileComplete ? 'Looks good, continue →' : 'Skip for now'}
             </button>
           </div>
         </section>
@@ -497,6 +516,37 @@ const OnboardingCommandPage: React.FC = () => {
       )}
 
       {currentStep === 3 && (
+        <section className={cardClass}>
+          <h2 className="text-xl font-semibold text-slate-900">Teach your AI about this home</h2>
+          <p className="mt-1 text-sm text-slate-600">Tell the AI what makes this property special. Buyers will ask — the AI will answer using what you write here.</p>
+          <p className="mt-2 text-xs font-medium text-slate-500">Why this matters: the better the AI knows the home, the better it converts browsers into real leads.</p>
+          <div className="mt-4 rounded-xl border border-violet-100 bg-violet-50 p-4 text-sm text-violet-900">
+            <p className="font-semibold">Ideas to include:</p>
+            <ul className="mt-1.5 space-y-0.5 list-disc list-inside text-violet-800 text-xs">
+              <li>What makes this home stand out (views, finishes, lot size, layout)</li>
+              <li>Recent upgrades or renovations</li>
+              <li>Neighborhood highlights, school district, walkability</li>
+              <li>Seller motivation or timeline</li>
+              <li>Anything a buyer would ask at an open house</li>
+            </ul>
+          </div>
+          <textarea
+            value={brainNotes}
+            onChange={(e) => setBrainNotes(e.target.value)}
+            placeholder="e.g. Newly remodeled kitchen with quartz counters, primary suite with mountain views, 3-car garage, top-rated Westview school district, quiet cul-de-sac, seller flexible on close date..."
+            rows={6}
+            className="mt-4 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-600/30"
+          />
+          <p className="mt-1.5 text-xs font-medium text-primary-600">You can always add more later from the listing editor.</p>
+          <div className="mt-5 flex flex-wrap gap-3">
+            <button type="button" onClick={() => void handleSaveBrain()} disabled={saving} className="rounded-xl bg-primary-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
+              {brainNotes.trim() ? 'Save & Continue' : 'Skip for now'}
+            </button>
+          </div>
+        </section>
+      )}
+
+      {currentStep === 4 && (
         <section className={cardClass}>
           <h2 className="text-xl font-semibold text-slate-900">Publish + get your Share Kit</h2>
           <p className="mt-1 text-sm text-slate-600">This generates your live link and QR codes.</p>
@@ -545,7 +595,7 @@ const OnboardingCommandPage: React.FC = () => {
         </section>
       )}
 
-      {currentStep === 4 && (
+      {currentStep === 5 && (
         <section className={cardClass}>
           <h2 className="text-xl font-semibold text-slate-900">Test it (watch a lead appear live)</h2>
           <p className="mt-1 text-sm text-slate-600">We’ll create a test lead so you know it’s working.</p>
@@ -573,7 +623,7 @@ const OnboardingCommandPage: React.FC = () => {
         </section>
       )}
 
-      {currentStep === 5 && (
+      {currentStep === 6 && (
         <section className={cardClass}>
           <h2 className="text-xl font-semibold text-slate-900">Set a showing + see reminders</h2>
           <p className="mt-1 text-sm text-slate-600">Paid plans include appointment reminder texts that reduce no-shows.</p>

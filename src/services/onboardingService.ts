@@ -11,6 +11,7 @@ export interface OnboardingChecklistState {
   share_kit_copied: boolean;
   test_lead_sent: boolean;
   first_appointment_created: boolean;
+  brain_seeded: boolean;
   first_listing_id: string | null;
   last_test_lead_id: string | null;
 }

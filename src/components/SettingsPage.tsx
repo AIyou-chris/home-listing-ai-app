@@ -225,24 +225,22 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                                     userProfile={userProfile}
                                     onSave={isDemoMode ? async () => { } : onSaveProfile}
                                 />
-                                {/* Billing shortcut — second access point */}
-                                <div className="mx-6 mb-6 mt-2">
-                                    <button
-                                        type="button"
-                                        onClick={() => setActiveTab('billing')}
-                                        className="w-full flex items-center justify-between gap-4 rounded-2xl border border-primary-200 bg-primary-50 px-5 py-4 text-left hover:bg-primary-100 transition-colors group"
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary-600 text-white">
-                                                <span className="material-symbols-outlined text-[18px]">credit_card</span>
-                                            </div>
-                                            <div>
-                                                <p className="text-sm font-bold text-primary-900">Billing &amp; Plan</p>
-                                                <p className="text-xs text-primary-600">View your plan, upgrade, or manage your subscription</p>
-                                            </div>
+                                {/* Trust & compliance section */}
+                                <div className="mx-6 mb-6 mt-2 space-y-3">
+                                    <div className="flex gap-3 rounded-2xl border border-slate-100 bg-slate-50 px-5 py-4">
+                                        <span className="material-symbols-outlined mt-0.5 flex-shrink-0 text-[20px] text-primary-500">lock</span>
+                                        <div>
+                                            <p className="text-sm font-bold text-slate-800">Your information stays yours</p>
+                                            <p className="mt-0.5 text-xs leading-relaxed text-slate-500">We never sell, rent, or share your contact information or client data with anyone. Everything you put into HomeListingAI — your leads, listings, and conversations — is encrypted, backed up, and only accessible to you.</p>
                                         </div>
-                                        <span className="material-symbols-outlined text-primary-400 group-hover:text-primary-600 transition-colors">chevron_right</span>
-                                    </button>
+                                    </div>
+                                    <div className="flex gap-3 rounded-2xl border border-slate-100 bg-slate-50 px-5 py-4">
+                                        <span className="material-symbols-outlined mt-0.5 flex-shrink-0 text-[20px] text-emerald-500">verified</span>
+                                        <div>
+                                            <p className="text-sm font-bold text-slate-800">Built to work the way real estate works</p>
+                                            <p className="mt-0.5 text-xs leading-relaxed text-slate-500">Every AI message, listing description, and lead touchpoint is designed to align with fair housing standards and the practices your broker and MLS board expect. We keep your marketing clean so you can focus on closing.</p>
+                                        </div>
+                                    </div>
                                 </div>
                             </>
                         )}

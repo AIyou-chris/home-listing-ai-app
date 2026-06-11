@@ -1,11 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import type { AgentProfile } from '../../types';
 import { supabase } from '../../services/supabase';
 import { uploadAiCardAsset } from '../../services/aiCardService';
 import { updateAgentProfile as updateCentralAgentProfile } from '../../services/agentProfileService';
 import { showToast } from '../../utils/toastService';
 import { buildApiUrl } from '../../lib/api';
-import AgentBusinessCard from './AgentBusinessCard';
 
 interface AgentBusinessCardEditorProps {
   userProfile: AgentProfile;
@@ -94,12 +94,22 @@ const PreviewModalShell: React.FC<{
 };
 
 const AgentBusinessCardEditor: React.FC<AgentBusinessCardEditorProps> = ({ userProfile, onSaveProfile }) => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const fromOnboarding = new URLSearchParams(location.search).get('from') === 'onboarding';
   const [form, setForm] = useState<FormState>(() => mapProfileToForm(userProfile));
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [chatPreviewOpen, setChatPreviewOpen] = useState(false);
   const [contactPreviewOpen, setContactPreviewOpen] = useState(false);
+  const [tipDismissed, setTipDismissed] = useState(() => {
+    try { return localStorage.getItem('hlai_profile_tip_dismissed') === '1'; } catch { return false; }
+  });
+  const dismissTip = () => {
+    setTipDismissed(true);
+    try { localStorage.setItem('hlai_profile_tip_dismissed', '1'); } catch { /* noop */ }
+  };
   const [chatInput, setChatInput] = useState('');
   const [chatMessages, setChatMessages] = useState<Array<{ id: string; role: 'agent' | 'user'; text: string }>>([
     {
@@ -118,18 +128,6 @@ const AgentBusinessCardEditor: React.FC<AgentBusinessCardEditorProps> = ({ userP
     setForm(mapProfileToForm(userProfile));
   }, [userProfile]);
 
-  const hasAnyIdentityValue = useMemo(
-    () =>
-      Boolean(
-        form.fullName.trim() ||
-          form.company.trim() ||
-          form.title.trim() ||
-          form.phone.trim() ||
-          form.email.trim() ||
-          form.headshotUrl.trim()
-      ),
-    [form]
-  );
 
   const handleFieldChange =
     (field: keyof FormState) => (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -194,64 +192,6 @@ const AgentBusinessCardEditor: React.FC<AgentBusinessCardEditorProps> = ({ userP
     }
   };
 
-  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
-
-  const uploadLogoToBucket = async (file: File): Promise<string | null> => {
-    const { data: authData } = await supabase.auth.getUser();
-    const userId = authData?.user?.id;
-    if (!userId) return null;
-
-    const extension = file.name.split('.').pop()?.toLowerCase() || 'png';
-    const safeExtension = extension.replace(/[^a-z0-9]/gi, '') || 'png';
-    const path = `${userId}/logo.${safeExtension}`;
-
-    const { error } = await supabase.storage.from('avatars').upload(path, file, {
-      contentType: file.type || 'image/png',
-      upsert: true
-    });
-
-    if (error) return null;
-
-    const { data } = supabase.storage.from('avatars').getPublicUrl(path);
-    return data?.publicUrl || null;
-  };
-
-  const handleLogoUpload = async (file?: File | null) => {
-    if (!file) return;
-    setErrorMessage('');
-    setIsUploadingLogo(true);
-
-    try {
-      const bucketUrl = await uploadLogoToBucket(file);
-      if (bucketUrl) {
-        setForm((prev) => ({ ...prev, logoUrl: bucketUrl }));
-        showToast.success('Logo uploaded.');
-        return;
-      }
-
-      const uploadResult = await uploadAiCardAsset('logo', file);
-      const fallbackUrl = uploadResult.url || uploadResult.path;
-      if (fallbackUrl) {
-        setForm((prev) => ({ ...prev, logoUrl: fallbackUrl }));
-        showToast.success('Logo uploaded.');
-        return;
-      }
-
-      throw new Error('Upload failed. Please use the URL field.');
-    } catch (error) {
-      try {
-        const localPreview = await readFileAsDataUrl(file);
-        setForm((prev) => ({ ...prev, logoUrl: localPreview }));
-        showToast.info('Using local image preview only.');
-      } catch {
-        const message = error instanceof Error ? error.message : 'Unable to upload logo.';
-        setErrorMessage(message);
-        showToast.error(message);
-      }
-    } finally {
-      setIsUploadingLogo(false);
-    }
-  };
 
   const handleSave = async () => {
     setErrorMessage('');
@@ -340,9 +280,16 @@ const AgentBusinessCardEditor: React.FC<AgentBusinessCardEditorProps> = ({ userP
         <p className="mt-1 text-sm text-slate-600">Used across listings, emails, flyers, and chat.</p>
       </div>
 
-      {!hasAnyIdentityValue && (
-        <div className="mb-5 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
-          Add your info once. We’ll reuse it everywhere.
+      {!tipDismissed && (
+        <div className="mb-5 flex items-start gap-3 rounded-2xl border border-primary-100 bg-primary-50 px-4 py-3.5">
+          <span className="material-symbols-outlined mt-0.5 flex-shrink-0 text-[18px] text-primary-500">auto_awesome</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-primary-900">Fill this out once — it works everywhere.</p>
+            <p className="mt-0.5 text-xs text-primary-700 leading-relaxed">Your name, photo, and brand color automatically show up on every listing, share page, open house QR, and AI chat. One profile, zero repetition.</p>
+          </div>
+          <button type="button" onClick={dismissTip} className="flex-shrink-0 rounded-lg p-1 text-primary-400 hover:text-primary-700 transition-colors">
+            <span className="material-symbols-outlined text-[18px]">close</span>
+          </button>
         </div>
       )}
 
@@ -383,53 +330,6 @@ const AgentBusinessCardEditor: React.FC<AgentBusinessCardEditorProps> = ({ userP
                   </button>
                 )}
               </div>
-            </div>
-          </div>
-
-          {/* Brokerage Logo */}
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <p className="text-sm font-semibold text-slate-800">Brokerage Logo</p>
-            <p className="mt-1 text-xs text-slate-500">Your brokerage or team logo — shown alongside your headshot on co-branded listings.</p>
-            <div className="mt-3 flex items-center gap-4">
-              <div className="h-16 w-24 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-white">
-                {form.logoUrl ? (
-                  <img src={form.logoUrl} alt="Logo preview" className="h-full w-full object-contain p-1" />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-slate-400">
-                    No logo
-                  </div>
-                )}
-              </div>
-              <div className="flex flex-col gap-2">
-                <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100">
-                  <span className="material-symbols-outlined text-[16px] text-slate-500">upload</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(event) => void handleLogoUpload(event.target.files?.[0] || null)}
-                  />
-                  {isUploadingLogo ? 'Uploading...' : 'Upload logo'}
-                </label>
-                {form.logoUrl && (
-                  <button
-                    type="button"
-                    onClick={() => setForm((prev) => ({ ...prev, logoUrl: '' }))}
-                    className="text-xs text-slate-400 hover:text-rose-500 transition-colors text-left"
-                  >
-                    Remove
-                  </button>
-                )}
-              </div>
-            </div>
-            <div className="mt-3">
-              <input
-                type="url"
-                value={form.logoUrl}
-                onChange={(e) => setForm((prev) => ({ ...prev, logoUrl: e.target.value }))}
-                className={textInputClassName}
-                placeholder="https://... (or upload above)"
-              />
             </div>
           </div>
 
@@ -576,7 +476,7 @@ const AgentBusinessCardEditor: React.FC<AgentBusinessCardEditorProps> = ({ userP
             <button
               type="button"
               onClick={() => void handleSave()}
-              disabled={isSaving || isUploading || isUploadingLogo}
+              disabled={isSaving || isUploading}
               className="inline-flex min-w-[150px] items-center justify-center rounded-xl bg-primary-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isSaving ? 'Saving...' : 'Save'}
@@ -584,23 +484,69 @@ const AgentBusinessCardEditor: React.FC<AgentBusinessCardEditorProps> = ({ userP
           </div>
 
           <div className="pt-2">
-            <p className="mb-3 text-sm font-semibold text-slate-700">Live preview</p>
-            <div className="flex justify-center lg:justify-start">
-              <AgentBusinessCard
-                fullName={form.fullName}
-                company={form.company}
-                title={form.title}
-                phone={form.phone}
-                email={form.email}
-                headshotUrl={form.headshotUrl || null}
-                themeColor={normalizeThemeColor(form.themeColor)}
-                onChat={() => setChatPreviewOpen(true)}
-                onContact={() => setContactPreviewOpen(true)}
-                showMoreInfo={false}
-              />
-            </div>
+            <p className="mb-3 text-sm font-semibold text-slate-700">Live preview — how buyers see you on your listing</p>
+            {(() => {
+              const color = normalizeThemeColor(form.themeColor);
+              const hex = color.replace('#', '');
+              const r = parseInt(hex.slice(0, 2), 16);
+              const g = parseInt(hex.slice(2, 4), 16);
+              const b = parseInt(hex.slice(4, 6), 16);
+              const darken = (amt: number) => {
+                const c = (ch: number) => Math.max(0, Math.min(255, ch + amt)).toString(16).padStart(2, '0');
+                return `#${c(r + amt)}${c(g + amt)}${c(b + amt)}`;
+              };
+              const gradStart = darken(-30);
+              const initial = (form.fullName || 'A')[0]?.toUpperCase() || 'A';
+              return (
+                <div
+                  className="overflow-hidden rounded-[20px] p-[18px] text-white shadow-[0_8px_24px_rgba(15,23,42,0.25)]"
+                  style={{ background: `linear-gradient(135deg, ${gradStart}, ${color})` }}
+                >
+                  <div className="flex items-center gap-3.5">
+                    {form.headshotUrl ? (
+                      <img src={form.headshotUrl} alt={form.fullName || 'Agent'} className="h-[58px] w-[58px] flex-shrink-0 rounded-full border-2 border-white/40 object-cover" />
+                    ) : (
+                      <div className="flex h-[58px] w-[58px] flex-shrink-0 items-center justify-center rounded-full border-2 border-white/40 bg-white/20 text-2xl font-black">
+                        {initial}
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-xl font-black leading-none">{form.fullName || 'Your Name'}</p>
+                        <span className="rounded-full bg-white/25 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide">{form.title || 'Listing Agent'}</span>
+                      </div>
+                      <p className="mt-1 text-xs opacity-80">{form.company || 'Your Brokerage'}{form.website ? ` · ${form.website.replace(/^https?:\/\//, '')}` : ''}</p>
+                    </div>
+                  </div>
+                  <div className="mt-4 flex gap-2">
+                    <div className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-white py-2.5 text-[13px] font-extrabold" style={{ color: gradStart }}>📞 Call</div>
+                    <div className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/30 bg-white/15 py-2.5 text-[13px] font-extrabold text-white">✉️ Message</div>
+                    <div className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/30 bg-white/15 py-2.5 text-[13px] font-extrabold text-white">📅 Tour</div>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
+
+        {fromOnboarding && (
+          <div className="mt-5 flex items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3.5">
+            <div className="flex items-center gap-3 min-w-0">
+              <span className="material-symbols-outlined flex-shrink-0 text-[20px] text-emerald-600">rocket_launch</span>
+              <div>
+                <p className="text-sm font-semibold text-emerald-900">Profile saved — ready to build your listing</p>
+                <p className="text-xs text-emerald-700">Your info is set. Continue to create your first AI listing.</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => navigate('/dashboard/onboarding?step=2')}
+              className="flex-shrink-0 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700 transition-colors"
+            >
+              Continue →
+            </button>
+          </div>
+        )}
 
       </div>
 
