@@ -10,6 +10,8 @@ import { PublicHeader } from './layout/PublicHeader';
 import { PublicFooter } from './layout/PublicFooter';
 import { ConversionWedge } from './ConversionWedge';
 import { HeroMotionBg } from './HeroMotionBg';
+import { Tilt3D } from './Tilt3D';
+const Hero3D = React.lazy(() => import('./Hero3D'));
 import { Reveal } from './Reveal';
 import { PlacementSection } from './PlacementSection';
 import { PricingSectionNew } from './PricingSectionNew';
@@ -748,8 +750,10 @@ const Hero: React.FC<{ onNavigateToSignUp: () => void, onEnterDemoMode: () => vo
             <div className="absolute top-40 -left-40 w-96 h-96 bg-cyan-600 rounded-full mix-blend-screen filter blur-[120px] opacity-20 animate-[pulse_4s_ease-in-out_infinite]"></div>
         </div>
 
-        {/* Motion tech background — particle network, scan beams, floating orbs */}
-        <HeroMotionBg />
+        {/* Interactive 3D scene — wireframe house + particle depth field (Three.js, lazy chunk) */}
+        <React.Suspense fallback={<HeroMotionBg />}>
+            <Hero3D />
+        </React.Suspense>
 
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="grid lg:grid-cols-2 gap-16 items-center">
@@ -796,7 +800,8 @@ const Hero: React.FC<{ onNavigateToSignUp: () => void, onEnterDemoMode: () => vo
                 </div>
 
                 <div className="relative animate-fade-in-up" style={{ animationDelay: "600ms" }}>
-                    {/* Modern Dashboard Mockup */}
+                    {/* Modern Dashboard Mockup — 3D tilt toward cursor */}
+                    <Tilt3D>
                     <div className="relative w-full rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl shadow-cyan-900/20 overflow-hidden group hover:border-slate-700 transition-colors duration-500">
                         {/* Mockup Header */}
                         <div className="bg-slate-950/80 backdrop-blur-md border-b border-slate-800 px-4 py-3 flex items-center justify-between">
@@ -903,6 +908,7 @@ const Hero: React.FC<{ onNavigateToSignUp: () => void, onEnterDemoMode: () => vo
                             </div>
                         </div>
                     </div>
+                    </Tilt3D>
                 </div>
             </div>
         </div>
