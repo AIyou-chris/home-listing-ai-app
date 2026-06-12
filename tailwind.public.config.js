@@ -1,32 +1,15 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
+  // public.css is the ONLY stylesheet the app loads (main.tsx -> PublicApp -> public.css;
+  // src/index.css is not imported anywhere). The dashboard lazy-loads through PublicApp,
+  // so the content scan must cover the entire src tree or dashboard-only classes
+  // (especially arbitrary values like z-[200]) silently fail to generate.
   content: [
     './index.html',
-    './src/PublicApp.tsx',
-    './src/pages/**/*.{js,ts,jsx,tsx}',
-    './src/components/LandingPage.tsx',
-    './src/components/NewLandingPage.tsx',
-    './src/components/ComparePlansModal.tsx',
-    './src/components/ChatBotFAB.tsx',
-    './src/components/HelpSalesChatBot.tsx',
-    './src/components/PublicPropertyApp.tsx',
-    './src/components/ConsultationModal.tsx',
-    './src/components/LoadingSpinner.tsx',
-    './src/components/Modal.tsx',
-    './src/components/SEO.tsx',
-    './src/components/StripeLogo.tsx',
-    './src/components/ConversionWedge.tsx',
-    './src/components/PlacementSection.tsx',
-    './src/components/PricingSectionNew.tsx',
-    './src/components/FaqSectionNew.tsx',
-    './src/components/ProofSectionNew.tsx',
-    './src/components/StatStripNew.tsx',
-    './src/components/FinalCtaNew.tsx',
-    './src/components/Logo.tsx',
-    './src/components/LogoWithName.tsx',
-    './src/components/FadeIn.tsx',
-    './src/components/public/**/*.{js,ts,jsx,tsx}',
-    './src/components/layout/**/*.{js,ts,jsx,tsx}'
+    './src/**/*.{js,ts,jsx,tsx}'
+  ],
+  safelist: [
+    'xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]'
   ],
   theme: {
     extend: {
