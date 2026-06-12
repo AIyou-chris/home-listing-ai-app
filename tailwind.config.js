@@ -1,16 +1,20 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
+  // public.css is the ONLY stylesheet the app loads (main.tsx -> PublicApp -> public.css;
+  // src/index.css is not imported anywhere). The dashboard lazy-loads through PublicApp,
+  // so the content scan must cover the entire src tree or dashboard-only classes
+  // (especially arbitrary values like z-[200]) silently fail to generate.
   content: [
-    "./index.html",
-    "./src/**/*.{js,ts,jsx,tsx}",
+    './index.html',
+    './src/**/*.{js,ts,jsx,tsx}'
   ],
   safelist: [
-    'xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]',
+    'xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]'
   ],
   theme: {
     extend: {
       fontFamily: {
-        sans: ['Inter', 'sans-serif'],
+        sans: ['Inter', 'sans-serif']
       },
       colors: {
         slate: {
@@ -24,31 +28,31 @@ module.exports = {
           700: '#334155',
           800: '#1e293b',
           900: '#0f172a',
-          950: '#020617',
+          950: '#020617'
         },
         primary: {
-          '50': '#eff6ff',
-          '100': '#dbeafe',
-          '200': '#bfdbfe',
-          '300': '#93c5fd',
-          '400': '#60a5fa',
-          '500': '#3b82f6',
-          '600': '#2563eb',
-          '700': '#1d4ed8',
-          '800': '#1e40af',
-          '900': '#1e3a8a',
-          '950': '#172554',
+          50: '#eff6ff',
+          100: '#dbeafe',
+          200: '#bfdbfe',
+          300: '#93c5fd',
+          400: '#60a5fa',
+          500: '#3b82f6',
+          600: '#2563eb',
+          700: '#1d4ed8',
+          800: '#1e40af',
+          900: '#1e3a8a',
+          950: '#172554'
         },
         purple: {
-          '600': '#9333ea',
+          600: '#9333ea'
         },
         green: {
-           '400': '#4ade80',
-           '500': '#22c55e',
-           '600': '#16a34a',
-        },
-      },
+          400: '#4ade80',
+          500: '#22c55e',
+          600: '#16a34a'
+        }
+      }
     }
   },
-  plugins: [],
-}
+  plugins: []
+};
