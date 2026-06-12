@@ -79,7 +79,7 @@ const ListingsCommandPage: React.FC = () => {
     supabase.auth.getUser().then(async ({ data }) => {
       if (!data.user?.id) return;
       try {
-        const res = await fetch(buildApiUrl('/api/onboarding'), {
+        const res = await fetch(buildApiUrl('/api/dashboard/onboarding'), {
           headers: { 'x-user-id': data.user.id }
         });
         const json = await res.json();
@@ -93,7 +93,6 @@ const ListingsCommandPage: React.FC = () => {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [creatingDraft, setCreatingDraft] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
   const [markingSoldId, setMarkingSoldId] = useState<string | null>(null)
   const [soldPriceInput, setSoldPriceInput] = useState<string>('')
   const [soldPromptId, setSoldPromptId] = useState<string | null>(null)
@@ -272,7 +271,7 @@ const ListingsCommandPage: React.FC = () => {
   }
 
   const handleDeleteListing = async (listingId: string) => {
-    setDeleteConfirmId(null)
+    if (!window.confirm('Delete this listing? This cannot be undone.')) return
     setDeletingId(listingId)
     try {
       await listingsService.deleteProperty(listingId)
@@ -499,34 +498,14 @@ const ListingsCommandPage: React.FC = () => {
                         {markingSoldId === row.id ? 'Updating…' : '🎉 Mark Sold'}
                       </button>
                     )}
-                    {deleteConfirmId === row.id ? (
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => void handleDeleteListing(row.id)}
-                          disabled={deletingId === row.id}
-                          className="rounded-md bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 disabled:opacity-50"
-                        >
-                          {deletingId === row.id ? 'Deleting…' : 'Confirm'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setDeleteConfirmId(null)}
-                          className="rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-50"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => setDeleteConfirmId(row.id)}
-                        disabled={deletingId === row.id}
-                        className="rounded-md border border-rose-200 bg-white px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        Delete
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => void handleDeleteListing(row.id)}
+                      disabled={deletingId === row.id}
+                      className="rounded-md border border-rose-200 bg-white px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {deletingId === row.id ? 'Deleting…' : 'Delete'}
+                    </button>
                   </div>
 
                   {/* Sold price prompt inline */}

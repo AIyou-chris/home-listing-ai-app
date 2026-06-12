@@ -125,60 +125,122 @@ export const ConversionWedge: React.FC<ConversionWedgeProps> = ({ onNavigateToSi
                     </div>
                 </div>
 
-                {/* 1.5) Not BS Leads Strip + 3-Step Setup */}
-                <div className="max-w-4xl mx-auto mb-16 lg:mb-20">
-                    {/* Bold claim */}
-                    <div className="text-center mb-10">
-                        <p className="inline-block text-sm font-bold uppercase tracking-widest text-slate-500 mb-3">How it works</p>
-                        <h3 className="text-2xl md:text-3xl font-bold text-white mb-3">
-                            Not cold calls. Not purchased lists. Not BS.
+                {/* HOW IT WORKS — LO-built, LO-proven */}
+                <div className="max-w-5xl mx-auto mb-16 lg:mb-20">
+
+                    {/* Section Label */}
+                    <div className="text-center mb-12">
+                        <p className="inline-block text-xs font-bold uppercase tracking-widest text-cyan-500/70 mb-4 px-4 py-1.5 rounded-full border border-cyan-500/20 bg-cyan-500/5">Built by an LO. For LOs.</p>
+                        <h3 className="text-3xl md:text-4xl font-extrabold text-white mb-4 tracking-tight">
+                            Three steps. Real partnerships.<br className="hidden md:block" />
+                            <span className="text-cyan-400">Warm leads that actually close.</span>
                         </h3>
-                        <p className="text-slate-400 leading-relaxed max-w-2xl mx-auto">
-                            These are real buyers who asked a question, requested a showing, or wanted the market report —
-                            then handed you their contact info. <span className="text-cyan-400 font-medium">That's a warm lead.</span>
+                        <p className="text-slate-400 text-lg leading-relaxed max-w-2xl mx-auto">
+                            No cold calls. No purchased lists. No chasing ghosts. Every lead this tool delivers
+                            is a buyer who raised their hand — and your name is already on the listing they came from.
                         </p>
                     </div>
 
-                    {/* 3-Step Timeline */}
-                    <div className="relative flex flex-col md:flex-row items-stretch gap-0">
+                    {/* 3-Step Cards */}
+                    <div className="relative grid md:grid-cols-3 gap-6">
                         {/* Connecting line (desktop) */}
-                        <div className="hidden md:block absolute top-8 left-[calc(16.66%+1px)] right-[calc(16.66%+1px)] h-px bg-gradient-to-r from-cyan-500/40 via-cyan-400/60 to-cyan-500/40 z-0"></div>
+                        <div className="hidden md:block absolute top-10 left-[calc(33.33%-1px)] right-[calc(33.33%-1px)] h-px bg-gradient-to-r from-cyan-500/50 via-cyan-400/80 to-cyan-500/50 z-0"></div>
 
                         {/* Step 1 */}
-                        <div className="flex-1 flex flex-col items-center text-center px-4 relative z-10">
-                            <div className="w-16 h-16 rounded-full bg-cyan-950 border-2 border-cyan-500 flex items-center justify-center mb-4 shadow-[0_0_20px_rgba(6,182,212,0.25)]">
-                                <span className="text-cyan-400 font-extrabold text-xl">1</span>
+                        <div className="relative z-10 bg-[#0B1121] border border-slate-800 hover:border-cyan-500/40 rounded-2xl p-7 transition-colors group">
+                            <div className="flex items-center gap-4 mb-5">
+                                <div className="w-14 h-14 rounded-full bg-cyan-950 border-2 border-cyan-500 flex items-center justify-center shrink-0 shadow-[0_0_24px_rgba(6,182,212,0.3)] group-hover:shadow-[0_0_32px_rgba(6,182,212,0.5)] transition-shadow">
+                                    <span className="text-cyan-400 font-extrabold text-xl">1</span>
+                                </div>
+                                <div>
+                                    <p className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-0.5">30 seconds</p>
+                                    <h4 className="text-white font-bold text-xl leading-tight">Name + email.<br/>That's it.</h4>
+                                </div>
                             </div>
-                            <h4 className="text-white font-bold text-lg mb-2">Get a partner's name + email</h4>
-                            <p className="text-slate-400 text-sm leading-relaxed">One agent. One listing. That's all you need to start.</p>
-                        </div>
-
-                        {/* Arrow (mobile) */}
-                        <div className="flex md:hidden justify-center py-2 text-cyan-500/50">
-                            <span className="material-symbols-outlined">arrow_downward</span>
+                            <p className="text-slate-400 text-sm leading-relaxed mb-4">
+                                Type in the agent's name and email address. The platform handles everything else — branding, the listing page, the full marketing kit. You don't touch a thing.
+                            </p>
+                            <div className="flex flex-col gap-2">
+                                <div className="flex items-center gap-2 text-sm text-slate-300">
+                                    <span className="material-symbols-outlined text-cyan-500 text-[16px]">check_circle</span>
+                                    Your NMLS# and headshot auto-applied
+                                </div>
+                                <div className="flex items-center gap-2 text-sm text-slate-300">
+                                    <span className="material-symbols-outlined text-cyan-500 text-[16px]">check_circle</span>
+                                    Co-branded instantly — no design work
+                                </div>
+                            </div>
                         </div>
 
                         {/* Step 2 */}
-                        <div className="flex-1 flex flex-col items-center text-center px-4 relative z-10">
-                            <div className="w-16 h-16 rounded-full bg-cyan-950 border-2 border-cyan-500 flex items-center justify-center mb-4 shadow-[0_0_20px_rgba(6,182,212,0.25)]">
-                                <span className="text-cyan-400 font-extrabold text-xl">2</span>
+                        <div className="relative z-10 bg-[#0B1121] border border-cyan-500/30 rounded-2xl p-7 shadow-[0_0_30px_rgba(6,182,212,0.08)] group hover:border-cyan-500/60 transition-colors">
+                            {/* "Most powerful step" badge */}
+                            <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-cyan-500 text-slate-950 text-[10px] font-extrabold uppercase tracking-widest rounded-full whitespace-nowrap shadow-[0_0_12px_rgba(6,182,212,0.6)]">
+                                The WOW moment
                             </div>
-                            <h4 className="text-white font-bold text-lg mb-2">Send them the link</h4>
-                            <p className="text-slate-400 text-sm leading-relaxed">Their listing goes live with a full AI page, QR, and marketing kit. Done.</p>
-                        </div>
-
-                        {/* Arrow (mobile) */}
-                        <div className="flex md:hidden justify-center py-2 text-cyan-500/50">
-                            <span className="material-symbols-outlined">arrow_downward</span>
+                            <div className="flex items-center gap-4 mb-5 mt-2">
+                                <div className="w-14 h-14 rounded-full bg-cyan-500 border-2 border-cyan-400 flex items-center justify-center shrink-0 shadow-[0_0_24px_rgba(6,182,212,0.5)]">
+                                    <span className="text-slate-950 font-extrabold text-xl">2</span>
+                                </div>
+                                <div>
+                                    <p className="text-xs font-bold uppercase tracking-widest text-cyan-500/70 mb-0.5">One tap</p>
+                                    <h4 className="text-white font-bold text-xl leading-tight">Send the<br/>WOW Link.</h4>
+                                </div>
+                            </div>
+                            <p className="text-slate-300 text-sm leading-relaxed mb-4">
+                                The agent opens it and their jaw drops — a live AI listing page with <em>their</em> property, <em>their</em> branding, and <em>your</em> mortgage chatbot answering buyer questions 24/7. They didn't know this existed. Now they can't live without it.
+                            </p>
+                            <div className="flex flex-col gap-2">
+                                <div className="flex items-center gap-2 text-sm text-slate-300">
+                                    <span className="material-symbols-outlined text-cyan-400 text-[16px]">check_circle</span>
+                                    Auto follow-up if they don't open it
+                                </div>
+                                <div className="flex items-center gap-2 text-sm text-slate-300">
+                                    <span className="material-symbols-outlined text-cyan-400 text-[16px]">check_circle</span>
+                                    You get a text the second they claim it
+                                </div>
+                            </div>
                         </div>
 
                         {/* Step 3 */}
-                        <div className="flex-1 flex flex-col items-center text-center px-4 relative z-10">
-                            <div className="w-16 h-16 rounded-full bg-cyan-950 border-2 border-cyan-500 flex items-center justify-center mb-4 shadow-[0_0_20px_rgba(6,182,212,0.25)]">
-                                <span className="text-cyan-400 font-extrabold text-xl">3</span>
+                        <div className="relative z-10 bg-[#0B1121] border border-slate-800 hover:border-cyan-500/40 rounded-2xl p-7 transition-colors group">
+                            <div className="flex items-center gap-4 mb-5">
+                                <div className="w-14 h-14 rounded-full bg-cyan-950 border-2 border-cyan-500 flex items-center justify-center shrink-0 shadow-[0_0_24px_rgba(6,182,212,0.3)] group-hover:shadow-[0_0_32px_rgba(6,182,212,0.5)] transition-shadow">
+                                    <span className="text-cyan-400 font-extrabold text-xl">3</span>
+                                </div>
+                                <div>
+                                    <p className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-0.5">Repeat</p>
+                                    <h4 className="text-white font-bold text-xl leading-tight">Warm leads.<br/>True partners.</h4>
+                                </div>
                             </div>
-                            <h4 className="text-white font-bold text-lg mb-2">Watch warm leads hit your inbox</h4>
-                            <p className="text-slate-400 text-sm leading-relaxed">Repeat with the next agent. That's how you build a pipeline.</p>
+                            <p className="text-slate-400 text-sm leading-relaxed mb-4">
+                                Every buyer who scans a QR, asks a question, or requests a showing routes to you — pre-qualified, with intent. Your follow-up call isn't cold anymore. They already know your name.
+                            </p>
+                            <div className="flex flex-col gap-2">
+                                <div className="flex items-center gap-2 text-sm text-slate-300">
+                                    <span className="material-symbols-outlined text-cyan-500 text-[16px]">check_circle</span>
+                                    Lead scored hot / warm / cold for you
+                                </div>
+                                <div className="flex items-center gap-2 text-sm text-slate-300">
+                                    <span className="material-symbols-outlined text-cyan-500 text-[16px]">check_circle</span>
+                                    Agent partnership locked in — repeat every listing
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Bottom conviction bar */}
+                    <div className="mt-10 p-6 rounded-2xl bg-slate-900/60 border border-slate-800 flex flex-col md:flex-row items-center justify-between gap-4">
+                        <p className="text-white font-bold text-lg text-center md:text-left">
+                            What more do you need?<br className="hidden md:block" />
+                            <span className="text-slate-400 font-normal text-base">Warm lead. Follow-up call. Real partner. That's the whole game.</span>
+                        </p>
+                        <div className="flex flex-wrap gap-3 shrink-0 justify-center">
+                            {['Follow-up call tool', 'True partnerships', 'Warm buyer leads'].map(chip => (
+                                <span key={chip} className="px-4 py-2 bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 text-xs font-bold uppercase tracking-wider rounded-full">
+                                    {chip}
+                                </span>
+                            ))}
                         </div>
                     </div>
 

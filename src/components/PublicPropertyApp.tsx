@@ -321,8 +321,9 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({
                                 </div>
                                 <p className="mt-1 text-xs opacity-80">
                                     {agent.company}
-                                    {websiteLabel ? ` · ${websiteLabel}` : ''}
                                 </p>
+                                {agent.nmlsNumber && <p className="mt-0.5 text-[11px] opacity-70">{agent.nmlsNumber}</p>}
+                                {websiteLabel && <p className="mt-0.5 text-[11px] opacity-60">{websiteLabel}</p>}
                                 {agent.title && <p className="mt-0.5 text-[11px] opacity-60">{agent.title}</p>}
                             </div>
                         </div>

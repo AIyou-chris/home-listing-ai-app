@@ -9038,7 +9038,7 @@ const mapPublicListingPayload = async (listingRow) => {
     try {
       const { data } = await supabaseAdmin
         .from('agents')
-        .select('id, auth_user_id, user_id, first_name, last_name, email, phone, headshot_url')
+        .select('id, auth_user_id, user_id, first_name, last_name, email, phone, headshot_url, nmls_number')
         .or(`id.eq.${agentId},auth_user_id.eq.${agentId},user_id.eq.${agentId}`)
         .maybeSingle();
       agentProfile = data || null;
@@ -9106,6 +9106,7 @@ const mapPublicListingPayload = async (listingRow) => {
         'HomeListingAI Agent',
       title: toTrimmedOrNull(aiCardProfile?.professionalTitle) || 'Listing Specialist',
       company: toTrimmedOrNull(aiCardProfile?.company) || 'HomeListingAI',
+      licenseNumber: toTrimmedOrNull(agentProfile?.nmls_number) || null,
       email: toTrimmedOrNull(aiCardProfile?.email) || agentProfile?.email || listingRow.contact_email || '',
       phone: toTrimmedOrNull(aiCardProfile?.phone) || agentProfile?.phone || listingRow.contact_phone || '',
       website: toTrimmedOrNull(aiCardProfile?.website) || '',
@@ -19054,6 +19055,7 @@ const buildPublicListingResponse = async (listingRow) => {
       name: payload?.agent?.name || 'HomeListingAI Agent',
       company: payload?.agent?.company || 'HomeListingAI',
       title: payload?.agent?.title || 'Listing Specialist',
+      license_number: payload?.agent?.licenseNumber || null,
       phone: payload?.agent?.phone || '',
       email: payload?.agent?.email || '',
       website: payload?.agent?.website || '',
@@ -19180,6 +19182,7 @@ app.get('/api/public/listings/:public_slug/bootstrap', async (req, res) => {
         full_name: agentCard.name || 'HomeListingAI Agent',
         company: agentCard.company || 'HomeListingAI',
         title: agentCard.title || 'Listing Specialist',
+        license_number: toTrimmedOrNull(agentCard.license_number) || null,
         headshot_url: agentCard.headshot_url || null,
         phone: toTrimmedOrNull(agentCard.phone) || null,
         email: toTrimmedOrNull(agentCard.email) || null,
@@ -20206,11 +20209,11 @@ app.patch('/api/dashboard/onboarding', async (req, res) => {
     });
     const requestedStep = Number(req.body?.onboarding_step);
     const nextStep = Number.isFinite(requestedStep)
-      ? Math.max(0, Math.min(5, requestedStep))
+      ? Math.max(0, Math.min(6, requestedStep))
       : Math.max(
         0,
         Math.min(
-          5,
+          6,
           Number(
             onboardingRow.hasOnboardingColumns
               ? onboardingRow.row.onboarding_step
@@ -26410,6 +26413,19 @@ app.get('/api/admin/analytics/google', verifyAdmin, async (req, res) => {
   }
 });
 
+// Fair Housing text scan — no auth required, rule-based only
+app.post('/api/fair-housing-scan', (req, res) => {
+  try {
+    const text = String(req.body?.text || '').trim();
+    if (!text) return res.status(400).json({ error: 'text required' });
+    const scan = buildFairHousingScan(text);
+    return res.json({ success: true, scan });
+  } catch (err) {
+    console.error('fair-housing-scan error:', err);
+    return res.status(500).json({ error: 'scan_failed' });
+  }
+});
+
 // AI Property Chat Endpoint
 app.post('/api/ai/property-chat', async (req, res) => {
   const { property, question, history } = req.body;
@@ -30671,11 +30687,8 @@ app.patch('/api/lo/profile', requireAuth, async (req, res) => {
     const { nmls_number, state_license_number, lending_states, company, full_name, phone, headshot_url } = req.body || {};
     const updatePayload = {};
     if (nmls_number !== undefined) {
-      const nmlsStr = toTrimmedOrNull(nmls_number);
-      if (nmlsStr !== null && !/^\d{7,10}$/.test(nmlsStr)) {
-        return res.status(400).json({ error: 'invalid_nmls_number', message: 'NMLS# must be 7–10 digits.' });
-      }
-      updatePayload.nmls_number = nmlsStr;
+      // License number — free-form text (e.g. "WA1234", "NMLS# 12345", "DRE 01234567")
+      updatePayload.nmls_number = toTrimmedOrNull(nmls_number);
     }
     if (state_license_number !== undefined) updatePayload.state_license_number = toTrimmedOrNull(state_license_number);
     if (lending_states !== undefined) updatePayload.lending_states = Array.isArray(lending_states) ? lending_states.filter(s => typeof s === 'string' && s.trim()) : [];
@@ -33032,6 +33045,25 @@ app.delete('/api/listings/:listingId', requireAuth, async (req, res) => {
       });
     }
 
+    // Cascade-delete all dependent records first to avoid FK constraint violations
+    const dependents = [
+      'listing_builder_sources',
+      'listing_lo_assignments',
+      'listing_branding_toggles',
+      'listing_dashboard_tokens',
+      'qr_codes',
+      'leads',
+      'pre_qual_submissions',
+      'agent_invites',
+      'ai_sidekick_profiles',
+    ];
+    for (const table of dependents) {
+      const { error: depErr } = await supabaseAdmin.from(table).delete().eq('listing_id', listingId);
+      if (depErr && depErr.code !== '42P01' && depErr.code !== 'PGRST205') {
+        console.warn(`⚠️ Could not clean up ${table} for listing ${listingId}:`, depErr.message);
+      }
+    }
+
     // Delete from database using service role to bypass RLS
     const { error } = await supabaseAdmin
       .from('properties')
@@ -33199,6 +33231,94 @@ app.get('/api/listings/:listingId/market-analysis', async (req, res) => {
     res.status(500).json({ error: 'Failed to generate market analysis' })
   }
 })
+
+// ── LO assignment for listing editor People tab ─────────────────────────────
+
+// GET — return the attached LO profile for this listing
+app.get('/api/listings/:listingId/lo-assignment', async (req, res) => {
+  try {
+    const { listingId } = req.params;
+    const { data: assignment } = await supabaseAdmin
+      .from('listing_lo_assignments')
+      .select('lo_agent_id')
+      .eq('listing_id', listingId)
+      .eq('branding_enabled', true)
+      .limit(1)
+      .maybeSingle();
+    if (!assignment?.lo_agent_id) return res.json({ success: true, lo: null });
+    const { data: lo } = await supabaseAdmin
+      .from('agents')
+      .select('id, first_name, last_name, headshot_url, company, nmls_number, email, phone, title')
+      .eq('id', assignment.lo_agent_id)
+      .maybeSingle();
+    if (!lo) return res.json({ success: true, lo: null });
+    return res.json({
+      success: true,
+      lo: {
+        id: lo.id,
+        name: [lo.first_name, lo.last_name].filter(Boolean).join(' ') || lo.email || 'LO',
+        headshot_url: lo.headshot_url || null,
+        company: lo.company || null,
+        nmls_number: lo.nmls_number || null,
+        email: lo.email || null,
+        phone: lo.phone || null,
+        title: lo.title || null,
+      }
+    });
+  } catch (err) {
+    console.error('GET lo-assignment error:', err);
+    return res.status(500).json({ error: 'Failed to load LO assignment' });
+  }
+});
+
+// POST — attach an LO to this listing
+app.post('/api/listings/:listingId/lo-assignment', async (req, res) => {
+  try {
+    const { listingId } = req.params;
+    const { lo_id } = req.body;
+    if (!lo_id) return res.status(400).json({ error: 'lo_id required' });
+    await supabaseAdmin.from('listing_lo_assignments').upsert(
+      { listing_id: listingId, lo_agent_id: lo_id, branding_enabled: true, assigned_at: new Date().toISOString() },
+      { onConflict: 'listing_id,lo_agent_id' }
+    );
+    const { data: lo } = await supabaseAdmin
+      .from('agents')
+      .select('id, first_name, last_name, headshot_url, company, nmls_number, email, phone, title')
+      .eq('id', lo_id)
+      .maybeSingle();
+    return res.json({
+      success: true,
+      lo: lo ? {
+        id: lo.id,
+        name: [lo.first_name, lo.last_name].filter(Boolean).join(' ') || lo.email || 'LO',
+        headshot_url: lo.headshot_url || null,
+        company: lo.company || null,
+        nmls_number: lo.nmls_number || null,
+        email: lo.email || null,
+        phone: lo.phone || null,
+        title: lo.title || null,
+      } : null
+    });
+  } catch (err) {
+    console.error('POST lo-assignment error:', err);
+    return res.status(500).json({ error: 'Failed to attach LO' });
+  }
+});
+
+// DELETE — detach the LO from this listing
+app.delete('/api/listings/:listingId/lo-assignment', async (req, res) => {
+  try {
+    const { listingId } = req.params;
+    const { lo_id } = req.body;
+    const query = supabaseAdmin.from('listing_lo_assignments').delete().eq('listing_id', listingId);
+    if (lo_id) query.eq('lo_agent_id', lo_id);
+    await query;
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('DELETE lo-assignment error:', err);
+    return res.status(500).json({ error: 'Failed to detach LO' });
+  }
+});
 
 // Get listing marketing data
 app.get('/api/listings/:listingId/marketing', (req, res) => {
@@ -34126,11 +34246,33 @@ app.get('/api/agent/profile', requireAuth, async (req, res) => {
   try {
     const { data: agent, error } = await supabaseAdmin
       .from('agents')
-      .select('first_name, last_name, email, phone, headshot_url, brand_logo_url, company, nmls_number, state_license_number, title, lending_states')
+      .select('id, auth_user_id, first_name, last_name, email, phone, headshot_url, brand_logo_url, company, nmls_number, state_license_number, title, lending_states')
       .eq('auth_user_id', req.authUserId)
       .maybeSingle();
     if (error) throw error;
-    res.json({ profile: agent || {} });
+
+    const profile = agent || {};
+
+    // Merge in ai_card_profiles data field-by-field — agent accounts set most of
+    // their profile via the AI Business Card editor (Settings), which saves to
+    // ai_card_profiles, not the agents table. Agents-table values win when present.
+    try {
+      const aiCard = await fetchAiCardProfileForUser(req.authUserId);
+      if (aiCard) {
+        if (!profile.first_name && !profile.last_name && aiCard.fullName) {
+          const parts = aiCard.fullName.trim().split(/\s+/);
+          profile.first_name = parts[0] || '';
+          profile.last_name = parts.slice(1).join(' ') || '';
+        }
+        if (!profile.email && aiCard.email) profile.email = aiCard.email;
+        if (!profile.phone && aiCard.phone) profile.phone = aiCard.phone;
+        if (!profile.company && aiCard.company) profile.company = aiCard.company;
+        if (!profile.title && aiCard.professionalTitle) profile.title = aiCard.professionalTitle;
+        if (!profile.headshot_url && aiCard.headshot) profile.headshot_url = aiCard.headshot;
+      }
+    } catch (_) { /* silently skip — agents table data is still returned */ }
+
+    res.json({ profile });
   } catch (err) {
     console.error('[Agent Profile] GET failed:', err);
     res.status(500).json({ error: 'failed_to_load_profile' });

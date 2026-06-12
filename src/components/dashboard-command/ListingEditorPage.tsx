@@ -1655,7 +1655,7 @@ const ListingEditorPage: React.FC = () => {
                           {[agentProfile.first_name, agentProfile.last_name].filter(Boolean).join(' ') || 'Your Name'}
                         </p>
                         {agentProfile.company && <p className="text-xs text-slate-500">{agentProfile.company}</p>}
-                        {agentProfile.nmls_number && <p className="text-[11px] text-slate-400">NMLS #{agentProfile.nmls_number}</p>}
+                        {agentProfile.nmls_number && <p className="text-[11px] text-slate-400">{agentProfile.nmls_number}</p>}
                         <div className="mt-1 flex flex-wrap gap-3 text-[11px] text-slate-500">
                           {agentProfile.phone && <span>📞 {agentProfile.phone}</span>}
                           {agentProfile.email && <span>✉️ {agentProfile.email}</span>}
@@ -1664,7 +1664,7 @@ const ListingEditorPage: React.FC = () => {
                     </div>
                     {(!agentProfile.headshot_url || !agentProfile.nmls_number || !agentProfile.company) && (
                       <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                        ⚠️ Profile incomplete — add your {[!agentProfile.headshot_url && 'headshot', !agentProfile.nmls_number && 'NMLS #', !agentProfile.company && 'company'].filter(Boolean).join(', ')} so buyers see your full info.{' '}
+                        ⚠️ Profile incomplete — add your {[!agentProfile.headshot_url && 'headshot', !agentProfile.nmls_number && 'license number', !agentProfile.company && 'company'].filter(Boolean).join(', ')} so buyers see your full info.{' '}
                         <a href="/dashboard/lo-chatbot" className="font-semibold underline">Update now →</a>
                       </div>
                     )}
@@ -1808,7 +1808,7 @@ const ListingEditorPage: React.FC = () => {
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-semibold text-slate-800">{attachedLo.name}</p>
                         {attachedLo.company && <p className="truncate text-xs text-slate-500">{attachedLo.company}</p>}
-                        {attachedLo.nmls_number && <p className="text-[10px] text-slate-400">NMLS #{attachedLo.nmls_number}</p>}
+                        {attachedLo.nmls_number && <p className="text-[10px] text-slate-400">{attachedLo.nmls_number}</p>}
                       </div>
                       <button
                         type="button"

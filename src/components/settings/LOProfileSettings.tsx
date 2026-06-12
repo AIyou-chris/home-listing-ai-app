@@ -303,7 +303,7 @@ const LOProfileSettings: React.FC = () => {
           <p className="text-sm text-slate-500">{profile.title || 'Loan Officer'}</p>
           <p className="text-sm text-slate-500">{profile.company || 'Your Company'}</p>
           {profile.nmls_number && (
-            <p className="text-xs text-slate-400">NMLS #{profile.nmls_number}</p>
+            <p className="text-xs text-slate-400">{profile.nmls_number}</p>
           )}
         </div>
       </div>
@@ -390,12 +390,11 @@ const LOProfileSettings: React.FC = () => {
       {/* NMLS + State License + Phone */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div>
-          <label className={label}>NMLS # <span className="normal-case font-normal text-slate-400">(federal)</span></label>
+          <label className={label}>License Number</label>
           <input
             value={profile.nmls_number}
             onChange={up('nmls_number')}
-            placeholder="12345678"
-            inputMode="numeric"
+            placeholder="e.g. WA1234 or NMLS# 12345"
             className={fieldCls}
           />
         </div>

@@ -22,36 +22,37 @@ export const FinalCtaNew: React.FC<FinalCtaProps> = ({ onNavigateToSignUp, onEnt
                         READY TO TURN LISTINGS INTO LEADS?
                     </p>
                     <h2 className="text-4xl md:text-5xl font-bold text-white tracking-tight mb-6">
-                        Launch your first AI Listing in minutes.
+                        Stop losing leads after hours.
                     </h2>
                     <p className="text-lg md:text-xl text-slate-300 font-light leading-relaxed max-w-2xl mx-auto mb-10">
-                        Share one link or QR. Capture leads automatically. Get instant email alerts today.<br className="hidden md:block" />
-                        Starter includes 50 outbound SMS. Pro includes 250. No credit card required to start.
+                        One WOW Link. One agent partner. Warm buyers routed straight to you — every listing, every time.<br className="hidden md:block" />
+                        No credit card required. Live in under 3 minutes.
                     </p>
                 </FadeIn>
 
                 <FadeIn delay={200} className="flex flex-col items-center">
-                    <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto mb-8">
+                    <div className="flex flex-col items-center gap-4 w-full mb-8">
+                        {/* Primary — one action, full weight */}
                         <button
                             onClick={onNavigateToSignUp}
-                            className="w-full sm:w-auto px-10 py-4 bg-white text-slate-950 hover:bg-slate-200 hover:shadow-[0_0_20px_rgba(255,255,255,0.3)] font-bold rounded-lg transition-all text-lg flex items-center justify-center gap-2"
+                            className="w-full sm:w-auto px-14 py-5 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-extrabold rounded-xl transition-all text-xl shadow-[0_0_30px_rgba(6,182,212,0.4)] hover:shadow-[0_0_45px_rgba(6,182,212,0.6)] hover:scale-[1.02] flex items-center justify-center gap-2"
                         >
-                            Create Free Account
+                            Claim Your Free Account
+                            <span className="material-symbols-outlined text-xl">arrow_forward</span>
                         </button>
-                        <div className="flex gap-2 w-full sm:w-auto">
+                        {/* Secondary demos — equal weight, clearly subordinate */}
+                        <div className="flex gap-3 w-full sm:w-auto">
                             <button
                                 onClick={onEnterDemoMode}
-                                className="flex-1 sm:flex-none px-5 py-4 bg-transparent border border-cyan-500/50 hover:bg-cyan-500/10 hover:shadow-[0_0_15px_rgba(6,182,212,0.2)] text-cyan-400 font-semibold rounded-lg transition-all text-sm flex flex-col items-center justify-center gap-0.5"
+                                className="flex-1 sm:flex-none px-6 py-3 bg-transparent border border-slate-700 hover:border-cyan-500/50 hover:bg-cyan-500/5 text-slate-400 hover:text-cyan-400 font-semibold rounded-lg transition-all text-sm"
                             >
-                                <span>Agent Demo</span>
-                                <span className="text-[10px] text-cyan-600 font-normal">Dashboard view</span>
+                                Agent Demo
                             </button>
                             <button
                                 onClick={() => navigate('/lo-demo')}
-                                className="flex-1 sm:flex-none px-5 py-4 bg-transparent border border-cyan-500/50 hover:bg-cyan-500/10 hover:shadow-[0_0_15px_rgba(6,182,212,0.2)] text-cyan-400 font-semibold rounded-lg transition-all text-sm flex flex-col items-center justify-center gap-0.5"
+                                className="flex-1 sm:flex-none px-6 py-3 bg-transparent border border-slate-700 hover:border-cyan-500/50 hover:bg-cyan-500/5 text-slate-400 hover:text-cyan-400 font-semibold rounded-lg transition-all text-sm"
                             >
-                                <span>LO Demo</span>
-                                <span className="text-[10px] text-cyan-600 font-normal">Loan officer view</span>
+                                LO Demo
                             </button>
                         </div>
                     </div>

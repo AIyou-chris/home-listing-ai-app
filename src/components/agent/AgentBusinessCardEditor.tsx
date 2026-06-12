@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import type { AgentProfile } from '../../types';
 import { supabase } from '../../services/supabase';
-import { uploadAiCardAsset } from '../../services/aiCardService';
+import { uploadAiCardAsset, getAICardProfile } from '../../services/aiCardService';
 import { updateAgentProfile as updateCentralAgentProfile } from '../../services/agentProfileService';
 import { showToast } from '../../utils/toastService';
 import { buildApiUrl } from '../../lib/api';
@@ -124,9 +124,45 @@ const AgentBusinessCardEditor: React.FC<AgentBusinessCardEditorProps> = ({ userP
     message: `Hi ${userProfile.name || 'there'}, I'd like more information about this property.`
   });
 
+  // Load fresh profile data from ai_card_profiles on mount — the prop comes from
+  // listing data which doesn't carry website/nmlsNumber.
   useEffect(() => {
-    setForm(mapProfileToForm(userProfile));
-  }, [userProfile]);
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const fresh = await getAICardProfile();
+        if (cancelled || !fresh) return;
+        // Also grab nmls_number from agents table via /api/agent/profile
+        let nmlsNumber = userProfile.nmlsNumber || '';
+        try {
+          const { data: authData } = await supabase.auth.getSession();
+          const uid = authData?.session?.user?.id;
+          if (uid) {
+            const res = await fetch(buildApiUrl('/api/agent/profile'), { headers: { 'x-user-id': uid } });
+            if (res.ok) {
+              const j = await res.json();
+              nmlsNumber = j.profile?.nmls_number || nmlsNumber;
+            }
+          }
+        } catch { /* ignore */ }
+        setForm({
+          fullName: fresh.fullName || userProfile.name || '',
+          company: fresh.company || userProfile.company || '',
+          title: fresh.professionalTitle || userProfile.title || '',
+          phone: fresh.phone || userProfile.phone || '',
+          email: fresh.email || userProfile.email || '',
+          website: fresh.website || userProfile.website || '',
+          headshotUrl: fresh.headshot || userProfile.headshotUrl || '',
+          logoUrl: fresh.logo || userProfile.logoUrl || '',
+          themeColor: fresh.brandColor || userProfile.brandColor || '#28a7e8',
+          nmlsNumber,
+        });
+      } catch { /* silently fall back to prop */ }
+    };
+    void load();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
 
   const handleFieldChange =
@@ -210,16 +246,20 @@ const AgentBusinessCardEditor: React.FC<AgentBusinessCardEditorProps> = ({ userP
         brandColor: normalizeThemeColor(form.themeColor)
       };
 
-      // Save NMLS number to agents table via LO profile endpoint (no-ops for non-LO accounts)
+      // Save license number to agents table via LO profile endpoint
       if (form.nmlsNumber.trim() !== (userProfile.nmlsNumber || '')) {
         const { data: authData } = await supabase.auth.getSession();
         const token = authData?.session?.access_token;
         if (token) {
-          await fetch(buildApiUrl('/api/lo/profile'), {
+          const licenseRes = await fetch(buildApiUrl('/api/lo/profile'), {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify({ nmls_number: form.nmlsNumber.trim() || null })
           });
+          if (!licenseRes.ok) {
+            const errBody = await licenseRes.json().catch(() => ({}));
+            throw new Error(errBody.message || 'Could not save license number.');
+          }
         }
       }
 
@@ -377,7 +417,7 @@ const AgentBusinessCardEditor: React.FC<AgentBusinessCardEditorProps> = ({ userP
             </div>
             <div>
               <label htmlFor="business-card-nmls" className="mb-1.5 block text-sm font-medium text-slate-700">
-                NMLS # <span className="text-slate-400 font-normal">(Loan Officers)</span>
+                License Number
               </label>
               <input
                 id="business-card-nmls"
@@ -385,8 +425,7 @@ const AgentBusinessCardEditor: React.FC<AgentBusinessCardEditorProps> = ({ userP
                 value={form.nmlsNumber}
                 onChange={handleFieldChange('nmlsNumber')}
                 className={textInputClassName}
-                placeholder="1234567"
-                maxLength={20}
+                placeholder="e.g. WA1234 or NMLS# 12345"
               />
             </div>
           </div>
@@ -515,7 +554,9 @@ const AgentBusinessCardEditor: React.FC<AgentBusinessCardEditorProps> = ({ userP
                         <p className="text-xl font-black leading-none">{form.fullName || 'Your Name'}</p>
                         <span className="rounded-full bg-white/25 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide">{form.title || 'Listing Agent'}</span>
                       </div>
-                      <p className="mt-1 text-xs opacity-80">{form.company || 'Your Brokerage'}{form.website ? ` · ${form.website.replace(/^https?:\/\//, '')}` : ''}</p>
+                      <p className="mt-1 text-xs opacity-80">{form.company || 'Your Brokerage'}</p>
+                      {form.nmlsNumber && <p className="mt-0.5 text-[11px] opacity-70">{form.nmlsNumber}</p>}
+                      {form.website && <p className="mt-0.5 text-[11px] opacity-60">{form.website.replace(/^https?:\/\//, '')}</p>}
                     </div>
                   </div>
                   <div className="mt-4 flex gap-2">

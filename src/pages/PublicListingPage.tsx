@@ -123,6 +123,7 @@ const toPropertyFromBootstrapPayload = (
             name: String(agent?.full_name || 'HomeListingAI Agent'),
             title: String(agent?.title || 'Listing Specialist'),
             company: String(agent?.company || 'HomeListingAI'),
+            nmlsNumber: agent?.license_number ? String(agent.license_number) : undefined,
             phone: String(agent?.phone || ''),
             email: String(agent?.email || ''),
             headshotUrl: String(agent?.headshot_url || ''),

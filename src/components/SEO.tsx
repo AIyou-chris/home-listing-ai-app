@@ -36,6 +36,7 @@ const SEO: React.FC<SEOProps> = ({
             <meta property="og:title" content={fullTitle} />
             <meta property="og:description" content={metaDesc} />
             {currentUrl && <meta property="og:url" content={currentUrl} />}
+            {currentUrl && <link rel="canonical" href={currentUrl} />}
             {image && <meta property="og:image" content={image} />}
 
             {/* Twitter Card */}

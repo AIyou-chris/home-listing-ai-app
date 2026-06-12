@@ -473,8 +473,36 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
     }
   };
 
-  const handleOpenOpenHouseFlyerModal = () => {
-    setIsOpenHouseFlyerModalOpen(true);
+  const handleDownloadOpenHouseFlyer = async () => {
+    // No date/time set yet — open the editor first so the flyer doesn't print
+    // "Open house details coming soon".
+    const cfg = openHouseFlyerConfigRef.current;
+    if (!cfg.event_date.trim() && !cfg.start_time.trim() && !cfg.end_time.trim()) {
+      setIsOpenHouseFlyerModalOpen(true);
+      setTransientNotice('info', 'Add your open house date and time, then download the flyer.');
+      return;
+    }
+    const fileName = `${flyerFileBase}-open-house-flyer.pdf`;
+    try {
+      setExportingKey(fileName);
+      setTransientNotice('info', `Building ${fileName}...`);
+      const { blob, fileName: resolvedFileName } = await listingShareKitService.getFlyerPdf(listing.id, 'open_house');
+      listingShareKitService.saveBlobDownload(blob, resolvedFileName || fileName);
+      setTransientNotice('success', `${resolvedFileName || fileName} download started.`);
+      showToast.success('Downloaded');
+    } catch (error) {
+      console.error('Failed to download Open House Flyer PDF', error);
+      const errorCode = error instanceof Error ? error.message : 'open_house_flyer_failed';
+      if (errorCode === 'demo_export_unavailable_use_real_listing') {
+        setTransientNotice('info', 'Demo page is for layout only. Use your real listing page to download files.');
+        showToast.error('Use the real listing page for downloads.');
+      } else {
+        setTransientNotice('error', `Could not download ${fileName} (${errorCode}).`);
+        showToast.error(`Could not download PDF (${errorCode}).`);
+      }
+    } finally {
+      setExportingKey(null);
+    }
   };
 
   const _handleOpenLightCmaModal = () => {
@@ -1087,18 +1115,18 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <button
-                  onClick={handleOpenOpenHouseFlyerModal}
-                  disabled={Boolean(exportingKey) || openHouseFlyerLoading}
+                  onClick={() => void handleDownloadOpenHouseFlyer()}
+                  disabled={Boolean(exportingKey)}
                   className="px-4 py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-lg transition-colors text-sm text-center border border-slate-700 disabled:opacity-60"
                 >
-                  {openHouseFlyerLoading ? 'Loading...' : exportingKey === `${flyerFileBase}-open-house-flyer.pdf` ? 'Creating...' : 'Create Open House Flyer (PDF)'}
+                  {exportingKey === `${flyerFileBase}-open-house-flyer.pdf` ? 'Downloading...' : 'Download Open House Flyer (PDF)'}
                 </button>
                 <button
                   onClick={() => void handleDownloadSignRider()}
                   disabled={Boolean(exportingKey)}
                   className="px-4 py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-lg transition-colors text-sm text-center border border-slate-700 disabled:opacity-60"
                 >
-                  {exportingKey === `${flyerFileBase}-sign-rider.pdf` ? 'Creating...' : 'Create Sign Rider (PDF)'}
+                  {exportingKey === `${flyerFileBase}-sign-rider.pdf` ? 'Downloading...' : 'Download Sign Rider (PDF)'}
                 </button>
               </div>
             </div>
@@ -1205,7 +1233,7 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
         </div>
 
         {isLightCmaModalOpen && typeof document !== 'undefined' && createPortal((
-          <div className="fixed inset-0 z-[140] bg-black/80 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-sm">
             <div className="flex h-full w-full items-end justify-center sm:items-center sm:p-4">
               <div className="flex h-[100dvh] w-full flex-col overflow-hidden border border-slate-800 bg-[#0B1121] shadow-2xl sm:h-auto sm:max-h-[min(92vh,960px)] sm:w-[min(1080px,calc(100vw-3rem))] sm:max-w-[calc(100vw-3rem)] sm:rounded-2xl">
                 <div className="sticky top-0 z-10 border-b border-slate-800 bg-[#0B1121]/95 px-4 py-4 backdrop-blur sm:px-6">
@@ -1514,7 +1542,7 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
         ), document.body)}
 
         {isPropertyReportModalOpen && typeof document !== 'undefined' && createPortal((
-          <div className="fixed inset-0 z-[140] bg-black/80 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-sm">
             <div className="flex h-full w-full items-end justify-center sm:items-center sm:p-4">
               <div className="flex h-[100dvh] w-full flex-col overflow-hidden border border-slate-800 bg-[#0B1121] shadow-2xl sm:h-auto sm:max-h-[min(92vh,960px)] sm:w-[min(1000px,calc(100vw-3rem))] sm:max-w-[calc(100vw-3rem)] sm:rounded-2xl">
                 <div className="sticky top-0 z-10 border-b border-slate-800 bg-[#0B1121]/95 px-4 py-4 backdrop-blur sm:px-6">
@@ -1762,14 +1790,14 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
         ), document.body)}
 
         {isOpenHouseFlyerModalOpen && typeof document !== 'undefined' && createPortal((
-          <div className="fixed inset-0 z-[140] bg-black/80 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-sm">
             <div className="flex h-full w-full items-end justify-center sm:items-center sm:p-4">
               <div className="flex h-[100dvh] w-full flex-col overflow-hidden border border-slate-800 bg-[#0B1121] shadow-2xl sm:h-auto sm:max-h-[min(92vh,920px)] sm:w-[min(960px,calc(100vw-3rem))] sm:max-w-[calc(100vw-3rem)] sm:rounded-2xl">
                 <div className="sticky top-0 z-10 border-b border-slate-800 bg-[#0B1121]/95 px-4 py-4 backdrop-blur sm:px-6">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="text-[11px] font-black uppercase tracking-[0.2em] text-blue-300">Open House Flyer</p>
-                      <h3 className="mt-1 text-xl font-black text-white sm:text-2xl">Create Open House Flyer</h3>
+                      <h3 className="mt-1 text-xl font-black text-white sm:text-2xl">Open House Flyer</h3>
                       <p className="mt-2 max-w-2xl text-sm text-slate-400">
                         Add the event details once. AI turns it into a short flyer headline and call-to-action.
                       </p>
@@ -2000,7 +2028,7 @@ export const ShareKitPanel: React.FC<ShareKitPanelProps> = ({
                         disabled={openHouseFlyerSaving || openHouseFlyerPreviewing || Boolean(exportingKey)}
                         className="rounded-lg bg-blue-600 px-5 py-3 text-sm font-black text-white transition-colors hover:bg-blue-500 disabled:opacity-60"
                       >
-                        {exportingKey === `${flyerFileBase}-open-house-flyer.pdf` ? 'Creating PDF...' : 'Create PDF'}
+                        {exportingKey === `${flyerFileBase}-open-house-flyer.pdf` ? 'Downloading...' : 'Download PDF'}
                       </button>
                     </div>
                   </div>

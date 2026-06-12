@@ -573,7 +573,7 @@ const _FaqSection: React.FC = () => {
     );
 };
 
-const _AboutUsSection: React.FC = () => (
+const _AboutUsSection_UNUSED: React.FC = () => (
     <section id="about-us" className="py-20 bg-white relative overflow-hidden">
         {/* Background Elements */}
         <div className="absolute inset-0 pointer-events-none">
@@ -775,7 +775,7 @@ const Hero: React.FC<{ onNavigateToSignUp: () => void, onEnterDemoMode: () => vo
                             onClick={() => navigate('/lo-signup')}
                             className="w-full sm:w-auto px-10 py-4 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold rounded-lg transition-all text-lg glow-pulse hover:scale-[1.02] flex items-center justify-center gap-2"
                         >
-                            Start Free — 3-Day Trial
+                            Claim Your Free Account
                             <span className="material-symbols-outlined text-xl">arrow_forward</span>
                         </button>
                         <button
@@ -982,8 +982,8 @@ const Hero: React.FC<{ onNavigateToSignUp: () => void, onEnterDemoMode: () => vo
     );
 };
 
-// ─── Lead Machine Timeline Section ────────────────────────────────────────────
-const LeadMachineSection: React.FC = () => {
+// ─── Lead Machine Timeline Section (removed — duplicates ConversionWedge) ─────
+const _LeadMachineSection_UNUSED: React.FC = () => {
     const leftSteps = [
         { icon: 'forum', title: 'Buyer Engages the Listing', desc: 'AI captures them the moment they ask a question — day or night' },
         { icon: 'smart_toy', title: 'AI Qualifies Instantly', desc: 'Answers questions, gauges intent, and asks about financing needs' },
@@ -1125,8 +1125,8 @@ const LeadMachineSection: React.FC = () => {
     );
 };
 
-// ─── Trust & Compliance Section ───────────────────────────────────────────────
-const TrustComplianceSection: React.FC = () => (
+// ─── Trust & Compliance Section (merged into ComplianceGuardrailsSection) ─────
+const _TrustComplianceSection_UNUSED: React.FC = () => (
     <section className="relative py-20 lg:py-24 bg-[#040814] overflow-hidden border-t border-slate-900">
         <div className="absolute top-1/2 right-1/4 w-[500px] h-[500px] bg-emerald-900/10 rounded-full blur-[120px] pointer-events-none -translate-y-1/2" />
         <div className="absolute top-1/2 left-0 w-[400px] h-[400px] bg-blue-900/8 rounded-full blur-[120px] pointer-events-none -translate-y-1/2" />
@@ -1195,10 +1195,26 @@ const ComplianceGuardrailsSection: React.FC<{ onNavigateToSignUp: () => void }> 
                 <h2 className="text-3xl md:text-5xl font-bold text-white tracking-tight mb-5">
                     Your AI follows <span className="text-emerald-400">your</span> rules. Every time.
                 </h2>
-                <p className="text-lg text-slate-400 max-w-2xl mx-auto leading-relaxed">
+                <p className="text-lg text-slate-400 max-w-2xl mx-auto leading-relaxed mb-8">
                     Platform guardrails are always on and can&apos;t be switched off. Upload your company&apos;s compliance
                     guidelines and the AI enforces them in every chat and every piece of content it writes.
                 </p>
+                {/* Trust differentiators */}
+                <div className="flex flex-wrap justify-center gap-4">
+                    {[
+                        { icon: 'translate', label: '26 languages supported', sub: 'Buyers and agents chat in their language' },
+                        { icon: 'balance', label: 'Fair Housing guardrails', sub: 'Flags risky phrasing before you publish' },
+                        { icon: 'badge', label: 'NMLS # on every asset', sub: 'Auto-applied — can\'t be turned off' },
+                    ].map(chip => (
+                        <div key={chip.label} className="flex items-start gap-3 bg-[#0B1121] border border-emerald-900/30 rounded-2xl px-5 py-4 text-left max-w-[240px]">
+                            <span className="material-symbols-outlined text-emerald-400 text-xl shrink-0 mt-0.5">{chip.icon}</span>
+                            <div>
+                                <p className="text-white font-semibold text-sm">{chip.label}</p>
+                                <p className="text-slate-500 text-xs mt-0.5">{chip.sub}</p>
+                            </div>
+                        </div>
+                    ))}
+                </div>
             </div>
 
             <div className="grid lg:grid-cols-2 gap-6 items-stretch">
@@ -1255,7 +1271,7 @@ const ComplianceGuardrailsSection: React.FC<{ onNavigateToSignUp: () => void }> 
                     onClick={onNavigateToSignUp}
                     className="inline-flex items-center gap-2 px-9 py-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl transition-all text-lg shadow-[0_0_30px_rgba(16,185,129,0.2)] hover:scale-[1.02]"
                 >
-                    Start Free — 3-Day Trial
+                    Claim Your Free Account
                     <span className="material-symbols-outlined text-xl">arrow_forward</span>
                 </button>
                 <p className="text-xs text-slate-600 mt-4">Not legal advice. You and your compliance team remain responsible for final review.</p>
@@ -1264,8 +1280,8 @@ const ComplianceGuardrailsSection: React.FC<{ onNavigateToSignUp: () => void }> 
     </section>
 );
 
-// ─── Teams CTA Section ─────────────────────────────────────────────────────────
-const TeamsCTASection: React.FC<{ onOpenContact: () => void }> = ({ onOpenContact }) => (
+// ─── Teams CTA Section (removed — handled by pricing section) ─────────────────
+const _TeamsCTASection_UNUSED: React.FC<{ onOpenContact: () => void }> = ({ onOpenContact }) => (
     <section className="relative py-16 bg-[#02050D] border-t border-slate-900 overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-r from-cyan-900/5 via-transparent to-blue-900/5 pointer-events-none" />
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[200px] bg-cyan-900/8 rounded-full blur-[80px] pointer-events-none" />
@@ -1339,6 +1355,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigat
             <SEO
                 title="HomeListingAI — Warm Leads & Agent Partnerships for Loan Officers"
                 description="Send one WOW Link. Get warm buyer leads from every agent listing — co-branded with your name and NMLS #. The LO's unfair advantage. 3-day free trial."
+                image="/og-image.png"
                 schema={{
                     "@context": "https://schema.org",
                     "@type": "SoftwareApplication",
@@ -1372,16 +1389,9 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigat
 
                 <Reveal direction="scale"><StatStripNew /></Reveal>
 
-                <Reveal direction="up"><LeadMachineSection /></Reveal>
-
-                <Reveal direction="fade"><TrustComplianceSection /></Reveal>
-
                 <Reveal direction="up"><ComplianceGuardrailsSection onNavigateToSignUp={onNavigateToSignUp} /></Reveal>
 
                 <Reveal direction="up"><PricingSectionNew onNavigateToSignUp={onNavigateToSignUp} onEnterDemoMode={onEnterDemoMode} onOpenComparePlans={handleOpenComparePlans} /></Reveal>
-
-                <div id="contact" aria-hidden="true" />
-                <Reveal direction="scale"><TeamsCTASection onOpenContact={handleOpenContact} /></Reveal>
 
                 <Reveal direction="up"><FaqSectionNew onNavigateToSignUp={onNavigateToSignUp} onEnterDemoMode={onEnterDemoMode} /></Reveal>
 
