@@ -18,7 +18,7 @@ const EmailSettingsPage: React.FC<EmailSettingsProps> = ({
     agentSlug
 }) => {
     const normalizedSlug = agentSlug?.trim().toLowerCase() || '';
-    const inboundEmail = normalizedSlug ? `${normalizedSlug}@leads.homelistingai.com` : 'your-slug@leads.homelistingai.com';
+    const inboundEmail = normalizedSlug ? `${normalizedSlug}@mg.homelistingai.com` : 'your-slug@mg.homelistingai.com';
     const publicStoreUrl = normalizedSlug ? `/store/${normalizedSlug}` : '/store/your-slug';
 
     const copyToClipboard = () => {
@@ -98,7 +98,7 @@ const EmailSettingsPage: React.FC<EmailSettingsProps> = ({
                             </div>
                             <div className="space-y-2">
                                 <div className="font-medium text-slate-900">3. Paste & Save</div>
-                                <p className="text-sm text-slate-500">Paste your <strong>leads.homelistingai.com</strong> address and save. New leads will flow into the same dashboard slug shown above.</p>
+                                <p className="text-sm text-slate-500">Paste your <strong>mg.homelistingai.com</strong> address and save. New leads will flow into the same dashboard slug shown above.</p>
                             </div>
                         </div>
                     </div>
