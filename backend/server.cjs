@@ -32661,6 +32661,83 @@ app.delete('/api/lo/chatbot/compliance-doc', requireLoAgent, async (req, res) =>
   }
 });
 
+// ─── LO per-listing financing KB docs (rate sheet + payment disclosures) ───────
+// The "Listing Brain" tab reads/writes financing docs scoped to the LO + listing
+// address; the buyer chatbot pulls them at chat time (see getLoListingKbContext).
+// Auth: frontend sends x-user-id, resolved to the LO profile id via resolveLoAgentId.
+
+// GET /api/lo/chatbot/listing-docs?address=<street> — all docs for this LO + listing
+app.get('/api/lo/chatbot/listing-docs', async (req, res) => {
+  try {
+    const loAgentId = await resolveLoAgentId(req);
+    if (!loAgentId) return res.status(401).json({ error: 'lo_auth_required' });
+    const address = toTrimmedOrNull(req.query?.address);
+    if (!address) return res.json({ docs: [] });
+    const { data, error } = await supabaseAdmin
+      .from('lo_listing_kb_docs')
+      .select('id, label, content, address, updated_at')
+      // stored address is the full listing address; the editor looks up by street part
+      .eq('lo_agent_id', loAgentId)
+      .ilike('address', `${address}%`)
+      .order('updated_at', { ascending: false });
+    if (error) throw error;
+    res.json({ docs: data || [] });
+  } catch (err) {
+    console.error('[LO Listing Docs GET] Error:', err);
+    res.status(500).json({ error: 'failed_to_load_listing_docs' });
+  }
+});
+
+// POST /api/lo/chatbot/listing-docs — create a doc { address, label, content }
+app.post('/api/lo/chatbot/listing-docs', async (req, res) => {
+  try {
+    const loAgentId = await resolveLoAgentId(req);
+    if (!loAgentId) return res.status(401).json({ error: 'lo_auth_required' });
+    const address = toTrimmedOrNull(req.body?.address);
+    const content = typeof req.body?.content === 'string' ? req.body.content.trim() : '';
+    const label = toTrimmedOrNull(req.body?.label);
+    if (!address) return res.status(400).json({ error: 'address_required' });
+    if (!content) return res.status(400).json({ error: 'content_required' });
+    const { data, error } = await supabaseAdmin
+      .from('lo_listing_kb_docs')
+      .insert({ lo_agent_id: loAgentId, address, label, content })
+      .select('id')
+      .single();
+    if (error) throw error;
+    res.json({ doc: { id: data.id } });
+  } catch (err) {
+    console.error('[LO Listing Docs POST] Error:', err);
+    res.status(500).json({ error: 'failed_to_save_listing_doc' });
+  }
+});
+
+// PATCH /api/lo/chatbot/listing-docs/:docId — update an existing doc (ownership-scoped)
+app.patch('/api/lo/chatbot/listing-docs/:docId', async (req, res) => {
+  try {
+    const loAgentId = await resolveLoAgentId(req);
+    if (!loAgentId) return res.status(401).json({ error: 'lo_auth_required' });
+    const { docId } = req.params;
+    if (!docId) return res.status(400).json({ error: 'doc_id_required' });
+    const patch = { updated_at: new Date().toISOString() };
+    if (typeof req.body?.content === 'string') patch.content = req.body.content.trim();
+    if (req.body?.label !== undefined) patch.label = toTrimmedOrNull(req.body.label);
+    if (req.body?.address !== undefined) { const a = toTrimmedOrNull(req.body.address); if (a) patch.address = a; }
+    const { data, error } = await supabaseAdmin
+      .from('lo_listing_kb_docs')
+      .update(patch)
+      .eq('id', docId)
+      .eq('lo_agent_id', loAgentId)
+      .select('id')
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) return res.status(404).json({ error: 'doc_not_found' });
+    res.json({ doc: { id: data.id } });
+  } catch (err) {
+    console.error('[LO Listing Docs PATCH] Error:', err);
+    res.status(500).json({ error: 'failed_to_update_listing_doc' });
+  }
+});
+
 // GET /api/public/listing/:listingId/lo-chatbot — get LO chatbot info for a listing (no auth)
 app.get('/api/public/listing/:listingId/lo-chatbot', async (req, res) => {
   try {
@@ -32851,16 +32928,37 @@ app.post('/api/public/lo-chat', async (req, res) => {
       });
     }
 
-    // Fetch listing address for context
+    // Fetch listing address for context. LO-platform listing_id = properties.id
+    // (the rich table); `listings` is a legacy stub and must not be used here.
     const { data: listing } = await supabaseAdmin
-      .from('listings')
+      .from('properties')
       .select('address, price')
       .eq('id', listing_id)
       .maybeSingle();
 
-    const listingContext = listing
+    let listingContext = listing
       ? `The visitor is looking at a listing at ${listing.address}${listing.price ? ` listed at $${Number(listing.price).toLocaleString('en-US')}` : ''}.`
       : '';
+
+    // Pull the LO's per-listing financing docs (rate sheet + payment disclosures
+    // saved on the Listing Brain tab) and give them to the bot verbatim.
+    if (listing?.address) {
+      try {
+        const streetPart = String(listing.address).split(',')[0].trim();
+        const { data: kbDocs } = await supabaseAdmin
+          .from('lo_listing_kb_docs')
+          .select('content')
+          .eq('lo_agent_id', lo_agent_id)
+          .ilike('address', `${streetPart}%`)
+          .order('updated_at', { ascending: false });
+        const kbText = (kbDocs || []).map((d) => d.content).filter(Boolean).join('\n\n').trim();
+        if (kbText) {
+          listingContext += `\n\nLoan officer's financing details for THIS listing — quote these exact programs, rates, and figures when relevant:\n${kbText}`;
+        }
+      } catch (kbErr) {
+        console.warn('[LO Chat] Could not load per-listing KB docs:', kbErr?.message || kbErr);
+      }
+    }
 
     const systemPrompt = buildLoSystemPrompt(config, listingContext);
 
