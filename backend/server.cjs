@@ -15290,8 +15290,15 @@ app.post('/api/track/sms/status', async (req, res) => {
 
 app.post('/api/leads/email-forward', async (req, res) => {
   try {
-    // Email forward services like SendGrid or Mailgun send email data in multipart/form-data
-    const { to, from, subject, text, html } = req.body;
+    // Accept both a generic shape (to/from/text) and Mailgun's native inbound POST
+    // fields (recipient/sender/body-plain), so a Mailgun Route forwarding to this
+    // endpoint works without a field-mapping shim.
+    const b = req.body || {};
+    const to = b.to || b.recipient || '';
+    const from = b.from || b.sender || '';
+    const subject = b.subject || '';
+    const text = b.text || b['body-plain'] || b['stripped-text'] || '';
+    const html = b.html || b['body-html'] || '';
 
     // Extract agent slug from email (e.g., "chris@leads.homelistingai.com" -> "chris")
     const toEmail = to || '';
