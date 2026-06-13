@@ -70,7 +70,7 @@ module.exports = (supabaseAdmin, emailService) => {
     });
 
     // 2. Trial Engagement System (Every Hour)
-    // Checks for users who joined 24h, 48h, or 72h ago
+    // Sends the 7-day onboarding drip — one email per trial day (24h..168h)
     cron.schedule('0 * * * *', async () => {
         try {
             console.log('⏰ Scheduler: Running Trial Engagement Check...');
@@ -113,17 +113,15 @@ module.exports = (supabaseAdmin, emailService) => {
                 let emailSent = false;
                 let dayToSend = null;
 
-                // Day 1: 24-26 hours after join (allowing 2h window for cron execution safety)
-                if (hoursSinceJoin >= 24 && hoursSinceJoin < 27 && !trialData.day1) {
-                    dayToSend = 1;
-                }
-                // Day 2: 48-51 hours
-                else if (hoursSinceJoin >= 48 && hoursSinceJoin < 51 && !trialData.day2) {
-                    dayToSend = 2;
-                }
-                // Day 6 (trial-ending email, day3 key kept for dedupe): 144-147 hours
-                else if (hoursSinceJoin >= 144 && hoursSinceJoin < 147 && !trialData.day3) {
-                    dayToSend = 3;
+                // 7-day onboarding drip: each day N fires once in its 24h window
+                // (N*24h .. N*24h+3h gives a 3h buffer for cron timing). Dedupe via
+                // metadata.trial_system.dayN. Day 7 lands on the final trial day.
+                for (let d = 1; d <= 7; d++) {
+                    const windowStart = d * 24;
+                    if (hoursSinceJoin >= windowStart && hoursSinceJoin < windowStart + 3 && !trialData[`day${d}`]) {
+                        dayToSend = d;
+                        break;
+                    }
                 }
 
                 if (dayToSend) {

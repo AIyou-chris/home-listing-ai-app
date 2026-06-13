@@ -339,171 +339,214 @@ const buildPasswordResetHtml = (firstName, resetUrl) => `<!DOCTYPE html>
   </body>
   </html>`;
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 7-DAY LOAN-OFFICER ONBOARDING DRIP
+// One email per trial day. Each teaches one piece of the LO dashboard and keeps
+// momentum high. The arc: big idea → invite agent → listings → AI bot → leads →
+// share/proof → ROI + lock in.
+//
+// 🎥 VIDEOS: when the walkthrough series is ready, paste each day's URL into
+// TRIAL_DRIP_VIDEOS below. Any day with a URL automatically shows a "Watch the
+// 2-min walkthrough" button; days left as null just skip the video block.
+// ─────────────────────────────────────────────────────────────────────────────
+const TRIAL_DRIP_VIDEOS = {
+  1: null,
+  2: null,
+  3: null,
+  4: null,
+  5: null,
+  6: null,
+  7: null
+};
+
+// path is appended to dashboardUrl. Keep paths in sync with src/App.tsx routes.
+const TRIAL_DRIP = {
+  1: {
+    subject: 'Day 1: Your unfair advantage starts now 🚀',
+    badge: 'Day 1 of 7 · The Big Idea',
+    ctaText: 'Open My Dashboard',
+    ctaPath: '/dashboard/today',
+    body: `
+      <p class="body-text">Welcome aboard. Over the next 7 days I'll walk you through your dashboard — <strong>one feature a day, two minutes each</strong> — so by the end you've got a lead machine running on autopilot.</p>
+      <p class="body-text">First, the big idea. You're done buying cold internet leads that 10 other LOs already bought. Your new play is the <strong>WOW Link</strong>:</p>
+      <ul class="body-text" style="padding-left: 20px; margin-top: 0;">
+        <li style="margin-bottom: 8px;">🤝 You invite a real estate agent partner.</li>
+        <li style="margin-bottom: 8px;">🏠 Their listing goes live as an AI-powered page — co-branded with <em>your</em> name and license.</li>
+        <li style="margin-bottom: 8px;">🔥 Every buyer who engages becomes <em>your</em> warm lead.</li>
+      </ul>
+      <p class="body-text">That's it. The agent looks like a hero, the buyer gets answers 24/7, and the lead routes to you. Today, just log in and look around.</p>`,
+    proTip: `Bookmark your dashboard on your phone's home screen. You'll be checking warm leads from it daily within a week.`
+  },
+  2: {
+    subject: 'Day 2: Add your first agent partner (5 min) 🤝',
+    badge: 'Day 2 of 7 · Partnerships',
+    ctaText: 'Invite an Agent',
+    ctaPath: '/dashboard/lo-partners',
+    body: `
+      <p class="body-text">The whole machine runs on <strong>agent partnerships</strong>. More agents → more listings → more warm buyer leads flowing to you. So let's get your first one in.</p>
+      <p class="body-text">Head to <strong>Partners</strong> and send a WOW Link invite. Your agent gets a live, co-branded AI listing demo — not a boring sales pitch. It sells itself.</p>
+      <ul class="body-text" style="padding-left: 20px; margin-top: 0;">
+        <li style="margin-bottom: 8px;">📨 Enter the agent's name + email, hit send.</li>
+        <li style="margin-bottom: 8px;">⏰ Auto-reminders nudge them at 24h and 72h if they don't open it.</li>
+        <li style="margin-bottom: 8px;">🔔 You get pinged the moment they claim their account.</li>
+      </ul>
+      <p class="body-text"><strong>Start with the one agent you talk to most.</strong> One yes is all you need to see this work.</p>`,
+    proTip: `Pick an agent who already likes you. Warm partnerships convert 10x faster than cold outreach — same as leads.`
+  },
+  3: {
+    subject: 'Day 3: Watch a listing land on your dashboard 🏠',
+    badge: 'Day 3 of 7 · Your Listings',
+    ctaText: 'See My Listings',
+    ctaPath: '/dashboard/lo-listings',
+    body: `
+      <p class="body-text">Here's the magic moment. When your partner agent builds a listing, it <strong>automatically appears on your Listings tab</strong> — already co-branded with your name and license, side by side with the agent.</p>
+      <p class="body-text">You don't lift a finger. But there's one thing to do: <strong>add your financing info</strong> so every buyer who views that listing sees you as their loan officer.</p>
+      <ul class="body-text" style="padding-left: 20px; margin-top: 0;">
+        <li style="margin-bottom: 8px;">🏠 Open any listing on your dashboard.</li>
+        <li style="margin-bottom: 8px;">💳 Add your rate sheet, programs, and contact details.</li>
+        <li style="margin-bottom: 8px;">✅ Toggle co-branding on — your name now rides on every share.</li>
+      </ul>
+      <p class="body-text">Every flyer, every QR code, every buyer chat now points back to you.</p>`,
+    proTip: `The second a partner agent publishes, you get an email + text. Add your financing info that same day while the listing is hot.`
+  },
+  4: {
+    subject: 'Day 4: Hire a loan officer who never sleeps 🤖',
+    badge: 'Day 4 of 7 · Your AI Bot',
+    ctaText: 'Set Up My AI Bot',
+    ctaPath: '/dashboard/lo-chatbot',
+    body: `
+      <p class="body-text">This is the one that makes buyers fall in love. Your <strong>AI financing assistant</strong> lives on every listing page and answers buyer questions 24/7 — about rates, pre-approval, down payment, loan programs.</p>
+      <p class="body-text">And you stay in control. Platform compliance guardrails are always on, and you can upload your own company's rules so the AI never says anything it shouldn't.</p>
+      <ul class="body-text" style="padding-left: 20px; margin-top: 0;">
+        <li style="margin-bottom: 8px;">🤖 Set its tone and what programs it can mention.</li>
+        <li style="margin-bottom: 8px;">📋 Upload your compliance rules — it follows them in every chat.</li>
+        <li style="margin-bottom: 8px;">🌙 It works the midnight "can I afford this?" moment, so you don't have to.</li>
+      </ul>
+      <p class="body-text"><strong>Spend 5 minutes here today.</strong> It pays you back every night.</p>`,
+    proTip: `Add your 2-3 most common buyer FAQs to the bot's knowledge. It'll answer them perfectly while you sleep.`
+  },
+  5: {
+    subject: 'Day 5: This is what a warm lead looks like 🔥',
+    badge: 'Day 5 of 7 · Your Lead Inbox',
+    ctaText: 'Open My Leads',
+    ctaPath: '/dashboard/leads',
+    body: `
+      <p class="body-text">Everything you've set up funnels here: your <strong>Lead Inbox</strong>. Every buyer who engages with a listing shows up with an <strong>intent score</strong> — hot, warm, or cold.</p>
+      <p class="body-text">This isn't a cold form fill. It's someone who was looking at a real home and asked a real financing question. They already raised their hand.</p>
+      <ul class="body-text" style="padding-left: 20px; margin-top: 0;">
+        <li style="margin-bottom: 8px;">🔥 <strong>Hot leads first.</strong> Call them within the hour — it dramatically raises your odds.</li>
+        <li style="margin-bottom: 8px;">💬 See the full chat history so you know exactly what they asked.</li>
+        <li style="margin-bottom: 8px;">📅 Book them straight into your calendar from the lead card.</li>
+      </ul>
+      <p class="body-text"><strong>Speed wins.</strong> The LO who calls first usually gets the loan.</p>`,
+    proTip: `First contact within 5 minutes of a hot lead can 10x your conversion. Turn on lead alerts so you never miss one.`
+  },
+  6: {
+    subject: 'Day 6: The trick that makes agents stay loyal 📊',
+    badge: 'Day 6 of 7 · Share Kit & Proof',
+    ctaText: 'Explore My Share Kit',
+    ctaPath: '/dashboard/lo-listings',
+    body: `
+      <p class="body-text">Want agents to send you every deal? <strong>Show them the leads you're generating for them.</strong></p>
+      <p class="body-text">Every listing comes with a <strong>Share Kit</strong> — tracked QR code, social graphic, open house flyer, and sign rider PDF — plus a <strong>Live Lead Dashboard</strong> you can share with your agent.</p>
+      <ul class="body-text" style="padding-left: 20px; margin-top: 0;">
+        <li style="margin-bottom: 8px;">📱 Download a QR code + flyer for any listing in two taps.</li>
+        <li style="margin-bottom: 8px;">📊 Send your agent a live link showing the buyer leads coming in.</li>
+        <li style="margin-bottom: 8px;">🤝 When they see <em>you</em> filling their pipeline, you're indispensable.</li>
+      </ul>
+      <p class="body-text">This is how a $149/mo tool turns into a referral relationship worth six figures a year.</p>`,
+    proTip: `Text your agent the Live Dashboard link after their open house. Watching leads roll in live is what makes them call you first next time.`
+  },
+  7: {
+    subject: "Day 7: Don't lose your partners (trial ends today)",
+    badge: 'Day 7 of 7 · Lock It In',
+    ctaText: 'Lock In My Account',
+    ctaPath: '/dashboard/billing',
+    body: `
+      <p class="body-text">Your 7-day trial ends today. In one week you've built the foundation of a referral pipeline: agent partnerships, co-branded listings, a 24/7 AI bot, and a warm-lead inbox.</p>
+      <p class="body-text" style="font-size: 18px; font-weight: bold; color: #4f46e5; margin: 15px 0;">Here's the only math that matters:</p>
+      <div style="background-color: #f0fdf4; border-left: 4px solid #22c55e; padding: 15px; margin: 20px 0; border-radius: 4px;">
+        <ul class="body-text" style="padding-left: 20px; margin: 0; color: #166534;">
+          <li style="margin-bottom: 6px;"><strong>One closed loan:</strong> ~$3,000–$6,000 commission</li>
+          <li style="margin-bottom: 6px;"><strong>HomeListingAI:</strong> $149/mo</li>
+        </ul>
+        <p class="body-text" style="margin: 10px 0 0; color: #166534;">One warm lead that closes covers you for <strong>nearly two years.</strong></p>
+      </div>
+      <p class="body-text">If you don't lock in today, your listings pause and your agent partners lose the tool you gave them. <strong>Keep the machine running.</strong></p>`,
+    proTip: `Most LOs see their first warm lead in week one. The partnerships you start now pay off biggest when rates drop and volume returns.`
+  }
+};
+
 const buildTrialHtml = (firstName, day, dashboardUrl) => {
   const styles = `
     body { margin: 0; padding: 0; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f8fafc; color: #334155; }
     .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
-    .header { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); padding: 32px 24px; text-align: center; }
+    .header { background: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%); padding: 32px 24px; text-align: center; }
     .logo { width: 48px; height: 48px; background-color: white; border-radius: 8px; padding: 4px; margin-bottom: 16px; object-fit: contain; }
     .header-title { color: white; font-size: 24px; font-weight: bold; margin: 0; }
+    .badge { display: inline-block; background: rgba(255,255,255,0.18); color: #fff; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; padding: 6px 14px; border-radius: 999px; margin-top: 12px; }
     .content { padding: 32px 24px; }
     .greeting { font-size: 20px; font-weight: 600; margin-bottom: 24px; color: #0f172a; }
     .body-text { font-size: 16px; line-height: 1.6; margin-bottom: 24px; color: #475569; }
     .btn-container { text-align: center; margin: 32px 0; }
-    .btn { background-color: #4f46e5; color: white; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px; display: inline-block; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3); }
+    .btn { background-color: #2563eb; color: white; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px; display: inline-block; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3); }
+    .btn-video { background-color: #ffffff; color: #2563eb; border: 2px solid #2563eb; box-shadow: none; }
     .footer { background-color: #f1f5f9; padding: 24px; text-align: center; font-size: 13px; color: #64748b; }
     .pro-tip-box { background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 20px; margin: 24px 0; }
-    .pro-tip-title { font-weight: bold; color: #15803d; display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-    .how-to-box { background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin: 24px 0; }
-    .how-to-title { font-weight: bold; color: #334155; display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .pro-tip-title { font-weight: bold; color: #15803d; margin-bottom: 8px; }
   `;
 
-  let content = '';
-  let subject = '';
-  let btnText = 'Login to Dashboard';
-  let btnLink = dashboardUrl;
+  const drip = TRIAL_DRIP[day] || TRIAL_DRIP[1];
+  const subject = drip.subject;
+  const videoUrl = TRIAL_DRIP_VIDEOS[day];
 
-  if (day === 1) {
-    subject = 'Your Business Card is Dead. (Here is the upgrade)';
-    content = `
-      <p class="body-text">You signed up effectively, but are you using your <strong>AI Agent</strong> to its full potential?</p>
-      <p class="body-text">Paper business cards get lost or thrown away. Your <strong>AI Card</strong> works 24/7.</p>
-      <p class="body-text">It's not just a profile—it's a fully interactive <strong>Lead Capture Machine</strong>.</p>
-      
-      <p class="body-text" style="margin-bottom: 8px;"><strong>Why your AI Card wins listings:</strong></p>
-      <ul class="body-text" style="padding-left: 20px; margin-top: 0;">
-        <li style="margin-bottom: 8px;"><strong>🗣️ Instant Conversation:</strong> Leads can talk to your AI immediately—no forms to fill out.</li>
-        <li style="margin-bottom: 8px;"><strong>🧠 Smart Qualification:</strong> It asks the right questions (Budget? Timeline?) while you sleep.</li>
-        <li style="margin-bottom: 8px;"><strong>📲 One-Tap Save:</strong> Clients can save your contact info directly to their phone.</li>
-      </ul>
+  const videoBlock = videoUrl
+    ? `<div class="btn-container" style="margin-top: -8px;">
+         <a href="${videoUrl}" class="btn btn-video">🎥 Watch the 2-min walkthrough</a>
+       </div>`
+    : '';
 
-      <p class="body-text"><strong>Stop handing out paper. Start capturing leads.</strong></p>
-
-      <div class="btn-container">
-        <a href="${dashboardUrl}/admin/ai-card" class="btn">View My AI Card</a>
-      </div>
-      <div class="pro-tip-box">
-        <div class="pro-tip-title">💡 Pro Tip</div>
-        <p class="body-text" style="margin:0; font-size:15px;">Print your AI Card's <strong>QR Code</strong> and put it on your Open House signs. Visitors scan it, meet your AI, and get instantly logged in your CRM. No more messy sign-in sheets.</p>
-      </div>
-      <div class="how-to-box">
-        <div class="how-to-title">🛠️ How To</div>
-        <ol class="body-text" style="margin:0; padding-left: 20px; font-size:15px;">
-          <li>Go to "AI Card" in your dashboard.</li>
-          <li>Click "Share" → "Download QR Code".</li>
-          <li>Create a new Listing Site instantly by entering an address in the "Listings" tab.</li>
-        </ol>
-      </div>
-    `;
-  } else if (day === 2) {
-    subject = 'Let Your Listing Sell Itself';
-    content = `
-      <p class="body-text">Stop manually building landing pages.</p>
-      <p class="body-text">Your AI Agent builds a dedicated <strong>Single Property AI Application</strong> for every listing—instantly.</p>
-      <p class="body-text">It's not just a photo gallery. It's a 24/7 Virtual Open House that captures buyers.</p>
-      
-      <p class="body-text" style="margin-bottom: 8px;"><strong>Why Agents Love AI Listings:</strong></p>
-      <ul class="body-text" style="padding-left: 20px; margin-top: 0;">
-        <li style="margin-bottom: 8px;"><strong>🚀 Zero Work:</strong> Just type the address. AI writes the description, picks the photos, and builds the site.</li>
-        <li style="margin-bottom: 8px;"><strong>🎨 Stunning Design:</strong> Premium layouts that look like you paid a pro agency $500.</li>
-        <li style="margin-bottom: 8px;"><strong>🔍 SEO & Social Ready:</strong> Perfect for sharing on Facebook/Instagram. Visitors land on <em>your</em> branded page, not Zillow.</li>
-        <li style="margin-bottom: 8px;"><strong>🧠 Intelligent Capture:</strong> Visitors can ask questions ("How are the schools?") and get instant AI answers.</li>
-      </ul>
-
-      <p class="body-text"><strong>Your listings deserve to shine. And you deserve to sleep.</strong></p>
-
-      <div class="btn-container">
-        <a href="${dashboardUrl}/admin/listings" class="btn">Create Listing Site</a>
-      </div>
-      <div class="pro-tip-box">
-        <div class="pro-tip-title">💡 Pro Tip</div>
-        <p class="body-text" style="margin:0; font-size:15px;">Post your AI Listing link to local Facebook Community groups. The "What's my home worth?" tool is built into every page, capturing seller leads from your buyer traffic.</p>
-      </div>
-      <div class="how-to-box">
-        <div class="how-to-title">🛠️ How To</div>
-        <ol class="body-text" style="margin:0; padding-left: 20px; font-size:15px;">
-          <li>Click <strong>"Listings"</strong>.</li>
-          <li>Click <strong>"Add New"</strong> and type the address.</li>
-          <li>Watch the AI build the site. Click <strong>"Publish"</strong>.</li>
-        </ol>
-      </div>
-    `;
-  } else if (day === 3) {
-    subject = 'Your ROI: The math is simple.';
-    content = `
-      <p class="body-text">This is it. Your 7-Day Trial is ending.</p>
-      <p class="body-text">You’ve seen how your <strong>AI Card</strong> captures authentic leads.</p>
-      <p class="body-text">You’ve seen how <strong>Single Property AI Applications</strong> turn listings into 24/7 virtual tours.</p>
-      
-      <p class="body-text" style="font-size: 18px; font-weight: bold; color: #4f46e5; margin: 15px 0;">But here is the real question: What is your time worth?</p>
-
-      <p class="body-text">Every day, agents lose money doing tasks a robot should do:</p>
-      <ul class="body-text" style="padding-left: 20px;">
-        <li style="margin-bottom: 5px;">Chasing unqualified leads who never answer.</li>
-        <li style="margin-bottom: 5px;">Answering "Is this still available?" at 10 PM.</li>
-        <li style="margin-bottom: 5px;">Manually building marketing assets.</li>
-      </ul>
-
-      <p class="body-text"><strong>Your AI Agent takes this workload off your plate forever.</strong></p>
-      <p class="body-text">Imagine waking up to <strong>booked appointments</strong> on your calendar instead of a list of unread texts. Your AI nurtures every lead, filters the tire-kickers, and serves you the serious buyers on a silver platter.</p>
-
-      <div style="background-color: #f0fdf4; border-left: 4px solid #22c55e; padding: 15px; margin: 20px 0; border-radius: 4px;">
-        <p class="body-text" style="margin-top: 0; font-weight: bold; color: #166534;">Let's look at the ROI:</p>
-        <ul class="body-text" style="padding-left: 20px; margin-bottom: 0; color: #166534;">
-          <li><strong>One Commission Check:</strong> ~$12,000 (avg)</li>
-          <li><strong>HomeListingAI:</strong> $97/mo</li>
-        </ul>
-        <p class="body-text" style="margin-bottom: 0; margin-top: 10px; color: #166534;">If this system helps you close <strong>just one extra deal this year</strong>, you have achieved a <strong>10,000% Return on Investment.</strong></p>
-      </div>
-
-      <p class="body-text"><strong>Don't go back to doing it the hard way. The future is automated.</strong></p>
-
-      <div class="btn-container">
-        <a href="${dashboardUrl}/billing" class="btn">Secure My Account</a>
-      </div>
-      <div class="pro-tip-box">
-        <div class="pro-tip-title">💡 Pro Tip</div>
-        <p class="body-text" style="margin:0; font-size:15px;">Check the <strong>"Sentiment Analysis"</strong> in your Funnel Analytics. If a lead is "Warm" but hasn't booked, jump in personally! The AI does 90% of the work so you can be the hero for the last 10%.</p>
-      </div>
-      <div class="how-to-box">
-        <div class="how-to-title">🛠️ How To</div>
-        <ol class="body-text" style="margin:0; padding-left: 20px; font-size:15px;">
-          <li>Go to <strong>"Marketing Funnels"</strong>.</li>
-          <li>Switch on the "Buyer Nurture" (Step 1).</li>
-          <li>Click "Analytics" to see open rates and AI conversation depth.</li>
-        </ol>
-      </div>
-    `;
-  }
+  const content = `
+    ${drip.body}
+    <div class="btn-container">
+      <a href="${dashboardUrl}${drip.ctaPath}" class="btn">${drip.ctaText}</a>
+    </div>
+    ${videoBlock}
+    <div class="pro-tip-box">
+      <div class="pro-tip-title">💡 Pro Tip</div>
+      <p class="body-text" style="margin:0; font-size:15px;">${drip.proTip}</p>
+    </div>
+  `;
 
   return {
     html: `
-      < !DOCTYPE html >
-        <html>
-          <head>
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-              <style>${styles}</style>
-          </head>
-          <body>
-            <div style="padding: 24px;">
-              <div class="container">
-                <div class="header">
-                  <img src="https://homelistingai.com/newlogo.png" alt="HomeListingAI" class="logo">
-                    <h1 class="header-title">HomeListingAI Academy</h1>
-                </div>
-                <div class="content">
-                  <h2 class="greeting">Hi ${firstName},</h2>
-                  ${content}
-                </div>
-                <div class="footer">
-                  <p>Sent with 💙 by the HomeListingAI Team</p>
-                  <p>Need help? Just reply to this email, we're here for you.</p>
-                  <p style="margin-top: 12px; font-size: 12px;">© ${new Date().getFullYear()} HomeListingAI. All rights reserved.</p>
-                </div>
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <style>${styles}</style>
+        </head>
+        <body>
+          <div style="padding: 24px;">
+            <div class="container">
+              <div class="header">
+                <img src="https://homelistingai.com/newlogo.png" alt="HomeListingAI" class="logo">
+                <h1 class="header-title">HomeListingAI Academy</h1>
+                <span class="badge">${drip.badge}</span>
+              </div>
+              <div class="content">
+                <h2 class="greeting">Hi ${firstName},</h2>
+                ${content}
+              </div>
+              <div class="footer">
+                <p>Sent with 💙 by the HomeListingAI Team</p>
+                <p>Need help? Just reply to this email, we're here for you.</p>
+                <p style="margin-top: 12px; font-size: 12px;">© ${new Date().getFullYear()} HomeListingAI. All rights reserved.</p>
               </div>
             </div>
-          </body>
-        </html>
+          </div>
+        </body>
+      </html>
     `,
     subject
   };
