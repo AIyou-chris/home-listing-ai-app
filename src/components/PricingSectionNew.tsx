@@ -28,20 +28,20 @@ export const PricingSectionNew: React.FC<PricingProps> = ({ onNavigateToSignUp: 
                         One Listing Can Pay for This Forever.
                     </h2>
                     <h3 className="text-xl md:text-2xl text-slate-300 font-medium leading-relaxed mb-6">
-                        Try it free for 3 days. Your plan unlocks the moment your trial ends.
+                        Try it free for 7 days. Your plan unlocks the moment your trial ends.
                     </h3>
                     <p className="text-lg md:text-xl text-slate-300 font-light leading-relaxed">
                         Built for loan officers and their agent partners. Email and SMS alerts included.
                         LO includes 250 texts/month. LO Pro includes unlimited.
                     </p>
 
-                    {/* 3-day free trial detail */}
+                    {/* 7-day free trial detail */}
                     <div className="mt-6 inline-flex flex-col items-center gap-1.5 rounded-2xl border border-cyan-500/30 bg-cyan-500/5 px-6 py-4">
-                        <p className="text-cyan-300 font-bold text-sm uppercase tracking-wide">3-Day Free Trial</p>
+                        <p className="text-cyan-300 font-bold text-sm uppercase tracking-wide">7-Day Free Trial</p>
                         <p className="text-slate-300 text-sm">
                             Send up to <span className="font-bold text-white">10 WOW links</span> and create <span className="font-bold text-white">5 listings</span> while you explore.
                         </p>
-                        <p className="text-slate-400 text-xs">Card required · No charge until day 3 · Cancel anytime · Full plan limits unlock when you upgrade</p>
+                        <p className="text-slate-400 text-xs">Card required · No charge until day 7 · Cancel anytime · Full plan limits unlock when you upgrade</p>
                     </div>
                 </div>
 

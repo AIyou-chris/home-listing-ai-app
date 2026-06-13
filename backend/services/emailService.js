@@ -431,7 +431,7 @@ const buildTrialHtml = (firstName, day, dashboardUrl) => {
   } else if (day === 3) {
     subject = 'Your ROI: The math is simple.';
     content = `
-      <p class="body-text">This is it. Your 3-Day Trial is ending.</p>
+      <p class="body-text">This is it. Your 7-Day Trial is ending.</p>
       <p class="body-text">You’ve seen how your <strong>AI Card</strong> captures authentic leads.</p>
       <p class="body-text">You’ve seen how <strong>Single Property AI Applications</strong> turn listings into 24/7 virtual tours.</p>
       

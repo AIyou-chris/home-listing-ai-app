@@ -77,14 +77,14 @@ module.exports = (supabaseAdmin, emailService) => {
             const now = new Date();
 
             // Fetch agents active/trial (assuming filtering by time handles status implicitly or we add status check)
-            // We look back up to 4 days to be safe, but target specific windows
-            const fourDaysAgo = subHours(now, 96).toISOString();
+            // We look back up to 8 days to be safe, but target specific windows
+            const eightDaysAgo = subHours(now, 192).toISOString();
 
             let supportsAgentMetadata = true;
             let { data: agents, error } = await supabaseAdmin
                 .from('agents')
                 .select('id, email, first_name, created_at, metadata')
-                .gte('created_at', fourDaysAgo) // Optimization: only recent users
+                .gte('created_at', eightDaysAgo) // Optimization: only recent users
                 .not('email', 'is', null);
 
             if (error && String(error.message || '').toLowerCase().includes('metadata')) {
@@ -92,7 +92,7 @@ module.exports = (supabaseAdmin, emailService) => {
                 ({ data: agents, error } = await supabaseAdmin
                     .from('agents')
                     .select('id, email, first_name, created_at')
-                    .gte('created_at', fourDaysAgo)
+                    .gte('created_at', eightDaysAgo)
                     .not('email', 'is', null));
             }
 
@@ -121,8 +121,8 @@ module.exports = (supabaseAdmin, emailService) => {
                 else if (hoursSinceJoin >= 48 && hoursSinceJoin < 51 && !trialData.day2) {
                     dayToSend = 2;
                 }
-                // Day 3: 72-75 hours
-                else if (hoursSinceJoin >= 72 && hoursSinceJoin < 75 && !trialData.day3) {
+                // Day 6 (trial-ending email, day3 key kept for dedupe): 144-147 hours
+                else if (hoursSinceJoin >= 144 && hoursSinceJoin < 147 && !trialData.day3) {
                     dayToSend = 3;
                 }
 

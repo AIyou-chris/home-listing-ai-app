@@ -151,10 +151,10 @@ const LOSignupPage: React.FC = () => {
                         For Loan Officers
                     </div>
                     <h1 className="text-3xl sm:text-4xl font-extrabold text-white mb-3">
-                        Start your 3-day free trial
+                        Start your 7-day free trial
                     </h1>
                     <p className="text-slate-400 text-base">
-                        No charge for 3 days. Cancel anytime. Your card is only saved — not charged — until day 3.
+                        No charge for 7 days. Cancel anytime. Your card is only saved — not charged — until day 7.
                     </p>
                 </div>
 
@@ -312,7 +312,7 @@ const LOSignupPage: React.FC = () => {
                             <div className="flex items-center justify-between bg-cyan-950/30 border border-cyan-800/30 rounded-lg px-4 py-3">
                                 <div>
                                     <p className="text-sm font-semibold text-white">{PLANS[selectedPlan].name} Plan</p>
-                                    <p className="text-xs text-slate-400">3-day free trial, then {PLANS[selectedPlan].price}/mo</p>
+                                    <p className="text-xs text-slate-400">7-day free trial, then {PLANS[selectedPlan].price}/mo</p>
                                 </div>
                                 <button
                                     type="button"
@@ -339,7 +339,7 @@ const LOSignupPage: React.FC = () => {
                                 ) : (
                                     <>
                                         <span className="material-symbols-outlined text-lg">rocket_launch</span>
-                                        Start 3-Day Free Trial — {PLANS[selectedPlan].price}/mo after
+                                        Start 7-Day Free Trial — {PLANS[selectedPlan].price}/mo after
                                     </>
                                 )}
                             </button>
@@ -348,7 +348,7 @@ const LOSignupPage: React.FC = () => {
                                 By signing up you agree to our{' '}
                                 <a href="/terms" className="text-slate-400 hover:text-white underline">Terms</a> and{' '}
                                 <a href="/privacy" className="text-slate-400 hover:text-white underline">Privacy Policy</a>.
-                                No charge for 3 days.
+                                No charge for 7 days.
                             </p>
                         </form>
 

@@ -121,7 +121,7 @@ export const PublicHeader: React.FC<PublicHeaderProps> = ({
                     </div>
                     <div className="hidden lg:flex items-center gap-4">
                         <span className="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full border border-green-200">
-                            ✅ 3-Day Free Trial
+                            ✅ 7-Day Free Trial
                         </span>
                         <button onClick={handleLogin} className="text-sm font-semibold text-slate-700 hover:text-primary-600 transition-colors">Login</button>
                         <button

@@ -394,7 +394,7 @@ const LODemoPage: React.FC = () => {
         <div className="mt-16 text-center bg-gradient-to-br from-[#0d1f3c] to-[#0B1121] border border-slate-700/50 rounded-3xl p-12">
           <h2 className="text-3xl font-black mb-3">Ready to build your lead pipeline?</h2>
           <p className="text-slate-400 mb-8 max-w-lg mx-auto">
-            3-day free trial. Full access. No card, no commitment.
+            7-day free trial. Full access. No card, no commitment.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <button

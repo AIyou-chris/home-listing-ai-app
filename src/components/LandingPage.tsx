@@ -1354,7 +1354,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigat
         <div className="bg-slate-950 font-sans">
             <SEO
                 title="HomeListingAI — Warm Leads & Agent Partnerships for Loan Officers"
-                description="Send one WOW Link. Get warm buyer leads from every agent listing — co-branded with your name and NMLS #. The LO's unfair advantage. 3-day free trial."
+                description="Send one WOW Link. Get warm buyer leads from every agent listing — co-branded with your name and NMLS #. The LO's unfair advantage. 7-day free trial."
                 image="/og-image.png"
                 schema={{
                     "@context": "https://schema.org",

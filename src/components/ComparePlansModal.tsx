@@ -246,7 +246,7 @@ const ComparePlansModal: React.FC<ComparePlansModalProps> = ({
                     <div className="px-5 py-4 bg-slate-50 border-t border-slate-100 text-center">
                         <p className="text-xs text-slate-500">
                             One closed loan covers 20+ months of the LO plan.{' '}
-                            <span className="font-medium text-slate-700">3-day free trial. No contracts. Cancel anytime.</span>
+                            <span className="font-medium text-slate-700">7-day free trial. No contracts. Cancel anytime.</span>
                         </p>
                     </div>
                 </div>

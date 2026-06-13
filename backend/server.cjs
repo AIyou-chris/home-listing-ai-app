@@ -29208,7 +29208,7 @@ app.get('/api/conversations/export/csv', async (req, res) => {
       return res.status(400).json({ error: 'userId is required for export' });
     }
 
-    // Model A: card-on-file 3-day trial grants full plan access — lead export included.
+    // Model A: card-on-file 7-day trial grants full plan access — lead export included.
 
     let query = supabaseAdmin
       .from('ai_conversations')
@@ -31002,7 +31002,7 @@ app.get('/api/lo/leads/export.csv', requireAuth, async (req, res) => {
   }
 });
 
-// During the 3-day trial, WOW invites are capped low to limit AI-cost exposure
+// During the 7-day trial, WOW invites are capped low to limit AI-cost exposure
 // before the LO actually pays. Full plan limit kicks in once the sub is active.
 const LO_TRIAL_INVITE_CAP = 10;
 
@@ -31014,7 +31014,7 @@ const resolveLoWowInviteLimit = async (loAgent) => {
 
   // Fallback: app-level trial flag (date-based). 'awaiting_payment' is the status
   // assigned to brand-new LO signups before they go through Stripe — treat it the
-  // same as 'trial' so fresh accounts can send WOW links during the 3-day window.
+  // same as 'trial' so fresh accounts can send WOW links during the 7-day window.
   const TRIAL_STATUSES = new Set(['trial', 'awaiting_payment']);
   if (TRIAL_STATUSES.has(loAgent?.payment_status) && loAgent?.created_at) {
     const trialEnd = new Date(loAgent.created_at);
@@ -31024,9 +31024,9 @@ const resolveLoWowInviteLimit = async (loAgent) => {
 
   if (!stripe || !loAgent?.stripe_customer_id) return 0; // no plan, no trial → blocked
   try {
-    // Model A: card upfront + 3-day Stripe trial. During the trial the subscription
+    // Model A: card upfront + 7-day Stripe trial. During the trial the subscription
     // status is 'trialing' (not 'active'), so we must accept both — otherwise a paying
-    // trial LO would be blocked from the core WOW-link feature for their first 3 days.
+    // trial LO would be blocked from the core WOW-link feature for their first 7 days.
     const ENTITLED_STATUSES = new Set(['active', 'trialing']);
     const subs = await stripe.subscriptions.list({
       customer: loAgent.stripe_customer_id,
@@ -31040,7 +31040,7 @@ const resolveLoWowInviteLimit = async (loAgent) => {
         const isLoPlan = (LO_PRO_PRICE_ID && item.price.id === LO_PRO_PRICE_ID)
           || (LO_PRICE_ID && item.price.id === LO_PRICE_ID);
         if (!isLoPlan) continue;
-        // During the 3-day trial, cap invites low to limit AI-cost exposure before
+        // During the 7-day trial, cap invites low to limit AI-cost exposure before
         // they actually pay. Once the sub is 'active' (post-trial), grant the plan limit.
         if (isTrialing) return LO_TRIAL_INVITE_CAP;
         if (item.price.id === LO_PRO_PRICE_ID) return Infinity; // $299 — unlimited
@@ -31070,7 +31070,7 @@ app.post('/api/lo/partners/invite', requireAuth, async (req, res) => {
     const emailLower = email.trim().toLowerCase();
 
     // ── WOW invite cap — enforce per-LO-plan limit ───────────────────────────
-    // Trial (3 days): 10 · LO $149: 250/mo · LO Pro $299: unlimited · expired/no plan: 0
+    // Trial (7 days): 10 · LO $149: 250/mo · LO Pro $299: unlimited · expired/no plan: 0
     try {
       const inviteLimit = await resolveLoWowInviteLimit(loAgent);
       if (isFinite(inviteLimit)) {
@@ -31087,7 +31087,7 @@ app.post('/api/lo/partners/invite', requireAuth, async (req, res) => {
             limit: inviteLimit,
             used: sentThisMonth,
             message: inviteLimit === 0
-              ? `Your 3-day free trial has ended. Upgrade to the LO plan to start sending WOW links.`
+              ? `Your 7-day free trial has ended. Upgrade to the LO plan to start sending WOW links.`
               : inviteLimit === LO_TRIAL_INVITE_CAP
                 ? `Your free trial includes ${inviteLimit} WOW link invites. Upgrade to send more — your plan unlocks up to 250/month.`
                 : `Your plan allows ${inviteLimit} WOW link invites per month. You've reached your limit for this month.`
@@ -35057,7 +35057,7 @@ app.post('/api/payments/checkout-session', async (req, res) => {
     // 2. 3-DAY OFFER ($10 Immediate / No Trial)
     // We expect the promo code to match a Coupon in Stripe or our DB that reduces first price to $10.
     // If it's a specific "PAY NOW" code, we remove the trial.
-    let trialDays = 3;
+    let trialDays = 7;
     let explicitDiscounts = [];
 
     // Check custom "Pay Now" codes here
@@ -35453,13 +35453,13 @@ const executeDelayedStep = async (userId, lead, step, signature, sequenceId) => 
 const checkTrialWarnings = async () => {
   if (!supabaseAdmin) return;
   try {
-    // Find agents created > 2 days ago (so they have ~1 day left of 3-day trial)
-    const twoDaysAgo = new Date(Date.now() - (2 * 24 * 60 * 60 * 1000)).toISOString();
+    // Find agents created > 6 days ago (so they have ~1 day left of 7-day trial)
+    const sixDaysAgo = new Date(Date.now() - (6 * 24 * 60 * 60 * 1000)).toISOString();
 
     const { data: candidates, error } = await supabaseAdmin
       .from('agents')
       .select('id, email, first_name, created_at')
-      .lt('created_at', twoDaysAgo)
+      .lt('created_at', sixDaysAgo)
       .eq('payment_status', 'trialing')
       .eq('trial_warning_sent', false) // Requires new column
       .limit(50);
@@ -35488,7 +35488,7 @@ const checkTrialWarnings = async () => {
                 <div style="padding: 32px 24px;">
                   <p style="font-size: 16px; line-height: 1.6; color: #334155;">Hi ${agent.first_name || 'Verified Agent'},</p>
                   <p style="font-size: 16px; line-height: 1.6; color: #334155;">
-                    Just a friendly heads-up — your 3-day free trial is ending in 24 hours.
+                    Just a friendly heads-up — your 7-day free trial is ending in 24 hours.
                   </p>
                   
                   <div style="background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 20px; margin: 24px 0;">
@@ -35547,13 +35547,13 @@ const checkTrialWarnings = async () => {
 const checkExpiredTrials = async () => {
   if (!supabaseAdmin) return;
   try {
-    // Find agents created > 3 days ago (Trial expired)
-    const threeDaysAgo = new Date(Date.now() - (3 * 24 * 60 * 60 * 1000)).toISOString();
+    // Find agents created > 7 days ago (Trial expired)
+    const sevenDaysAgo = new Date(Date.now() - (7 * 24 * 60 * 60 * 1000)).toISOString();
 
     const { data: candidates, error } = await supabaseAdmin
       .from('agents')
       .select('id, email, first_name, created_at')
-      .lt('created_at', threeDaysAgo)
+      .lt('created_at', sevenDaysAgo)
       .eq('payment_status', 'trialing') // Still trialing means they didn't pay
       .eq('recovery_email_sent', false) // Requires new column
       .limit(50);
