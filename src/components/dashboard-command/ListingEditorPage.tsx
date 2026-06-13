@@ -360,20 +360,24 @@ interface LoBrainSectionProps {
   csvUploadedAt: string | null
   setCsvUploadedAt: (v: string | null) => void
   onSave: () => Promise<void>
+  onDelete: () => Promise<void>
 }
 
 const LoBrainSection: React.FC<LoBrainSectionProps> = ({
   draft, demoMode: _dm, isLocalOnly: _lo,
+  loBrainDocId,
   loBrainContent, setLoBrainContent,
   savingLoBrain, loBrainSaved,
   csvScenarios, setCsvScenarios,
   csvFileName, setCsvFileName,
   csvUploadedAt, setCsvUploadedAt,
-  onSave
+  onSave, onDelete
 }) => {
   const csvInputRef = useRef<HTMLInputElement>(null)
   const [csvError, setCsvError] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState(false)
   const hasCsv = csvScenarios.length > 0
+  const isSaved = Boolean(loBrainDocId)
   const price = draft.price
 
   const monthlyTax = price > 0 ? (price * 0.012) / 12 : 0
@@ -586,15 +590,28 @@ const LoBrainSection: React.FC<LoBrainSectionProps> = ({
           <p className="text-[11px] text-slate-400 leading-relaxed">
             Rate sheet + notes are saved to the bot's memory for this listing. Re-upload the CSV whenever rates change to keep the bot current.
           </p>
-          <button
-            type="button"
-            onClick={() => void onSave()}
-            disabled={savingLoBrain || (!hasCsv && !loBrainContent.trim())}
-            className="flex-shrink-0 flex items-center gap-1.5 rounded-lg bg-violet-600 px-5 py-2 text-xs font-bold text-white transition hover:bg-violet-700 disabled:opacity-50"
-          >
-            <span className="material-symbols-outlined text-sm">{loBrainSaved ? 'check_circle' : 'save'}</span>
-            {savingLoBrain ? 'Saving…' : loBrainSaved ? 'Saved to Bot!' : 'Save to Bot'}
-          </button>
+          <div className="flex flex-shrink-0 items-center gap-2">
+            {isSaved && (
+              <button
+                type="button"
+                onClick={async () => { setDeleting(true); try { await onDelete() } finally { setDeleting(false) } }}
+                disabled={deleting || savingLoBrain}
+                className="flex items-center gap-1.5 rounded-lg border border-rose-200 bg-white px-3.5 py-2 text-xs font-bold text-rose-600 transition hover:bg-rose-50 disabled:opacity-50"
+              >
+                <span className="material-symbols-outlined text-sm">delete</span>
+                {deleting ? 'Removing…' : 'Remove from Bot'}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => void onSave()}
+              disabled={savingLoBrain || (!hasCsv && !loBrainContent.trim())}
+              className="flex items-center gap-1.5 rounded-lg bg-violet-600 px-5 py-2 text-xs font-bold text-white transition hover:bg-violet-700 disabled:opacity-50"
+            >
+              <span className="material-symbols-outlined text-sm">{loBrainSaved ? 'check_circle' : 'save'}</span>
+              {savingLoBrain ? 'Saving…' : loBrainSaved ? 'Saved to Bot!' : 'Save to Bot'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -1215,6 +1232,30 @@ const ListingEditorPage: React.FC = () => {
       setLoBrainSaved(true)
       setTimeout(() => setLoBrainSaved(false), 2000)
     } catch { toast.error('Could not save LO Brain.') } finally { setSavingLoBrain(false) }
+  }
+
+  const handleDeleteLoBrain = async () => {
+    const resetFields = () => {
+      setLoBrainDocId(null)
+      setLoBrainContent('')
+      setCsvScenarios([])
+      setCsvFileName('')
+      setCsvUploadedAt(null)
+    }
+    if (!loBrainDocId) { resetFields(); return }
+    if (typeof window !== 'undefined' && !window.confirm('Remove this rate sheet and notes from the bot for this listing? You can upload a new one right after.')) return
+    try {
+      if (demoMode || isLocalOnly) { resetFields(); toast.success('Rate sheet removed.'); return }
+      const { waitForAuthenticatedUserId } = await import('../../services/authSession')
+      const uid = await waitForAuthenticatedUserId()
+      const res = await fetch(buildApiUrl(`/api/lo/chatbot/listing-docs/${loBrainDocId}`), {
+        method: 'DELETE',
+        headers: { 'x-user-id': uid }
+      })
+      if (!res.ok) throw new Error('delete_failed')
+      resetFields()
+      toast.success('Rate sheet removed — upload a new one anytime.')
+    } catch { toast.error('Could not remove the rate sheet.') }
   }
 
   const handleSaveDisclosures = async () => {
@@ -2143,6 +2184,7 @@ const ListingEditorPage: React.FC = () => {
                 csvUploadedAt={csvUploadedAt}
                 setCsvUploadedAt={setCsvUploadedAt}
                 onSave={handleSaveLoBrain}
+                onDelete={handleDeleteLoBrain}
               />
 
             </div>

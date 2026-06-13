@@ -32738,6 +32738,26 @@ app.patch('/api/lo/chatbot/listing-docs/:docId', async (req, res) => {
   }
 });
 
+// DELETE /api/lo/chatbot/listing-docs/:docId — remove a saved doc (ownership-scoped)
+app.delete('/api/lo/chatbot/listing-docs/:docId', async (req, res) => {
+  try {
+    const loAgentId = await resolveLoAgentId(req);
+    if (!loAgentId) return res.status(401).json({ error: 'lo_auth_required' });
+    const { docId } = req.params;
+    if (!docId) return res.status(400).json({ error: 'doc_id_required' });
+    const { error } = await supabaseAdmin
+      .from('lo_listing_kb_docs')
+      .delete()
+      .eq('id', docId)
+      .eq('lo_agent_id', loAgentId);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[LO Listing Docs DELETE] Error:', err);
+    res.status(500).json({ error: 'failed_to_delete_listing_doc' });
+  }
+});
+
 // GET /api/public/listing/:listingId/lo-chatbot — get LO chatbot info for a listing (no auth)
 app.get('/api/public/listing/:listingId/lo-chatbot', async (req, res) => {
   try {
