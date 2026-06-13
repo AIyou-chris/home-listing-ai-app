@@ -10012,7 +10012,12 @@ const stripMissingColumn = (payload, missingColumn) => {
 
 const insertAiConversationWithFallback = async ({ payload, selectColumns }) => {
   let insertPayload = { ...(payload || {}) };
-  for (let attempt = 0; attempt < 4; attempt += 1) {
+  // Strip unknown columns one at a time until the insert succeeds. The cap is the
+  // payload field count (each iteration removes at most one column), so any amount
+  // of schema drift self-heals — a hardcoded cap of 4 previously broke public chat
+  // because the payload carried 5 columns absent from ai_conversations.
+  const maxAttempts = Object.keys(insertPayload).length + 1;
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     const { data, error } = await supabaseAdmin
       .from('ai_conversations')
       .insert(insertPayload)
@@ -10028,6 +10033,20 @@ const insertAiConversationWithFallback = async ({ payload, selectColumns }) => {
   }
 
   throw new Error('failed_to_insert_ai_conversation');
+};
+
+// Resolve an agent's profile id (agents.id) from either a profile id or an auth id.
+// ai_conversations.user_id FKs to agents.id, but properties.agent_id holds the AUTH
+// id — pass through this before writing conversations or the FK violates.
+const resolveAgentProfileId = async (rawId) => {
+  if (!rawId) return null;
+  const { data } = await supabaseAdmin
+    .from('agents')
+    .select('id')
+    .or(`id.eq.${rawId},auth_user_id.eq.${rawId}`)
+    .limit(1)
+    .maybeSingle();
+  return data?.id || null;
 };
 
 const updateAiConversationWithFallback = async ({ id, payload, selectColumns }) => {
@@ -19264,7 +19283,20 @@ app.post('/api/public/listings/:publicSlug/session', async (req, res) => {
     }
 
     const listingId = listingRow.id;
-    const agentId = listingRow.agent_id || listingRow.user_id || DEFAULT_LEAD_USER_ID;
+    // ai_conversations.user_id FKs to agents.id (the profile id). properties.agent_id
+    // holds the owner's AUTH id, so resolve auth -> profile id before inserting or the
+    // FK violates and the chat degrades to "warming up".
+    const ownerIdRaw = listingRow.agent_id || listingRow.user_id || null;
+    let agentId = DEFAULT_LEAD_USER_ID;
+    if (ownerIdRaw) {
+      const { data: ownerAgent } = await supabaseAdmin
+        .from('agents')
+        .select('id')
+        .or(`id.eq.${ownerIdRaw},auth_user_id.eq.${ownerIdRaw}`)
+        .limit(1)
+        .maybeSingle();
+      if (ownerAgent?.id) agentId = ownerAgent.id;
+    }
     let sessionPayload = null;
 
     try {
@@ -19376,7 +19408,8 @@ app.post('/api/public/conversations/start', async (req, res) => {
 
     const listing = await mapPublicListingPayload(listingRow);
     const listingId = listingRow.id;
-    const agentId = listingRow.agent_id || listingRow.user_id || DEFAULT_LEAD_USER_ID;
+    // user_id FKs to agents.id — resolve the owner's auth id to their profile id.
+    const agentId = (await resolveAgentProfileId(listingRow.agent_id || listingRow.user_id)) || DEFAULT_LEAD_USER_ID;
     const timestamp = nowIso();
     const sourceType = toSourceType(req.body?.source_type || inferSourceTypeFromKey(sourceKey));
     const metadataPatch = {
@@ -19399,7 +19432,8 @@ app.post('/api/public/conversations/start', async (req, res) => {
       .from('ai_conversations')
       .select('id, lead_id, metadata')
       .eq('listing_id', listingId)
-      .eq('visitor_id', visitorId)
+      // visitor_id lives in metadata, not as a column on ai_conversations
+      .eq('metadata->>visitor_id', visitorId)
       .gte('updated_at', recentThresholdIso)
       .order('updated_at', { ascending: false })
       .limit(1)
