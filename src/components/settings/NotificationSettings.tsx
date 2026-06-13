@@ -102,16 +102,6 @@ const NOTIFICATION_GROUPS: Array<{
             icon: 'smartphone',
             items: [
                 {
-                    key: 'voiceAppointmentReminders',
-                    label: 'Appointment reminder texts',
-                    description: 'Send one text reminder before scheduled appointments'
-                },
-                {
-                    key: 'smsNewLeadAlerts',
-                    label: 'New lead first-touch text',
-                    description: 'Send one automatic text when a new lead is captured'
-                },
-                {
                     key: 'browserNotifications',
                     label: 'Browser Push',
                     description: 'Get desktop notifications when you are online'
