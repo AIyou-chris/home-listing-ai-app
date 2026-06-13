@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import PageGuide from './PageGuide';
 import { useNavigate } from 'react-router-dom'
 import { buildDashboardPath, useDemoMode } from '../../demo/useDemoMode'
 import LOTodayPage from './LOTodayPage'
@@ -304,6 +305,8 @@ const TodayDashboardPage: React.FC = () => {
         <p className="mt-1 text-base text-slate-700">Good {dayPart()}, {greetingName}.</p>
         <p className="mt-1 text-sm text-slate-500">Here’s what needs your attention right now.</p>
       </header>
+
+      <PageGuide pageKey="today" />
 
       {/* Welcome banner — brand new agents only (no listing yet, onboarding pending, real dashboard) */}
       {!loading && !blueprintMode && !demoMode && onboarding && !onboarding.onboarding_completed && !recentListing && (

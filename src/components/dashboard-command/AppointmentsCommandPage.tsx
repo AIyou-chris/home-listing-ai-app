@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import PageGuide from './PageGuide';
 import { useSearchParams } from 'react-router-dom'
 import {
   disableAppointmentReminders,
@@ -679,6 +680,8 @@ const AppointmentsCommandPage: React.FC = () => {
           New Appointment
         </button>
       </div>
+
+      <PageGuide pageKey="appointments" />
 
       {/* Upgrade / usage banners */}
       {remindersLocked && (

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import PageGuide from './PageGuide';
 import { buildApiUrl } from '../../lib/api';
 import { supabase } from '../../services/supabase';
 import toast from 'react-hot-toast';
@@ -759,6 +760,10 @@ const LOChatbotSetupPage: React.FC = () => {
             {saving ? 'Saving...' : 'Save Changes'}
           </button>
         </div>
+      </div>
+
+      <div className="mb-8">
+        <PageGuide pageKey="lo-chatbot" />
       </div>
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">

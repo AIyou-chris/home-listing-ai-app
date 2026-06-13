@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import PageGuide from './PageGuide';
 import { useLocation, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { useDemoMode, buildDashboardPath } from '../../demo/useDemoMode'
@@ -379,6 +380,8 @@ const ListingsCommandPage: React.FC = () => {
           </button>
         </div>
       </header>
+
+      <PageGuide pageKey="listings" />
 
       {loading && (
         <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-500">Loading listings…</div>

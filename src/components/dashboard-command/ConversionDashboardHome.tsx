@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import PageGuide from './PageGuide';
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { buildDashboardPath, useDemoMode } from '../../demo/useDemoMode'
@@ -256,6 +257,8 @@ const ConversionDashboardHome: React.FC = () => {
         <h1 className="text-3xl font-bold text-slate-900">Command Center</h1>
         <p className="mt-1 text-sm text-slate-600">Live pipeline view of what needs attention right now.</p>
       </div>
+
+      <PageGuide pageKey="command-center" />
 
       {/* Loading state — top, before content so zeros never flash */}
       {loading && (

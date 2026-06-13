@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
+import PageGuide from './PageGuide';
 import { useNavigate } from 'react-router-dom'
 import { useDemoMode, buildDashboardPath } from '../../demo/useDemoMode'
 import { buildApiUrl } from '../../lib/api'
@@ -742,6 +743,8 @@ const LOPartnersPage: React.FC = () => {
           {pendingInvites.length > 0 && ` · ${pendingInvites.length} invite pending`}
         </p>
       </div>
+
+      <PageGuide pageKey="lo-partners" />
 
       {/* Empty state */}
       {partners.length === 0 && pendingInvites.length === 0 && (

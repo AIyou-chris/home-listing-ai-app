@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import PageGuide from './PageGuide';
 import { useNavigate } from 'react-router-dom';
 import { buildApiUrl } from '../../lib/api';
 import { supabase } from '../../services/supabase';
@@ -421,6 +422,8 @@ const LOListingsPage: React.FC = () => {
           Co-brand any listing — your info and the agent's appear side by side on every marketing piece.
         </p>
       </div>
+
+      <PageGuide pageKey="lo-listings" />
 
       {/* Build your own listing — same builder agents use, co-branded to you */}
       <div className="rounded-2xl border border-primary-200 bg-primary-50/60 p-6 shadow-sm">

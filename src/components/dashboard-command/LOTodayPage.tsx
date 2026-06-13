@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
+import PageGuide from './PageGuide';
 import { useNavigate } from 'react-router-dom'
 import { buildDashboardPath, useDemoMode } from '../../demo/useDemoMode'
 import { buildApiUrl } from '../../lib/api'
@@ -310,6 +311,8 @@ const LOTodayPage: React.FC = () => {
           Here's your pipeline across {stats.assignedListings} listing{stats.assignedListings !== 1 ? 's' : ''}.
         </p>
       </div>
+
+      <PageGuide pageKey="lo-today" />
 
       {/* ── Setup Checklist (shown until onboarding complete or dismissed) ────── */}
       {setup && !setupDismissed && (

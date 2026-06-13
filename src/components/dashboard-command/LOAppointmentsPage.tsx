@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
+import PageGuide from './PageGuide';
 import toast from 'react-hot-toast'
 import { buildApiUrl } from '../../lib/api'
 import { supabase } from '../../services/supabase'
@@ -608,6 +609,10 @@ const LOAppointmentsPage: React.FC = () => {
             <span className="material-symbols-outlined text-base">add</span>
             Schedule Meeting
           </button>
+        </div>
+
+        <div className="mb-8">
+          <PageGuide pageKey="lo-appointments" />
         </div>
 
         {/* Loading */}

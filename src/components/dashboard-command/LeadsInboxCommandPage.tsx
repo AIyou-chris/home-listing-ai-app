@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import PageGuide from './PageGuide';
 import { useNavigate } from 'react-router-dom'
 import {
   fetchDashboardLeads,
@@ -222,6 +223,8 @@ const LeadsInboxCommandPage: React.FC = () => {
           </div>
         )}
       </div>
+
+      <PageGuide pageKey="leads" />
 
       <div className="flex items-center gap-6 border-b border-slate-200 mb-6">
         <button

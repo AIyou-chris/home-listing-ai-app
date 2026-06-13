@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import PageGuide from './PageGuide';
 import { buildApiUrl } from '../../lib/api';
 import { supabase } from '../../services/supabase';
 import { useDemoMode } from '../../demo/useDemoMode';
@@ -451,6 +452,8 @@ const LOLeadsPage: React.FC = () => {
           ↓ Export CSV
         </button>
       </div>
+
+      <PageGuide pageKey="lo-leads" />
 
       {/* List */}
       {loading ? (

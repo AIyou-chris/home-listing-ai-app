@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
+import PageGuide from './PageGuide';
 import { buildApiUrl } from '../../lib/api'
 import { supabase } from '../../services/supabase'
 import { showToast } from '../../utils/toastService'
@@ -331,6 +332,8 @@ const OfficeDashboardPage: React.FC = () => {
           + Add Loan Officer
         </button>
       </div>
+
+      <PageGuide pageKey="office" />
 
       {/* KPI cards */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
