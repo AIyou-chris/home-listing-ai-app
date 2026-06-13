@@ -102,6 +102,17 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({
     const [contactOpen, setContactOpen] = useState(false);
     const handledDeepLinkAction = useRef(false);
 
+    // ── Collapsible description: clamp to ~250px until expanded ──
+    const DESC_COLLAPSED_PX = 250;
+    const [descExpanded, setDescExpanded] = useState(false);
+    const [descOverflows, setDescOverflows] = useState(false);
+    const descRef = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        const el = descRef.current;
+        if (!el) return;
+        setDescOverflows(el.scrollHeight > DESC_COLLAPSED_PX + 8);
+    }, [descriptionText]);
+
     const heroPhotosArray = useMemo(
         () => (property.heroPhotos?.filter((photo): photo is string => typeof photo === 'string') || []),
         [property.heroPhotos]
@@ -350,10 +361,30 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({
                         </div>
                     </div>
 
-                    {/* ── Description ── */}
+                    {/* ── Description (collapsible — clamps to ~250px) ── */}
                     {descriptionText && (
                         <div className="m-3.5 rounded-[18px] bg-white p-[18px] text-sm leading-relaxed text-slate-600 shadow-[0_4px_16px_rgba(15,23,42,0.05)] dark:bg-[#0f172a] dark:text-slate-400">
-                            {descriptionText}
+                            <div
+                                ref={descRef}
+                                className="relative overflow-hidden transition-[max-height] duration-300 ease-in-out"
+                                style={{ maxHeight: descExpanded || !descOverflows ? '9999px' : `${DESC_COLLAPSED_PX}px` }}
+                            >
+                                {descriptionText}
+                                {descOverflows && !descExpanded && (
+                                    <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-white to-transparent dark:from-[#0f172a]" />
+                                )}
+                            </div>
+                            {descOverflows && (
+                                <button
+                                    type="button"
+                                    onClick={() => setDescExpanded(v => !v)}
+                                    className="mt-2 flex w-full items-center justify-center gap-1 rounded-lg py-1.5 text-xs font-semibold text-slate-500 transition hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-white/5"
+                                    aria-expanded={descExpanded}
+                                >
+                                    {descExpanded ? 'Show less' : 'Read more'}
+                                    <span className={`material-symbols-outlined text-base transition-transform duration-300 ${descExpanded ? 'rotate-180' : ''}`}>expand_more</span>
+                                </button>
+                            )}
                         </div>
                     )}
 
