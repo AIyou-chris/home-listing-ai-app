@@ -247,73 +247,94 @@ const csvToKbText = (rows: CsvScenario[], uploadedAt: string): string => {
 
 // ── PaymentScenariosSection — clean 4-card reference calculator ────────────────
 
-const PaymentScenariosSection: React.FC<{ price: number; rate: string; onRateChange: (r: string) => void }> = ({ price, rate, onRateChange }) => {
+const PaymentScenariosSection: React.FC<{
+  price: number; rate: string; onRateChange: (r: string) => void
+  enabled: boolean; onToggle: (v: boolean) => void
+}> = ({ price, rate, onRateChange, enabled, onToggle }) => {
   const annualRate = parseFloat(rate) || 7.0
   const monthlyTax = price > 0 ? (price * 0.012) / 12 : 0
   const monthlyIns = price > 0 ? (price * 0.005) / 12 : 0
 
-  if (!price || price <= 0) return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm text-center text-sm text-slate-400">
-      💰 Add a listing price in Essentials to see payment estimates.
-    </div>
-  )
-
   return (
     <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-      {/* Header + rate input */}
+      {/* Header + rate input + on/off toggle (toggle stays visible when off so it can be re-enabled) */}
       <div className="border-b border-slate-100 bg-slate-50 px-5 py-3.5 flex items-center justify-between gap-4 flex-wrap">
         <div>
           <div className="flex items-center gap-2 mb-0.5">
             <span className="text-base">💰</span>
             <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Payment Reference</p>
           </div>
-          <p className="text-xs text-slate-500">Quick estimate based on {fmtDollar(price)} purchase price. Your rate sheet above is what the bot quotes to buyers.</p>
+          <p className="text-xs text-slate-500">
+            {enabled
+              ? <>Quick estimate based on {fmtDollar(price)} purchase price. Your rate sheet below is what the bot quotes to buyers.</>
+              : 'Hidden. The bot quotes only from your uploaded rate sheet below.'}
+          </p>
         </div>
-        <div className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5">
-          <span className="text-[11px] font-semibold text-slate-400">Rate</span>
-          <input
-            type="number" min="2" max="15" step="0.125"
-            value={rate} onChange={e => onRateChange(e.target.value)}
-            className="w-12 text-sm font-bold text-slate-900 focus:outline-none text-center"
-          />
-          <span className="text-[11px] font-semibold text-slate-400">%</span>
-        </div>
-      </div>
-
-      {/* 4-card grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-slate-100">
-        {AUTO_SCENARIOS.map(sc => {
-          const downAmt = price * (sc.downPct / 100)
-          const loanAmt = price - downAmt
-          const pi = calcMonthlyPayment(price, sc.downPct, annualRate)
-          const pmiAmt = sc.pmi ? (loanAmt * 0.0085) / 12 : 0
-          const totalMonthly = pi + monthlyTax + monthlyIns + pmiAmt
-
-          return (
-            <div key={sc.label} className="p-4 space-y-2.5">
-              <div>
-                <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${sc.badge}`}>{sc.label}</span>
-                <p className="text-[10px] text-slate-400 mt-1">{sc.desc}</p>
-              </div>
-              <div>
-                <p className="text-xl font-black text-slate-900 leading-none">{fmtDollar(totalMonthly)}<span className="text-[10px] font-semibold text-slate-400">/mo</span></p>
-              </div>
-              <div className="space-y-0.5 text-[10px] text-slate-500 border-t border-slate-100 pt-2">
-                <div className="flex justify-between"><span>Down</span><span className="font-semibold text-slate-700">{fmtDollar(downAmt)}</span></div>
-                <div className="flex justify-between"><span>P&amp;I</span><span className="font-semibold text-slate-700">{fmtDollar(pi)}/mo</span></div>
-                {sc.pmi && <div className="flex justify-between"><span>PMI est.</span><span className="font-semibold text-slate-700">{fmtDollar(pmiAmt)}/mo</span></div>}
-              </div>
+        <div className="flex items-center gap-3">
+          {enabled && price > 0 && (
+            <div className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5">
+              <span className="text-[11px] font-semibold text-slate-400">Rate</span>
+              <input
+                type="number" min="2" max="15" step="0.125"
+                value={rate} onChange={e => onRateChange(e.target.value)}
+                className="w-12 text-sm font-bold text-slate-900 focus:outline-none text-center"
+              />
+              <span className="text-[11px] font-semibold text-slate-400">%</span>
             </div>
-          )
-        })}
+          )}
+          <button
+            type="button"
+            role="switch"
+            aria-checked={enabled}
+            aria-label="Show payment estimate calculator"
+            onClick={() => onToggle(!enabled)}
+            className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition ${enabled ? 'bg-emerald-500' : 'bg-slate-300'}`}
+          >
+            <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${enabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
+          </button>
+        </div>
       </div>
 
-      {/* RESPA footer */}
-      <div className="border-t border-slate-100 bg-amber-50 px-4 py-2.5">
-        <p className="text-[10px] text-amber-800 leading-relaxed">
-          <strong>Estimates only — not a loan commitment.</strong> Figures assume a 30-yr fixed loan. Tax est. 1.2%/yr · insurance 0.5%/yr · PMI 0.85%/yr (LTV &gt;80%). Actual rate, APR, and payment will vary. Equal Housing Lender.
-        </p>
-      </div>
+      {enabled && (price > 0 ? (
+        <>
+          {/* 4-card grid */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-slate-100">
+            {AUTO_SCENARIOS.map(sc => {
+              const downAmt = price * (sc.downPct / 100)
+              const loanAmt = price - downAmt
+              const pi = calcMonthlyPayment(price, sc.downPct, annualRate)
+              const pmiAmt = sc.pmi ? (loanAmt * 0.0085) / 12 : 0
+              const totalMonthly = pi + monthlyTax + monthlyIns + pmiAmt
+
+              return (
+                <div key={sc.label} className="p-4 space-y-2.5">
+                  <div>
+                    <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${sc.badge}`}>{sc.label}</span>
+                    <p className="text-[10px] text-slate-400 mt-1">{sc.desc}</p>
+                  </div>
+                  <div>
+                    <p className="text-xl font-black text-slate-900 leading-none">{fmtDollar(totalMonthly)}<span className="text-[10px] font-semibold text-slate-400">/mo</span></p>
+                  </div>
+                  <div className="space-y-0.5 text-[10px] text-slate-500 border-t border-slate-100 pt-2">
+                    <div className="flex justify-between"><span>Down</span><span className="font-semibold text-slate-700">{fmtDollar(downAmt)}</span></div>
+                    <div className="flex justify-between"><span>P&amp;I</span><span className="font-semibold text-slate-700">{fmtDollar(pi)}/mo</span></div>
+                    {sc.pmi && <div className="flex justify-between"><span>PMI est.</span><span className="font-semibold text-slate-700">{fmtDollar(pmiAmt)}/mo</span></div>}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* RESPA footer */}
+          <div className="border-t border-slate-100 bg-amber-50 px-4 py-2.5">
+            <p className="text-[10px] text-amber-800 leading-relaxed">
+              <strong>Estimates only — not a loan commitment.</strong> Figures assume a 30-yr fixed loan. Tax est. 1.2%/yr · insurance 0.5%/yr · PMI 0.85%/yr (LTV &gt;80%). Actual rate, APR, and payment will vary. Equal Housing Lender.
+            </p>
+          </div>
+        </>
+      ) : (
+        <div className="p-5 text-center text-sm text-slate-400">💰 Add a listing price in Essentials to see payment estimates.</div>
+      ))}
     </div>
   )
 }
@@ -628,6 +649,21 @@ const ListingEditorPage: React.FC = () => {
 
   // ── LO Brain + Payment Scenarios ─────────────────────────────────────────────
   const [loRate, setLoRate] = useState('7.0')
+  // Payment Reference is an in-editor estimate only (never shown to buyers / the bot).
+  // LOs who'd rather rely solely on their uploaded rate sheet can hide it. Per-listing,
+  // remembered in localStorage (display preference — no buyer/bot impact to persist server-side).
+  const [showPaymentRef, setShowPaymentRef] = useState<boolean>(() => {
+    if (typeof window === 'undefined' || !listingId) return true
+    return localStorage.getItem(`hlai_payref_hidden_${listingId}`) !== '1'
+  })
+  const togglePaymentRef = (next: boolean) => {
+    setShowPaymentRef(next)
+    try {
+      if (!listingId) return
+      if (next) localStorage.removeItem(`hlai_payref_hidden_${listingId}`)
+      else localStorage.setItem(`hlai_payref_hidden_${listingId}`, '1')
+    } catch { /* ignore storage errors */ }
+  }
   const [loBrainDocId, setLoBrainDocId] = useState<string | null>(null)
   const [loBrainContent, setLoBrainContent] = useState('')
   const [savingLoBrain, setSavingLoBrain] = useState(false)
@@ -2045,6 +2081,8 @@ const ListingEditorPage: React.FC = () => {
                 price={draft.price}
                 rate={loRate}
                 onRateChange={setLoRate}
+                enabled={showPaymentRef}
+                onToggle={togglePaymentRef}
               />
 
               {/* ═══ PAYMENT DISCLOSURES ═══ */}
