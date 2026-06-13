@@ -212,7 +212,7 @@ const parseCsv = (raw: string): CsvScenario[] => {
   return lines.slice(1).map(line => {
     const cols = tokenize(line)
     const get = (i: number) => (i !== -1 && cols[i] ? cols[i].replace(/[$,%]/g, '').trim() : undefined)
-    const getNum = (i: number) => { const v = get(i); return v ? parseFloat(v) || undefined : undefined }
+    const getNum = (i: number) => { const v = get(i); if (!v) return undefined; const n = parseFloat(v); return Number.isNaN(n) ? undefined : n } // keep 0 (e.g. 0% down for VA/USDA)
 
     return {
       program:  get(iProgram)  || `Option ${lines.indexOf(line)}`,
