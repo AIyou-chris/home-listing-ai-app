@@ -22140,6 +22140,56 @@ app.patch('/api/dashboard/leads/:leadId/status', async (req, res) => {
   }
 });
 
+// Notify partner LOs (email + SMS) when an agent's new listing is auto-assigned
+// to them. Best-effort: failures are logged, never block the listing create.
+async function notifyPartnerLosOfNewListing({ loAgentIds, creatorProfile, listingRow }) {
+  const ids = Array.from(new Set((loAgentIds || []).filter(Boolean)));
+  if (!ids.length) return;
+  const { data: los } = await supabaseAdmin
+    .from('agents')
+    .select('id, email, phone, first_name')
+    .in('id', ids);
+  if (!Array.isArray(los) || !los.length) return;
+
+  const agentName = [creatorProfile?.first_name, creatorProfile?.last_name].filter(Boolean).join(' ') || 'Your partner agent';
+  const address = listingRow?.address && listingRow.address !== 'Address coming soon'
+    ? listingRow.address
+    : 'a new listing';
+  const dashboardLink = `${APP_URL}/dashboard/lo-listings`;
+
+  for (const lo of los) {
+    if (lo.email) {
+      await emailService.sendEmail({
+        to: lo.email,
+        subject: `🏠 ${agentName} just built a new listing — add your financing info`,
+        html: `<!DOCTYPE html><html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#1e293b;">
+<div style="background:linear-gradient(135deg,#1e293b,#334155);border-radius:16px;padding:28px 24px;margin-bottom:24px;">
+  <p style="color:#94a3b8;font-size:12px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;margin:0 0 8px;">New Partner Listing</p>
+  <h2 style="color:white;font-size:22px;font-weight:800;margin:0 0 4px;">${address}</h2>
+  <p style="color:#cbd5e1;font-size:14px;margin:0;">Built by ${agentName}</p>
+</div>
+<p style="font-size:15px;color:#475569;line-height:1.6;">${agentName} just created a new listing and it's already co-branded to you. Add your financing details so every buyer who views it sees your info side by side with the agent's.</p>
+<div style="text-align:center;margin:28px 0;">
+  <a href="${dashboardLink}" style="background:#2563eb;color:white;font-size:15px;font-weight:700;text-decoration:none;padding:14px 28px;border-radius:10px;display:inline-block;">Open My Listings</a>
+</div>
+<p style="font-size:13px;color:#94a3b8;line-height:1.5;">You're receiving this because you have an active partnership with ${agentName} on HomeListingAI.</p>
+</body></html>`
+      }).then((result) => {
+        console.log(`[Dashboard] Partner LO email to ${lo.email}: sent=${result?.sent === true}`);
+      }).catch((err) => console.warn('[Dashboard] Partner LO email failed:', err?.message || err));
+    }
+    if (lo.phone) {
+      // No URL in the SMS body — Textbelt blocks links for unverified keys.
+      await sendSms(
+        lo.phone,
+        `🏠 HomeListingAI: ${agentName} just built a new listing (${address}). It's co-branded to you — open My Listings in your dashboard to add your financing info.`,
+        [],
+        lo.id
+      ).catch((err) => console.warn('[Dashboard] Partner LO SMS failed:', err?.message || err));
+    }
+  }
+}
+
 app.post('/api/dashboard/listings', async (req, res) => {
   try {
     const agentId = await resolveRequesterUserId(req, { allowDefault: false });
@@ -22185,7 +22235,7 @@ app.post('/api/dashboard/listings', async (req, res) => {
     try {
       const { data: creatorProfile } = await supabaseAdmin
         .from('agents')
-        .select('id')
+        .select('id, first_name, last_name')
         .or(`id.eq.${agentId},auth_user_id.eq.${agentId}`)
         .limit(1)
         .maybeSingle();
@@ -22208,6 +22258,13 @@ app.post('/api/dashboard/listings', async (req, res) => {
             await supabaseAdmin
               .from('listing_lo_assignments')
               .upsert(assignmentRows, { onConflict: 'listing_id,lo_agent_id' });
+            notifyPartnerLosOfNewListing({
+              loAgentIds: assignmentRows.map((r) => r.lo_agent_id),
+              creatorProfile,
+              listingRow
+            }).catch((err) => {
+              console.warn('[Dashboard] Partner LO notify skipped:', err?.message || err);
+            });
           }
         }
       }
