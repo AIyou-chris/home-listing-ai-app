@@ -15302,7 +15302,7 @@ app.post('/api/leads/email-forward', async (req, res) => {
 
     // Extract agent slug from email (e.g., "chris@leads.homelistingai.com" -> "chris")
     const toEmail = to || '';
-    const slugMatch = toEmail.match(/^([^@]+)@leads\.homelistingai\.com$/);
+    const slugMatch = toEmail.match(/^([^@]+)@(?:leads|mg)\.homelistingai\.com$/);
 
     if (!slugMatch) {
       console.warn('Email forwarded to invalid address:', toEmail);
