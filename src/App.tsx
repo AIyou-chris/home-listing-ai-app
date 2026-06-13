@@ -648,6 +648,11 @@ const App: React.FC = () => {
         weeklyReport: true,
         monthlyInsights: true
     });
+    // SMS availability comes from the notifications API (channelFlags.sms_enabled + smsChannel).
+    // Without this the Settings UI falls back to its "coming soon / unavailable" default and
+    // wrongly shows SMS as not live even when the backend has it active.
+    const [smsAvailable, setSmsAvailable] = useState(false);
+    const [smsChannel, setSmsChannel] = useState<'coming_soon' | 'active'>('coming_soon');
     const [_emailSettings, setEmailSettings] = useState<EmailSettings>({ integrationType: 'oauth', aiEmailProcessing: true, autoReply: true, leadScoring: true, followUpSequences: true });
     const [_calendarSettings, setCalendarSettings] = useState<CalendarSettings>({
         integrationType: 'google',
@@ -931,6 +936,8 @@ const App: React.FC = () => {
 
                     if (notifRes.status === 'fulfilled' && notifRes.value.settings) {
                         setNotificationSettings(notifRes.value.settings);
+                        setSmsAvailable(Boolean(notifRes.value.channelFlags?.sms_enabled));
+                        setSmsChannel(notifRes.value.smsChannel === 'active' ? 'active' : 'coming_soon');
                     }
                     if (calRes.status === 'fulfilled' && calRes.value.settings) {
                         setCalendarSettings(calRes.value.settings);
@@ -1498,6 +1505,8 @@ const App: React.FC = () => {
                     setProfileLoadFailed(false);
                 }}
                 notificationSettings={notificationSettings}
+                smsAvailable={smsAvailable}
+                smsChannel={smsChannel}
                 onSaveNotifications={async (settings) => {
                     setNotificationSettings(settings);
                     if (user?.uid) {

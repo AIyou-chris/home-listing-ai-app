@@ -57,6 +57,25 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
     const [activeTab, setActiveTab] = useState<'profile' | 'notifications' | 'email' | 'calendar' | 'security' | 'billing'>(initialTab);
     const [refreshingApp, setRefreshingApp] = useState(false);
 
+    // SMS availability — fetched here so it reflects the live backend state regardless
+    // of the parent's load timing (the notifications API returns channelFlags + smsChannel).
+    // Falls back to the props until the fetch resolves.
+    const [resolvedSmsAvailable, setResolvedSmsAvailable] = useState(smsAvailable);
+    const [resolvedSmsChannel, setResolvedSmsChannel] = useState(smsChannel);
+    React.useEffect(() => {
+        if (!_userId || isDemoMode) return;
+        let cancelled = false;
+        fetch(`/api/notifications/settings/${encodeURIComponent(_userId)}`)
+            .then((r) => (r.ok ? r.json() : null))
+            .then((data) => {
+                if (cancelled || !data) return;
+                setResolvedSmsAvailable(Boolean(data.channelFlags?.sms_enabled));
+                setResolvedSmsChannel(data.smsChannel === 'active' ? 'active' : 'coming_soon');
+            })
+            .catch(() => { /* keep prop fallback */ });
+        return () => { cancelled = true; };
+    }, [_userId, isDemoMode]);
+
     const hardRefreshApp = async () => {
         if (refreshingApp) return;
         setRefreshingApp(true);
@@ -251,8 +270,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                                 onBack={onBackToDashboard}
                                 userProfile={userProfile}
                                 onSaveProfile={isDemoMode ? async () => { } : onSaveProfile}
-                                smsAvailable={smsAvailable}
-                                smsChannel={smsChannel}
+                                smsAvailable={resolvedSmsAvailable}
+                                smsChannel={resolvedSmsChannel}
                             />
                         )}
                         {activeTab === 'email' && (
@@ -267,8 +286,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                                 settings={calendarSettings}
                                 onSave={isDemoMode ? async () => { } : onSaveCalendarSettings}
                                 onBack={onBackToDashboard}
-                                smsAvailable={smsAvailable}
-                                smsChannel={smsChannel}
+                                smsAvailable={resolvedSmsAvailable}
+                                smsChannel={resolvedSmsChannel}
                             />
                         )}
                         {activeTab === 'security' && (
