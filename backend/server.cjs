@@ -34461,7 +34461,7 @@ app.get('/api/agent/profile', requireAuth, async (req, res) => {
   try {
     const { data: agent, error } = await supabaseAdmin
       .from('agents')
-      .select('id, auth_user_id, first_name, last_name, email, phone, headshot_url, brand_logo_url, company, nmls_number, state_license_number, title, lending_states')
+      .select('id, auth_user_id, slug, first_name, last_name, email, phone, headshot_url, brand_logo_url, company, nmls_number, state_license_number, title, lending_states')
       .eq('auth_user_id', req.authUserId)
       .maybeSingle();
     if (error) throw error;
