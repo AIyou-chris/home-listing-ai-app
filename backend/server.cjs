@@ -155,14 +155,13 @@ if (!supabaseUrl || !supabaseServiceRoleKey) {
   console.warn('⚠️  Supabase URL or Service Role Key missing. Admin functions may fail.');
 }
 
-// Initialize standard client and admin client
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false
-  }
-});
+// Initialize standard client and admin client — guard against missing env vars
+const supabase = supabaseUrl && supabaseAnonKey
+  ? createClient(supabaseUrl, supabaseAnonKey)
+  : null;
+const supabaseAdmin = supabaseUrl && supabaseServiceRoleKey
+  ? createClient(supabaseUrl, supabaseServiceRoleKey, { auth: { autoRefreshToken: false, persistSession: false } })
+  : null;
 
 const schemaCapabilities = {
   emailTrackingStatus: false,
