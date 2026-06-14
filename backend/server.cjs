@@ -1374,12 +1374,11 @@ app.get('/api/admin/analytics/email', verifyAdmin, async (req, res) => {
 
 // Initialize OpenAI
 if (!process.env.OPENAI_API_KEY) {
-  console.error('FATAL: OPENAI_API_KEY is not set');
-  process.exit(1);
+  console.warn('⚠️  OPENAI_API_KEY is not set — AI features will be unavailable.');
 }
-const openai = new OpenAI({
+const openai = process.env.OPENAI_API_KEY ? new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
-});
+}) : null;
 
 // Supabase (uses env when provided; falls back to client values for dev)
 
