@@ -1,7 +1,7 @@
 import { buildApiUrl } from '../../lib/api';
 import { isDemoModeActive } from '../../demo/useDemoMode';
 import { getDemoRoiSummary } from '../../demo/demoData';
-import { resolveAgentId, defaultJsonHeaders, withAgentQuery, parseResponse } from './utils';
+import { resolveAgentId, authHeaders, withAgentQuery, parseResponse } from './utils';
 
 export interface RoiMetrics {
   leads_captured: number;
@@ -44,7 +44,7 @@ export interface BillingValueProofSnapshot {
 export const fetchRoiMetrics = async (timeframe: '1d' | '7d' | '14d' | '30d' = '7d', agentIdOverride?: string | null) => {
   const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
   const response = await fetch(buildApiUrl(withAgentQuery(`/api/dashboard/roi-metrics?timeframe=${timeframe}`, agentId)), {
-    headers: defaultJsonHeaders(agentId)
+    headers: await authHeaders(agentId)
   });
   return parseResponse<{ success: boolean; metrics: RoiMetrics }>(response);
 };
@@ -59,7 +59,7 @@ export const fetchDashboardRoi = async (range: '7d' | '30d' = '7d', agentIdOverr
 
   const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
   const response = await fetch(buildApiUrl(withAgentQuery(`/api/dashboard/roi?range=${encodeURIComponent(range)}`, agentId)), {
-    headers: defaultJsonHeaders(agentId)
+    headers: await authHeaders(agentId)
   });
   return parseResponse<{ success: boolean } & DashboardRoiSummary>(response);
 };
@@ -68,7 +68,7 @@ export const fetchBillingValueProof = async (range: '7d' | '30d' = '30d', agentI
   const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
   const response = await fetch(
     buildApiUrl(withAgentQuery(`/api/dashboard/billing/value-proof?range=${encodeURIComponent(range)}`, agentId)),
-    { headers: defaultJsonHeaders(agentId) }
+    { headers: await authHeaders(agentId) }
   );
   return parseResponse<{ success: boolean } & BillingValueProofSnapshot>(response);
 };

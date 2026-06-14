@@ -236,13 +236,15 @@ const LOTodayPage: React.FC = () => {
     }
 
     try {
-      const { data: { user } } = await supabase.auth.getUser()
+      const { data: { user }, } = await supabase.auth.getUser()
       if (!user) throw new Error('unauthenticated')
+      const { data: { session } } = await supabase.auth.getSession()
+      const bearerHeader = session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}
 
       // Fetch dashboard + onboarding state in parallel
       const [res, onboardingRes] = await Promise.all([
-        fetch(buildApiUrl('/api/lo/dashboard/today'), { headers: { 'x-user-id': user.id } }),
-        fetch(buildApiUrl('/api/dashboard/onboarding'), { headers: { 'x-user-id': user.id } }).catch(() => null),
+        fetch(buildApiUrl('/api/lo/dashboard/today'), { headers: { 'x-user-id': user.id, ...bearerHeader } }),
+        fetch(buildApiUrl('/api/dashboard/onboarding'), { headers: { 'x-user-id': user.id, ...bearerHeader } }).catch(() => null),
       ])
 
       if (!res.ok) throw new Error('fetch_failed')

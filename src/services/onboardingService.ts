@@ -1,7 +1,7 @@
 import { buildApiUrl } from '../lib/api';
 import { getDemoOnboardingState } from '../demo/demoData';
 import { isDemoModeActive } from '../demo/useDemoMode';
-import { waitForAuthenticatedUserId } from './authSession';
+import { waitForAuthenticatedUserId, waitForAuthenticatedSession } from './authSession';
 import { emitDashboardInvalidation } from './dashboardInvalidation';
 
 export interface OnboardingChecklistState {
@@ -48,10 +48,14 @@ type OnboardingPatchPayload = {
   brand_profile?: Partial<OnboardingBrandProfileState>;
 };
 
-const defaultHeaders = (agentId: string | null): HeadersInit => ({
-  'Content-Type': 'application/json',
-  ...(agentId ? { 'x-user-id': agentId } : {})
-});
+const defaultHeaders = async (agentId: string | null): Promise<HeadersInit> => {
+  const session = isDemoModeActive() ? { accessToken: null } : await waitForAuthenticatedSession();
+  return {
+    'Content-Type': 'application/json',
+    ...(agentId ? { 'x-user-id': agentId } : {}),
+    ...(session.accessToken ? { Authorization: `Bearer ${session.accessToken}` } : {})
+  };
+};
 
 const parseResponse = async <T>(response: Response): Promise<T> => {
   const payload = await response.json().catch(() => ({}));
@@ -74,7 +78,7 @@ export const fetchOnboardingState = async (agentIdOverride?: string | null) => {
 
   const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
   const response = await fetch(buildApiUrl('/api/dashboard/onboarding'), {
-    headers: defaultHeaders(agentId)
+    headers: await defaultHeaders(agentId)
   });
   return parseResponse<OnboardingState>(response);
 };
@@ -90,7 +94,7 @@ export const patchOnboardingState = async (
   const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
   const response = await fetch(buildApiUrl('/api/dashboard/onboarding'), {
     method: 'PATCH',
-    headers: defaultHeaders(agentId),
+    headers: await defaultHeaders(agentId),
     body: JSON.stringify({
       ...payload,
       agentId
@@ -109,7 +113,7 @@ export const resendWelcomeEmail = async (agentIdOverride?: string | null) => {
   const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
   const response = await fetch(buildApiUrl('/api/dashboard/onboarding/resend-welcome-email'), {
     method: 'POST',
-    headers: defaultHeaders(agentId),
+    headers: await defaultHeaders(agentId),
     body: JSON.stringify({ agentId })
   });
   return parseResponse<{ success: boolean; sent: boolean; email: string }>(response);

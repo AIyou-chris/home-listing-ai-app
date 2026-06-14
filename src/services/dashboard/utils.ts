@@ -1,7 +1,7 @@
 import { buildApiUrl } from '../../lib/api';
 import { isDemoModeActive } from '../../demo/useDemoMode';
 import { BillingLimitError } from '../dashboardBillingService';
-import { waitForAuthenticatedUserId } from '../authSession';
+import { waitForAuthenticatedUserId, waitForAuthenticatedSession } from '../authSession';
 
 export { buildApiUrl, isDemoModeActive };
 
@@ -9,6 +9,16 @@ export const defaultJsonHeaders = (agentId: string | null): HeadersInit => ({
   'Content-Type': 'application/json',
   ...(agentId ? { 'x-user-id': agentId } : {})
 });
+
+// Async version that includes the Bearer token so backend auth passes in production
+export const authHeaders = async (agentId: string | null): Promise<HeadersInit> => {
+  const session = isDemoModeActive() ? { accessToken: null } : await waitForAuthenticatedSession();
+  return {
+    'Content-Type': 'application/json',
+    ...(agentId ? { 'x-user-id': agentId } : {}),
+    ...(session.accessToken ? { Authorization: `Bearer ${session.accessToken}` } : {})
+  };
+};
 
 export const parseResponse = async <T>(response: Response): Promise<T> => {
   if (!response.ok) {
