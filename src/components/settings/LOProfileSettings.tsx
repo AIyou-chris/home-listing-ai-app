@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { supabase } from '../../services/supabase'
 import { buildApiUrl } from '../../lib/api'
+import { waitForAuthenticatedSession } from '../../services/authSession'
 
 // ─── US States ────────────────────────────────────────────────────────────────
 
@@ -119,8 +120,12 @@ const LOProfileSettings: React.FC = () => {
       try {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) return
+        const session = await waitForAuthenticatedSession()
         const res = await fetch(buildApiUrl('/api/agent/profile'), {
-          headers: { 'x-user-id': user.id }
+          headers: {
+            'x-user-id': user.id,
+            ...(session.accessToken ? { Authorization: `Bearer ${session.accessToken}` } : {})
+          }
         })
         if (!res.ok) throw new Error('fetch_failed')
         const j = await res.json()
@@ -158,9 +163,14 @@ const LOProfileSettings: React.FC = () => {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('unauthenticated')
+      const session = await waitForAuthenticatedSession()
       const res = await fetch(buildApiUrl('/api/agent/profile'), {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'x-user-id': user.id },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': user.id,
+          ...(session.accessToken ? { Authorization: `Bearer ${session.accessToken}` } : {})
+        },
         body: JSON.stringify({ ...profile, lending_states: lendingStates })
       })
       if (!res.ok) throw new Error('save_failed')

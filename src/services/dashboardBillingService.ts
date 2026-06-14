@@ -2,7 +2,7 @@ import { buildApiUrl } from '../lib/api';
 import { getDemoBillingSnapshot, getDemoBillingUsage } from '../demo/demoData';
 import { isDemoModeActive } from '../demo/useDemoMode';
 import { supabase } from './supabase';
-import { waitForAuthenticatedUserId } from './authSession';
+import { waitForAuthenticatedUserId, waitForAuthenticatedSession } from './authSession';
 
 export type PlanId = 'free' | 'starter' | 'pro';
 
@@ -86,6 +86,15 @@ const resolveAgentId = async (): Promise<string | null> => {
   return waitForAuthenticatedUserId();
 };
 
+const bearerHeaders = async (agentId: string | null, json = false): Promise<HeadersInit> => {
+  const session = isDemoModeActive() ? { accessToken: null } : await waitForAuthenticatedSession();
+  return {
+    ...(json ? { 'Content-Type': 'application/json' } : {}),
+    ...(agentId ? { 'x-user-id': agentId } : {}),
+    ...(session.accessToken ? { Authorization: `Bearer ${session.accessToken}` } : {})
+  };
+};
+
 const withAgentQuery = (path: string, agentId: string | null): string => {
   if (!agentId) return path;
   const separator = path.includes('?') ? '&' : '?';
@@ -127,7 +136,7 @@ export const fetchDashboardBilling = async (): Promise<DashboardBillingSnapshot>
 
   const agentId = await resolveAgentId();
   const response = await fetch(buildApiUrl(withAgentQuery('/api/dashboard/billing', agentId)), {
-    headers: agentId ? { 'x-user-id': agentId } : undefined
+    headers: await bearerHeaders(agentId)
   });
 
   await assertResponse(response);
@@ -149,7 +158,7 @@ export const fetchDashboardBillingUsage = async (): Promise<DashboardBillingUsag
 
   const agentId = await resolveAgentId();
   const response = await fetch(buildApiUrl(withAgentQuery('/api/dashboard/billing/usage', agentId)), {
-    headers: agentId ? { 'x-user-id': agentId } : undefined
+    headers: await bearerHeaders(agentId)
   });
 
   await assertResponse(response);
@@ -163,10 +172,7 @@ export const createBillingCheckoutSession = async (
   const agentId = await resolveAgentId();
   const response = await fetch(buildApiUrl('/api/billing/checkout-session'), {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(agentId ? { 'x-user-id': agentId } : {})
-    },
+    headers: await bearerHeaders(agentId, true),
     body: JSON.stringify({
       plan_id: planId,
       promo_code: promoCode?.trim() || undefined,
@@ -186,10 +192,7 @@ export const createBillingPortalSession = async (): Promise<{ url: string }> => 
   const agentId = await resolveAgentId();
   const response = await fetch(buildApiUrl('/api/billing/portal-session'), {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(agentId ? { 'x-user-id': agentId } : {})
-    },
+    headers: await bearerHeaders(agentId, true),
     body: JSON.stringify({
       return_url: `${window.location.origin}/dashboard/settings/billing`
     })
@@ -235,10 +238,7 @@ export const trackDashboardReportGeneration = async (listingId: string, referenc
   const agentId = await resolveAgentId();
   const response = await fetch(buildApiUrl('/api/dashboard/reports/track-generation'), {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(agentId ? { 'x-user-id': agentId } : {})
-    },
+    headers: await bearerHeaders(agentId, true),
     body: JSON.stringify({
       listing_id: listingId,
       reference_id: referenceId || `report_${Date.now()}`
@@ -257,10 +257,7 @@ export const checkBillingEntitlement = async (
   const agentId = await resolveAgentId();
   const response = await fetch(buildApiUrl('/api/dashboard/billing/check-entitlement'), {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(agentId ? { 'x-user-id': agentId } : {})
-    },
+    headers: await bearerHeaders(agentId, true),
     body: JSON.stringify({
       feature,
       requested_units: requestedUnits,
