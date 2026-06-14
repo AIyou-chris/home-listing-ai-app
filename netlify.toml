@@ -14,12 +14,6 @@
   VITE_REALTIME_WS_BASE_URL = "wss://home-listing-ai-backend.onrender.com"
 
 [[redirects]]
-  from = "/api/ai-card/*"
-  to = "/.netlify/functions/ai-card/:splat"
-  status = 200
-  force = true
-
-[[redirects]]
   from = "/api/*"
   to = "https://home-listing-ai-backend.onrender.com/api/:splat"
   status = 200
