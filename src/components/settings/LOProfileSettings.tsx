@@ -453,6 +453,56 @@ const LOProfileSettings: React.FC = () => {
         This profile shows on every listing you're co-branded on and in your AI financing bot. Keep it current so buyers see the real you.
       </p>
 
+      {/* Live preview */}
+      <div className="pt-2">
+        <p className="mb-3 text-sm font-semibold text-slate-700">Live preview — how buyers see you on listings</p>
+        <div
+          className="rounded-2xl p-5 text-white shadow-lg"
+          style={{ background: 'linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%)' }}
+        >
+          <div className="flex items-center gap-4">
+            {profile.headshot_url ? (
+              <img
+                src={profile.headshot_url}
+                alt="Headshot"
+                className="h-16 w-16 rounded-full border-2 border-white/30 object-cover shrink-0"
+              />
+            ) : (
+              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full border-2 border-white/30 bg-white/10">
+                <span className="material-symbols-outlined text-3xl text-white/60">person</span>
+              </div>
+            )}
+            <div className="min-w-0">
+              <p className="text-base font-bold leading-tight">
+                {[profile.first_name, profile.last_name].filter(Boolean).join(' ') || 'Your Name'}
+              </p>
+              <p className="text-sm text-blue-100">{profile.title || 'Loan Officer'}</p>
+              <p className="text-sm text-blue-200">{profile.company || 'Your Company'}</p>
+              {profile.nmls_number && (
+                <p className="mt-0.5 text-[11px] text-blue-300">NMLS# {profile.nmls_number}</p>
+              )}
+            </div>
+            {profile.logo_url && (
+              <img
+                src={profile.logo_url}
+                alt="Logo"
+                className="ml-auto h-10 w-20 shrink-0 rounded-lg bg-white/10 object-contain p-1"
+              />
+            )}
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <button type="button" className="flex items-center justify-center gap-1.5 rounded-xl bg-white py-2.5 text-sm font-semibold text-blue-700 shadow-sm">
+              <span className="material-symbols-outlined text-base">call</span>
+              Call
+            </button>
+            <button type="button" className="flex items-center justify-center gap-1.5 rounded-xl border border-white/30 bg-white/10 py-2.5 text-sm font-semibold text-white">
+              <span className="material-symbols-outlined text-base">mail</span>
+              Email
+            </button>
+          </div>
+        </div>
+      </div>
+
     </div>
   )
 }
