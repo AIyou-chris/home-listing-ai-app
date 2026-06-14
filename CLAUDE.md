@@ -42,8 +42,9 @@ It helps agents:
 | Frontend | React 18, TypeScript, Vite 7, React Router 6, Tailwind CSS, Zustand, react-hot-toast |
 | Backend | Node.js + Express 5 (monolithic server in `backend/server.cjs`) |
 | Data / Auth / Storage | Supabase (Postgres + auth/storage via `@supabase/supabase-js`) + `pg` driver |
-| Integrations | OpenAI, Google GenAI / googleapis, Stripe, Telnyx, QR tooling |
+| Integrations | OpenAI, Google GenAI / googleapis, Stripe, Telnyx, QR tooling, Mailgun (sending + inbound), Textbelt (SMS) |
 | Tooling | ESLint, TypeScript checks, Jest tests, npm scripts for local orchestration |
+| Hosting | Frontend → Netlify (`homelistingai.com`); Backend → Render (`home-listing-ai-backend.onrender.com`) |
 
 ---
 
@@ -57,6 +58,7 @@ It helps agents:
 - Apply schema updates via idempotent SQL migration before relying on new tables/columns.
 - Make targeted changes and avoid collateral edits to unrelated subsystems.
 - Frontend components live in `src/components/`. Page-level route components live in `src/pages/` or `src/components/dashboard-command/`.
+- **API auth pattern**: All dashboard API calls must send `Authorization: Bearer {accessToken}` header. Use `authHeaders(agentId)` (async, from `src/services/dashboard/utils.ts`) for this — NOT the sync `defaultJsonHeaders`. `resolveRequesterUserId()` in production requires a Bearer token; without it the endpoint returns 401.
 
 ---
 
@@ -81,15 +83,16 @@ It helps agents:
 - `/dashboard/listings/:listingId`
 - `/dashboard/billing`
 - `/dashboard/onboarding`
+- `/dashboard/settings` — Profile, Notifications, Email, Calendar, Security, Billing tabs
 
 **LO (Loan Officer) Platform:**
-- `/dashboard/lo-partners` — agent partnerships
-- `/dashboard/lo-listings` — assigned listings + branding toggles + "📊 Live Dashboard" share
-- `/dashboard/lo-chatbot` — LO AI financing bot setup (#13)
+- `/dashboard/lo-partners` — agent partnerships + WOW Link sender
+- `/dashboard/lo-listings` — assigned listings + branding toggles + rate sheet upload + Payment Reference toggle + "📊 Live Dashboard" share
+- `/dashboard/lo-chatbot` — LO AI financing bot setup
 - `/partner-invite/:token` — **WOW Link**: live listing demo w/ chatbots, sent to agents
-- `/listing-dashboard/:token` — **#15** public per-listing live lead dashboard (token-gated)
+- `/listing-dashboard/:token` — public per-listing live lead dashboard (token-gated)
 
-**Office Tier (#17):**
+**Office Tier:**
 - `/dashboard/office` — branch-manager oversight: KPIs + LO leaderboard + invite LOs
 - `/office-invite/:token` — invited LO claims account, auto-linked to office
 
@@ -105,7 +108,8 @@ It helps agents:
 
 - **#18 White Label** — custom domain + full office rebrand (IN PROGRESS).
 - **Listing Builder V1 edit route** — `/dashboard/listings/:listingId/edit` not yet in main route table.
-- **SMS messaging areas** — intentionally show "coming soon" in UI.
+- **SMS messaging** — Textbelt sends text-only messages; link-in-SMS requires key verification at textbelt.com/whitelist.
+- **7-day drip video slots** — `TRIAL_DRIP_VIDEOS` map in `backend/services/emailService.js` ready; paste video URLs to auto-add watch buttons per day.
 
 ---
 
@@ -115,7 +119,17 @@ It helps agents:
 - **`listings` vs `properties`.** The LO platform's `listing_id` everywhere = **`properties.id`** (rich data). The `listings` table is a legacy stub — do not query it for price/beds/photos.
 - **`account_type`** values: `realtor` | `lo` | `agent` | `office`. The old DB check constraint was dropped (app-controlled). An "office" is an `agents` row with `account_type='office'`; LOs link via `agents.office_id`.
 - **`agent_invites.lo_agent_id`** stores the auth id (its FK was dropped) — the odd one out; internally consistent within the invite→claim→partnership chain. Leave as-is.
+- **`ai_conversations`** — `listing_id` FK to legacy `listings` table was dropped (migration applied). `visitor_id` lives in `metadata->>'visitor_id'`, not a column. `user_id` must be `agents.id` (profile id), resolved via `resolveAgentProfileId(rawId)`.
 - Migrations are committed as `*-migration.sql` / `*.sql` in repo root; user runs them manually in Supabase SQL editor.
+
+---
+
+### ⚠️ Infrastructure Notes
+
+- **Render has two services**: `home-listing-ai-backend` (web, free plan) and `home-listing-ai-worker` (worker, starter plan). The worker needs `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` added to its Render environment — currently missing, causes worker crash. Web service is fine.
+- **Netlify proxy**: `/api/*` → Render backend. The old `/api/ai-card/*` → Netlify Functions redirect was dead and has been removed.
+- **Email inbound**: Mailgun receiving domain is `mg.homelistingai.com` (MX records already in Netlify DNS). Route set up to POST to `/api/leads/email-forward`. Agent forwarding address format: `{agent-slug}@mg.homelistingai.com`.
+- **`supabase` and `supabaseAdmin`** in `server.cjs` are guarded against null (won't crash if env vars missing at startup).
 
 ---
 
@@ -154,22 +168,71 @@ No long explanations. No walls of text. Table in, table out.
 | File | Purpose |
 |---|---|
 | `src/App.tsx` | Root routing + auth state |
-| `src/components/dashboard-command/TodayDashboardPage.tsx` | Today / main dashboard page |
+| `src/components/dashboard-command/TodayDashboardPage.tsx` | Agent Today / main dashboard |
+| `src/components/dashboard-command/LOTodayPage.tsx` | LO Today dashboard |
 | `src/components/Sidebar.tsx` | Agent nav sidebar |
 | `src/components/AdminSidebar.tsx` | Admin nav sidebar |
 | `src/services/dashboardCommandService.ts` | Dashboard API calls |
+| `src/services/dashboard/utils.ts` | Shared fetch helpers — use `authHeaders()` (async, includes Bearer token) for auth'd endpoints |
+| `src/services/dashboard/roi.ts` | ROI / performance data fetching |
+| `src/services/onboardingService.ts` | Onboarding state fetch/patch |
 | `src/state/useDashboardRealtimeStore.ts` | Zustand store for realtime leads/appointments |
+| `src/components/dashboard-command/PageGuide.tsx` | Per-page how-to guides (12 pages covered) |
+| `src/components/settings/EmailSettings.tsx` | Email settings — inbound lead forwarding address |
+| `src/components/settings/NotificationSettings.tsx` | Notification toggles — SMS section is push + test only |
 | `backend/server.cjs` | Express monolith — all API routes |
+| `backend/services/emailService.js` | Transactional email + 7-day LO trial drip |
+| `backend/services/schedulerService.js` | Drip email scheduler (days 1–7 at d×24h windows) |
+| `backend/services/LeadScoringService.js` | Lead scoring — guarded against missing Supabase creds |
 | `src/types.ts` | Shared TypeScript types |
+| `netlify.toml` | Netlify build + proxy config (`/api/*` → Render) |
+| `render.yaml` | Render service definitions (web + worker) |
 
 ---
 
-## 7. Notes
+## 7. Current State Snapshot (as of 2026-06-14)
 
-- Snapshot reflects repo state as of **May 17, 2026** (post WOW Link, #13 LO bot, #15 listing dashboard, ID-consistency pass, #17 Office tier; #18 white-label in progress).
-- When in doubt about route wiring, check `src/App.tsx` `<Routes>` block.
-- Demo mode is toggled via `useDemoMode()` hook — always guard demo-only data behind it.
-- `primary-600` is the brand blue used throughout — do not swap to generic Tailwind blue.
+### ✅ Recently completed (this sprint)
+
+| Feature | Notes |
+|---|---|
+| Per-page how-to guides | All 12 dashboard pages — collapsible, dismissible to pill, localStorage state |
+| 7-day free trial | Extended from 3 days everywhere — frontend, backend, drip emails |
+| 7-day LO onboarding drip | Replaces old 3-email agent drip; video slot map ready for URLs |
+| LO notified when partner agent builds listing | Email + SMS via `notifyPartnerLosOfNewListing()` |
+| Rate sheet CSV parser fix | 0% down payments (VA/USDA) no longer dropped |
+| Rate sheet delete ("Remove from Bot") | Confirmed + DELETE route wired |
+| Payment Reference toggle | Per-listing, green/slate switch, localStorage persisted |
+| Buyer chatbot reads rate sheets | `/api/public/lo-chat` reads `lo_listing_kb_docs`, injects into prompt |
+| Public listing chat fix | Three stacked bugs fixed: column strip cap, FK drop, auth id vs profile id |
+| Collapsible listing description | 250px clamp, Read more/Show less, fade gradient |
+| Inbound lead email forwarding | Mailgun route on `mg.homelistingai.com` → backend; slug extracted from recipient |
+| Agent notification settings persist | `agent_notification_settings` table created + migration applied |
+| SMS settings show correctly | `SettingsPage.tsx` self-fetches on mount; threading through App.tsx |
+| SMS toggles cleaned up | Agent Notifications: removed paid toggles; kept Browser Push + Send Test |
+| Email settings domain fixed | Shows `{slug}@mg.homelistingai.com` (was dead `leads.` subdomain) |
+| Netlify dead redirect removed | `/api/ai-card/*` no longer hijacked to non-existent Netlify Functions |
+| Supabase crash guard | `server.cjs` + `LeadScoringService.js` won't throw at startup if env vars missing |
+| Bearer token in API calls | ROI, onboarding, LO Today now send `Authorization: Bearer` — fixes production 401s |
+| Mailgun inbound field names | `/api/leads/email-forward` accepts both generic and Mailgun-native field names |
+| Tailwind config consolidated | Single `tailwind.config.js` covering all `src/**`; dead `src/index.css` removed |
+
+### 🔴 Known open issues
+
+| Issue | Where | Notes |
+|---|---|---|
+| `/api/agent/profile` 404 on LO Settings | LO dashboard Settings page | Route exists + uses `requireAuth`; Settings page not yet sending Bearer token |
+| `/api/dashboard/billing` 401 on LO | LO dashboard | Same — billing fetch not yet using `authHeaders()` |
+| Worker service crash | Render `home-listing-ai-worker` | Missing SUPABASE_URL etc. in worker env vars; user needs to add in Render dashboard |
+| Day-6 trial warning overlap | Email drip | Day 6 drip handles "trial ending" but standalone `checkTrialWarnings` billing email may also fire |
+
+### ⏳ Pending manual steps (user to do)
+
+| Step | Where | What |
+|---|---|---|
+| Add Supabase env vars to worker | Render dashboard → home-listing-ai-worker → Environment | Add `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` |
+| Verify Textbelt key | textbelt.com/whitelist | Unlocks SMS links (currently text-only) |
+| Paste drip video URLs | `backend/services/emailService.js` → `TRIAL_DRIP_VIDEOS` | Each day auto-adds a watch button when URL is non-null |
 
 ---
 
@@ -187,7 +250,6 @@ Default mattpocock/skills label vocabulary (needs-triage, needs-info, ready-for-
 
 Single-context repo — one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
 
-<!-- code-review-graph MCP tools -->
 ## MCP Tools: code-review-graph
 
 **IMPORTANT: This project has a knowledge graph. ALWAYS use the
