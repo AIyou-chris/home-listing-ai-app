@@ -21,22 +21,23 @@ const ProfileSettings: React.FC<ProfileSettingsProps> = ({
     if (isLO) {
         return (
             <div className="p-8 space-y-8 animate-fadeIn">
-                <div className="flex items-start justify-between">
-                    <div>
-                        <h2 className="text-2xl font-bold text-slate-900">Profile</h2>
-                        <p className="text-slate-500 mt-1">Your public LO profile — shows on every listing you're co-branded on.</p>
-                    </div>
+                <div>
+                    <h2 className="text-2xl font-bold text-slate-900">Profile</h2>
+                    <p className="text-slate-500 mt-1">Your public LO profile — shows on every listing you're co-branded on.</p>
+                </div>
+                <FeatureSection title="Loan Officer Profile" icon="badge">
+                    <LOProfileSettings />
+                </FeatureSection>
+                <div className="pt-1">
                     <button
+                        type="button"
                         onClick={() => navigate('/ai-card')}
-                        className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm font-semibold shadow-sm"
+                        className="inline-flex min-w-[150px] items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-primary-700"
                     >
                         <span className="material-symbols-outlined text-base">contact_page</span>
                         Preview AI Card
                     </button>
                 </div>
-                <FeatureSection title="Loan Officer Profile" icon="badge">
-                    <LOProfileSettings />
-                </FeatureSection>
             </div>
         );
     }
