@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { EmailSettings } from '../../types';
 import { FeatureSection } from './SettingsCommon';
+import { supabase } from '../../services/supabase';
+import { buildApiUrl } from '../../lib/api';
 
 interface EmailSettingsProps {
     settings: EmailSettings;
@@ -15,9 +17,30 @@ const EmailSettingsPage: React.FC<EmailSettingsProps> = ({
     settings: _settings,
     onSave: _onSave,
     onBack: _onBack,
-    agentSlug
+    agentSlug: agentSlugProp
 }) => {
-    const normalizedSlug = agentSlug?.trim().toLowerCase() || '';
+    const [resolvedSlug, setResolvedSlug] = useState<string>(agentSlugProp?.trim().toLowerCase() || '');
+
+    useEffect(() => {
+        const fetchSlug = async () => {
+            try {
+                const { data: { user } } = await supabase.auth.getUser();
+                if (!user) return;
+                const res = await fetch(buildApiUrl('/api/agent/profile'), {
+                    headers: { 'x-user-id': user.id }
+                });
+                if (!res.ok) return;
+                const j = await res.json();
+                const slug = j.profile?.slug || j.profile?.dashboard_slug || '';
+                if (slug) setResolvedSlug(slug.trim().toLowerCase());
+            } catch {
+                // keep prop value as fallback
+            }
+        };
+        void fetchSlug();
+    }, []);
+
+    const normalizedSlug = resolvedSlug;
     const inboundEmail = normalizedSlug ? `${normalizedSlug}@mg.homelistingai.com` : 'your-slug@mg.homelistingai.com';
     const publicStoreUrl = normalizedSlug ? `/store/${normalizedSlug}` : '/store/your-slug';
 
