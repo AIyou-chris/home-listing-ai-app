@@ -360,15 +360,7 @@ const LOProfileSettings: React.FC = () => {
             <input ref={logoRef} type="file" accept="image/*" className="hidden" onChange={handleLogoFile} />
           </div>
         </div>
-        <div className="mt-3">
-          <input
-            type="url"
-            value={profile.logo_url}
-            onChange={e => setProfile(p => ({ ...p, logo_url: e.target.value }))}
-            className={fieldCls}
-            placeholder="https://... (or upload above)"
-          />
-        </div>
+        <input type="hidden" value={profile.logo_url} readOnly />
       </div>
 
       <div className="h-px bg-slate-100" />

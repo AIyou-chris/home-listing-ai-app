@@ -30878,9 +30878,9 @@ app.get('/api/lo/dashboard/today', requireAuth, async (req, res) => {
     const assignedRows = await fetchLoAssignedListings(loProfileId);
     const listingLeadCounts = leads.reduce((acc, l) => { if (l.listing_id) acc[l.listing_id] = (acc[l.listing_id] || 0) + 1; return acc; }, {});
     const assignedListings = assignedRows.map(r => ({ listingId: r.listingId, brandingEnabled: r.brandingEnabled, address: r.address, price: r.price, status: r.status, heroPhoto: r.heroPhoto, leadCount: listingLeadCounts[r.listingId] || 0 }));
-    // Check if LO has completed their profile (has a lo_chatbot_configs row with full_name)
-    const { data: loConfig } = await supabaseAdmin.from('lo_chatbot_configs').select('full_name, headshot_url, nmls_number').eq('lo_agent_id', loAgentId).maybeSingle();
-    const loProfileComplete = Boolean(loConfig?.full_name);
+    // Check if LO has completed their profile (name + NMLS in agents table)
+    const { data: loAgentData } = await supabaseAdmin.from('agents').select('first_name, nmls_number, headshot_url').or(`id.eq.${loProfileId || loAgentId},auth_user_id.eq.${loAgentId}`).limit(1).maybeSingle();
+    const loProfileComplete = Boolean(loAgentData?.first_name && loAgentData?.nmls_number);
     // Check partner invites sent
     const { count: partnerInviteCount } = await supabaseAdmin.from('agent_invites').select('id', { count: 'exact', head: true }).eq('lo_agent_id', loAgentId);
     const partnerInvited = (partnerInviteCount || 0) > 0;
