@@ -137,8 +137,14 @@ const AgentBusinessCardEditor: React.FC<AgentBusinessCardEditorProps> = ({ userP
         try {
           const { data: authData } = await supabase.auth.getSession();
           const uid = authData?.session?.user?.id;
+          const token = authData?.session?.access_token;
           if (uid) {
-            const res = await fetch(buildApiUrl('/api/agent/profile'), { headers: { 'x-user-id': uid } });
+            const res = await fetch(buildApiUrl('/api/agent/profile'), {
+              headers: {
+                'x-user-id': uid,
+                ...(token ? { Authorization: `Bearer ${token}` } : {})
+              }
+            });
             if (res.ok) {
               const j = await res.json();
               nmlsNumber = j.profile?.nmls_number || nmlsNumber;

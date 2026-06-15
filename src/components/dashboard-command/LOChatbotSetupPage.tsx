@@ -5,10 +5,12 @@ import { supabase } from '../../services/supabase';
 import toast from 'react-hot-toast';
 
 const getApiHeaders = async (): Promise<HeadersInit> => {
+  const { data: { session } } = await supabase.auth.getSession();
   const { data } = await supabase.auth.getUser();
   return {
     'Content-Type': 'application/json',
-    ...(data.user?.id ? { 'x-user-id': data.user.id } : {})
+    ...(data.user?.id ? { 'x-user-id': data.user.id } : {}),
+    ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {})
   };
 };
 

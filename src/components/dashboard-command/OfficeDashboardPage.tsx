@@ -29,6 +29,16 @@ interface OverviewData {
   pendingInvites: PendingInvite[]
 }
 
+const getApiHeaders = async (contentType = false): Promise<HeadersInit> => {
+  const { data: { session } } = await supabase.auth.getSession()
+  const { data } = await supabase.auth.getUser()
+  return {
+    ...(contentType ? { 'Content-Type': 'application/json' } : {}),
+    ...(data.user?.id ? { 'x-user-id': data.user.id } : {}),
+    ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {})
+  }
+}
+
 const toRelative = (v: string) => {
   const mins = Math.round((Date.now() - new Date(v).getTime()) / 60000)
   if (mins < 60) return `${mins}m ago`
@@ -57,10 +67,10 @@ const InviteLOModal: React.FC<{ onClose: () => void; onSent: () => void }> = ({ 
     if (!email.trim()) return
     setSending(true)
     try {
-      const { data: { user } } = await supabase.auth.getUser()
+      const headers = await getApiHeaders(true)
       const res = await fetch(buildApiUrl('/api/office/invite-lo'), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-user-id': user?.id || '' },
+        headers,
         body: JSON.stringify({ email: email.trim(), name: name.trim() || undefined })
       })
       if (!res.ok) throw new Error('failed')
@@ -144,8 +154,8 @@ const WhiteLabelCard: React.FC = () => {
   }
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      fetch(buildApiUrl('/api/office/branding'), { headers: { 'x-user-id': user?.id || '' } })
+    getApiHeaders().then(headers => {
+      fetch(buildApiUrl('/api/office/branding'), { headers })
         .then(r => r.json())
         .then((d: { success?: boolean; branding?: Branding }) => { if (d.success && d.branding) setB(d.branding) })
         .catch(() => {})
@@ -156,10 +166,10 @@ const WhiteLabelCard: React.FC = () => {
   const save = async () => {
     setSaving(true)
     try {
-      const { data: { user } } = await supabase.auth.getUser()
+      const headers = await getApiHeaders(true)
       const res = await fetch(buildApiUrl('/api/office/branding'), {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'x-user-id': user?.id || '' },
+        headers,
         body: JSON.stringify(b)
       })
       const j = await res.json() as { success?: boolean; error?: string }
@@ -176,9 +186,9 @@ const WhiteLabelCard: React.FC = () => {
   const testWebhook = async () => {
     setTesting(true)
     try {
-      const { data: { user } } = await supabase.auth.getUser()
+      const headers = await getApiHeaders()
       const res = await fetch(buildApiUrl('/api/office/branding/test-webhook'), {
-        method: 'POST', headers: { 'x-user-id': user?.id || '' }
+        method: 'POST', headers
       })
       const j = await res.json() as { success?: boolean; status?: number; error?: string }
       if (j.success) showToast.success(`Webhook OK (HTTP ${j.status})`)
@@ -287,8 +297,8 @@ const OfficeDashboardPage: React.FC = () => {
 
   const load = useCallback(async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      const res = await fetch(buildApiUrl('/api/office/overview'), { headers: { 'x-user-id': user?.id || '' } })
+      const headers = await getApiHeaders()
+      const res = await fetch(buildApiUrl('/api/office/overview'), { headers })
       const json = await res.json() as { success?: boolean } & OverviewData
       if (!mountedRef.current) return
       if (json.success) setData(json)

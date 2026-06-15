@@ -1,7 +1,7 @@
 import { buildApiUrl } from '../lib/api'
 import { isDemoModeActive } from '../demo/useDemoMode'
 import { getDemoProperties } from '../demo/demoData'
-import { waitForAuthenticatedUserId } from './authSession'
+import { waitForAuthenticatedUserId, waitForAuthenticatedSession } from './authSession'
 import { emitDashboardInvalidation } from './dashboardInvalidation'
 
 export type ListingBrainSourceType = 'text' | 'doc' | 'url'
@@ -112,10 +112,14 @@ const withAgentQuery = (path: string, agentId: string | null): string => {
   return `${path}${separator}agentId=${encodeURIComponent(agentId)}`
 }
 
-const defaultJsonHeaders = (agentId: string | null): HeadersInit => ({
-  'Content-Type': 'application/json',
-  ...(agentId ? { 'x-user-id': agentId } : {})
-})
+const defaultJsonHeaders = async (agentId: string | null): Promise<HeadersInit> => {
+  const session = isDemoModeActive() ? { accessToken: null } : await waitForAuthenticatedSession()
+  return {
+    'Content-Type': 'application/json',
+    ...(agentId ? { 'x-user-id': agentId } : {}),
+    ...(session.accessToken ? { Authorization: `Bearer ${session.accessToken}` } : {})
+  }
+}
 
 const parseResponse = async <T>(response: Response): Promise<T> => {
   if (!response.ok) {
@@ -184,7 +188,7 @@ export const createListingDraft = async (input: CreateListingDraftInput = {}, ag
   const agentId = await resolveListingAgent(agentIdOverride)
   const response = await fetch(buildApiUrl(withAgentQuery('/api/dashboard/listings', agentId)), {
     method: 'POST',
-    headers: defaultJsonHeaders(agentId),
+    headers: await defaultJsonHeaders(agentId),
     body: JSON.stringify(input)
   })
   const payload = await parseResponse<ListingPayloadResponse>(response)
@@ -216,7 +220,7 @@ export const patchListingBuilder = async (listingId: string, input: PatchListing
   const agentId = await resolveListingAgent(agentIdOverride)
   const response = await fetch(buildApiUrl(withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}`, agentId)), {
     method: 'PATCH',
-    headers: defaultJsonHeaders(agentId),
+    headers: await defaultJsonHeaders(agentId),
     body: JSON.stringify(input)
   })
   const payload = await parseResponse<{ listing: { id: string; status: string } }>(response)
@@ -240,7 +244,7 @@ export const createListingBuilderSource = async (listingId: string, input: Creat
     buildApiUrl(withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}/sources`, agentId)),
     {
       method: 'POST',
-      headers: defaultJsonHeaders(agentId),
+      headers: await defaultJsonHeaders(agentId),
       body: JSON.stringify({
         ...input,
         type: sourceTypeToApi(input.type)
@@ -262,7 +266,7 @@ export const updateListingBuilderSource = async (
     buildApiUrl(withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}/sources/${encodeURIComponent(sourceId)}`, agentId)),
     {
       method: 'PATCH',
-      headers: defaultJsonHeaders(agentId),
+      headers: await defaultJsonHeaders(agentId),
       body: JSON.stringify({
         ...input,
         ...(input.type ? { type: sourceTypeToApi(input.type) } : {})
@@ -295,7 +299,7 @@ export const generateListingDescription = async (
     buildApiUrl(withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}/generate-description`, agentId)),
     {
       method: 'POST',
-      headers: defaultJsonHeaders(agentId),
+      headers: await defaultJsonHeaders(agentId),
       body: JSON.stringify(fields)
     }
   )
@@ -309,7 +313,11 @@ export const uploadListingBrainDoc = async (listingId: string, file: File, agent
   formData.append('file', file)
 
   const url = buildApiUrl(withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}/sources/upload`, agentId))
-  const headers: HeadersInit = agentId ? { 'x-user-id': agentId } : {}
+  const session = isDemoModeActive() ? { accessToken: null } : await waitForAuthenticatedSession()
+  const headers: HeadersInit = {
+    ...(agentId ? { 'x-user-id': agentId } : {}),
+    ...(session.accessToken ? { Authorization: `Bearer ${session.accessToken}` } : {})
+  }
 
   const response = await fetch(url, { method: 'POST', headers, body: formData })
   const payload = await parseResponse<{ source: ListingSourceApi }>(response)
@@ -324,7 +332,7 @@ export const retrainListingBrain = async (listingId: string, agentIdOverride?: s
     buildApiUrl(withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}/retrain`, agentId)),
     {
       method: 'POST',
-      headers: defaultJsonHeaders(agentId),
+      headers: await defaultJsonHeaders(agentId),
       body: JSON.stringify({})
     }
   )

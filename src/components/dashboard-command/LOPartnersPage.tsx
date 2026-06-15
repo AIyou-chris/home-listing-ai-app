@@ -7,6 +7,18 @@ import { supabase } from '../../services/supabase'
 import { showToast } from '../../utils/toastService'
 import LOROIWidget from '../dashboard-widgets/LOROIWidget'
 
+// ─── Auth helpers ─────────────────────────────────────────────────────────────
+
+const getApiHeaders = async (contentType = false): Promise<HeadersInit> => {
+  const { data: { session } } = await supabase.auth.getSession()
+  const { data } = await supabase.auth.getUser()
+  return {
+    ...(contentType ? { 'Content-Type': 'application/json' } : {}),
+    ...(data.user?.id ? { 'x-user-id': data.user.id } : {}),
+    ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {})
+  }
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface PartnerListing {
@@ -95,10 +107,10 @@ const saveMeta = (meta: PartnerMeta) => {
 // Fire-and-forget backend sync for partner meta — localStorage stays the fast layer
 const patchPartnerMeta = async (partnershipId: string, updates: { notes?: string; rating?: PartnerRating | null; last_follow_up?: string | null }) => {
   try {
-    const { data: { user } } = await supabase.auth.getUser()
+    const headers = await getApiHeaders(true)
     await fetch(buildApiUrl(`/api/lo/partners/${partnershipId}`), {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', 'x-user-id': user?.id || '' },
+      headers,
       body: JSON.stringify(updates)
     })
   } catch { /* silently fail — localStorage remains source of truth during session */ }
@@ -156,9 +168,8 @@ const InviteModal: React.FC<{ onClose: () => void; onSent: (wowLink: string) => 
 
   useEffect(() => {
     if (demoMode) return
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) return
-      fetch(buildApiUrl('/api/lo/listings'), { headers: { 'x-user-id': user.id } })
+    getApiHeaders().then(headers => {
+      fetch(buildApiUrl('/api/lo/listings'), { headers })
         .then(r => r.json())
         .then((d: { listings?: LOListing[] }) => setListings((d.listings || []).filter(l => l.status === 'published')))
         .catch(() => {})
@@ -177,10 +188,10 @@ const InviteModal: React.FC<{ onClose: () => void; onSent: (wowLink: string) => 
         setTimeout(() => { onSent(demoLink); onClose() }, 3000)
         return
       }
-      const { data: { user } } = await supabase.auth.getUser()
+      const headers = await getApiHeaders(true)
       const res = await fetch(buildApiUrl('/api/lo/partners/invite'), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-user-id': user?.id || '' },
+        headers,
         body: JSON.stringify({ email: email.trim(), name: name.trim() || undefined, listingId: listingId || undefined })
       })
       const json = await res.json() as { success?: boolean; wowLink?: string; error?: string; message?: string }
@@ -498,9 +509,9 @@ const PartnerCard: React.FC<{ partner: Partner; onViewListings: (p: Partner) => 
               onClick={async () => {
                 setRemoveConfirm(false)
                 try {
-                  const { data: { user } } = await supabase.auth.getUser()
+                  const headers = await getApiHeaders()
                   const res = await fetch(buildApiUrl(`/api/lo/partners/${partner.partnershipId}`), {
-                    method: 'DELETE', headers: { 'x-user-id': user?.id || '' }
+                    method: 'DELETE', headers
                   })
                   if (!res.ok) throw new Error()
                   showToast.success(`${partner.name} removed`)
@@ -696,10 +707,8 @@ const LOPartnersPage: React.FC = () => {
       return
     }
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      const res = await fetch(buildApiUrl('/api/lo/partners'), {
-        headers: { 'x-user-id': user?.id || '' }
-      })
+      const headers = await getApiHeaders()
+      const res = await fetch(buildApiUrl('/api/lo/partners'), { headers })
       const json = await res.json() as { success: boolean; partners: Partner[]; pendingInvites: PendingInvite[] }
       if (!mountedRef.current) return
       // Seed localStorage from server — server is authoritative after migration
@@ -795,9 +804,9 @@ const LOPartnersPage: React.FC = () => {
                     <button
                       onClick={async () => {
                         try {
-                          const { data: { user } } = await supabase.auth.getUser()
+                          const headers = await getApiHeaders()
                           const res = await fetch(buildApiUrl(`/api/lo/partners/invite/${invite.id}/nudge`), {
-                            method: 'POST', headers: { 'x-user-id': user?.id || '' }
+                            method: 'POST', headers
                           })
                           const json = await res.json() as { error?: string; message?: string }
                           if (!res.ok) throw new Error(json.message || 'nudge_failed')
@@ -814,9 +823,9 @@ const LOPartnersPage: React.FC = () => {
                   <button
                     onClick={async () => {
                       try {
-                        const { data: { user } } = await supabase.auth.getUser()
+                        const headers = await getApiHeaders()
                         const res = await fetch(buildApiUrl(`/api/lo/partners/invite/${invite.id}/resend`), {
-                          method: 'POST', headers: { 'x-user-id': user?.id || '' }
+                          method: 'POST', headers
                         })
                         if (!res.ok) throw new Error()
                         showToast.success('Invite resent!')
@@ -832,9 +841,9 @@ const LOPartnersPage: React.FC = () => {
                         onClick={async () => {
                           setRevokeConfirmId(null)
                           try {
-                            const { data: { user } } = await supabase.auth.getUser()
+                            const headers = await getApiHeaders()
                             const res = await fetch(buildApiUrl(`/api/lo/partners/invite/${invite.id}`), {
-                              method: 'DELETE', headers: { 'x-user-id': user?.id || '' }
+                              method: 'DELETE', headers
                             })
                             if (!res.ok) throw new Error()
                             showToast.success('Invite revoked')

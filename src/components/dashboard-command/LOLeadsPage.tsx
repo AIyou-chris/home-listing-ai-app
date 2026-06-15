@@ -30,10 +30,12 @@ const STATUS_OPTIONS: { value: LeadStatus; label: string; color: string }[] = [
 ];
 
 const getApiHeaders = async (): Promise<HeadersInit> => {
+  const { data: { session } } = await supabase.auth.getSession();
   const { data } = await supabase.auth.getUser();
   return {
     'Content-Type': 'application/json',
-    ...(data.user?.id ? { 'x-user-id': data.user.id } : {})
+    ...(data.user?.id ? { 'x-user-id': data.user.id } : {}),
+    ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {})
   };
 };
 
@@ -134,10 +136,10 @@ const LeadCard: React.FC<{ lead: Lead; expanded: boolean; onToggle: () => void; 
         onStatusChange(lead.id, newStatus);
         return;
       }
-      const { data: { user } } = await supabase.auth.getUser();
+      const headers = await getApiHeaders();
       const res = await fetch(buildApiUrl(`/api/lo/leads/${lead.id}/status`), {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'x-user-id': user?.id || '' },
+        headers,
         body: JSON.stringify({ status: newStatus }),
       });
       const json = await res.json();
@@ -167,10 +169,10 @@ const LeadCard: React.FC<{ lead: Lead; expanded: boolean; onToggle: () => void; 
         setTimeout(() => { setSent(false); setShowSms(false); setSmsText(''); }, 2500);
         return;
       }
-      const { data: { user } } = await supabase.auth.getUser();
+      const headers = await getApiHeaders();
       const res = await fetch(buildApiUrl(`/api/lo/leads/${lead.id}/sms`), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-user-id': user?.id || '' },
+        headers,
         body: JSON.stringify({ message: smsText.trim() })
       });
       const json = await res.json();

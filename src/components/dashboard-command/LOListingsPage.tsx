@@ -34,10 +34,12 @@ type Listing = {
 };
 
 const getApiHeaders = async (): Promise<HeadersInit> => {
+  const { data: { session } } = await supabase.auth.getSession();
   const { data } = await supabase.auth.getUser();
   return {
     'Content-Type': 'application/json',
-    ...(data.user?.id ? { 'x-user-id': data.user.id } : {})
+    ...(data.user?.id ? { 'x-user-id': data.user.id } : {}),
+    ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {})
   };
 };
 
@@ -98,8 +100,7 @@ const BrandingTogglePanel: React.FC<{ listingId: string; demo?: boolean }> = ({ 
       return;
     }
     try {
-      const { data: userData } = await supabase.auth.getUser();
-      const headers: HeadersInit = userData.user?.id ? { 'x-user-id': userData.user.id } : {};
+      const headers = await getApiHeaders();
       const res = await fetch(buildApiUrl(`/api/lo/listings/${listingId}/branding-toggles`), { headers });
       const json = await res.json();
       if (json.success) setToggles(json.toggles);
@@ -114,8 +115,7 @@ const BrandingTogglePanel: React.FC<{ listingId: string; demo?: boolean }> = ({ 
     if (demo) return;
     setSaving(true);
     try {
-      const { data: userData } = await supabase.auth.getUser();
-      const headers: HeadersInit = { 'Content-Type': 'application/json', ...(userData.user?.id ? { 'x-user-id': userData.user.id } : {}) };
+      const headers = await getApiHeaders();
       await fetch(buildApiUrl(`/api/lo/listings/${listingId}/branding-toggles`), { method: 'PATCH', headers, body: JSON.stringify({ toggles: next }) });
     } catch { /* non-fatal */ } finally { setSaving(false); }
   };
@@ -162,10 +162,10 @@ const ListingCard: React.FC<ListingCardProps> = ({ listing, mode, onRemove, onAd
   const handleShareDashboard = async () => {
     setSharingDash(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const headers = await getApiHeaders();
       const res = await fetch(buildApiUrl(`/api/listing/${listing.id}/dashboard-link`), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-user-id': user?.id || '' }
+        headers
       });
       const json = await res.json() as { success?: boolean; url?: string };
       if (!res.ok || !json.url) throw new Error('failed');

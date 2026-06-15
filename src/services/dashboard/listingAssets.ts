@@ -5,7 +5,7 @@ import {
   publishDemoListingShareKit
 } from '../../demo/demoData';
 import { emitDashboardInvalidation } from '../dashboardInvalidation';
-import { resolveAgentId, defaultJsonHeaders, withAgentQuery, parseResponse } from './utils';
+import { resolveAgentId, authHeaders, withAgentQuery, parseResponse } from './utils';
 
 export interface ListingSourceDefault {
   id: string | null;
@@ -51,7 +51,7 @@ export const fetchListingShareKit = async (listingId: string, agentIdOverride?: 
   const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
   const response = await fetch(
     buildApiUrl(withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}/share-kit`, agentId)),
-    { headers: defaultJsonHeaders(agentId) }
+    { headers: await authHeaders(agentId) }
   );
 
   // 409 = listing exists but is unpublished — return a safe draft state so the
@@ -84,7 +84,7 @@ export const publishListingShareKit = async (listingId: string, isPublished = tr
     buildApiUrl(withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}/publish`, agentId)),
     {
       method: 'PATCH',
-      headers: defaultJsonHeaders(agentId),
+      headers: await authHeaders(agentId),
       body: JSON.stringify({ is_published: isPublished, agentId })
     }
   );
@@ -129,7 +129,7 @@ export const generateListingQrCode = async (
     buildApiUrl(withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}/generate-qr`, agentId)),
     {
       method: 'POST',
-      headers: defaultJsonHeaders(agentId),
+      headers: await authHeaders(agentId),
       body: JSON.stringify({ ...payload, agentId })
     }
   );
@@ -154,7 +154,7 @@ export const downloadOpenHouseFlyerPdf = async (listingId: string, agentIdOverri
   const response = await fetch(
     buildApiUrl(path),
     {
-      headers: agentId ? { 'x-user-id': agentId } : undefined
+      headers: await authHeaders(agentId)
     }
   );
 
@@ -199,7 +199,7 @@ const downloadListingBinaryAsset = async (
   const response = await fetch(
     buildApiUrl(resolvedPath),
     {
-      headers: agentId ? { 'x-user-id': agentId } : undefined
+      headers: await authHeaders(agentId)
     }
   );
 
