@@ -1170,9 +1170,13 @@ const App: React.FC = () => {
         const isAuthPage = path === '/signup' || path === '/';
         const isPostAuthPage = path === '/post-auth';
 
-        if (isAuthPage || isPostAuthPage) {
+        if (isAuthPage) {
             navigate('/post-auth', { replace: true });
             return;
+        }
+
+        if (isPostAuthPage) {
+            return; // Let PostAuth component handle the redirect to dashboard
         }
 
         if (role === 'admin' && path.startsWith('/dashboard')) {
