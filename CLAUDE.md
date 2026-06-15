@@ -236,7 +236,7 @@ No long explanations. No walls of text. Table in, table out.
 
 | Step | Where | What |
 |---|---|---|
-| Verify Textbelt key | textbelt.com/whitelist | Unlocks SMS links (currently text-only) |
+| Switch SMS provider | When ready | Textbelt has no whitelist option — links in SMS blocked until provider is swapped (Twilio, Telnyx already in stack) |
 | Paste drip video URLs | `backend/services/emailService.js` → `TRIAL_DRIP_VIDEOS` | Each day auto-adds a watch button when URL is non-null |
 | Test end-to-end email forward | Forward any lead email to `{slug}@mg.homelistingai.com` | Confirm it arrives in Leads inbox |
 | Test Stripe checkout live | Billing page → upgrade flow | Confirm charge goes through and plan updates |
