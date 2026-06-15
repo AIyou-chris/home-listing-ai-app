@@ -82,7 +82,7 @@ const MAILGUN_WEBHOOK_SIGNING_KEY = process.env.MAILGUN_WEBHOOK_SIGNING_KEY || p
 if (MAILGUN_WEBHOOK_SIGNING_KEY === MAILGUN_API_KEY) {
   console.error('🚨 [Config] MAILGUN_WEBHOOK_SIGNING_KEY is not set correctly. Set MAILGUN_WEBHOOK_SIGNING_KEY in your environment to the Webhook Signing Key from the Mailgun dashboard (separate from your API key). Mailgun webhook events will be rejected until this is fixed.');
 }
-const APP_URL = process.env.VITE_APP_URL || process.env.APP_URL || 'http://localhost:5173';
+const APP_URL = process.env.APP_URL || process.env.VITE_APP_URL || 'https://homelistingai.com';
 // SMS gate — single source of truth, kept in sync with backend/services/smsService.js.
 // Default is "live": SMS is only suppressed when SMS_COMING_SOON=true is set explicitly.
 const SMS_COMING_SOON =
@@ -147,8 +147,8 @@ const FLYER_PAGE_HEIGHT_IN = 11;
 const FLYER_MAX_PHOTOS = 4;
 
 
-const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
+const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!supabaseUrl || !supabaseServiceRoleKey) {
@@ -9678,13 +9678,13 @@ const queueAppointmentInviteEmails = async ({
 };
 
 const getAgentEmailAddress = async (agentId) => {
-  if (!agentId) return process.env.VITE_ADMIN_EMAIL || process.env.FROM_EMAIL || null;
+  if (!agentId) return process.env.ADMIN_EMAIL || process.env.FROM_EMAIL || process.env.VITE_ADMIN_EMAIL || null;
   const { data: agent } = await supabaseAdmin
     .from('agents')
     .select('email')
     .or(`id.eq.${agentId},auth_user_id.eq.${agentId}`)
     .maybeSingle();
-  return agent?.email || process.env.VITE_ADMIN_EMAIL || process.env.FROM_EMAIL || null;
+  return agent?.email || process.env.ADMIN_EMAIL || process.env.FROM_EMAIL || process.env.VITE_ADMIN_EMAIL || null;
 };
 
 const resolveNudgeChannelSettings = async (agentId) => {
@@ -11384,7 +11384,7 @@ const processEmailSendJob = async (job) => {
       .or(`id.eq.${targetAgentId},auth_user_id.eq.${targetAgentId}`)
       .maybeSingle();
 
-    const targetEmail = agent?.email || process.env.VITE_ADMIN_EMAIL || process.env.FROM_EMAIL || null;
+    const targetEmail = agent?.email || process.env.ADMIN_EMAIL || process.env.FROM_EMAIL || process.env.VITE_ADMIN_EMAIL || null;
     if (!targetEmail) throw new Error('missing_target_email');
 
     await emailService.sendEmail({
@@ -11425,7 +11425,7 @@ const processEmailSendJob = async (job) => {
       .or(`id.eq.${targetAgentId},auth_user_id.eq.${targetAgentId}`)
       .maybeSingle();
 
-    const targetEmail = agent?.email || process.env.VITE_ADMIN_EMAIL || process.env.FROM_EMAIL || null;
+    const targetEmail = agent?.email || process.env.ADMIN_EMAIL || process.env.FROM_EMAIL || process.env.VITE_ADMIN_EMAIL || null;
     if (!targetEmail) throw new Error('missing_target_email');
 
     await emailService.sendEmail({
@@ -18957,7 +18957,7 @@ app.post('/api/leads', async (req, res) => {
       try {
         const prefs = await getNotificationPreferences(agentId);
         let agentPhone = prefs.notificationPhone;
-        let agentEmail = process.env.VITE_ADMIN_EMAIL || process.env.FROM_EMAIL || null;
+        let agentEmail = process.env.ADMIN_EMAIL || process.env.FROM_EMAIL || process.env.VITE_ADMIN_EMAIL || null;
 
         if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
           const { data: agent } = await supabaseAdmin
@@ -27262,8 +27262,8 @@ Please represent this agent in your responses. Use their tone and branding where
             type: 'account_onboarding',
             account_onboarding: {
               configurations: ['merchant', 'customer'],
-              refresh_url: `${process.env.VITE_APP_URL || 'http://localhost:5173'}/dashboard`, // URL if user gets stuck
-              return_url: `${process.env.VITE_APP_URL || 'http://localhost:5173'}/dashboard?onboarding=complete`, // URL after completion
+              refresh_url: `${process.env.APP_URL || process.env.VITE_APP_URL || 'https://homelistingai.com'}/dashboard`, // URL if user gets stuck
+              return_url: `${process.env.APP_URL || process.env.VITE_APP_URL || 'https://homelistingai.com'}/dashboard?onboarding=complete`, // URL after completion
             },
           },
         });
@@ -27364,8 +27364,8 @@ Please represent this agent in your responses. Use their tone and branding where
             application_fee_amount: 123, // 1.23 USD generic fee for demo
           },
           mode: 'payment',
-          success_url: `${process.env.VITE_APP_URL || 'http://localhost:5173'}/success?session_id={CHECKOUT_SESSION_ID}`,
-          cancel_url: `${process.env.VITE_APP_URL || 'http://localhost:5173'}/cancel`,
+          success_url: `${process.env.APP_URL || process.env.VITE_APP_URL || 'https://homelistingai.com'}/success?session_id={CHECKOUT_SESSION_ID}`,
+          cancel_url: `${process.env.APP_URL || process.env.VITE_APP_URL || 'https://homelistingai.com'}/cancel`,
         }, {
           stripeAccount: accountId,
         });
@@ -27390,8 +27390,8 @@ Please represent this agent in your responses. Use their tone and branding where
           line_items: [
             { price: priceId, quantity: 1 }, // Ensure this price exists in your Platform account!
           ],
-          success_url: `${process.env.VITE_APP_URL || 'http://localhost:5173'}/dashboard?subscription=success`,
-          cancel_url: `${process.env.VITE_APP_URL || 'http://localhost:5173'}/dashboard?subscription=cancelled`,
+          success_url: `${process.env.APP_URL || process.env.VITE_APP_URL || 'https://homelistingai.com'}/dashboard?subscription=success`,
+          cancel_url: `${process.env.APP_URL || process.env.VITE_APP_URL || 'https://homelistingai.com'}/dashboard?subscription=cancelled`,
         });
 
         res.json({ url: session.url });
@@ -27408,7 +27408,7 @@ Please represent this agent in your responses. Use their tone and branding where
 
         const session = await stripe.billingPortal.sessions.create({
           customer_account: accountId, // Required to match the connected account
-          return_url: `${process.env.VITE_APP_URL || 'http://localhost:5173'}/dashboard`,
+          return_url: `${process.env.APP_URL || process.env.VITE_APP_URL || 'https://homelistingai.com'}/dashboard`,
         });
 
         res.json({ url: session.url });
@@ -27550,7 +27550,7 @@ app.post('/api/leads/public', async (req, res) => {
     // or maybe fetch the agent's email if possible? 
     // Simplicity: Always notify global admin for now, user can refine later.
     if (notifyAdmin) {
-      const adminEmail = process.env.VITE_ADMIN_EMAIL || 'us@homelistingai.com';
+      const adminEmail = process.env.ADMIN_EMAIL || process.env.VITE_ADMIN_EMAIL || 'us@homelistingai.com';
       await emailService.sendEmail({
         to: adminEmail,
         subject: `🚀 New Lead: ${name || email} (${source})`,
@@ -28809,7 +28809,7 @@ app.post('/api/chat/handoff', async (req, res) => {
     console.log(`🚨 CHAT HANDOFF REQUEST: [${priority}] ${category} - "${message}"`);
 
     // 2. Identify the agent (Currently defaulting to system owner or hardcoded fallback if no auth context)
-    const agentEmail = process.env.VITE_ADMIN_EMAIL || 'admin@homelistingai.com';
+    const agentEmail = process.env.ADMIN_EMAIL || process.env.VITE_ADMIN_EMAIL || 'us@homelistingai.com';
 
     // 3. Send Email Notification
     const emailSubject = `🔥 URGENT: Chat Handoff Request (${category})`;

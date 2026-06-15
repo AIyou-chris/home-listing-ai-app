@@ -678,18 +678,11 @@ const App: React.FC = () => {
     }, [authReady]);
 
     const logAuthBreadcrumb = useCallback((eventType: string, session: { expires_at?: number; user?: { id?: string } } | null) => {
-        const expiresAt =
+        const _expiresAt =
             typeof session?.expires_at === 'number'
                 ? new Date(session.expires_at * 1000).toISOString()
                 : null;
 
-        console.log('🧭 Auth breadcrumb', {
-            authReady: authReadyRef.current,
-            sessionExists: !!session?.user,
-            eventType,
-            expiresAt,
-            currentRoute: window.location.pathname
-        });
     }, []);
 
     const markAuthReady = useCallback((eventType: string, session: { expires_at?: number; user?: { id?: string } } | null) => {
@@ -783,7 +776,6 @@ const App: React.FC = () => {
         const applyAuthSnapshot = async (nextSession: Session | null) => {
             if (!active) return;
 
-            console.log(`[AUTH] session loaded: ${nextSession ? 'yes' : 'no'}`);
             setSession(nextSession);
             setAuthReady(true);
             setRoleReady(false);
@@ -811,7 +803,6 @@ const App: React.FC = () => {
             setRole(resolvedRole);
             setIsAdmin(resolvedRole === 'admin');
             setRoleReady(true);
-            console.log(`[AUTH] role loaded: ${resolvedRole}`);
         };
 
         void (async () => {
@@ -849,8 +840,6 @@ const App: React.FC = () => {
         if (hasInitializedAuthRef.current) return;
         hasInitializedAuthRef.current = true;
 
-        console.log('🚀 APP INIT: Optimized Auth Flow');
-
         // Validate environment
         EnvValidation.logValidationResults();
 
@@ -862,7 +851,6 @@ const App: React.FC = () => {
         // Separate function to load heavy data without blocking UI
         const loadUserData = async (currentUser: AppUser) => {
             try {
-                console.log('🔄 Loading user data in background...');
 
                 // 1. Admin Check logic - OPTIMIZED ORDER
                 // Fast Local Check: Check email whitelist FIRST to avoid blocking network calls
@@ -873,7 +861,6 @@ const App: React.FC = () => {
                 const isEnvAdmin = currentUser.email && adminEmails.includes(currentUser.email.toLowerCase());
 
                 if (isEnvAdmin) {
-                    console.log("👮 Admin privileges confirmed via Email Whitelist:", currentUser.email);
                     setIsAdmin(true);
                     setUserProfile({
                         ...SAMPLE_AGENT,
@@ -888,11 +875,9 @@ const App: React.FC = () => {
                 }
 
                 // Slow Remote Check: Only RPC if not locally confirmed
-                console.log("⏳ Checking Admin RPC...");
                 const { data: isRpcAdmin } = await supabase.rpc('is_user_admin', { uid: currentUser.uid });
 
                 if (isRpcAdmin) {
-                    console.log("👮 Admin privileges confirmed via RPC for:", currentUser.email);
                     setIsAdmin(true);
                     setUserProfile({
                         ...SAMPLE_AGENT,
@@ -910,7 +895,6 @@ const App: React.FC = () => {
                     setUserProfile(propertiesToLoad[0].agent);
                 } else {
                     // New/Empty user
-                    console.log('🆕 No properties. Initializing empty profile with auth data.');
                     const generatedSlug = currentUser.displayName
                         ? currentUser.displayName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
                         : `agent-${currentUser.uid.substring(0, 8)}`;
@@ -926,7 +910,6 @@ const App: React.FC = () => {
 
                 // 3. Load User Settings (Notifications, Calendar, Billing, Email)
                 try {
-                    console.log('⚙️ Loading user settings...');
                     const [notifRes, calRes, billRes, emailRes] = await Promise.allSettled([
                         notificationSettingsService.fetch(currentUser.uid),
                         calendarSettingsService.fetch(currentUser.uid),
@@ -948,7 +931,6 @@ const App: React.FC = () => {
                     if (emailRes.status === 'fulfilled' && emailRes.value.settings) {
                         setEmailSettings(emailRes.value.settings);
                     }
-                    console.log('✅ User settings loaded');
                 } catch (settingsError) {
                     console.warn('Failed to load user settings:', settingsError);
                 }
@@ -961,7 +943,6 @@ const App: React.FC = () => {
         const initAuth = async () => {
             // Check URL path immediately
             const currentPath = window.location.pathname;
-            console.log('📍 Initial Route:', currentPath);
             let resolvedSession: { expires_at?: number; user?: { id?: string } } | null = null;
 
             // Fast path for public routes - DO NOT BLOCK
@@ -999,7 +980,6 @@ const App: React.FC = () => {
 
             try {
                 // 1. Check Local Session (Network Validation) with timeout guard
-                console.log('🔍 Checking session...');
                 const sessionResult = await Promise.race<
                     Awaited<ReturnType<typeof supabase.auth.getSession>> | { timedOut: true }
                 >([
@@ -1020,12 +1000,9 @@ const App: React.FC = () => {
                 const { data: { session }, error: sessionError } = sessionResult;
                 resolvedSession = session ?? null;
 
-                console.log('🔍 Session check complete. User:', session?.user?.email);
-
                 if (sessionError) throw sessionError;
 
                 if (session?.user) {
-                    console.log(`✅ Session found for: ${session.user.email}`);
                     const currentUser: AppUser = {
                         uid: session.user.id,
                         id: session.user.id,
@@ -1040,7 +1017,6 @@ const App: React.FC = () => {
                     // If we are attempting to access an Admin route, we MUST wait for the admin check
                     // otherwise the route protection will kick us out (isAdmin defaults to false).
                     if (currentPath.startsWith('/admin')) {
-                        console.log('⏳ Awaiting admin check for admin route...');
                         // Add timeout dynamically for this specific await if needed, but the outer safety covers it
                         await loadUserData(currentUser);
                     } else {
@@ -1055,7 +1031,6 @@ const App: React.FC = () => {
                         const isNewUser = currentUser.created_at && (new Date().getTime() - new Date(currentUser.created_at).getTime() < 60000);
 
                         if (currentPath === '/signup' && isNewUser) {
-                            console.log('🆕 New user detected on signup page. Allowing signup flow to continue.');
                             return;
                         }
 
@@ -1072,7 +1047,6 @@ const App: React.FC = () => {
 
                 } else {
                     // No Session
-                    console.log('👤 No active session.');
                     setUser(null);
                 }
 
@@ -1089,7 +1063,6 @@ const App: React.FC = () => {
 
         // Listen for auth changes (Sign In / Sign Out / Token Refresh)
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-            console.log("🔐 Auth Change:", event, session?.user?.email);
 
             // Password recovery: Supabase fires this when it detects a recovery token
             // (often after dumping the user on the Site URL root). Flag recovery mode
@@ -1115,7 +1088,6 @@ const App: React.FC = () => {
             const adminEmails = ['admin@homelistingai.com', 'us@homelistingai.com'];
             if (envAdminEmail) adminEmails.push(envAdminEmail.toLowerCase());
             if (email && adminEmails.includes(email.toLowerCase())) {
-                console.log("👮 Fast Admin Check Passed");
                 setIsAdmin(true);
             }
         };
@@ -1129,7 +1101,6 @@ const App: React.FC = () => {
                     const currentUser = buildAppUser(session.user);
                     setUser(currentUser);
                     fastAdminCheck(session.user.email);
-                    console.log('🔄 INITIAL_SESSION: user restored from storage, authReady will resolve.');
                 }
             } else if (event === 'SIGNED_IN') {
                 if (session?.user) {
@@ -1150,7 +1121,6 @@ const App: React.FC = () => {
                     const currentUser = buildAppUser(session.user);
                     setUser(currentUser);
                     fastAdminCheck(session.user.email);
-                    console.log('🔑 TOKEN_REFRESHED: session extended, skipping full data reload.');
                 }
             } else if (event === 'SIGNED_OUT') {
                 setUser(null);
@@ -1235,7 +1205,6 @@ const App: React.FC = () => {
                     email: updatedProfile.email,
                     phone: updatedProfile.phone
                 }));
-                console.log('🔄 Profile updated across app');
             });
 
             return () => {
@@ -1261,7 +1230,6 @@ const App: React.FC = () => {
             // SECURITY: If we have been identified as an admin while this was loading, 
             // DO NOT overwrite the System Administrator profile with a personal agent profile.
             if (isAdmin) {
-                console.log('👮 Admin detected during profile load. Skipping agent profile overwrite.');
                 return;
             }
 
@@ -1275,7 +1243,6 @@ const App: React.FC = () => {
                 phone: profileData.phone,
                 language: profileData.language ?? prev.language
             }));
-            console.log('✅ Loaded centralized agent profile');
         } catch (error) {
             console.error('Failed to load agent profile:', error);
             setProfileLoadFailed(true);
@@ -1493,7 +1460,6 @@ const App: React.FC = () => {
     // above the App component for stable component identity (see Edit #2).
     const renderRoutes = () => {
         if (isLoading) return <div className="flex h-screen items-center justify-center"><LoadingSpinner /></div>;
-        console.log("📍 Rendering Routes");
 
         const renderSettingsPage = (initialTab: 'profile' | 'notifications' | 'security' | 'billing' = 'profile') => (
             <SettingsPage
@@ -1844,8 +1810,6 @@ const App: React.FC = () => {
         );
     };
 
-    // DEBUG: Log current state before render
-    console.log('🎨 RENDERING with view=', view, 'hash=', window.location.hash);
 
     // Hash override removed - AppRoutes handles routing now
 
@@ -1871,7 +1835,7 @@ const App: React.FC = () => {
                         })()}
                         {isConsultationModalOpen && (
                             <Suspense fallback={<LoadingSpinner />}>
-                                <ConsultationModal leadRole={consultationRole} onClose={() => setIsConsultationModalOpen(false)} onSuccess={() => { console.log('Consultation scheduled successfully!'); }} />
+                                <ConsultationModal leadRole={consultationRole} onClose={() => setIsConsultationModalOpen(false)} onSuccess={() => {}} />
                             </Suspense>
                         )}
                         {isAdminLoginOpen && view !== 'admin-setup' && (
@@ -1888,9 +1852,8 @@ const App: React.FC = () => {
                                         previousInteractions: user ? 1 : 0,
                                         userInfo: user ? { name: user.displayName || 'User', email: user.email || '', company: 'Real Estate' } : undefined
                                     }}
-                                    onLeadGenerated={(leadInfo) => { console.log('Lead generated from chat:', leadInfo); }}
+                                    onLeadGenerated={() => {}}
                                     onSupportTicket={async (ticketInfo) => {
-                                        console.log('Support ticket created from chat:', ticketInfo);
                                         try {
                                             const { notifyAgentHandoff } = await import('./services/chatService');
                                             await notifyAgentHandoff(ticketInfo);

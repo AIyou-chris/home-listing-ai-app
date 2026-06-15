@@ -4,6 +4,7 @@ services:
     runtime: node
     region: oregon
     plan: free
+    autoDeploy: true
     buildCommand: npm install --include=dev --ignore-scripts && npm run build && cd backend && npm install --omit=dev --ignore-scripts && PUPPETEER_CACHE_DIR=/opt/render/project/src/backend/.cache/puppeteer npx puppeteer browsers install chrome
     startCommand: cd backend && node server.cjs
     healthCheckPath: /healthz
