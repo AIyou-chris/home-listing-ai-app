@@ -112,25 +112,6 @@ const NotificationSystem: React.FC<NotificationSystemProps> = ({ userId }) => {
                                     </button>
                                 )}
                                 <button
-                                    onClick={async () => {
-                                        try {
-                                            await NotificationService.sendNotificationToUser(
-                                                userId,
-                                                'Test Notification',
-                                                'This is a verification test message.',
-                                                'system',
-                                                'high'
-                                            );
-                                        } catch (e) {
-                                            console.error(e);
-                                        }
-                                    }}
-                                    className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 px-2 py-1 rounded"
-                                    title="Send Test Notification"
-                                >
-                                    Test
-                                </button>
-                                <button
                                     onClick={() => setIsOpen(false)}
                                     className="text-gray-400 hover:text-gray-600"
                                 >
