@@ -502,7 +502,7 @@ ${normalizedInput.message || 'No additional notes'}
 
   const attendees = [
     normalizedInput.email,
-    normalizedInput.agentEmail || (googleOAuthService.getUserEmail?.('calendar') || 'us@homelistingai.com')
+    normalizedInput.agentEmail || (googleOAuthService.getUserEmail?.('calendar') || 'homelistingai@gmail.com')
   ]
 
   const event = {

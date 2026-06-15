@@ -15526,7 +15526,7 @@ async function verifyAdmin(req, res, next) {
 
     // Fallback: Check strictly against Env Var (both prefixed and unprefixed names)
     const adminEmailEnv = process.env.ADMIN_EMAIL || process.env.VITE_ADMIN_EMAIL;
-    const hardcodedAdminEmails = ['admin@homelistingai.com', 'us@homelistingai.com'];
+    const hardcodedAdminEmails = ['admin@homelistingai.com', 'homelistingai@gmail.com'];
     if (adminEmailEnv) hardcodedAdminEmails.push(adminEmailEnv.toLowerCase());
     const isEnvAdmin = user.email && hardcodedAdminEmails.includes(user.email.toLowerCase());
 
@@ -27550,7 +27550,7 @@ app.post('/api/leads/public', async (req, res) => {
     // or maybe fetch the agent's email if possible? 
     // Simplicity: Always notify global admin for now, user can refine later.
     if (notifyAdmin) {
-      const adminEmail = process.env.ADMIN_EMAIL || process.env.VITE_ADMIN_EMAIL || 'us@homelistingai.com';
+      const adminEmail = process.env.ADMIN_EMAIL || process.env.VITE_ADMIN_EMAIL || 'homelistingai@gmail.com';
       await emailService.sendEmail({
         to: adminEmail,
         subject: `🚀 New Lead: ${name || email} (${source})`,
@@ -28809,7 +28809,7 @@ app.post('/api/chat/handoff', async (req, res) => {
     console.log(`🚨 CHAT HANDOFF REQUEST: [${priority}] ${category} - "${message}"`);
 
     // 2. Identify the agent (Currently defaulting to system owner or hardcoded fallback if no auth context)
-    const agentEmail = process.env.ADMIN_EMAIL || process.env.VITE_ADMIN_EMAIL || 'us@homelistingai.com';
+    const agentEmail = process.env.ADMIN_EMAIL || process.env.VITE_ADMIN_EMAIL || 'homelistingai@gmail.com';
 
     // 3. Send Email Notification
     const emailSubject = `🔥 URGENT: Chat Handoff Request (${category})`;

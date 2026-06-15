@@ -712,7 +712,7 @@ const App: React.FC = () => {
             nextSession.user.app_metadata?.admin
         );
         const envAdminEmail = String(import.meta.env.VITE_ADMIN_EMAIL || '').trim().toLowerCase();
-        const adminEmails = ['admin@homelistingai.com', 'us@homelistingai.com'];
+        const adminEmails = ['admin@homelistingai.com', 'homelistingai@gmail.com'];
         if (envAdminEmail) adminEmails.push(envAdminEmail);
         if (adminClaim || adminEmails.includes(userEmail)) {
             return 'admin';
@@ -855,7 +855,7 @@ const App: React.FC = () => {
                 // 1. Admin Check logic - OPTIMIZED ORDER
                 // Fast Local Check: Check email whitelist FIRST to avoid blocking network calls
                 const envAdminEmail = import.meta.env.VITE_ADMIN_EMAIL as string | undefined;
-                const adminEmails = ['admin@homelistingai.com', 'us@homelistingai.com'];
+                const adminEmails = ['admin@homelistingai.com', 'homelistingai@gmail.com'];
                 if (envAdminEmail) adminEmails.push(envAdminEmail.toLowerCase());
 
                 const isEnvAdmin = currentUser.email && adminEmails.includes(currentUser.email.toLowerCase());
@@ -1085,7 +1085,7 @@ const App: React.FC = () => {
         // Fast admin email check
         const fastAdminCheck = (email: string | null | undefined) => {
             const envAdminEmail = import.meta.env.VITE_ADMIN_EMAIL as string | undefined;
-            const adminEmails = ['admin@homelistingai.com', 'us@homelistingai.com'];
+            const adminEmails = ['admin@homelistingai.com', 'homelistingai@gmail.com'];
             if (envAdminEmail) adminEmails.push(envAdminEmail.toLowerCase());
             if (email && adminEmails.includes(email.toLowerCase())) {
                 setIsAdmin(true);
@@ -1355,7 +1355,7 @@ const App: React.FC = () => {
 
             // Check email whitelist first (fast path — no RPC needed)
             const envAdminEmail = import.meta.env.VITE_ADMIN_EMAIL as string | undefined;
-            const adminEmails = ['admin@homelistingai.com', 'us@homelistingai.com'];
+            const adminEmails = ['admin@homelistingai.com', 'homelistingai@gmail.com'];
             if (envAdminEmail) adminEmails.push(envAdminEmail.toLowerCase());
             const isWhitelistedAdmin = adminEmails.includes(trimmedEmail);
 

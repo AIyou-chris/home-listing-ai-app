@@ -206,7 +206,7 @@ class EmailService {
         try {
             console.log('📧 Attempting to send admin notification about new consultation');
 
-            const adminEmail = 'us@homelistingai.com';
+            const adminEmail = 'homelistingai@gmail.com';
             const emailContent = {
                 to: adminEmail,
                 subject: 'New Consultation Request - HomeListingAI',

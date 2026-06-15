@@ -42,7 +42,7 @@ const ShareTestPage: React.FC = () => {
         return;
       }
       try {
-        const adminEmails = ['admin@homelistingai.com', 'us@homelistingai.com'];
+        const adminEmails = ['admin@homelistingai.com', 'homelistingai@gmail.com'];
         const { data } = await supabase.auth.getUser();
         const userEmail = String(data.user?.email || '').trim().toLowerCase();
         if (mounted) setIsAuthorized(Boolean(userEmail && adminEmails.includes(userEmail)));
