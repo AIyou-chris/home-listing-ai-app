@@ -3,6 +3,7 @@ import React, { Component, ErrorInfo, ReactNode } from 'react';
 interface Props {
   children: ReactNode;
   fallback?: ReactNode;
+  resetKey?: string;
 }
 
 interface State {
@@ -22,21 +23,15 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('Error caught by boundary:', error, errorInfo);
-    
-    this.setState({
-      error,
-      errorInfo
-    });
+    console.error('[ErrorBoundary] Caught error:', error.message);
+    console.error('[ErrorBoundary] Stack:', error.stack);
+    console.error('[ErrorBoundary] Component stack:', errorInfo.componentStack);
+    this.setState({ error, errorInfo });
+  }
 
-    // Log to external service in production
-    if (import.meta.env.PROD) {
-      // TODO: Send to error tracking service (Sentry, LogRocket, etc.)
-      console.error('Production error:', {
-        error: error.message,
-        stack: error.stack,
-        componentStack: errorInfo.componentStack
-      });
+  componentDidUpdate(prevProps: Props) {
+    if (this.state.hasError && prevProps.resetKey !== this.props.resetKey) {
+      this.setState({ hasError: false, error: undefined, errorInfo: undefined });
     }
   }
 

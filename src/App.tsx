@@ -1819,7 +1819,7 @@ const App: React.FC = () => {
                 <AISidekickProvider>
                     <DashboardLayoutContext.Provider value={{ authReady, session, role, roleReady, user, isAdmin, isDemoMode, isSidebarOpen, setIsSidebarOpen, logAuthBreadcrumb }}>
                     <CheckoutContext.Provider value={{ onBackToSignup: handleNavigateToSignUp }}>
-                    <ErrorBoundary>
+                    <ErrorBoundary resetKey={location.pathname}>
                         <Suspense fallback={<LoadingSpinner />}>
                             {renderRoutes()}
                         </Suspense>
