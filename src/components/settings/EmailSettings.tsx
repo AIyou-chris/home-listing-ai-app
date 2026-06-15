@@ -24,10 +24,13 @@ const EmailSettingsPage: React.FC<EmailSettingsProps> = ({
     useEffect(() => {
         const fetchSlug = async () => {
             try {
-                const { data: { user } } = await supabase.auth.getUser();
-                if (!user) return;
+                const { data: { session } } = await supabase.auth.getSession();
+                if (!session?.user) return;
                 const res = await fetch(buildApiUrl('/api/agent/profile'), {
-                    headers: { 'x-user-id': user.id }
+                    headers: {
+                        'x-user-id': session.user.id,
+                        ...(session.access_token ? { Authorization: `Bearer ${session.access_token}` } : {})
+                    }
                 });
                 if (!res.ok) return;
                 const j = await res.json();
