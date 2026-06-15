@@ -235,13 +235,15 @@ const {
   buildAppointmentIcsInvite,
   buildAppointmentIcsUid
 } = require('./services/icsService');
-const billingEngine = createBillingEngine({
+const billingEngine = supabaseAdmin ? createBillingEngine({
   supabaseAdmin,
   stripe,
   enqueueJob,
   appBaseUrl: process.env.DASHBOARD_BASE_URL || process.env.APP_BASE_URL || process.env.FRONTEND_URL || 'https://homelistingai.com'
-});
-const listingVideoCreditsService = createListingVideoCreditsService({ supabaseAdmin });
+}) : null;
+if (!billingEngine) console.warn('⚠️  billingEngine disabled: supabaseAdmin not available.');
+const listingVideoCreditsService = supabaseAdmin ? createListingVideoCreditsService({ supabaseAdmin }) : null;
+if (!listingVideoCreditsService) console.warn('⚠️  listingVideoCreditsService disabled: supabaseAdmin not available.');
 const createPaymentService = require('./services/paymentService');
 const createEmailService = require('./services/emailService');
 const emailTrackingService = require('./services/emailTrackingService');
@@ -1410,11 +1412,12 @@ if (APP_RUNTIME_MODE !== 'worker') {
     console.error('⚠️ Failed to start Scheduler:', schedErr);
   }
 }
-const agentOnboardingService = createAgentOnboardingService({
+const agentOnboardingService = supabaseAdmin ? createAgentOnboardingService({
   supabaseAdmin,
   emailService,
   dashboardBaseUrl: process.env.DASHBOARD_BASE_URL || process.env.APP_BASE_URL || 'https://homelistingai.com/#'
-});
+}) : null;
+if (!agentOnboardingService) console.warn('⚠️  agentOnboardingService disabled: supabaseAdmin not available.');
 
 // --- FUNNEL ENGINE (PHASE 1) ---
 const createFunnelService = require('./services/funnelExecutionService');
@@ -7137,6 +7140,7 @@ const resolveRequesterUserId = async (
 // PROFILE id. Always use this helper for those tables — never pass the raw
 // auth id. Returns the agents.id (profile id) or null.
 const resolveLoAgentId = async (req) => {
+  if (!supabaseAdmin) return null;
   const authId = await resolveRequesterUserId(req, { allowDefault: false });
   if (!authId) return null;
   const { data: agentRow } = await supabaseAdmin
@@ -7153,6 +7157,7 @@ const resolveLoAgentId = async (req) => {
 // agents.office_id. Returns { officeId, agent } or null if the requester is not
 // an office account.
 const resolveOfficeContext = async (req) => {
+  if (!supabaseAdmin) return null;
   const authId = await resolveRequesterUserId(req, { allowDefault: false });
   if (!authId) return null;
   const { data: agentRow } = await supabaseAdmin

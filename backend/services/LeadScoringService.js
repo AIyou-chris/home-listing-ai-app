@@ -48,6 +48,10 @@ class LeadScoringService {
      * @param {object} metadata - Optional context (e.g., { url: '/pricing' })
      */
     async recalculateLeadScore(leadId, triggerEvent, metadata = {}) {
+        if (!supabaseAdmin) {
+            console.warn('⚠️ LeadScoringService: supabaseAdmin not available — skipping score recalculation');
+            return null;
+        }
         console.log(`🧠 [Scoring] Recalculating for lead ${leadId} (Trigger: ${triggerEvent})`);
 
         try {

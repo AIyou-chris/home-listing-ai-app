@@ -10,6 +10,10 @@ module.exports = (supabaseAdmin, emailService) => {
     // 1. Appointment Reminders (Every Minute)
     cron.schedule('* * * * *', async () => {
         try {
+            if (!supabaseAdmin) {
+                console.warn('Scheduler skipped: supabaseAdmin not available');
+                return;
+            }
             if (!emailService) {
                 console.warn('Scheduler skipped: emailService not available');
                 return;
@@ -163,6 +167,7 @@ module.exports = (supabaseAdmin, emailService) => {
     // Sends a follow-up email to the invited agent; BCC goes to INVITE_COPY_EMAIL if set.
     cron.schedule('0 * * * *', async () => {
         try {
+            if (!supabaseAdmin) return;
             const now = new Date().toISOString();
             const copyEmail = process.env.INVITE_COPY_EMAIL || null;
 
@@ -230,7 +235,7 @@ module.exports = (supabaseAdmin, emailService) => {
     // email the listing agent a summary — with a shout-out to the LO who powered it.
     cron.schedule('0 8 * * 1', async () => {
         try {
-            if (!emailService) return;
+            if (!supabaseAdmin || !emailService) return;
             console.log('⏰ Scheduler: Running Weekly Value Email to Listing Agents...');
 
             const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
