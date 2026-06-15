@@ -597,7 +597,7 @@ const LOAppointmentsPage: React.FC = () => {
       <div className="max-w-5xl mx-auto px-4 py-8">
 
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between mb-8 pr-10">
           <div>
             <h1 className="text-2xl font-bold text-slate-800">Appointments</h1>
             <p className="text-sm text-slate-500 mt-1">Consultations, calls, and meetings with agents &amp; borrowers</p>
