@@ -190,7 +190,7 @@ No long explanations. No walls of text. Table in, table out.
 
 ---
 
-## 7. Current State Snapshot (as of 2026-06-14)
+## 7. Current State Snapshot (as of 2026-06-15)
 
 ### ✅ Recently completed (this sprint)
 
@@ -216,23 +216,30 @@ No long explanations. No walls of text. Table in, table out.
 | Bearer token in API calls | ROI, onboarding, LO Today now send `Authorization: Bearer` — fixes production 401s |
 | Mailgun inbound field names | `/api/leads/email-forward` accepts both generic and Mailgun-native field names |
 | Tailwind config consolidated | Single `tailwind.config.js` covering all `src/**`; dead `src/index.css` removed |
+| Admin email updated everywhere | `us@homelistingai.com` → `homelistingai@gmail.com` across server.cjs, App.tsx, emailService.ts, schedulerService.ts, helpSalesChatBot.ts, ShareTestPage.tsx, help-mode.json |
+| ErrorBoundary fixed | Class component `hasError` state now resets on route change via `resetKey={location.pathname}` — was showing "Something went wrong" on every page after any single error |
+| LO profile completion check fixed | Backend was checking `lo_chatbot_configs.full_name` (always null); now checks `agents.first_name + nmls_number` correctly |
+| LO logo raw base64 hidden | `<input type="url">` was rendering full base64 string in LO profile settings; now hidden |
+| Dev "Test" button removed from notification panel | `NotificationSystem.tsx` — debug button was visible to all users in production |
+| Bell icon overlap fixed | Added `pr-10` to page headers on LO Chatbot, LO Appointments, and Agent Appointments pages |
+| EmailSettings Bearer token fix | `/api/agent/profile` fetch now sends `Authorization: Bearer` — was returning 401 in production |
+| Render worker env vars confirmed | `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` already present in worker — no action needed |
+| Full live production test | Both Agent (foodtrucknai@gmail.com) and LO (anaiyou@pm.me) dashboards tested end-to-end |
 
 ### 🔴 Known open issues
 
 | Issue | Where | Notes |
 |---|---|---|
-| `/api/agent/profile` 404 on LO Settings | LO dashboard Settings page | Route exists + uses `requireAuth`; Settings page not yet sending Bearer token |
-| `/api/dashboard/billing` 401 on LO | LO dashboard | Same — billing fetch not yet using `authHeaders()` |
-| Worker service crash | Render `home-listing-ai-worker` | Missing SUPABASE_URL etc. in worker env vars; user needs to add in Render dashboard |
-| Day-6 trial warning overlap | Email drip | Day 6 drip handles "trial ending" but standalone `checkTrialWarnings` billing email may also fire |
+| Day-6 trial warning overlap | Email drip | Day 6 drip handles "trial ending" but standalone `checkTrialWarnings` billing email may also fire — minor, low impact |
 
 ### ⏳ Pending manual steps (user to do)
 
 | Step | Where | What |
 |---|---|---|
-| Add Supabase env vars to worker | Render dashboard → home-listing-ai-worker → Environment | Add `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` |
 | Verify Textbelt key | textbelt.com/whitelist | Unlocks SMS links (currently text-only) |
 | Paste drip video URLs | `backend/services/emailService.js` → `TRIAL_DRIP_VIDEOS` | Each day auto-adds a watch button when URL is non-null |
+| Test end-to-end email forward | Forward any lead email to `{slug}@mg.homelistingai.com` | Confirm it arrives in Leads inbox |
+| Test Stripe checkout live | Billing page → upgrade flow | Confirm charge goes through and plan updates |
 
 ---
 
