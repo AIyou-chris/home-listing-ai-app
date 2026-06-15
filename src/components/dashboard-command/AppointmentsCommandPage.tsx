@@ -666,7 +666,7 @@ const AppointmentsCommandPage: React.FC = () => {
   return (
     <div className="mx-auto max-w-7xl space-y-8 px-4 py-6 md:px-8">
       {/* Page header */}
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex items-start justify-between gap-4 pr-10">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Appointments</h1>
           <p className="mt-1 text-sm text-slate-500">Confirm showings, reduce no-shows, and handle reschedules fast.</p>
