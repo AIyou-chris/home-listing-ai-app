@@ -63,8 +63,13 @@ const isMissingTableError = (error) =>
 const clone = (value) => JSON.parse(JSON.stringify(value));
 
 const buildDefaultPlanRows = () => {
-  const starterPriceId = process.env.STRIPE_STARTER_PRICE_ID || process.env.VITE_STRIPE_STARTER_PRICE_ID || null;
+  const starterPriceId =
+    process.env.STRIPE_LO_PRICE_ID ||
+    process.env.STRIPE_STARTER_PRICE_ID ||
+    process.env.VITE_STRIPE_STARTER_PRICE_ID ||
+    null;
   const proPriceId =
+    process.env.STRIPE_LO_PRO_PRICE_ID ||
     process.env.STRIPE_PRO_PRICE_ID ||
     process.env.VITE_STRIPE_PRO_PRICE_ID ||
     process.env.STRIPE_DEFAULT_PRICE_ID ||
