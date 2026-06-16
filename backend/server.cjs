@@ -9979,7 +9979,7 @@ const resolveAppointmentReminderFlags = async (agentId) => {
     smsEnabled:
       FEATURE_FLAG_SMS_ENABLED &&
       prefs.sms_enabled === true &&
-      prefs.smsNewLeadAlerts === true,
+      prefs.smsReminders !== false,
     reminderCallsLimit
   };
 };
@@ -10553,6 +10553,50 @@ const scheduleAppointmentReminders = async ({ appointmentRow, source = 'appointm
       status: reminderStatus,
       idempotency_key: reminderIdempotencyKey
     });
+
+    // Schedule SMS reminder alongside voice when SMS is enabled
+    if (flags.smsEnabled) {
+      const smsIdempotencyKey = buildReminderIdempotencyKey({
+        appointmentId: appointmentRow.id,
+        scheduledFor,
+        namespace: 'sms:reminder'
+      });
+      const smsRow = await upsertAppointmentReminder({
+        appointmentId: appointmentRow.id,
+        agentId,
+        leadId,
+        reminderType: 'sms',
+        scheduledFor,
+        status: 'queued',
+        provider: getSmsProviderName(),
+        payload: { ...basePayload },
+        idempotencyKey: smsIdempotencyKey
+      });
+      await enqueueJob({
+        type: 'voice_reminder_call',
+        payload: {
+          reminder_id: smsRow.id,
+          appointment_id: appointmentRow.id,
+          lead_id: leadId,
+          listing_id: listingId || null,
+          agent_id: agentId,
+          scheduled_for: scheduledFor,
+          reminder_type: 'sms',
+          source
+        },
+        idempotencyKey: smsIdempotencyKey,
+        priority: 2,
+        runAt: scheduledFor,
+        maxAttempts: 3
+      });
+      scheduledRows.push({
+        id: smsRow.id,
+        reminder_type: 'sms',
+        scheduled_for: scheduledFor,
+        status: 'queued',
+        idempotency_key: smsIdempotencyKey
+      });
+    }
   }
 
   const emailNudges = await enqueueAppointmentConfirmationNudges({
@@ -10820,13 +10864,31 @@ const dispatchAppointmentReminder = async (reminder) => {
   const listingAddress = listing?.address || appointment.property_address || appointment.location || 'the scheduled property';
 
   if (reminder.reminder_type === 'sms') {
-    await markReminderAsSuppressed({
-      reminder,
-      reason: SMS_COMING_SOON ? 'sms_coming_soon' : 'sms_disabled',
-      leadId
+    if (!flags.smsEnabled) {
+      await markReminderAsSuppressed({ reminder, reason: 'sms_disabled', leadId });
+      await refreshLeadIntelligenceSafely(leadId, 'reminder_suppressed');
+      return { status: 'suppressed', reason: 'sms_disabled' };
+    }
+    const toPhone = normalizePhoneE164(lead?.phone_e164 || lead?.phone || appointment.phone || '');
+    if (!toPhone) {
+      await markReminderAsSuppressed({ reminder, reason: 'missing_phone', leadId });
+      return { status: 'suppressed', reason: 'missing_phone' };
+    }
+    const firstName = (lead?.full_name || lead?.name || appointment?.name || 'there').split(' ')[0] || 'there';
+    const agentProfile = (await fetchAiCardProfileForUser(agentId)) || DEFAULT_AI_CARD_PROFILE;
+    const agentName = agentProfile?.fullName || agentProfile?.name || 'your agent';
+    const timeLabel = formatReminderTimeLabel(resolveAppointmentStart(appointment), resolveAppointmentTimezone(appointment));
+    const smsText = `Hi ${firstName}! Reminder from ${agentName}: your showing at ${listingAddress}${timeLabel ? ` is at ${timeLabel}` : ' is coming up'}. Reply STOP to opt out.`;
+    const smsResult = await sendSms(toPhone, smsText, [], agentId || null);
+    await updateReminderStatus({
+      reminderId: reminder.id,
+      status: 'sent',
+      providerResponse: { sent_at: nowIso(), reminder_type: 'sms', result: smsResult }
     });
-    await refreshLeadIntelligenceSafely(leadId, 'reminder_suppressed');
-    return { status: 'suppressed', reason: SMS_COMING_SOON ? 'sms_coming_soon' : 'sms_disabled' };
+    await supabaseAdmin.from('appointments').update({ last_reminder_at: nowIso(), last_reminder_outcome: 'sent', updated_at: nowIso() }).eq('id', appointment.id);
+    await recordLeadEvent({ leadId, type: 'REMINDER_SENT', payload: { reminder_id: reminder.id, appointment_id: appointment.id, reminder_type: 'sms' } }).catch(() => undefined);
+    await refreshLeadIntelligenceSafely(leadId, 'reminder_sent');
+    return { status: 'sent', reminder_type: 'sms' };
   }
 
   if (reminder.reminder_type === 'voice' && !flags.voiceEnabled) {
