@@ -225,6 +225,9 @@ No long explanations. No walls of text. Table in, table out.
 | EmailSettings Bearer token fix | `/api/agent/profile` fetch now sends `Authorization: Bearer` — was returning 401 in production |
 | Render worker env vars confirmed | `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` already present in worker — no action needed |
 | Full live production test | Both Agent (foodtrucknai@gmail.com) and LO (anaiyou@pm.me) dashboards tested end-to-end |
+| /post-auth redirect loop fixed | App.tsx nav guard was re-navigating to /post-auth and blocking PostAuth component's own redirect to dashboard |
+| Weekly Report toggle removed | Unbuilt feature hidden from Notification Settings until backend is ready |
+| Email Settings setup steps condensed | 3-panel grid replaced with single compact inline row |
 
 ### 🔴 Known open issues
 
