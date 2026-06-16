@@ -22246,6 +22246,100 @@ app.patch('/api/dashboard/leads/:leadId/status', async (req, res) => {
   }
 });
 
+app.delete('/api/dashboard/leads/:leadId', async (req, res) => {
+  try {
+    const { leadId } = req.params;
+    if (!leadId) {
+      return res.status(400).json({ error: 'lead_id_required' });
+    }
+
+    const agentId = String(
+      req.query.agentId || req.body?.agentId || req.headers['x-user-id'] || req.headers['x-agent-id'] || ''
+    );
+    if (!agentId) {
+      return res.status(400).json({ error: 'agent_id_required' });
+    }
+
+    const { data: leadRow, error: leadFetchError } = await supabaseAdmin
+      .from('leads')
+      .select('id, agent_id, user_id')
+      .eq('id', leadId)
+      .maybeSingle();
+
+    if (leadFetchError) throw leadFetchError;
+    if (!leadRow) {
+      return res.status(404).json({ error: 'lead_not_found' });
+    }
+
+    const leadOwner = leadRow.agent_id || leadRow.user_id;
+    if (leadOwner && leadOwner !== agentId) {
+      return res.status(403).json({ error: 'listing_access_denied' });
+    }
+
+    // Cascade cleanup of dependent rows (best-effort — leads table itself is the source of truth)
+    const { data: enrollments } = await supabaseAdmin
+      .from('funnel_enrollments')
+      .select('id')
+      .eq('lead_id', leadId);
+
+    if (enrollments && enrollments.length > 0) {
+      const enrollmentIds = enrollments.map((e) => e.id);
+      await supabaseAdmin.from('funnel_logs').delete().in('enrollment_id', enrollmentIds).then(
+        () => undefined,
+        (error) => console.warn('[LeadDelete] Failed to delete funnel logs:', error?.message || error)
+      );
+    }
+
+    await supabaseAdmin.from('funnel_enrollments').delete().eq('lead_id', leadId).then(
+      () => undefined,
+      (error) => console.warn('[LeadDelete] Failed to delete funnel enrollments:', error?.message || error)
+    );
+
+    const { data: appointmentRows } = await supabaseAdmin
+      .from('appointments')
+      .select('id')
+      .eq('lead_id', leadId);
+
+    if (appointmentRows && appointmentRows.length > 0) {
+      const appointmentIds = appointmentRows.map((a) => a.id);
+      await supabaseAdmin.from('appointment_reminders').delete().in('appointment_id', appointmentIds).then(
+        () => undefined,
+        (error) => console.warn('[LeadDelete] Failed to delete appointment reminders:', error?.message || error)
+      );
+    }
+
+    await supabaseAdmin.from('appointments').delete().eq('lead_id', leadId).then(
+      () => undefined,
+      (error) => console.warn('[LeadDelete] Failed to delete appointments:', error?.message || error)
+    );
+
+    await supabaseAdmin.from('lead_events').delete().eq('lead_id', leadId).then(
+      () => undefined,
+      (error) => console.warn('[LeadDelete] Failed to delete lead events:', error?.message || error)
+    );
+
+    await supabaseAdmin.from('outbound_attempts').delete().eq('lead_id', leadId).then(
+      () => undefined,
+      (error) => console.warn('[LeadDelete] Failed to delete outbound attempts:', error?.message || error)
+    );
+
+    const { error: deleteError } = await supabaseAdmin.from('leads').delete().eq('id', leadId);
+    if (deleteError) throw deleteError;
+
+    await emitLeadRealtimeEvent({
+      leadId,
+      type: 'lead.deleted'
+    }).catch((error) => {
+      console.warn('[Realtime] lead.deleted emit failed:', error?.message || error);
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('[LeadCapture] Failed to delete lead:', error);
+    res.status(500).json({ error: 'failed_to_delete_lead' });
+  }
+});
+
 // Notify partner LOs (email + SMS) when an agent's new listing is auto-assigned
 // to them. Best-effort: failures are logged, never block the listing create.
 async function notifyPartnerLosOfNewListing({ loAgentIds, creatorProfile, listingRow }) {
@@ -30352,8 +30446,20 @@ app.post('/api/appointments', async (req, res) => {
       .select(APPOINTMENT_SELECT_FIELDS)
       .single();
 
-    if (appointmentInsertResponse.error && /column .* does not exist/i.test(appointmentInsertResponse.error.message || '')) {
+    const _apptInsertErrMsg = appointmentInsertResponse.error?.message || '';
+    const _apptInsertNeedsLegacyFallback =
+      appointmentInsertResponse.error &&
+      (/column .* does not exist/i.test(_apptInsertErrMsg) ||
+        /violates check constraint/i.test(_apptInsertErrMsg) ||
+        /check_appointments/i.test(_apptInsertErrMsg) ||
+        /appointments_status_check/i.test(_apptInsertErrMsg) ||
+        /appointments_kind_check/i.test(_apptInsertErrMsg));
+
+    if (_apptInsertNeedsLegacyFallback) {
       const legacyPayload = { ...insertPayload };
+      // Map status/kind to capitalised values expected by old DB check constraints
+      const _statusCapMap = { scheduled: 'Scheduled', completed: 'Completed', canceled: 'Cancelled', cancelled: 'Cancelled', confirmed: 'Confirmed' };
+      if (_statusCapMap[legacyPayload.status]) legacyPayload.status = _statusCapMap[legacyPayload.status];
       delete legacyPayload.agent_id;
       delete legacyPayload.listing_id;
       delete legacyPayload.starts_at;
@@ -35419,11 +35525,11 @@ app.post('/api/sms/send', async (req, res) => {
     if (success) {
       res.json({ success: true });
     } else {
-      res.status(500).json({ error: 'Failed to send SMS via provider' });
+      res.status(200).json({ success: false, warning: 'SMS provider could not deliver message. Check your SMS configuration.' });
     }
   } catch (error) {
     console.error('SMS Send Error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(200).json({ success: false, warning: 'SMS send failed — provider error.' });
   }
 });
 

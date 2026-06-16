@@ -1,10 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import PageGuide from './PageGuide';
 import { useNavigate } from 'react-router-dom'
+import toast from 'react-hot-toast'
 import {
   fetchDashboardLeads,
   fetchLeadConversationsForExport,
   logDashboardAgentAction,
+  deleteDashboardLead,
   type DashboardLeadItem
 } from '../../services/dashboardCommandService'
 import { buildDashboardPath, useDemoMode } from '../../demo/useDemoMode'
@@ -131,6 +133,7 @@ const LeadsInboxCommandPage: React.FC = () => {
   const blueprintMode = useBlueprintMode()
   const leadsById = useDashboardRealtimeStore((state) => state.leadsById)
   const setInitialLeads = useDashboardRealtimeStore((state) => state.setInitialLeads)
+  const removeLead = useDashboardRealtimeStore((state) => state.removeLead)
 
   const [loading, setLoading] = useState(!blueprintMode)
   const [error, setError] = useState<string | null>(null)
@@ -138,6 +141,8 @@ const LeadsInboxCommandPage: React.FC = () => {
   const [search, setSearch] = useState('')
   const [intentFilter, setIntentFilter] = useState<'All' | 'Hot' | 'Warm' | 'Cold'>('All')
   const [exportingConversations, setExportingConversations] = useState(false)
+  const [leadPendingDelete, setLeadPendingDelete] = useState<DashboardLeadItem | null>(null)
+  const [deletingLead, setDeletingLead] = useState(false)
 
   const load = useCallback(async () => {
     if (blueprintMode) { setLoading(false); return }
@@ -188,6 +193,21 @@ const LeadsInboxCommandPage: React.FC = () => {
       action: 'lead_opened',
       metadata: { source: 'leads_inbox' }
     }).catch(() => undefined)
+  }
+
+  const confirmDeleteLead = async () => {
+    if (!leadPendingDelete) return
+    setDeletingLead(true)
+    try {
+      await deleteDashboardLead(leadPendingDelete.id)
+      removeLead(leadPendingDelete.id)
+      toast.success('Lead deleted.')
+      setLeadPendingDelete(null)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete lead.')
+    } finally {
+      setDeletingLead(false)
+    }
   }
 
   return (
@@ -408,10 +428,50 @@ const LeadsInboxCommandPage: React.FC = () => {
                 >
                   Open
                 </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setLeadPendingDelete(lead)
+                  }}
+                  title="Delete lead"
+                  className="flex items-center justify-center w-9 h-9 rounded-lg bg-white border border-slate-200 text-slate-400 hover:bg-rose-50 hover:border-rose-200 hover:text-rose-600 transition-colors"
+                >
+                  <span className="material-symbols-outlined text-[18px]">delete</span>
+                </button>
               </div>
             </div>
           ))}
       </section>
+
+      {leadPendingDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" onClick={() => !deletingLead && setLeadPendingDelete(null)}>
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-slate-900">Delete this lead?</h3>
+            <p className="mt-2 text-sm text-slate-600">
+              This will permanently delete <span className="font-semibold">{leadPendingDelete.name || 'this lead'}</span> along with their conversation history and any scheduled appointments. This can't be undone.
+            </p>
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setLeadPendingDelete(null)}
+                disabled={deletingLead}
+                className="px-4 py-2.5 rounded-lg text-sm font-bold text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void confirmDeleteLead()}
+                disabled={deletingLead}
+                className="px-4 py-2.5 rounded-lg text-sm font-bold text-white bg-rose-600 hover:bg-rose-700 transition-colors disabled:opacity-50"
+              >
+                {deletingLead ? 'Deleting…' : 'Delete Lead'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

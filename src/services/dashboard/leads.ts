@@ -240,6 +240,19 @@ export const updateDashboardLeadStatus = async (
   return parseResponse<{ success: boolean }>(response);
 };
 
+export const deleteDashboardLead = async (leadId: string, agentIdOverride?: string | null) => {
+  if (isDemoModeActive()) {
+    return { success: true };
+  }
+
+  const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
+  const response = await fetch(buildApiUrl(withAgentQuery(`/api/dashboard/leads/${encodeURIComponent(leadId)}`, agentId)), {
+    method: 'DELETE',
+    headers: defaultJsonHeaders(agentId)
+  });
+  return parseResponse<{ success: boolean }>(response);
+};
+
 export const logDashboardAgentAction = async (
   payload: { lead_id: string; action: 'call_clicked' | 'email_clicked' | 'lead_opened' | 'status_changed' | 'appointment_created' | 'appointment_updated'; metadata?: Record<string, unknown> },
   agentIdOverride?: string | null

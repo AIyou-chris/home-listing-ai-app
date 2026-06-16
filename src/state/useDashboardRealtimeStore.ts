@@ -37,6 +37,7 @@ interface DashboardRealtimeState {
   setInitialAppointments: (appointments: DashboardAppointmentRow[]) => void
   setCommandCenter: (snapshot: DashboardCommandCenterSnapshot | null) => void
   patchLeadAction: (leadId: string, actionIso: string) => void
+  removeLead: (leadId: string) => void
   applyRealtimeEvent: (event: DashboardRealtimeEventEnvelope) => void
 }
 
@@ -157,6 +158,13 @@ export const useDashboardRealtimeStore = create<DashboardRealtimeState>((set) =>
           }
         }
       }
+    }),
+  removeLead: (leadId) =>
+    set((state) => {
+      if (!state.leadsById[leadId]) return {}
+      const next = { ...state.leadsById }
+      delete next[leadId]
+      return { leadsById: next }
     }),
   applyRealtimeEvent: (event) =>
     set((state) => {
