@@ -108,24 +108,13 @@ const EmailSettingsPage: React.FC<EmailSettingsProps> = ({
                         </div>
                     </div>
 
-                    <div className="bg-slate-50 border border-slate-200 rounded-lg p-6">
-                        <h4 className="font-semibold text-slate-900 mb-4 flex items-center gap-2">
-                            <span className="material-symbols-outlined text-slate-400">help</span>
-                            How to set this up
-                        </h4>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            <div className="space-y-2">
-                                <div className="font-medium text-slate-900">1. Copy Address</div>
-                                <p className="text-sm text-slate-500">Click the copy button above to grab your unique forwarding address.</p>
-                            </div>
-                            <div className="space-y-2">
-                                <div className="font-medium text-slate-900">2. Update Portals</div>
-                                <p className="text-sm text-slate-500">Open your lead source and find the place where new leads are emailed.</p>
-                            </div>
-                            <div className="space-y-2">
-                                <div className="font-medium text-slate-900">3. Paste & Save</div>
-                                <p className="text-sm text-slate-500">Paste your <strong>mg.homelistingai.com</strong> address and save. New leads will flow into the same dashboard slug shown above.</p>
-                            </div>
+                    <div className="bg-slate-50 border border-slate-200 rounded-lg px-6 py-4">
+                        <div className="flex items-center gap-6 text-sm text-slate-500">
+                            <span><strong className="text-slate-700">1.</strong> Copy address above</span>
+                            <span className="text-slate-300">→</span>
+                            <span><strong className="text-slate-700">2.</strong> Open Zillow / Realtor.com / your portal</span>
+                            <span className="text-slate-300">→</span>
+                            <span><strong className="text-slate-700">3.</strong> Paste as your lead notification email &amp; save</span>
                         </div>
                     </div>
                 </div>
