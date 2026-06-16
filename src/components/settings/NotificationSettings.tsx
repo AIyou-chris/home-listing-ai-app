@@ -71,17 +71,6 @@ const NOTIFICATION_GROUPS: Array<{
             ]
         },
         {
-            title: 'Email Reports',
-            icon: 'mail',
-            items: [
-                {
-                    key: 'weeklyReport',
-                    label: 'Weekly Report',
-                    description: 'Deep dive into your weekly metrics and AI performance'
-                }
-            ]
-        },
-        {
             title: 'System Updates',
             icon: 'system_update',
             items: [
