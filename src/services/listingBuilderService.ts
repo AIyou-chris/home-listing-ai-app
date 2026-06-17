@@ -205,7 +205,7 @@ export const fetchListingBuilderPayload = async (listingId: string, agentIdOverr
   }
   const agentId = await resolveListingAgent(agentIdOverride)
   const response = await fetch(buildApiUrl(withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}`, agentId)), {
-    headers: defaultJsonHeaders(agentId)
+    headers: await defaultJsonHeaders(agentId)
   })
   const payload = await parseResponse<ListingPayloadResponse>(response)
   return {
@@ -232,7 +232,7 @@ export const listListingBuilderSources = async (listingId: string, agentIdOverri
   const agentId = await resolveListingAgent(agentIdOverride)
   const response = await fetch(
     buildApiUrl(withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}/sources`, agentId)),
-    { headers: defaultJsonHeaders(agentId) }
+    { headers: await defaultJsonHeaders(agentId) }
   )
   const payload = await parseResponse<{ sources: ListingSourceApi[] }>(response)
   return (payload.sources || []).map(mapSource)
@@ -283,7 +283,7 @@ export const deleteListingBuilderSource = async (listingId: string, sourceId: st
     buildApiUrl(withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}/sources/${encodeURIComponent(sourceId)}`, agentId)),
     {
       method: 'DELETE',
-      headers: defaultJsonHeaders(agentId)
+      headers: await defaultJsonHeaders(agentId)
     }
   )
   return parseResponse<{ success: boolean }>(response)
