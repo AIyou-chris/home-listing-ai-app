@@ -71,16 +71,45 @@ const resolveAgentId = async () => {
   return waitForAuthenticatedUserId();
 };
 
+// Collapse the burst of identical onboarding fetches that fire when the
+// dashboard + sidebar (+ guards) all mount at once. A 5s TTL keeps it fresh
+// while killing the redundant round-trips; patch clears it immediately.
+const ONBOARDING_TTL_MS = 5000;
+let onboardingCache: { at: number; key: string; data: OnboardingState } | null = null;
+let onboardingInflight: { key: string; promise: Promise<OnboardingState> } | null = null;
+
 export const fetchOnboardingState = async (agentIdOverride?: string | null) => {
   if (isDemoModeActive()) {
     return getDemoOnboardingState();
   }
 
   const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
-  const response = await fetch(buildApiUrl('/api/dashboard/onboarding'), {
-    headers: await defaultHeaders(agentId)
-  });
-  return parseResponse<OnboardingState>(response);
+  const key = String(agentId || 'self');
+  const now = Date.now();
+
+  // Serve a very-fresh cached copy.
+  if (onboardingCache && onboardingCache.key === key && now - onboardingCache.at < ONBOARDING_TTL_MS) {
+    return onboardingCache.data;
+  }
+  // Share one in-flight request across simultaneous callers.
+  if (onboardingInflight && onboardingInflight.key === key) {
+    return onboardingInflight.promise;
+  }
+
+  const promise = (async () => {
+    const response = await fetch(buildApiUrl('/api/dashboard/onboarding'), {
+      headers: await defaultHeaders(agentId)
+    });
+    const data = await parseResponse<OnboardingState>(response);
+    onboardingCache = { at: Date.now(), key, data };
+    return data;
+  })();
+  onboardingInflight = { key, promise };
+  try {
+    return await promise;
+  } finally {
+    if (onboardingInflight && onboardingInflight.promise === promise) onboardingInflight = null;
+  }
 };
 
 export const patchOnboardingState = async (
@@ -101,6 +130,8 @@ export const patchOnboardingState = async (
     })
   });
   const nextState = await parseResponse<OnboardingState>(response);
+  onboardingCache = null; // a save just changed state — don't serve stale
+  onboardingInflight = null;
   emitDashboardInvalidation({ reason: 'onboarding_updated' });
   return nextState;
 };

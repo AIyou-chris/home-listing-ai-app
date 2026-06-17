@@ -316,6 +316,8 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({
                                 <img
                                     src={agent.headshotUrl}
                                     alt={agent.name}
+                                    loading="lazy"
+                                    decoding="async"
                                     className="h-[58px] w-[58px] flex-shrink-0 rounded-full border-2 border-white/40 object-cover"
                                 />
                             ) : (
@@ -436,7 +438,7 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({
                         <div className="m-3.5 flex items-center gap-2.5 rounded-[13px] bg-white p-3 shadow-[0_4px_16px_rgba(15,23,42,0.05)] dark:bg-[#0f172a]">
                             <span className="text-[10px] font-extrabold uppercase tracking-wide text-slate-400">Financing by</span>
                             {loBot.photo ? (
-                                <img src={loBot.photo} alt={loBot.name} className="h-[30px] w-[30px] flex-shrink-0 rounded-full object-cover" />
+                                <img src={loBot.photo} alt={loBot.name} loading="lazy" decoding="async" className="h-[30px] w-[30px] flex-shrink-0 rounded-full object-cover" />
                             ) : (
                                 <div className="flex h-[30px] w-[30px] flex-shrink-0 items-center justify-center rounded-full bg-slate-300 text-xs font-bold text-white">
                                     {loBot.name[0]}
@@ -486,7 +488,7 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({
                             </button>
 
                             <div className="mb-3 overflow-hidden rounded-xl border border-white/10 bg-black">
-                                <img src={allPhotos[galleryIndex]} alt={`Listing photo ${galleryIndex + 1}`} className="h-[56vh] w-full object-cover" />
+                                <img src={allPhotos[galleryIndex]} alt={`Listing photo ${galleryIndex + 1}`} fetchPriority="high" decoding="async" className="h-[56vh] w-full object-cover" />
                             </div>
 
                             {allPhotos.length > 1 && (
@@ -514,7 +516,7 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({
                                         onClick={() => setGalleryIndex(index)}
                                         className={`overflow-hidden rounded-lg border ${galleryIndex === index ? 'border-cyan-300' : 'border-white/20'} transition`}
                                     >
-                                        <img src={photo} alt={`Thumbnail ${index + 1}`} className="h-14 w-full object-cover" />
+                                        <img src={photo} alt={`Thumbnail ${index + 1}`} loading="lazy" decoding="async" className="h-14 w-full object-cover" />
                                     </button>
                                 ))}
                             </div>
