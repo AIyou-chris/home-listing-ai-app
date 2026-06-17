@@ -379,7 +379,7 @@ const LOTodayPage: React.FC = () => {
                   <li
                     key={lead.id}
                     className="flex items-center gap-3 px-5 py-3.5 hover:bg-slate-50 cursor-pointer transition-colors"
-                    onClick={() => navTo(`/leads`)}
+                    onClick={() => navTo('/lo-leads')}
                   >
                     {/* Intent dot */}
                     <div className={`w-2 h-2 rounded-full flex-shrink-0 ${intentColor(lead.intentLevel)}`} />
