@@ -32414,6 +32414,58 @@ app.post('/api/lo/partners/:partnershipId/recap', requireAuth, async (req, res) 
   }
 });
 
+// ── POST /api/lo/test-lead — onboarding first-win: drop a real warm lead in the LO's
+// pipeline and fire the live alert, so a new LO FEELS the speed-to-lead engine on day one.
+app.post('/api/lo/test-lead', requireAuth, async (req, res) => {
+  try {
+    const loAuthId = req.authUserId;
+    let loProfileId = loAuthId;
+    try { loProfileId = (await resolveLoAgentId(req)) || loAuthId; } catch { /* fall back */ }
+
+    const lo = await supabaseAdmin.from('agents').select('first_name, email, phone').eq('id', loProfileId).maybeSingle();
+    const ts = new Date().toISOString();
+    const insertPayload = {
+      user_id: loProfileId,
+      agent_id: loProfileId,
+      lo_agent_id: loProfileId,
+      full_name: 'Test Buyer 👋',
+      name: 'Test Buyer 👋',
+      phone: lo?.data?.phone || null,
+      phone_e164: lo?.data?.phone || null,
+      email: lo?.data?.email || null,
+      email_lower: lo?.data?.email ? String(lo.data.email).toLowerCase() : null,
+      source_type: 'link',
+      source: 'link',
+      source_key: 'lo_onboarding_test',
+      source_meta: { test: true, onboarding: true },
+      status: 'New',
+      intent_level: 'Hot',
+      timeline: 'unknown',
+      financing: 'pre_approved',
+      working_with_agent: 'unknown',
+      last_message: 'Hi! I saw this listing and I want to know what my monthly payment would be.',
+      last_message_preview: 'What would my monthly payment be?',
+      last_message_at: ts,
+      last_contact: ts,
+      first_touch_at: ts,
+      last_touch_at: ts,
+      notes: 'This is your test lead — it shows you exactly what a real warm buyer looks like. Delete it anytime.',
+      created_at: ts,
+      updated_at: ts
+    };
+    const { data: lead, error } = await supabaseAdmin.from('leads').insert(insertPayload).select('id, full_name, name, phone, phone_e164, email, email_lower, lo_agent_id, agent_id, user_id').single();
+    if (error || !lead) throw error || new Error('test_lead_insert_failed');
+
+    // Fire the real alert so they see the bell light up + an email land.
+    await deliverHotLeadAlert(loProfileId, 'lo', lead, 90);
+
+    res.json({ success: true, lead_id: lead.id });
+  } catch (err) {
+    console.error('[LO Test Lead] Failed:', err);
+    res.status(500).json({ error: 'test_lead_failed' });
+  }
+});
+
 // ── PATCH /api/lo/partners/:partnershipId — update partner meta (notes/rating/follow-up) ──
 app.patch('/api/lo/partners/:partnershipId', requireAuth, async (req, res) => {
   try {

@@ -165,6 +165,32 @@ const LOOnboardingPage: React.FC = () => {
   const [invite, setInvite] = useState({ realtor_name: '', realtor_email: '' });
   const [inviteSent, setInviteSent] = useState(false);
 
+  // Step 3 — first-win test lead
+  const [testLeadSent, setTestLeadSent] = useState(false);
+  const [sendingTest, setSendingTest] = useState(false);
+
+  const handleSendTestLead = async () => {
+    if (sendingTest) return;
+    setSendingTest(true);
+    try {
+      if (demoMode) {
+        await new Promise((r) => setTimeout(r, 900));
+        setTestLeadSent(true);
+        showToast.success('Test lead sent! Check your 🔔 and 📧');
+        return;
+      }
+      const headers = await getApiHeaders();
+      const res = await fetch(buildApiUrl('/api/lo/test-lead'), { method: 'POST', headers });
+      if (!res.ok) throw new Error();
+      setTestLeadSent(true);
+      showToast.success('Test lead sent! Check your 🔔 and 📧');
+    } catch {
+      showToast.error('Could not send test lead. Try again.');
+    } finally {
+      setSendingTest(false);
+    }
+  };
+
   // Pre-fill email from auth
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -563,6 +589,42 @@ const LOOnboardingPage: React.FC = () => {
               Your LO platform is ready. Add listings, invite realtor partners,
               and start routing buyer leads directly to you.
             </p>
+          </div>
+
+          {/* First-win moment — feel the speed-to-lead engine before you do anything else */}
+          <div className="mt-6 rounded-2xl border border-blue-200 bg-blue-50 p-5 text-center">
+            {!testLeadSent ? (
+              <>
+                <p className="text-sm font-bold text-blue-900">See it work right now 👇</p>
+                <p className="mt-1 text-xs text-blue-700 max-w-md mx-auto">
+                  Send yourself a test buyer lead. It lands in your pipeline and your alert fires —
+                  exactly what happens the moment a real buyer raises their hand.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => void handleSendTestLead()}
+                  disabled={sendingTest}
+                  className="mt-4 rounded-xl bg-blue-600 px-6 py-3 text-sm font-bold text-white disabled:opacity-50 hover:bg-blue-700 transition-colors"
+                >
+                  {sendingTest ? 'Sending…' : '🔔 Send me a test lead'}
+                </button>
+              </>
+            ) : (
+              <>
+                <p className="text-sm font-bold text-green-800">Boom — that's a real lead. 🎉</p>
+                <p className="mt-1 text-xs text-green-700 max-w-md mx-auto">
+                  Check your <strong>🔔 bell</strong> and <strong>📧 inbox</strong> — a warm buyer is sitting in your pipeline now.
+                  That's exactly how fast you'll know when a real one comes in.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => navigate(buildDashboardPath('/lo-leads', demoMode))}
+                  className="mt-4 rounded-xl bg-green-600 px-6 py-3 text-sm font-bold text-white hover:bg-green-700 transition-colors"
+                >
+                  Open my Leads →
+                </button>
+              </>
+            )}
           </div>
 
           <div className="mt-6 grid gap-3 md:grid-cols-3">
