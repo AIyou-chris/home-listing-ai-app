@@ -32345,6 +32345,75 @@ app.get('/api/lo/partners', requireAuth, async (req, res) => {
   }
 });
 
+// ── POST /api/lo/partners/:partnershipId/recap — email the agent a "what we did together" recap ──
+// Partnership retention play: the agent sees real numbers in a team voice, so the
+// LO becomes the partner they never want to lose. Numbers are pulled live, never faked.
+app.post('/api/lo/partners/:partnershipId/recap', requireAuth, async (req, res) => {
+  try {
+    const { partnershipId } = req.params;
+    const loAuthId = req.authUserId;
+    let loProfileId = loAuthId;
+    try { loProfileId = (await resolveLoAgentId(req)) || loAuthId; } catch { /* fall back */ }
+
+    // Validate the partnership belongs to this LO + pull the agent.
+    const { data: partnership } = await supabaseAdmin
+      .from('lo_agent_partnerships')
+      .select('id, agent:agent_id(id, first_name, last_name, email)')
+      .eq('id', partnershipId).eq('lo_agent_id', loProfileId)
+      .maybeSingle();
+    if (!partnership || !partnership.agent) return res.status(404).json({ error: 'partnership_not_found' });
+    const agent = partnership.agent;
+    if (!agent.email) return res.status(400).json({ error: 'agent_has_no_email' });
+
+    // LO identity for the team-voice signature.
+    const { data: lo } = await supabaseAdmin.from('agents').select('first_name, last_name, company').eq('id', loProfileId).maybeSingle();
+    const loName = [lo?.first_name, lo?.last_name].filter(Boolean).join(' ') || 'Your loan officer';
+
+    // Live numbers for this partnership, this calendar month.
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    const monthLabel = now.toLocaleString('en-US', { month: 'long' });
+    const [{ count: leadsThisMonth }, { count: leadsAllTime }, { count: activeListings }] = await Promise.all([
+      supabaseAdmin.from('leads').select('id', { count: 'exact', head: true }).eq('lo_agent_id', loProfileId).eq('agent_id', agent.id).gte('created_at', monthStart),
+      supabaseAdmin.from('leads').select('id', { count: 'exact', head: true }).eq('lo_agent_id', loProfileId).eq('agent_id', agent.id),
+      supabaseAdmin.from('listing_lo_assignments').select('id', { count: 'exact', head: true }).eq('lo_agent_id', loProfileId)
+    ]);
+    const stats = { leadsThisMonth: leadsThisMonth || 0, leadsAllTime: leadsAllTime || 0, activeListings: activeListings || 0, monthLabel };
+
+    const agentFirst = agent.first_name || 'there';
+    const appBase = (process.env.APP_BASE_URL || process.env.DASHBOARD_BASE_URL || 'https://homelistingai.com').replace(/\/$/, '');
+    const html = `
+      <div style="font-family: Arial, sans-serif; line-height:1.6; color:#1e293b; max-width:520px;">
+        <h2 style="margin:0 0 4px;">What we pulled off together in ${monthLabel} 🤝</h2>
+        <p style="margin:0 0 18px; color:#64748b;">Hey ${agentFirst} — quick recap of what our partnership did this month.</p>
+        <div style="display:flex; gap:12px; margin-bottom:18px;">
+          <div style="flex:1; background:#eff6ff; border:1px solid #bfdbfe; border-radius:12px; padding:16px; text-align:center;">
+            <div style="font-size:30px; font-weight:800; color:#2563eb;">${stats.leadsThisMonth}</div>
+            <div style="font-size:12px; color:#475569;">new buyer leads this month</div>
+          </div>
+          <div style="flex:1; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:12px; padding:16px; text-align:center;">
+            <div style="font-size:30px; font-weight:800; color:#16a34a;">${stats.activeListings}</div>
+            <div style="font-size:12px; color:#475569;">live listings working for us</div>
+          </div>
+        </div>
+        <p style="margin:0 0 14px;">That's <strong>${stats.leadsAllTime}</strong> buyers we've captured together since we teamed up. Every one of them came from your listings with my financing answers built right in — no extra work on your end.</p>
+        <p style="margin:0 0 18px;">Let's keep it rolling. Got a new listing coming? Send it my way and I'll have it live with instant buyer answers same day.</p>
+        <p style="margin:0; color:#475569;">— ${loName}${lo?.company ? `, ${lo.company}` : ''}</p>
+      </div>
+    `;
+    try {
+      await emailService.sendEmail({ to: agent.email, subject: `${loName} & you: our ${monthLabel} recap 🤝`, html });
+    } catch (e) {
+      console.warn('[LO Recap] email failed:', e.message);
+      return res.status(502).json({ error: 'email_failed' });
+    }
+    res.json({ success: true, stats });
+  } catch (err) {
+    console.error('[LO Recap] Failed:', err);
+    res.status(500).json({ error: 'recap_failed' });
+  }
+});
+
 // ── PATCH /api/lo/partners/:partnershipId — update partner meta (notes/rating/follow-up) ──
 app.patch('/api/lo/partners/:partnershipId', requireAuth, async (req, res) => {
   try {

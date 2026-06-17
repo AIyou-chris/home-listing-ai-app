@@ -313,6 +313,31 @@ const PartnerCard: React.FC<{ partner: Partner; onViewListings: (p: Partner) => 
   const [notesDraft, setNotesDraft] = React.useState(meta.notes || '')
   const [notesSaved, setNotesSaved] = React.useState(false)
   const [removeConfirm, setRemoveConfirm] = React.useState(false)
+  const [recapSending, setRecapSending] = React.useState(false)
+
+  const sendRecap = async () => {
+    if (recapSending) return
+    setRecapSending(true)
+    try {
+      if (demoMode) {
+        await new Promise(r => setTimeout(r, 800))
+        showToast.success(`Recap sent to ${partner.name.split(' ')[0]}! 🤝`)
+        return
+      }
+      const headers = await getApiHeaders()
+      const res = await fetch(buildApiUrl(`/api/lo/partners/${partner.partnershipId}/recap`), { method: 'POST', headers })
+      const json = await res.json() as { success?: boolean; error?: string; stats?: { leadsThisMonth: number } }
+      if (!res.ok || !json.success) {
+        showToast.error(json.error === 'agent_has_no_email' ? 'No email on file for this partner' : 'Could not send recap')
+        return
+      }
+      showToast.success(`Recap sent to ${partner.name.split(' ')[0]}! 🤝`)
+    } catch {
+      showToast.error('Could not send recap')
+    } finally {
+      setRecapSending(false)
+    }
+  }
 
   const setRating = (rating: PartnerRating | null) => {
     const all = loadMeta()
@@ -504,6 +529,14 @@ const PartnerCard: React.FC<{ partner: Partner; onViewListings: (p: Partner) => 
           title="Log follow-up"
         >
           📞
+        </button>
+        <button
+          onClick={sendRecap}
+          disabled={recapSending}
+          className="px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 text-xs font-semibold transition-all disabled:opacity-50"
+          title="Email this partner a 'what we did together this month' recap"
+        >
+          {recapSending ? '…' : '📊 Recap'}
         </button>
         {partner.email && (
           <a
