@@ -27,7 +27,7 @@ export const PublicHeader: React.FC<PublicHeaderProps> = ({
         : undefined;
 
     const navLinks = [
-        { name: "How It Works", href: "/how-it-works" },
+        { name: "How It Works", href: "/#how-it-works" },
         { name: "LO Demo", href: "/lo-demo" },
         { name: "Pricing", href: "/#pricing" },
         { name: "Blog", href: "/blog" }
@@ -54,12 +54,6 @@ export const PublicHeader: React.FC<PublicHeaderProps> = ({
 
         if (targetHref === '/blog') {
             navigate('/blog');
-            setIsMenuOpen(false);
-            return;
-        }
-
-        if (targetHref === '/how-it-works') {
-            navigate('/how-it-works');
             setIsMenuOpen(false);
             return;
         }
