@@ -1,4 +1,5 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
+import { isChunkLoadError, reloadForStaleChunks } from '../lib/chunkReload';
 
 interface Props {
   children: ReactNode;
@@ -23,6 +24,12 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    // Stale-chunk crash after a deploy: recover silently by reloading once
+    // instead of showing the error card on a random page.
+    if (isChunkLoadError(error)) {
+      reloadForStaleChunks();
+      return;
+    }
     console.error('[ErrorBoundary] Caught error:', error.message);
     console.error('[ErrorBoundary] Stack:', error.stack);
     console.error('[ErrorBoundary] Component stack:', errorInfo.componentStack);
