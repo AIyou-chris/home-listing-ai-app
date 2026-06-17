@@ -20,7 +20,6 @@ const WhiteLabelPage = lazy(() => import('./pages/WhiteLabelPage'));
 const NotificationSystem = lazy(() => import('./components/NotificationSystem'));
 
 const Sidebar = lazy(() => import('./components/Sidebar'));
-const ConversionDashboardHome = lazy(() => import('./components/dashboard-command/ConversionDashboardHome'));
 const TodayDashboardPage = lazy(() => import('./components/dashboard-command/TodayDashboardPage'));
 const LeadsInboxCommandPage = lazy(() => import('./components/dashboard-command/LeadsInboxCommandPage'));
 const LeadDetailCommandPage = lazy(() => import('./components/dashboard-command/LeadDetailCommandPage'));
@@ -1621,7 +1620,7 @@ const App: React.FC = () => {
                     <Route path="/demo-dashboard" element={<DemoDashboardLayout />}>
                         <Route index element={<Navigate to="/demo-dashboard/today" replace />} />
                         <Route path="today" element={<TodayDashboardPage />} />
-                        <Route path="command-center" element={<ConversionDashboardHome />} />
+                        <Route path="command-center" element={<Navigate to="/demo-dashboard/today" replace />} />
                         <Route path="leads" element={<LeadsInboxCommandPage />} />
                         <Route path="leads/:leadId" element={<LeadDetailCommandPage />} />
                         <Route path="appointments" element={<AppointmentsCommandPage />} />
@@ -1645,7 +1644,7 @@ const App: React.FC = () => {
                     <Route path="/blueprint-dashboard" element={<BlueprintDashboardLayout />}>
                         <Route index element={<Navigate to="/blueprint-dashboard/today" replace />} />
                         <Route path="today" element={<TodayDashboardPage />} />
-                        <Route path="command-center" element={<ConversionDashboardHome />} />
+                        <Route path="command-center" element={<Navigate to="/blueprint-dashboard/today" replace />} />
                         <Route path="leads" element={<LeadsInboxCommandPage />} />
                         <Route path="leads/:leadId" element={<LeadDetailCommandPage />} />
                         <Route path="appointments" element={<AppointmentsCommandPage />} />
@@ -1752,7 +1751,7 @@ const App: React.FC = () => {
 
                         {/* All feature routes gated — redirect to onboarding if profile incomplete */}
                         <Route element={<RequireOnboarding />}>
-                        <Route path="/dashboard/command-center" element={<ConversionDashboardHome />} />
+                        <Route path="/dashboard/command-center" element={<Navigate to="/dashboard/today" replace />} />
                         <Route path="/dashboard/leads" element={<LeadsInboxCommandPage />} />
                         <Route path="/dashboard/leads/:leadId" element={<LeadDetailCommandPage />} />
                         <Route path="/dashboard/appointments" element={<AppointmentsCommandPage />} />

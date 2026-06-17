@@ -391,8 +391,8 @@ const OnboardingCommandPage: React.FC = () => {
         </header>
         <div className={cardClass}>
           <div className="flex flex-wrap gap-3">
-            <button type="button" onClick={() => navigate(buildDashboardPath('/command-center', demoMode))} className="rounded-xl bg-primary-600 px-4 py-2 text-sm font-semibold text-white">
-              Go to Command Center
+            <button type="button" onClick={() => navigate(buildDashboardPath('/today', demoMode))} className="rounded-xl bg-primary-600 px-4 py-2 text-sm font-semibold text-white">
+              Go to Dashboard
             </button>
             <button type="button" onClick={() => listingId ? navigate(buildDashboardPath(`/listings/${listingId}`, demoMode)) : navigate(buildDashboardPath('/today', demoMode))} className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700">
               Open Share Kit

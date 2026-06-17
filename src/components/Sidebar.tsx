@@ -27,7 +27,6 @@ function useIsDesktop() {
 
 const REALTOR_NAV_ITEMS = [
   { key: 'today', icon: 'today', label: 'Today', path: '/today', testid: 'nav-today' },
-  { key: 'command-center', icon: 'space_dashboard', label: 'Command Center', path: '/command-center', testid: 'nav-command-center' },
   { key: 'listings', icon: 'storefront', label: 'Listings', path: '/listings', testid: 'nav-listings' },
   { key: 'leads', icon: 'groups', label: 'Leads', path: '/leads', testid: 'nav-leads' },
   { key: 'appointments', icon: 'event_available', label: 'Appointments', path: '/appointments', testid: 'nav-appointments' },
