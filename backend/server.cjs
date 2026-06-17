@@ -13435,31 +13435,81 @@ const SCORE_TIERS = {
 
 // Calculate lead score based on rules
 // 4. Hot Lead Notifications
+// Deliver a hot-lead alert to ONE recipient across every channel that works.
+// Speed-to-lead is the whole game, so this never silently no-ops: the in-app
+// bell + email always fire (no phone required); SMS is a best-effort bonus.
+// Each channel is isolated so one failure can't take down the others.
+const deliverHotLeadAlert = async (recipientId, role, lead, totalScore) => {
+  if (!recipientId) return;
+  const leadName = lead.full_name || lead.name || 'A new lead';
+  const leadPhone = lead.phone_e164 || lead.phone || null;
+  const leadEmail = lead.email_lower || lead.email || null;
+  const appBase = process.env.APP_BASE_URL || process.env.DASHBOARD_BASE_URL || 'https://homelistingai.com';
+  const leadsPath = role === 'lo' ? '/dashboard/lo-leads' : '/dashboard/leads';
+  const leadsUrl = `${appBase.replace(/\/$/, '')}${leadsPath}`;
+
+  // Look up the recipient's real email + phone (never default to admin inbox).
+  let recipient = null;
+  try {
+    const { data } = await supabaseAdmin.from('agents').select('email, phone, first_name').eq('id', recipientId).single();
+    recipient = data || null;
+  } catch { /* fall through — bell still fires */ }
+
+  // 1) In-app bell — always. No phone, no prefs, no excuses.
+  try {
+    await supabaseAdmin.from('notifications').insert({
+      user_id: recipientId,
+      title: `🔥 Hot lead: ${leadName}`,
+      content: `${leadName} is high-intent (score ${totalScore}). Call now${leadPhone ? ` 📞 ${leadPhone}` : ''}.`,
+      type: 'lead',
+      priority: 'high',
+      is_read: false
+    });
+  } catch (e) { console.warn(`[HotLead] in-app insert failed for ${recipientId}:`, e.message); }
+
+  // 2) Email — always, to the recipient's real address.
+  if (recipient?.email) {
+    try {
+      await emailService.sendEmail({
+        to: recipient.email,
+        subject: `🔥 Hot lead: ${leadName} — call now`,
+        html: `
+          <div style="font-family: Arial, sans-serif; line-height: 1.5;">
+            <h2 style="margin:0 0 8px;">🔥 Hot lead just came in</h2>
+            <p style="margin:0 0 12px; color:#475569;">High-intent (score ${totalScore}). The first to call wins — aim for under 5 minutes.</p>
+            <p><strong>Name:</strong> ${leadName}</p>
+            <p><strong>Phone:</strong> ${leadPhone || 'N/A'}</p>
+            <p><strong>Email:</strong> ${leadEmail || 'N/A'}</p>
+            <p style="margin-top:16px;">
+              <a href="${leadsUrl}" style="background:#2563eb;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:bold;">Open the lead →</a>
+            </p>
+          </div>
+        `
+      });
+    } catch (e) { console.warn(`[HotLead] email failed for ${recipientId}:`, e.message); }
+  }
+
+  // 3) SMS — best effort. Respects the SMS toggle + provider availability.
+  try {
+    const prefs = await getNotificationPreferences(recipientId).catch(() => ({}));
+    const phone = prefs.notificationPhone || recipient?.phone || null;
+    const smsAllowed = !SMS_COMING_SOON && (prefs.smsNewLeadAlerts || prefs.hotLeads);
+    if (phone && smsAllowed) {
+      await sendSms(phone, `🔥 HOT LEAD: ${leadName} (score ${totalScore}). Call now 📞 ${leadPhone || 'no phone'}. ${leadsUrl}`, [], recipientId);
+      console.log(`🔥 [HotLead] SMS sent to ${role} ${recipientId}`);
+    }
+  } catch (e) { console.warn(`[HotLead] SMS failed for ${recipientId}:`, e.message); }
+};
+
 const triggerHotLeadAlert = async (lead, totalScore) => {
   if (totalScore < 80) return; // Only for Hot leads
-
   const agentId = lead.user_id || lead.agent_id;
-  if (!agentId) return;
-
-  try {
-    // Check Notification Preferences
-    const prefs = await getNotificationPreferences(agentId);
-    if (!prefs.smsNewLeadAlerts && !prefs.hotLeads) { // We check both as fallback
-      console.log(`🔇 [Alert] Hot Lead alert for ${lead.name} suppressed by Agent ${agentId} preferences.`);
-      return;
-    }
-
-    const agentPhone = prefs.notificationPhone;
-    if (!agentPhone) return;
-
-    const message = `🔥 HOT LEAD ALERT: ${lead.name} just hit ${totalScore} points! They are high-intent. 📞 ${lead.phone || 'No phone'}`;
-
-    await sendSms(agentPhone, message, [], agentId || null);
-    console.log(`🔥 [Alert] Sent Hot Lead SMS to Agent ${agentId} for ${lead.name}`);
-
-  } catch (err) {
-    console.error('🔥 [Alert] Failed to trigger hot lead notification:', err.message);
-  }
+  const loId = lead.lo_agent_id && lead.lo_agent_id !== agentId ? lead.lo_agent_id : null;
+  // Notify the agent AND the partner LO — the financing lead is the LO's lifeblood.
+  await Promise.allSettled([
+    agentId ? deliverHotLeadAlert(agentId, 'agent', lead, totalScore) : Promise.resolve(),
+    loId ? deliverHotLeadAlert(loId, 'lo', lead, totalScore) : Promise.resolve()
+  ]);
 };
 
 // Wrappers for V2 Lead Scoring Service
