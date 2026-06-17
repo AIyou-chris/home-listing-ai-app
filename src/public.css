@@ -280,3 +280,8 @@ html {
 .float-element-2 {
   animation: float 6s ease-in-out infinite;
 }
+
+/* Fixed PublicHeader: keep anchor jumps (#how-it-works, #pricing) clear of the sticky bar */
+[id] {
+  scroll-margin-top: 5rem;
+}
