@@ -7,6 +7,7 @@ import { DEMO_FAT_PROPERTIES, DEMO_FAT_LEADS, DEMO_FAT_APPOINTMENTS } from './de
 import { SAMPLE_AGENT, SAMPLE_INTERACTIONS } from './constants';
 const LandingPage = lazy(() => import('./components/LandingPage'));
 const NewLandingPage = lazy(() => import('./components/NewLandingPage'));
+const HowItWorksPage = lazy(() => import('./pages/HowItWorksPage'));
 const SignUpPage = lazy(() => import('./components/SignUpPage'));
 const SignInPage = lazy(() => import('./components/SignInPage'));
 const ForgotPasswordPage = lazy(() => import('./components/ForgotPasswordPage'));
@@ -1813,6 +1814,7 @@ const App: React.FC = () => {
                     <Route path="/demo-listing" element={<DemoListingPage />} />
                     <Route path="/demo/listings/:id" element={<DemoListingPage />} />
                     <Route path="/lo-demo" element={<Navigate to="/demo-dashboard/lo-today" replace />} />
+                    <Route path="/how-it-works" element={<HowItWorksPage />} />
                     <Route path="/new-landing" element={<NewLandingPage onNavigateToSignUp={handleNavigateToSignUp} onNavigateToSignIn={handleNavigateToSignIn} onEnterDemoMode={handleEnterDemoMode} />} />
 
                     {/* Fallback */}
