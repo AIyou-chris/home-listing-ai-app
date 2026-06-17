@@ -107,8 +107,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
     // Don't call onClose when switching to desktop — sidebar auto-shows via CSS
   }, [isDesktop, onClose]);
 
-  const isLO = accountType === 'lo';
-  const isOffice = accountType === 'office';
+  // In demo/blueprint mode there's no logged-in account, so accountType defaults
+  // to 'realtor'. Detect the LO/office context from the URL so the correct nav shows.
+  const pathIsLO = /\/lo-(today|partners|listings|chatbot|leads|appointments|onboarding)/.test(location.pathname);
+  const pathIsOffice = /\/office(\/|$)/.test(location.pathname);
+  const isLO = accountType === 'lo' || pathIsLO;
+  const isOffice = accountType === 'office' || pathIsOffice;
 
   const blueprintBase = location.pathname.startsWith('/blueprint-dashboard') ? '/blueprint-dashboard' : '/agent-blueprint-dashboard';
   const basePath = derivedBlueprintMode ? blueprintBase : derivedDemoMode ? '/demo-dashboard' : '';
