@@ -65,21 +65,21 @@ const TodayROIStrip: React.FC = () => {
         <EmptyStateCard />
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <article className={metricCardClass}>
+          <article className={`${metricCardClass} border-l-4 border-l-blue-500`}>
             <p className="text-xs font-medium text-slate-500">Leads captured</p>
-            <p className="mt-1 text-2xl font-bold text-slate-900">{Number(data?.leads_captured || 0).toLocaleString()}</p>
+            <p className="mt-1 text-2xl font-bold text-blue-600">{Number(data?.leads_captured || 0).toLocaleString()}</p>
           </article>
-          <article className={metricCardClass}>
+          <article className={`${metricCardClass} border-l-4 border-l-emerald-500`}>
             <p className="text-xs font-medium text-slate-500">Appointments set</p>
-            <p className="mt-1 text-2xl font-bold text-slate-900">{Number(data?.appointments_set || 0).toLocaleString()}</p>
+            <p className="mt-1 text-2xl font-bold text-emerald-600">{Number(data?.appointments_set || 0).toLocaleString()}</p>
           </article>
-          <article className={metricCardClass}>
+          <article className={`${metricCardClass} border-l-4 border-l-violet-500`}>
             <p className="text-xs font-medium text-slate-500">Confirmations</p>
-            <p className="mt-1 text-2xl font-bold text-slate-900">{Number(data?.confirmations || 0).toLocaleString()}</p>
+            <p className="mt-1 text-2xl font-bold text-violet-600">{Number(data?.confirmations || 0).toLocaleString()}</p>
           </article>
-          <article className={metricCardClass}>
+          <article className={`${metricCardClass} border-l-4 border-l-amber-400`}>
             <p className="text-xs font-medium text-slate-500">Top source</p>
-            <p className="mt-1 text-sm font-semibold text-slate-900">
+            <p className="mt-1 text-sm font-semibold text-amber-600">
               {data?.top_source?.label || 'None'}
               <span className="ml-1 text-xs font-medium text-slate-500">({Number(data?.top_source?.count || 0).toLocaleString()})</span>
             </p>

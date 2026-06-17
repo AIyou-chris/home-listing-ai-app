@@ -215,7 +215,7 @@ const LeadsInboxCommandPage: React.FC = () => {
       <div className="mb-8 flex items-start justify-between gap-4">
         <div>
           <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Leads</h1>
-          <p className="mt-2 text-lg text-slate-500 font-medium">New leads and listing inquiries—organized by what matters most.</p>
+          <p className="mt-2 text-lg text-slate-500 font-medium text-center sm:text-left">New leads and listing inquiries—organized by what matters most.</p>
         </div>
         {!loading && allCount > 0 && (
           <div className="flex items-center gap-2 flex-shrink-0">

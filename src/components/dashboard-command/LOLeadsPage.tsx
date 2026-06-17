@@ -125,6 +125,27 @@ const LeadCard: React.FC<{ lead: Lead; expanded: boolean; onToggle: () => void; 
   const [smsText, setSmsText] = useState('');
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
+  const [showConversation, setShowConversation] = useState(false);
+  const [convLoading, setConvLoading] = useState(false);
+  const [convError, setConvError] = useState<string | null>(null);
+  const [convMessages, setConvMessages] = useState<Array<{ id: string; sender: string; text: string; created_at: string }>>([]);
+
+  const loadConversation = async () => {
+    if (demo || lead.source === 'pre_qual') return;
+    setConvLoading(true);
+    setConvError(null);
+    try {
+      const headers = await getApiHeaders();
+      const res = await fetch(buildApiUrl(`/api/lo/leads/${lead.id}/conversation`), { headers });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'fetch_failed');
+      setConvMessages(data.messages || []);
+    } catch {
+      setConvError('Could not load conversation.');
+    } finally {
+      setConvLoading(false);
+    }
+  };
 
   const handleStatusChange = async (newStatus: LeadStatus) => {
     if (newStatus === status) return;
@@ -346,6 +367,48 @@ const LeadCard: React.FC<{ lead: Lead; expanded: boolean; onToggle: () => void; 
             <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
               <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">What they asked</p>
               <p className="text-xs text-slate-700">{lead.notes}</p>
+            </div>
+          )}
+
+          {/* Conversation transcript — chat leads only */}
+          {lead.source !== 'pre_qual' && !demo && (
+            <div>
+              <button
+                type="button"
+                onClick={() => {
+                  const next = !showConversation;
+                  setShowConversation(next);
+                  if (next && convMessages.length === 0 && !convLoading) void loadConversation();
+                }}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+              >
+                {showConversation ? 'Hide conversation' : 'View conversation'}
+              </button>
+              {showConversation && (
+                <div className="mt-2 rounded-xl border border-slate-200 bg-white p-3">
+                  {convLoading ? (
+                    <p className="text-xs text-slate-500">Loading conversation…</p>
+                  ) : convError ? (
+                    <p className="text-xs text-rose-600">{convError}</p>
+                  ) : convMessages.length === 0 ? (
+                    <p className="text-xs text-slate-500">No conversation yet.</p>
+                  ) : (
+                    <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
+                      {convMessages.map((msg) => (
+                        <div
+                          key={msg.id}
+                          className={`rounded-lg px-3 py-2 text-sm ${msg.sender === 'visitor' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-800'}`}
+                        >
+                          <p>{msg.text}</p>
+                          <p className="mt-1 text-[10px] opacity-70">
+                            {msg.sender} · {new Date(msg.created_at).toLocaleString()}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 

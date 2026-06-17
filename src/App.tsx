@@ -453,7 +453,9 @@ const ProtectedDashboardLayout: React.FC = () => {
 
                 <main className="flex-1 overflow-x-hidden overflow-y-auto bg-slate-50 relative z-0">
                     <DashboardRealtimeBootstrap />
-                    <Outlet />
+                    <Suspense fallback={<LoadingSpinner />}>
+                        <Outlet />
+                    </Suspense>
                 </main>
             </div>
         </div>

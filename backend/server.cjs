@@ -31164,6 +31164,60 @@ app.get('/api/lo/leads', requireAuth, async (req, res) => {
   }
 });
 
+// ── GET /api/lo/leads/:leadId/conversation ────────────────────────────────────
+app.get('/api/lo/leads/:leadId/conversation', requireAuth, async (req, res) => {
+  try {
+    const { leadId } = req.params;
+    let loAgentId = req.authUserId;
+    try { loAgentId = (await resolveLoAgentId(req)) || loAgentId; } catch { /* fallback */ }
+
+    // Verify this lead belongs to this LO
+    const { data: leadRow, error: leadError } = await supabaseAdmin
+      .from('leads')
+      .select('id, lo_agent_id')
+      .eq('id', leadId)
+      .eq('lo_agent_id', loAgentId)
+      .maybeSingle();
+    if (leadError) throw leadError;
+    if (!leadRow) return res.status(404).json({ error: 'lead_not_found' });
+
+    const { data: conversationRows, error: convError } = await supabaseAdmin
+      .from('ai_conversations')
+      .select('id, listing_id, visitor_id, channel, metadata, created_at, updated_at, started_at, last_activity_at')
+      .eq('lead_id', leadId)
+      .order('updated_at', { ascending: false })
+      .limit(1);
+    if (convError) throw convError;
+
+    const conversation = Array.isArray(conversationRows) && conversationRows.length > 0 ? conversationRows[0] : null;
+    if (!conversation?.id) return res.json({ success: true, conversation: null, messages: [] });
+
+    const { data: messageRows, error: msgError } = await supabaseAdmin
+      .from('ai_conversation_messages')
+      .select('id, sender, channel, content, metadata, is_capture_event, intent_tags, confidence, created_at')
+      .eq('conversation_id', conversation.id)
+      .order('created_at', { ascending: true })
+      .limit(200);
+    if (msgError) throw msgError;
+
+    const messages = (messageRows || []).map(m => ({
+      id: m.id,
+      sender: m.sender,
+      channel: m.channel || 'web',
+      text: String(m.content || m.metadata?.text || ''),
+      is_capture_event: m.is_capture_event || false,
+      intent_tags: m.intent_tags || [],
+      confidence: m.confidence ?? null,
+      created_at: m.created_at,
+    }));
+
+    res.json({ success: true, conversation, messages });
+  } catch (err) {
+    console.error('[LO Lead Conversation] Failed:', err);
+    res.status(500).json({ error: 'fetch_failed' });
+  }
+});
+
 // ── GET /api/lo/leads/export.csv — download all LO leads as CSV ──────────────
 app.get('/api/lo/leads/export.csv', requireAuth, async (req, res) => {
   try {

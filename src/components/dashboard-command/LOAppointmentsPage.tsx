@@ -303,8 +303,9 @@ const AppointmentCard: React.FC<AppointmentCardProps> = ({
   const kindColor = KIND_COLORS[appt.type] ?? 'bg-slate-100 text-slate-600 border border-slate-200'
   const kindIcon  = KIND_ICONS[appt.type]  ?? 'event'
   const timeLabel = formatTime(appt)
-  const isCompleted = appt.status === 'completed'
-  const isCanceled  = appt.status === 'canceled' || appt.status === 'cancelled'
+  const statusLower = appt.status.toLowerCase()
+  const isCompleted = statusLower === 'completed'
+  const isCanceled  = statusLower === 'canceled' || statusLower === 'cancelled'
 
   return (
     <div className={`bg-white rounded-2xl border shadow-sm p-4 flex flex-col gap-3 transition-opacity ${
@@ -581,8 +582,9 @@ const LOAppointmentsPage: React.FC = () => {
   const weekStart   = startOfWeek()
   const weekEnd     = endOfWeek()
 
-  const active = appointments.filter(a => a.status !== 'completed' && a.status !== 'canceled' && a.status !== 'cancelled')
-  const done   = appointments.filter(a => a.status === 'completed' || a.status === 'canceled' || a.status === 'cancelled')
+  const isTerminal = (s: string) => { const l = s.toLowerCase(); return l === 'completed' || l === 'canceled' || l === 'cancelled' }
+  const active = appointments.filter(a => !isTerminal(a.status))
+  const done   = appointments.filter(a => isTerminal(a.status))
 
   const todayAppts    = active.filter(a => a.date === todayStr)
   const thisWeekAppts = active.filter(a => a.date > todayStr && a.date >= weekStart && a.date <= weekEnd)
