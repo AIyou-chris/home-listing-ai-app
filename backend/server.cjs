@@ -31328,8 +31328,9 @@ app.post('/api/lo/partners/invite', requireAuth, async (req, res) => {
     const loAgentId = loAuthId; // agent_invites keyed by auth id
     let loProfileId = loAuthId;
     try { loProfileId = (await resolveLoAgentId(req)) || loAuthId; } catch { /* fall back to auth id */ }
-    const { email, name, listingId } = req.body || {};
+    const { email, name, phone, listingId } = req.body || {};
     if (!email || !email.includes('@')) return res.status(400).json({ error: 'valid_email_required' });
+    const invitedPhone = (phone && String(phone).trim()) || null;
     // Agent profile is used for email personalization only — never block the
     // invite if the profile row is missing (some accounts have no agents row).
     const { data: loAgent } = await supabaseAdmin.from('agents').select('id, first_name, last_name, company, email, headshot_url, stripe_customer_id, payment_status, created_at').eq('id', loProfileId).limit(1).maybeSingle();
@@ -31376,10 +31377,13 @@ app.post('/api/lo/partners/invite', requireAuth, async (req, res) => {
     let token;
     if (existing && existing.length > 0 && !existing[0].claimed_at) {
       token = existing[0].token;
-      // Update listing_id on existing token if changed
-      if (resolvedListingId) await supabaseAdmin.from('agent_invites').update({ listing_id: resolvedListingId }).eq('id', existing[0].id);
+      // Update listing_id / phone on existing token if provided
+      const existingUpdate = {};
+      if (resolvedListingId) existingUpdate.listing_id = resolvedListingId;
+      if (invitedPhone) existingUpdate.invited_phone = invitedPhone;
+      if (Object.keys(existingUpdate).length) await supabaseAdmin.from('agent_invites').update(existingUpdate).eq('id', existing[0].id);
     } else {
-      const { data: invite, error: inviteError } = await supabaseAdmin.from('agent_invites').insert({ lo_agent_id: loAgentId, invited_email: emailLower, invited_name: name || null, listing_id: resolvedListingId, expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() }).select('token').single();
+      const { data: invite, error: inviteError } = await supabaseAdmin.from('agent_invites').insert({ lo_agent_id: loAgentId, invited_email: emailLower, invited_name: name || null, invited_phone: invitedPhone, listing_id: resolvedListingId, expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() }).select('token').single();
       if (inviteError || !invite) throw inviteError || new Error('invite_create_failed');
       token = invite.token;
     }
@@ -32255,7 +32259,7 @@ app.get('/api/lo/partners', requireAuth, async (req, res) => {
     try { loProfileId = (await resolveLoAgentId(req)) || loAuthId; } catch { /* fall back */ }
     const { data: partnerships } = await supabaseAdmin.from('lo_agent_partnerships').select('id, status, created_at, notes, rating, last_follow_up, agent:agent_id(id, auth_user_id, first_name, last_name, email, phone, headshot_url, company, website)').eq('lo_agent_id', loProfileId).eq('status', 'active').order('created_at', { ascending: false });
     // agent_invites.lo_agent_id stores the auth id — keep using loAuthId here
-    const { data: pendingInvites } = await supabaseAdmin.from('agent_invites').select('id, token, invited_email, invited_name, created_at, opened_at, cta_clicked_at').eq('lo_agent_id', loAuthId).is('claimed_at', null).gt('expires_at', nowIso());
+    const { data: pendingInvites } = await supabaseAdmin.from('agent_invites').select('id, token, invited_email, invited_name, invited_phone, created_at, opened_at, cta_clicked_at').eq('lo_agent_id', loAuthId).is('claimed_at', null).gt('expires_at', nowIso());
     // Group the LO's co-branded listings under the partner agent who owns each one.
     // properties.agent_id holds the owner's AUTH id, so map partner auth id -> profile id.
     const assignedRows = await fetchLoAssignedListings(loProfileId);
@@ -32284,7 +32288,7 @@ app.get('/api/lo/partners', requireAuth, async (req, res) => {
       const listings = (listingsByAgent[agentId] || []).map(l => ({ listingId: l.listingId, address: l.address || 'Unknown', price: l.price || null, status: l.status || 'draft', heroPhoto: l.heroPhoto || null, totalLeads: 0, totalViews: 0 }));
       return { partnershipId: p.id, agentId, name: [agent.first_name, agent.last_name].filter(Boolean).join(' ') || 'Agent', email: agent.email || null, phone: agent.phone || null, website: agent.website || null, headshotUrl: agent.headshot_url || null, company: agent.company || null, totalLeads: leadCountByAgent[agentId] || 0, listings, joinedAt: p.created_at, notes: p.notes || '', rating: p.rating || null, lastFollowUp: p.last_follow_up || null };
     });
-    res.json({ success: true, partners, pendingInvites: (pendingInvites || []).map(i => ({ id: i.id, token: i.token, email: i.invited_email, name: i.invited_name || null, sentAt: i.created_at, openedAt: i.opened_at || null, ctaClickedAt: i.cta_clicked_at || null })) });
+    res.json({ success: true, partners, pendingInvites: (pendingInvites || []).map(i => ({ id: i.id, token: i.token, email: i.invited_email, name: i.invited_name || null, phone: i.invited_phone || null, sentAt: i.created_at, openedAt: i.opened_at || null, ctaClickedAt: i.cta_clicked_at || null })) });
   } catch (err) {
     console.error('[LO Partners] Failed:', err);
     res.status(500).json({ error: 'failed_to_load_partners' });

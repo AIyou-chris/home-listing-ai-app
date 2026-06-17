@@ -54,6 +54,7 @@ interface PendingInvite {
   id: string
   email: string
   name: string | null
+  phone: string | null
   sentAt: string
   openedAt: string | null
   ctaClickedAt: string | null
@@ -86,7 +87,7 @@ const DEMO_PARTNERS: Partner[] = [
 ]
 
 const DEMO_PENDING: PendingInvite[] = [
-  { id: 'i1', email: 'mike@realty.com', name: 'Mike Johnson', sentAt: new Date(Date.now() - 2 * 3600000).toISOString(), openedAt: new Date(Date.now() - 1 * 3600000).toISOString(), ctaClickedAt: null }
+  { id: 'i1', email: 'mike@realty.com', name: 'Mike Johnson', phone: '(512) 555-0190', sentAt: new Date(Date.now() - 2 * 3600000).toISOString(), openedAt: new Date(Date.now() - 1 * 3600000).toISOString(), ctaClickedAt: null }
 ]
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -160,6 +161,7 @@ const InviteModal: React.FC<{ onClose: () => void; onSent: (wowLink: string) => 
   const demoMode = useDemoMode()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
+  const [phone, setPhone] = useState('')
   const [listingId, setListingId] = useState<string>('')
   const [listings, setListings] = useState<LOListing[]>([])
   const [sending, setSending] = useState(false)
@@ -192,7 +194,7 @@ const InviteModal: React.FC<{ onClose: () => void; onSent: (wowLink: string) => 
       const res = await fetch(buildApiUrl('/api/lo/partners/invite'), {
         method: 'POST',
         headers,
-        body: JSON.stringify({ email: email.trim(), name: name.trim() || undefined, listingId: listingId || undefined })
+        body: JSON.stringify({ email: email.trim(), name: name.trim() || undefined, phone: phone.trim() || undefined, listingId: listingId || undefined })
       })
       const json = await res.json() as { success?: boolean; wowLink?: string; error?: string; message?: string }
       if (!res.ok) {
@@ -254,6 +256,14 @@ const InviteModal: React.FC<{ onClose: () => void; onSent: (wowLink: string) => 
                 type="email"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleSend()}
+              />
+              <input
+                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                placeholder="Agent phone (optional) — call/text them from here later"
+                type="tel"
+                value={phone}
+                onChange={e => setPhone(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleSend()}
               />
               {/* Listing picker */}
@@ -799,6 +809,23 @@ const LOPartnersPage: React.FC = () => {
                   </div>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
+                  {/* Text/Call — when we have a phone. Text first: agents answer texts faster than calls. */}
+                  {invite.phone && (
+                    <>
+                      <a
+                        href={`sms:${invite.phone}?body=${encodeURIComponent(`Hi ${invite.name?.split(' ')[0] || 'there'} — just sent you a live listing demo with instant financing answers built in. Did it come through?`)}`}
+                        className="text-xs font-semibold text-green-700 hover:text-green-900 border border-green-300 bg-white rounded-lg px-3 py-1.5 transition-all hover:bg-green-50"
+                      >
+                        Text 💬
+                      </a>
+                      <a
+                        href={`tel:${invite.phone}`}
+                        className="text-xs font-semibold text-slate-700 hover:text-slate-900 border border-slate-300 bg-white rounded-lg px-3 py-1.5 transition-all hover:bg-slate-50"
+                      >
+                        Call 📞
+                      </a>
+                    </>
+                  )}
                   {/* Nudge — only show if >24hrs old and not yet opened */}
                   {!invite.openedAt && (Date.now() - new Date(invite.sentAt).getTime()) > 24 * 3600 * 1000 && (
                     <button

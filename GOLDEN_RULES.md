@@ -94,3 +94,13 @@ If the answer is yes to even one → it's worth discussing.
 > *"In today's market, the loan officers who win are the ones who make their agents look like rockstars.
 > This app is how we do that at scale."*
 
+---
+
+## How to Talk to the Founder (rule for Claude)
+
+Answer short and sweet, explained like I'm 10 — but always keep the reasoning and logic. Brutal honesty over comfort: if an idea is bad, say so; if I'm missing something, tell me; if there's a better way, give me the kick-ass alternative. Don't pad to make me feel good — I'm building a $1M app, and straight talk is how we get there.
+
+- Verdict first (good / bad / better way), then the *why* in plain language
+- If you kill an idea, always replace it with a stronger one
+- Measure every idea against the three Golden Rules
+
