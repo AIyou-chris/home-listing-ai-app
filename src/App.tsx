@@ -1631,6 +1631,7 @@ const App: React.FC = () => {
                         <Route path="lo-today" element={<LOTodayPage />} />
                         <Route path="lo-listings" element={<LOListingsPage />} />
                         <Route path="lo-partners" element={<LOPartnersPage />} />
+                        <Route path="lo-leads" element={<LOLeadsPage />} />
                         <Route path="lo-appointments" element={<LOAppointmentsPage />} />
                         <Route path="lo-chatbot" element={<LOChatbotSetupPage />} />
                         <Route path="office" element={<OfficeDashboardPage />} />
@@ -1651,8 +1652,13 @@ const App: React.FC = () => {
                         <Route path="listings" element={<ListingsCommandPage />} />
                         <Route path="listings/:listingId" element={<ListingPerformancePage />} />
                         <Route path="listings/:listingId/edit" element={<ListingEditorPage />} />
+                        <Route path="lo-today" element={<LOTodayPage />} />
                         <Route path="lo-listings" element={<LOListingsPage />} />
                         <Route path="lo-partners" element={<LOPartnersPage />} />
+                        <Route path="lo-leads" element={<LOLeadsPage />} />
+                        <Route path="lo-appointments" element={<LOAppointmentsPage />} />
+                        <Route path="lo-chatbot" element={<LOChatbotSetupPage />} />
+                        <Route path="office" element={<OfficeDashboardPage />} />
                         <Route path="billing" element={<BillingCommandPage />} />
                         <Route path="onboarding" element={<OnboardingCommandPage />} />
                         <Route path="lo-onboarding" element={<LOOnboardingPage />} />
@@ -1807,6 +1813,7 @@ const App: React.FC = () => {
 
                     <Route path="/demo-listing" element={<DemoListingPage />} />
                     <Route path="/demo/listings/:id" element={<DemoListingPage />} />
+                    <Route path="/lo-demo" element={<Navigate to="/demo-dashboard/lo-today" replace />} />
                     <Route path="/new-landing" element={<NewLandingPage onNavigateToSignUp={handleNavigateToSignUp} onNavigateToSignIn={handleNavigateToSignIn} onEnterDemoMode={handleEnterDemoMode} />} />
 
                     {/* Fallback */}
