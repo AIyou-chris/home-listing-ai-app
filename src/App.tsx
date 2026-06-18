@@ -39,6 +39,7 @@ const LOAppointmentsPage = lazy(() => import('./components/dashboard-command/LOA
 const LOTodayPage = lazy(() => import('./components/dashboard-command/LOTodayPage'));
 const AgentClaimPage = lazy(() => import('./pages/AgentClaimPage'))
 const PartnerInvitePage = lazy(() => import('./pages/PartnerInvitePage'))
+const ForLoanOfficersPage = lazy(() => import('./pages/ForLoanOfficersPage'))
 const ListingDashboardPage = lazy(() => import('./pages/ListingDashboardPage'))
 const OfficeDashboardPage = lazy(() => import('./components/dashboard-command/OfficeDashboardPage'))
 const OfficeInviteClaimPage = lazy(() => import('./pages/OfficeInviteClaimPage'));
@@ -714,7 +715,7 @@ const App: React.FC = () => {
             nextSession.user.app_metadata?.admin
         );
         const envAdminEmail = String(import.meta.env.VITE_ADMIN_EMAIL || '').trim().toLowerCase();
-        const adminEmails = ['admin@homelistingai.com', 'homelistingai@gmail.com'];
+        const adminEmails = ['admin@homelistingai.com', 'homelistingai@gmail.com', 'cdipotter@me.com'];
         if (envAdminEmail) adminEmails.push(envAdminEmail);
         if (adminClaim || adminEmails.includes(userEmail)) {
             return 'admin';
@@ -857,7 +858,7 @@ const App: React.FC = () => {
                 // 1. Admin Check logic - OPTIMIZED ORDER
                 // Fast Local Check: Check email whitelist FIRST to avoid blocking network calls
                 const envAdminEmail = import.meta.env.VITE_ADMIN_EMAIL as string | undefined;
-                const adminEmails = ['admin@homelistingai.com', 'homelistingai@gmail.com'];
+                const adminEmails = ['admin@homelistingai.com', 'homelistingai@gmail.com', 'cdipotter@me.com'];
                 if (envAdminEmail) adminEmails.push(envAdminEmail.toLowerCase());
 
                 const isEnvAdmin = currentUser.email && adminEmails.includes(currentUser.email.toLowerCase());
@@ -965,7 +966,8 @@ const App: React.FC = () => {
                 currentPath === '/compliance' ||
                 currentPath === '/dmca' ||
                 currentPath === '/agent-blueprint-dashboard' || currentPath.startsWith('/agent-blueprint-dashboard') ||
-                currentPath === '/white-label';
+                currentPath === '/white-label' ||
+                currentPath.startsWith('/for-loan-officers');
 
             // Force Blueprint Mode handling if on that route specifically
             if (currentPath.includes('blueprint')) {
@@ -1087,7 +1089,7 @@ const App: React.FC = () => {
         // Fast admin email check
         const fastAdminCheck = (email: string | null | undefined) => {
             const envAdminEmail = import.meta.env.VITE_ADMIN_EMAIL as string | undefined;
-            const adminEmails = ['admin@homelistingai.com', 'homelistingai@gmail.com'];
+            const adminEmails = ['admin@homelistingai.com', 'homelistingai@gmail.com', 'cdipotter@me.com'];
             if (envAdminEmail) adminEmails.push(envAdminEmail.toLowerCase());
             if (email && adminEmails.includes(email.toLowerCase())) {
                 setIsAdmin(true);
@@ -1361,7 +1363,7 @@ const App: React.FC = () => {
 
             // Check email whitelist first (fast path — no RPC needed)
             const envAdminEmail = import.meta.env.VITE_ADMIN_EMAIL as string | undefined;
-            const adminEmails = ['admin@homelistingai.com', 'homelistingai@gmail.com'];
+            const adminEmails = ['admin@homelistingai.com', 'homelistingai@gmail.com', 'cdipotter@me.com'];
             if (envAdminEmail) adminEmails.push(envAdminEmail.toLowerCase());
             const isWhitelistedAdmin = adminEmails.includes(trimmedEmail);
 
@@ -1591,6 +1593,16 @@ const App: React.FC = () => {
                     <Route path="/terms" element={<TermsOfServicePage />} />
                     <Route path="/marketing-guidelines" element={<MarketingGuidelinesPage />} />
                     <Route path="/lo-signup" element={<LOSignupPage />} />
+                    <Route path="/for-loan-officers" element={
+                        <Suspense fallback={<LoadingSpinner />}>
+                            <ForLoanOfficersPage />
+                        </Suspense>
+                    } />
+                    <Route path="/for-loan-officers/:token" element={
+                        <Suspense fallback={<LoadingSpinner />}>
+                            <ForLoanOfficersPage />
+                        </Suspense>
+                    } />
 
                     {/* Public Storefront Route */}
                     <Route path="/store/:slug" element={<StorefrontPage />} />
@@ -1707,8 +1719,8 @@ const App: React.FC = () => {
                     {/* Admin Routes */}
                     <Route element={<RequireAuth />}>
                         <Route element={<RequireRole requiredRole="admin" />}>
-                            <Route path="/admin" element={<Navigate to="/admin/overview" replace />} />
-                            <Route path="/admin-dashboard" element={<Navigate to="/admin/overview" replace />} />
+                            <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
+                            <Route path="/admin-dashboard" element={<Navigate to="/admin/dashboard" replace />} />
                             <Route path="/admin/:tab" element={<AdminDashboard />} />
                             <Route path="/admin/leads/:id/dashboard" element={
                                 <Suspense fallback={<LoadingSpinner />}>
