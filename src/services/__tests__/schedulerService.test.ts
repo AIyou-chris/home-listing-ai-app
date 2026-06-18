@@ -118,6 +118,10 @@ describe('scheduleAppointment', () => {
   })
 
   it('moves appointment to next available slot when requested time is busy', async () => {
+    // Busy-interval filtering drops past appointments; pin "now" to just before the
+    // fixture date so the 2025-12-22 conflict is in the future and detected.
+    jest.useFakeTimers({ now: new Date('2025-12-20T12:00:00Z') })
+
     const payload: SchedulerInput = {
       name: 'New Client',
       email: 'new.client@example.com',
@@ -128,17 +132,30 @@ describe('scheduleAppointment', () => {
       kind: 'Consultation'
     }
 
+    // Appointment creation now POSTs to /api/appointments rather than the
+    // insertAppointment service. Return a created row so the flow completes.
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ id: 'appt-created', start_iso: '2025-12-22T21:15:00Z', end_iso: '2025-12-22T22:15:00Z' })
+    })
+    global.fetch = fetchMock as unknown as typeof fetch
+
     const result = await scheduleAppointment(payload)
 
     expect(listAppointmentsMock).toHaveBeenCalledWith('agent-123')
-    expect(insertAppointmentMock).toHaveBeenCalled()
 
-    const insertArgs = insertAppointmentMock.mock.calls[0][0]
-    expect(insertArgs.date).toBe('2025-12-22')
-    expect(insertArgs.time_label).toBe('3:15 PM')
+    const postCall = fetchMock.mock.calls.find(
+      ([url, init]) => String(url).includes('/api/appointments') && (init as RequestInit | undefined)?.method === 'POST'
+    )
+    expect(postCall).toBeDefined()
+    const body = JSON.parse((postCall?.[1] as RequestInit).body as string)
+    expect(body.date).toBe('2025-12-22')
+    expect(body.timeLabel).toBe('3:15 PM')
 
     expect(result.scheduledAt?.date).toBe('2025-12-22')
     expect(result.scheduledAt?.time).toBe('3:15 PM')
+
+    jest.useRealTimers()
   })
 })
 

@@ -10,7 +10,6 @@ import {
   NotificationSettings
 } from '../../types'
 import { supabase } from '../../services/supabase'
-import { agentOnboardingService } from '../../services/agentOnboardingService'
 import { AgentBrandingContext } from '../../context/AgentBrandingContextInstance'
 import type { AgentBrandingContextValue } from '../../context/AgentBrandingContext'
 
@@ -18,8 +17,16 @@ jest.mock('../../services/supabase', () => ({
   supabase: {
     auth: {
       getUser: jest.fn(),
+      getSession: jest.fn().mockResolvedValue({ data: { session: null }, error: null }),
       signInWithPassword: jest.fn(),
-      updateUser: jest.fn()
+      updateUser: jest.fn(),
+      mfa: {
+        listFactors: jest.fn().mockResolvedValue({ data: { totp: [] }, error: null }),
+        enroll: jest.fn(),
+        challenge: jest.fn(),
+        verify: jest.fn(),
+        unenroll: jest.fn()
+      }
     }
   }
 }))
@@ -32,6 +39,14 @@ jest.mock('../../services/agentOnboardingService', () => ({
     listPaymentProviders: jest.fn(),
     pollAgentActivation: jest.fn()
   }
+}))
+
+jest.mock('../../services/dashboardBillingService', () => ({
+  fetchDashboardBilling: jest.fn(),
+  fetchDashboardBillingUsage: jest.fn(),
+  createBillingCheckoutSession: jest.fn(),
+  createBillingPortalSession: jest.fn(),
+  deleteDashboardAccount: jest.fn()
 }))
 
 const defaultAgent: AgentProfile = {
@@ -120,7 +135,11 @@ const brandingContextValue: AgentBrandingContextValue = {
 }
 
 const originalFetch = global.fetch
-const mockedOnboardingService = agentOnboardingService as jest.Mocked<typeof agentOnboardingService>
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const mockedBilling = jest.requireMock('../../services/dashboardBillingService') as {
+  fetchDashboardBilling: jest.Mock
+  createBillingCheckoutSession: jest.Mock
+}
 const mockedSupabase = supabase as unknown as {
   auth: {
     getUser: jest.Mock
@@ -169,6 +188,8 @@ const createFetchMock = () => {
   })
 }
 
+const onSaveCalendarSettingsMock = jest.fn()
+
 const renderSettings = () => {
   render(
     <MemoryRouter>
@@ -182,7 +203,9 @@ const renderSettings = () => {
         emailSettings={defaultEmailSettings}
         onSaveEmailSettings={jest.fn()}
         calendarSettings={defaultCalendarSettings}
-        onSaveCalendarSettings={jest.fn()}
+        onSaveCalendarSettings={onSaveCalendarSettingsMock}
+        securitySettings={{ loginNotifications: true, sessionTimeout: 24, twoFactorEnabled: false }}
+        onSaveSecuritySettings={jest.fn()}
         billingSettings={defaultBilling}
         onSaveBillingSettings={jest.fn()}
         onBackToDashboard={jest.fn()}
@@ -197,14 +220,10 @@ beforeEach(() => {
   mockedSupabase.auth.getUser.mockResolvedValue({ data: { user: { email: defaultAgent.email } }, error: null })
   mockedSupabase.auth.signInWithPassword.mockResolvedValue({ data: {}, error: null })
   mockedSupabase.auth.updateUser.mockResolvedValue({ data: {}, error: null })
-  mockedOnboardingService.listPaymentProviders.mockResolvedValue(['paypal'])
-  mockedOnboardingService.createCheckoutSession.mockResolvedValue({
-    provider: 'paypal',
-    url: 'https://paypal.test/checkout',
-    id: 'order-123',
-    amount: 5900,
-    currency: 'USD'
+  mockedBilling.fetchDashboardBilling.mockResolvedValue({
+    plan: { id: 'free', status: 'active', current_period_end: null }
   })
+  mockedBilling.createBillingCheckoutSession.mockResolvedValue({ url: 'https://checkout.stripe.test/session' })
 })
 
 afterEach(() => {
@@ -219,20 +238,16 @@ describe('SettingsPage calendar tab', () => {
 
     fireEvent.click((await screen.findAllByRole('button', { name: /calendar/i }))[0])
 
-    const headings = await screen.findAllByRole('heading', { name: /calendar integration/i })
+    const headings = await screen.findAllByRole('heading', { name: /calendar settings/i })
     expect(headings.length).toBeGreaterThanOrEqual(1)
 
-    expect(screen.getByText('Google Calendar')).toBeInTheDocument()
-    expect(screen.getByText(/Apple or other calendars arrive/i)).toBeInTheDocument()
+    expect(screen.getByText(/Google, Apple, and Outlook ready/i)).toBeInTheDocument()
 
     const saveButtons = screen.getAllByRole('button', { name: /save calendar settings/i })
     expect(saveButtons).toHaveLength(1)
   })
 
-  it('saves calendar preferences via API and shows confirmation message', async () => {
-    const fetchMock = createFetchMock()
-    global.fetch = fetchMock as unknown as typeof global.fetch
-
+  it('saves calendar preferences via the onSave handler', async () => {
     renderSettings()
 
     fireEvent.click((await screen.findAllByRole('button', { name: /calendar/i }))[0])
@@ -244,44 +259,31 @@ describe('SettingsPage calendar tab', () => {
     const saveButton = screen.getByRole('button', { name: /save calendar settings/i })
     fireEvent.click(saveButton)
 
-    await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith(
-        expect.stringContaining('/api/calendar/settings/test-agent'),
-        expect.objectContaining({ method: 'PATCH' })
-      )
-    })
-
-    const patchCall = fetchMock.mock.calls.find(([, init]) => init?.method === 'PATCH')
-    expect(patchCall).toBeDefined()
-    const payload = JSON.parse((patchCall?.[1]?.body as string) || '{}')
-    expect(payload.workingHours.start).toBe('08:00')
-
-    expect(await screen.findByText('Calendar settings saved successfully.')).toBeInTheDocument()
+    await waitFor(() => expect(onSaveCalendarSettingsMock).toHaveBeenCalled())
+    const savedSettings = onSaveCalendarSettingsMock.mock.calls[0][0]
+    expect(savedSettings.workingHours.start).toBe('08:00')
   })
 })
 
 describe('SettingsPage security tab', () => {
   it('updates password via Supabase auth flow', async () => {
+    mockedSupabase.auth.updateUser.mockResolvedValue({ error: null })
     renderSettings()
 
     fireEvent.click((await screen.findAllByRole('button', { name: /security/i }))[0])
 
-    fireEvent.change(screen.getByLabelText('Current Password'), { target: { value: 'OldPass123!' } })
-    fireEvent.change(screen.getByLabelText('New Password'), { target: { value: 'NewPass123!' } })
-    fireEvent.change(screen.getByLabelText('Confirm New Password'), { target: { value: 'NewPass123!' } })
+    // Session-based change: no current-password re-auth step.
+    fireEvent.change(screen.getByPlaceholderText('Enter new password'), { target: { value: 'NewPass123!' } })
+    fireEvent.change(screen.getByPlaceholderText('Confirm new password'), { target: { value: 'NewPass123!' } })
 
     const [updateButton] = screen.getAllByRole('button', { name: /update password/i })
     fireEvent.click(updateButton)
 
     await waitFor(() => {
-      expect(mockedSupabase.auth.signInWithPassword).toHaveBeenCalledWith({
-        email: defaultAgent.email,
-        password: 'OldPass123!'
-      })
+      expect(mockedSupabase.auth.updateUser).toHaveBeenCalledWith({ password: 'NewPass123!' })
     })
-
-    expect(mockedSupabase.auth.updateUser).toHaveBeenCalledWith({ password: 'NewPass123!' })
-    expect(await screen.findByText('Password updated successfully.')).toBeInTheDocument()
+    expect(mockedSupabase.auth.signInWithPassword).not.toHaveBeenCalled()
+    expect(await screen.findByText('Password updated successfully')).toBeInTheDocument()
   })
 })
 
@@ -292,36 +294,18 @@ describe('SettingsPage billing tab', () => {
     window.open = originalOpen
   })
 
-  it('launches PayPal checkout when available', async () => {
-    const openSpy = jest.fn().mockReturnValue({})
-    window.open = openSpy as unknown as typeof window.open
-
-    mockedOnboardingService.listPaymentProviders.mockResolvedValue(['paypal'])
-    mockedOnboardingService.createCheckoutSession.mockResolvedValue({
-      provider: 'paypal',
-      url: 'https://paypal.test/session',
-      id: 'order-xyz',
-      amount: 13900,
-      currency: 'USD'
-    })
-
+  it('starts Stripe checkout when upgrading', async () => {
     renderSettings()
 
     fireEvent.click((await screen.findAllByRole('button', { name: /billing/i }))[0])
 
-    await waitFor(() => expect(mockedOnboardingService.listPaymentProviders).toHaveBeenCalled())
+    await waitFor(() => expect(mockedBilling.fetchDashboardBilling).toHaveBeenCalled())
 
-    const manageButton = await screen.findByRole('button', { name: /manage with paypal/i })
-    fireEvent.click(manageButton)
+    const upgradeButton = await screen.findByRole('button', { name: /upgrade to lo — \$149\/mo/i })
+    fireEvent.click(upgradeButton)
 
     await waitFor(() => {
-      expect(mockedOnboardingService.createCheckoutSession).toHaveBeenCalledWith({
-        slug: 'test-agent',
-        provider: 'paypal'
-      })
+      expect(mockedBilling.createBillingCheckoutSession).toHaveBeenCalledWith('starter')
     })
-
-    expect(openSpy).toHaveBeenCalledWith('https://paypal.test/session', '_blank', 'noopener,noreferrer')
-    expect(await screen.findByText('Opening PayPal subscription checkout in a new tab.')).toBeInTheDocument()
   })
 })

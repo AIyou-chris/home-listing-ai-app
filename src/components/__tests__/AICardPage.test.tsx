@@ -146,26 +146,24 @@ describe('AICardPage input reliability', () => {
   it('allows continued typing after debounced save', async () => {
     await renderCardPage()
 
-    const bioTextarea = await screen.findByPlaceholderText(
-      'Tell visitors about your experience and expertise...'
-    )
+    // The standalone bio textarea was removed from the card editor; the Full Name
+    // input exercises the same debounced-input path.
+    const nameInput = await screen.findByLabelText(/Full Name/i)
 
-    fireEvent.change(bioTextarea, { target: { value: 'Seasoned agent with 15 years of experience.' } })
+    fireEvent.change(nameInput, { target: { value: 'Seasoned Agent' } })
 
     await act(async () => {
       jest.advanceTimersByTime(600)
     })
 
     expect(updateAICardProfile).not.toHaveBeenCalled()
-    expect(bioTextarea).toHaveValue('Seasoned agent with 15 years of experience.')
+    expect(nameInput).toHaveValue('Seasoned Agent')
 
-    fireEvent.change(bioTextarea, {
-      target: { value: 'Seasoned agent with 15 years of experience. Ready for more.' }
+    fireEvent.change(nameInput, {
+      target: { value: 'Seasoned Agent Jr.' }
     })
 
-    expect(bioTextarea).toHaveValue(
-      'Seasoned agent with 15 years of experience. Ready for more.'
-    )
+    expect(nameInput).toHaveValue('Seasoned Agent Jr.')
   })
 
   it('notifies profile changes only after successful sync', async () => {
