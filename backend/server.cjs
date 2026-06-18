@@ -31381,7 +31381,7 @@ function buildLoOutreachEmail({ name, link }) {
       <p style="font-size:15px;line-height:1.6;margin:0 0 16px">Hi ${firstName},</p>
       <p style="font-size:15px;line-height:1.6;margin:0 0 16px">HomeListingAI puts an AI concierge on every one of your partner agents' listings — it answers buyers 24/7 and routes every warm financing lead straight back to you. More leads, stickier agent partnerships, and your time back.</p>
       <a href="${link}" style="display:block;background:linear-gradient(135deg,#2563eb,#3b82f6);color:#fff;font-size:16px;font-weight:800;text-decoration:none;text-align:center;padding:15px;border-radius:14px;margin:20px 0">See how it works →</a>
-      <p style="font-size:12px;color:#64748b;text-align:center;margin:0">No credit card · Cancel anytime · Live in under 5 minutes</p>
+      <p style="font-size:12px;color:#64748b;text-align:center;margin:0">No charge for 7 days · Cancel anytime · Card saved, not charged till day 7</p>
     </div>
     <p style="font-size:11px;color:#94a3b8;text-align:center;margin:16px 0 0">Powered by HomeListingAI</p>
   </div>`;

@@ -56,7 +56,7 @@ const ForLoanOfficersPage: React.FC = () => {
           <button onClick={goSignup} className="mt-5 w-full rounded-2xl bg-gradient-to-r from-blue-600 to-blue-500 py-4 text-[16px] font-extrabold text-white shadow-[0_8px_24px_rgba(37,99,235,0.4)] active:scale-[0.99]">
             Start My Free 7-Day Trial →
           </button>
-          <p className="mt-2.5 text-[11px] font-semibold text-slate-500">No credit card · Cancel anytime · Live in under 5 minutes</p>
+          <p className="mt-2.5 text-[11px] font-semibold text-slate-500">No charge for 7 days · Card saved, not charged till day 7 · Cancel anytime</p>
         </div>
 
         {/* Stats */}
@@ -139,7 +139,7 @@ const ForLoanOfficersPage: React.FC = () => {
         {/* Bottom CTA */}
         <div className="bg-white px-5 pb-9 pt-7 text-center">
           <h3 className="text-[20px] font-black text-slate-900">Start filling your pipeline today.</h3>
-          <p className="mx-auto mt-2 max-w-[320px] text-[13px] leading-relaxed text-slate-500">7-day free trial. No card required. Your first WOW Link goes out in minutes.</p>
+          <p className="mx-auto mt-2 max-w-[320px] text-[13px] leading-relaxed text-slate-500">7-day free trial. No charge for 7 days — cancel anytime. Your first WOW Link goes out in minutes.</p>
           <button onClick={goSignup} className="mt-5 w-full rounded-2xl bg-gradient-to-r from-blue-600 to-blue-500 py-4 text-[16px] font-extrabold text-white shadow-[0_8px_24px_rgba(37,99,235,0.35)] active:scale-[0.99]">
             Claim My Free Trial →
           </button>
