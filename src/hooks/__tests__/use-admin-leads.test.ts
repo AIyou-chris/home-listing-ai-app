@@ -15,10 +15,24 @@ describe('useAdminLeads', () => {
   it('adds and updates a lead', async () => {
     const makeAuthenticatedRequest = jest
       .fn()
-      .mockResolvedValue({ ok: true, json: async () => ({ leads: [] }) })
-    jest.spyOn(AuthService, 'getInstance').mockReturnValue({
-      makeAuthenticatedRequest
-    } as unknown as AuthService)
+      .mockImplementation(async (_url: string, opts?: { method?: string; body?: string }) => {
+        const method = opts?.method ?? 'GET'
+        if (method === 'POST') {
+          const body = JSON.parse(opts?.body ?? '{}')
+          return { ok: true, json: async () => ({ lead: { id: 'lead-1', ...body } }) }
+        }
+        if (method === 'PUT') {
+          const body = JSON.parse(opts?.body ?? '{}')
+          return { ok: true, json: async () => ({ lead: body }) }
+        }
+        return { ok: true, json: async () => ({ leads: [] }) }
+      })
+    // adminLeadsService binds `AuthService.getInstance()` (the singleton) at module
+    // load, so spy the singleton instance's method — the same object the service
+    // already holds — rather than mocking getInstance.
+    jest
+      .spyOn(AuthService.getInstance(), 'makeAuthenticatedRequest')
+      .mockImplementation(makeAuthenticatedRequest as never)
 
     const { result } = renderHook(() => useAdminLeads())
 

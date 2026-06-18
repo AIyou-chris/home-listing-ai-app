@@ -1,5 +1,6 @@
 import React from 'react'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import AICardPage from '../AICardPage'
 
 jest.mock('../../services/aiCardService', () => {
@@ -53,7 +54,7 @@ const { notifyProfileChange } = jest.requireMock('../../services/agentProfileSer
 
 const renderCardPage = async () => {
   await act(async () => {
-    render(<AICardPage />)
+    render(<MemoryRouter><AICardPage /></MemoryRouter>)
   })
 }
 

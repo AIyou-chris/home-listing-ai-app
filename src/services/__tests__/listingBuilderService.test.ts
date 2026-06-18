@@ -33,6 +33,7 @@ jest.mock('../../demo/demoData', () => ({
 
 jest.mock('../authSession', () => ({
   waitForAuthenticatedUserId: jest.fn(async () => 'user-auth-id'),
+  waitForAuthenticatedSession: jest.fn(async () => ({ userId: 'user-auth-id', accessToken: 'test-token' })),
 }))
 
 jest.mock('../dashboardInvalidation', () => ({

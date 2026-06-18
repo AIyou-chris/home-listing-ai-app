@@ -1,5 +1,6 @@
 import React from 'react'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import SettingsPage from '../SettingsPage'
 import {
   AgentProfile,
@@ -170,6 +171,7 @@ const createFetchMock = () => {
 
 const renderSettings = () => {
   render(
+    <MemoryRouter>
     <AgentBrandingContext.Provider value={brandingContextValue}>
       <SettingsPage
         userId="test-agent"
@@ -186,6 +188,7 @@ const renderSettings = () => {
         onBackToDashboard={jest.fn()}
       />
     </AgentBrandingContext.Provider>
+    </MemoryRouter>
   )
 }
 

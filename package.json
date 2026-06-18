@@ -79,6 +79,18 @@
   },
   "jest": {
     "preset": "ts-jest",
+    "transform": {
+      "^.+\\.(ts|tsx)$": [
+        "ts-jest",
+        {
+          "astTransformers": {
+            "before": [
+              "<rootDir>/src/test/importMetaTransformer.cjs"
+            ]
+          }
+        }
+      ]
+    },
     "testEnvironment": "jsdom",
     "moduleFileExtensions": [
       "ts",
@@ -94,6 +106,9 @@
     ],
     "testMatch": [
       "<rootDir>/src/**/*.test.(ts|tsx)"
+    ],
+    "modulePathIgnorePatterns": [
+      "<rootDir>/.claude/"
     ]
   },
   "lint-staged": {
