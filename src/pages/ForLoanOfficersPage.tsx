@@ -34,9 +34,9 @@ const ForLoanOfficersPage: React.FC = () => {
     navigate('/lo-signup');
   };
 
-  const headline = firstName
-    ? `${firstName}, your pipeline doesn't have to slow down when you're not working.`
-    : `Your pipeline doesn't have to slow down when you're not working.`;
+  const headlinePrefix = firstName
+    ? `${firstName}, your pipeline doesn't have to `
+    : `Your pipeline doesn't have to `;
 
   return (
     <div className="min-h-screen bg-[#f1f5f9]" style={{ WebkitTapHighlightColor: 'transparent' }}>
@@ -48,7 +48,7 @@ const ForLoanOfficersPage: React.FC = () => {
             For Loan Officers
           </span>
           <h1 className="mx-auto mt-4 max-w-[360px] text-[27px] font-black leading-[1.18] tracking-tight">
-            {headline.split('slow down')[0]}<span className="text-[#38bdf8]">slow down</span>{headline.split('slow down')[1] || ''}
+            {headlinePrefix}<span className="text-[#38bdf8]">slow down</span> when you're not working.
           </h1>
           <p className="mx-auto mt-3 max-w-[340px] text-sm leading-relaxed text-slate-300">
             HomeListingAI gives your partner agents AI-powered listings — and sends every warm lead straight back to you, 24/7.
