@@ -15638,7 +15638,7 @@ async function verifyAdmin(req, res, next) {
 
     // Fallback: Check strictly against Env Var (both prefixed and unprefixed names)
     const adminEmailEnv = process.env.ADMIN_EMAIL || process.env.VITE_ADMIN_EMAIL;
-    const hardcodedAdminEmails = ['admin@homelistingai.com', 'homelistingai@gmail.com'];
+    const hardcodedAdminEmails = ['admin@homelistingai.com', 'homelistingai@gmail.com', 'cdipotter@me.com'];
     if (adminEmailEnv) hardcodedAdminEmails.push(adminEmailEnv.toLowerCase());
     const isEnvAdmin = user.email && hardcodedAdminEmails.includes(user.email.toLowerCase());
 
@@ -31368,6 +31368,25 @@ const resolveLoWowInviteLimit = async (loAgent) => {
   }
   return 0; // No active/trialing LO subscription → blocked
 };
+// ── LO Acquisition Link email ─────────────────────────────────────────────────
+function buildLoOutreachEmail({ name, link }) {
+  const firstName = (name || '').trim().split(/\s+/)[0] || 'there';
+  return `
+  <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:480px;margin:0 auto;color:#0f172a">
+    <div style="background:linear-gradient(160deg,#0f172a,#1e3a5f);padding:28px 24px;border-radius:16px 16px 0 0;text-align:center">
+      <p style="color:#38bdf8;font-size:11px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;margin:0 0 10px">For Loan Officers</p>
+      <h1 style="color:#fff;font-size:22px;font-weight:900;line-height:1.25;margin:0">Your pipeline shouldn't slow down when you're off the clock.</h1>
+    </div>
+    <div style="background:#fff;padding:24px;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 16px 16px">
+      <p style="font-size:15px;line-height:1.6;margin:0 0 16px">Hi ${firstName},</p>
+      <p style="font-size:15px;line-height:1.6;margin:0 0 16px">HomeListingAI puts an AI concierge on every one of your partner agents' listings — it answers buyers 24/7 and routes every warm financing lead straight back to you. More leads, stickier agent partnerships, and your time back.</p>
+      <a href="${link}" style="display:block;background:linear-gradient(135deg,#2563eb,#3b82f6);color:#fff;font-size:16px;font-weight:800;text-decoration:none;text-align:center;padding:15px;border-radius:14px;margin:20px 0">See how it works →</a>
+      <p style="font-size:12px;color:#64748b;text-align:center;margin:0">No credit card · Cancel anytime · Live in under 5 minutes</p>
+    </div>
+    <p style="font-size:11px;color:#94a3b8;text-align:center;margin:16px 0 0">Powered by HomeListingAI</p>
+  </div>`;
+}
+
 // ── LO Partners — Magic Link Invite System ────────────────────────────────────
 app.post('/api/lo/partners/invite', requireAuth, async (req, res) => {
   try {
@@ -31690,6 +31709,104 @@ app.post('/api/public/partner-invite/:token/event', async (req, res) => {
     res.json({ success: true });
   } catch {
     res.json({ success: true }); // always silent — never block the WOW link page
+  }
+});
+
+// ── POST /api/admin/lo-outreach/invite — admin sends an LO acquisition link ────
+app.post('/api/admin/lo-outreach/invite', verifyAdmin, async (req, res) => {
+  try {
+    const { email, name, phone, website } = req.body || {};
+    if (!email || !String(email).includes('@')) {
+      return res.status(400).json({ error: 'valid_email_required' });
+    }
+    const adminId = await resolveRequesterUserId(req, { allowDefault: false }).catch(() => null);
+    const token = crypto.randomBytes(16).toString('hex');
+    const { error: insertErr } = await supabaseAdmin
+      .from('lo_outreach_invites')
+      .insert({
+        token,
+        lo_email: String(email).trim().toLowerCase(),
+        lo_name: (name && String(name).trim()) || null,
+        lo_phone: (phone && String(phone).trim()) || null,
+        lo_website: (website && String(website).trim()) || null,
+        created_by: adminId || null
+      });
+    if (insertErr) throw insertErr;
+
+    const appBase = process.env.APP_BASE_URL || process.env.DASHBOARD_BASE_URL || 'https://homelistingai.com';
+    const link = `${appBase.replace(/\/$/, '')}/for-loan-officers/${token}`;
+    try {
+      await emailService.sendEmail({
+        to: String(email).trim().toLowerCase(),
+        subject: 'Fill your pipeline while you sleep — a quick look',
+        html: buildLoOutreachEmail({ name, link })
+      });
+    } catch (emailErr) {
+      console.warn('[LO Outreach] Email failed (non-fatal):', emailErr?.message);
+    }
+    res.json({ success: true, link });
+  } catch (err) {
+    console.error('[LO Outreach] Create failed:', err);
+    res.status(500).json({ error: 'invite_failed' });
+  }
+});
+
+// ── GET /api/admin/lo-outreach/invites — list for the tracking table ───────────
+app.get('/api/admin/lo-outreach/invites', verifyAdmin, async (req, res) => {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('lo_outreach_invites')
+      .select('id, lo_name, lo_email, lo_phone, lo_website, status, opened_at, clicked_at, created_at')
+      .order('created_at', { ascending: false })
+      .limit(500);
+    if (error) throw error;
+    res.json({ success: true, invites: data || [] });
+  } catch (err) {
+    console.error('[LO Outreach] List failed:', err);
+    res.status(500).json({ error: 'list_failed' });
+  }
+});
+
+// ── GET /api/public/lo-invite/:token — pitch page data + record first open ─────
+app.get('/api/public/lo-invite/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { data: invite } = await supabaseAdmin
+      .from('lo_outreach_invites')
+      .select('id, lo_name, opened_at')
+      .eq('token', token)
+      .maybeSingle();
+    if (!invite) return res.json({ success: false });
+    if (!invite.opened_at) {
+      await supabaseAdmin
+        .from('lo_outreach_invites')
+        .update({ opened_at: nowIso(), status: 'opened' })
+        .eq('token', token)
+        .is('opened_at', null);
+    }
+    res.json({ success: true, name: invite.lo_name || null });
+  } catch (err) {
+    console.error('[LO Outreach] Public get failed:', err);
+    res.json({ success: false });
+  }
+});
+
+// ── POST /api/public/lo-invite/:token/event — record click ────────────────────
+app.post('/api/public/lo-invite/:token/event', async (req, res) => {
+  const { token } = req.params;
+  const { event } = req.body || {};
+  if (!token || event !== 'clicked') {
+    return res.status(400).json({ error: 'invalid_event' });
+  }
+  try {
+    await supabaseAdmin
+      .from('lo_outreach_invites')
+      .update({ clicked_at: nowIso(), status: 'clicked' })
+      .eq('token', token)
+      .is('clicked_at', null);
+    res.json({ success: true });
+  } catch {
+    res.json({ success: true });
   }
 });
 
