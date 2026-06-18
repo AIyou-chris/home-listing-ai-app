@@ -217,7 +217,7 @@ describe('SettingsPage calendar tab', () => {
   it('renders a single calendar settings form with integration cards', async () => {
     renderSettings()
 
-    fireEvent.click(await screen.findByRole('button', { name: /calendar/i }))
+    fireEvent.click((await screen.findAllByRole('button', { name: /calendar/i }))[0])
 
     const headings = await screen.findAllByRole('heading', { name: /calendar integration/i })
     expect(headings.length).toBeGreaterThanOrEqual(1)
@@ -235,7 +235,7 @@ describe('SettingsPage calendar tab', () => {
 
     renderSettings()
 
-    fireEvent.click(await screen.findByRole('button', { name: /calendar/i }))
+    fireEvent.click((await screen.findAllByRole('button', { name: /calendar/i }))[0])
 
     await screen.findByDisplayValue('09:00')
     const startInput = screen.getByLabelText('Start Time')
@@ -264,7 +264,7 @@ describe('SettingsPage security tab', () => {
   it('updates password via Supabase auth flow', async () => {
     renderSettings()
 
-    fireEvent.click(await screen.findByRole('button', { name: /security/i }))
+    fireEvent.click((await screen.findAllByRole('button', { name: /security/i }))[0])
 
     fireEvent.change(screen.getByLabelText('Current Password'), { target: { value: 'OldPass123!' } })
     fireEvent.change(screen.getByLabelText('New Password'), { target: { value: 'NewPass123!' } })
@@ -307,7 +307,7 @@ describe('SettingsPage billing tab', () => {
 
     renderSettings()
 
-    fireEvent.click(await screen.findByRole('button', { name: /billing/i }))
+    fireEvent.click((await screen.findAllByRole('button', { name: /billing/i }))[0])
 
     await waitFor(() => expect(mockedOnboardingService.listPaymentProviders).toHaveBeenCalled())
 
