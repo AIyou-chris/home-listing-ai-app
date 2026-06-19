@@ -32,6 +32,15 @@ function isJunk(email) {
  * Pure: HTML + page URL -> array of { email, is_role, employer }.
  * Deduped, lowercased, junk removed. employer is best-effort from <title>.
  */
+// Normalize one raw email into a contact, or null if junk. Shared by the
+// page extractor (Google/Apify-search) and the Apify-Maps direct parser.
+function makeContact(rawEmail, employer) {
+  const email = String(rawEmail || '').toLowerCase().trim();
+  if (!email || isJunk(email)) return null;
+  const local = email.split('@')[0];
+  return { email, is_role: ROLE_LOCALPARTS.has(local), employer: employer || null };
+}
+
 function extractContacts(html, pageUrl) {
   let employer = null;
   try {
@@ -43,12 +52,10 @@ function extractContacts(html, pageUrl) {
   const out = [];
   const matches = String(html).match(EMAIL_RE) || [];
   for (const raw of matches) {
-    const email = raw.toLowerCase();
-    if (seen.has(email)) continue;
-    if (isJunk(email)) continue;
-    seen.add(email);
-    const local = email.split('@')[0];
-    out.push({ email, is_role: ROLE_LOCALPARTS.has(local), employer });
+    const c = makeContact(raw, employer);
+    if (!c || seen.has(c.email)) continue;
+    seen.add(c.email);
+    out.push(c);
   }
   return out;
 }
@@ -82,32 +89,53 @@ function createLoLeadScraperService(deps) {
     const url = `https://www.googleapis.com/customsearch/v1?key=${encodeURIComponent(key)}`
       + `&cx=${encodeURIComponent(cx)}&num=10&q=${encodeURIComponent(query)}`;
     const res = await fetchImpl(url);
-    if (!res.ok) return [];
+    if (!res.ok) return { links: [], contacts: [] };
     const data = await res.json();
-    return (data.items || []).map(i => i.link).filter(Boolean);
+    const links = (data.items || []).map(i => i.link).filter(Boolean);
+    return { links, contacts: [] };
   }
 
-  // ── Engine B: Apify Google Search Results Scraper (pay-as-you-go) ──
+  // ── Engine B: Apify (pay-as-you-go) — supports two actors, auto-detected ──
   // Removable: delete this fn + the `engine` switch below to drop Apify entirely.
+  //   • Google Search Scraper (nwua9Gu5YrADL7ZDj): items have `organicResults[].url`
+  //     → we return links, then fetch+extract emails from each page.
+  //   • Google Maps Scraper (2SyF0bVxmgGr8IVCZ): items have `emails[]` + `title`
+  //     → we return contacts directly (no page fetch needed).
+  // Point APIFY_ACTOR_ID at either; the parser detects the shape it gets back.
   async function apifySearch(query) {
     const token = env.APIFY_TOKEN;
-    const actorId = env.APIFY_ACTOR_ID || 'nwua9Gu5YrADL7ZDj'; // apify/google-search-scraper
+    const actorId = env.APIFY_ACTOR_ID || 'nwua9Gu5YrADL7ZDj'; // default: google-search-scraper
     const url = `https://api.apify.com/v2/acts/${actorId}/run-sync-get-dataset-items`
       + `?token=${encodeURIComponent(token)}`;
+    // Both actors accept these keys; each ignores the ones it doesn't use.
     const res = await fetchImpl(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ queries: query, maxPagesPerQuery: 1, resultsPerPage: 10, countryCode: 'us' }),
+      body: JSON.stringify({
+        queries: query, maxPagesPerQuery: 1, resultsPerPage: 10, countryCode: 'us', // search scraper
+        searchStringsArray: [query], maxCrawledPlacesPerSearch: 20, language: 'en',  // maps scraper
+      }),
     });
-    if (!res.ok) return [];
+    if (!res.ok) return { links: [], contacts: [] };
     const items = await res.json();
+
     const links = [];
+    const contacts = [];
     for (const it of (items || [])) {
-      for (const r of (it.organicResults || [])) {
-        if (r && r.url) links.push(r.url);
+      if (Array.isArray(it.organicResults)) {
+        // Search-scraper shape → collect page URLs to fetch later.
+        for (const r of it.organicResults) if (r && r.url) links.push(r.url);
+      } else {
+        // Maps-scraper shape → emails are already here; use them directly.
+        const employer = it.title || it.name || null;
+        const emails = Array.isArray(it.emails) ? it.emails : (it.email ? [it.email] : []);
+        for (const raw of emails) {
+          const c = makeContact(raw, employer);
+          if (c) { c.source_url = it.website || it.url || null; contacts.push(c); }
+        }
       }
     }
-    return links;
+    return { links, contacts };
   }
 
   const searchFn = engine === 'apify' ? apifySearch : googleSearch;
@@ -147,44 +175,53 @@ function createLoLeadScraperService(deps) {
     let searchesUsed = 0, pagesScanned = 0, leadsAdded = 0, dupesSkipped = 0;
     const seenThisRun = new Set(); // de-dupe the same email found across pages in one run
 
+    // Dedupe against pool + suppression + this-run, then insert the rest.
+    async function storeContacts(contacts, city, defaultSourceUrl) {
+      if (!contacts.length) return;
+      const emails = contacts.map(c => c.email);
+      const [already, suppressed] = await Promise.all([
+        existingIn('lo_lead_pool', emails),
+        existingIn('lo_suppression_list', emails),
+      ]);
+      const fresh = contacts.filter(c => {
+        if (already.has(c.email) || suppressed.has(c.email) || seenThisRun.has(c.email)) {
+          dupesSkipped++; return false;
+        }
+        seenThisRun.add(c.email);
+        return true;
+      });
+      if (!fresh.length) return;
+      const rows = fresh.map(c => ({
+        email: c.email, employer: c.employer, is_role: c.is_role,
+        city, source_url: c.source_url || defaultSourceUrl, status: 'new',
+      }));
+      const { error } = await supabaseAdmin.from('lo_lead_pool').insert(rows);
+      if (!error) leadsAdded += rows.length;
+    }
+
     outer:
     for (const city of cities) {
       for (const tpl of queryTemplates) {
         if (searchesUsed >= maxSearches) break outer;
         searchesUsed++;
         const query = tpl.replace('{city}', city);
-        let links = [];
-        try { links = await searchFn(query); }
+        let result = { links: [], contacts: [] };
+        try { result = await searchFn(query); }
         catch (e) { console.warn('[LO Lead Finder] search failed:', e?.message); continue; }
 
-        for (const link of links) {
+        // Direct contacts (Apify Maps actor returns emails inline — no page fetch).
+        if (result.contacts && result.contacts.length) {
+          await storeContacts(result.contacts, city, null);
+        }
+
+        // Page links (Google CSE / Apify Search actor → fetch + extract emails).
+        for (const link of (result.links || [])) {
           const html = await fetchPage(link);
           if (!html) continue;
           pagesScanned++;
           const contacts = extractContacts(html, link);
           if (!contacts.length) continue;
-
-          const emails = contacts.map(c => c.email);
-          const [already, suppressed] = await Promise.all([
-            existingIn('lo_lead_pool', emails),
-            existingIn('lo_suppression_list', emails),
-          ]);
-
-          const fresh = contacts.filter(c => {
-            if (already.has(c.email) || suppressed.has(c.email) || seenThisRun.has(c.email)) {
-              dupesSkipped++; return false;
-            }
-            seenThisRun.add(c.email);
-            return true;
-          });
-          if (!fresh.length) continue;
-
-          const rows = fresh.map(c => ({
-            email: c.email, employer: c.employer, is_role: c.is_role,
-            city, source_url: link, status: 'new',
-          }));
-          const { error } = await supabaseAdmin.from('lo_lead_pool').insert(rows);
-          if (!error) leadsAdded += rows.length;
+          await storeContacts(contacts, city, link);
         }
       }
     }

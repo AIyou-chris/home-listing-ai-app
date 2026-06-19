@@ -161,6 +161,37 @@ test('apify engine: reads organicResults urls and stores extracted emails', asyn
   assert.strictEqual(result.leadsAdded, 1);
 });
 
+test('apify engine: google maps actor shape — uses emails directly, no page fetch', async () => {
+  let pageFetched = false;
+  const fakeFetch = async (url, opts) => {
+    if (url.includes('api.apify.com')) {
+      return { ok: true, json: async () => ([
+        { title: 'Acme Mortgage', website: 'https://acme.com', emails: ['Jane.LO@Acme.com', 'info@acme.com'] },
+        { title: 'No Email Co', website: 'https://x.com', emails: [] },
+      ]) };
+    }
+    pageFetched = true; // should NOT happen — maps gives emails directly
+    return { ok: true, text: async () => '<body>nope@nope.com</body>' };
+  };
+  const supa = makeFakeSupabase();
+  const svc = require('../loLeadScraperService').createLoLeadScraperService({
+    supabaseAdmin: supa,
+    fetchImpl: fakeFetch,
+    engine: 'apify',
+    env: { APIFY_TOKEN: 't' },
+    cities: ['Dallas TX'],
+    queryTemplates: ['mortgage companies {city}'],
+  });
+  const result = await svc.runLoLeadScrape({ maxSearches: 1 });
+  assert.strictEqual(pageFetched, false, 'maps shape should not trigger page fetches');
+  const stored = supa.inserted.map(r => r.email).sort();
+  assert.deepStrictEqual(stored, ['info@acme.com', 'jane.lo@acme.com']);
+  const info = supa.inserted.find(r => r.email === 'info@acme.com');
+  assert.strictEqual(info.is_role, true);
+  assert.strictEqual(info.employer, 'Acme Mortgage');
+  assert.strictEqual(result.leadsAdded, 2);
+});
+
 test('apify engine no-ops gracefully without APIFY_TOKEN', async () => {
   const svc = require('../loLeadScraperService').createLoLeadScraperService({
     supabaseAdmin: makeFakeSupabase(),
