@@ -31784,13 +31784,28 @@ app.post('/api/admin/lo-leads/run', verifyAdmin, async (req, res) => {
   }
 });
 
+// ── POST /api/admin/lo-leads/import-apify — import a finished Apify run (admin) ─
+// Free-plan "semi-auto" path: admin runs the leads-finder in the Apify UI, then
+// imports the result here. Optional body { datasetId } targets a specific run;
+// omitted = the actor's last successful run.
+app.post('/api/admin/lo-leads/import-apify', verifyAdmin, async (req, res) => {
+  try {
+    const datasetId = req.body?.datasetId ? String(req.body.datasetId) : undefined;
+    const result = await loLeadScraperService.importApifyLeads({ datasetId });
+    res.json({ success: true, ...result });
+  } catch (err) {
+    console.error('[LO Lead Finder] Import failed:', err);
+    res.status(500).json({ error: 'import_failed' });
+  }
+});
+
 // ── GET /api/admin/lo-leads — list the scraped pool (admin) ────────────────────
 app.get('/api/admin/lo-leads', verifyAdmin, async (req, res) => {
   try {
     const status = req.query.status ? String(req.query.status) : null;
     let q = supabaseAdmin
       .from('lo_lead_pool')
-      .select('id, email, name, employer, city, source_url, is_role, status, found_at, sent_at')
+      .select('id, email, name, employer, job_title, phone, linkedin, city, source_url, is_role, status, found_at, sent_at')
       .order('found_at', { ascending: false })
       .limit(500);
     if (status) q = q.eq('status', status);
