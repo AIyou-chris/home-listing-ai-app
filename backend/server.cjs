@@ -248,6 +248,8 @@ const createPaymentService = require('./services/paymentService');
 const createEmailService = require('./services/emailService');
 const emailTrackingService = require('./services/emailTrackingService');
 const createAgentOnboardingService = require('./services/agentOnboardingService');
+const { createLoLeadScraperService } = require('./services/loLeadScraperService');
+const loLeadScraperService = createLoLeadScraperService({ supabaseAdmin, env: process.env });
 const { runStartupDiagnostics } = require('./services/startupDiagnostics');
 const {
   enrollLeadInFunnel,
@@ -31763,6 +31765,40 @@ app.get('/api/admin/lo-outreach/invites', verifyAdmin, async (req, res) => {
     res.json({ success: true, invites: data || [] });
   } catch (err) {
     console.error('[LO Outreach] List failed:', err);
+    res.status(500).json({ error: 'list_failed' });
+  }
+});
+
+// ── POST /api/admin/lo-leads/run — manual scraper trigger (admin) ──────────────
+app.post('/api/admin/lo-leads/run', verifyAdmin, async (req, res) => {
+  try {
+    const max = Number(req.body?.maxSearches);
+    const maxSearches = Number.isFinite(max) && max > 0
+      ? Math.min(max, Number(process.env.LO_SCRAPER_MAX_SEARCHES || 100))
+      : Number(process.env.LO_SCRAPER_MAX_SEARCHES || 100);
+    const result = await loLeadScraperService.runLoLeadScrape({ maxSearches });
+    res.json({ success: true, ...result });
+  } catch (err) {
+    console.error('[LO Lead Finder] Run failed:', err);
+    res.status(500).json({ error: 'scrape_failed' });
+  }
+});
+
+// ── GET /api/admin/lo-leads — list the scraped pool (admin) ────────────────────
+app.get('/api/admin/lo-leads', verifyAdmin, async (req, res) => {
+  try {
+    const status = req.query.status ? String(req.query.status) : null;
+    let q = supabaseAdmin
+      .from('lo_lead_pool')
+      .select('id, email, name, employer, city, source_url, is_role, status, found_at, sent_at')
+      .order('found_at', { ascending: false })
+      .limit(500);
+    if (status) q = q.eq('status', status);
+    const { data, error } = await q;
+    if (error) throw error;
+    res.json({ success: true, leads: data || [] });
+  } catch (err) {
+    console.error('[LO Lead Finder] List failed:', err);
     res.status(500).json({ error: 'list_failed' });
   }
 });
