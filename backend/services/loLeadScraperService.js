@@ -72,8 +72,10 @@ function createLoLeadScraperService(deps) {
     env = process.env,
     cities = DEFAULT_CITIES,
     queryTemplates = DEFAULT_QUERY_TEMPLATES,
+    engine = (env.LO_SCRAPER_ENGINE || 'google'),
   } = deps || {};
 
+  // ── Engine A: Google Custom Search JSON API (free 100/day) ──
   async function googleSearch(query) {
     const key = env.GOOGLE_CSE_API_KEY;
     const cx = env.GOOGLE_CSE_ID;
@@ -84,6 +86,31 @@ function createLoLeadScraperService(deps) {
     const data = await res.json();
     return (data.items || []).map(i => i.link).filter(Boolean);
   }
+
+  // ── Engine B: Apify Google Search Results Scraper (pay-as-you-go) ──
+  // Removable: delete this fn + the `engine` switch below to drop Apify entirely.
+  async function apifySearch(query) {
+    const token = env.APIFY_TOKEN;
+    const actorId = env.APIFY_ACTOR_ID || 'nwua9Gu5YrADL7ZDj'; // apify/google-search-scraper
+    const url = `https://api.apify.com/v2/acts/${actorId}/run-sync-get-dataset-items`
+      + `?token=${encodeURIComponent(token)}`;
+    const res = await fetchImpl(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ queries: query, maxPagesPerQuery: 1, resultsPerPage: 10, countryCode: 'us' }),
+    });
+    if (!res.ok) return [];
+    const items = await res.json();
+    const links = [];
+    for (const it of (items || [])) {
+      for (const r of (it.organicResults || [])) {
+        if (r && r.url) links.push(r.url);
+      }
+    }
+    return links;
+  }
+
+  const searchFn = engine === 'apify' ? apifySearch : googleSearch;
 
   async function fetchPage(pageUrl) {
     try {
@@ -107,12 +134,18 @@ function createLoLeadScraperService(deps) {
   }
 
   async function runLoLeadScrape({ maxSearches = 100 } = {}) {
-    if (!env.GOOGLE_CSE_API_KEY || !env.GOOGLE_CSE_ID) {
+    if (engine === 'apify') {
+      if (!env.APIFY_TOKEN) {
+        console.warn('[LO Lead Finder] Missing APIFY_TOKEN — skipping run.');
+        return { skipped: 'missing_apify_token', searchesUsed: 0, pagesScanned: 0, leadsAdded: 0, dupesSkipped: 0 };
+      }
+    } else if (!env.GOOGLE_CSE_API_KEY || !env.GOOGLE_CSE_ID) {
       console.warn('[LO Lead Finder] Missing GOOGLE_CSE_API_KEY / GOOGLE_CSE_ID — skipping run.');
       return { skipped: 'missing_google_keys', searchesUsed: 0, pagesScanned: 0, leadsAdded: 0, dupesSkipped: 0 };
     }
 
     let searchesUsed = 0, pagesScanned = 0, leadsAdded = 0, dupesSkipped = 0;
+    const seenThisRun = new Set(); // de-dupe the same email found across pages in one run
 
     outer:
     for (const city of cities) {
@@ -121,7 +154,7 @@ function createLoLeadScraperService(deps) {
         searchesUsed++;
         const query = tpl.replace('{city}', city);
         let links = [];
-        try { links = await googleSearch(query); }
+        try { links = await searchFn(query); }
         catch (e) { console.warn('[LO Lead Finder] search failed:', e?.message); continue; }
 
         for (const link of links) {
@@ -138,7 +171,10 @@ function createLoLeadScraperService(deps) {
           ]);
 
           const fresh = contacts.filter(c => {
-            if (already.has(c.email) || suppressed.has(c.email)) { dupesSkipped++; return false; }
+            if (already.has(c.email) || suppressed.has(c.email) || seenThisRun.has(c.email)) {
+              dupesSkipped++; return false;
+            }
+            seenThisRun.add(c.email);
             return true;
           });
           if (!fresh.length) continue;

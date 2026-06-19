@@ -130,3 +130,47 @@ test('runLoLeadScrape no-ops gracefully when Google keys are missing', async () 
   assert.strictEqual(result.skipped, 'missing_google_keys');
   assert.strictEqual(result.leadsAdded, 0);
 });
+
+// ---- Apify engine (alternate search source) ----
+
+test('apify engine: reads organicResults urls and stores extracted emails', async () => {
+  let apifyCalled = false;
+  const fakeFetch = async (url, opts) => {
+    if (url.includes('api.apify.com')) {
+      apifyCalled = true;
+      assert.strictEqual(opts.method, 'POST');                 // run-sync POST
+      assert.ok(opts.body.includes('loan officers in Dallas')); // query passed through
+      return { ok: true, json: async () => ([
+        { organicResults: [{ url: 'https://acme.com/team' }, { url: 'https://b.com/staff' }] },
+      ]) };
+    }
+    return { ok: true, text: async () => `<body>jane.lo@acme.com</body>` };
+  };
+  const supa = makeFakeSupabase();
+  const svc = require('../loLeadScraperService').createLoLeadScraperService({
+    supabaseAdmin: supa,
+    fetchImpl: fakeFetch,
+    engine: 'apify',
+    env: { APIFY_TOKEN: 't' },
+    cities: ['Dallas TX'],
+    queryTemplates: ['loan officers in {city}'],
+  });
+  const result = await svc.runLoLeadScrape({ maxSearches: 1 });
+  assert.ok(apifyCalled, 'apify endpoint should be hit');
+  assert.deepStrictEqual(supa.inserted.map(r => r.email), ['jane.lo@acme.com']);
+  assert.strictEqual(result.leadsAdded, 1);
+});
+
+test('apify engine no-ops gracefully without APIFY_TOKEN', async () => {
+  const svc = require('../loLeadScraperService').createLoLeadScraperService({
+    supabaseAdmin: makeFakeSupabase(),
+    fetchImpl: async () => { throw new Error('should not be called'); },
+    engine: 'apify',
+    env: {},
+    cities: ['Dallas TX'],
+    queryTemplates: ['loan officers in {city}'],
+  });
+  const result = await svc.runLoLeadScrape({ maxSearches: 3 });
+  assert.strictEqual(result.skipped, 'missing_apify_token');
+  assert.strictEqual(result.leadsAdded, 0);
+});
