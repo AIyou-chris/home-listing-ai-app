@@ -192,6 +192,90 @@ test('apify engine: google maps actor shape — uses emails directly, no page fe
   assert.strictEqual(result.leadsAdded, 2);
 });
 
+test('leads-finder engine: maps lead rows to pool with rich fields, drops no-email + dupes', async () => {
+  const fakeFetch = async (url, opts) => {
+    if (url.includes('api.apify.com')) {
+      const body = JSON.parse(opts.body);
+      assert.deepStrictEqual(body.email_status, ['validated']);   // validated-only
+      assert.ok(body.contact_job_title.includes('loan officer'));  // targets LOs
+      assert.strictEqual(body.fetch_count, 10);                    // honors fetchCount
+      return { ok: true, json: async () => ([
+        { email: 'Nick@x.com', full_name: 'Nick Lovato', company_name: 'Reliant',
+          company_website: 'https://r.com', mobile_number: '+1 801', linkedin: 'https://li/nick',
+          job_title: 'Senior Loan Officer', city: 'Salt Lake City', state: 'Utah' },
+        { email: null, full_name: 'No Email' },                        // dropped (no email)
+        { email: 'info@brokerage.com', full_name: 'Front Desk', company_name: 'Brk' }, // role-flagged
+      ]) };
+    }
+    throw new Error('leads mode must not fetch web pages');
+  };
+  const supa = makeFakeSupabase();
+  const svc = require('../loLeadScraperService').createLoLeadScraperService({
+    supabaseAdmin: supa, fetchImpl: fakeFetch, engine: 'leads',
+    env: { APIFY_TOKEN: 't' },
+  });
+  const result = await svc.runLoLeadScrape({ fetchCount: 10 });
+  assert.strictEqual(supa.inserted.length, 2);
+  const nick = supa.inserted.find(r => r.email === 'nick@x.com');
+  assert.strictEqual(nick.name, 'Nick Lovato');
+  assert.strictEqual(nick.employer, 'Reliant');
+  assert.strictEqual(nick.phone, '+1 801');
+  assert.strictEqual(nick.linkedin, 'https://li/nick');
+  assert.strictEqual(nick.job_title, 'Senior Loan Officer');
+  assert.strictEqual(nick.city, 'Salt Lake City, Utah');
+  const info = supa.inserted.find(r => r.email === 'info@brokerage.com');
+  assert.strictEqual(info.is_role, true);
+  assert.strictEqual(result.leadsAdded, 2);
+});
+
+test('importApifyLeads: reads last run dataset and stores mapped leads (free-plan path)', async () => {
+  const fakeFetch = async (url) => {
+    if (url.includes('/runs/last/dataset/items')) {
+      assert.ok(url.includes('token='));
+      assert.ok(url.includes('status=SUCCEEDED'));
+      return { ok: true, json: async () => ([
+        { email: 'A@b.com', full_name: 'A B', company_name: 'Co', job_title: 'Loan Officer',
+          mobile_number: '555', linkedin: 'https://li/ab', company_website: 'https://w', city: 'X', state: 'Y' },
+        { email: null, full_name: 'No Email' },        // dropped
+      ]) };
+    }
+    throw new Error('unexpected url ' + url);
+  };
+  const supa = makeFakeSupabase();
+  const svc = require('../loLeadScraperService').createLoLeadScraperService({
+    supabaseAdmin: supa, fetchImpl: fakeFetch, env: { APIFY_TOKEN: 't' },
+  });
+  const r = await svc.importApifyLeads();
+  assert.strictEqual(supa.inserted.length, 1);
+  assert.strictEqual(supa.inserted[0].email, 'a@b.com');
+  assert.strictEqual(supa.inserted[0].name, 'A B');
+  assert.strictEqual(supa.inserted[0].phone, '555');
+  assert.strictEqual(r.rowsFetched, 2);
+  assert.strictEqual(r.leadsAdded, 1);
+});
+
+test('importApifyLeads: reads a specific datasetId when provided', async () => {
+  let hitDataset = false;
+  const fakeFetch = async (url) => {
+    if (url.includes('/datasets/DS123/items')) { hitDataset = true; return { ok: true, json: async () => ([]) }; }
+    throw new Error('should use dataset endpoint, got ' + url);
+  };
+  const svc = require('../loLeadScraperService').createLoLeadScraperService({
+    supabaseAdmin: makeFakeSupabase(), fetchImpl: fakeFetch, env: { APIFY_TOKEN: 't' },
+  });
+  await svc.importApifyLeads({ datasetId: 'DS123' });
+  assert.ok(hitDataset);
+});
+
+test('importApifyLeads no-ops gracefully without APIFY_TOKEN', async () => {
+  const svc = require('../loLeadScraperService').createLoLeadScraperService({
+    supabaseAdmin: makeFakeSupabase(), fetchImpl: async () => { throw new Error('no'); }, env: {},
+  });
+  const r = await svc.importApifyLeads();
+  assert.strictEqual(r.skipped, 'missing_apify_token');
+  assert.strictEqual(r.leadsAdded, 0);
+});
+
 test('apify engine no-ops gracefully without APIFY_TOKEN', async () => {
   const svc = require('../loLeadScraperService').createLoLeadScraperService({
     supabaseAdmin: makeFakeSupabase(),

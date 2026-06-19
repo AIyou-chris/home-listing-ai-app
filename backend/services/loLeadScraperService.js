@@ -138,6 +138,52 @@ function createLoLeadScraperService(deps) {
     return { links, contacts };
   }
 
+  // ── Engine C: Apify Leads-Finder (Apollo-style B2B DB; validated emails) ──
+  // Removable. Filter-based (not query-based): returns rich, validated lead rows
+  // directly — name, email, company, job title, mobile, LinkedIn. This is the
+  // highest-quality source; Google CSE stays as the free fallback engine.
+  const leadsCfg = {
+    jobTitles: deps.leadsJobTitles || ['loan officer'],
+    excludeTitles: deps.leadsExcludeTitles || ['mortgage broker', 'mortgage banker'],
+    companyKeywords: deps.leadsCompanyKeywords || ['Mortgage', 'Real estate'],
+    locations: deps.leadsLocations || ['united states'],
+  };
+
+  function leadRowToContact(r) {
+    const c = makeContact(r.email, r.company_name || r.company || null);
+    if (!c) return null;
+    c.name = r.full_name || [r.first_name, r.last_name].filter(Boolean).join(' ').trim() || null;
+    c.job_title = r.job_title || null;
+    c.phone = r.mobile_number || r.company_phone || null;
+    c.linkedin = r.linkedin || null;
+    c.source_url = r.company_website || r.linkedin || null;
+    c.city = [r.city, r.state].filter(Boolean).join(', ') || null;
+    return c;
+  }
+
+  async function leadsFinderSearch(fetchCount) {
+    const token = env.APIFY_TOKEN;
+    const actorId = env.APIFY_LEADS_ACTOR_ID || 'IoSHqwTR9YGhzccez'; // code_crafter/leads-finder
+    const url = `https://api.apify.com/v2/acts/${actorId}/run-sync-get-dataset-items`
+      + `?token=${encodeURIComponent(token)}`;
+    const res = await fetchImpl(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contact_job_title: leadsCfg.jobTitles,
+        contact_not_job_title: leadsCfg.excludeTitles,
+        company_keywords: leadsCfg.companyKeywords,
+        contact_location: leadsCfg.locations,
+        email_status: ['validated'],
+        fetch_count: fetchCount,
+        file_name: 'Prospects',
+      }),
+    });
+    if (!res.ok) return [];
+    const rows = await res.json();
+    return (rows || []).map(leadRowToContact).filter(Boolean);
+  }
+
   const searchFn = engine === 'apify' ? apifySearch : googleSearch;
 
   async function fetchPage(pageUrl) {
@@ -161,8 +207,41 @@ function createLoLeadScraperService(deps) {
     return new Set(data.map(r => r.email));
   }
 
-  async function runLoLeadScrape({ maxSearches = 100 } = {}) {
-    if (engine === 'apify') {
+  // Dedupe a batch against the pool + suppression list + this-run set, insert the rest.
+  // Mutates `counters` {leadsAdded, dupesSkipped}; `seen` is the per-run email Set.
+  async function storeBatch(contacts, { city = null, defaultSourceUrl = null, seen, counters }) {
+    if (!contacts.length) return;
+    const emails = contacts.map(c => c.email);
+    const [already, suppressed] = await Promise.all([
+      existingIn('lo_lead_pool', emails),
+      existingIn('lo_suppression_list', emails),
+    ]);
+    const fresh = contacts.filter(c => {
+      if (already.has(c.email) || suppressed.has(c.email) || seen.has(c.email)) {
+        counters.dupesSkipped++; return false;
+      }
+      seen.add(c.email);
+      return true;
+    });
+    if (!fresh.length) return;
+    const rows = fresh.map(c => ({
+      email: c.email,
+      name: c.name || null,
+      employer: c.employer,
+      job_title: c.job_title || null,
+      phone: c.phone || null,
+      linkedin: c.linkedin || null,
+      is_role: c.is_role,
+      city: c.city || city || null,
+      source_url: c.source_url || defaultSourceUrl,
+      status: 'new',
+    }));
+    const { error } = await supabaseAdmin.from('lo_lead_pool').insert(rows);
+    if (!error) counters.leadsAdded += rows.length;
+  }
+
+  async function runLoLeadScrape({ maxSearches = 100, fetchCount } = {}) {
+    if (engine === 'apify' || engine === 'leads') {
       if (!env.APIFY_TOKEN) {
         console.warn('[LO Lead Finder] Missing APIFY_TOKEN — skipping run.');
         return { skipped: 'missing_apify_token', searchesUsed: 0, pagesScanned: 0, leadsAdded: 0, dupesSkipped: 0 };
@@ -172,31 +251,18 @@ function createLoLeadScraperService(deps) {
       return { skipped: 'missing_google_keys', searchesUsed: 0, pagesScanned: 0, leadsAdded: 0, dupesSkipped: 0 };
     }
 
-    let searchesUsed = 0, pagesScanned = 0, leadsAdded = 0, dupesSkipped = 0;
-    const seenThisRun = new Set(); // de-dupe the same email found across pages in one run
+    let searchesUsed = 0, pagesScanned = 0;
+    const seen = new Set();
+    const counters = { leadsAdded: 0, dupesSkipped: 0 };
 
-    // Dedupe against pool + suppression + this-run, then insert the rest.
-    async function storeContacts(contacts, city, defaultSourceUrl) {
-      if (!contacts.length) return;
-      const emails = contacts.map(c => c.email);
-      const [already, suppressed] = await Promise.all([
-        existingIn('lo_lead_pool', emails),
-        existingIn('lo_suppression_list', emails),
-      ]);
-      const fresh = contacts.filter(c => {
-        if (already.has(c.email) || suppressed.has(c.email) || seenThisRun.has(c.email)) {
-          dupesSkipped++; return false;
-        }
-        seenThisRun.add(c.email);
-        return true;
-      });
-      if (!fresh.length) return;
-      const rows = fresh.map(c => ({
-        email: c.email, employer: c.employer, is_role: c.is_role,
-        city, source_url: c.source_url || defaultSourceUrl, status: 'new',
-      }));
-      const { error } = await supabaseAdmin.from('lo_lead_pool').insert(rows);
-      if (!error) leadsAdded += rows.length;
+    // Engine C: leads-finder is one structured DB query, not a per-city crawl.
+    if (engine === 'leads') {
+      const count = Number(fetchCount || env.LO_LEADS_FETCH_COUNT || 100);
+      let contacts = [];
+      try { contacts = await leadsFinderSearch(count); }
+      catch (e) { console.warn('[LO Lead Finder] leads-finder failed:', e?.message); }
+      await storeBatch(contacts, { seen, counters });
+      return { searchesUsed: 1, pagesScanned: 0, ...counters };
     }
 
     outer:
@@ -211,7 +277,7 @@ function createLoLeadScraperService(deps) {
 
         // Direct contacts (Apify Maps actor returns emails inline — no page fetch).
         if (result.contacts && result.contacts.length) {
-          await storeContacts(result.contacts, city, null);
+          await storeBatch(result.contacts, { city, seen, counters });
         }
 
         // Page links (Google CSE / Apify Search actor → fetch + extract emails).
@@ -221,14 +287,42 @@ function createLoLeadScraperService(deps) {
           pagesScanned++;
           const contacts = extractContacts(html, link);
           if (!contacts.length) continue;
-          await storeContacts(contacts, city, link);
+          await storeBatch(contacts, { city, defaultSourceUrl: link, seen, counters });
         }
       }
     }
-    return { searchesUsed, pagesScanned, leadsAdded, dupesSkipped };
+    return { searchesUsed, pagesScanned, ...counters };
   }
 
-  return { runLoLeadScrape };
+  // Import leads from a FINISHED Apify run's dataset. Reading datasets is allowed
+  // on the free plan (only *running* premium actors via API is gated), so this is
+  // the "semi-auto" path: user clicks Start in the Apify UI, then imports here.
+  // Reads the leads-finder actor's last successful run, or a specific datasetId.
+  async function importApifyLeads({ datasetId } = {}) {
+    if (!env.APIFY_TOKEN) {
+      console.warn('[LO Lead Finder] Missing APIFY_TOKEN — skipping import.');
+      return { skipped: 'missing_apify_token', rowsFetched: 0, leadsAdded: 0, dupesSkipped: 0 };
+    }
+    const token = env.APIFY_TOKEN;
+    const actorId = env.APIFY_LEADS_ACTOR_ID || 'IoSHqwTR9YGhzccez';
+    const url = datasetId
+      ? `https://api.apify.com/v2/datasets/${encodeURIComponent(datasetId)}/items?token=${encodeURIComponent(token)}`
+      : `https://api.apify.com/v2/acts/${actorId}/runs/last/dataset/items`
+        + `?token=${encodeURIComponent(token)}&status=SUCCEEDED`;
+    let rows = [];
+    try {
+      const res = await fetchImpl(url);
+      if (res.ok) rows = await res.json();
+    } catch (e) { console.warn('[LO Lead Finder] import failed:', e?.message); }
+
+    const contacts = (Array.isArray(rows) ? rows : []).map(leadRowToContact).filter(Boolean);
+    const seen = new Set();
+    const counters = { leadsAdded: 0, dupesSkipped: 0 };
+    await storeBatch(contacts, { seen, counters });
+    return { rowsFetched: Array.isArray(rows) ? rows.length : 0, ...counters };
+  }
+
+  return { runLoLeadScrape, importApifyLeads };
 }
 
 module.exports = { extractContacts, createLoLeadScraperService, DEFAULT_CITIES, DEFAULT_QUERY_TEMPLATES };
