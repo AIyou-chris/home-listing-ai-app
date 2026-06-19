@@ -248,6 +248,8 @@ const createPaymentService = require('./services/paymentService');
 const createEmailService = require('./services/emailService');
 const emailTrackingService = require('./services/emailTrackingService');
 const createAgentOnboardingService = require('./services/agentOnboardingService');
+const { createLoLeadScraperService } = require('./services/loLeadScraperService');
+const loLeadScraperService = createLoLeadScraperService({ supabaseAdmin, env: process.env });
 const { runStartupDiagnostics } = require('./services/startupDiagnostics');
 const {
   enrollLeadInFunnel,
@@ -31369,8 +31371,18 @@ const resolveLoWowInviteLimit = async (loAgent) => {
   return 0; // No active/trialing LO subscription → blocked
 };
 // ── LO Acquisition Link email ─────────────────────────────────────────────────
-function buildLoOutreachEmail({ name, link }) {
+function buildLoOutreachEmail({ name, link, unsubscribeUrl }) {
   const firstName = (name || '').trim().split(/\s+/)[0] || 'there';
+  // CAN-SPAM footer: physical mailing address + working unsubscribe are required
+  // for commercial email. Address comes from env; unsubscribe is per-recipient.
+  const mailingAddress = process.env.LO_MAILING_ADDRESS || 'HomeListingAI, [set LO_MAILING_ADDRESS]';
+  const unsub = unsubscribeUrl
+    ? `<a href="${unsubscribeUrl}" style="color:#94a3b8;text-decoration:underline">Unsubscribe</a>`
+    : 'Reply STOP to opt out';
+  const footer = `
+    <p style="font-size:11px;color:#94a3b8;text-align:center;margin:16px 0 0;line-height:1.6">
+      Powered by HomeListingAI<br>${mailingAddress}<br>${unsub}
+    </p>`;
   return `
   <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:480px;margin:0 auto;color:#0f172a">
     <div style="background:linear-gradient(160deg,#0f172a,#1e3a5f);padding:28px 24px;border-radius:16px 16px 0 0;text-align:center">
@@ -31383,7 +31395,7 @@ function buildLoOutreachEmail({ name, link }) {
       <a href="${link}" style="display:block;background:linear-gradient(135deg,#2563eb,#3b82f6);color:#fff;font-size:16px;font-weight:800;text-decoration:none;text-align:center;padding:15px;border-radius:14px;margin:20px 0">See how it works →</a>
       <p style="font-size:12px;color:#64748b;text-align:center;margin:0">No charge for 7 days · Cancel anytime · Card saved, not charged till day 7</p>
     </div>
-    <p style="font-size:11px;color:#94a3b8;text-align:center;margin:16px 0 0">Powered by HomeListingAI</p>
+    ${footer}
   </div>`;
 }
 
@@ -31712,6 +31724,39 @@ app.post('/api/public/partner-invite/:token/event', async (req, res) => {
   }
 });
 
+// Shared: create an LO Acquisition Link invite + email it. Returns the link.
+// One source of truth for the manual outreach form AND the Lead Finder sends.
+async function sendLoAcquisitionInvite({ email, name, phone, website, adminId }) {
+  const cleanEmail = String(email).trim().toLowerCase();
+  const token = crypto.randomBytes(16).toString('hex');
+  const { error: insertErr } = await supabaseAdmin
+    .from('lo_outreach_invites')
+    .insert({
+      token,
+      lo_email: cleanEmail,
+      lo_name: (name && String(name).trim()) || null,
+      lo_phone: (phone && String(phone).trim()) || null,
+      lo_website: (website && String(website).trim()) || null,
+      created_by: adminId || null
+    });
+  if (insertErr) throw insertErr;
+
+  const appBase = process.env.APP_BASE_URL || process.env.DASHBOARD_BASE_URL || 'https://homelistingai.com';
+  const base = appBase.replace(/\/$/, '');
+  const link = `${base}/for-loan-officers/${token}`;
+  const unsubscribeUrl = `${base}/api/public/lo-unsubscribe/${token}`;
+  try {
+    await emailService.sendEmail({
+      to: cleanEmail,
+      subject: 'Fill your pipeline while you sleep — a quick look',
+      html: buildLoOutreachEmail({ name, link, unsubscribeUrl })
+    });
+  } catch (emailErr) {
+    console.warn('[LO Outreach] Email failed (non-fatal):', emailErr?.message);
+  }
+  return link;
+}
+
 // ── POST /api/admin/lo-outreach/invite — admin sends an LO acquisition link ────
 app.post('/api/admin/lo-outreach/invite', verifyAdmin, async (req, res) => {
   try {
@@ -31720,30 +31765,7 @@ app.post('/api/admin/lo-outreach/invite', verifyAdmin, async (req, res) => {
       return res.status(400).json({ error: 'valid_email_required' });
     }
     const adminId = await resolveRequesterUserId(req, { allowDefault: false }).catch(() => null);
-    const token = crypto.randomBytes(16).toString('hex');
-    const { error: insertErr } = await supabaseAdmin
-      .from('lo_outreach_invites')
-      .insert({
-        token,
-        lo_email: String(email).trim().toLowerCase(),
-        lo_name: (name && String(name).trim()) || null,
-        lo_phone: (phone && String(phone).trim()) || null,
-        lo_website: (website && String(website).trim()) || null,
-        created_by: adminId || null
-      });
-    if (insertErr) throw insertErr;
-
-    const appBase = process.env.APP_BASE_URL || process.env.DASHBOARD_BASE_URL || 'https://homelistingai.com';
-    const link = `${appBase.replace(/\/$/, '')}/for-loan-officers/${token}`;
-    try {
-      await emailService.sendEmail({
-        to: String(email).trim().toLowerCase(),
-        subject: 'Fill your pipeline while you sleep — a quick look',
-        html: buildLoOutreachEmail({ name, link })
-      });
-    } catch (emailErr) {
-      console.warn('[LO Outreach] Email failed (non-fatal):', emailErr?.message);
-    }
+    const link = await sendLoAcquisitionInvite({ email, name, phone, website, adminId });
     res.json({ success: true, link });
   } catch (err) {
     console.error('[LO Outreach] Create failed:', err);
@@ -31764,6 +31786,164 @@ app.get('/api/admin/lo-outreach/invites', verifyAdmin, async (req, res) => {
   } catch (err) {
     console.error('[LO Outreach] List failed:', err);
     res.status(500).json({ error: 'list_failed' });
+  }
+});
+
+// ── POST /api/admin/lo-leads/run — manual scraper trigger (admin) ──────────────
+app.post('/api/admin/lo-leads/run', verifyAdmin, async (req, res) => {
+  try {
+    const max = Number(req.body?.maxSearches);
+    const maxSearches = Number.isFinite(max) && max > 0
+      ? Math.min(max, Number(process.env.LO_SCRAPER_MAX_SEARCHES || 100))
+      : Number(process.env.LO_SCRAPER_MAX_SEARCHES || 100);
+    const result = await loLeadScraperService.runLoLeadScrape({ maxSearches });
+    res.json({ success: true, ...result });
+  } catch (err) {
+    console.error('[LO Lead Finder] Run failed:', err);
+    res.status(500).json({ error: 'scrape_failed' });
+  }
+});
+
+// ── POST /api/admin/lo-leads/import-apify — import a finished Apify run (admin) ─
+// Free-plan "semi-auto" path: admin runs the leads-finder in the Apify UI, then
+// imports the result here. Optional body { datasetId } targets a specific run;
+// omitted = the actor's last successful run.
+app.post('/api/admin/lo-leads/import-apify', verifyAdmin, async (req, res) => {
+  try {
+    const datasetId = req.body?.datasetId ? String(req.body.datasetId) : undefined;
+    const result = await loLeadScraperService.importApifyLeads({ datasetId });
+    res.json({ success: true, ...result });
+  } catch (err) {
+    console.error('[LO Lead Finder] Import failed:', err);
+    res.status(500).json({ error: 'import_failed' });
+  }
+});
+
+// ── GET /api/admin/lo-leads — list the scraped pool (admin) ────────────────────
+app.get('/api/admin/lo-leads', verifyAdmin, async (req, res) => {
+  try {
+    const status = req.query.status ? String(req.query.status) : null;
+    let q = supabaseAdmin
+      .from('lo_lead_pool')
+      .select('id, email, name, employer, job_title, phone, linkedin, city, source_url, is_role, status, found_at, sent_at')
+      .order('found_at', { ascending: false })
+      .limit(500);
+    if (status) q = q.eq('status', status);
+    const { data, error } = await q;
+    if (error) throw error;
+    res.json({ success: true, leads: data || [] });
+  } catch (err) {
+    console.error('[LO Lead Finder] List failed:', err);
+    res.status(500).json({ error: 'list_failed' });
+  }
+});
+
+// ── POST /api/admin/lo-leads/:id/send — send the LO Acquisition Link to one lead ─
+app.post('/api/admin/lo-leads/:id/send', verifyAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { data: lead, error } = await supabaseAdmin
+      .from('lo_lead_pool').select('*').eq('id', id).maybeSingle();
+    if (error) throw error;
+    if (!lead) return res.status(404).json({ error: 'lead_not_found' });
+
+    const { data: supp } = await supabaseAdmin
+      .from('lo_suppression_list').select('email').eq('email', lead.email).maybeSingle();
+    if (supp) return res.status(409).json({ error: 'suppressed' });
+
+    const adminId = await resolveRequesterUserId(req, { allowDefault: false }).catch(() => null);
+    const link = await sendLoAcquisitionInvite({
+      email: lead.email, name: lead.name, phone: lead.phone, website: lead.source_url, adminId
+    });
+    await supabaseAdmin.from('lo_lead_pool')
+      .update({ status: 'sent', sent_at: nowIso() }).eq('id', id);
+    res.json({ success: true, link });
+  } catch (err) {
+    console.error('[LO Lead Finder] Send failed:', err);
+    res.status(500).json({ error: 'send_failed' });
+  }
+});
+
+// ── POST /api/admin/lo-leads/send-bulk — send to many new leads { ids?, all? } ──
+// Skips suppressed + role/catch-all addresses (CAN-SPAM hygiene). Admin-triggered.
+app.post('/api/admin/lo-leads/send-bulk', verifyAdmin, async (req, res) => {
+  try {
+    const { ids, all } = req.body || {};
+    let q = supabaseAdmin.from('lo_lead_pool').select('*')
+      .eq('status', 'new').eq('is_role', false);
+    if (Array.isArray(ids) && ids.length) q = q.in('id', ids);
+    else if (!all) return res.status(400).json({ error: 'ids_or_all_required' });
+    const { data: leads, error } = await q.limit(500);
+    if (error) throw error;
+
+    const emails = (leads || []).map(l => l.email);
+    let suppressed = new Set();
+    if (emails.length) {
+      const { data: s } = await supabaseAdmin
+        .from('lo_suppression_list').select('email').in('email', emails);
+      suppressed = new Set((s || []).map(r => r.email));
+    }
+    const adminId = await resolveRequesterUserId(req, { allowDefault: false }).catch(() => null);
+
+    let sent = 0, skipped = 0;
+    for (const lead of (leads || [])) {
+      if (suppressed.has(lead.email)) { skipped++; continue; }
+      try {
+        await sendLoAcquisitionInvite({
+          email: lead.email, name: lead.name, phone: lead.phone, website: lead.source_url, adminId
+        });
+        await supabaseAdmin.from('lo_lead_pool')
+          .update({ status: 'sent', sent_at: nowIso() }).eq('id', lead.id);
+        sent++;
+      } catch (e) {
+        console.warn('[LO Lead Finder] bulk send item failed:', e?.message);
+        skipped++;
+      }
+    }
+    res.json({ success: true, sent, skipped });
+  } catch (err) {
+    console.error('[LO Lead Finder] Bulk send failed:', err);
+    res.status(500).json({ error: 'bulk_send_failed' });
+  }
+});
+
+// ── POST /api/admin/lo-leads/:id/skip — hide a junk lead from the pool ──────────
+app.post('/api/admin/lo-leads/:id/skip', verifyAdmin, async (req, res) => {
+  try {
+    const { error } = await supabaseAdmin
+      .from('lo_lead_pool').update({ status: 'skipped' }).eq('id', req.params.id);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[LO Lead Finder] Skip failed:', err);
+    res.status(500).json({ error: 'skip_failed' });
+  }
+});
+
+// ── GET /api/public/lo-unsubscribe/:token — CAN-SPAM opt-out (public) ──────────
+// Resolves the recipient via their invite token, adds them to the suppression
+// list (never scraped or emailed again), and shows a plain confirmation page.
+app.get('/api/public/lo-unsubscribe/:token', async (req, res) => {
+  const page = (msg) => `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1">
+    <div style="font-family:-apple-system,sans-serif;max-width:420px;margin:80px auto;text-align:center;color:#0f172a">
+      <h1 style="font-size:20px">${msg}</h1>
+      <p style="color:#64748b;font-size:14px">You won't receive further emails from HomeListingAI.</p>
+    </div>`;
+  try {
+    const { token } = req.params;
+    const { data: invite } = await supabaseAdmin
+      .from('lo_outreach_invites').select('lo_email').eq('token', token).maybeSingle();
+    if (invite && invite.lo_email) {
+      const email = String(invite.lo_email).trim().toLowerCase();
+      await supabaseAdmin.from('lo_suppression_list')
+        .upsert({ email, reason: 'unsubscribe' }, { onConflict: 'email' });
+      // Also mark any matching pooled lead as skipped so it won't be re-sent.
+      await supabaseAdmin.from('lo_lead_pool').update({ status: 'skipped' }).eq('email', email);
+    }
+    res.status(200).send(page('You’re unsubscribed. ✅'));
+  } catch (err) {
+    console.error('[LO Unsubscribe] failed:', err);
+    res.status(200).send(page('You’re unsubscribed.'));
   }
 });
 

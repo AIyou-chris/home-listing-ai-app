@@ -14,6 +14,7 @@
     "gate:all": "npm run gate:fe && npm run gate:be",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "test": "TZ=America/Los_Angeles jest",
+    "test:backend": "node --test backend/services/__tests__/*.test.js",
     "preview": "vite preview",
     "deploy": "npm run build",
     "typecheck": "tsc -p tsconfig.json --noEmit",

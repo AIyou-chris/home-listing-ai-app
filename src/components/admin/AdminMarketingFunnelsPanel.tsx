@@ -6,6 +6,7 @@ import SignatureEditorModal from '../SignatureEditorModal';
 import { EmailEditor } from '../EmailEditor';
 import SequenceFeedbackPanel from '../SequenceFeedbackPanel';
 import AdminLoOutreachPanel from './AdminLoOutreachPanel';
+import AdminLoLeadFinderPanel from './AdminLoLeadFinderPanel';
 import { funnelService } from '../../services/funnelService';
 import { supabase } from '../../services/supabase';
 import PageTipBanner from '../PageTipBanner';
@@ -1820,7 +1821,8 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                 </header>
 
                 {!isAnalyticsOpen && (
-                    <div className="mb-8">
+                    <div className="mb-8 space-y-8">
+                        <AdminLoLeadFinderPanel />
                         <AdminLoOutreachPanel />
                     </div>
                 )}
