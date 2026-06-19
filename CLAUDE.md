@@ -91,6 +91,7 @@ It helps agents:
 - `/dashboard/lo-chatbot` — LO AI financing bot setup
 - `/partner-invite/:token` — **WOW Link**: live listing demo w/ chatbots, sent to agents
 - `/listing-dashboard/:token` — public per-listing live lead dashboard (token-gated)
+- `/for-loan-officers` + `/for-loan-officers/:token` — **LO Acquisition Link**: marketing pitch page admin sends to *prospective* LOs (inverse of the WOW Link). Tokened version tracks opens/clicks + personalizes the hero; CTA → `/lo-signup`. Untokened version is shareable but untracked. Admin sends/tracks from Marketing Funnels (`AdminLoOutreachPanel`).
 
 **Office Tier:**
 - `/dashboard/office` — branch-manager oversight: KPIs + LO leaderboard + invite LOs
@@ -190,12 +191,14 @@ No long explanations. No walls of text. Table in, table out.
 
 ---
 
-## 7. Current State Snapshot (as of 2026-06-15)
+## 7. Current State Snapshot (as of 2026-06-18)
 
 ### ✅ Recently completed (this sprint)
 
 | Feature | Notes |
 |---|---|
+| LO Acquisition Link | Tracked marketing pitch page sent to prospective LOs. New `lo_outreach_invites` table (migration `lo-outreach-invites-migration.sql`, run in Supabase). Routes `/for-loan-officers[/:token]` (`src/pages/ForLoanOfficersPage.tsx`). Admin sender + opened/clicked tracking table (`src/components/admin/AdminLoOutreachPanel.tsx`) rendered in Marketing Funnels. Endpoints: `POST/GET /api/admin/lo-outreach/invite[s]`, `GET /api/public/lo-invite/:token`, `POST /api/public/lo-invite/:token/event`. Email-only send via `emailService`. Built/tested end-to-end. |
+| Jest suite green (53/53) | Fixed root causes: `esModuleInterop` (React default import under ts-jest), `import.meta` AST transformer (`src/test/importMetaTransformer.cjs`), jsdom `fetch` polyfill + supabase test env in `setupTests.ts`, ignore `.claude/` worktrees in jest. Realigned stale tests (billing→Stripe, security→session-based pw change, calendar→onSave, AICardPage, scheduler→`POST /api/appointments`). Test TZ pinned to `America/Los_Angeles` (`npm test`). |
 | Per-page how-to guides | All 12 dashboard pages — collapsible, dismissible to pill, localStorage state |
 | 7-day free trial | Extended from 3 days everywhere — frontend, backend, drip emails |
 | 7-day LO onboarding drip | Replaces old 3-email agent drip; video slot map ready for URLs |
@@ -243,6 +246,7 @@ No long explanations. No walls of text. Table in, table out.
 | Paste drip video URLs | `backend/services/emailService.js` → `TRIAL_DRIP_VIDEOS` | Each day auto-adds a watch button when URL is non-null |
 | Test end-to-end email forward | Forward any lead email to `{slug}@mg.homelistingai.com` | Confirm it arrives in Leads inbox |
 | Test Stripe checkout live | Billing page → upgrade flow | Confirm charge goes through and plan updates |
+| Test LO Acquisition Link live | Admin → Marketing Funnels → LO Outreach → send to self | Open the link on phone, tap CTA, confirm row flips to Opened ✓ / Clicked ✓ |
 
 ---
 
