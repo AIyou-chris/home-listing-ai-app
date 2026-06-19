@@ -31371,8 +31371,18 @@ const resolveLoWowInviteLimit = async (loAgent) => {
   return 0; // No active/trialing LO subscription → blocked
 };
 // ── LO Acquisition Link email ─────────────────────────────────────────────────
-function buildLoOutreachEmail({ name, link }) {
+function buildLoOutreachEmail({ name, link, unsubscribeUrl }) {
   const firstName = (name || '').trim().split(/\s+/)[0] || 'there';
+  // CAN-SPAM footer: physical mailing address + working unsubscribe are required
+  // for commercial email. Address comes from env; unsubscribe is per-recipient.
+  const mailingAddress = process.env.LO_MAILING_ADDRESS || 'HomeListingAI, [set LO_MAILING_ADDRESS]';
+  const unsub = unsubscribeUrl
+    ? `<a href="${unsubscribeUrl}" style="color:#94a3b8;text-decoration:underline">Unsubscribe</a>`
+    : 'Reply STOP to opt out';
+  const footer = `
+    <p style="font-size:11px;color:#94a3b8;text-align:center;margin:16px 0 0;line-height:1.6">
+      Powered by HomeListingAI<br>${mailingAddress}<br>${unsub}
+    </p>`;
   return `
   <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:480px;margin:0 auto;color:#0f172a">
     <div style="background:linear-gradient(160deg,#0f172a,#1e3a5f);padding:28px 24px;border-radius:16px 16px 0 0;text-align:center">
@@ -31385,7 +31395,7 @@ function buildLoOutreachEmail({ name, link }) {
       <a href="${link}" style="display:block;background:linear-gradient(135deg,#2563eb,#3b82f6);color:#fff;font-size:16px;font-weight:800;text-decoration:none;text-align:center;padding:15px;border-radius:14px;margin:20px 0">See how it works →</a>
       <p style="font-size:12px;color:#64748b;text-align:center;margin:0">No charge for 7 days · Cancel anytime · Card saved, not charged till day 7</p>
     </div>
-    <p style="font-size:11px;color:#94a3b8;text-align:center;margin:16px 0 0">Powered by HomeListingAI</p>
+    ${footer}
   </div>`;
 }
 
@@ -31732,12 +31742,14 @@ async function sendLoAcquisitionInvite({ email, name, phone, website, adminId })
   if (insertErr) throw insertErr;
 
   const appBase = process.env.APP_BASE_URL || process.env.DASHBOARD_BASE_URL || 'https://homelistingai.com';
-  const link = `${appBase.replace(/\/$/, '')}/for-loan-officers/${token}`;
+  const base = appBase.replace(/\/$/, '');
+  const link = `${base}/for-loan-officers/${token}`;
+  const unsubscribeUrl = `${base}/api/public/lo-unsubscribe/${token}`;
   try {
     await emailService.sendEmail({
       to: cleanEmail,
       subject: 'Fill your pipeline while you sleep — a quick look',
-      html: buildLoOutreachEmail({ name, link })
+      html: buildLoOutreachEmail({ name, link, unsubscribeUrl })
     });
   } catch (emailErr) {
     console.warn('[LO Outreach] Email failed (non-fatal):', emailErr?.message);
@@ -31905,6 +31917,33 @@ app.post('/api/admin/lo-leads/:id/skip', verifyAdmin, async (req, res) => {
   } catch (err) {
     console.error('[LO Lead Finder] Skip failed:', err);
     res.status(500).json({ error: 'skip_failed' });
+  }
+});
+
+// ── GET /api/public/lo-unsubscribe/:token — CAN-SPAM opt-out (public) ──────────
+// Resolves the recipient via their invite token, adds them to the suppression
+// list (never scraped or emailed again), and shows a plain confirmation page.
+app.get('/api/public/lo-unsubscribe/:token', async (req, res) => {
+  const page = (msg) => `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1">
+    <div style="font-family:-apple-system,sans-serif;max-width:420px;margin:80px auto;text-align:center;color:#0f172a">
+      <h1 style="font-size:20px">${msg}</h1>
+      <p style="color:#64748b;font-size:14px">You won't receive further emails from HomeListingAI.</p>
+    </div>`;
+  try {
+    const { token } = req.params;
+    const { data: invite } = await supabaseAdmin
+      .from('lo_outreach_invites').select('lo_email').eq('token', token).maybeSingle();
+    if (invite && invite.lo_email) {
+      const email = String(invite.lo_email).trim().toLowerCase();
+      await supabaseAdmin.from('lo_suppression_list')
+        .upsert({ email, reason: 'unsubscribe' }, { onConflict: 'email' });
+      // Also mark any matching pooled lead as skipped so it won't be re-sent.
+      await supabaseAdmin.from('lo_lead_pool').update({ status: 'skipped' }).eq('email', email);
+    }
+    res.status(200).send(page('You’re unsubscribed. ✅'));
+  } catch (err) {
+    console.error('[LO Unsubscribe] failed:', err);
+    res.status(200).send(page('You’re unsubscribed.'));
   }
 });
 
