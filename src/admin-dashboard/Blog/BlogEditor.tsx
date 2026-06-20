@@ -14,14 +14,18 @@ interface BlogPost {
   seo_keywords: string[]; author_id?: string;
 }
 
-type SocialPlatform = 'linkedin' | 'instagram' | 'facebook' | 'facebook_group' | 'notion';
+type SocialPlatform = 'linkedin' | 'instagram' | 'facebook' | 'facebook_group' | 'twitter' | 'notion';
 const PLATFORMS: { id: SocialPlatform; label: string; icon: string }[] = [
   { id: 'linkedin', label: 'LinkedIn', icon: '💼' },
-  { id: 'instagram', label: 'Instagram', icon: '📸' },
   { id: 'facebook', label: 'Facebook', icon: '👥' },
   { id: 'facebook_group', label: 'FB Group', icon: '🏘️' },
+  { id: 'twitter', label: 'X', icon: '𝕏' },
+  { id: 'instagram', label: 'Instagram', icon: '📸' },
   { id: 'notion', label: 'Notion', icon: '📝' },
 ];
+
+// Platforms with a web composer we can deep-link into (one-click cut-paste posting).
+const SHARE_PLATFORMS: SocialPlatform[] = ['linkedin', 'facebook', 'facebook_group', 'twitter'];
 
 const authHeader = () => {
   const token = localStorage.getItem('sb-yocchddxdsaldgsibmmc-auth-token');
@@ -155,6 +159,26 @@ const BlogEditor: React.FC = () => {
     setIsRepurposing(false);
   };
 
+  // Copy the caption + open the platform's composer with the post link (image unfurls).
+  const openAndCopy = (platform: SocialPlatform) => {
+    const text = repurposed?.[platform] || '';
+    void navigator.clipboard?.writeText(text).catch(() => {});
+    const postUrl = currentPost.slug ? `https://homelistingai.com/blog/${currentPost.slug}` : '';
+    const u = encodeURIComponent(postUrl);
+    const needsUrl = platform === 'linkedin' || platform === 'facebook' || platform === 'facebook_group';
+    if (needsUrl && currentPost.status !== 'published') {
+      toast('💡 Publish the post first so the shared link shows a preview', { duration: 4000 });
+    }
+    let url: string | null = null;
+    if (platform === 'linkedin' && postUrl) url = `https://www.linkedin.com/sharing/share-offsite/?url=${u}`;
+    else if ((platform === 'facebook' || platform === 'facebook_group') && postUrl) url = `https://www.facebook.com/sharer/sharer.php?u=${u}`;
+    else if (platform === 'twitter') url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}${postUrl ? `&url=${u}` : ''}`;
+    if (url) window.open(url, '_blank', 'noopener');
+    if (platform === 'twitter') toast.success('Opening X — text is prefilled');
+    else if (url) toast.success('Caption copied — paste it in the window that opened');
+    else toast.success('Caption copied');
+  };
+
   // ── List View ─────────────────────────────────────────────────────────────
   if (view === 'list') return (
     <div className="space-y-6">
@@ -250,7 +274,15 @@ const BlogEditor: React.FC = () => {
         <div key={p.id} className="bg-white rounded-2xl border border-slate-200 p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-bold text-slate-900 text-lg">{p.icon} {p.label} Version</h3>
-            <CopyButton text={repurposed[p.id]} />
+            <div className="flex items-center gap-2">
+              {SHARE_PLATFORMS.includes(p.id) && (
+                <button onClick={() => openAndCopy(p.id)}
+                  className="flex items-center gap-1 px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-xs font-bold transition-all">
+                  {p.id === 'twitter' ? '𝕏 Post on X →' : `${p.icon} Copy + Open →`}
+                </button>
+              )}
+              <CopyButton text={repurposed[p.id]} />
+            </div>
           </div>
           <div className="bg-slate-50 rounded-xl p-4 text-sm text-slate-700 whitespace-pre-wrap font-mono leading-relaxed max-h-96 overflow-y-auto">
             {repurposed[p.id]}

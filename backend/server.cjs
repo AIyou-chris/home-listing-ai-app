@@ -34809,6 +34809,7 @@ Return this exact JSON:
   "instagram": "Instagram caption (100-150 words). Punchy opener. 20-25 relevant hashtags at the end.",
   "facebook": "Conversational Facebook post (100-200 words). Friendly tone, end with a question to drive comments.",
   "facebook_group": "Facebook group post (150-250 words). Discussion-opener style, ask for opinions, position as a resource not an ad.",
+  "twitter": "A single tweet under 260 characters. Punchy hook, 1-2 relevant hashtags. A link will be appended automatically, so do not include a URL.",
   "notion": "Notion-ready markdown version of the full post. Use ## headings, bullet lists, bold key terms. Ready to paste."
 }`
       }],
