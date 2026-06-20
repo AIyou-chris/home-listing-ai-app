@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../services/supabase';
 import { useNavigate } from 'react-router-dom';
-import { Calendar, User, ArrowRight } from 'lucide-react';
+import { Calendar, ArrowRight } from 'lucide-react';
 import { Helmet } from 'react-helmet-async';
 import { PublicHeader } from '../../components/layout/PublicHeader';
 import { PublicFooter } from '../../components/layout/PublicFooter';
 import { BackgroundTechIcons } from '../../components/BackgroundTechIcons';
 import { FadeIn } from '../../components/FadeIn';
+import { BlogCTA } from './BlogCTA';
 
 interface BlogPost {
     id: string;
@@ -77,15 +78,9 @@ const BlogIndex: React.FC = () => {
                                 Expert advice, market trends, and tips to help you master real estate marketing with AI.
                             </p>
                         </FadeIn>
-                        <FadeIn delay={200} className="flex justify-center">
-                            <button
-                                onClick={() => navigate('/signup')}
-                                className="flex items-center justify-center gap-2 px-8 py-4 bg-white text-slate-950 font-bold rounded-lg shadow-[0_0_20px_rgba(255,255,255,0.2)] hover:bg-slate-200 hover:shadow-[0_0_25px_rgba(255,255,255,0.3)] transition-all text-lg"
-                            >
-                                <span className="material-symbols-outlined shrink-0 text-slate-900 text-xl">rocket_launch</span>
-                                Create Free Account
-                            </button>
-                        </FadeIn>
+                        <div className="max-w-3xl mx-auto">
+                            <BlogCTA delay={200} />
+                        </div>
                     </div>
                 </div>
 
