@@ -3,6 +3,7 @@ import { getEnvVar } from '../../lib/env'
 import { AdminDeliverabilitySettings } from './AdminDeliverabilitySettings'
 import { AuthService } from '../../services/authService'
 import Admin2FASetup from './Admin2FASetup'
+import AdminChangePassword from './AdminChangePassword'
 
 type BillingSummary = {
   plan: string
@@ -517,13 +518,7 @@ const AdminSettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
           <div className='space-y-5'>
             <Section title='Security Controls' subtitle='Password, 2FA, and access keys'>
               <div className='grid gap-4 sm:grid-cols-2'>
-                <div className='p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-3'>
-                  <h4 className='font-semibold text-slate-900'>Change Password</h4>
-                  <input type='password' placeholder='Current password' className='w-full rounded-lg border border-slate-300 px-3 py-2 text-sm' />
-                  <input type='password' placeholder='New password' className='w-full rounded-lg border border-slate-300 px-3 py-2 text-sm' />
-                  <input type='password' placeholder='Confirm new password' className='w-full rounded-lg border border-slate-300 px-3 py-2 text-sm' />
-                  <button className='inline-flex items-center gap-2 rounded-lg bg-slate-900 text-white px-3 py-2 text-sm hover:bg-slate-800'>Update</button>
-                </div>
+                <AdminChangePassword />
                 <Admin2FASetup />
               </div>
 

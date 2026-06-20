@@ -77,6 +77,19 @@ class AdminAuthService {
           permissions: ['users', 'billing', 'analytics', 'system', 'support']
         };
 
+        // Record this login for the admin Activity Logs (non-fatal).
+        try {
+          const API = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:3002';
+          const token = data.session?.access_token;
+          if (token) {
+            void fetch(`${API}/api/admin/activity/record-login`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+              body: JSON.stringify({ device: navigator.userAgent })
+            }).catch(() => {});
+          }
+        } catch { /* non-fatal */ }
+
         return {
           success: true,
           user: this.currentAdmin

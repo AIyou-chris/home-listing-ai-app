@@ -27282,6 +27282,29 @@ app.post('/api/admin/security/api-keys', verifyAdmin, async (req, res) => {
   }
 });
 
+// Record an admin login into the Activity Logs (called by the client after sign-in).
+app.post('/api/admin/activity/record-login', verifyAdmin, async (req, res) => {
+  try {
+    const userId = req.headers['x-user-id'] || req.user?.id;
+    const device = req.body?.device ? String(req.body.device).slice(0, 100) : 'Unknown';
+    const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '')
+      .split(',')[0].trim() || 'Unknown';
+    const { data: agent } = await supabaseAdmin.from('agents')
+      .select('id, metadata').or(`id.eq.${userId},auth_user_id.eq.${userId}`).single();
+    if (agent?.id) {
+      const metadata = agent.metadata || {};
+      const logs = Array.isArray(metadata.activity_logs) ? metadata.activity_logs : [];
+      logs.unshift({ id: `log-${Date.now()}`, event: 'Admin login', ip, device, at: new Date().toISOString() });
+      metadata.activity_logs = logs.slice(0, 20);
+      await supabaseAdmin.from('agents').update({ metadata }).eq('id', agent.id);
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.warn('[activity] record-login failed (non-fatal):', err?.message);
+    res.json({ success: true });
+  }
+});
+
 // Admin settings: system config
 app.get('/api/admin/system-settings', verifyAdmin, async (req, res) => {
   try {
