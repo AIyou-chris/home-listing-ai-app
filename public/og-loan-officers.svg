@@ -1,0 +1,78 @@
+<svg viewBox="0 0 1200 630" width="1200" height="630" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="ttl desc">
+  <title id="ttl">HomeListingAI — AI Concierge for Loan Officers</title>
+  <desc id="desc">For loan officers, by loan officers. Your AI Concierge for Loan Officers — agent partners, warm leads, your time back. 7 days free, no card needed.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1220"/>
+      <stop offset="0.55" stop-color="#0f1f3a"/>
+      <stop offset="1" stop-color="#10294f"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.82" cy="0.2" r="0.5">
+      <stop offset="0" stop-color="#38bdf8" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#38bdf8" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="btn" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#2563eb"/>
+      <stop offset="1" stop-color="#38bdf8"/>
+    </linearGradient>
+    <linearGradient id="house" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f97316"/>
+      <stop offset="1" stop-color="#fb923c"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect width="1200" height="630" fill="url(#glow)"/>
+  <rect x="8" y="8" width="1184" height="614" rx="28" fill="none" stroke="#ffffff" stroke-opacity="0.08" stroke-width="2"/>
+
+  <g transform="translate(72,64)">
+    <rect width="56" height="56" rx="14" fill="#0f2647" stroke="#ffffff" stroke-opacity="0.12"/>
+    <path d="M14 30 L28 17 L42 30 V42 H14 Z" fill="url(#house)"/>
+    <rect x="24" y="33" width="8" height="9" rx="1" fill="#0b1220"/>
+    <text x="72" y="26" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="800" fill="#ffffff">HomeListingAI</text>
+    <text x="72" y="48" font-family="Arial, Helvetica, sans-serif" font-size="14" font-weight="600" fill="#7dd3fc" letter-spacing="1">AI for real estate &amp; lending</text>
+  </g>
+
+  <text x="74" y="246" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="800" fill="#38bdf8" letter-spacing="3">FOR LOAN OFFICERS, BY LOAN OFFICERS</text>
+
+  <text x="70" y="320" font-family="Arial, Helvetica, sans-serif" font-size="74" font-weight="900" fill="#ffffff">Your AI Concierge</text>
+  <text x="70" y="398" font-family="Arial, Helvetica, sans-serif" font-size="74" font-weight="900" fill="#ffffff">for <tspan fill="#7dd3fc">Loan Officers</tspan></text>
+
+  <g font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700" fill="#e2e8f0">
+    <g transform="translate(74,452)">
+      <rect width="232" height="48" rx="24" fill="#16365f" stroke="#38bdf8" stroke-opacity="0.35"/>
+      <circle cx="30" cy="24" r="9" fill="#38bdf8"/><path d="M26 24 l3 3 l6 -7" stroke="#0b1220" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="50" y="31">Agent partners</text>
+    </g>
+    <g transform="translate(322,452)">
+      <rect width="200" height="48" rx="24" fill="#16365f" stroke="#38bdf8" stroke-opacity="0.35"/>
+      <circle cx="30" cy="24" r="9" fill="#38bdf8"/><path d="M26 24 l3 3 l6 -7" stroke="#0b1220" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="50" y="31">Warm leads</text>
+    </g>
+    <g transform="translate(538,452)">
+      <rect width="232" height="48" rx="24" fill="#16365f" stroke="#38bdf8" stroke-opacity="0.35"/>
+      <circle cx="30" cy="24" r="9" fill="#38bdf8"/><path d="M26 24 l3 3 l6 -7" stroke="#0b1220" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="50" y="31">Your time back</text>
+    </g>
+  </g>
+
+  <g transform="translate(74,536)">
+    <rect width="300" height="54" rx="27" fill="url(#btn)"/>
+    <text x="150" y="34" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="900" fill="#ffffff">7 days free · no card needed</text>
+  </g>
+
+  <g transform="translate(820,150)" opacity="0.97">
+    <rect x="40" y="40" width="300" height="300" rx="40" fill="#0f2647" stroke="#ffffff" stroke-opacity="0.10"/>
+    <g transform="translate(80,90)">
+      <rect width="220" height="120" rx="26" fill="#16365f"/>
+      <circle cx="44" cy="60" r="9" fill="#38bdf8"/>
+      <circle cx="80" cy="60" r="9" fill="#7dd3fc"/>
+      <circle cx="116" cy="60" r="9" fill="#38bdf8"/>
+      <path d="M40 118 l24 0 l-12 22 Z" fill="#16365f"/>
+    </g>
+    <g transform="translate(150,228)">
+      <path d="M0 46 L46 6 L92 46 V92 H0 Z" fill="url(#house)"/>
+      <rect x="34" y="56" width="24" height="36" rx="3" fill="#0b1220"/>
+    </g>
+  </g>
+</svg>

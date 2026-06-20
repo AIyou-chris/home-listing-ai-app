@@ -75,6 +75,27 @@ const STATIC_ROUTES = [
     ].join(''),
   },
   {
+    route: '/for-loan-officers',
+    title: 'For Loan Officers, By Loan Officers | HomeListingAI',
+    description:
+      'An AI concierge built for loan officers: get agent partners, warm buyer leads, and your time back. Co-branded AI listing pages with a 24/7 buyer chatbot. 7-day free trial, no card needed.',
+    image: '/og-loan-officers.png',
+    type: 'website',
+    bodyHtml: [
+      '<main>',
+      '<h1>For Loan Officers, By Loan Officers</h1>',
+      '<p>HomeListingAI is an AI concierge built specifically for mortgage loan officers — created by someone who spent 15 years in the business. It turns your real estate agent partners&rsquo; listings into a warm-lead engine: every listing gets a co-branded AI buyer chatbot that answers buyers 24/7 and routes warm financing leads straight back to you.</p>',
+      '<h2>What you get</h2>',
+      '<ul>',
+      '<li><strong>Agent partners:</strong> give agents a free tool that makes their listings perform, and become the loan officer they rely on.</li>',
+      '<li><strong>Warm leads:</strong> every engaged buyer on a co-branded listing routes back to you in real time — not cold internet lists.</li>',
+      '<li><strong>Your time back:</strong> the AI handles buyer questions around the clock so you can focus on closing.</li>',
+      '</ul>',
+      '<p>Start with a 7-day free trial — no card needed.</p>',
+      '</main>',
+    ].join(''),
+  },
+  {
     route: '/blog',
     title: 'Blog | HomeListingAI — Lead Gen & Agent Partnerships for Loan Officers',
     description:
