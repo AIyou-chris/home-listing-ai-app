@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { getEnvVar } from '../../lib/env'
 import { AdminDeliverabilitySettings } from './AdminDeliverabilitySettings'
 import { AuthService } from '../../services/authService'
+import Admin2FASetup from './Admin2FASetup'
 
 type BillingSummary = {
   plan: string
@@ -538,16 +539,7 @@ const AdminSettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                   <input type='password' placeholder='Confirm new password' className='w-full rounded-lg border border-slate-300 px-3 py-2 text-sm' />
                   <button className='inline-flex items-center gap-2 rounded-lg bg-slate-900 text-white px-3 py-2 text-sm hover:bg-slate-800'>Update</button>
                 </div>
-                <div className='p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-3'>
-                  <div className='flex items-center justify-between'>
-                    <div>
-                      <h4 className='font-semibold text-slate-900'>Two-Factor Authentication</h4>
-                      <p className='text-sm text-slate-600'>Add an extra layer for admin logins.</p>
-                    </div>
-                    <Toggle value={security.twoFactorEnabled} onChange={(val) => setSecurity((prev) => ({ ...prev, twoFactorEnabled: val }))} />
-                  </div>
-                  <p className='text-xs text-slate-500'>Recommend enabling 2FA for all admins.</p>
-                </div>
+                <Admin2FASetup />
               </div>
 
               <div className='p-4 rounded-xl border border-slate-200 bg-white space-y-3'>

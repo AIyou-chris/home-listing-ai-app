@@ -11,6 +11,7 @@ import MarketingReportsPage from '../components/MarketingReportsPage';
 import AdminMarketingFunnelsPanel from '../components/admin/AdminMarketingFunnelsPanel';
 import InteractionHubPage, { type InteractionThreadMessage } from '../components/InteractionHubPage';
 import AdminSettingsPage from './components/AdminSettingsPage';
+import Admin2FAGate from './components/Admin2FAGate';
 import AdminUsersPage from '../components/AdminUsersPage';
 import { LogoWithName } from '../components/LogoWithName';
 import AdminListingsPage from './AdminListingsPage';
@@ -39,8 +40,6 @@ export type DashboardView =
   | 'add-listing'
   | 'ai-card-builder'
   | 'marketing-funnels'
-  | 'marketing-reports'
-  | 'users'
   | 'marketing-reports'
   | 'users'
   | 'broadcast'
@@ -116,13 +115,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'dashboard
   }, []);
 
   const { leads, isLoading: isLeadsLoading, error: leadsError, refreshLeads, addLead, updateLead, deleteLead, addNote, fetchNotesForLead, notesByLeadId } =
-    useAdminLeads();
+    useAdminLeads({ skip: activeView !== 'leads' });
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [interactions, setInteractions] = useState<Interaction[]>([]);
   const [interactionsLoading, setInteractionsLoading] = useState(false);
   const [interactionsError, setInteractionsError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (activeView !== 'leads') return;
     const loadAppointments = async () => {
       try {
         const data = await adminAppointmentsService.list();
@@ -133,7 +133,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'dashboard
       }
     };
     void loadAppointments();
-  }, []);
+  }, [activeView]);
 
   const handleAddNewLead = async (leadData: { name: string; email: string; phone: string; message: string; source: string }) => {
     return await addLead({
@@ -257,8 +257,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'dashboard
   }, [mapConversationToInteraction]);
 
   useEffect(() => {
-    void loadInteractions();
-  }, [loadInteractions]);
+    if (activeView === 'inbox') {
+      void loadInteractions();
+    }
+  }, [activeView, loadInteractions]);
 
   const loadInteractionMessages = useCallback(async (interactionId: string): Promise<InteractionThreadMessage[]> => {
     const rows = await adminConversationsService.listMessages(interactionId, 100);
@@ -408,6 +410,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'dashboard
   };
 
   return (
+    <Admin2FAGate>
     <div className="flex h-screen bg-slate-50">
       <AdminDashboardSidebar activeView={activeView} setView={handleSetView} isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} isDesktop={isDesktop} />
       <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
@@ -425,6 +428,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'dashboard
         </main>
       </div>
     </div>
+    </Admin2FAGate>
   );
 };
 

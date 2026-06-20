@@ -15668,6 +15668,28 @@ async function verifyAdmin(req, res, next) {
       }
     }
 
+    // 2FA enforcement (opt-in). If this admin enrolled a TOTP factor but the
+    // session hasn't passed it (token AAL is 'aal1'), block. Fails OPEN on any
+    // error/uncertainty so an API hiccup can never lock an admin out.
+    try {
+      const parts = String(token).split('.');
+      let aal = null;
+      if (parts.length === 3) {
+        const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
+        aal = payload && payload.aal;
+      }
+      if (aal === 'aal1') {
+        const { data: factorData } = await supabaseAdmin.auth.admin.mfa.listFactors({ userId: user.id });
+        const hasVerifiedTotp = (factorData?.factors || [])
+          .some((f) => f.factor_type === 'totp' && f.status === 'verified');
+        if (hasVerifiedTotp) {
+          return res.status(403).json({ error: '2fa_required', code: 'MFA_REQUIRED' });
+        }
+      }
+    } catch (mfaErr) {
+      console.warn('[verifyAdmin] 2FA check skipped (non-fatal):', mfaErr?.message);
+    }
+
     let adminAgentId = user.id;
     try {
       const agentRecord = await billingEngine.resolveAgentRecord?.(user.id).catch(() => null);
