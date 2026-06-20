@@ -1,5 +1,15 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import toast from 'react-hot-toast';
 import { AuthService } from '../../services/authService';
+
+// ── Outreach message templates — EDIT THESE FREELY ─────────────────────────
+// Tokens: {{first}} = first name, {{company}} = employer. Keep it short + human.
+// A human taps send (Messages / LinkedIn), so this is compliant: not an auto-dialer, not a bot.
+const PITCH_URL = 'https://homelistingai.com/for-loan-officers';
+const SMS_TEMPLATE =
+  `Hi {{first}}, I build an AI concierge that lives on your partner agents' listings — answers buyers 24/7 and routes warm financing leads straight to you. Worth a 2-min look? ${PITCH_URL}`;
+const LINKEDIN_TEMPLATE =
+  `Hi {{first}} — saw your work at {{company}}. I built an AI concierge that sits on your partner agents' listings, answers buyers 24/7, and sends warm financing leads straight to you. Mind if I share a quick demo?`;
 
 type Lead = {
   id: string;
@@ -19,6 +29,10 @@ type Lead = {
 
 const fmt = (d: string | null) =>
   d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—';
+
+const firstNameOf = (name: string | null) => (name || '').trim().split(/\s+/)[0] || 'there';
+const fillTemplate = (tpl: string, l: Lead) =>
+  tpl.replace(/\{\{first\}\}/g, firstNameOf(l.name)).replace(/\{\{company\}\}/g, l.employer || 'your team');
 
 const STATUS_TABS: Array<{ key: string; label: string }> = [
   { key: 'new', label: 'New' },
@@ -89,6 +103,24 @@ const AdminLoLeadFinderPanel: React.FC = () => {
     } finally {
       setRowBusy(null);
     }
+  };
+
+  // ── Outreach assistant — human taps send (no auto-dialer, no bot) ──
+  const textLead = (l: Lead) => {
+    const body = fillTemplate(SMS_TEMPLATE, l);
+    void navigator.clipboard?.writeText(body).catch(() => {});
+    if (l.phone) {
+      const num = l.phone.replace(/[^\d+]/g, '');
+      window.open(`sms:${num}?&body=${encodeURIComponent(body)}`, '_self');
+    }
+    toast.success('Text copied — Messages opening');
+  };
+
+  const dmLead = (l: Lead) => {
+    const body = fillTemplate(LINKEDIN_TEMPLATE, l);
+    void navigator.clipboard?.writeText(body).catch(() => {});
+    if (l.linkedin) window.open(l.linkedin, '_blank', 'noopener');
+    toast.success('DM copied — paste it in LinkedIn');
   };
 
   const skip = async (id: string) => {
@@ -228,9 +260,11 @@ const AdminLoLeadFinderPanel: React.FC = () => {
                     </td>
                     {isNew ? (
                       <td className="px-4 py-3">
-                        <div className="flex gap-2">
-                          <button onClick={() => sendOne(l.id)} disabled={rowBusy === l.id} className="rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-primary-700 disabled:opacity-50">Send</button>
-                          <button onClick={() => skip(l.id)} disabled={rowBusy === l.id} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-100 disabled:opacity-50">Skip</button>
+                        <div className="flex flex-wrap gap-1.5">
+                          <button onClick={() => textLead(l)} disabled={!l.phone} title={l.phone ? 'Open Messages with a ready-to-send text' : 'No phone number'} className="rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-40">💬 Text</button>
+                          <button onClick={() => dmLead(l)} disabled={!l.linkedin} title={l.linkedin ? 'Copy the DM + open their LinkedIn' : 'No LinkedIn'} className="rounded-lg bg-sky-600 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-sky-700 disabled:opacity-40">🔗 DM</button>
+                          <button onClick={() => sendOne(l.id)} disabled={rowBusy === l.id} title="Email the acquisition link (use sparingly — cold email risks spam)" className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-100 disabled:opacity-50">Email</button>
+                          <button onClick={() => skip(l.id)} disabled={rowBusy === l.id} className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-400 hover:bg-slate-100 disabled:opacity-50">Skip</button>
                         </div>
                       </td>
                     ) : (
