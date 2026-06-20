@@ -27,10 +27,11 @@ const PLATFORMS: { id: SocialPlatform; label: string; icon: string }[] = [
 // Platforms with a web composer we can deep-link into (one-click cut-paste posting).
 const SHARE_PLATFORMS: SocialPlatform[] = ['linkedin', 'facebook', 'facebook_group', 'twitter'];
 
-const authHeader = () => {
-  const token = localStorage.getItem('sb-yocchddxdsaldgsibmmc-auth-token');
-  try { return { Authorization: `Bearer ${JSON.parse(token || '{}')?.access_token}` }; }
-  catch { return {}; }
+// Pull the live access token from the Supabase client (no hardcoded storage key).
+const authHeader = async (): Promise<Record<string, string>> => {
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  return token ? { Authorization: `Bearer ${token}` } : {};
 };
 
 function CopyButton({ text }: { text: string }) {
@@ -110,7 +111,7 @@ const BlogEditor: React.FC = () => {
 
   const pingSearch = async (slug: string) => {
     try {
-      await fetch(`${API}/api/admin/blog/ping`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeader() }, body: JSON.stringify({ slug }) });
+      await fetch(`${API}/api/admin/blog/ping`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeader()) }, body: JSON.stringify({ slug }) });
       toast.success('📡 Pinged Google & Bing indexing', { duration: 3000 });
     } catch { /* non-fatal */ }
   };
@@ -119,7 +120,7 @@ const BlogEditor: React.FC = () => {
     if (!idea.trim()) { toast.error('Enter a blog idea first'); return; }
     setIsGenerating(true);
     try {
-      const r = await fetch(`${API}/api/admin/blog/generate`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeader() }, body: JSON.stringify({ idea }) });
+      const r = await fetch(`${API}/api/admin/blog/generate`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeader()) }, body: JSON.stringify({ idea }) });
       const data = await r.json();
       if (data.post) {
         setCurrentPost({ status: 'draft', seo_keywords: [], ...data.post });
@@ -140,7 +141,7 @@ const BlogEditor: React.FC = () => {
     if (!q.trim()) return;
     setIsLoadingImages(true);
     try {
-      const r = await fetch(`${API}/api/admin/blog/images?query=${encodeURIComponent(q)}`, { headers: authHeader() });
+      const r = await fetch(`${API}/api/admin/blog/images?query=${encodeURIComponent(q)}`, { headers: await authHeader() });
       const data = await r.json();
       setImages(data.images || []);
     } catch { toast.error('Image search failed'); }
@@ -151,7 +152,7 @@ const BlogEditor: React.FC = () => {
     if (!currentPost.title || !currentPost.content) { toast.error('Save post first'); return; }
     setIsRepurposing(true);
     try {
-      const r = await fetch(`${API}/api/admin/blog/repurpose`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeader() }, body: JSON.stringify({ title: currentPost.title, content: currentPost.content, excerpt: currentPost.excerpt }) });
+      const r = await fetch(`${API}/api/admin/blog/repurpose`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeader()) }, body: JSON.stringify({ title: currentPost.title, content: currentPost.content, excerpt: currentPost.excerpt }) });
       const data = await r.json();
       if (data.repurposed) { setRepurposed(data.repurposed); setView('repurpose'); toast.success('✨ Social content ready!'); }
       else toast.error('Failed to repurpose');
@@ -385,6 +386,8 @@ const BlogEditor: React.FC = () => {
 
             <input type="text" value={currentPost.featured_image || ''} onChange={e => setCurrentPost({ ...currentPost, featured_image: e.target.value })}
               className="w-full mt-2 px-3 py-1.5 border border-slate-200 rounded-xl text-xs focus:outline-none" placeholder="Or paste image URL…" />
+            <input type="text" value={currentPost.featured_image_alt || ''} onChange={e => setCurrentPost({ ...currentPost, featured_image_alt: e.target.value })}
+              className="w-full mt-2 px-3 py-1.5 border border-slate-200 rounded-xl text-xs focus:outline-none" placeholder="Image alt text (accessibility &amp; SEO)…" />
           </div>
 
           {/* SEO */}

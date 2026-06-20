@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import DOMPurify from 'dompurify';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../services/supabase';
 import { Helmet } from 'react-helmet-async';
@@ -13,6 +14,7 @@ interface BlogPost {
     title: string;
     content: string;
     featured_image: string;
+    featured_image_alt?: string;
     published_at: string;
     seo_title: string;
     seo_description: string;
@@ -88,14 +90,14 @@ const BlogPost: React.FC = () => {
                     {post.featured_image && (
                         <FadeIn delay={200}>
                             <div className="rounded-3xl overflow-hidden shadow-[0_0_40px_rgba(6,182,212,0.15)] mb-12 border border-cyan-900/30">
-                                <img src={post.featured_image} alt={post.title} className="w-full h-auto max-h-[600px] object-cover" />
+                                <img src={post.featured_image} alt={post.featured_image_alt || post.title} className="w-full h-auto max-h-[600px] object-cover" />
                             </div>
                         </FadeIn>
                     )}
 
                     <FadeIn delay={300}>
                         <div className="prose prose-lg prose-invert mx-auto bg-[#0B1121]/80 backdrop-blur-md p-8 md:p-12 rounded-3xl shadow-[0_0_40px_rgba(0,0,0,0.5)] border border-cyan-900/30">
-                            <div dangerouslySetInnerHTML={{ __html: post.content }} />
+                            <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(post.content) }} />
                         </div>
                     </FadeIn>
 
