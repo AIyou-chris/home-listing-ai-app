@@ -7,9 +7,10 @@ import { AuthService } from '../../services/authService';
 // A human taps send (Messages / LinkedIn), so this is compliant: not an auto-dialer, not a bot.
 const PITCH_URL = 'https://homelistingai.com/for-loan-officers';
 const SMS_TEMPLATE =
-  `Hi {{first}}, I build an AI concierge that lives on your partner agents' listings — answers buyers 24/7 and routes warm financing leads straight to you. Worth a 2-min look? ${PITCH_URL}`;
+  `Hey {{first}} — real quick: I built this for loan officers like you. It's an AI concierge that brings you agent partners, warm leads, and your time back. 7 days free, no card needed. 👉 ${PITCH_URL}`;
+// Link is included so LinkedIn unfurls a preview card with the site's share image (og-image.png).
 const LINKEDIN_TEMPLATE =
-  `Hi {{first}} — saw your work at {{company}}. I built an AI concierge that sits on your partner agents' listings, answers buyers 24/7, and sends warm financing leads straight to you. Mind if I share a quick demo?`;
+  `Hey {{first}} — I built this for loan officers like you: an AI concierge that brings you agent partners, warm leads, and your time back. 7 days free, no card needed. Take a look 👉 ${PITCH_URL}`;
 
 type Lead = {
   id: string;
