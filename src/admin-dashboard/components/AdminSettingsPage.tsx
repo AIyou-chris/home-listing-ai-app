@@ -176,21 +176,6 @@ const AdminSettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     }
   }
 
-  const handleRegenerateKey = async (scope: string) => {
-    try {
-      const res = await fetch(`${apiBase}/api/admin/security/api-keys`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ scope })
-      })
-      if (res.ok) {
-        const payload = await res.json()
-        if (Array.isArray(payload?.keys)) setSecurity((prev) => ({ ...prev, apiKeys: payload.keys }))
-      }
-    } catch (error) {
-      console.warn('Failed to regenerate key', error)
-    }
-  }
 
   const handleSendReminder = async () => {
     if (!reminderEmail.trim()) return
@@ -542,33 +527,8 @@ const AdminSettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 <Admin2FASetup />
               </div>
 
-              <div className='p-4 rounded-xl border border-slate-200 bg-white space-y-3'>
-                <div className='flex items-center justify-between'>
-                  <div>
-                    <h4 className='font-semibold text-slate-900'>API Keys</h4>
-                    <p className='text-sm text-slate-600'>Scope keys for funnels or AI chat.</p>
-                  </div>
-                  <button
-                    className='inline-flex items-center gap-2 rounded-lg bg-blue-600 text-white px-3 py-2 text-sm hover:bg-blue-700'
-                    onClick={() => handleRegenerateKey('funnel')}
-                  >
-                    <span className='material-symbols-outlined text-sm'>cached</span>
-                    Regenerate Key
-                  </button>
-                </div>
-                <div className='space-y-2'>
-                  {security.apiKeys.map((k) => (
-                    <div key={k.id} className='flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2'>
-                      <div>
-                        <div className='font-semibold text-sm text-slate-800'>{k.label}</div>
-                        <div className='text-xs text-slate-500'>Scope: {k.scope}</div>
-                      </div>
-                      <div className='text-xs text-slate-500'>Last used: {k.lastUsed || 'n/a'}</div>
-                    </div>
-                  ))}
-                  {security.apiKeys.length === 0 && <p className='text-sm text-slate-500'>No keys yet.</p>}
-                </div>
-              </div>
+              {/* API Keys section hidden — no real integration auth wired yet.
+                  Re-add when programmatic API access (real, validated keys) is built. */}
 
               <div className='p-4 rounded-xl border border-slate-200 bg-white space-y-2'>
                 <h4 className='font-semibold text-slate-900'>Activity Logs</h4>
