@@ -45,7 +45,7 @@ const NavItem: React.FC<{
 }> = ({ viewName, activeView, setView, icon, children, onClose }) => {
   const isListingsActive = viewName === 'listings' && (activeView === 'listings' || activeView === 'property' || activeView === 'add-listing');
   const isLeadsActive = viewName === 'leads' && activeView === 'leads';
-  const isAiCardActive = viewName === 'ai-card' && (activeView === 'ai-card' || activeView === 'inbox');
+  const isAiCardActive = viewName === 'ai-card' && activeView === 'ai-card';
 
   const isActive = activeView === viewName || isListingsActive || isLeadsActive || isAiCardActive;
 
@@ -69,9 +69,13 @@ const AdminDashboardSidebar: React.FC<AdminDashboardSidebarProps> = ({ activeVie
     { view: 'dashboard', icon: 'home', label: 'Admin Overview' },
     { view: 'leads', icon: 'groups', label: 'Leads & Appointments' },
     { view: 'ai-conversations', icon: 'chat_bubble', label: 'AI Conversations' },
+    { view: 'inbox', icon: 'inbox', label: 'Inbox' },
     { view: 'knowledge-base', icon: 'smart_toy', label: 'AI Sidekicks' },
     { view: 'marketing-funnels', icon: 'campaign', label: 'Marketing Funnels' },
+    { view: 'marketing-reports', icon: 'bar_chart', label: 'Marketing Reports' },
     { view: 'broadcast', icon: 'podium', label: 'Broadcasts' },
+    { view: 'listings', icon: 'home_work', label: 'Listings' },
+    { view: 'analytics', icon: 'insights', label: 'Analytics' },
     { view: 'lo-platform', icon: 'account_balance', label: 'LO Platform' },
     { view: 'users', icon: 'people', label: 'Users' },
     { view: 'blog', icon: 'article', label: 'Blog' },
@@ -134,11 +138,6 @@ const AdminDashboardSidebar: React.FC<AdminDashboardSidebarProps> = ({ activeVie
         </nav>
 
         <div className="mt-auto flex flex-col space-y-2 border-t border-slate-200 pt-4">
-          <button className="flex w-full items-center space-x-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200/60 transition-colors">
-            <Icon name="notifications" className="text-slate-500" />
-            <span>Notifications</span>
-          </button>
-
           <button
             onClick={async () => {
               console.log("🚪 Sign Out Clicked");
