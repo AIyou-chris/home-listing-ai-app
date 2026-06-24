@@ -270,12 +270,30 @@ let gaDataApiClient = null;
 const getGaClient = async () => {
   if (gaDataApiClient) return gaDataApiClient;
 
-  // Ensure credentials file exists
-  if (!fs.existsSync(GA_SERVICE_ACCOUNT_JSON)) {
-    throw new Error(`GA service account JSON not found at ${GA_SERVICE_ACCOUNT_JSON}. Set GA_SERVICE_ACCOUNT_JSON to the correct path.`);
+  // Resolve service account credentials. Prefer an env var (works on Render/Netlify
+  // where you can't drop a secret file): GA_SERVICE_ACCOUNT_KEY holds the raw JSON
+  // or a base64-encoded copy of it. Fall back to a JSON file on disk for local dev.
+  let credentials = null;
+  // Reuse the existing Google service account if a dedicated GA key isn't set.
+  const rawKey = process.env.GA_SERVICE_ACCOUNT_KEY || process.env.GOOGLE_INDEXING_SERVICE_ACCOUNT || '';
+
+  if (rawKey.trim()) {
+    let jsonText = rawKey.trim();
+    // Allow base64-encoded JSON (no leading '{') to dodge newline/escaping issues in env UIs.
+    if (!jsonText.startsWith('{')) {
+      try { jsonText = Buffer.from(jsonText, 'base64').toString('utf8'); } catch (_e) { /* leave as-is */ }
+    }
+    try {
+      credentials = JSON.parse(jsonText);
+    } catch (_e) {
+      throw new Error('GA_SERVICE_ACCOUNT_KEY is set but is not valid JSON (or base64-encoded JSON).');
+    }
+  } else if (fs.existsSync(GA_SERVICE_ACCOUNT_JSON)) {
+    credentials = JSON.parse(fs.readFileSync(GA_SERVICE_ACCOUNT_JSON, 'utf8'));
+  } else {
+    throw new Error('GA service account credentials missing. Set GA_SERVICE_ACCOUNT_KEY (recommended) to the service account JSON, or provide a service-account.json file.');
   }
 
-  const credentials = JSON.parse(fs.readFileSync(GA_SERVICE_ACCOUNT_JSON, 'utf8'));
   const scopes = ['https://www.googleapis.com/auth/analytics.readonly'];
   const auth = new google.auth.GoogleAuth({ credentials, scopes });
 

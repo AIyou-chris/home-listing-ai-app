@@ -57,7 +57,6 @@ const TrialLock = lazy(() => import('./components/TrialLock'));
 
 // import KnowledgeBasePage from './components/KnowledgeBasePage';
 const SettingsPage = lazy(() => import('./components/SettingsPage'));
-const AnalyticsDashboard = lazy(() => import('./components/AnalyticsDashboard'));
 
 const ConsultationModal = lazy(() => import('./components/ConsultationModal'));
 import { AISidekickProvider } from './context/AISidekickContext';
@@ -1805,7 +1804,6 @@ const App: React.FC = () => {
                                 variant="page"
                             />
                         } />
-                        <Route path="/analytics" element={<AnalyticsDashboard />} />
                         <Route path="/ai-sidekicks" element={<EnhancedAISidekicksHub isDemoMode={isDemoMode} />} />
                         <Route path="/marketing-reports" element={<MarketingReportsPage />} />
                         <Route path="/voice-lab" element={
