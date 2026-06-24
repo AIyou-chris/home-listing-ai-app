@@ -191,9 +191,29 @@ No long explanations. No walls of text. Table in, table out.
 
 ---
 
-## 7. Current State Snapshot (as of 2026-06-18)
+## 7. Current State Snapshot (as of 2026-06-21)
 
-### ✅ Recently completed (this sprint)
+### ✅ Recently completed — 2026-06-21 sprint (LO Lead Finder + Blog distribution + Admin security)
+
+| Feature | Notes |
+|---|---|
+| **LO Lead Finder** (find → import → outreach) | Scraper service `backend/services/loLeadScraperService.js` (DI factory; tests `npm run test:backend`, node:test). 4 swappable engines via `LO_SCRAPER_ENGINE`: `google` (CSE), `apify` (Search/Maps auto-detect), `leads` (**primary**). Primary = Apify actor `code_crafter/leads-finder` (`IoSHqwTR9YGhzccez`) — Apollo-style validated emails (name, email, company, job title, mobile, LinkedIn). **Free Apify plan blocks API *runs* of that actor → semi-auto**: user clicks Start in Apify UI, then imports the finished run's dataset (reading datasets IS allowed free). Verified live: 100-row run → 94 stored. |
+| LO Lead Finder — DB | Migration `lo-lead-pool-migration.sql` (run in Supabase): `lo_lead_pool` (email unique + name/employer/job_title/phone/linkedin/city/source_url/is_role/status), `lo_suppression_list`, `lo_scraper_state`. |
+| LO Lead Finder — endpoints | `POST /api/admin/lo-leads/run`, `/import-apify`, `GET /api/admin/lo-leads`, `POST /api/admin/lo-leads/:id/send`, `/send-bulk`, `/:id/skip`. All `verifyAdmin`. |
+| LO Lead Finder — admin UI | `src/components/admin/AdminLoLeadFinderPanel.tsx` (in Marketing Funnels, above LO Outreach). Import from Apify → review pool → per-lead **💬 Text** + **🔗 DM** (1-tap copy + open Messages/LinkedIn, human sends = TCPA/ToS-safe) + Email + Skip + bulk "Send to all new". |
+| Outreach copy — "2006" voice | SMS + LinkedIn templates in `AdminLoLeadFinderPanel.tsx`. LinkedIn = **189-char connection-note** (no link — notes don't make links clickable). Voice playbook: `HomeListingAI-Brand-Voice-Playbook.pdf` on Desktop (for NotebookLM). |
+| LO Lead Finder — CAN-SPAM | `sendLoAcquisitionInvite()` helper (one source of truth for outreach email). Unsubscribe footer (`LO_MAILING_ADDRESS` env) + `GET /api/public/lo-unsubscribe/:token` → suppression list. **Review-first, never auto-send.** |
+| Custom LinkedIn share image | `public/og-loan-officers.png` (+ `.svg` source). `/for-loan-officers` prerendered with this og:image via `scripts/generate-seo-pages.mjs` so the pitch link unfurls a branded card. |
+| Blog — distribution | BlogEditor "Repurpose" now has 1-click **Copy + Open** to LinkedIn/Facebook/FB Group + **X** (intent prefill). Added `twitter` to the AI repurpose prompt. |
+| Blog — conversion CTA | Shared `src/pages/Blog/BlogCTA.tsx` (→ `/lo-signup`) at the end of every post AND the blog index hero (replaced "Create Free Account" button). |
+| Blog — cleanups | `featured_image_alt` input + rendered; post HTML sanitized with **DOMPurify**; BlogEditor `authHeader` reads live Supabase session token (no hardcoded storage key). |
+| Admin — real 2FA (opt-in) | Supabase MFA (TOTP). `Admin2FASetup` (enroll/QR/verify/disable in Settings→Security), `Admin2FAGate` (login code challenge, wraps dashboard), `verifyAdmin` enforces AAL2 server-side (fails OPEN). Recovery: `docs/admin-2fa-recovery.md` (service-role SQL). Was a fake toggle. |
+| Admin — real Change Password | `AdminChangePassword` (verify current → update via Supabase). Was a dead form. |
+| Admin — Activity Logs real | Logs admin logins: `POST /api/admin/activity/record-login` + call in `adminAuthService`. Panel was always empty. |
+| Admin — decluttered | Hid fake **API Keys** section (generated a fake token nothing validated) + **AI Cards** nav item (unused). **Audit finding: Admin Overview stats are REAL** (DB queries + live Mailgun stats), not demo — earlier assumption was wrong. |
+| Env needed (Render) | `APIFY_TOKEN`, `LO_MAILING_ADDRESS`. Optional: `GOOGLE_CSE_API_KEY`/`GOOGLE_CSE_ID`/`LO_SCRAPER_MAX_SEARCHES`, `LO_SCRAPER_ENGINE`, `APIFY_ACTOR_ID`/`APIFY_LEADS_ACTOR_ID`. |
+
+### ✅ Earlier sprint
 
 | Feature | Notes |
 |---|---|
@@ -236,6 +256,7 @@ No long explanations. No walls of text. Table in, table out.
 
 | Issue | Where | Notes |
 |---|---|---|
+| **Service worker serves stale builds** | `src/main.tsx` registers a SW; `homelistingai.com/sw.js` live | After every deploy, users (incl. admin) keep seeing the OLD bundle until cache clears. Hard-refresh often isn't enough — use **Incognito** or clear site data. Worth fixing the SW to `skipWaiting` + auto-reload on new deploys so updates land without manual cache-busting. Bit us repeatedly. |
 | Day-6 trial warning overlap | Email drip | Day 6 drip handles "trial ending" but standalone `checkTrialWarnings` billing email may also fire — minor, low impact |
 
 ### ⏳ Pending manual steps (user to do)
@@ -247,6 +268,8 @@ No long explanations. No walls of text. Table in, table out.
 | Test end-to-end email forward | Forward any lead email to `{slug}@mg.homelistingai.com` | Confirm it arrives in Leads inbox |
 | Test Stripe checkout live | Billing page → upgrade flow | Confirm charge goes through and plan updates |
 | Test LO Acquisition Link live | Admin → Marketing Funnels → LO Outreach → send to self | Open the link on phone, tap CTA, confirm row flips to Opened ✓ / Clicked ✓ |
+| Enroll in admin 2FA | Admin → Settings → Security → Set up 2FA | Opt-in; nobody is protected until they enroll. Test: enroll → sign out/in → code prompt fires. Recovery in `docs/admin-2fa-recovery.md`. |
+| Run LO Lead Finder live | Apify UI → Start (100 leads) → Admin → Marketing Funnels → 🧲 LO Lead Finder → Import from Apify | Migration + `APIFY_TOKEN`/`LO_MAILING_ADDRESS` already in place. Work leads via 💬 Text / 🔗 DM (cold email lands in spam — prefer text/LinkedIn). |
 
 ---
 
