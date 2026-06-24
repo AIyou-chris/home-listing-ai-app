@@ -3,10 +3,8 @@ import { useNavigate, useParams } from 'react-router-dom';
 
 import AICardPage from '../components/AICardPage';
 import AIConversationsPage from '../components/AIConversationsPage';
-import AnalyticsDashboard from '../components/AnalyticsDashboard';
 import AdminCommandCenter from './components/AdminCommandCenter';
 import AdminAISidekicksPage from './components/AdminAISidekicksPage';
-import MarketingReportsPage from '../components/MarketingReportsPage';
 // import EnhancedAISidekicksHub from '../components/EnhancedAISidekicksHub'; // Kept for reference if needed, but unused in new flow
 import AdminMarketingFunnelsPanel from '../components/admin/AdminMarketingFunnelsPanel';
 import InteractionHubPage, { type InteractionThreadMessage } from '../components/InteractionHubPage';
@@ -34,13 +32,11 @@ export type DashboardView =
   | 'listings'
   | 'knowledge-base'
   | 'settings'
-  | 'analytics'
   | 'inbox'
   | 'property'
   | 'add-listing'
   | 'ai-card-builder'
   | 'marketing-funnels'
-  | 'marketing-reports'
   | 'users'
   | 'broadcast'
   | 'blog'
@@ -364,16 +360,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'dashboard
             variant="page"
           />
         );
-      case 'marketing-reports':
-        return <MarketingReportsPage isDemoMode={isDemoMode} />;
       case 'settings':
         return (
           <AdminSettingsPage
             onBack={resetToDashboard}
           />
         );
-      case 'analytics':
-        return <AnalyticsDashboard />;
       case 'inbox':
         return (
           <InteractionHubPage
