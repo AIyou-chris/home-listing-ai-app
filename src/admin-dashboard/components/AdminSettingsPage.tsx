@@ -98,7 +98,7 @@ const AdminSettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   const [security, setSecurity] = useState<SecurityState>({ twoFactorEnabled: false, apiKeys: [], activityLogs: [] })
   const [analytics, setAnalytics] = useState<AnalyticsSummary>({ totalLeads: 0, activeFunnels: 0, appointments: 0, messagesSent: 0, voiceMinutesUsed: 0 })
   const [analyticsRange, setAnalyticsRange] = useState<'7' | '30' | '90'>('30')
-  const [webTraffic, setWebTraffic] = useState<{ configured: boolean; activeUsers: number; newUsers: number; sessions: number; screenPageViews: number }>({ configured: false, activeUsers: 0, newUsers: 0, sessions: 0, screenPageViews: 0 })
+  const [webTraffic, setWebTraffic] = useState<{ configured: boolean; reason: string; activeUsers: number; newUsers: number; sessions: number; screenPageViews: number }>({ configured: false, reason: '', activeUsers: 0, newUsers: 0, sessions: 0, screenPageViews: 0 })
   const [systemSettings, setSystemSettings] = useState<SystemSettings>({
     appName: 'HomeListingAI (Admin)',
     brandingColor: '#0ea5e9',
@@ -132,15 +132,38 @@ const AdminSettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         return response.json()
       }
       try {
-        const [billingRes, usersRes, invoicesRes, securityRes, analyticsRes, systemRes, gaRes] = await Promise.all([
+        const [billingRes, usersRes, invoicesRes, securityRes, analyticsRes, systemRes] = await Promise.all([
           fetchJson(`${apiBase}/api/admin/billing`).catch(() => null),
           fetchJson(`${apiBase}/api/admin/users/billing`).catch(() => null),
           fetchJson(`${apiBase}/api/admin/billing/invoices`).catch(() => null),
           fetchJson(`${apiBase}/api/admin/security`).catch(() => null),
           fetchJson(`${apiBase}/api/admin/analytics/overview?range=${analyticsRange}`).catch(() => null),
-          fetchJson(`${apiBase}/api/admin/system-settings`).catch(() => null),
-          fetchJson(`${apiBase}/api/admin/analytics/google`).catch(() => null)
+          fetchJson(`${apiBase}/api/admin/system-settings`).catch(() => null)
         ])
+
+        // Google Analytics: read the body even on non-200 so we can surface the real reason.
+        try {
+          const gaResp = await auth.makeAuthenticatedRequest(`${apiBase}/api/admin/analytics/google`)
+          const gaBody = await gaResp.json().catch(() => null)
+          if (gaResp.ok && gaBody?.success && gaBody?.stats) {
+            setWebTraffic({
+              configured: true,
+              reason: '',
+              activeUsers: gaBody.stats.activeUsers || 0,
+              newUsers: gaBody.stats.newUsers || 0,
+              sessions: gaBody.stats.sessions || 0,
+              screenPageViews: gaBody.stats.screenPageViews || 0
+            })
+          } else {
+            setWebTraffic({
+              configured: false,
+              reason: gaBody?.error || `Request failed (HTTP ${gaResp.status})`,
+              activeUsers: 0, newUsers: 0, sessions: 0, screenPageViews: 0
+            })
+          }
+        } catch (gaErr) {
+          setWebTraffic({ configured: false, reason: 'Could not reach the analytics endpoint.', activeUsers: 0, newUsers: 0, sessions: 0, screenPageViews: 0 })
+        }
 
         if (billingRes) setBillingSummary(billingRes)
         if (usersRes) setBillingUsers(usersRes)
@@ -157,17 +180,6 @@ const AdminSettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
           })
         }
         if (systemRes) setSystemSettings(systemRes)
-        if (gaRes && gaRes.success && gaRes.stats) {
-          setWebTraffic({
-            configured: true,
-            activeUsers: gaRes.stats.activeUsers || 0,
-            newUsers: gaRes.stats.newUsers || 0,
-            sessions: gaRes.stats.sessions || 0,
-            screenPageViews: gaRes.stats.screenPageViews || 0
-          })
-        } else {
-          setWebTraffic({ configured: false, activeUsers: 0, newUsers: 0, sessions: 0, screenPageViews: 0 })
-        }
 
         const couponsRes = await fetchJson(`${apiBase}/api/admin/coupons`).catch(() => null)
         if (couponsRes) setCoupons(couponsRes)
@@ -616,8 +628,11 @@ const AdminSettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 </div>
               ) : (
                 <div className='rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800'>
-                  <p className='font-semibold'>Google Analytics not connected yet.</p>
-                  <p className='mt-1 text-amber-700'>Add <code className='font-mono'>GA_PROPERTY_ID</code> and a Google service account key (<code className='font-mono'>GA_SERVICE_ACCOUNT_JSON</code>) to the backend, then these cards will show live visitors and clicks. Google Analytics is free.</p>
+                  <p className='font-semibold'>Google Analytics isn't returning data yet.</p>
+                  {webTraffic.reason && (
+                    <p className='mt-1 text-amber-700'>Reason from Google: <span className='font-mono'>{webTraffic.reason}</span></p>
+                  )}
+                  <p className='mt-2 text-amber-700'>Common fixes: enable the <strong>Google Analytics Data API</strong> for the service account's project, confirm the service account has <strong>Viewer</strong> access to the property, and make sure the GA tag is installed on the site (a brand-new property with no traffic returns no data).</p>
                 </div>
               )}
             </Section>
