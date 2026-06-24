@@ -13,6 +13,34 @@ const SMS_TEMPLATE =
 const LINKEDIN_TEMPLATE =
   `Hey {{first}} — it's looking like 2006 out there. I built HomeListingAI for loan officers: warm leads, agent partners who stick, your time back. 7 days free, no card. Open to a quick look?`;
 
+// Minimal RFC-4180-ish CSV parser: handles quoted fields, embedded commas/newlines,
+// and escaped quotes. Returns an array of objects keyed by the header row.
+function parseCsv(text: string): Record<string, string>[] {
+  const rows: string[][] = [];
+  let cur: string[] = [], field = '', inQuotes = false;
+  const t = text.replace(/^/, ''); // strip BOM
+  for (let i = 0; i < t.length; i++) {
+    const ch = t[i];
+    if (inQuotes) {
+      if (ch === '"') { if (t[i + 1] === '"') { field += '"'; i++; } else inQuotes = false; }
+      else field += ch;
+    } else if (ch === '"') { inQuotes = true; }
+    else if (ch === ',') { cur.push(field); field = ''; }
+    else if (ch === '\n') { cur.push(field); rows.push(cur); cur = []; field = ''; }
+    else if (ch !== '\r') { field += ch; }
+  }
+  if (field !== '' || cur.length) { cur.push(field); rows.push(cur); }
+  if (rows.length < 2) return [];
+  const headers = rows[0].map(h => h.trim());
+  return rows.slice(1)
+    .filter(r => r.some(c => c.trim() !== ''))
+    .map(r => {
+      const obj: Record<string, string> = {};
+      headers.forEach((h, idx) => { obj[h] = (r[idx] ?? '').trim(); });
+      return obj;
+    });
+}
+
 type Lead = {
   id: string;
   email: string;
@@ -70,6 +98,29 @@ const AdminLoLeadFinderPanel: React.FC = () => {
   }, [auth]);
 
   useEffect(() => { void load(statusFilter); }, [load, statusFilter]);
+
+  const importCsv = async (file: File) => {
+    if (importing) return;
+    setImporting(true);
+    setMsg('');
+    try {
+      const rows = parseCsv(await file.text());
+      if (!rows.length) { setMsg('❌ No rows found in that CSV.'); return; }
+      const res = await auth.makeAuthenticatedRequest('/api/admin/lo-leads/import-csv', {
+        method: 'POST',
+        body: JSON.stringify({ rows }),
+      });
+      const d = await res.json() as { success?: boolean; rowsReceived?: number; leadsAdded?: number; dupesSkipped?: number };
+      if (!res.ok || !d.success) { setMsg('❌ CSV import failed.'); return; }
+      setMsg(`✅ Imported ${d.leadsAdded ?? 0} new leads from CSV (${d.rowsReceived ?? 0} rows, ${d.dupesSkipped ?? 0} skipped as dupes/no-email).`);
+      setStatusFilter('new');
+      await load('new');
+    } catch {
+      setMsg('❌ CSV import failed.');
+    } finally {
+      setImporting(false);
+    }
+  };
 
   const importApify = async () => {
     if (importing) return;
@@ -195,7 +246,13 @@ const AdminLoLeadFinderPanel: React.FC = () => {
           >
             {importing ? 'Importing…' : '⬇️ Import from Apify'}
           </button>
+          <label className={`rounded-xl border border-slate-300 px-6 py-3 text-center text-sm font-bold text-slate-700 transition-all hover:bg-slate-50 ${importing ? 'pointer-events-none opacity-50' : 'cursor-pointer'}`}>
+            📄 Import CSV
+            <input type="file" accept=".csv,text/csv" className="hidden"
+              onChange={e => { const f = e.target.files?.[0]; if (f) void importCsv(f); e.target.value = ''; }} />
+          </label>
         </div>
+        <p className="mt-2 text-xs text-slate-400">CSV columns auto-detected (email, name, company, phone, LinkedIn, city/state). No-email rows and dupes are skipped.</p>
         {msg && <p className="mt-3 text-sm font-semibold text-slate-700">{msg}</p>}
       </div>
 

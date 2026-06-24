@@ -31938,6 +31938,21 @@ app.post('/api/admin/lo-leads/import-apify', verifyAdmin, async (req, res) => {
   }
 });
 
+// ── POST /api/admin/lo-leads/import-csv — import leads from a CSV (admin) ───────
+// Body: { rows: [ { ...header-keyed columns... } ] }. Columns auto-detected.
+app.post('/api/admin/lo-leads/import-csv', verifyAdmin, async (req, res) => {
+  try {
+    const rows = Array.isArray(req.body?.rows) ? req.body.rows : null;
+    if (!rows || !rows.length) return res.status(400).json({ error: 'no_rows' });
+    if (rows.length > 10000) return res.status(400).json({ error: 'too_many_rows' });
+    const result = await loLeadScraperService.importCsvRows(rows);
+    res.json({ success: true, ...result });
+  } catch (err) {
+    console.error('[LO Lead Finder] CSV import failed:', err);
+    res.status(500).json({ error: 'import_failed' });
+  }
+});
+
 // ── GET /api/admin/lo-leads — list the scraped pool (admin) ────────────────────
 app.get('/api/admin/lo-leads', verifyAdmin, async (req, res) => {
   try {

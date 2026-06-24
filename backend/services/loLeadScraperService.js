@@ -41,6 +41,24 @@ function makeContact(rawEmail, employer) {
   return { email, is_role: ROLE_LOCALPARTS.has(local), employer: employer || null };
 }
 
+// Find the first non-empty value in `row` whose key (normalized to lowercase
+// alphanumeric) matches any of `names`. Lets one mapper handle snake_case,
+// camelCase, "Person City", etc. across Apify schemas and arbitrary CSVs.
+function pickField(row, names) {
+  if (!row || typeof row !== 'object') return null;
+  const norm = (k) => String(k).toLowerCase().replace(/[^a-z0-9]/g, '');
+  const lookup = {};
+  for (const k of Object.keys(row)) {
+    const v = row[k];
+    if (v != null && String(v).trim() !== '') lookup[norm(k)] = String(v).trim();
+  }
+  for (const n of names) {
+    const v = lookup[norm(n)];
+    if (v) return v;
+  }
+  return null;
+}
+
 function extractContacts(html, pageUrl) {
   let employer = null;
   try {
@@ -149,15 +167,24 @@ function createLoLeadScraperService(deps) {
     locations: deps.leadsLocations || ['united states'],
   };
 
+  // Maps a lead row (Apify item OR a CSV row) to a contact. Field names are
+  // detected flexibly via pickField so it survives schema/header differences.
   function leadRowToContact(r) {
-    const c = makeContact(r.email, r.company_name || r.company || null);
+    const email = pickField(r, ['email', 'business_email', 'work_email', 'email_address', 'personal_email']);
+    const company = pickField(r, ['company_name', 'company', 'employer', 'organization', 'organization_name']);
+    const c = makeContact(email, company);
     if (!c) return null;
-    c.name = r.full_name || [r.first_name, r.last_name].filter(Boolean).join(' ').trim() || null;
-    c.job_title = r.job_title || null;
-    c.phone = r.mobile_number || r.company_phone || null;
-    c.linkedin = r.linkedin || null;
-    c.source_url = r.company_website || r.linkedin || null;
-    c.city = [r.city, r.state].filter(Boolean).join(', ') || null;
+    const full = pickField(r, ['full_name', 'name', 'person_name']);
+    const first = pickField(r, ['first_name', 'person_first_name', 'firstname']);
+    const last = pickField(r, ['last_name', 'person_last_name', 'lastname']);
+    c.name = full || [first, last].filter(Boolean).join(' ').trim() || null;
+    c.job_title = pickField(r, ['job_title', 'title', 'headline', 'position']);
+    c.phone = pickField(r, ['mobile_number', 'mobile', 'phone', 'phone_number', 'direct_phone', 'company_phone']);
+    c.linkedin = pickField(r, ['linkedin', 'linkedin_url', 'person_linkedin_url', 'linkedin_profile']);
+    c.source_url = pickField(r, ['company_website', 'website', 'company_url']) || c.linkedin || null;
+    const city = pickField(r, ['city', 'person_city', 'location']);
+    const state = pickField(r, ['state', 'person_state', 'region']);
+    c.city = [city, state].filter(Boolean).join(', ') || null;
     return c;
   }
 
@@ -322,7 +349,17 @@ function createLoLeadScraperService(deps) {
     return { rowsFetched: Array.isArray(rows) ? rows.length : 0, ...counters };
   }
 
-  return { runLoLeadScrape, importApifyLeads };
+  // Import leads from parsed CSV rows (array of objects keyed by header). Uses the
+  // same flexible mapping + dedup/suppression as the Apify import.
+  async function importCsvRows(rows) {
+    const contacts = (Array.isArray(rows) ? rows : []).map(leadRowToContact).filter(Boolean);
+    const seen = new Set();
+    const counters = { leadsAdded: 0, dupesSkipped: 0 };
+    await storeBatch(contacts, { seen, counters });
+    return { rowsReceived: Array.isArray(rows) ? rows.length : 0, ...counters };
+  }
+
+  return { runLoLeadScrape, importApifyLeads, importCsvRows };
 }
 
 module.exports = { extractContacts, createLoLeadScraperService, DEFAULT_CITIES, DEFAULT_QUERY_TEMPLATES };
