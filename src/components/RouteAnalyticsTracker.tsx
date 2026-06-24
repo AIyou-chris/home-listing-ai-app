@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
 
-const GA_MEASUREMENT_ID = 'G-V8NWQPFF6C'
+const GA_MEASUREMENT_ID = 'G-3STYDX7KN6'
 
 const isPublicAnalyticsRoute = (pathname: string) => {
   return (
