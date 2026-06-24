@@ -1564,11 +1564,67 @@ app.post('/api/agents/register', async (req, res) => {
     const { firstName, lastName, email, accountType, phone, nmls } = req.body;
     const result = await agentOnboardingService.registerAgent({ firstName, lastName, email, accountType, phone, nmls });
     res.json(result);
+
+    // Fire-and-forget owner alert — never block or fail the signup response.
+    notifyOwnerOfSignup({ firstName, lastName, email, accountType, phone, nmls }).catch((err) => {
+      console.error('[SignupAlert] Failed to notify owner:', err?.message || err);
+    });
   } catch (error) {
     console.error('Registration error:', error);
     res.status(400).json({ error: error.message });
   }
 });
+
+// Alert the platform owner (you) by email + text whenever someone signs up.
+// Owner targets are env-driven so they never end up in version control:
+//   OWNER_ALERT_EMAIL (default: homelistingai@gmail.com), OWNER_ALERT_PHONE (no default — SMS skipped if unset)
+async function notifyOwnerOfSignup({ firstName, lastName, email, accountType, phone, nmls }) {
+  const fullName = [firstName, lastName].filter(Boolean).join(' ').trim() || 'Unknown';
+  const type = accountType || 'agent';
+  const when = new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles' });
+
+  const ownerEmail = process.env.OWNER_ALERT_EMAIL || 'homelistingai@gmail.com';
+  const ownerPhone = process.env.OWNER_ALERT_PHONE || '';
+
+  // --- Email alert ---
+  try {
+    await emailService.sendEmail({
+      to: ownerEmail,
+      subject: `🎉 New ${type} signup — ${fullName}`,
+      html: `<!DOCTYPE html>
+<html><body style="margin:0;padding:0;background:#f1f5f9;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
+  <div style="max-width:560px;margin:0 auto;padding:24px 16px;">
+    <div style="background:linear-gradient(135deg,#0B1121 0%,#0f172a 100%);border-radius:16px 16px 0 0;padding:28px 32px;text-align:center;">
+      <h1 style="color:#fff;font-size:20px;font-weight:800;margin:0;">🎉 New signup just came in</h1>
+    </div>
+    <div style="background:#fff;padding:28px 32px;border-left:1px solid #e2e8f0;border-right:1px solid #e2e8f0;border-bottom:1px solid #e2e8f0;border-radius:0 0 16px 16px;">
+      <table style="width:100%;font-size:15px;color:#334155;border-collapse:collapse;">
+        <tr><td style="padding:8px 0;color:#64748b;width:120px;">Name</td><td style="padding:8px 0;font-weight:600;">${fullName}</td></tr>
+        <tr><td style="padding:8px 0;color:#64748b;">Email</td><td style="padding:8px 0;font-weight:600;">${email || '—'}</td></tr>
+        <tr><td style="padding:8px 0;color:#64748b;">Phone</td><td style="padding:8px 0;font-weight:600;">${phone || '—'}</td></tr>
+        <tr><td style="padding:8px 0;color:#64748b;">Account type</td><td style="padding:8px 0;font-weight:600;">${type}</td></tr>
+        ${nmls ? `<tr><td style="padding:8px 0;color:#64748b;">NMLS</td><td style="padding:8px 0;font-weight:600;">${nmls}</td></tr>` : ''}
+        <tr><td style="padding:8px 0;color:#64748b;">When</td><td style="padding:8px 0;font-weight:600;">${when} PT</td></tr>
+      </table>
+    </div>
+  </div>
+</body></html>`,
+      tags: { template: 'owner-signup-alert', type: 'internal' }
+    });
+  } catch (err) {
+    console.error('[SignupAlert] Email send failed:', err?.message || err);
+  }
+
+  // --- Text alert ---
+  if (ownerPhone && typeof sendSms === 'function') {
+    try {
+      const smsText = `🎉 New ${type} signup: ${fullName} (${email || 'no email'}${phone ? `, ${phone}` : ''})`;
+      await sendSms(ownerPhone, smsText, [], null);
+    } catch (err) {
+      console.error('[SignupAlert] SMS send failed:', err?.message || err);
+    }
+  }
+}
 
 app.get('/api/agents/:slug', async (req, res) => {
   try {
