@@ -69,25 +69,33 @@ const BlogEditor: React.FC = () => {
 
   const fetchPosts = async () => {
     setIsLoading(true);
-    const { data, error } = await supabase.from('blog_posts').select('id, title, slug, status, published_at, created_at').order('created_at', { ascending: false });
-    if (error) toast.error('Failed to fetch posts');
-    else setPosts((data as unknown as BlogPost[]) || []);
+    try {
+      const r = await fetch(`${API}/api/admin/blog/posts`, { headers: await authHeader() });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'failed');
+      setPosts((d.posts as BlogPost[]) || []);
+    } catch { toast.error('Failed to fetch posts'); }
     setIsLoading(false);
   };
 
   const handleEdit = async (post: BlogPost) => {
     setIsLoading(true);
-    const { data, error } = await supabase.from('blog_posts').select('*').eq('id', post.id).single();
-    if (error) toast.error('Failed to load post');
-    else { setCurrentPost(data); setRepurposed(null); setView('edit'); }
+    try {
+      const r = await fetch(`${API}/api/admin/blog/posts/${post.id}`, { headers: await authHeader() });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'failed');
+      setCurrentPost(d.post); setRepurposed(null); setView('edit');
+    } catch { toast.error('Failed to load post'); }
     setIsLoading(false);
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this post permanently?')) return;
-    const { error } = await supabase.from('blog_posts').delete().eq('id', id);
-    if (error) toast.error('Error deleting post');
-    else { toast.success('Post deleted'); fetchPosts(); }
+    try {
+      const r = await fetch(`${API}/api/admin/blog/posts/${id}`, { method: 'DELETE', headers: await authHeader() });
+      if (!r.ok) throw new Error('failed');
+      toast.success('Post deleted'); fetchPosts();
+    } catch { toast.error('Error deleting post'); }
   };
 
   const handleSave = async (status: 'draft' | 'published') => {
@@ -96,19 +104,22 @@ const BlogEditor: React.FC = () => {
     const slug = currentPost.slug || currentPost.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
     // Drop AI-generated helper fields that aren't real blog_posts columns (e.g. image_search_query),
     // otherwise Supabase rejects the whole insert/update with a "column not found" error.
-    const { image_search_query, ...cleanPost } = currentPost as Partial<BlogPost> & { image_search_query?: string };
-    void image_search_query;
-    const postData = { ...cleanPost, slug, status, published_at: status === 'published' ? (currentPost.published_at || new Date().toISOString()) : null, updated_at: new Date().toISOString() };
+    // Backend whitelists real columns, so stray AI helper fields (e.g. image_search_query) are ignored.
+    const postData = { ...currentPost, slug, status, published_at: status === 'published' ? (currentPost.published_at || new Date().toISOString()) : null };
 
-    let result;
-    if (currentPost.id) result = await supabase.from('blog_posts').update(postData).eq('id', currentPost.id).select().single();
-    else result = await supabase.from('blog_posts').insert([postData]).select().single();
-
-    if (result.error) { toast.error(`Error: ${result.error.message}`); }
-    else {
+    try {
+      const r = await fetch(`${API}/api/admin/blog/posts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
+        body: JSON.stringify(postData),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || d.error || 'save failed');
       toast.success(status === 'published' ? '🚀 Published!' : '💾 Draft saved');
-      setCurrentPost(result.data);
-      if (status === 'published') pingSearch(result.data.slug);
+      setCurrentPost(d.post);
+      if (status === 'published') pingSearch(d.post.slug);
+    } catch (e) {
+      toast.error(`Error: ${e instanceof Error ? e.message : 'save failed'}`);
     }
     setIsLoading(false);
   };
