@@ -35096,6 +35096,90 @@ app.post('/api/admin/blog/ping', verifyAdmin, async (req, res) => {
   }
 });
 
+// ── Blog CRUD (admin) ───────────────────────────────────────────────────────
+// The blog editor used to write to Supabase directly from the browser, but
+// blog_posts RLS keys off the agents table and the admin account isn't an
+// agent — so every write was denied. These endpoints run under verifyAdmin and
+// the service role (RLS bypassed), matching the rest of the admin app.
+
+// Only real, writable columns — drops any AI helper/stray fields (e.g. image_search_query).
+const BLOG_WRITABLE_COLUMNS = [
+  'title', 'slug', 'content', 'excerpt', 'featured_image', 'featured_image_alt',
+  'status', 'published_at', 'seo_title', 'seo_description', 'seo_keywords', 'author_id'
+];
+const pickBlogColumns = (body) => {
+  const out = {};
+  for (const k of BLOG_WRITABLE_COLUMNS) {
+    if (body[k] !== undefined) out[k] = body[k];
+  }
+  return out;
+};
+
+// GET /api/admin/blog/posts — list all posts (drafts included)
+app.get('/api/admin/blog/posts', verifyAdmin, async (req, res) => {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('blog_posts')
+      .select('id, title, slug, status, published_at, created_at')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    res.json({ posts: data || [] });
+  } catch (err) {
+    console.error('[Blog List]', err);
+    res.status(500).json({ error: 'blog_list_failed' });
+  }
+});
+
+// GET /api/admin/blog/posts/:id — full single post
+app.get('/api/admin/blog/posts/:id', verifyAdmin, async (req, res) => {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('blog_posts').select('*').eq('id', req.params.id).single();
+    if (error) throw error;
+    res.json({ post: data });
+  } catch (err) {
+    console.error('[Blog Get]', err);
+    res.status(500).json({ error: 'blog_get_failed' });
+  }
+});
+
+// POST /api/admin/blog/posts — create or update (id in body => update)
+app.post('/api/admin/blog/posts', verifyAdmin, async (req, res) => {
+  try {
+    const body = req.body || {};
+    if (!body.title) return res.status(400).json({ error: 'title_required' });
+    const payload = pickBlogColumns(body);
+    payload.updated_at = new Date().toISOString();
+
+    let result;
+    if (body.id) {
+      result = await supabaseAdmin.from('blog_posts')
+        .update(payload).eq('id', body.id).select().single();
+    } else {
+      result = await supabaseAdmin.from('blog_posts')
+        .insert([payload]).select().single();
+    }
+    if (result.error) throw result.error;
+    res.json({ post: result.data });
+  } catch (err) {
+    console.error('[Blog Save]', err);
+    res.status(500).json({ error: 'blog_save_failed', detail: err?.message });
+  }
+});
+
+// DELETE /api/admin/blog/posts/:id
+app.delete('/api/admin/blog/posts/:id', verifyAdmin, async (req, res) => {
+  try {
+    const { error } = await supabaseAdmin
+      .from('blog_posts').delete().eq('id', req.params.id);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[Blog Delete]', err);
+    res.status(500).json({ error: 'blog_delete_failed' });
+  }
+});
+
 app.post('/api/admin/setup', async (req, res) => {
   try {
     const { email, password } = req.body;
