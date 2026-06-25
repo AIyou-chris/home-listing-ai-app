@@ -29,6 +29,7 @@ const AdminLoOutreachPanel: React.FC = () => {
   const [error, setError] = useState('');
   const [invites, setInvites] = useState<Invite[]>([]);
   const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -101,10 +102,15 @@ const AdminLoOutreachPanel: React.FC = () => {
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-100 px-6 py-4">
+        <button
+          onClick={() => setOpen(o => !o)}
+          className="flex w-full items-center gap-2 border-b border-slate-100 px-6 py-4 text-left hover:bg-slate-50"
+        >
+          <span className={`inline-block text-slate-500 transition-transform ${open ? 'rotate-90' : ''}`}>▶</span>
           <h3 className="text-sm font-bold text-slate-900">Sent invites</h3>
-        </div>
-        {loading ? (
+          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">{invites.length}</span>
+        </button>
+        {!open ? null : loading ? (
           <p className="px-6 py-8 text-center text-sm text-slate-400">Loading…</p>
         ) : (
           <table className="w-full text-sm">
