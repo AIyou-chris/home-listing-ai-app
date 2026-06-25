@@ -267,26 +267,41 @@ console.log('[GA4] Property ID Configured:', !!GA_PROPERTY_ID ? `Yes (${GA_PROPE
 const GA_SERVICE_ACCOUNT_JSON = process.env.GA_SERVICE_ACCOUNT_JSON || path.resolve(__dirname, '../service-account.json');
 let gaDataApiClient = null;
 
+// Robustly turn a service-account env value into a credentials object. Tolerates
+// common paste mistakes from env UIs: leading shell prompts ("$ cat … | tr -d '\n'"),
+// labels, surrounding quotes/whitespace, trailing notes, and base64-encoded JSON.
+// Strategy: optionally base64-decode, then slice from the first '{' to the last '}'.
+const parseServiceAccountJson = (raw) => {
+  if (!raw || !String(raw).trim()) return null;
+  let text = String(raw).trim();
+  // base64 form contains no braces (alphabet is A–Za–z0–9+/=) — decode it first.
+  if (!text.includes('{')) {
+    try { text = Buffer.from(text, 'base64').toString('utf8').trim(); } catch (_e) { /* leave as-is */ }
+  }
+  const start = text.indexOf('{');
+  const end = text.lastIndexOf('}');
+  if (start === -1 || end === -1 || end < start) return null;
+  return JSON.parse(text.slice(start, end + 1)); // throws only if the JSON itself is malformed
+};
+
 const getGaClient = async () => {
   if (gaDataApiClient) return gaDataApiClient;
 
   // Resolve service account credentials. Prefer an env var (works on Render/Netlify
   // where you can't drop a secret file): GA_SERVICE_ACCOUNT_KEY holds the raw JSON
-  // or a base64-encoded copy of it. Fall back to a JSON file on disk for local dev.
+  // or a base64-encoded copy of it; otherwise reuse the existing GOOGLE_INDEXING
+  // service account. Fall back to a JSON file on disk for local dev.
   let credentials = null;
-  // Reuse the existing Google service account if a dedicated GA key isn't set.
   const rawKey = process.env.GA_SERVICE_ACCOUNT_KEY || process.env.GOOGLE_INDEXING_SERVICE_ACCOUNT || '';
 
   if (rawKey.trim()) {
-    let jsonText = rawKey.trim();
-    // Allow base64-encoded JSON (no leading '{') to dodge newline/escaping issues in env UIs.
-    if (!jsonText.startsWith('{')) {
-      try { jsonText = Buffer.from(jsonText, 'base64').toString('utf8'); } catch (_e) { /* leave as-is */ }
-    }
     try {
-      credentials = JSON.parse(jsonText);
+      credentials = parseServiceAccountJson(rawKey);
     } catch (_e) {
-      throw new Error('GA_SERVICE_ACCOUNT_KEY is set but is not valid JSON (or base64-encoded JSON).');
+      credentials = null;
+    }
+    if (!credentials) {
+      throw new Error('GA service account credentials are set but could not be parsed as JSON. Check GA_SERVICE_ACCOUNT_KEY / GOOGLE_INDEXING_SERVICE_ACCOUNT — the value must contain the service account JSON object.');
     }
   } else if (fs.existsSync(GA_SERVICE_ACCOUNT_JSON)) {
     credentials = JSON.parse(fs.readFileSync(GA_SERVICE_ACCOUNT_JSON, 'utf8'));
@@ -34996,7 +35011,7 @@ app.get('/api/admin/blog/images', verifyAdmin, async (req, res) => {
 
 // Helper — get a short-lived Google OAuth2 token from service account
 const getGoogleIndexingToken = async () => {
-  const sa = JSON.parse(process.env.GOOGLE_INDEXING_SERVICE_ACCOUNT || '{}');
+  const sa = parseServiceAccountJson(process.env.GOOGLE_INDEXING_SERVICE_ACCOUNT) || {};
   if (!sa.private_key || !sa.client_email) return null;
 
   const now = Math.floor(Date.now() / 1000);
