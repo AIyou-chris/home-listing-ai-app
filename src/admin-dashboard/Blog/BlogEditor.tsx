@@ -94,7 +94,11 @@ const BlogEditor: React.FC = () => {
     if (!currentPost.title) { toast.error('Title is required'); return; }
     setIsLoading(true);
     const slug = currentPost.slug || currentPost.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
-    const postData = { ...currentPost, slug, status, published_at: status === 'published' ? (currentPost.published_at || new Date().toISOString()) : null, updated_at: new Date().toISOString() };
+    // Drop AI-generated helper fields that aren't real blog_posts columns (e.g. image_search_query),
+    // otherwise Supabase rejects the whole insert/update with a "column not found" error.
+    const { image_search_query, ...cleanPost } = currentPost as Partial<BlogPost> & { image_search_query?: string };
+    void image_search_query;
+    const postData = { ...cleanPost, slug, status, published_at: status === 'published' ? (currentPost.published_at || new Date().toISOString()) : null, updated_at: new Date().toISOString() };
 
     let result;
     if (currentPost.id) result = await supabase.from('blog_posts').update(postData).eq('id', currentPost.id).select().single();
