@@ -80,6 +80,7 @@ const AdminLoLeadFinderPanel: React.FC = () => {
   const [rowBusy, setRowBusy] = useState<string | null>(null);
   const [datasetId, setDatasetId] = useState('');
   const [msg, setMsg] = useState('');
+  const [poolOpen, setPoolOpen] = useState(true);
 
   const auth = useMemo(() => AuthService.getInstance(), []);
 
@@ -259,6 +260,15 @@ const AdminLoLeadFinderPanel: React.FC = () => {
       {/* Pool table */}
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-6 py-4">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setPoolOpen(o => !o)}
+              aria-label={poolOpen ? 'Collapse list' : 'Expand list'}
+              className="flex items-center gap-1.5 text-sm font-bold text-slate-700 hover:text-slate-900"
+            >
+              <span className={`inline-block transition-transform ${poolOpen ? 'rotate-90' : ''}`}>▶</span>
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">{leads.length}</span>
+            </button>
           <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-1">
             {STATUS_TABS.map(t => (
               <button
@@ -269,6 +279,7 @@ const AdminLoLeadFinderPanel: React.FC = () => {
                 {t.label}
               </button>
             ))}
+          </div>
           </div>
           {isNew && leads.length > 0 && (
             <button
@@ -281,7 +292,7 @@ const AdminLoLeadFinderPanel: React.FC = () => {
           )}
         </div>
 
-        {loading ? (
+        {!poolOpen ? null : loading ? (
           <p className="px-6 py-10 text-center text-sm text-slate-400">Loading…</p>
         ) : (
           <div className="overflow-x-auto">
