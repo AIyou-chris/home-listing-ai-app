@@ -32033,26 +32033,34 @@ app.post('/api/admin/lo-leads/send-bulk', verifyAdmin, async (req, res) => {
       suppressed = new Set((s || []).map(r => r.email));
     }
     const adminId = await resolveRequesterUserId(req, { allowDefault: false }).catch(() => null);
+    const queued = (leads || []).filter(l => !suppressed.has(l.email)).length;
 
-    let sent = 0, skipped = 0;
-    for (const lead of (leads || [])) {
-      if (suppressed.has(lead.email)) { skipped++; continue; }
-      try {
-        await sendLoAcquisitionInvite({
-          email: lead.email, name: lead.name, phone: lead.phone, website: lead.source_url, adminId
-        });
-        await supabaseAdmin.from('lo_lead_pool')
-          .update({ status: 'sent', sent_at: nowIso() }).eq('id', lead.id);
-        sent++;
-      } catch (e) {
-        console.warn('[LO Lead Finder] bulk send item failed:', e?.message);
-        skipped++;
+    // Respond immediately. Sending 100+ emails one-by-one takes longer than the
+    // client/proxy timeout, which made a working send look "failed". Process the
+    // sends in the background and return right away.
+    res.json({ success: true, queued });
+
+    (async () => {
+      let sent = 0, skipped = 0;
+      for (const lead of (leads || [])) {
+        if (suppressed.has(lead.email)) { skipped++; continue; }
+        try {
+          await sendLoAcquisitionInvite({
+            email: lead.email, name: lead.name, phone: lead.phone, website: lead.source_url, adminId
+          });
+          await supabaseAdmin.from('lo_lead_pool')
+            .update({ status: 'sent', sent_at: nowIso() }).eq('id', lead.id);
+          sent++;
+        } catch (e) {
+          console.warn('[LO Lead Finder] bulk send item failed:', e?.message);
+          skipped++;
+        }
       }
-    }
-    res.json({ success: true, sent, skipped });
+      console.log(`[LO Lead Finder] bulk send complete: sent=${sent} skipped=${skipped}`);
+    })().catch(e => console.error('[LO Lead Finder] bulk send background error:', e?.message || e));
   } catch (err) {
     console.error('[LO Lead Finder] Bulk send failed:', err);
-    res.status(500).json({ error: 'bulk_send_failed' });
+    if (!res.headersSent) res.status(500).json({ error: 'bulk_send_failed' });
   }
 });
 
