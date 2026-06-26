@@ -60,6 +60,14 @@ type Lead = {
 const fmt = (d: string | null) =>
   d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—';
 
+// CSV/scraped URLs often lack a protocol (e.g. "linkedin.com/in/x"), which the
+// browser treats as a relative path → 404. Force an absolute https:// URL.
+const absUrl = (u: string | null) => {
+  if (!u) return null;
+  const t = u.trim();
+  return /^https?:\/\//i.test(t) ? t : `https://${t.replace(/^\/+/, '')}`;
+};
+
 const firstNameOf = (name: string | null) => (name || '').trim().split(/\s+/)[0] || 'there';
 const fillTemplate = (tpl: string, l: Lead) =>
   tpl.replace(/\{\{first\}\}/g, firstNameOf(l.name)).replace(/\{\{company\}\}/g, l.employer || 'your team');
@@ -173,7 +181,8 @@ const AdminLoLeadFinderPanel: React.FC = () => {
   const dmLead = (l: Lead) => {
     const body = fillTemplate(LINKEDIN_TEMPLATE, l);
     void navigator.clipboard?.writeText(body).catch(() => {});
-    if (l.linkedin) window.open(l.linkedin, '_blank', 'noopener');
+    const url = absUrl(l.linkedin);
+    if (url) window.open(url, '_blank', 'noopener');
     toast.success('DM copied — paste it in LinkedIn');
   };
 
@@ -324,9 +333,9 @@ const AdminLoLeadFinderPanel: React.FC = () => {
                     </td>
                     <td className="px-4 py-3 text-slate-600">{l.phone || '—'}</td>
                     <td className="px-4 py-3 text-xs">
-                      {l.linkedin && <a href={l.linkedin} target="_blank" rel="noreferrer" className="text-sky-600 hover:underline">LinkedIn</a>}
+                      {l.linkedin && <a href={absUrl(l.linkedin) || undefined} target="_blank" rel="noreferrer" className="text-sky-600 hover:underline">LinkedIn</a>}
                       {l.linkedin && l.source_url && <span className="text-slate-300"> · </span>}
-                      {l.source_url && <a href={l.source_url} target="_blank" rel="noreferrer" className="text-slate-500 hover:underline">Site</a>}
+                      {l.source_url && <a href={absUrl(l.source_url) || undefined} target="_blank" rel="noreferrer" className="text-slate-500 hover:underline">Site</a>}
                     </td>
                     {isNew ? (
                       <td className="px-4 py-3">
