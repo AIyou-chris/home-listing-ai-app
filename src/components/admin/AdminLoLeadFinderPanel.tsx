@@ -211,10 +211,17 @@ const AdminLoLeadFinderPanel: React.FC = () => {
         method: 'POST',
         body: JSON.stringify(body),
       });
-      const d = await res.json() as { success?: boolean; sent?: number; skipped?: number };
+      const d = await res.json() as { success?: boolean; queued?: number };
       if (!res.ok || !d.success) { setMsg('❌ Bulk send failed.'); return; }
-      setMsg(`✅ Sent ${d.sent ?? 0} acquisition links (${d.skipped ?? 0} skipped).`);
-      await load(statusFilter);
+      setMsg(`📨 Sending ${d.queued ?? 0} acquisition links in the background… the New list will shrink as they go. (Big batches take a minute.)`);
+      // Refresh a few times so the list updates as sends complete.
+      const tab = statusFilter;
+      let polls = 0;
+      const iv = setInterval(() => {
+        polls += 1;
+        void load(tab);
+        if (polls >= 6) clearInterval(iv);
+      }, 7000);
     } catch {
       setMsg('❌ Bulk send failed.');
     } finally {
