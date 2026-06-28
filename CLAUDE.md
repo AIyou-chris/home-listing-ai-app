@@ -191,9 +191,27 @@ No long explanations. No walls of text. Table in, table out.
 
 ---
 
-## 7. Current State Snapshot (as of 2026-06-21)
+## 7. Current State Snapshot (as of 2026-06-28)
 
-### ✅ Recently completed — 2026-06-21 sprint (LO Lead Finder + Blog distribution + Admin security)
+### ✅ Recently completed — 2026-06-28 sprint (Owner alerts + Admin Overview/Analytics real data + GA4 + Blog/LO fixes)
+
+| Feature | Notes |
+|---|---|
+| **Owner signup alerts** (email + text) | New signup at `POST /api/agents/register` fires fire-and-forget `notifyOwnerOfSignup()` → emails + texts the owner with name/email/phone/account type. Covers BOTH agent (`SignUpPage`) and LO (`LOSignupPage`) signups. Env: `OWNER_ALERT_EMAIL` (default `homelistingai@gmail.com`), `OWNER_ALERT_PHONE` (SMS skipped if unset). Never blocks/fails the signup. |
+| **Admin: removed Marketing Reports** | Hidden from admin dashboard (sidebar + route + `MarketingReportsPage` import in `src/admin-dashboard/AdminDashboard*`). Standalone `/marketing-reports` agent route left intact. |
+| **Admin: removed dead Analytics page** | `AnalyticsDashboard.tsx` + its admin tab + standalone `/analytics` route DELETED. It was a 100% stub (`src/services/analyticsService.ts` returns empty/zero — still used by `RealTimeAnalytics.tsx`, left in place). The **Settings → Analytics** tab is the real one and stays. |
+| **Admin Settings → Analytics: live Website Traffic** | New "Website Traffic" cards (Visitors / New Visitors / Sessions / Page Views) in `AdminSettingsPage.tsx`, wired to `/api/admin/analytics/google` (GA4). Shows real GA error reason in an amber box when not returning data. |
+| **GA4 — fully wired** | (1) Site tag measurement ID fixed **G-V8NWQPFF6C → G-3STYDX7KN6** in `index.html` + `RouteAnalyticsTracker.tsx` so the site feeds the property the backend reads (`GA_PROPERTY_ID=499620080`). `send_page_view:false` is intentional (manual per-route pageviews via RouteAnalyticsTracker). (2) `getGaClient()` reads creds from env via robust `parseServiceAccountJson()` (tolerates `$ cat…` junk / base64), preferring `GA_SERVICE_ACCOUNT_KEY` then reusing `GOOGLE_INDEXING_SERVICE_ACCOUNT`. (3) User enabled the **Google Analytics Data API** on project `home-listing-blog` + granted the service account (`blog-indexer@home-listing-blog.iam.gserviceaccount.com`) **Viewer** on the GA property. Same robust parser also repaired Google blog indexing (the `GOOGLE_INDEXING_SERVICE_ACCOUNT` value had a shell-command prefix). |
+| **Blog editor — fixed saving** | (1) Strip AI helper field `image_search_query` before save (was a "column not found" error). (2) Routed ALL blog CRUD through new `verifyAdmin` backend endpoints `GET/POST/DELETE /api/admin/blog/posts[/:id]` (service role) — the editor used to write to Supabase directly from the browser, but `blog_posts` RLS keys off the `agents` table and **the admin account is NOT an agent**, so every write hit "new row violates row-level security policy". Drafts are now visible to admins too. |
+| **LO Lead Finder — CSV + fixes** | (1) DM/LinkedIn/Site **404 fixed** — `absUrl()` forces `https://` on protocol-less scraped URLs. (2) **Bulk send runs in background** — endpoint responds instantly with a queued count + sends in a background loop (sending 100+ synchronously exceeded the client timeout → false "Bulk send failed"; sends were actually working). Frontend shows "sending in background…" + polls. (3) New/Sent lead lists are **collapsible** (Lead Finder pool + Outreach "Sent invites"). Limits: CSV import up to 10k rows; "Send to all new" processes 500/click. |
+| **All signup CTAs → /lo-signup** | Product is LO-first. `handleNavigateToSignUp` (App.tsx + PublicApp.tsx) + every "Create Free Account"/"Claim Your Free Account"/"Get Started" CTA now route to `/lo-signup` (ConversionWedge, PublicHeader, ComparePlansModal free tier, LODemoPage, HowItWorksPage, ResetPasswordPage). No `navigate('/signup')` left in public marketing. |
+| **Design System page** | `/design-system` route + `src/components/DesignSystemPage.tsx` committed. |
+| **Scroll-to-top on navigation** | New `src/components/ScrollToTop.tsx` rendered inside the router resets scroll to top on every route change (honors `#hash` anchors). Fixed CTAs opening the next page already scrolled down. |
+| **Admin Overview — REAL metrics** | Campaign Command/Operational metrics were a mix of real + broken. Fixes: **Emails Sent** now logs an `accepted` row to `email_events` on every successful Mailgun send (`emailService`) and counts those (funnel_logs was always empty + was clobbering real values — removed). **Bounced** sources from real Mailgun `failed` webhook events. **Delivery Rate** computed from real sent vs failed. **Tickets** stopped counting new leads as tickets (`openTickets:0` — no ticketing system). **Last Login** `record-login` now also writes to `audit_logs` so platform admins WITHOUT an agents row get tracked (security monitor's fallback). **Note: Emails Sent counts from this deploy forward** (historical sends were never logged); opens/clicks/bounced were always real (Mailgun webhooks). |
+| **Data cleanup** | Deleted **99 mis-filed `csv_import` LO-prospect rows** from the `leads` table (imported via the generic "Import Leads" button into the buyer/seller pipeline, malformed with quote-wrapped values). They live cleanly in `lo_lead_pool`. This de-inflated Leads This Week / New Leads / Tickets / Recent Leads. |
+| Env needed (Render) | `OWNER_ALERT_PHONE` (for signup text alerts). Already present: `OWNER_ALERT_EMAIL`(optional, defaults), `GA_PROPERTY_ID=499620080`, `GOOGLE_INDEXING_SERVICE_ACCOUNT` (reused for GA). |
+
+### ✅ Earlier — 2026-06-21 sprint (LO Lead Finder + Blog distribution + Admin security)
 
 | Feature | Notes |
 |---|---|
