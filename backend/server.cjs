@@ -17694,6 +17694,9 @@ const processInboundSmsMessage = async ({
       .from('leads')
       .update({ status: 'unsubscribed', last_contact_at: nowIso() })
       .eq('phone', normalizedFromPhone);
+    // Honor STOP for listing price-drop alert subscribers too (global suppression).
+    await listingAlertService.suppressPhone(alertDeps(), { phone: normalizedFromPhone, reason: 'stop_reply' })
+      .catch((err) => console.error('alert suppressPhone failed:', err));
     return { processed: true, unsubscribed: true };
   }
 
