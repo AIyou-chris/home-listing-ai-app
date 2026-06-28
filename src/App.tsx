@@ -2,6 +2,7 @@ import React, { useState, useEffect, Suspense, lazy, useCallback, useRef } from 
 import { Routes, Route, useNavigate, useLocation, Navigate, Outlet, useParams } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from './services/supabase';
+import ScrollToTop from './components/ScrollToTop';
 import { Property, View, AgentProfile, NotificationSettings, EmailSettings, CalendarSettings, BillingSettings, Lead, Appointment, Interaction } from './types';
 import { DEMO_FAT_PROPERTIES, DEMO_FAT_LEADS, DEMO_FAT_APPOINTMENTS } from './demoConstants';
 import { SAMPLE_AGENT, SAMPLE_INTERACTIONS } from './constants';
@@ -1514,6 +1515,7 @@ const App: React.FC = () => {
         );
         return (
             <div className="h-full">
+                <ScrollToTop />
                 <Routes>
                     {/* Public Routes */}
                     <Route path="/" element={
