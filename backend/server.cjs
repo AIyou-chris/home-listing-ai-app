@@ -34954,7 +34954,7 @@ app.put('/api/properties/:id', requireAuth, async (req, res) => {
   try {
     const { data: ownedProperty, error: ownedPropertyError } = await supabaseAdmin
       .from('properties')
-      .select('id')
+      .select('id, price, title, address')
       .eq('id', id)
       .or(`agent_id.eq.${agentId},user_id.eq.${agentId}`)
       .maybeSingle()
@@ -34993,6 +34993,23 @@ app.put('/api/properties/:id', requireAuth, async (req, res) => {
       propertyId: data.id,
       updatedAt: payload.updated_at
     }, 'info', requestId)
+
+    // Price-drop alert: if the price dropped, queue a pending alert for the agent to approve.
+    try {
+      if (listingAlertService.detectPriceDrop(ownedProperty.price, data.price)) {
+        const address = data.address || data.title || ownedProperty.address || ownedProperty.title || 'a home you saved';
+        const message = listingAlertService.buildPriceDropMessage({
+          address, oldPrice: ownedProperty.price, newPrice: data.price,
+        });
+        await listingAlertService.createPendingAlert(alertDeps(), {
+          listingId: data.id, agentId,
+          type: 'price',
+          payload: { address, oldPrice: ownedProperty.price, newPrice: data.price, message },
+        });
+      }
+    } catch (alertErr) {
+      console.error(`[${requestId}] price-drop alert queue failed:`, alertErr);  // never block the update
+    }
 
     console.info(`[${requestId}] Property updated`, { agentId, propertyId: data.id })
     return res.json({ property: data })
