@@ -26513,7 +26513,8 @@ app.get('/api/admin/support/summary', verifyAdmin, async (_req, res) => {
 
     res.json({
       openChats: activeChatsCount || 0,
-      openTickets: newLeadsCount || 0,
+      openTickets: 0, // no ticketing system yet — don't count leads as tickets
+      newLeads: newLeadsCount || 0,
       openErrors: recentFailureCount,
       items: [
         ...(newLeadsCount > 0 ? [{ id: 'leads-new', type: 'lead', title: `${newLeadsCount} new leads`, severity: 'medium' }] : []),
@@ -26705,28 +26706,25 @@ app.get('/api/admin/analytics/overview', verifyAdmin, async (req, res) => {
         return count || 0;
       };
 
-      const [openedCount, clickedCount, unsubCount] = await Promise.all([
+      const [openedCount, clickedCount, unsubCount, failedCount, acceptedCount] = await Promise.all([
         fetchCount('opened'),
         fetchCount('clicked'),
-        fetchCount('unsubscribed')
+        fetchCount('unsubscribed'),
+        fetchCount('failed'),
+        fetchCount('accepted')
       ]);
 
       if (campaignStats.opens === 0) campaignStats.opens = openedCount;
       if (campaignStats.clicks === 0) campaignStats.clicks = clickedCount;
       if (campaignStats.unsubscribed === 0) campaignStats.unsubscribed = unsubCount;
+      // Bounced = real Mailgun 'failed' webhook events. Prefer the live Mailgun
+      // stat if present, otherwise the stored events.
+      if (!campaignStats.bounced) campaignStats.bounced = failedCount;
+      // Emails sent = Mailgun 'accepted' stat if present, otherwise the 'accepted'
+      // events we log on every send (see emailService). Never clobber a real value.
+      if (!campaignStats.emailsSent) campaignStats.emailsSent = acceptedCount;
 
-      // 1. Sent Count (Funnel Logs) - Case Insensitive & Agent Filtered
-      let sentQuery = supabaseAdmin
-        .from('funnel_logs')
-        .select('*', { count: 'exact', head: true })
-        .ilike('action_type', 'email');
-
-      if (agentId) sentQuery = sentQuery.eq('agent_id', agentId);
-
-      const { count: sentCount, error: logError } = await sentQuery;
-
-      // 2. Active Leads (Enrollments)
-      // 2. Active Leads (Leads in Pipeline - Non-terminal statuses)
+      // Active Leads (pipeline — non-terminal statuses).
       let activeQuery = supabaseAdmin
         .from('leads')
         .select('*', { count: 'exact', head: true })
@@ -26734,29 +26732,23 @@ app.get('/api/admin/analytics/overview', verifyAdmin, async (req, res) => {
         .neq('status', 'Lost')
         .neq('status', 'Unsubscribed')
         .neq('status', 'Won');
-
       if (agentId) activeQuery = activeQuery.eq('agent_id', agentId);
-
       const { count: activeCount, error: enrollError } = await activeQuery;
-
-      // 3. Bounced Leads
-      let bouncedQuery = supabaseAdmin
-        .from('leads')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'Bounced');
-
-      // leads typically query by user_id or agent_id context. 
-      // Assuming 'user_id' is the owner column in leads table.
-      if (agentId) bouncedQuery = bouncedQuery.eq('user_id', agentId);
-
-      const { count: bouncedCount, error: leadError } = await bouncedQuery;
-
-      if (!logError) campaignStats.emailsSent = sentCount || 0;
       if (!enrollError) campaignStats.activeLeads = activeCount || 0;
-      if (!leadError) campaignStats.bounced = bouncedCount || 0;
+
+      // Last-resort legacy sent count from funnel logs if nothing else populated it.
+      if (!campaignStats.emailsSent) {
+        let sentQuery = supabaseAdmin
+          .from('funnel_logs')
+          .select('*', { count: 'exact', head: true })
+          .ilike('action_type', 'email');
+        if (agentId) sentQuery = sentQuery.eq('agent_id', agentId);
+        const { count: sentCount } = await sentQuery;
+        campaignStats.emailsSent = sentCount || 0;
+      }
 
       if (campaignStats.emailsSent > 0) {
-        const delivered = campaignStats.emailsSent - campaignStats.bounced;
+        const delivered = Math.max(campaignStats.emailsSent - campaignStats.bounced, 0);
         campaignStats.deliveryRate = parseFloat(((delivered / campaignStats.emailsSent) * 100).toFixed(1));
       }
     } catch (metricErr) {
@@ -27386,6 +27378,20 @@ app.post('/api/admin/activity/record-login', verifyAdmin, async (req, res) => {
       logs.unshift({ id: `log-${Date.now()}`, event: 'Admin login', ip, device, at: new Date().toISOString() });
       metadata.activity_logs = logs.slice(0, 20);
       await supabaseAdmin.from('agents').update({ metadata }).eq('id', agent.id);
+    }
+    // Also record to audit_logs so platform admins WITHOUT an agents row (which the
+    // security monitor reads as its fallback) still get a real Last Login.
+    try {
+      await supabaseAdmin.from('audit_logs').insert({
+        user_id: userId ? String(userId) : null,
+        action: 'admin_login',
+        resource_type: 'auth',
+        severity: 'info',
+        details: { ip, device },
+        created_at: new Date().toISOString()
+      });
+    } catch (auditErr) {
+      console.warn('[activity] audit_logs login insert failed (non-fatal):', auditErr?.message);
     }
     res.json({ success: true });
   } catch (err) {

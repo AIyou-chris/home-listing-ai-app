@@ -675,6 +675,26 @@ module.exports = (supabaseAdmin) => {
       throw new Error(`Mailgun error: ${errorBody}`);
     }
 
+    // Record an 'accepted' event per recipient so admin analytics can count
+    // emails actually sent. Fire-and-forget — must never block or fail the send.
+    try {
+      if (supabaseAdmin) {
+        const recipients = (Array.isArray(to) ? to : [to]).filter(Boolean);
+        const rows = recipients.map((r) => ({
+          event_type: 'accepted',
+          recipient: String(r),
+          timestamp: new Date().toISOString(),
+          metadata: { provider: 'mailgun', subject }
+        }));
+        if (rows.length) {
+          supabaseAdmin.from('email_events').insert(rows).then(
+            ({ error }) => { if (error) console.warn('[Email] accepted-event log failed:', error.message); },
+            () => {}
+          );
+        }
+      }
+    } catch (_e) { /* logging must never break sending */ }
+
     return { sent: true, provider: 'mailgun' };
   };
 
