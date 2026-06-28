@@ -17,6 +17,7 @@ import { Toaster } from 'react-hot-toast';
 import { getRegistrationContext } from './services/agentOnboardingService';
 
 const WhiteLabelPage = lazy(() => import('./pages/WhiteLabelPage'));
+const DesignSystemPage = lazy(() => import('./components/DesignSystemPage'));
 
 const NotificationSystem = lazy(() => import('./components/NotificationSystem'));
 
@@ -1591,6 +1592,7 @@ const App: React.FC = () => {
                     <Route path="/privacy" element={<PrivacyPolicyPage />} />
                     <Route path="/terms" element={<TermsOfServicePage />} />
                     <Route path="/marketing-guidelines" element={<MarketingGuidelinesPage />} />
+                    <Route path="/design-system" element={<DesignSystemPage />} />
                     <Route path="/lo-signup" element={<LOSignupPage />} />
                     <Route path="/for-loan-officers" element={
                         <Suspense fallback={<LoadingSpinner />}>
