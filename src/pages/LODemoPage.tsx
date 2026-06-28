@@ -164,7 +164,7 @@ const LODemoPage: React.FC = () => {
           No cold calls. No chasing.
         </p>
         <button
-          onClick={() => navigate('/signup')}
+          onClick={() => navigate('/lo-signup')}
           className="bg-[#f86f1b] hover:bg-[#e55e0a] text-white font-black px-8 py-4 rounded-2xl text-base transition-all shadow-[0_0_30px_rgba(248,111,27,0.4)] hover:shadow-[0_0_40px_rgba(248,111,27,0.6)]"
         >
           Start Free — 3-Day Trial, No Contract →
@@ -398,7 +398,7 @@ const LODemoPage: React.FC = () => {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <button
-              onClick={() => navigate('/signup')}
+              onClick={() => navigate('/lo-signup')}
               className="bg-[#f86f1b] hover:bg-[#e55e0a] text-white font-black px-8 py-4 rounded-2xl text-base transition-all shadow-[0_0_30px_rgba(248,111,27,0.4)]"
             >
               Start Free →

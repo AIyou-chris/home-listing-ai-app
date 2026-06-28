@@ -406,7 +406,7 @@ const HowItWorksPage: React.FC = () => {
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <button
-              onClick={() => navigate('/signup')}
+              onClick={() => navigate('/lo-signup')}
               className="bg-[#f86f1b] hover:bg-[#e5631a] text-white font-extrabold text-base px-8 py-4 rounded-2xl transition-all shadow-lg shadow-orange-900/30"
             >
               Get Started Free →
