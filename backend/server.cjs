@@ -258,6 +258,8 @@ const {
 } = require('./services/funnelEnrollmentService');
 
 const { getSmsProviderName, sendSms, validatePhoneNumber } = require('./services/smsService');
+const listingAlertService = require('./services/listingAlertService');
+const alertDeps = () => ({ supabase: supabaseAdmin, sendSms, logger: console });
 const { initiateCall } = require('./services/voiceService');
 const { sendAlert } = require('./services/slackService');
 
@@ -19492,6 +19494,105 @@ app.get('/api/public/listings/id/:listingId', async (req, res) => {
     console.error('[PublicListing] Failed to load listing by id:', error);
     return res.status(500).json({ error: 'failed_to_load_public_listing' });
   }
+});
+
+// Public SMS alert opt-in for a listing (buyers subscribe by phone)
+app.post('/api/public/listing-alerts/subscribe', async (req, res) => {
+  try {
+    const { listing_id: listingIdOrSlug, phone, visitor_id: visitorId, consent_text: consentText } = req.body || {};
+    if (!listingIdOrSlug || !phone) return res.status(400).json({ error: 'missing_fields' });
+
+    let listingRow = await resolvePublicListingRowBySlug(String(listingIdOrSlug));
+    if (!listingRow) {
+      const { data } = await supabaseAdmin.from('properties').select('*').eq('id', listingIdOrSlug).maybeSingle();
+      if (data && isListingPublished(data)) listingRow = data;
+    }
+    if (!listingRow?.id) return res.status(404).json({ error: 'not_found' });
+
+    const ownerIdRaw = listingRow.agent_id || listingRow.user_id || null;
+    let agentId = null;
+    if (ownerIdRaw) {
+      const { data: ownerAgent } = await supabaseAdmin.from('agents').select('id')
+        .or(`id.eq.${ownerIdRaw},auth_user_id.eq.${ownerIdRaw}`).limit(1).maybeSingle();
+      agentId = ownerAgent?.id || null;
+    }
+
+    const out = await listingAlertService.subscribeToListing(alertDeps(), {
+      listingId: listingRow.id, agentId, phone, visitorId,
+      consentText: consentText || 'Buyer agreed to receive SMS alerts about this property.',
+    });
+    if (!out.ok) return res.status(400).json({ error: out.reason || 'subscribe_failed' });
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('listing-alerts subscribe error:', err);
+    return res.status(500).json({ error: 'subscribe_failed' });
+  }
+});
+
+// helper: does the requester own this listing?
+async function requesterOwnsListing(listingId, authUserId) {
+  const { data } = await supabaseAdmin.from('properties').select('id')
+    .eq('id', listingId).or(`agent_id.eq.${authUserId},user_id.eq.${authUserId}`).maybeSingle();
+  return Boolean(data?.id);
+}
+
+// Pending approval cards for all of the requester's listings
+app.get('/api/listing-alerts/pending', requireAuth, async (req, res) => {
+  try {
+    const authUserId = req.authUserId;
+    const { data: props } = await supabaseAdmin.from('properties').select('id')
+      .or(`agent_id.eq.${authUserId},user_id.eq.${authUserId}`);
+    const ids = (props || []).map((p) => p.id);
+    if (ids.length === 0) return res.json({ pending: [] });
+    const { data: pending } = await supabaseAdmin.from('listing_alert_pending')
+      .select('*').in('listing_id', ids).eq('status', 'pending').order('created_at', { ascending: false });
+    return res.json({ pending: pending || [] });
+  } catch (err) {
+    console.error('listing-alerts pending error:', err);
+    return res.status(500).json({ error: 'pending_failed' });
+  }
+});
+
+// Subscriber count for one listing
+app.get('/api/listing-alerts/subscribers', requireAuth, async (req, res) => {
+  const listingId = String(req.query.listing_id || '');
+  if (!listingId) return res.status(400).json({ error: 'missing_listing_id' });
+  if (!(await requesterOwnsListing(listingId, req.authUserId))) return res.status(403).json({ error: 'listing_access_denied' });
+  const { data } = await supabaseAdmin.from('listing_alert_subscribers')
+    .select('id').eq('listing_id', listingId).eq('status', 'active');
+  return res.json({ count: (data || []).length });
+});
+
+// Approve + send a pending alert
+app.post('/api/listing-alerts/:id/send', requireAuth, async (req, res) => {
+  const { data: pending } = await supabaseAdmin.from('listing_alert_pending').select('*').eq('id', req.params.id).maybeSingle();
+  if (!pending) return res.status(404).json({ error: 'not_found' });
+  if (!(await requesterOwnsListing(pending.listing_id, req.authUserId))) return res.status(403).json({ error: 'listing_access_denied' });
+  res.json({ ok: true, queued: pending.recipient_count }); // respond immediately
+  listingAlertService.sendAlert(alertDeps(), { pendingId: pending.id })
+    .catch((err) => console.error('sendAlert bg error:', err));   // background send (avoids timeout)
+});
+
+// Dismiss a pending alert
+app.post('/api/listing-alerts/:id/dismiss', requireAuth, async (req, res) => {
+  const { data: pending } = await supabaseAdmin.from('listing_alert_pending').select('*').eq('id', req.params.id).maybeSingle();
+  if (!pending) return res.status(404).json({ error: 'not_found' });
+  if (!(await requesterOwnsListing(pending.listing_id, req.authUserId))) return res.status(403).json({ error: 'listing_access_denied' });
+  await supabaseAdmin.from('listing_alert_pending').update({ status: 'dismissed' }).eq('id', pending.id);
+  return res.json({ ok: true });
+});
+
+// Manual blast (covers open-house template too — frontend prefills the message)
+app.post('/api/listing-alerts/manual', requireAuth, async (req, res) => {
+  const { listing_id: listingId, message } = req.body || {};
+  if (!listingId || !message) return res.status(400).json({ error: 'missing_fields' });
+  if (!(await requesterOwnsListing(listingId, req.authUserId))) return res.status(403).json({ error: 'listing_access_denied' });
+  const body = `${String(message).trim()} Reply STOP to opt out.`;
+  const { pendingId, recipientCount } = await listingAlertService.createPendingAlert(alertDeps(), {
+    listingId, agentId: req.authUserId, type: 'manual', payload: { message: body },
+  });
+  res.json({ ok: true, queued: recipientCount });
+  listingAlertService.sendAlert(alertDeps(), { pendingId }).catch((err) => console.error('manual sendAlert bg error:', err));
 });
 
 // Bootstrap a public listing chat/voice session by slug.
