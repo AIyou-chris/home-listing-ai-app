@@ -93,7 +93,7 @@ const PublicApp: React.FC = () => {
     setIsConsultationModalOpen(true);
   };
 
-  const handleNavigateToSignUp = () => navigate('/signup');
+  const handleNavigateToSignUp = () => navigate('/lo-signup');
   const handleNavigateToSignIn = () => navigate('/signin');
   const handleEnterDemoMode = () => navigate('/demo-dashboard/today');
   const handleNavigateToAdmin = () => navigate('/admin-login');

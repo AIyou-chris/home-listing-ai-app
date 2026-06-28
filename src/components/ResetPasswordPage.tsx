@@ -163,7 +163,7 @@ const ResetPasswordPage: React.FC = () => {
     return (
         <div className="min-h-screen bg-[#02050D] font-sans flex flex-col relative overflow-hidden text-white">
             <PublicHeader
-                onNavigateToSignUp={() => navigate('/signup')}
+                onNavigateToSignUp={() => navigate('/lo-signup')}
                 onNavigateToSignIn={() => navigate('/signin')}
                 onEnterDemoMode={() => { }}
             />

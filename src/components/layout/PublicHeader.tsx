@@ -91,7 +91,7 @@ export const PublicHeader: React.FC<PublicHeaderProps> = ({
             analyticsWindow.gtag('event', 'click_signup_header', { event_category: 'engagement', event_label: 'header_desktop' });
         }
         if (onNavigateToSignUp) onNavigateToSignUp();
-        else navigate('/signup');
+        else navigate('/lo-signup');
     };
 
     return (

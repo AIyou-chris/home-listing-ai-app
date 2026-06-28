@@ -1220,7 +1220,7 @@ const App: React.FC = () => {
         }
     }, [user, isDemoMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    const handleNavigateToSignUp = () => navigate('/signup');
+    const handleNavigateToSignUp = () => navigate('/lo-signup');
     const handleNavigateToSignIn = () => navigate('/signin');
     const handleNavigateToLanding = () => {
         setIsDemoMode(false);

@@ -118,7 +118,7 @@ const ComparePlansModal: React.FC<ComparePlansModalProps> = ({
         onClose();
 
         if (plan.id === 'free') {
-            navigate('/signup');
+            navigate('/lo-signup');
             return;
         }
 
