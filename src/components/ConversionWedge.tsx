@@ -4,11 +4,11 @@ import QRCode from 'qrcode';
 import { getLiveExampleUrl, safeNavigate, verifyHomepageCtaTargetsOnce } from '../utils/ctaLinks';
 
 interface ConversionWedgeProps {
-    onNavigateToSignUp: () => void;
+    onNavigateToSignUp?: () => void; // kept for compat; this LO section signs up via /lo-signup
     onEnterDemoMode: () => void;
 }
 
-export const ConversionWedge: React.FC<ConversionWedgeProps> = ({ onNavigateToSignUp, onEnterDemoMode }) => {
+export const ConversionWedge: React.FC<ConversionWedgeProps> = ({ onEnterDemoMode }) => {
     const navigate = useNavigate();
     // Modal State
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -466,7 +466,7 @@ export const ConversionWedge: React.FC<ConversionWedgeProps> = ({ onNavigateToSi
                             See the AI Listing + Report
                         </button>
                         <button
-                            onClick={onNavigateToSignUp}
+                            onClick={() => navigate('/lo-signup')}
                             className="px-8 py-4 bg-white text-slate-950 hover:bg-slate-200 font-bold rounded-lg transition-all text-lg flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(255,255,255,0.2)]"
                         >
                             Create Free Account
@@ -667,7 +667,7 @@ export const ConversionWedge: React.FC<ConversionWedgeProps> = ({ onNavigateToSi
                                             See a live example
                                         </button>
                                         <button
-                                            onClick={() => { setIsModalOpen(false); onNavigateToSignUp(); }}
+                                            onClick={() => { setIsModalOpen(false); navigate('/lo-signup'); }}
                                             className="w-full py-3.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold rounded-xl transition-all"
                                         >
                                             Create free account
