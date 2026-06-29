@@ -4,6 +4,7 @@ import PublicPropertyApp from '../components/PublicPropertyApp';
 import PublicListingChatModule from '../components/public/PublicListingChatModule';
 import LOFinanceChatPanel from '../components/public/LOFinanceChatPanel';
 import LoadingSpinner from '../components/LoadingSpinner';
+import ListingAlertOptIn from '../components/listing/ListingAlertOptIn';
 import { Property } from '../types';
 import { buildApiUrl } from '../lib/api';
 
@@ -158,6 +159,7 @@ const PublicListingPage: React.FC = () => {
     const [loFinanceChatOpen, setLoFinanceChatOpen] = useState(false);
     const [loBot, setLoBot] = useState<{ enabled: boolean; name?: string | null; photo?: string | null; company?: string | null } | null>(null);
     const safePublicSlug = useMemo(() => normalizeRouteSlug(publicSlug), [publicSlug]);
+    const alertVisitorId = typeof window !== 'undefined' ? (localStorage.getItem(VISITOR_STORAGE_KEY) || undefined) : undefined;
     useEffect(() => {
         document.body.classList.add('public-listing-fullscreen');
         return () => {
@@ -337,6 +339,13 @@ const PublicListingPage: React.FC = () => {
                 loBot={loBot}
                 onAskFinancing={() => setLoFinanceChatOpen(true)}
             />
+            {property.id && (
+                <div className="fixed bottom-20 left-0 right-0 z-30 px-4 pointer-events-none">
+                    <div className="mx-auto max-w-sm pointer-events-auto">
+                        <ListingAlertOptIn listingId={property.id} visitorId={alertVisitorId} />
+                    </div>
+                </div>
+            )}
             <PublicListingChatModule
                 property={property}
                 listingSlug={safePublicSlug || undefined}
