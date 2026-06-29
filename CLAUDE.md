@@ -193,6 +193,17 @@ No long explanations. No walls of text. Table in, table out.
 
 ## 7. Current State Snapshot (as of 2026-06-28)
 
+### ✅ Recently completed — Listing price-drop SMS alerts (Layer 1)
+
+| Feature | Notes |
+|---|---|
+| **QR-scanner re-engagement: price-drop SMS alerts** | Buyers who scan a listing opt in by **phone** (no email). When the agent lowers the price, a pending alert is queued and the agent approves it one-tap; manual blasts + an "open house" template also supported. STOP replies auto-suppress (global). Spec: `docs/superpowers/specs/2026-06-28-listing-price-drop-sms-alerts-design.md`; plan: `docs/superpowers/plans/2026-06-28-listing-price-drop-sms-alerts.md`. |
+| Backend | New DI service `backend/services/listingAlertService.js` (+11 node:tests). 6 endpoints in `server.cjs`: `POST /api/public/listing-alerts/subscribe`, `GET /api/listing-alerts/pending`, `GET /api/listing-alerts/subscribers`, `POST /api/listing-alerts/:id/send`, `/:id/dismiss`, `/manual`. Price-drop auto-detected in `PUT /api/properties/:id` (compares old vs new `properties.price`). STOP reuses the existing Textbelt inbound webhook (`/api/webhooks/textbelt/inbound` → extended STOP branch in `processInboundSmsMessage`). |
+| DB | Migration `listing-price-alerts-migration.sql` (run in Supabase ✓): `listing_alert_subscribers`, `sms_suppression`, `listing_alert_pending`. `listing_id` = `properties.id`. |
+| Frontend | `src/services/listingAlerts.ts`; public opt-in card `src/components/listing/ListingAlertOptIn.tsx` (rendered on `PublicListingPage` as a fixed bottom overlay — verify it doesn't crowd chat launchers); agent approval + blast panel `src/components/dashboard-command/ListingAlertPanel.tsx` (on `ListingPerformancePage`). |
+| Env / pending | Set `TEXTBELT_REPLY_WEBHOOK_URL=https://home-listing-ai-backend.onrender.com` on Render so STOP suppresses (alerts still send without it). Live e2e still to run: opt in → drop price → send → reply STOP. |
+| Deferred (Layer 2) | Per-listing PWA "save like an app" + web push — blocked by iOS install requirement + the deliberate service-worker removal in `main.tsx`. |
+
 ### ✅ Recently completed — 2026-06-28 sprint (Owner alerts + Admin Overview/Analytics real data + GA4 + Blog/LO fixes)
 
 | Feature | Notes |
