@@ -20,6 +20,7 @@ import {
   fetchDashboardBilling
 } from '../../services/dashboardBillingService';
 import ListingPerformanceWidget from '../dashboard-widgets/ListingPerformanceWidget';
+import ListingAlertPanel from './ListingAlertPanel';
 
 type TestCaptureContext = 'report_requested' | 'showing_requested';
 
@@ -309,6 +310,7 @@ const ListingPerformancePage: React.FC = () => {
       <div id="listing-performance">
         <ListingPerformanceWidget listingId={listingId} />
       </div>
+      {listingId && <ListingAlertPanel listingId={listingId} agentId={null} />}
 
       <UpgradePromptModal
         isOpen={upgradeModal.open}
