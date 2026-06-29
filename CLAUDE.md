@@ -288,6 +288,9 @@ No long explanations. No walls of text. Table in, table out.
 | Test LO Acquisition Link live | Admin → Marketing Funnels → LO Outreach → send to self | Open the link on phone, tap CTA, confirm row flips to Opened ✓ / Clicked ✓ |
 | Enroll in admin 2FA | Admin → Settings → Security → Set up 2FA | Opt-in; nobody is protected until they enroll. Test: enroll → sign out/in → code prompt fires. Recovery in `docs/admin-2fa-recovery.md`. |
 | Run LO Lead Finder live | Apify UI → Start (100 leads) → Admin → Marketing Funnels → 🧲 LO Lead Finder → Import from Apify | Migration + `APIFY_TOKEN`/`LO_MAILING_ADDRESS` already in place. Work leads via 💬 Text / 🔗 DM (cold email lands in spam — prefer text/LinkedIn). |
+| **Run listing price-drop alerts migration** | Supabase SQL editor → run `listing-price-alerts-migration.sql` | Creates `listing_alert_subscribers`, `sms_suppression`, `listing_alert_pending`. Required before the opt-in card / agent panel work. |
+| **Set `TEXTBELT_REPLY_WEBHOOK_URL` on Render** | Render env → backend service | Set to backend base URL (e.g. `https://home-listing-ai-backend.onrender.com`). `smsService.buildReplyWebhookUrl()` appends `/api/webhooks/textbelt/inbound` so STOP replies suppress alert subscribers. Confirm the Textbelt key plan supports `replyWebhookUrl`. |
+| **Test price-drop alert e2e** | Public listing → opt in by phone → as owning agent lower the price → listing detail shows pending card → Send alert → reply STOP | Confirm text arrives, then STOP adds a `sms_suppression` row + flips subscriber to `unsubscribed` (second send skips it). |
 
 ---
 
