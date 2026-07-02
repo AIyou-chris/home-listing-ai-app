@@ -22,6 +22,7 @@ type StatusResponse = {
   account: { email?: string } | null;
   channels: Channel[];
   config: SocialConfig;
+  rateLimited?: boolean;
 };
 
 const CARD = 'bg-white rounded-2xl border border-slate-200 p-6 shadow-sm';
@@ -295,9 +296,16 @@ const AdminSocialPostPanel: React.FC = () => {
           </div>
 
           {channels.length === 0 ? (
-            <div className="rounded-lg bg-amber-50 border border-amber-200 p-4 text-sm text-amber-800">
-              No channels found. In <b>Buffer → Channels</b>, connect a LinkedIn or Facebook page, then reload.
-            </div>
+            status?.rateLimited ? (
+              <div className="rounded-lg bg-amber-50 border border-amber-200 p-4 text-sm text-amber-800">
+                <b>Buffer's daily API limit is used up.</b> Your channels are safe and will reappear
+                automatically — try again in a few hours. (Free plan: 100 calls per rolling 24h.)
+              </div>
+            ) : (
+              <div className="rounded-lg bg-amber-50 border border-amber-200 p-4 text-sm text-amber-800">
+                No channels found. In <b>Buffer → Channels</b>, connect a LinkedIn or Facebook page, then reload.
+              </div>
+            )
           ) : (
             <>
               {/* Channel checkboxes */}

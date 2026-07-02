@@ -35631,9 +35631,11 @@ app.get('/api/admin/social/status', verifyAdmin, async (req, res) => {
     }
     let account = null;
     let channels = [];
-    try { account = await getBufferAccountCached(); } catch (e) { /* token invalid */ }
-    try { channels = await getBufferChannelsCached(); } catch (e) { /* org/scope issue */ }
-    res.json({ configured: true, account, channels, config: cfg });
+    let rateLimited = false;
+    const noteLimit = (e) => { if (/too many requests|rate.?limit/i.test(e?.message || '')) rateLimited = true; };
+    try { account = await getBufferAccountCached(); } catch (e) { noteLimit(e); }
+    try { channels = await getBufferChannelsCached(); } catch (e) { noteLimit(e); }
+    res.json({ configured: true, account, channels, config: cfg, rateLimited });
   } catch (err) {
     console.error('[Social status]', err);
     res.status(500).json({ error: 'social_status_failed', detail: err?.message });
