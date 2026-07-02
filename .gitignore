@@ -50,3 +50,4 @@ backend/data/
 .claude/
 # Added by code-review-graph
 .code-review-graph/
+logs/
