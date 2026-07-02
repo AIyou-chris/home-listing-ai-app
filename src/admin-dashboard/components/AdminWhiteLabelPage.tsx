@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react'
-import { buildApiUrl } from '../../lib/api'
 import { showToast } from '../../utils/toastService'
-import { supabase } from '../../services/supabase'
+import { AuthService } from '../../services/authService'
 
 interface OfficeRow {
   id: string
@@ -22,10 +21,8 @@ const AdminWhiteLabelPage: React.FC = () => {
   const load = async () => {
     setLoading(true)
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      const res = await fetch(buildApiUrl('/api/admin/white-label/offices'), {
-        headers: { 'x-user-id': user?.id || '' }
-      })
+      const auth = AuthService.getInstance()
+      const res = await auth.makeAuthenticatedRequest('/api/admin/white-label/offices')
       const j = await res.json() as { success?: boolean; offices?: OfficeRow[] }
       if (j.success && j.offices) setOffices(j.offices)
     } catch {
@@ -41,10 +38,9 @@ const AdminWhiteLabelPage: React.FC = () => {
     const domain = (editing[officeId] ?? '').trim()
     setSaving(officeId)
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      const res = await fetch(buildApiUrl(`/api/admin/white-label/offices/${officeId}/domain`), {
+      const auth = AuthService.getInstance()
+      const res = await auth.makeAuthenticatedRequest(`/api/admin/white-label/offices/${officeId}/domain`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'x-user-id': user?.id || '' },
         body: JSON.stringify({ customDomain: domain || null })
       })
       const j = await res.json() as { success?: boolean; error?: string }

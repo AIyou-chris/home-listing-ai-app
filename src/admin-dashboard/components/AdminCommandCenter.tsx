@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getEnvVar } from '../../lib/env'
 import { CampaignStatsWidget } from './CampaignStatsWidget'
 import { AuthService } from '../../services/authService'
 
@@ -120,10 +119,6 @@ const formatUptimeSubtitle = (uptimeSeconds?: number) => {
 
 const AdminCommandCenter: React.FC = () => {
   const navigate = useNavigate()
-  const apiBase = useMemo(() => {
-    const base = getEnvVar('VITE_API_BASE_URL') || ''
-    return base.replace(/\/$/, '')
-  }, [])
   const auth = useMemo(() => AuthService.getInstance(), [])
 
   const [health, setHealth] = useState<HealthResponse | null>(null)
@@ -137,10 +132,10 @@ const AdminCommandCenter: React.FC = () => {
     setLoading(true)
     try {
       const [h, s, sp, m] = await Promise.all([
-        auth.makeAuthenticatedRequest(`${apiBase}/api/admin/system/health`).catch(() => null),
-        auth.makeAuthenticatedRequest(`${apiBase}/api/admin/security/monitor`).catch(() => null),
-        auth.makeAuthenticatedRequest(`${apiBase}/api/admin/support/summary`).catch(() => null),
-        auth.makeAuthenticatedRequest(`${apiBase}/api/admin/analytics/overview`).catch(() => null)
+        auth.makeAuthenticatedRequest('/api/admin/system/health').catch(() => null),
+        auth.makeAuthenticatedRequest('/api/admin/security/monitor').catch(() => null),
+        auth.makeAuthenticatedRequest('/api/admin/support/summary').catch(() => null),
+        auth.makeAuthenticatedRequest('/api/admin/analytics/overview').catch(() => null)
       ])
 
       if (h?.ok) setHealth(await h.json())
@@ -152,7 +147,7 @@ const AdminCommandCenter: React.FC = () => {
     } finally {
       setLoading(false)
     }
-  }, [apiBase, auth])
+  }, [auth])
 
   useEffect(() => {
     loadAll().catch(() => undefined)

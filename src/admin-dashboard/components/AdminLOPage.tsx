@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
-
-const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002';
+import { AuthService } from '../../services/authService';
 
 type LOUser = {
   id: string; auth_user_id: string; first_name: string; last_name: string;
@@ -46,22 +45,16 @@ export const AdminLOPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
 
-  const getHeaders = () => {
-    const token = localStorage.getItem('sb-yocchddxdsaldgsibmmc-auth-token');
-    try { return { 'Authorization': `Bearer ${JSON.parse(token || '{}')?.access_token}`, 'Content-Type': 'application/json' }; }
-    catch { return { 'Content-Type': 'application/json' }; }
-  };
-
   useEffect(() => {
     const fetchAll = async () => {
       setLoading(true);
-      const headers = getHeaders();
+      const auth = AuthService.getInstance();
       try {
         const [r1, r2, r3, r4] = await Promise.all([
-          fetch(`${API}/api/admin/lo/users`, { headers }),
-          fetch(`${API}/api/admin/lo/invites`, { headers }),
-          fetch(`${API}/api/admin/lo/pre-quals`, { headers }),
-          fetch(`${API}/api/admin/lo/offices`, { headers }),
+          auth.makeAuthenticatedRequest('/api/admin/lo/users'),
+          auth.makeAuthenticatedRequest('/api/admin/lo/invites'),
+          auth.makeAuthenticatedRequest('/api/admin/lo/pre-quals'),
+          auth.makeAuthenticatedRequest('/api/admin/lo/offices'),
         ]);
         const [d1, d2, d3, d4] = await Promise.all([r1.json(), r2.json(), r3.json(), r4.json()]);
         setLos(d1.los || []);

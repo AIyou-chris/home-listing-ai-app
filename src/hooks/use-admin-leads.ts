@@ -18,7 +18,7 @@ interface UseAdminLeadsResult {
   notesByLeadId: Record<string, LeadNote[]>
 }
 
-export const useAdminLeads = (): UseAdminLeadsResult => {
+export const useAdminLeads = ({ skip = false }: { skip?: boolean } = {}): UseAdminLeadsResult => {
   const [leads, setLeads] = useState<Lead[]>([])
   const [notesByLeadId, setNotesByLeadId] = useState<Record<string, LeadNote[]>>({})
   const [isLoading, setIsLoading] = useState(false)
@@ -41,12 +41,13 @@ export const useAdminLeads = (): UseAdminLeadsResult => {
   }, [])
 
   useEffect(() => {
+    if (skip) return
     if (didInitialFetch.current) return
     didInitialFetch.current = true
     refreshLeads().catch(err => {
       console.error('useAdminLeads: initial fetch failed', err)
     })
-  }, [refreshLeads])
+  }, [skip, refreshLeads])
 
   const addLead = useCallback(async ({ name, email, phone, status, source, notes }: NewLeadPayload) => {
     const lead = await adminLeadsService.create({
