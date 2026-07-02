@@ -10,6 +10,7 @@ type Invite = {
   status: string;
   opened_at: string | null;
   clicked_at: string | null;
+  email_clicked_at: string | null;
   created_at: string;
 };
 
@@ -116,7 +117,7 @@ const AdminLoOutreachPanel: React.FC = () => {
           <table className="w-full text-sm">
             <thead className="border-b border-slate-100 bg-slate-50">
               <tr>
-                {['LO', 'Contact', 'Sent', 'Opened', 'Clicked'].map(h => (
+                {['LO', 'Contact', 'Sent', 'Opened', 'Email Click', 'Signup CTA'].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">{h}</th>
                 ))}
               </tr>
@@ -131,11 +132,12 @@ const AdminLoOutreachPanel: React.FC = () => {
                   </td>
                   <td className="px-4 py-3 text-xs text-slate-400">{fmt(inv.created_at)}</td>
                   <td className="px-4 py-3 text-xs">{check(inv.opened_at)}</td>
+                  <td className="px-4 py-3 text-xs">{check(inv.email_clicked_at)}</td>
                   <td className="px-4 py-3 text-xs">{check(inv.clicked_at)}</td>
                 </tr>
               ))}
               {invites.length === 0 && (
-                <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-400">No invites sent yet.</td></tr>
+                <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400">No invites sent yet.</td></tr>
               )}
             </tbody>
           </table>

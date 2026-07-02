@@ -89,6 +89,60 @@ const BlogEditor: React.FC = () => {
     setIsLoading(false);
   };
 
+  // Mirror of the auto-share setting from Marketing Funnels → Social
+  // Auto-Posting. Same DB row (social_config) — toggling here updates there.
+  const [autoShare, setAutoShare] = useState<boolean | null>(null);
+  const [autoShareChannels, setAutoShareChannels] = useState<number>(0);
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await fetch(`${API}/api/admin/social/status`, { headers: await authHeader() });
+        const d = await r.json();
+        if (r.ok) {
+          setAutoShare(d?.config?.auto_post_blog !== false);
+          setAutoShareChannels(Array.isArray(d?.config?.auto_post_channel_ids) ? d.config.auto_post_channel_ids.length : 0);
+        }
+      } catch { /* leave hidden */ }
+    })();
+  }, []);
+  const toggleAutoShare = async () => {
+    const next = !autoShare;
+    setAutoShare(next);
+    try {
+      await fetch(`${API}/api/admin/social/config`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
+        body: JSON.stringify({ autoPostBlog: next }),
+      });
+      toast.success(next ? '📣 New posts will auto-share to social' : 'Auto-share turned off');
+    } catch { toast.error('Could not save — try again'); setAutoShare(!next); }
+  };
+
+  // Manual (re-)share of a published post to the social channels selected in
+  // Marketing Funnels → Social Auto-Posting. Posts immediately via Buffer.
+  const [sharingId, setSharingId] = useState<string | null>(null);
+  const handleShareSocial = async (post: BlogPost) => {
+    if (!confirm(`Post "${post.title}" to your social channels right now?`)) return;
+    setSharingId(post.id);
+    try {
+      const r = await fetch(`${API}/api/admin/blog/posts/${post.id}/share-social`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
+      });
+      const d = await r.json();
+      const results: Array<{ ok: boolean; channelName?: string | null; error?: string }> = d?.results || [];
+      const okCount = results.filter(x => x.ok).length;
+      if (!r.ok || !okCount) {
+        const why = results.filter(x => !x.ok).map(x => `${x.channelName || 'channel'}: ${x.error || 'failed'}`).join(' · ');
+        throw new Error(why || d?.error || 'share failed');
+      }
+      toast.success(`📣 Shared to ${okCount} channel${okCount === 1 ? '' : 's'}`);
+      results.filter(x => !x.ok).forEach(x => toast.error(`${x.channelName || 'channel'}: ${x.error || 'failed'}`, { duration: 8000 }));
+    } catch (e) {
+      toast.error(`Share failed: ${e instanceof Error ? e.message : 'unknown'}`);
+    } finally {
+      setSharingId(null);
+    }
+  };
+
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this post permanently?')) return;
     try {
@@ -152,12 +206,38 @@ const BlogEditor: React.FC = () => {
     setIsGenerating(false);
   };
 
+  // Upload a featured image from the local computer (reuses the social upload
+  // endpoint — stores to the public ai-card-assets bucket, returns a URL).
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const uploadFeaturedImage = async (file: File) => {
+    if (!file.type.startsWith('image/')) { toast.error('Please choose an image file.'); return; }
+    if (file.size > 8 * 1024 * 1024) { toast.error('Image is too large (max 8MB).'); return; }
+    setIsUploadingImage(true);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const r = await fetch(`${API}/api/admin/social/upload`, {
+        method: 'POST', headers: await authHeader(), body: form,
+      });
+      const d = await r.json();
+      if (!r.ok || !d.url) throw new Error(d?.error || 'upload failed');
+      setCurrentPost(prev => ({ ...prev, featured_image: d.url }));
+      toast.success('🖼️ Image uploaded ✓');
+    } catch (e) {
+      toast.error(`Upload failed: ${e instanceof Error ? e.message : 'unknown'}`);
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
+
   const fetchImages = async (q: string) => {
     if (!q.trim()) return;
     setIsLoadingImages(true);
     try {
       const r = await fetch(`${API}/api/admin/blog/images?query=${encodeURIComponent(q)}`, { headers: await authHeader() });
       const data = await r.json();
+      if (!r.ok) { toast.error(`Image search failed: ${data?.error || r.status}`); setImages([]); return; }
+      if (data.fallback) toast('⚠️ Unsplash key not set — showing default photos (search ignored)', { duration: 5000 });
       setImages(data.images || []);
     } catch { toast.error('Image search failed'); }
     setIsLoadingImages(false);
@@ -202,6 +282,18 @@ const BlogEditor: React.FC = () => {
         <div>
           <h1 className="text-2xl font-black text-slate-900">Blog Control Center</h1>
           <p className="text-slate-500 text-sm mt-1">Write, publish, and repurpose your content.</p>
+          {autoShare !== null && (
+            <button
+              onClick={toggleAutoShare}
+              title="Publishing a post auto-shares it to the channels picked in Marketing Funnels → Social Auto-Posting"
+              className={`mt-2 inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-bold transition-all ${autoShare ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
+            >
+              <span className={`inline-block h-2 w-2 rounded-full ${autoShare ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+              {autoShare
+                ? `📣 Auto-share on publish: ON${autoShareChannels ? ` → ${autoShareChannels} channel${autoShareChannels === 1 ? '' : 's'}` : ' (no channels picked!)'}`
+                : '📣 Auto-share on publish: OFF'}
+            </button>
+          )}
         </div>
         <button onClick={() => { setCurrentPost({ status: 'draft', content: '', title: '', slug: '', seo_keywords: [] }); setRepurposed(null); setView('edit'); }}
           className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-xl hover:bg-primary-700 font-bold text-sm transition-all">
@@ -253,6 +345,16 @@ const BlogEditor: React.FC = () => {
                   </td>
                   <td className="px-5 py-3 text-slate-400 text-xs">{post.published_at ? new Date(post.published_at).toLocaleDateString() : '—'}</td>
                   <td className="px-5 py-3 text-right flex items-center justify-end gap-2">
+                    {post.status === 'published' && (
+                      <button
+                        onClick={() => handleShareSocial(post)}
+                        disabled={sharingId === post.id}
+                        title="Post to LinkedIn/Facebook/Instagram now"
+                        className="px-3 py-1.5 text-xs font-bold text-sky-600 hover:bg-sky-50 rounded-lg transition-all disabled:opacity-50"
+                      >
+                        {sharingId === post.id ? 'Sharing…' : '📣 Share'}
+                      </button>
+                    )}
                     <button onClick={() => handleEdit(post)} className="px-3 py-1.5 text-xs font-bold text-primary-600 hover:bg-primary-50 rounded-lg transition-all">Edit</button>
                     <button onClick={() => handleDelete(post.id)} className="p-1.5 text-rose-400 hover:bg-rose-50 rounded-lg transition-all"><Trash2 size={14} /></button>
                   </td>
@@ -362,9 +464,21 @@ const BlogEditor: React.FC = () => {
           <div className="bg-white p-5 rounded-2xl border border-slate-200">
             <div className="flex items-center justify-between mb-3">
               <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Featured Image</label>
-              <button onClick={() => setShowImagePicker(!showImagePicker)} className="text-xs text-primary-600 font-bold hover:underline">
-                {showImagePicker ? 'Hide picker' : 'Search photos'}
-              </button>
+              <div className="flex items-center gap-3">
+                <label className="text-xs text-primary-600 font-bold hover:underline cursor-pointer">
+                  {isUploadingImage ? 'Uploading…' : '⬆️ Upload'}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    disabled={isUploadingImage}
+                    onChange={e => { const f = e.target.files?.[0]; if (f) uploadFeaturedImage(f); e.target.value = ''; }}
+                  />
+                </label>
+                <button onClick={() => setShowImagePicker(!showImagePicker)} className="text-xs text-primary-600 font-bold hover:underline">
+                  {showImagePicker ? 'Hide picker' : 'Search photos'}
+                </button>
+              </div>
             </div>
 
             {currentPost.featured_image && (

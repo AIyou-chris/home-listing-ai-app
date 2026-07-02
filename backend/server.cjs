@@ -260,6 +260,36 @@ const {
 const { getSmsProviderName, sendSms, validatePhoneNumber } = require('./services/smsService');
 const listingAlertService = require('./services/listingAlertService');
 const alertDeps = () => ({ supabase: supabaseAdmin, sendSms, logger: console });
+const { createBufferService } = require('./services/bufferService');
+const bufferService = createBufferService({ logger: console });
+// Cache Buffer account + channels (5 min) — Buffer rate-limits aggressively,
+// and the admin panel + every multi-channel post would otherwise re-fetch.
+const bufferCache = { account: null, accountTs: 0, channels: null, channelsTs: 0 };
+const BUFFER_CACHE_TTL_MS = 5 * 60 * 1000;
+async function getBufferChannelsCached() {
+  if (bufferCache.channels && Date.now() - bufferCache.channelsTs < BUFFER_CACHE_TTL_MS) return bufferCache.channels;
+  try {
+    const channels = await bufferService.listChannels();
+    bufferCache.channels = channels;
+    bufferCache.channelsTs = Date.now();
+    return channels;
+  } catch (err) {
+    if (bufferCache.channels) return bufferCache.channels; // stale beats none (rate limits)
+    throw err;
+  }
+}
+async function getBufferAccountCached() {
+  if (bufferCache.account && Date.now() - bufferCache.accountTs < BUFFER_CACHE_TTL_MS) return bufferCache.account;
+  try {
+    const account = await bufferService.getAccount();
+    bufferCache.account = account;
+    bufferCache.accountTs = Date.now();
+    return account;
+  } catch (err) {
+    if (bufferCache.account) return bufferCache.account;
+    throw err;
+  }
+}
 const { initiateCall } = require('./services/voiceService');
 const { sendAlert } = require('./services/slackService');
 
@@ -2267,6 +2297,19 @@ app.post('/api/webhooks/mailgun', async (req, res) => {
         campaign_id: campaignId,
         metadata: eventData
       });
+
+      // Mark LO outreach invites when the recipient clicks a link in the
+      // email (distinct from the pitch-page CTA click stored in clicked_at).
+      if (event === 'clicked' && recipient) {
+        supabaseAdmin
+          .from('lo_outreach_invites')
+          .update({ email_clicked_at: safeTimestamp })
+          .ilike('lo_email', recipient)
+          .is('email_clicked_at', null)
+          .then(({ error: invErr }) => {
+            if (invErr) console.warn('[Mailgun Webhook] invite email-click sync failed:', invErr.message);
+          });
+      }
 
       // Update aggregate tracking table if linked
       const internalMsgId = user_variables?.internal_msg_id;
@@ -32022,7 +32065,7 @@ app.get('/api/admin/lo-outreach/invites', verifyAdmin, async (req, res) => {
   try {
     const { data, error } = await supabaseAdmin
       .from('lo_outreach_invites')
-      .select('id, lo_name, lo_email, lo_phone, lo_website, status, opened_at, clicked_at, created_at')
+      .select('id, lo_name, lo_email, lo_phone, lo_website, status, opened_at, clicked_at, email_clicked_at, created_at')
       .order('created_at', { ascending: false })
       .limit(500);
     if (error) throw error;
@@ -35126,9 +35169,12 @@ app.get('/api/admin/blog/images', verifyAdmin, async (req, res) => {
         { id: '5', url: `https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=800&auto=format&fit=crop`, thumb: `https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=200&auto=format&fit=crop`, credit: 'Unsplash', creditUrl: 'https://unsplash.com' },
         { id: '6', url: `https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=800&auto=format&fit=crop`, thumb: `https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=200&auto=format&fit=crop`, credit: 'Unsplash', creditUrl: 'https://unsplash.com' },
       ];
-      return res.json({ images: fallback });
+      return res.json({ images: fallback, fallback: true, reason: 'UNSPLASH_ACCESS_KEY not set — showing curated defaults' });
     }
-    const r = await fetch(`https://api.unsplash.com/search/photos?query=${encodeURIComponent(String(query))}&per_page=9&orientation=landscape&client_id=${UNSPLASH_KEY}`);
+    // Blog heroes want landscape; social posts want squarish (see runbook image rules).
+    const orientation = ['landscape', 'squarish', 'portrait'].includes(String(req.query.orientation))
+      ? String(req.query.orientation) : 'landscape';
+    const r = await fetch(`https://api.unsplash.com/search/photos?query=${encodeURIComponent(String(query))}&per_page=9&orientation=${orientation}&client_id=${UNSPLASH_KEY}`);
     const data = await r.json();
     const images = (data.results || []).map((img) => ({
       id: img.id,
@@ -35286,6 +35332,15 @@ app.post('/api/admin/blog/posts', verifyAdmin, async (req, res) => {
     const payload = pickBlogColumns(body);
     payload.updated_at = new Date().toISOString();
 
+    // Capture prior publish state so we only auto-share on a real
+    // draft → published transition (never on edits to a live post).
+    let wasPublished = false;
+    if (body.id) {
+      const { data: prev } = await supabaseAdmin
+        .from('blog_posts').select('status').eq('id', body.id).maybeSingle();
+      wasPublished = prev?.status === 'published';
+    }
+
     let result;
     if (body.id) {
       result = await supabaseAdmin.from('blog_posts')
@@ -35296,6 +35351,11 @@ app.post('/api/admin/blog/posts', verifyAdmin, async (req, res) => {
     }
     if (result.error) throw result.error;
     res.json({ post: result.data });
+
+    // Fire-and-forget social share on first publish (after the response).
+    if (!wasPublished && result.data?.status === 'published') {
+      maybeAutoPostBlogToSocial(result.data);
+    }
   } catch (err) {
     console.error('[Blog Save]', err);
     res.status(500).json({ error: 'blog_save_failed', detail: err?.message });
@@ -35313,6 +35373,352 @@ app.delete('/api/admin/blog/posts/:id', verifyAdmin, async (req, res) => {
     console.error('[Blog Delete]', err);
     res.status(500).json({ error: 'blog_delete_failed' });
   }
+});
+
+// ── Social auto-posting (Buffer → LinkedIn) ─────────────────────────────────
+
+// Read the single-row social_config (target channel ids + auto-post toggle).
+async function getSocialConfig() {
+  const fallback = { id: 1, auto_post_channel_ids: [], auto_post_blog: true };
+  try {
+    const { data } = await supabaseAdmin
+      .from('social_config').select('*').eq('id', 1).maybeSingle();
+    if (!data) return fallback;
+    // jsonb may come back as an array already; normalize just in case.
+    let ids = data.auto_post_channel_ids;
+    if (typeof ids === 'string') { try { ids = JSON.parse(ids); } catch (_) { ids = []; } }
+    if (!Array.isArray(ids)) ids = [];
+    return { ...data, auto_post_channel_ids: ids };
+  } catch (_) {
+    return fallback;
+  }
+}
+
+// Compose the LinkedIn text for a blog post. The bare URL makes LinkedIn
+// unfurl a link card using the post's og:image — no media upload needed.
+function buildBlogLinkedInText(post) {
+  const title = (post.title || '').trim();
+  const teaser = (post.excerpt || post.seo_description || '').trim();
+  const url = `${APP_URL.replace(/\/$/, '')}/blog/${post.slug}`;
+  return [title, teaser, `Read more: ${url}`].filter(Boolean).join('\n\n');
+}
+
+// Post the same text (+ optional images) to every selected channel.
+// Resolves each channel's network first — Facebook/Instagram posts are
+// rejected by Buffer unless network-specific metadata is included.
+async function postToChannels(channelIds, text, dueAt, imageUrls, mode) {
+  const ids = (Array.isArray(channelIds) ? channelIds : []).filter(Boolean);
+  const channelInfo = new Map();
+  try {
+    (await getBufferChannelsCached()).forEach((c) => channelInfo.set(c.id, c));
+  } catch (err) {
+    console.warn('[Social] could not resolve channel services:', err?.message);
+  }
+  // Fire all channels in parallel — sequential posting (esp. Instagram image
+  // processing) can exceed client timeouts.
+  const results = await Promise.all(ids.map(async (channelId) => {
+    const info = channelInfo.get(channelId);
+    const base = { channelId, channelName: info?.displayName || info?.name || null, service: info?.service || null };
+    try {
+      const post = await bufferService.createPost({
+        channelId, text, dueAt, imageUrls, mode, service: info?.service,
+      });
+      return { ...base, ok: true, post };
+    } catch (err) {
+      return { ...base, ok: false, error: err?.message || 'failed' };
+    }
+  }));
+  return results;
+}
+
+// Share a blog post to all selected channels (text + hashtags + featured image),
+// publishing immediately. Used by the auto-share hook AND the manual
+// "Share to social" button in the blog editor.
+async function shareBlogPostToSocial(post) {
+  const cfg = await getSocialConfig();
+  if (!cfg.auto_post_channel_ids.length) return { results: [], reason: 'no_channels' };
+  const images = post.featured_image ? [post.featured_image] : [];
+  let text = buildBlogLinkedInText(post);
+  const hashtags = await generateSocialHashtags(`${post.title || ''}\n${post.excerpt || ''}`);
+  if (hashtags.length) text += `\n\n${hashtags.join(' ')}`;
+  const results = await postToChannels(cfg.auto_post_channel_ids, text, null, images, 'shareNow');
+  // Mark as shared if at least one channel accepted it (avoids auto re-blasting).
+  if (results.some((r) => r.ok)) {
+    await supabaseAdmin.from('blog_posts')
+      .update({ social_posted_at: new Date().toISOString() })
+      .eq('id', post.id);
+  }
+  const failed = results.filter((r) => !r.ok);
+  if (failed.length) console.error('[Social] some blog shares failed:', failed);
+  return { results };
+}
+
+// Fire-and-forget: share a freshly-published blog post once, to all selected channels.
+async function maybeAutoPostBlogToSocial(post) {
+  try {
+    if (!post || post.status !== 'published' || !post.slug) return;
+    if (post.social_posted_at) return; // already shared
+    if (!bufferService.isConfigured()) return;
+    const cfg = await getSocialConfig();
+    if (!cfg.auto_post_blog) return;
+    await shareBlogPostToSocial(post);
+  } catch (err) {
+    console.error('[Social] blog auto-post failed:', err?.message || err);
+  }
+}
+
+// POST /api/admin/blog/posts/:id/share-social — manual (re-)share of a
+// published blog post to the selected channels. No once-only guard: clicking
+// the button is an intentional re-share.
+app.post('/api/admin/blog/posts/:id/share-social', verifyAdmin, async (req, res) => {
+  try {
+    if (!bufferService.isConfigured()) return res.status(400).json({ error: 'buffer_not_configured' });
+    const { data: post, error } = await supabaseAdmin
+      .from('blog_posts').select('*').eq('id', req.params.id).maybeSingle();
+    if (error) throw error;
+    if (!post) return res.status(404).json({ error: 'post_not_found' });
+    if (post.status !== 'published' || !post.slug) {
+      return res.status(409).json({ error: 'not_published' });
+    }
+    const { results, reason } = await shareBlogPostToSocial(post);
+    if (reason === 'no_channels') return res.status(400).json({ error: 'no_channel_selected' });
+    const ok = results.some((r) => r.ok);
+    res.status(ok ? 200 : 502).json({ ok, results });
+  } catch (err) {
+    console.error('[Blog share-social]', err);
+    res.status(500).json({ error: 'share_failed', detail: err?.message });
+  }
+});
+
+// AI-pick relevant, currently-popular hashtags for a social post.
+// Fail-soft: returns [] on any error so posting never blocks on hashtags.
+async function generateSocialHashtags(text) {
+  try {
+    if (!text || !String(text).trim()) return [];
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [{
+        role: 'system',
+        content: 'You pick hashtags for social media posts by HomeListingAI — an AI platform for loan officers and real estate agents. Return valid JSON only, no markdown fences.'
+      }, {
+        role: 'user',
+        content: `Pick 5 hashtags for this post. Mix 2-3 high-traffic popular tags (real estate / mortgage / AI niche) with 2-3 specific to the post's topic. CamelCase multi-word tags. No spaces inside tags.
+
+Post: "${String(text).slice(0, 1500)}"
+
+Return exactly: {"hashtags": ["#Tag1", "#Tag2", "#Tag3", "#Tag4", "#Tag5"]}`
+      }],
+      temperature: 0.5,
+      max_tokens: 120,
+    });
+    const raw = completion.choices[0]?.message?.content || '{}';
+    const parsed = JSON.parse(raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim());
+    const tags = Array.isArray(parsed.hashtags) ? parsed.hashtags : [];
+    return tags
+      .map((t) => String(t).trim().replace(/\s+/g, ''))
+      .filter((t) => /^#[A-Za-z0-9_]+$/.test(t))
+      .slice(0, 8);
+  } catch (err) {
+    console.warn('[Social] hashtag generation failed:', err?.message);
+    return [];
+  }
+}
+
+// POST /api/admin/social/generate-image — AI-generate a social graphic from
+// the post text (DALL·E 3), stored to the public bucket for a durable URL.
+app.post('/api/admin/social/generate-image', verifyAdmin, async (req, res) => {
+  try {
+    const { prompt } = req.body || {};
+    if (!prompt || !String(prompt).trim()) return res.status(400).json({ error: 'prompt_required' });
+    if (!openai) return res.status(503).json({ error: 'ai_unavailable' });
+
+    const img = await openai.images.generate({
+      model: 'gpt-image-1',
+      // Square = the one size that renders well on LinkedIn, Facebook, AND
+      // Instagram (IG rejects ratios outside 1.91:1–4:5). See runbook §image rules.
+      prompt: `A modern, clean, purely VISUAL square social media illustration for a real-estate/mortgage tech brand. Sky blue + slate color palette, professional, warm. ABSOLUTELY NO text, letters, words, numbers, logos, or typography anywhere in the image — convey the idea with imagery only (people, homes, scenes, abstract shapes). Visualize the concept behind this post: ${String(prompt).slice(0, 800)}`,
+      size: '1024x1024',
+      quality: 'medium',
+      n: 1,
+    });
+    // Depending on API version the image comes back as base64 or a temp URL.
+    const first = img.data?.[0] || {};
+    let buffer = null;
+    if (first.b64_json) {
+      buffer = Buffer.from(first.b64_json, 'base64');
+    } else if (first.url) {
+      const dl = await fetch(first.url);
+      if (!dl.ok) throw new Error(`image_download_failed_${dl.status}`);
+      buffer = Buffer.from(await dl.arrayBuffer());
+    }
+    if (!buffer) throw new Error('empty_image_response');
+
+    const bucket = 'ai-card-assets';
+    const storagePath = `social/ai_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.png`;
+    await ensureStorageBucketExists(bucket);
+    const { error: upErr } = await supabaseAdmin.storage
+      .from(bucket).upload(storagePath, buffer, { contentType: 'image/png', upsert: false });
+    if (upErr) throw upErr;
+    const { data } = supabaseAdmin.storage.from(bucket).getPublicUrl(storagePath);
+    res.json({ url: data?.publicUrl || null });
+  } catch (err) {
+    console.error('[Social image-gen]', err);
+    res.status(500).json({ error: 'image_gen_failed', detail: err?.message });
+  }
+});
+
+// POST /api/admin/social/compose — expand 1-2 sentences into a full,
+// keyword-rich social post (hashtags included, tied to the keywords used).
+app.post('/api/admin/social/compose', verifyAdmin, async (req, res) => {
+  try {
+    const { idea } = req.body || {};
+    if (!idea || !String(idea).trim()) return res.status(400).json({ error: 'idea_required' });
+    if (!openai) return res.status(503).json({ error: 'ai_unavailable' });
+
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [{
+        role: 'system',
+        content: `You write social media posts for HomeListingAI — an AI-powered platform that gets loan officers and real estate agents warm leads and stronger agent partnerships. Voice: plain-spoken, confident, a little contrarian, value-first, sounds like a real person with 15 years in the mortgage industry — never like a brochure. Return valid JSON only, no markdown fences.`
+      }, {
+        role: 'user',
+        content: `Expand this idea into one complete social post (works for LinkedIn and Facebook):
+
+"${String(idea).slice(0, 1000)}"
+
+Rules:
+- 120-220 words. Short sentences. Blank line between paragraphs.
+- Add real substance about the topic (stats, insight, or a concrete takeaway) — not filler.
+- Naturally weave in high-value keywords AND longtail keywords a loan officer or realtor would search for (e.g. "mortgage leads for loan officers", "real estate agent partnerships", "AI for real estate").
+- End with a light call to action.
+- Then 5-7 hashtags on the final line, each derived from the keywords/longtail keywords actually used in the post. CamelCase multi-word tags.
+
+Return exactly: {"text": "the full post including the hashtag line"}`
+      }],
+      temperature: 0.7,
+      max_tokens: 600,
+    });
+    const raw = completion.choices[0]?.message?.content || '{}';
+    const parsed = JSON.parse(raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim());
+    if (!parsed.text) throw new Error('empty_ai_response');
+    res.json({ text: String(parsed.text) });
+  } catch (err) {
+    console.error('[Social compose]', err);
+    res.status(500).json({ error: 'compose_failed', detail: err?.message });
+  }
+});
+
+// POST /api/admin/social/hashtags — suggest hashtags for the composer.
+app.post('/api/admin/social/hashtags', verifyAdmin, async (req, res) => {
+  try {
+    const { text } = req.body || {};
+    if (!text || !String(text).trim()) return res.status(400).json({ error: 'text_required' });
+    const hashtags = await generateSocialHashtags(text);
+    res.json({ hashtags });
+  } catch (err) {
+    console.error('[Social hashtags]', err);
+    res.status(500).json({ error: 'hashtags_failed' });
+  }
+});
+
+// GET /api/admin/social/status — connection state, channels, saved config.
+app.get('/api/admin/social/status', verifyAdmin, async (req, res) => {
+  try {
+    const configured = bufferService.isConfigured();
+    const cfg = await getSocialConfig();
+    if (!configured) {
+      return res.json({ configured: false, account: null, channels: [], config: cfg });
+    }
+    let account = null;
+    let channels = [];
+    try { account = await getBufferAccountCached(); } catch (e) { /* token invalid */ }
+    try { channels = await getBufferChannelsCached(); } catch (e) { /* org/scope issue */ }
+    res.json({ configured: true, account, channels, config: cfg });
+  } catch (err) {
+    console.error('[Social status]', err);
+    res.status(500).json({ error: 'social_status_failed', detail: err?.message });
+  }
+});
+
+// POST /api/admin/social/config — save selected channels + auto-post toggle.
+app.post('/api/admin/social/config', verifyAdmin, async (req, res) => {
+  try {
+    const body = req.body || {};
+    const patch = { id: 1, updated_at: new Date().toISOString() };
+    if (body.autoPostChannelIds !== undefined) {
+      const ids = Array.isArray(body.autoPostChannelIds) ? body.autoPostChannelIds.filter(Boolean) : [];
+      patch.auto_post_channel_ids = ids;
+    }
+    if (body.autoPostBlog !== undefined) patch.auto_post_blog = Boolean(body.autoPostBlog);
+    const { data, error } = await supabaseAdmin
+      .from('social_config').upsert(patch).select().single();
+    if (error) throw error;
+    res.json({ config: data });
+  } catch (err) {
+    console.error('[Social config]', err);
+    res.status(500).json({ error: 'social_config_failed', detail: err?.message });
+  }
+});
+
+// POST /api/admin/social/post — ad-hoc composer: post now (queue) or schedule,
+// to one or many channels. Body: { text, channelIds:[], dueAt? }.
+app.post('/api/admin/social/post', verifyAdmin, async (req, res) => {
+  try {
+    if (!bufferService.isConfigured()) {
+      return res.status(400).json({ error: 'buffer_not_configured' });
+    }
+    const { text, channelIds, channelId, dueAt, imageUrls } = req.body || {};
+    if (!text || !String(text).trim()) return res.status(400).json({ error: 'text_required' });
+    let ids = Array.isArray(channelIds) ? channelIds.filter(Boolean) : [];
+    if (!ids.length && channelId) ids = [channelId]; // single-channel compatibility
+    if (!ids.length) {
+      const cfg = await getSocialConfig();
+      ids = cfg.auto_post_channel_ids;
+    }
+    if (!ids.length) return res.status(400).json({ error: 'no_channel_selected' });
+    const imgs = Array.isArray(imageUrls) ? imageUrls.filter(Boolean) : [];
+    // No schedule → publish immediately (shareNow); scheduled → exact time.
+    const results = await postToChannels(ids, text, dueAt, imgs, dueAt ? undefined : 'shareNow');
+    const ok = results.some((r) => r.ok);
+    res.status(ok ? 200 : 502).json({ ok, results });
+  } catch (err) {
+    console.error('[Social post]', err);
+    res.status(500).json({ error: 'social_post_failed', detail: err?.message });
+  }
+});
+
+// POST /api/admin/social/upload — drag-and-drop an image; returns a public URL
+// coworkers can attach to a post. Stored in the public ai-card-assets bucket.
+app.post('/api/admin/social/upload', verifyAdmin, (req, res) => {
+  listingBrainUpload.single('file')(req, res, async (multerErr) => {
+    if (multerErr) {
+      if (multerErr.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ error: 'file_too_large' });
+      return res.status(400).json({ error: 'invalid_file' });
+    }
+    try {
+      const file = req.file;
+      if (!file) return res.status(400).json({ error: 'invalid_file' });
+      const mt = String(file.mimetype || '');
+      if (!/^image\/(png|jpe?g|gif|webp)$/.test(mt)) {
+        return res.status(400).json({ error: 'invalid_image_type' });
+      }
+      const bucket = 'ai-card-assets';
+      const ext = (mt.split('/')[1] || 'png').replace('jpeg', 'jpg');
+      const storagePath = `social/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      await ensureStorageBucketExists(bucket);
+      const { error: upErr } = await supabaseAdmin.storage
+        .from(bucket).upload(storagePath, file.buffer, { contentType: mt, upsert: false });
+      if (upErr) {
+        console.error('[Social upload]', upErr);
+        return res.status(500).json({ error: 'upload_failed' });
+      }
+      const { data } = supabaseAdmin.storage.from(bucket).getPublicUrl(storagePath);
+      res.json({ url: data?.publicUrl || null });
+    } catch (err) {
+      console.error('[Social upload]', err);
+      res.status(500).json({ error: 'upload_failed', detail: err?.message });
+    }
+  });
 });
 
 app.post('/api/admin/setup', async (req, res) => {
