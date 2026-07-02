@@ -106,6 +106,7 @@ Hard limits to know:
 | "Not connected" banner | Buffer token/org env vars missing on the server | Tell Chris |
 | "No channels found" | Pages aren't linked in Buffer | Tell Chris (connect in Buffer → Channels) |
 | "Post failed: …" or "(1 failed)" | One channel rejected it (often a disconnected/expired page) | Re-check that page in Buffer; try again |
+| "Too many requests from this client" | We hit Buffer's daily API cap (100 calls/day on the free plan, rolling 24h) | Wait a few hours and retry — nothing is lost. If it happens often, tell Chris (upgrade to Buffer Essentials raises it to 250/day) |
 | Post never appeared | It's probably sitting in the Buffer queue waiting for the next slot | Check Buffer → that channel's queue |
 | Need to edit/delete a queued post | Our panel only creates posts | Do it in Buffer directly |
 
