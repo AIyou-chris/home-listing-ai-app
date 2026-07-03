@@ -64,11 +64,13 @@ function createBufferService(deps = {}) {
   //  - No dueAt / mode  → addToQueue (next scheduled Buffer slot)
   //  - mode: 'shareNow' → publish immediately
   //  - dueAt (ISO 8601 UTC) → customScheduled for that exact time
+  //  - saveToDraft: true → lands in Buffer's Drafts tab awaiting manual
+  //    approval; nothing publishes until it's approved in Buffer.
   //  - imageUrls: string[] → attached as image assets (must be public URLs)
   //  - service: 'facebook' | 'instagram' | … → adds the per-network metadata
   //    Buffer requires (FB/IG posts are rejected without a `type`).
   // `assets` is a required field in Buffer's schema, so text-only posts send [].
-  async function createPost({ channelId, text, dueAt, imageUrls, mode, service } = {}) {
+  async function createPost({ channelId, text, dueAt, imageUrls, mode, service, saveToDraft } = {}) {
     const chan = channelId || deps.defaultChannelId || process.env.BUFFER_LINKEDIN_CHANNEL_ID || '';
     if (!chan) throw new Error('buffer_channel_missing');
     if (!text || !String(text).trim()) throw new Error('buffer_text_required');
@@ -81,8 +83,11 @@ function createBufferService(deps = {}) {
       throw new Error('Instagram needs an image — add one and try again.');
     }
 
-    const shareMode = dueAt ? 'customScheduled' : (mode || 'addToQueue');
+    // Drafts never shareNow — once approved in Buffer they go to the queue
+    // (or the scheduled time when dueAt was set).
+    const shareMode = dueAt ? 'customScheduled' : (saveToDraft ? 'addToQueue' : (mode || 'addToQueue'));
     const dueClause = dueAt ? `, dueAt: ${gqlString(dueAt)}` : '';
+    const draftClause = saveToDraft ? ', saveToDraft: true' : '';
 
     let metadataClause = '';
     if (svc === 'facebook') {
@@ -99,7 +104,7 @@ function createBufferService(deps = {}) {
         channelId: ${gqlString(chan)},
         schedulingType: automatic,
         mode: ${shareMode},
-        assets: ${assetsLiteral}${metadataClause}${dueClause}
+        assets: ${assetsLiteral}${metadataClause}${dueClause}${draftClause}
       }) {
         __typename
         ... on PostActionSuccess { post { id dueAt } }

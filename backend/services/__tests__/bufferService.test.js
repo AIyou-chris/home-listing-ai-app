@@ -120,6 +120,31 @@ test('createPost switches to customScheduled when dueAt is given', async () => {
   assert.match(sentQuery, /dueAt: "2026-07-02T15:00:00.000Z"/);
 });
 
+test('createPost saveToDraft adds the draft flag and forces addToQueue over shareNow', async () => {
+  const fetch = stubFetch({ data: { createPost: { __typename: 'PostActionSuccess', post: { id: 'pd' } } } });
+  const svc = createBufferService({ token: 'tok', fetch });
+  await svc.createPost({ channelId: 'c1', text: 'draft me', mode: 'shareNow', saveToDraft: true });
+  const sentQuery = fetch.calls[0].parsedBody.query;
+  assert.match(sentQuery, /saveToDraft: true/);
+  assert.match(sentQuery, /mode: addToQueue/);
+});
+
+test('createPost saveToDraft keeps customScheduled when dueAt is given', async () => {
+  const fetch = stubFetch({ data: { createPost: { __typename: 'PostActionSuccess', post: { id: 'pd2' } } } });
+  const svc = createBufferService({ token: 'tok', fetch });
+  await svc.createPost({ channelId: 'c1', text: 'draft later', dueAt: '2026-07-05T15:00:00.000Z', saveToDraft: true });
+  const sentQuery = fetch.calls[0].parsedBody.query;
+  assert.match(sentQuery, /saveToDraft: true/);
+  assert.match(sentQuery, /mode: customScheduled/);
+});
+
+test('createPost omits saveToDraft when not requested', async () => {
+  const fetch = stubFetch({ data: { createPost: { __typename: 'PostActionSuccess', post: { id: 'pd3' } } } });
+  const svc = createBufferService({ token: 'tok', fetch });
+  await svc.createPost({ channelId: 'c1', text: 'live post' });
+  assert.doesNotMatch(fetch.calls[0].parsedBody.query, /saveToDraft/);
+});
+
 test('createPost surfaces a MutationError from Buffer', async () => {
   const fetch = stubFetch({ data: { createPost: { __typename: 'MutationError', message: 'channel disconnected' } } });
   const svc = createBufferService({ token: 'tok', fetch });

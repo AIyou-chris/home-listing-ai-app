@@ -35406,7 +35406,7 @@ function buildBlogLinkedInText(post) {
 // Post the same text (+ optional images) to every selected channel.
 // Resolves each channel's network first — Facebook/Instagram posts are
 // rejected by Buffer unless network-specific metadata is included.
-async function postToChannels(channelIds, text, dueAt, imageUrls, mode) {
+async function postToChannels(channelIds, text, dueAt, imageUrls, mode, saveToDraft) {
   const ids = (Array.isArray(channelIds) ? channelIds : []).filter(Boolean);
   const channelInfo = new Map();
   try {
@@ -35421,7 +35421,7 @@ async function postToChannels(channelIds, text, dueAt, imageUrls, mode) {
     const base = { channelId, channelName: info?.displayName || info?.name || null, service: info?.service || null };
     try {
       const post = await bufferService.createPost({
-        channelId, text, dueAt, imageUrls, mode, service: info?.service,
+        channelId, text, dueAt, imageUrls, mode, service: info?.service, saveToDraft,
       });
       return { ...base, ok: true, post };
     } catch (err) {
@@ -35432,7 +35432,8 @@ async function postToChannels(channelIds, text, dueAt, imageUrls, mode) {
 }
 
 // Share a blog post to all selected channels (text + hashtags + featured image),
-// publishing immediately. Used by the auto-share hook AND the manual
+// saved as Buffer DRAFTS — the owner reviews and approves them in Buffer before
+// anything publishes. Used by the auto-share hook AND the manual
 // "Share to social" button in the blog editor.
 async function shareBlogPostToSocial(post) {
   const cfg = await getSocialConfig();
@@ -35441,7 +35442,7 @@ async function shareBlogPostToSocial(post) {
   let text = buildBlogLinkedInText(post);
   const hashtags = await generateSocialHashtags(`${post.title || ''}\n${post.excerpt || ''}`);
   if (hashtags.length) text += `\n\n${hashtags.join(' ')}`;
-  const results = await postToChannels(cfg.auto_post_channel_ids, text, null, images, 'shareNow');
+  const results = await postToChannels(cfg.auto_post_channel_ids, text, null, images, undefined, true);
   // Mark as shared if at least one channel accepted it (avoids auto re-blasting).
   if (results.some((r) => r.ok)) {
     await supabaseAdmin.from('blog_posts')
@@ -35662,14 +35663,15 @@ app.post('/api/admin/social/config', verifyAdmin, async (req, res) => {
   }
 });
 
-// POST /api/admin/social/post — ad-hoc composer: post now (queue) or schedule,
-// to one or many channels. Body: { text, channelIds:[], dueAt? }.
+// POST /api/admin/social/post — ad-hoc composer: post now (queue), schedule,
+// or save as a Buffer draft to approve later.
+// Body: { text, channelIds:[], dueAt?, saveAsDraft? }.
 app.post('/api/admin/social/post', verifyAdmin, async (req, res) => {
   try {
     if (!bufferService.isConfigured()) {
       return res.status(400).json({ error: 'buffer_not_configured' });
     }
-    const { text, channelIds, channelId, dueAt, imageUrls } = req.body || {};
+    const { text, channelIds, channelId, dueAt, imageUrls, saveAsDraft } = req.body || {};
     if (!text || !String(text).trim()) return res.status(400).json({ error: 'text_required' });
     let ids = Array.isArray(channelIds) ? channelIds.filter(Boolean) : [];
     if (!ids.length && channelId) ids = [channelId]; // single-channel compatibility
@@ -35679,8 +35681,14 @@ app.post('/api/admin/social/post', verifyAdmin, async (req, res) => {
     }
     if (!ids.length) return res.status(400).json({ error: 'no_channel_selected' });
     const imgs = Array.isArray(imageUrls) ? imageUrls.filter(Boolean) : [];
-    // No schedule → publish immediately (shareNow); scheduled → exact time.
-    const results = await postToChannels(ids, text, dueAt, imgs, dueAt ? undefined : 'shareNow');
+    // Draft → waits in Buffer for approval; no schedule → publish immediately
+    // (shareNow); scheduled → exact time.
+    const draft = Boolean(saveAsDraft);
+    const results = await postToChannels(
+      ids, text, dueAt, imgs,
+      (dueAt || draft) ? undefined : 'shareNow',
+      draft
+    );
     const ok = results.some((r) => r.ok);
     res.status(ok ? 200 : 502).json({ ok, results });
   } catch (err) {

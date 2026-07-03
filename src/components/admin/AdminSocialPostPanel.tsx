@@ -47,6 +47,7 @@ const AdminSocialPostPanel: React.FC = () => {
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [scheduleAt, setScheduleAt] = useState('');
+  const [saveAsDraft, setSaveAsDraft] = useState(true);
   const [posting, setPosting] = useState(false);
   const [tagging, setTagging] = useState(false);
   const [writing, setWriting] = useState(false);
@@ -109,7 +110,7 @@ const AdminSocialPostPanel: React.FC = () => {
     if (!selected.length) { toast.error('Pick at least one channel.'); return; }
     setPosting(true);
     try {
-      const body: Record<string, unknown> = { text, channelIds: selected };
+      const body: Record<string, unknown> = { text, channelIds: selected, saveAsDraft };
       if (imageUrl.trim()) body.imageUrls = [imageUrl.trim()];
       if (scheduleAt) body.dueAt = new Date(scheduleAt).toISOString();
       // Raw fetch: posting to multiple channels (esp. Instagram image
@@ -129,8 +130,8 @@ const AdminSocialPostPanel: React.FC = () => {
       if (!res.ok || okCount === 0) {
         throw new Error(failed.map((r) => `${nameOf(r)}: ${r.error || 'failed'}`).join(' · ') || d?.detail || 'all channels failed');
       }
-      const verb = scheduleAt ? 'Scheduled' : 'Posted';
-      toast.success(`${verb} on ${okCount} channel${okCount === 1 ? '' : 's'} ✓`);
+      const verb = saveAsDraft ? 'Saved to Buffer drafts' : scheduleAt ? 'Scheduled' : 'Posted';
+      toast.success(`${verb} — ${okCount} channel${okCount === 1 ? '' : 's'} ✓${saveAsDraft ? ' Approve it in Buffer when ready.' : ''}`);
       failed.forEach((r) => toast.error(`${nameOf(r)}: ${r.error || 'failed'}`, { duration: 8000 }));
       setText('');
       setImageUrl('');
@@ -141,7 +142,7 @@ const AdminSocialPostPanel: React.FC = () => {
     } finally {
       setPosting(false);
     }
-  }, [text, selected, scheduleAt, imageUrl]);
+  }, [text, selected, scheduleAt, imageUrl, saveAsDraft]);
 
   const uploadImage = useCallback(async (file: File) => {
     if (!file.type.startsWith('image/')) { toast.error('Please choose an image file.'); return; }
@@ -349,7 +350,7 @@ const AdminSocialPostPanel: React.FC = () => {
                 >
                   <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${autoPost ? 'translate-x-5' : 'translate-x-1'}`} />
                 </button>
-                <span className="text-sm text-slate-700">Auto-share new blog posts to the selected channels</span>
+                <span className="text-sm text-slate-700">Auto-share new blog posts — saved as <b>Buffer drafts</b> for you to approve</span>
               </label>
 
               {/* Composer */}
@@ -512,6 +513,15 @@ const AdminSocialPostPanel: React.FC = () => {
                     ✨ {tagging ? 'Picking hashtags…' : 'Add hashtags'}
                   </button>
                 </div>
+                <label className="mt-3 flex items-center gap-2 cursor-pointer select-none text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={saveAsDraft}
+                    onChange={(e) => setSaveAsDraft(e.target.checked)}
+                    className="h-4 w-4 rounded border-slate-300 text-sky-600"
+                  />
+                  <span>📝 Save as <b>draft in Buffer</b> — waits for your approval, nothing posts until you say so</span>
+                </label>
                 <div className="flex flex-wrap items-center justify-between gap-3 mt-2">
                   <label className="flex items-center gap-2 text-sm text-slate-600">
                     <span>Schedule (optional):</span>
@@ -528,11 +538,13 @@ const AdminSocialPostPanel: React.FC = () => {
                     className="inline-flex items-center gap-2 bg-sky-600 text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-sky-700 disabled:opacity-50 transition-colors"
                   >
                     <span className="material-symbols-outlined text-base">send</span>
-                    {posting ? 'Posting…' : scheduleAt ? `Schedule (${selected.length})` : `Post to ${selected.length || 0}`}
+                    {posting ? 'Sending…' : saveAsDraft ? `Send to Buffer (${selected.length})` : scheduleAt ? `Schedule (${selected.length})` : `Post to ${selected.length || 0}`}
                   </button>
                 </div>
                 <p className="text-xs text-slate-400 mt-2">
-                  No schedule = posts <b>immediately</b>. Pick a date/time to post later instead.
+                  {saveAsDraft
+                    ? <>Lands in Buffer → <b>Drafts</b> for each channel. Approve there and it posts (at your schedule time, if you set one).</>
+                    : <>No schedule = posts <b>immediately</b>. Pick a date/time to post later instead.</>}
                 </p>
               </div>
             </>
