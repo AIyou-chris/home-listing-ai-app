@@ -31611,9 +31611,15 @@ app.get('/api/lo/leads/export.csv', requireAuth, async (req, res) => {
 // before the LO actually pays. Full plan limit kicks in once the sub is active.
 const LO_TRIAL_INVITE_CAP = 10;
 
-// ── LO WOW Invite limit — checks active Stripe subscription against LO price IDs ──
-// Returns: number of invites allowed per month (Infinity = unlimited, 0 = fully blocked)
-const resolveLoWowInviteLimit = async (loAgent) => {
+// ── LO plan tier — checks active Stripe subscription against LO price IDs ─────
+// Single source of truth for what plan an LO is on. Returns:
+//   'trial'   — in the 7-day trial window (app-level flag or Stripe 'trialing')
+//   'lo_lite' — active LO Lite plan ($79/mo)
+//   'lo'      — active LO plan ($149/mo)
+//   'lo_pro'  — active LO Pro plan ($299/mo)
+//   'none'    — expired trial / no subscription
+const resolveLoPlanTier = async (loAgent) => {
+  const LO_LITE_PRICE_ID = process.env.STRIPE_LO_LITE_PRICE_ID;
   const LO_PRICE_ID = process.env.STRIPE_LO_PRICE_ID;
   const LO_PRO_PRICE_ID = process.env.STRIPE_LO_PRO_PRICE_ID;
 
@@ -31623,11 +31629,11 @@ const resolveLoWowInviteLimit = async (loAgent) => {
   const TRIAL_STATUSES = new Set(['trial', 'awaiting_payment']);
   if (TRIAL_STATUSES.has(loAgent?.payment_status) && loAgent?.created_at) {
     const trialEnd = new Date(loAgent.created_at);
-    trialEnd.setDate(trialEnd.getDate() + 3);
-    if (new Date() < trialEnd) return LO_TRIAL_INVITE_CAP; // trial cap
+    trialEnd.setDate(trialEnd.getDate() + 7);
+    if (new Date() < trialEnd) return 'trial';
   }
 
-  if (!stripe || !loAgent?.stripe_customer_id) return 0; // no plan, no trial → blocked
+  if (!stripe || !loAgent?.stripe_customer_id) return 'none';
   try {
     // Model A: card upfront + 7-day Stripe trial. During the trial the subscription
     // status is 'trialing' (not 'active'), so we must accept both — otherwise a paying
@@ -31640,21 +31646,31 @@ const resolveLoWowInviteLimit = async (loAgent) => {
     });
     for (const sub of subs.data) {
       if (!ENTITLED_STATUSES.has(sub.status)) continue;
-      const isTrialing = sub.status === 'trialing';
       for (const item of sub.items.data) {
-        const isLoPlan = (LO_PRO_PRICE_ID && item.price.id === LO_PRO_PRICE_ID)
-          || (LO_PRICE_ID && item.price.id === LO_PRICE_ID);
-        if (!isLoPlan) continue;
-        // During the 7-day trial, cap invites low to limit AI-cost exposure before
-        // they actually pay. Once the sub is 'active' (post-trial), grant the plan limit.
-        if (isTrialing) return LO_TRIAL_INVITE_CAP;
-        if (item.price.id === LO_PRO_PRICE_ID) return Infinity; // $299 — unlimited
-        return 250;                                             // $149 — 250/month
+        const isPro = LO_PRO_PRICE_ID && item.price.id === LO_PRO_PRICE_ID;
+        const isLo = LO_PRICE_ID && item.price.id === LO_PRICE_ID;
+        const isLite = LO_LITE_PRICE_ID && item.price.id === LO_LITE_PRICE_ID;
+        if (!isPro && !isLo && !isLite) continue;
+        if (sub.status === 'trialing') return 'trial';
+        return isPro ? 'lo_pro' : (isLite ? 'lo_lite' : 'lo');
       }
     }
   } catch (err) {
-    console.warn('[LO Invite] Stripe plan lookup failed (non-fatal):', err?.message);
+    console.warn('[LO Plan] Stripe plan lookup failed (non-fatal):', err?.message);
   }
+  return 'none';
+};
+
+// ── LO WOW Invite limit ────────────────────────────────────────────────────────
+// Returns: number of invites allowed per month (Infinity = unlimited, 0 = fully blocked)
+// During the 7-day trial, invites are capped low to limit AI-cost exposure before
+// the LO actually pays. Full plan limit kicks in once the sub is active.
+const resolveLoWowInviteLimit = async (loAgent) => {
+  const tier = await resolveLoPlanTier(loAgent);
+  if (tier === 'trial') return LO_TRIAL_INVITE_CAP;
+  if (tier === 'lo_pro') return Infinity; // $299 — unlimited
+  if (tier === 'lo') return 250;          // $149 — 250/month
+  if (tier === 'lo_lite') return 50;      // $79  — 50/month
   return 0; // No active/trialing LO subscription → blocked
 };
 // ── LO Acquisition Link email ─────────────────────────────────────────────────
@@ -33393,15 +33409,24 @@ app.patch('/api/leads/:leadId/contacted', requireAuth, async (req, res) => {
 });
 
 // ── LO Listing Limit Check ────────────────────────────────────────────────────
+// Caps must match the marketed plans (PricingSectionNew/LOSignupPage):
+// LO Lite $79 → 5, trial + LO $149 → 20, LO Pro $299 → 50, expired/no plan → 1 (Free tier).
+const LO_PLAN_LISTING_LIMITS = { trial: 20, lo_lite: 5, lo: 20, lo_pro: 50, none: 1 };
 app.get('/api/lo/listing-limit', requireAuth, async (req, res) => {
   try {
     const loAgentId = await resolveLoAgentId(req);
     if (!loAgentId) return res.status(401).json({ error: 'unauthorized' });
     const assignedRows = await fetchLoAssignedListings(loAgentId);
     const publishedCount = assignedRows.filter(r => r.status === 'published').length;
-    const { data: agentRow } = await supabaseAdmin.from('agents').select('plan_id').eq('id', loAgentId).single();
+    const { data: agentRow } = await supabaseAdmin.from('agents').select('plan_id, stripe_customer_id, payment_status, created_at').eq('id', loAgentId).single();
     const plan = agentRow?.plan_id || 'lo_partner';
-    const limit = (plan === 'office' || plan === 'white_label') ? -1 : 25;
+    let limit;
+    if (plan === 'office' || plan === 'white_label') {
+      limit = -1;
+    } else {
+      const tier = await resolveLoPlanTier(agentRow);
+      limit = LO_PLAN_LISTING_LIMITS[tier] ?? LO_PLAN_LISTING_LIMITS.none;
+    }
     res.json({ success: true, published: publishedCount, limit, unlimited: limit === -1, atLimit: limit !== -1 && publishedCount >= limit, remaining: limit === -1 ? null : Math.max(0, limit - publishedCount) });
   } catch (err) {
     res.status(500).json({ error: 'limit_check_failed' });
@@ -36731,9 +36756,10 @@ app.post('/api/payments/checkout-session', async (req, res) => {
     }
 
     // Resolve price ID based on plan param
+    const loLitePriceId = process.env.STRIPE_LO_LITE_PRICE_ID || process.env.STRIPE_DEFAULT_PRICE_ID;
     const loPriceId = process.env.STRIPE_LO_PRICE_ID || process.env.STRIPE_DEFAULT_PRICE_ID;
     const loProPriceId = process.env.STRIPE_LO_PRO_PRICE_ID || process.env.STRIPE_DEFAULT_PRICE_ID;
-    const resolvedPriceId = plan === 'lo_pro' ? loProPriceId : (plan === 'lo' ? loPriceId : undefined);
+    const resolvedPriceId = plan === 'lo_pro' ? loProPriceId : (plan === 'lo_lite' ? loLitePriceId : (plan === 'lo' ? loPriceId : undefined));
 
     const session = await paymentService.createCheckoutSession({
       slug,
@@ -36741,7 +36767,7 @@ app.post('/api/payments/checkout-session', async (req, res) => {
       customerId: agent.stripe_customer_id, // Pass existing customer ID if we have it
       provider,
       priceId: resolvedPriceId,
-      amountCents: plan === 'lo_pro' ? 29900 : 14900,
+      amountCents: plan === 'lo_pro' ? 29900 : (plan === 'lo_lite' ? 7900 : 14900),
       trialPeriodDays: trialDays,
       discounts: explicitDiscounts
     })

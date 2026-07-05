@@ -13,14 +13,17 @@ const DEFAULT_LIMITS = {
     reminder_calls_per_month: 0,
     stored_leads_cap: 25
   },
+  // 'starter' = LO plan ($149/mo, 20 listings) and 'pro' = LO Pro ($299/mo,
+  // 50 listings) — must stay in sync with the marketed plans in
+  // src/components/ComparePlansModal.tsx and LOSignupPage.tsx.
   [PLAN_IDS.STARTER]: {
-    active_listings: 5,
+    active_listings: 20,
     reports_per_month: 10,
     reminder_calls_per_month: 50,
     stored_leads_cap: 250
   },
   [PLAN_IDS.PRO]: {
-    active_listings: 25,
+    active_listings: 50,
     reports_per_month: 50,
     reminder_calls_per_month: 250,
     stored_leads_cap: 2000
@@ -86,16 +89,16 @@ const buildDefaultPlanRows = () => {
     },
     {
       id: PLAN_IDS.STARTER,
-      name: 'Starter',
-      price_monthly_usd: 39,
+      name: 'LO',
+      price_monthly_usd: 149,
       stripe_price_id: starterPriceId,
       limits: DEFAULT_LIMITS[PLAN_IDS.STARTER],
       created_at: nowIso()
     },
     {
       id: PLAN_IDS.PRO,
-      name: 'Pro',
-      price_monthly_usd: 79,
+      name: 'LO Pro',
+      price_monthly_usd: 299,
       stripe_price_id: proPriceId,
       limits: DEFAULT_LIMITS[PLAN_IDS.PRO],
       created_at: nowIso()

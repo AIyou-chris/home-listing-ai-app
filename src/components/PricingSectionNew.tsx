@@ -32,7 +32,7 @@ export const PricingSectionNew: React.FC<PricingProps> = ({ onNavigateToSignUp: 
                     </h3>
                     <p className="text-lg md:text-xl text-slate-300 font-light leading-relaxed">
                         Built for loan officers and their agent partners. Email and SMS alerts included.
-                        LO includes 250 texts/month. LO Pro includes unlimited.
+                        LO Lite includes 50 texts/month, LO includes 250, LO Pro is unlimited.
                     </p>
 
                     {/* 7-day free trial detail */}
@@ -47,6 +47,63 @@ export const PricingSectionNew: React.FC<PricingProps> = ({ onNavigateToSignUp: 
 
                 {/* Pricing Cards Grid */}
                 <div className="grid lg:grid-cols-3 gap-8 mb-16 max-w-6xl mx-auto">
+
+                    {/* LO Lite Card */}
+                    <div className="bg-[#0B1121]/80 backdrop-blur-sm border border-slate-700 rounded-3xl p-8 flex flex-col hover:border-cyan-900/50 transition-colors h-full">
+                        <div className="mb-8">
+                            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-800 border border-slate-700 text-slate-400 text-xs font-semibold uppercase tracking-wide mb-3">
+                                <span className="material-symbols-outlined text-[14px]">rocket_launch</span> Getting Started
+                            </div>
+                            <h3 className="text-2xl font-bold text-white mb-2">LO Lite</h3>
+                            <div className="flex items-baseline gap-1 mb-4">
+                                <span className="text-5xl font-extrabold text-white">$79</span>
+                                <span className="text-slate-400">/ month</span>
+                            </div>
+                            <p className="text-slate-400 text-sm h-10">For the LO trying the platform with their first agent partners.</p>
+                        </div>
+
+                        <div className="flex-grow">
+                            <ul className="space-y-4 mb-8">
+                                <li className="flex items-start gap-3 text-white">
+                                    <span className="material-symbols-outlined text-cyan-500 text-xl shrink-0">check</span>
+                                    5 active listings across your partner network
+                                </li>
+                                <li className="flex items-start gap-3 text-white">
+                                    <span className="material-symbols-outlined text-cyan-500 text-xl shrink-0">check</span>
+                                    AI buyer chatbot on every listing page
+                                </li>
+                                <li className="flex items-start gap-3 text-white">
+                                    <span className="material-symbols-outlined text-cyan-500 text-xl shrink-0">check</span>
+                                    Co-branded with your name + NMLS #
+                                </li>
+                                <li className="flex items-start gap-3 text-white">
+                                    <span className="material-symbols-outlined text-cyan-500 text-xl shrink-0">check</span>
+                                    Warm lead alerts to you + your agent partner
+                                </li>
+                                <li className="flex items-start gap-3 text-white">
+                                    <span className="material-symbols-outlined text-cyan-500 text-xl shrink-0">check</span>
+                                    Lead inbox + activity timeline
+                                </li>
+                                <li className="flex items-start gap-3 text-white">
+                                    <span className="material-symbols-outlined text-cyan-500 text-xl shrink-0">check</span>
+                                    50 SMS / month included
+                                </li>
+                            </ul>
+                        </div>
+
+                        <div className="mb-6 p-4 bg-slate-900/50 rounded-xl border border-slate-800/50">
+                            <p className="text-[11px] text-slate-400 leading-snug">
+                                Upgrade to LO anytime • No contracts • Cancel anytime
+                            </p>
+                        </div>
+
+                        <button onClick={() => navigate('/lo-signup?plan=lo_lite')} className="w-full py-3.5 px-6 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-white font-semibold transition-all text-center mb-4">
+                            Start Lite — Free 7 Days
+                        </button>
+                        <p className="text-center text-[11px] text-slate-500 uppercase tracking-widest font-semibold mt-auto">
+                            Best for: first-time LOs testing the waters
+                        </p>
+                    </div>
 
                     {/* LO Card */}
                     <div className="bg-[#0B1121]/80 backdrop-blur-sm border border-slate-700 rounded-3xl p-8 flex flex-col hover:border-cyan-900/50 transition-colors h-full">
@@ -106,7 +163,7 @@ export const PricingSectionNew: React.FC<PricingProps> = ({ onNavigateToSignUp: 
                         </div>
 
                         <button onClick={() => navigate('/lo-signup?plan=lo')} className="w-full py-3.5 px-6 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-white font-semibold transition-all text-center mb-4">
-                            Start LO — Free 3 Days
+                            Start LO — Free 7 Days
                         </button>
                         <p className="text-center text-[11px] text-slate-500 uppercase tracking-widest font-semibold mt-auto">
                             Best for: solo LOs building partnerships
@@ -178,79 +235,84 @@ export const PricingSectionNew: React.FC<PricingProps> = ({ onNavigateToSignUp: 
                         </div>
 
                         <button onClick={() => navigate('/lo-signup?plan=lo_pro')} className="w-full py-3.5 px-6 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold transition-all text-center shadow-[0_0_20px_rgba(6,182,212,0.3)] mb-4">
-                            Go Pro — Free 3 Days
+                            Go Pro — Free 7 Days
                         </button>
                         <p className="text-center text-[11px] text-cyan-500/80 uppercase tracking-widest font-semibold mt-auto">
                             Best for: high-volume LOs + growing networks
                         </p>
                     </div>
 
-                    {/* LO Office / White Label Card */}
-                    <div className="relative bg-gradient-to-b from-[#0F0F1A] to-[#0B1121] backdrop-blur-sm border border-slate-700 rounded-3xl p-8 flex flex-col hover:border-slate-500 transition-colors h-full overflow-hidden">
+                </div>
+
+                {/* LO Office / White Label — full-width block */}
+                <div className="max-w-6xl mx-auto mb-16">
+                    <div className="relative bg-gradient-to-b from-[#0F0F1A] to-[#0B1121] backdrop-blur-sm border border-slate-700 rounded-3xl p-8 lg:p-10 hover:border-slate-500 transition-colors overflow-hidden">
                         {/* Subtle gold shimmer top line */}
                         <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-400/40 to-transparent"></div>
 
-                        <div className="mb-8">
-                            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-950/40 border border-amber-700/30 text-amber-400 text-xs font-semibold uppercase tracking-wide mb-3">
-                                <span className="material-symbols-outlined text-[14px]">business</span> Office / Branch
+                        <div className="flex flex-col lg:flex-row gap-8 lg:gap-12 items-start">
+                            {/* Left: title + pitch + CTA */}
+                            <div className="lg:w-1/3 shrink-0">
+                                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-950/40 border border-amber-700/30 text-amber-400 text-xs font-semibold uppercase tracking-wide mb-3">
+                                    <span className="material-symbols-outlined text-[14px]">business</span> Office / Branch
+                                </div>
+                                <h3 className="text-2xl font-bold text-white mb-2">LO Office</h3>
+                                <div className="flex items-baseline gap-1 mb-4">
+                                    <span className="text-3xl font-extrabold text-white">Custom Pricing</span>
+                                </div>
+                                <p className="text-slate-400 text-sm mb-6">Full white-label build for your branch or lending team. Your brand. Your domain. Your buyers.</p>
+                                <a href="mailto:hello@homelistingai.com" className="w-full py-3.5 px-6 rounded-xl border border-amber-500/40 hover:bg-amber-500/10 text-amber-400 font-semibold transition-all text-center mb-3 block">
+                                    Get a Custom Quote
+                                </a>
+                                <p className="text-center text-[11px] text-slate-500 uppercase tracking-widest font-semibold">
+                                    Best for: branches, teams &amp; enterprise lenders
+                                </p>
                             </div>
-                            <h3 className="text-2xl font-bold text-white mb-2">LO Office</h3>
-                            <div className="flex items-baseline gap-1 mb-4">
-                                <span className="text-3xl font-extrabold text-white">Custom Pricing</span>
+
+                            {/* Right: feature grid */}
+                            <div className="flex-1">
+                                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Everything in LO Pro, plus:</p>
+                                <ul className="grid sm:grid-cols-2 gap-x-8 gap-y-4 mb-6">
+                                    <li className="flex items-start gap-3 text-white">
+                                        <span className="material-symbols-outlined text-amber-400 text-xl shrink-0">check</span>
+                                        Custom domain — <span className="text-slate-400">app.yourbrand.com</span>
+                                    </li>
+                                    <li className="flex items-start gap-3 text-white">
+                                        <span className="material-symbols-outlined text-amber-400 text-xl shrink-0">check</span>
+                                        Full office branding on every listing page
+                                    </li>
+                                    <li className="flex items-start gap-3 text-white">
+                                        <span className="material-symbols-outlined text-amber-400 text-xl shrink-0">check</span>
+                                        Office NMLS # on all assets + disclosures
+                                    </li>
+                                    <li className="flex items-start gap-3 text-white">
+                                        <span className="material-symbols-outlined text-amber-400 text-xl shrink-0">check</span>
+                                        Unlimited listings across your LO team
+                                    </li>
+                                    <li className="flex items-start gap-3 text-white">
+                                        <span className="material-symbols-outlined text-amber-400 text-xl shrink-0">check</span>
+                                        Branch manager oversight dashboard
+                                    </li>
+                                    <li className="flex items-start gap-3 text-white">
+                                        <span className="material-symbols-outlined text-amber-400 text-xl shrink-0">check</span>
+                                        LO leaderboard + performance tracking
+                                    </li>
+                                    <li className="flex items-start gap-3 text-white">
+                                        <span className="material-symbols-outlined text-amber-400 text-xl shrink-0">check</span>
+                                        Lead webhook to your CRM
+                                    </li>
+                                    <li className="flex items-start gap-3 text-white">
+                                        <span className="material-symbols-outlined text-amber-400 text-xl shrink-0">check</span>
+                                        Dedicated onboarding + priority support
+                                    </li>
+                                </ul>
+                                <div className="p-4 bg-amber-950/20 rounded-xl border border-amber-900/30">
+                                    <p className="text-[11px] text-amber-400/80 leading-snug">
+                                        Priced per office based on LO count and listing volume
+                                    </p>
+                                </div>
                             </div>
-                            <p className="text-slate-400 text-sm h-10">Full white-label build for your branch or lending team. Your brand. Your domain. Your buyers.</p>
                         </div>
-
-                        <div className="flex-grow">
-                            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Everything in LO Pro, plus:</p>
-                            <ul className="space-y-4 mb-8">
-                                <li className="flex items-start gap-3 text-white">
-                                    <span className="material-symbols-outlined text-amber-400 text-xl shrink-0">check</span>
-                                    Custom domain — <span className="text-slate-400">app.yourbrand.com</span>
-                                </li>
-                                <li className="flex items-start gap-3 text-white">
-                                    <span className="material-symbols-outlined text-amber-400 text-xl shrink-0">check</span>
-                                    Full office branding on every listing page
-                                </li>
-                                <li className="flex items-start gap-3 text-white">
-                                    <span className="material-symbols-outlined text-amber-400 text-xl shrink-0">check</span>
-                                    Office NMLS # on all assets + disclosures
-                                </li>
-                                <li className="flex items-start gap-3 text-white">
-                                    <span className="material-symbols-outlined text-amber-400 text-xl shrink-0">check</span>
-                                    Unlimited listings across your LO team
-                                </li>
-                                <li className="flex items-start gap-3 text-white">
-                                    <span className="material-symbols-outlined text-amber-400 text-xl shrink-0">check</span>
-                                    Branch manager oversight dashboard
-                                </li>
-                                <li className="flex items-start gap-3 text-white">
-                                    <span className="material-symbols-outlined text-amber-400 text-xl shrink-0">check</span>
-                                    LO leaderboard + performance tracking
-                                </li>
-                                <li className="flex items-start gap-3 text-white">
-                                    <span className="material-symbols-outlined text-amber-400 text-xl shrink-0">check</span>
-                                    Lead webhook to your CRM
-                                </li>
-                                <li className="flex items-start gap-3 text-white">
-                                    <span className="material-symbols-outlined text-amber-400 text-xl shrink-0">check</span>
-                                    Dedicated onboarding + priority support
-                                </li>
-                            </ul>
-                        </div>
-
-                        <div className="mb-6 p-4 bg-amber-950/20 rounded-xl border border-amber-900/30">
-                            <p className="text-[11px] text-amber-400/80 leading-snug">
-                                Priced per office based on LO count and listing volume
-                            </p>
-                        </div>
-
-                        <a href="mailto:hello@homelistingai.com" className="w-full py-3.5 px-6 rounded-xl border border-amber-500/40 hover:bg-amber-500/10 text-amber-400 font-semibold transition-all text-center mb-4 block">
-                            Get a Custom Quote
-                        </a>
-                        <p className="text-center text-[11px] text-slate-500 uppercase tracking-widest font-semibold mt-auto">
-                            Best for: branches, teams &amp; enterprise lenders
-                        </p>
                     </div>
                 </div>
 
@@ -267,6 +329,10 @@ export const PricingSectionNew: React.FC<PricingProps> = ({ onNavigateToSignUp: 
                         <div className="flex-1 w-full bg-slate-950 rounded-xl border border-slate-800 p-6 shadow-inner">
                             <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Included Each Month</p>
                             <ul className="space-y-4">
+                                <li className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-slate-800/60 pb-3">
+                                    <span className="text-white font-medium text-sm">LO Lite</span>
+                                    <span className="text-slate-400 text-xs">50 outbound SMS / month included</span>
+                                </li>
                                 <li className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-slate-800/60 pb-3">
                                     <span className="text-white font-medium text-sm">LO</span>
                                     <span className="text-slate-400 text-xs">250 outbound SMS / month included</span>

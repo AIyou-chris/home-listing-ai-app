@@ -129,7 +129,7 @@ export const agentOnboardingService = {
     provider?: string;
     amountCents?: number;
     promoCode?: string;
-    plan?: 'lo' | 'lo_pro';
+    plan?: 'lo_lite' | 'lo' | 'lo_pro';
   }): Promise<CheckoutSessionResponse> {
     const response = await fetch(buildApiUrl('/api/payments/checkout-session'), {
       method: 'POST',

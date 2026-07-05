@@ -6,9 +6,23 @@ import { PublicHeader } from './layout/PublicHeader';
 import { PublicFooter } from './layout/PublicFooter';
 import { BackgroundTechIcons } from './BackgroundTechIcons';
 
-type Plan = 'lo' | 'lo_pro';
+type Plan = 'lo_lite' | 'lo' | 'lo_pro';
 
 const PLANS: Record<Plan, { name: string; price: string; tagline: string; features: string[]; highlight: boolean }> = {
+    lo_lite: {
+        name: 'LO Lite',
+        price: '$79',
+        tagline: 'Try the platform with your first agent partners.',
+        highlight: false,
+        features: [
+            '5 active listings across your partner network',
+            'AI buyer chatbot on every listing page',
+            'Co-branded with your name + NMLS #',
+            'Warm lead alerts to you + your partner',
+            'Lead inbox + activity timeline',
+            '50 SMS / month included',
+        ],
+    },
     lo: {
         name: 'LO',
         price: '$149',
@@ -46,7 +60,7 @@ const LOSignupPage: React.FC = () => {
     const [searchParams] = useSearchParams();
 
     const planParam = searchParams.get('plan');
-    const initialPlan: Plan = planParam === 'lo_pro' ? 'lo_pro' : 'lo';
+    const initialPlan: Plan = planParam === 'lo_pro' ? 'lo_pro' : (planParam === 'lo_lite' ? 'lo_lite' : 'lo');
 
     const [selectedPlan, setSelectedPlan] = useState<Plan>(initialPlan);
     const [firstName, setFirstName] = useState('');
@@ -159,9 +173,9 @@ const LOSignupPage: React.FC = () => {
                 </div>
 
                 {/* Plan Picker */}
-                <div className="w-full max-w-2xl mb-8">
+                <div className="w-full max-w-4xl mb-8">
                     <p className="text-sm text-slate-400 text-center mb-4 uppercase tracking-widest font-semibold">Choose your plan</p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         {(Object.entries(PLANS) as [Plan, typeof PLANS[Plan]][]).map(([key, plan]) => (
                             <button
                                 key={key}

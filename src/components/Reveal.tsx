@@ -40,6 +40,15 @@ export const Reveal: React.FC<RevealProps> = ({
     const el = ref.current;
     if (!el) return;
 
+    // For elements taller than the viewport, `threshold` (a % of the ELEMENT)
+    // may be impossible to reach — e.g. 15% of a 4500px section never fits on
+    // a 900px screen, so the reveal would never fire and the section stays
+    // invisible. Clamp to half the maximum achievable ratio so tall sections
+    // always trigger once a reasonable chunk is scrolled into view.
+    const viewportH = window.innerHeight || 900;
+    const maxRatio = el.offsetHeight > 0 ? Math.min(1, (viewportH * 0.9) / el.offsetHeight) : 1;
+    const effectiveThreshold = Math.min(threshold, maxRatio / 2);
+
     const obs = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
@@ -49,7 +58,7 @@ export const Reveal: React.FC<RevealProps> = ({
           setVisible(false);
         }
       },
-      { threshold, rootMargin: '0px 0px -10% 0px' }
+      { threshold: effectiveThreshold, rootMargin: '0px 0px -10% 0px' }
     );
     obs.observe(el);
     return () => obs.disconnect();
