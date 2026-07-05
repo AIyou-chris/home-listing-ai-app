@@ -653,6 +653,9 @@ module.exports = (supabaseAdmin) => {
       if (options.trackOpens) formData.append('o:tracking-opens', 'yes');
       if (options.trackClicks) formData.append('o:tracking-clicks', 'yes');
 
+      // Scheduled delivery — RFC 2822 date string; Mailgun caps at 3 days out
+      if (options.deliveryTime) formData.append('o:deliverytime', options.deliveryTime);
+
       // Add ICS if available
       if (options.ics) {
         const icsBlob = new Blob([options.ics.content], { type: 'text/calendar; charset=utf-8; method=REQUEST' });

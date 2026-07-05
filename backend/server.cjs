@@ -31702,6 +31702,38 @@ function buildLoOutreachEmail({ name, link, unsubscribeUrl }) {
   </div>`;
 }
 
+// ── LO Acquisition follow-up: Zillow cost-math email, sent 2 days after invite ─
+const LO_OUTREACH_FOLLOWUP_DELAY_MS = 48 * 60 * 60 * 1000; // 2 days
+const LO_ZILLOW_MATH_IMAGE_URL = 'https://yocchddxdsaldgsibmmc.supabase.co/storage/v1/object/public/blog-assets/marketing/zillow-cost-square.png';
+
+function buildLoZillowMathEmail({ name, link, unsubscribeUrl }) {
+  const firstName = (name || '').trim().split(/\s+/)[0] || 'there';
+  const mailingAddress = process.env.LO_MAILING_ADDRESS || '3855 Self Rd, Cashmere, WA 98815';
+  const unsub = unsubscribeUrl
+    ? `<a href="${unsubscribeUrl}" style="color:#94a3b8;text-decoration:underline">Unsubscribe</a>`
+    : 'Reply STOP to opt out';
+  return `
+  <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:520px;margin:0 auto;color:#0f172a">
+    <a href="${link}" style="display:block;border-radius:16px 16px 0 0;overflow:hidden;line-height:0">
+      <img src="${LO_ZILLOW_MATH_IMAGE_URL}"
+           alt="One Zillow lead costs you $75-$150+. HomeListingAI? $79/mo."
+           width="520" style="width:100%;max-width:520px;height:auto;display:block;border-radius:16px 16px 0 0"/>
+    </a>
+    <div style="background:#ffffff;padding:26px 24px;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 16px 16px">
+      <p style="font-size:15px;line-height:1.6;margin:0 0 14px">Hi ${firstName},</p>
+      <p style="font-size:15px;line-height:1.6;margin:0 0 14px">That number isn't a scare tactic — it's the going rate. <strong>$75–$150 for one lead</strong> that was sold to five other people before you even picked up the phone.</p>
+      <p style="font-size:15px;line-height:1.6;margin:0 0 14px">HomeListingAI is <strong>$79/month, flat.</strong> An AI assistant on every partner agent's listing — answering buyers 24/7 and routing every warm financing lead to <strong>you first</strong>. Never shared. Never recycled.</p>
+      <p style="font-size:15px;line-height:1.6;margin:0 0 6px;font-weight:700">One closed loan covers 20+ months. Less than one of their leads. Every single month.</p>
+      <a href="${link}" style="display:block;background:linear-gradient(135deg,#d64327,#e05a3a);color:#fff;font-size:16px;font-weight:800;text-decoration:none;text-align:center;padding:15px;border-radius:14px;margin:20px 0 10px">See it live — takes 2 minutes →</a>
+      <p style="font-size:12px;color:#64748b;text-align:center;margin:0 0 16px">7-day free trial · Cancel anytime</p>
+      <p style="font-size:10.5px;color:#94a3b8;line-height:1.6;margin:0">Zillow lead costs vary by market; based on average reported costs of $75–$150 per shared lead. HomeListingAI is not affiliated with or endorsed by Zillow.</p>
+    </div>
+    <p style="font-size:11px;color:#94a3b8;text-align:center;margin:16px 0 0;line-height:1.6">
+      Powered by HomeListingAI<br>${mailingAddress}<br>${unsub}
+    </p>
+  </div>`;
+}
+
 // ── LO Partners — Magic Link Invite System ────────────────────────────────────
 app.post('/api/lo/partners/invite', requireAuth, async (req, res) => {
   try {
@@ -32057,7 +32089,78 @@ async function sendLoAcquisitionInvite({ email, name, phone, website, adminId })
   } catch (emailErr) {
     console.warn('[LO Outreach] Email failed (non-fatal):', emailErr?.message);
   }
+  // Follow-up #2 (Zillow cost-math email) is NOT sent here — the
+  // processLoZillowFollowups sweep picks this row up 48h later via the
+  // NULL followup_sent_at column. Mailgun can't hold scheduled mail >24h.
   return link;
+}
+
+// ── LO Zillow follow-up sweep ─────────────────────────────────────────────────
+// Sends buildLoZillowMathEmail 48h after each acquisition invite. Rows are
+// claimed atomically (followup_sent_at flip) so overlapping sweeps or restarts
+// can't double-send. Nothing fires before LO_ZILLOW_FOLLOWUP_START — the first
+// sweep after that instant also delivers the one-time backlog blast to every
+// previously-invited LO (gate = Tue 2026-07-07 09:00 PT).
+const LO_ZILLOW_FOLLOWUP_START_MS = Date.parse('2026-07-07T16:00:00Z');
+let loZillowSweepBusy = false;
+async function processLoZillowFollowups() {
+  if (!supabaseAdmin || loZillowSweepBusy) return;
+  if (Date.now() < LO_ZILLOW_FOLLOWUP_START_MS) return;
+  loZillowSweepBusy = true;
+  try {
+    const cutoff = new Date(Date.now() - LO_OUTREACH_FOLLOWUP_DELAY_MS).toISOString();
+    const { data: due, error } = await supabaseAdmin
+      .from('lo_outreach_invites')
+      .select('id, token, lo_name, lo_email')
+      .is('followup_sent_at', null)
+      .lte('created_at', cutoff)
+      .order('created_at', { ascending: false })
+      .limit(500);
+    if (error || !due || !due.length) return;
+    const { data: suppressedRows } = await supabaseAdmin.from('lo_suppression_list').select('email');
+    const suppressed = new Set((suppressedRows || []).map((r) => String(r.email || '').toLowerCase()));
+    const appBase = (process.env.APP_BASE_URL || process.env.DASHBOARD_BASE_URL || 'https://homelistingai.com').replace(/\/$/, '');
+    const seen = new Set(); // one send per email even if they have several invite rows
+    let sent = 0;
+    for (const row of due) {
+      const { data: claimed } = await supabaseAdmin
+        .from('lo_outreach_invites')
+        .update({ followup_sent_at: new Date().toISOString() })
+        .eq('id', row.id)
+        .is('followup_sent_at', null)
+        .select('id');
+      if (!claimed || !claimed.length) continue; // another sweep owns this row
+      const email = String(row.lo_email || '').trim().toLowerCase();
+      if (!email || !email.includes('@') || suppressed.has(email) || seen.has(email)) continue;
+      seen.add(email);
+      try {
+        await emailService.sendEmail({
+          to: email,
+          subject: 'The math on your last Zillow lead',
+          html: buildLoZillowMathEmail({
+            name: row.lo_name,
+            link: `${appBase}/for-loan-officers/${row.token}`,
+            unsubscribeUrl: `${appBase}/api/public/lo-unsubscribe/${row.token}`
+          }),
+          tags: { campaign: 'lo-zillow-followup' }
+        });
+        sent += 1;
+      } catch (sendErr) {
+        console.warn('[LO Zillow Follow-up] send failed:', email, sendErr?.message);
+      }
+    }
+    if (sent) console.log(`[LO Zillow Follow-up] sent ${sent} (processed ${due.length} rows)`);
+  } catch (err) {
+    console.warn('[LO Zillow Follow-up] sweep failed:', err?.message);
+  } finally {
+    loZillowSweepBusy = false;
+  }
+}
+if (APP_RUNTIME_MODE !== 'worker') {
+  setInterval(() => { processLoZillowFollowups().catch(() => {}); }, 5 * 60 * 1000);
+  // Catch-up shortly after boot — the free web service sleeps when idle, so a
+  // wake-up (any request) should flush overdue follow-ups quickly.
+  setTimeout(() => { processLoZillowFollowups().catch(() => {}); }, 30 * 1000);
 }
 
 // ── POST /api/admin/lo-outreach/invite — admin sends an LO acquisition link ────
