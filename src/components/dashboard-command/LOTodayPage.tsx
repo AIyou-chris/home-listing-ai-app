@@ -3,6 +3,7 @@ import PageGuide from './PageGuide';
 import { useNavigate } from 'react-router-dom'
 import { buildDashboardPath, useDemoMode } from '../../demo/useDemoMode'
 import { buildApiUrl } from '../../lib/api'
+import { authHeaders } from '../../services/dashboard/utils'
 import { supabase } from '../../services/supabase'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -126,6 +127,95 @@ const _StatCard: React.FC<{
     {sub && <p className="text-xs text-slate-600 mt-1">{sub}</p>}
   </div>
 )
+
+// ─── Testimonial ask ──────────────────────────────────────────────────────────
+// Shown once the LO has real leads (totalLeads >= 2 at the render site).
+// One-time: submitting or dismissing sets a localStorage flag. Quotes land
+// unapproved in lo_testimonials + email the founder.
+const TESTIMONIAL_FLAG = 'hlai_testimonial_prompt';
+
+const LoTestimonialAsk: React.FC = () => {
+  const [state, setState] = useState<'idle' | 'open' | 'sending' | 'done' | 'hidden'>(() => {
+    try { return localStorage.getItem(TESTIMONIAL_FLAG) ? 'hidden' : 'idle'; } catch { return 'idle'; }
+  });
+  const [quote, setQuote] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  const remember = (v: string) => { try { localStorage.setItem(TESTIMONIAL_FLAG, v); } catch { /* private mode */ } };
+
+  const submit = async () => {
+    if (quote.trim().length < 10) { setError('Give us at least a sentence 🙂'); return; }
+    setState('sending');
+    setError(null);
+    try {
+      const headers = await authHeaders(null);
+      const res = await fetch(buildApiUrl('/api/lo/testimonial'), {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ quote: quote.trim() })
+      });
+      if (!res.ok) throw new Error('save_failed');
+      remember('submitted');
+      setState('done');
+    } catch {
+      setState('open');
+      setError("Couldn't save — try again in a minute.");
+    }
+  };
+
+  if (state === 'hidden') return null;
+  if (state === 'done') {
+    return (
+      <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm font-semibold text-emerald-800">
+        🙏 Thank you! We'll check with you before using your quote anywhere.
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 to-white p-5 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-extrabold text-slate-900">🎉 You're getting leads — mind sharing a sentence about it?</p>
+          <p className="mt-0.5 text-xs text-slate-500">Real words from real LOs are the only marketing we'll ever run. We'll ask before quoting you.</p>
+        </div>
+        <button
+          onClick={() => { remember('dismissed'); setState('hidden'); }}
+          className="flex-shrink-0 text-xs font-semibold text-slate-400 hover:text-slate-600"
+        >
+          No thanks
+        </button>
+      </div>
+      {state === 'idle' ? (
+        <button
+          onClick={() => setState('open')}
+          className="mt-3 rounded-xl bg-amber-500 px-4 py-2 text-xs font-extrabold text-white transition-colors hover:bg-amber-600"
+        >
+          Sure, I'll say something
+        </button>
+      ) : (
+        <div className="mt-3">
+          <textarea
+            value={quote}
+            onChange={(e) => setQuote(e.target.value)}
+            maxLength={600}
+            rows={3}
+            placeholder='e.g. "Two warm leads in my first week — from listings I didn&apos;t pay a dime to advertise."'
+            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
+          />
+          {error && <p className="mt-1 text-xs font-semibold text-red-600">{error}</p>}
+          <button
+            onClick={submit}
+            disabled={state === 'sending'}
+            className="mt-2 rounded-xl bg-amber-500 px-4 py-2 text-xs font-extrabold text-white transition-colors hover:bg-amber-600 disabled:opacity-60"
+          >
+            {state === 'sending' ? 'Sending…' : 'Send it 🚀'}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
 
 // ─── Setup Checklist ──────────────────────────────────────────────────────────
 
@@ -351,6 +441,9 @@ const LOTodayPage: React.FC = () => {
           <p className="text-xs text-violet-500 mt-1">agents sent WOW links</p>
         </div>
       </div>
+
+      {/* ── Testimonial ask (once they're getting real leads) ─────────────────── */}
+      {stats.totalLeads >= 2 && <LoTestimonialAsk />}
 
       {/* ── Two column layout ─────────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">

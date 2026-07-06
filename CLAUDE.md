@@ -193,6 +193,16 @@ No long explanations. No walls of text. Table in, table out.
 
 ## 7. Current State Snapshot (as of 2026-07-05)
 
+### ✅ Recently completed — Post-signup loop: trial banner, activation, testimonials (2026-07-06)
+
+| Feature | Notes |
+|---|---|
+| **LO trial countdown banner** | `LoTrialBanner` in the dashboard shell (`App.tsx` ProtectedDashboardLayout). `GET /api/lo/plan-status` returns tier/trialDaysLeft/slug. Trial: dismissible-per-day countdown (amber ≤2d). Expired (`tier:'none'`): red non-dismissible bar with one-click Stripe checkout using `localStorage.hlai_preferred_plan` (saved at signup, defaults lo_lite). LO accounts only. |
+| **Bug fix: `/api/lo/listing-limit`** | Selected non-existent `agents.plan_id` (column is `plan`) — the query silently failed so EVERY LO incl. paying got the Free limit of 1 listing. Fixed. |
+| **Activation** | LO signup now lands on `/dashboard/lo-today` (setup checklist) instead of empty lo-listings; lo-listings empty state got a "Send my first WOW Link" CTA. |
+| **Testimonial capture** | `LoTestimonialAsk` on LO Today when `stats.totalLeads >= 2` (one-time, localStorage `hlai_testimonial_prompt`). `POST /api/lo/testimonial` upserts `lo_testimonials` (migration `lo-testimonials-migration.sql`, applied) with `approved=false` + emails owner. Never show unapproved quotes publicly. |
+| **Demo analytics** | GA4 events from `InlineLoDemo`: `demo_question_tap`, `demo_lead_banner_shown` (with page_path). |
+
 ### ✅ Recently completed — No-card trial + LO pitch page rebuild (2026-07-05)
 
 | Feature | Notes |

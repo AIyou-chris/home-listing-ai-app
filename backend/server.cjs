@@ -33573,6 +33573,56 @@ app.get('/api/lo/plan-status', requireAuth, async (req, res) => {
   }
 });
 
+// ── LO testimonial capture — asked on LO Today once they're getting leads ─────
+// One per LO (upsert). approved stays false until the founder reviews — nothing
+// public ever reads unapproved rows.
+app.post('/api/lo/testimonial', requireAuth, async (req, res) => {
+  try {
+    const loAgentId = await resolveLoAgentId(req);
+    if (!loAgentId) return res.status(401).json({ error: 'unauthorized' });
+    const quote = String(req.body?.quote || '').trim();
+    if (quote.length < 10) return res.status(400).json({ error: 'quote_too_short' });
+    if (quote.length > 600) return res.status(400).json({ error: 'quote_too_long' });
+
+    const { data: agentRow } = await supabaseAdmin
+      .from('agents')
+      .select('first_name, last_name, company, email')
+      .eq('id', loAgentId)
+      .single();
+    const displayName = String(req.body?.displayName || '').trim()
+      || [agentRow?.first_name, agentRow?.last_name].filter(Boolean).join(' ').trim()
+      || 'HomeListingAI LO';
+    const company = String(req.body?.company || agentRow?.company || '').trim() || null;
+
+    const { error: upsertErr } = await supabaseAdmin
+      .from('lo_testimonials')
+      .upsert(
+        { agent_id: loAgentId, display_name: displayName, company, quote, approved: false },
+        { onConflict: 'agent_id' }
+      );
+    if (upsertErr) throw upsertErr;
+
+    // Tell the founder — a real quote from a real LO is marketing gold.
+    const ownerEmail = process.env.OWNER_ALERT_EMAIL || 'homelistingai@gmail.com';
+    emailService.sendEmail({
+      to: ownerEmail,
+      subject: `💬 New LO testimonial — ${displayName}`,
+      html: `
+  <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:520px;margin:0 auto;color:#0f172a">
+    <h2 style="font-size:18px">💬 ${displayName}${company ? ` · ${company}` : ''} left a testimonial</h2>
+    <blockquote style="border-left:4px solid #2563eb;margin:16px 0;padding:12px 16px;background:#f8fafc;font-size:15px;line-height:1.6">${quote.replace(/</g, '&lt;')}</blockquote>
+    <p style="font-size:13px;color:#64748b">From: ${agentRow?.email || 'unknown'} · Stored unapproved in <code>lo_testimonials</code> — approve it before using it anywhere public.</p>
+  </div>`,
+      tags: { template: 'lo-testimonial-alert', type: 'internal' }
+    }).catch((err) => console.warn('[Testimonial] Owner alert failed (non-fatal):', err?.message));
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[Testimonial] Save failed:', err);
+    res.status(500).json({ error: 'testimonial_failed' });
+  }
+});
+
 // ── LO Listing Association ────────────────────────────────────────────────────
 // ── GET /api/listings/search?q= — search published listings by address ────────
 app.get('/api/listings/search', requireAuth, async (req, res) => {
