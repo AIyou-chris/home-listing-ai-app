@@ -26,6 +26,12 @@ const DEMO_QA: { q: string; a: string }[] = [
 
 type ChatMsg = { id: string; role: 'bot' | 'user'; text: string };
 
+// GA4 event — safe no-op when analytics hasn't loaded (consent-gated).
+const track = (name: string, params: Record<string, string>) => {
+  const w = window as typeof window & { gtag?: (...args: unknown[]) => void };
+  if (typeof w.gtag === 'function') w.gtag('event', name, params);
+};
+
 export const InlineLoDemo: React.FC<{ theme?: 'light' | 'dark' }> = ({ theme = 'light' }) => {
   const dark = theme === 'dark';
   const [messages, setMessages] = useState<ChatMsg[]>([
@@ -42,13 +48,19 @@ export const InlineLoDemo: React.FC<{ theme?: 'light' | 'dark' }> = ({ theme = '
 
   const ask = (qa: { q: string; a: string }) => {
     if (typing || asked.includes(qa.q)) return;
+    track('demo_question_tap', { question: qa.q, page_path: window.location.pathname });
     setAsked(prev => [...prev, qa.q]);
     setMessages(prev => [...prev, { id: `u-${Date.now()}`, role: 'user', text: qa.q }]);
     setTyping(true);
     window.setTimeout(() => {
       setTyping(false);
       setMessages(prev => [...prev, { id: `b-${Date.now()}`, role: 'bot', text: qa.a }]);
-      if (!leadCaptured) window.setTimeout(() => setLeadCaptured(true), 900);
+      if (!leadCaptured) {
+        window.setTimeout(() => {
+          setLeadCaptured(true);
+          track('demo_lead_banner_shown', { page_path: window.location.pathname });
+        }, 900);
+      }
     }, 1100);
   };
 
