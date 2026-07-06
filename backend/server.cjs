@@ -33521,8 +33521,11 @@ app.get('/api/lo/listing-limit', requireAuth, async (req, res) => {
     if (!loAgentId) return res.status(401).json({ error: 'unauthorized' });
     const assignedRows = await fetchLoAssignedListings(loAgentId);
     const publishedCount = assignedRows.filter(r => r.status === 'published').length;
-    const { data: agentRow } = await supabaseAdmin.from('agents').select('plan_id, stripe_customer_id, payment_status, created_at').eq('id', loAgentId).single();
-    const plan = agentRow?.plan_id || 'lo_partner';
+    // NOTE: the column is agents.plan — selecting the non-existent plan_id made
+    // this whole query silently fail, so every LO (incl. paying) got the Free
+    // limit of 1. Fixed 2026-07-06.
+    const { data: agentRow } = await supabaseAdmin.from('agents').select('plan, stripe_customer_id, payment_status, created_at').eq('id', loAgentId).single();
+    const plan = agentRow?.plan || 'lo_partner';
     let limit;
     if (plan === 'office' || plan === 'white_label') {
       limit = -1;
@@ -33533,6 +33536,40 @@ app.get('/api/lo/listing-limit', requireAuth, async (req, res) => {
     res.json({ success: true, published: publishedCount, limit, unlimited: limit === -1, atLimit: limit !== -1 && publishedCount >= limit, remaining: limit === -1 ? null : Math.max(0, limit - publishedCount) });
   } catch (err) {
     res.status(500).json({ error: 'limit_check_failed' });
+  }
+});
+
+// ── LO plan status — powers the dashboard trial countdown banner ──────────────
+app.get('/api/lo/plan-status', requireAuth, async (req, res) => {
+  try {
+    const loAgentId = await resolveLoAgentId(req);
+    if (!loAgentId) return res.status(401).json({ error: 'unauthorized' });
+    const { data: agentRow } = await supabaseAdmin
+      .from('agents')
+      .select('account_type, plan, stripe_customer_id, payment_status, created_at, slug')
+      .eq('id', loAgentId)
+      .single();
+    if (!agentRow) return res.status(404).json({ error: 'not_found' });
+    const tier = await resolveLoPlanTier(agentRow);
+    let trialEndsAt = null;
+    let trialDaysLeft = null;
+    if (tier === 'trial' && agentRow.created_at) {
+      const end = new Date(agentRow.created_at);
+      end.setDate(end.getDate() + 7);
+      trialEndsAt = end.toISOString();
+      trialDaysLeft = Math.max(0, Math.ceil((end.getTime() - Date.now()) / 86400000));
+    }
+    res.json({
+      success: true,
+      tier,
+      accountType: agentRow.account_type || null,
+      slug: agentRow.slug || null,
+      trialEndsAt,
+      trialDaysLeft
+    });
+  } catch (err) {
+    console.error('[LO Plan Status] Failed:', err);
+    res.status(500).json({ error: 'plan_status_failed' });
   }
 });
 

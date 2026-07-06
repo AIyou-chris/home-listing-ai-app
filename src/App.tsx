@@ -3,6 +3,7 @@ import { Routes, Route, useNavigate, useLocation, Navigate, Outlet, useParams } 
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from './services/supabase';
 import ScrollToTop from './components/ScrollToTop';
+import LoTrialBanner from './components/LoTrialBanner';
 import { Property, View, AgentProfile, NotificationSettings, EmailSettings, CalendarSettings, BillingSettings, Lead, Appointment, Interaction } from './types';
 import { DEMO_FAT_PROPERTIES, DEMO_FAT_LEADS, DEMO_FAT_APPOINTMENTS } from './demoConstants';
 import { SAMPLE_AGENT, SAMPLE_INTERACTIONS } from './constants';
@@ -454,6 +455,7 @@ const ProtectedDashboardLayout: React.FC = () => {
                 </div>
 
                 <main className="flex-1 overflow-x-hidden overflow-y-auto bg-slate-50 relative z-0">
+                    <LoTrialBanner />
                     <DashboardRealtimeBootstrap />
                     <Suspense fallback={<LoadingSpinner />}>
                         <Outlet />
