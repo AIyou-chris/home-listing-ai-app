@@ -8,17 +8,16 @@ import SEO from './SEO';
 import { StripeLogo } from './StripeLogo';
 import { PublicHeader } from './layout/PublicHeader';
 import { PublicFooter } from './layout/PublicFooter';
-import { ConversionWedge } from './ConversionWedge';
 import { HeroMotionBg } from './HeroMotionBg';
 import { Tilt3D } from './Tilt3D';
 const Hero3D = React.lazy(() => import('./Hero3D'));
 import { Reveal } from './Reveal';
-import { PlacementSection } from './PlacementSection';
 import { PricingSectionNew } from './PricingSectionNew';
 import { FaqSectionNew } from './FaqSectionNew';
 import { ProofSectionNew } from './ProofSectionNew';
 import { StatStripNew } from './StatStripNew';
 import { FinalCtaNew } from './FinalCtaNew';
+import InlineLoDemo from './InlineLoDemo';
 
 // Unused components removed to fix lint errors.
 // const DashboardShowcaseSection ...
@@ -1185,7 +1184,7 @@ const COMPLIANCE_GUARDRAILS = [
     'Never guarantees approval or terms',
 ];
 
-const ComplianceGuardrailsSection: React.FC<{ onNavigateToSignUp: () => void }> = ({ onNavigateToSignUp }) => (
+const _ComplianceGuardrailsSection: React.FC<{ onNavigateToSignUp: () => void }> = ({ onNavigateToSignUp }) => (
     <section id="compliance" className="relative py-20 lg:py-28 bg-[#02050D] overflow-hidden border-t border-slate-900">
         <div className="absolute top-1/3 left-1/4 w-[520px] h-[520px] bg-emerald-900/10 rounded-full blur-[130px] pointer-events-none -translate-y-1/2" />
         <div className="absolute bottom-0 right-1/4 w-[460px] h-[460px] bg-cyan-900/8 rounded-full blur-[130px] pointer-events-none" />
@@ -1380,16 +1379,59 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigat
             <main className="pt-20"> {/* Add padding top to account for fixed header */}
                 <Hero onNavigateToSignUp={onNavigateToSignUp} onEnterDemoMode={onEnterDemoMode} onOpenChatBot={handleOpenChatBot} onOpenComparePlans={handleOpenComparePlans} />
 
+                {/* Live demo — continues the hero's dark canvas; proof before pitch */}
                 <div id="demo" aria-hidden="true" />
-                <Reveal direction="up"><ConversionWedge onNavigateToSignUp={onNavigateToSignUp} onEnterDemoMode={onEnterDemoMode} /></Reveal>
+                <section className="relative overflow-hidden bg-gradient-to-b from-[#040814] via-[#0B0F19] to-[#040814] py-20">
+                    <div className="pointer-events-none absolute inset-0 overflow-hidden">
+                        <div className="absolute -bottom-40 -left-40 h-96 w-96 rounded-full bg-cyan-600 opacity-15 mix-blend-screen blur-[120px]"></div>
+                        <div className="absolute -top-40 -right-40 h-96 w-96 rounded-full bg-blue-600 opacity-15 mix-blend-screen blur-[100px]"></div>
+                    </div>
+                    <div className="relative mx-auto grid max-w-6xl items-center gap-12 px-4 sm:px-6 lg:grid-cols-2 lg:px-8">
+                        <Reveal direction="left">
+                            <div className="text-center lg:text-left">
+                                <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1.5 text-xs font-semibold uppercase tracking-widest text-cyan-400">
+                                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-cyan-400"></span>
+                                    Live demo — this is the product
+                                </div>
+                                <h2 className="text-4xl font-extrabold tracking-tight text-white sm:text-5xl">
+                                    Don't take our word for it. <span className="text-cyan-400">Ask it something.</span>
+                                </h2>
+                                <p className="mx-auto mt-6 max-w-md text-lg font-light leading-relaxed text-slate-400 lg:mx-0">
+                                    This is the exact AI that lives on your agents' listings. It answers buyers at 11pm on a Sunday — then hands the lead to <span className="font-semibold text-white">you</span>. Tap a question and watch it work.
+                                </p>
+                                <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row lg:justify-start">
+                                    <button
+                                        onClick={onNavigateToSignUp}
+                                        className="rounded-lg bg-cyan-500 px-8 py-3.5 text-base font-bold text-slate-950 transition-all hover:scale-[1.02] hover:bg-cyan-400"
+                                    >
+                                        Put this on my listings →
+                                    </button>
+                                    <button
+                                        onClick={() => window.open('/partner-invite/demo', '_blank')}
+                                        className="rounded-lg border border-slate-700 px-8 py-3.5 text-base font-semibold text-white transition-all hover:border-cyan-500/50 hover:bg-cyan-500/5"
+                                    >
+                                        See the full agent view
+                                    </button>
+                                </div>
+                                <p className="mt-3 text-sm text-slate-500">7 days free · No card needed · Cancel anytime</p>
+                            </div>
+                        </Reveal>
+                        <Reveal direction="right">
+                            <div className="mx-auto w-full max-w-[440px]">
+                                <InlineLoDemo theme="dark" />
+                            </div>
+                        </Reveal>
+                    </div>
+                </section>
 
-                <Reveal direction="left"><PlacementSection onNavigateToSignUp={onNavigateToSignUp} onEnterDemoMode={onEnterDemoMode} /></Reveal>
-
+                {/* Homepage diet (2026-07-05): ConversionWedge, PlacementSection and the
+                    full ComplianceGuardrailsSection repeated the same value prop — page
+                    was 16 screens tall with 13 signup CTAs. One "what you get" section
+                    (ProofSectionNew) survives; compliance nerves are handled by the
+                    compact trust strip at the bottom of the page. */}
                 <Reveal direction="right"><ProofSectionNew onNavigateToSignUp={onNavigateToSignUp} onEnterDemoMode={onEnterDemoMode} /></Reveal>
 
                 <Reveal direction="scale"><StatStripNew /></Reveal>
-
-                <Reveal direction="up"><ComplianceGuardrailsSection onNavigateToSignUp={onNavigateToSignUp} /></Reveal>
 
                 <Reveal direction="up"><PricingSectionNew onNavigateToSignUp={onNavigateToSignUp} onEnterDemoMode={onEnterDemoMode} onOpenComparePlans={handleOpenComparePlans} /></Reveal>
 
