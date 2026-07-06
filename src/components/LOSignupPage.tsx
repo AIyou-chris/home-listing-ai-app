@@ -119,19 +119,12 @@ const LOSignupPage: React.FC = () => {
             // Update to their chosen password
             await supabase.auth.updateUser({ password });
 
-            // 3. Create checkout session with the selected plan
-            const session = await agentOnboardingService.createCheckoutSession({
-                slug: data.slug,
-                plan: selectedPlan,
-            });
-
-            if (!session?.url) {
-                // If checkout can't be created yet (no price IDs), go to dashboard
-                navigate('/dashboard/lo-listings', { replace: true });
-                return;
-            }
-
-            window.location.replace(session.url);
+            // 3. No-card trial: skip Stripe checkout entirely. The backend grants
+            // 'trial' tier for 7 days from signup (payment_status 'awaiting_payment'
+            // + account age in resolveLoPlanTier). Remember the chosen plan so the
+            // billing page can preselect it when the trial ends.
+            try { localStorage.setItem('hlai_preferred_plan', selectedPlan); } catch { /* private mode */ }
+            navigate('/dashboard/lo-listings', { replace: true });
         } catch (err) {
             const msg = err instanceof Error ? err.message : 'Something went wrong. Please try again.';
             if (msg.toLowerCase().includes('already exists') || msg.toLowerCase().includes('duplicate')) {
@@ -168,7 +161,7 @@ const LOSignupPage: React.FC = () => {
                         Start your 7-day free trial
                     </h1>
                     <p className="text-slate-400 text-base">
-                        No charge for 7 days. Cancel anytime. Your card is only saved — not charged — until day 7.
+                        No card needed. Full access for 7 days — pick a plan now, decide on day 7.
                     </p>
                 </div>
 

@@ -191,7 +191,25 @@ No long explanations. No walls of text. Table in, table out.
 
 ---
 
-## 7. Current State Snapshot (as of 2026-06-28)
+## 7. Current State Snapshot (as of 2026-07-05)
+
+### ✅ Recently completed — No-card trial + LO pitch page rebuild (2026-07-05)
+
+| Feature | Notes |
+|---|---|
+| **True no-card 7-day trial** | `LOSignupPage` no longer redirects to Stripe checkout — signup → dashboard directly. Backend already granted `'trial'` tier via `payment_status='awaiting_payment'` + account age < 7d in `resolveLoPlanTier` (no backend change needed). Chosen plan saved to `localStorage.hlai_preferred_plan` for billing-page preselect. This made the site's 12+ pre-existing "no card required" claims (incl. Terms of Service + Refund Policy) TRUE — they previously contradicted the checkout flow. |
+| **`/for-loan-officers` pitch page rebuilt** | Investor-driven fix: 441 cold emails → 84 page opens → 0 CTA clicks. New page: interactive inline AI chat demo (client-side canned Q&A, tap-a-question chips, "lead routed to YOU" banner), Zillow cost-math strip, honest founder block (**replaced a FAKE testimonial** — "Marcus T." never existed), straight-answers FAQ, dual CTA (try demo / start trial). Demo WOW link `/partner-invite/demo` is fully client-side mocked. |
+| **Service-worker kill-switch** | `public/sw.js` created: skipWaiting + wipe caches + unregister + reload clients. Old SWs could never update because `/sw.js` fell through to the SPA HTML fallback (MIME error = stuck on stale builds forever). `netlify.toml` adds `Cache-Control: no-cache` for `/sw.js`. Fixes the long-standing "stale builds after deploy" issue for trapped users. |
+| Copy consistency | `LODemoPage` stale "3-Day Trial" → 7-day; LO outreach + Zillow follow-up email footers → "7 days free · No card needed · Cancel anytime". |
+
+### ✅ Recently completed — LO Zillow cost-math follow-up email (2026-07-05)
+
+| Feature | Notes |
+|---|---|
+| **Zillow follow-up email in LO outreach flow** | Every LO acquisition invite now gets a second email 48h later: the "One Zillow lead costs you $75–$150+ vs $79/mo" square graphic (hosted in Supabase `blog-assets/marketing/zillow-cost-square.png`) + cost-math copy + tracked CTA (`/for-loan-officers/{token}`) + per-recipient unsubscribe. Template: `buildLoZillowMathEmail` in `server.cjs`. |
+| Sweep mechanics | `processLoZillowFollowups` runs every 5 min on the web service (plus 30s after boot for free-plan wake-ups). Claims `lo_outreach_invites.followup_sent_at` atomically, checks `lo_suppression_list` at send time, dedupes per email. Migration `lo-outreach-followup-migration.sql` (already applied in Supabase). Mailgun can't schedule >24h out (plan limit) — that's why it's a sweep, not `o:deliverytime`. `emailService` now supports `options.deliveryTime` for ≤24h scheduling. |
+| One-time backlog blast | Start gate `LO_ZILLOW_FOLLOWUP_START_MS` = Tue 2026-07-07 09:00 PT. First sweep after that sends the backlog (~352 LOs = 441 invited − 89 unsubscribed) — then the gate is inert. CAN-SPAM footer address: 3855 Self Rd, Cashmere, WA 98815 (fallback if `LO_MAILING_ADDRESS` unset). |
+| Related asset | `public/dead-zillow-lead-reel.html` — animated 9:16 HTML reel (5.5s loop, `?still` for poster frame) rebuilt from the Claude Design mp4 (uncommitted). |
 
 ### ✅ Recently completed — Listing price-drop SMS alerts (Layer 1)
 

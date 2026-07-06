@@ -31696,7 +31696,7 @@ function buildLoOutreachEmail({ name, link, unsubscribeUrl }) {
       <p style="font-size:15px;line-height:1.6;margin:0 0 16px">Hi ${firstName},</p>
       <p style="font-size:15px;line-height:1.6;margin:0 0 16px">HomeListingAI puts an AI concierge on every one of your partner agents' listings — it answers buyers 24/7 and routes every warm financing lead straight back to you. More leads, stickier agent partnerships, and your time back.</p>
       <a href="${link}" style="display:block;background:linear-gradient(135deg,#2563eb,#3b82f6);color:#fff;font-size:16px;font-weight:800;text-decoration:none;text-align:center;padding:15px;border-radius:14px;margin:20px 0">See how it works →</a>
-      <p style="font-size:12px;color:#64748b;text-align:center;margin:0">No charge for 7 days · Cancel anytime · Card saved, not charged till day 7</p>
+      <p style="font-size:12px;color:#64748b;text-align:center;margin:0">7 days free · No card needed · Cancel anytime</p>
     </div>
     ${footer}
   </div>`;
@@ -31725,7 +31725,7 @@ function buildLoZillowMathEmail({ name, link, unsubscribeUrl }) {
       <p style="font-size:15px;line-height:1.6;margin:0 0 14px">HomeListingAI is <strong>$79/month, flat.</strong> An AI assistant on every partner agent's listing — answering buyers 24/7 and routing every warm financing lead to <strong>you first</strong>. Never shared. Never recycled.</p>
       <p style="font-size:15px;line-height:1.6;margin:0 0 6px;font-weight:700">One closed loan covers 20+ months. Less than one of their leads. Every single month.</p>
       <a href="${link}" style="display:block;background:linear-gradient(135deg,#d64327,#e05a3a);color:#fff;font-size:16px;font-weight:800;text-decoration:none;text-align:center;padding:15px;border-radius:14px;margin:20px 0 10px">See it live — takes 2 minutes →</a>
-      <p style="font-size:12px;color:#64748b;text-align:center;margin:0 0 16px">7-day free trial · Cancel anytime</p>
+      <p style="font-size:12px;color:#64748b;text-align:center;margin:0 0 16px">7 days free · No card needed · Cancel anytime</p>
       <p style="font-size:10.5px;color:#94a3b8;line-height:1.6;margin:0">Zillow lead costs vary by market; based on average reported costs of $75–$150 per shared lead. HomeListingAI is not affiliated with or endorsed by Zillow.</p>
     </div>
     <p style="font-size:11px;color:#94a3b8;text-align:center;margin:16px 0 0;line-height:1.6">
