@@ -124,7 +124,9 @@ const LOSignupPage: React.FC = () => {
             // + account age in resolveLoPlanTier). Remember the chosen plan so the
             // billing page can preselect it when the trial ends.
             try { localStorage.setItem('hlai_preferred_plan', selectedPlan); } catch { /* private mode */ }
-            navigate('/dashboard/lo-listings', { replace: true });
+            // Land on LO Today — the setup checklist there walks them to their
+            // first WOW link (activation), which lo-listings' empty table doesn't.
+            navigate('/dashboard/lo-today', { replace: true });
         } catch (err) {
             const msg = err instanceof Error ? err.message : 'Something went wrong. Please try again.';
             if (msg.toLowerCase().includes('already exists') || msg.toLowerCase().includes('duplicate')) {

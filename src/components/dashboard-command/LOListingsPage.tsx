@@ -501,8 +501,15 @@ const LOListingsPage: React.FC = () => {
         ) : assigned.length === 0 ? (
           <div className="rounded-xl border border-dashed border-slate-200 p-8 text-center">
             <p className="text-3xl">🏠</p>
-            <p className="mt-2 text-sm font-medium text-slate-600">No listings yet</p>
-            <p className="mt-1 text-sm text-slate-400">Search above to find a listing and add yourself.</p>
+            <p className="mt-2 text-sm font-medium text-slate-600">No listings yet — they come from your agent partners.</p>
+            <p className="mt-1 text-sm text-slate-400">Send your first WOW Link and your agent's listings show up here with your AI on them.</p>
+            <button
+              onClick={() => navigate('/dashboard/lo-partners')}
+              className="mt-4 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-primary-700"
+            >
+              🚀 Send my first WOW Link →
+            </button>
+            <p className="mt-3 text-xs text-slate-400">Already partnered? Search above to find a listing and add yourself.</p>
           </div>
         ) : (
           <div className="space-y-3">
