@@ -47,15 +47,19 @@ Under **"Post to these channels"** you'll see checkboxes:
    - **🔍 Stock photo** — search Unsplash (e.g. "modern home exterior"), click a thumbnail to attach.
    - **🎨 AI image from post** — generates a custom graphic based on your post text (~10 seconds).
    A preview appears; click **Remove** to swap it. ⚠️ **Instagram requires an image** — text-only posts to Instagram will be refused (LinkedIn/Facebook are fine without one).
-5. *(Optional)* **Schedule** — pick a date/time to post later.
-6. Click **Post**. ⚠️ **With no schedule set, the post goes LIVE immediately** on every checked channel — there is no undo from our panel. If a channel fails, a red toast tells you **which one and why**.
+5. **The "📝 Save as draft in Buffer" checkbox** — this decides what the button does:
+   - **Checked (default, recommended)** → the button says **"Send to Buffer"**. Your post lands in Buffer as a **draft** for each channel. Nothing publishes until someone approves it in Buffer. This is the safe mode for everyone.
+   - **Unchecked** → the button says **"Post to N"**. ⚠️ The post goes **LIVE immediately** on every checked channel (or at your scheduled time) — no undo.
+6. *(Optional)* **Schedule** — pick a date/time to post later.
+7. Click the button. If a channel fails, a red toast tells you **which one and why**.
 
-> You never need to open Buffer — posting is fully automatic from this panel.
+### Where drafts go (read this — everyone misses it once)
+Drafts do **NOT** appear in Buffer's Queue or Calendar (they have no date yet).
+Find them at **publish.buffer.com → Publish → switch to "List" view → Drafts tab** (or filter by Drafts). Approve a draft there ("Add to Queue" / "Share Now") and it posts.
+
 > Blog auto-shares get hashtags added automatically — no button needed.
 
-You'll get a green ✓ toast like *"Queued on 2 channels ✓."* Done.
-
-### Timing
+### Timing (when NOT saving as draft)
 - **No schedule** → posts **immediately**.
 - **Schedule set** → posts at exactly that date/time (our audience is **Pacific time**).
 
@@ -65,8 +69,8 @@ You'll get a green ✓ toast like *"Queued on 2 channels ✓."* Done.
 
 There's a toggle: **"Auto-share new blog posts to the selected channels."** The same setting also shows as a pill at the top of the **Blog Control Center** (📣 Auto-share on publish: ON → 3 channels) — click it there to flip it without leaving the blog page. It's one setting; both places stay in sync.
 
-- **ON** → every time a blog post is **published**, it auto-posts to your checked channels (with the blog's featured image + auto hashtags). It only fires **once per post**, on first publish — editing a live post never re-posts.
-- **OFF** → nothing auto-posts; you post everything by hand.
+- **ON** → every time a blog post is **published**, it creates **Buffer drafts** for your checked channels (with the blog's featured image + auto hashtags) — approve them in Buffer's Drafts list to post. It only fires **once per post**, on first publish — editing a live post never re-posts.
+- **OFF** → nothing auto-shares; you post everything by hand.
 
 **Manual blog sharing:** in the **Blog editor** post list, every published post has a **📣 Share** button — click it to post that article to all checked channels *right now*. Works for old posts and re-shares (it will ask you to confirm first).
 
