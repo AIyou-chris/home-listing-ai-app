@@ -678,12 +678,22 @@ module.exports = (supabaseAdmin) => {
       throw new Error(`Mailgun error: ${errorBody}`);
     }
 
+    // Mailgun returns { id: '<20260708...@mg...>', message: 'Queued...' }.
+    // email_events.message_id is NOT NULL, so every row needs one — without it
+    // the insert fails silently and "Emails Sent" analytics stay at zero.
+    let mailgunMessageId = null;
+    try {
+      const responseBody = await response.json();
+      mailgunMessageId = responseBody?.id || null;
+    } catch (_e) { /* non-JSON response — fall back below */ }
+
     // Record an 'accepted' event per recipient so admin analytics can count
     // emails actually sent. Fire-and-forget — must never block or fail the send.
     try {
       if (supabaseAdmin) {
         const recipients = (Array.isArray(to) ? to : [to]).filter(Boolean);
         const rows = recipients.map((r) => ({
+          message_id: mailgunMessageId || `accepted-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
           event_type: 'accepted',
           recipient: String(r),
           timestamp: new Date().toISOString(),

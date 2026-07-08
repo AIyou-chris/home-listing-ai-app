@@ -2251,7 +2251,10 @@ app.post('/api/webhooks/mailgun', async (req, res) => {
     }
 
     const { event, message, recipient, timestamp, user_variables } = eventData;
-    const messageId = message?.headers?.['message-id'];
+    // Some Mailgun event types arrive without a message-id header; email_events
+    // requires NOT NULL message_id, so fall back to a synthetic id.
+    const messageId = message?.headers?.['message-id']
+      || `${event || 'event'}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
     const userId = user_variables?.user_id;
     const campaignId = user_variables?.campaign_id;
 
