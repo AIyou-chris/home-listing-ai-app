@@ -133,3 +133,12 @@ BEGIN
 
   RAISE NOTICE 'RLS initplan fix: % policies rewritten, % skipped', fixed, skipped;
 END $$;
+
+-- ── Part 3 (applied 2026-07-08, migration `tighten_always_true_anon_policies`):
+-- 28 "always true" policies granted to anon (writes to audit_logs, backups,
+-- security_alerts, ai_kb, etc. + SELECT on token tables) switched to
+-- authenticated-only. Public lead capture (INSERT on leads) left open.
+
+-- ── Part 4 (applied 2026-07-08, migration `pin_function_search_path`):
+-- search_path pinned to 'public, pg_temp' on all public functions that
+-- lacked one (46 flagged by the advisor; extension-owned functions skipped).
