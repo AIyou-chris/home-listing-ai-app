@@ -8,10 +8,10 @@ import { AuthService } from '../../services/authService';
 const PITCH_URL = 'https://homelistingai.com/for-loan-officers';
 const SMS_TEMPLATE =
   `Hey {{first}} — it's looking like 2006 out there. I built HomeListingAI for loan officers like you: warm leads, agent partners who actually stick, and your time back. 7 days free, no card. 👉 ${PITCH_URL}`;
-// Fits LinkedIn's ~200-char connection-request note limit (no link — notes don't
-// make links clickable; the pitch link goes in the follow-up message after they accept).
+// Fits LinkedIn's 300-char connection-request note limit. The domain is plain
+// text (notes don't make links clickable) but readers can type/search it.
 const LINKEDIN_TEMPLATE =
-  `Hey {{first}} — it's looking like 2006 out there. I built HomeListingAI for loan officers: warm leads, agent partners who stick, your time back. 7 days free, no card. Open to a quick look?`;
+  `Hey {{first}} — it's looking like 2006 out there. I built HomeListingAI for loan officers like you: warm leads, agent partners who stick, your time back. 7 days free, no card. Open to a quick look? homelistingai.com`;
 
 // Minimal RFC-4180-ish CSV parser: handles quoted fields, embedded commas/newlines,
 // and escaped quotes. Returns an array of objects keyed by the header row.
