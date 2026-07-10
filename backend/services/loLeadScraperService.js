@@ -233,7 +233,7 @@ function createLoLeadScraperService(deps) {
 
   async function harvestSearch(maxItems) {
     const token = env.APIFY_TOKEN;
-    const actorId = env.HARVEST_ACTOR_ID || 'qXMa8kADnUQdmz18G'; // harvestapi/linkedin-profile-search
+    const actorId = env.HARVEST_ACTOR_ID || 'harvestapi~linkedin-profile-search'; // title/location filters (NOT the by-services variant — it ignores them)
     const url = `https://api.apify.com/v2/acts/${actorId}/run-sync-get-dataset-items`
       + `?token=${encodeURIComponent(token)}`;
     const res = await fetchImpl(url, {
@@ -417,7 +417,7 @@ function createLoLeadScraperService(deps) {
     }
     const token = env.APIFY_TOKEN;
     const actorId = source === 'harvest'
-      ? (env.HARVEST_ACTOR_ID || 'qXMa8kADnUQdmz18G')
+      ? (env.HARVEST_ACTOR_ID || 'harvestapi~linkedin-profile-search')
       : (env.APIFY_LEADS_ACTOR_ID || 'IoSHqwTR9YGhzccez');
     const url = datasetId
       ? `https://api.apify.com/v2/datasets/${encodeURIComponent(datasetId)}/items?token=${encodeURIComponent(token)}`

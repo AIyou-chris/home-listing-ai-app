@@ -320,7 +320,7 @@ const HARVEST_ROW_NO_EMAIL = {
 test('harvest engine: stores LinkedIn profiles, keeping email-less leads for the DM queue', async () => {
   let harvestInput = null;
   const fakeFetch = async (url, opts) => {
-    assert.ok(url.includes('api.apify.com/v2/acts/qXMa8kADnUQdmz18G/run-sync-get-dataset-items'));
+    assert.ok(url.includes('api.apify.com/v2/acts/harvestapi~linkedin-profile-search/run-sync-get-dataset-items'));
     harvestInput = JSON.parse(opts.body);
     return { ok: true, json: async () => [HARVEST_ROW_FULL, HARVEST_ROW_NO_EMAIL] };
   };
@@ -389,7 +389,7 @@ test('importApifyLeads: source harvest reads the harvest actor last run', async 
     supabaseAdmin: makeFakeSupabase(), fetchImpl: fakeFetch, env: { APIFY_TOKEN: 't' },
   });
   await svc.importApifyLeads({ source: 'harvest' });
-  assert.ok(urlSeen.includes('/acts/qXMa8kADnUQdmz18G/runs/last/dataset/items'));
+  assert.ok(urlSeen.includes('/acts/harvestapi~linkedin-profile-search/runs/last/dataset/items'));
 });
 
 test('CSV import: keeps a row with LinkedIn but no email (DM-only lead)', async () => {
