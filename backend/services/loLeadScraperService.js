@@ -169,10 +169,13 @@ function createLoLeadScraperService(deps) {
 
   // Maps a lead row (Apify item OR a CSV row) to a contact. Field names are
   // detected flexibly via pickField so it survives schema/header differences.
+  // Rows without a usable email are kept when they have a LinkedIn URL — those
+  // leads are worked via the DM queue instead of email.
   function leadRowToContact(r) {
     const email = pickField(r, ['email', 'business_email', 'work_email', 'email_address', 'personal_email']);
     const company = pickField(r, ['company_name', 'company', 'employer', 'organization', 'organization_name']);
-    const c = makeContact(email, company);
+    const linkedin = pickField(r, ['linkedin', 'linkedin_url', 'person_linkedin_url', 'linkedin_profile']);
+    const c = makeContact(email, company) || (linkedin ? { email: null, is_role: false, employer: company || null } : null);
     if (!c) return null;
     const full = pickField(r, ['full_name', 'name', 'person_name']);
     const first = pickField(r, ['first_name', 'person_first_name', 'firstname']);
@@ -180,12 +183,76 @@ function createLoLeadScraperService(deps) {
     c.name = full || [first, last].filter(Boolean).join(' ').trim() || null;
     c.job_title = pickField(r, ['job_title', 'title', 'headline', 'position']);
     c.phone = pickField(r, ['mobile_number', 'mobile', 'phone', 'phone_number', 'direct_phone', 'company_phone']);
-    c.linkedin = pickField(r, ['linkedin', 'linkedin_url', 'person_linkedin_url', 'linkedin_profile']);
+    c.linkedin = linkedin;
     c.source_url = pickField(r, ['company_website', 'website', 'company_url']) || c.linkedin || null;
     const city = pickField(r, ['city', 'person_city', 'location']);
     const state = pickField(r, ['state', 'person_state', 'region']);
     c.city = [city, state].filter(Boolean).join(', ') || null;
     return c;
+  }
+
+  // ── Engine D: HarvestAPI LinkedIn Profile Search (pay-per-event) ──
+  // Searches LinkedIn directly by job title + location — no cookies/account.
+  // Pay-per-event actors bill platform credit, so API runs work on the free
+  // plan (unlike the rental leads-finder). Rich rows: name, headline, current
+  // company, parsed city/state, linkedinUrl, and (in email mode) emails[].
+  const harvestCfg = {
+    jobTitles: deps.harvestJobTitles || ['Loan Officer', 'Mortgage Loan Originator', 'Mortgage Loan Officer', 'Mortgage Broker'],
+    excludeTitles: deps.harvestExcludeTitles || ['Processor', 'Underwriter', 'Assistant', 'Recruiter', 'Support', 'Operations'],
+    locations: deps.harvestLocations || ['United States'],
+  };
+
+  // Detects a HarvestAPI profile row (vs leads-finder/CSV) by its signature keys.
+  function isHarvestRow(r) {
+    return !!(r && typeof r === 'object' && (r.linkedinUrl || r.publicIdentifier) && ('headline' in r || 'currentPosition' in r));
+  }
+
+  function harvestRowToContact(r) {
+    if (!r || typeof r !== 'object') return null;
+    const linkedin = r.linkedinUrl
+      || (r.publicIdentifier ? `https://www.linkedin.com/in/${r.publicIdentifier}` : null);
+    if (!linkedin) return null;
+    const rawEmail = Array.isArray(r.emails) ? r.emails[0] : r.email;
+    const emailContact = rawEmail ? makeContact(rawEmail, null) : null;
+    const current = Array.isArray(r.currentPosition) && r.currentPosition[0] ? r.currentPosition[0] : null;
+    const parsed = r.location && r.location.parsed ? r.location.parsed : null;
+    return {
+      email: emailContact ? emailContact.email : null,
+      is_role: emailContact ? emailContact.is_role : false,
+      name: r.name || [r.firstName, r.lastName].filter(Boolean).join(' ').trim() || null,
+      employer: (current && current.companyName) || null,
+      job_title: (current && current.position) || r.headline || null,
+      phone: null,
+      linkedin,
+      source_url: linkedin,
+      city: parsed
+        ? [parsed.city, parsed.state].filter(Boolean).join(', ') || parsed.text || null
+        : (r.location && r.location.linkedinText) || null,
+    };
+  }
+
+  async function harvestSearch(maxItems) {
+    const token = env.APIFY_TOKEN;
+    const actorId = env.HARVEST_ACTOR_ID || 'qXMa8kADnUQdmz18G'; // harvestapi/linkedin-profile-search
+    const url = `https://api.apify.com/v2/acts/${actorId}/run-sync-get-dataset-items`
+      + `?token=${encodeURIComponent(token)}`;
+    const res = await fetchImpl(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        profileScraperMode: env.HARVEST_SCRAPER_MODE || 'Full + email search',
+        currentJobTitles: harvestCfg.jobTitles,
+        excludeCurrentJobTitles: harvestCfg.excludeTitles,
+        locations: harvestCfg.locations,
+        maxItems,
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      throw new Error(`harvest HTTP ${res.status}: ${body.slice(0, 200)}`);
+    }
+    const rows = await res.json();
+    return (Array.isArray(rows) ? rows : []).map(harvestRowToContact).filter(Boolean);
   }
 
   async function leadsFinderSearch(fetchCount) {
@@ -211,8 +278,6 @@ function createLoLeadScraperService(deps) {
     return (rows || []).map(leadRowToContact).filter(Boolean);
   }
 
-  const searchFn = engine === 'apify' ? apifySearch : googleSearch;
-
   async function fetchPage(pageUrl) {
     try {
       const res = await fetchImpl(pageUrl, {
@@ -226,33 +291,38 @@ function createLoLeadScraperService(deps) {
     }
   }
 
-  // Return the subset of `emails` that already exist in `table`'s `email` column.
-  async function existingIn(table, emails) {
-    if (!emails.length) return new Set();
-    const { data, error } = await supabaseAdmin.from(table).select('email').in('email', emails);
+  // Return the subset of `values` that already exist in `table`'s `column`.
+  async function existingIn(table, values, column = 'email') {
+    if (!values.length) return new Set();
+    const { data, error } = await supabaseAdmin.from(table).select(column).in(column, values);
     if (error || !data) return new Set();
-    return new Set(data.map(r => r.email));
+    return new Set(data.map(r => r[column]));
   }
 
   // Dedupe a batch against the pool + suppression list + this-run set, insert the rest.
-  // Mutates `counters` {leadsAdded, dupesSkipped}; `seen` is the per-run email Set.
+  // Leads dedupe by email when they have one, and by LinkedIn URL otherwise.
+  // Mutates `counters` {leadsAdded, dupesSkipped}; `seen` is the per-run key Set.
   async function storeBatch(contacts, { city = null, defaultSourceUrl = null, seen, counters }) {
     if (!contacts.length) return;
-    const emails = contacts.map(c => c.email);
-    const [already, suppressed] = await Promise.all([
-      existingIn('lo_lead_pool', emails),
-      existingIn('lo_suppression_list', emails),
+    const emails = contacts.map(c => c.email).filter(Boolean);
+    const linkedins = contacts.map(c => c.linkedin).filter(Boolean);
+    const [emailDupes, suppressed, linkedinDupes] = await Promise.all([
+      existingIn('lo_lead_pool', emails, 'email'),
+      existingIn('lo_suppression_list', emails, 'email'),
+      existingIn('lo_lead_pool', linkedins, 'linkedin'),
     ]);
     const fresh = contacts.filter(c => {
-      if (already.has(c.email) || suppressed.has(c.email) || seen.has(c.email)) {
-        counters.dupesSkipped++; return false;
-      }
-      seen.add(c.email);
+      if (!c.email && !c.linkedin) return false; // not contactable — drop silently
+      const dupe = (c.email && (emailDupes.has(c.email) || suppressed.has(c.email) || seen.has(`e:${c.email}`)))
+        || (c.linkedin && (linkedinDupes.has(c.linkedin) || seen.has(`l:${c.linkedin}`)));
+      if (dupe) { counters.dupesSkipped++; return false; }
+      if (c.email) seen.add(`e:${c.email}`);
+      if (c.linkedin) seen.add(`l:${c.linkedin}`);
       return true;
     });
     if (!fresh.length) return;
     const rows = fresh.map(c => ({
-      email: c.email,
+      email: c.email || null,
       name: c.name || null,
       employer: c.employer,
       job_title: c.job_title || null,
@@ -267,8 +337,9 @@ function createLoLeadScraperService(deps) {
     if (!error) counters.leadsAdded += rows.length;
   }
 
-  async function runLoLeadScrape({ maxSearches = 100, fetchCount } = {}) {
-    if (engine === 'apify' || engine === 'leads') {
+  async function runLoLeadScrape({ maxSearches = 100, fetchCount, engine: engineOverride } = {}) {
+    const eng = engineOverride || engine;
+    if (eng === 'apify' || eng === 'leads' || eng === 'harvest') {
       if (!env.APIFY_TOKEN) {
         console.warn('[LO Lead Finder] Missing APIFY_TOKEN — skipping run.');
         return { skipped: 'missing_apify_token', searchesUsed: 0, pagesScanned: 0, leadsAdded: 0, dupesSkipped: 0 };
@@ -282,8 +353,21 @@ function createLoLeadScraperService(deps) {
     const seen = new Set();
     const counters = { leadsAdded: 0, dupesSkipped: 0 };
 
+    // Engine D: HarvestAPI LinkedIn search — one structured query, no crawl.
+    if (eng === 'harvest') {
+      const count = Number(fetchCount || env.HARVEST_FETCH_COUNT || 50);
+      let contacts = [];
+      try { contacts = await harvestSearch(count); }
+      catch (e) {
+        console.warn('[LO Lead Finder] harvest failed:', e?.message);
+        return { searchesUsed: 1, pagesScanned: 0, error: 'harvest_failed', ...counters };
+      }
+      await storeBatch(contacts, { seen, counters });
+      return { searchesUsed: 1, pagesScanned: 0, rowsFetched: contacts.length, ...counters };
+    }
+
     // Engine C: leads-finder is one structured DB query, not a per-city crawl.
-    if (engine === 'leads') {
+    if (eng === 'leads') {
       const count = Number(fetchCount || env.LO_LEADS_FETCH_COUNT || 100);
       let contacts = [];
       try { contacts = await leadsFinderSearch(count); }
@@ -292,6 +376,7 @@ function createLoLeadScraperService(deps) {
       return { searchesUsed: 1, pagesScanned: 0, ...counters };
     }
 
+    const search = eng === 'apify' ? apifySearch : googleSearch;
     outer:
     for (const city of cities) {
       for (const tpl of queryTemplates) {
@@ -299,7 +384,7 @@ function createLoLeadScraperService(deps) {
         searchesUsed++;
         const query = tpl.replace('{city}', city);
         let result = { links: [], contacts: [] };
-        try { result = await searchFn(query); }
+        try { result = await search(query); }
         catch (e) { console.warn('[LO Lead Finder] search failed:', e?.message); continue; }
 
         // Direct contacts (Apify Maps actor returns emails inline — no page fetch).
@@ -325,13 +410,15 @@ function createLoLeadScraperService(deps) {
   // on the free plan (only *running* premium actors via API is gated), so this is
   // the "semi-auto" path: user clicks Start in the Apify UI, then imports here.
   // Reads the leads-finder actor's last successful run, or a specific datasetId.
-  async function importApifyLeads({ datasetId } = {}) {
+  async function importApifyLeads({ datasetId, source } = {}) {
     if (!env.APIFY_TOKEN) {
       console.warn('[LO Lead Finder] Missing APIFY_TOKEN — skipping import.');
       return { skipped: 'missing_apify_token', rowsFetched: 0, leadsAdded: 0, dupesSkipped: 0 };
     }
     const token = env.APIFY_TOKEN;
-    const actorId = env.APIFY_LEADS_ACTOR_ID || 'IoSHqwTR9YGhzccez';
+    const actorId = source === 'harvest'
+      ? (env.HARVEST_ACTOR_ID || 'qXMa8kADnUQdmz18G')
+      : (env.APIFY_LEADS_ACTOR_ID || 'IoSHqwTR9YGhzccez');
     const url = datasetId
       ? `https://api.apify.com/v2/datasets/${encodeURIComponent(datasetId)}/items?token=${encodeURIComponent(token)}`
       : `https://api.apify.com/v2/acts/${actorId}/runs/last/dataset/items`
@@ -342,7 +429,11 @@ function createLoLeadScraperService(deps) {
       if (res.ok) rows = await res.json();
     } catch (e) { console.warn('[LO Lead Finder] import failed:', e?.message); }
 
-    const contacts = (Array.isArray(rows) ? rows : []).map(leadRowToContact).filter(Boolean);
+    // Per-row mapper detection: HarvestAPI LinkedIn rows and leads-finder rows
+    // can both arrive here (dataset IDs are pasted by hand), so sniff each row.
+    const contacts = (Array.isArray(rows) ? rows : [])
+      .map(r => (isHarvestRow(r) ? harvestRowToContact(r) : leadRowToContact(r)))
+      .filter(Boolean);
     const seen = new Set();
     const counters = { leadsAdded: 0, dupesSkipped: 0 };
     await storeBatch(contacts, { seen, counters });

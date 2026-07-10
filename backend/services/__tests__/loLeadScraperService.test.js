@@ -46,7 +46,7 @@ test('flags role addresses with is_role = true', () => {
 
 // ---- runLoLeadScrape orchestration ----
 
-function makeFakeSupabase({ existingEmails = [], suppressed = [] } = {}) {
+function makeFakeSupabase({ existingEmails = [], suppressed = [], existingLinkedins = [] } = {}) {
   const inserted = [];
   const api = {
     inserted,
@@ -55,9 +55,11 @@ function makeFakeSupabase({ existingEmails = [], suppressed = [] } = {}) {
         _table: table,
         select() { return this; },
         eq() { return this; },
-        in(_col, vals) {
-          const pool = table === 'lo_suppression_list' ? suppressed : existingEmails;
-          const data = vals.filter(v => pool.includes(v)).map(email => ({ email }));
+        in(col, vals) {
+          const pool = table === 'lo_suppression_list' ? suppressed
+            : col === 'linkedin' ? existingLinkedins
+            : existingEmails;
+          const data = vals.filter(v => pool.includes(v)).map(v => ({ [col]: v }));
           return Promise.resolve({ data, error: null });
         },
         async insert(rows) {
@@ -288,4 +290,118 @@ test('apify engine no-ops gracefully without APIFY_TOKEN', async () => {
   const result = await svc.runLoLeadScrape({ maxSearches: 3 });
   assert.strictEqual(result.skipped, 'missing_apify_token');
   assert.strictEqual(result.leadsAdded, 0);
+});
+
+// ---- HarvestAPI LinkedIn engine (engine D) ----
+
+const HARVEST_ROW_FULL = {
+  name: 'Nicki Soares',
+  firstName: 'Nicki',
+  lastName: 'Soares',
+  headline: 'Mortgage Consultant | Content Creator',
+  emails: ['nicki@leaderone.com'],
+  linkedinUrl: 'https://www.linkedin.com/in/nicki-soares-a0a8aa156',
+  publicIdentifier: 'nicki-soares-a0a8aa156',
+  location: { linkedinText: 'Yuba City, California, United States', parsed: { city: 'Yuba City', state: 'California', text: 'Yuba City, CA, United States' } },
+  currentPosition: [{ position: 'Mortgage Lender', companyName: 'LeaderOne Financial' }],
+};
+
+const HARVEST_ROW_NO_EMAIL = {
+  firstName: 'Jonathan',
+  lastName: 'Fesser',
+  headline: 'Commercial & Residential Mortgage Loan Officer at Loan Factory',
+  emails: [],
+  linkedinUrl: 'https://www.linkedin.com/in/jonathan-fesser-611b88234',
+  publicIdentifier: 'jonathan-fesser-611b88234',
+  location: { linkedinText: 'Las Vegas, Nevada, United States', parsed: { city: 'Las Vegas', state: 'Nevada' } },
+  currentPosition: [{ position: 'Mortgage Loan Officer', companyName: 'Loan Factory' }],
+};
+
+test('harvest engine: stores LinkedIn profiles, keeping email-less leads for the DM queue', async () => {
+  let harvestInput = null;
+  const fakeFetch = async (url, opts) => {
+    assert.ok(url.includes('api.apify.com/v2/acts/qXMa8kADnUQdmz18G/run-sync-get-dataset-items'));
+    harvestInput = JSON.parse(opts.body);
+    return { ok: true, json: async () => [HARVEST_ROW_FULL, HARVEST_ROW_NO_EMAIL] };
+  };
+  const supa = makeFakeSupabase();
+  const svc = require('../loLeadScraperService').createLoLeadScraperService({
+    supabaseAdmin: supa, fetchImpl: fakeFetch, engine: 'harvest', env: { APIFY_TOKEN: 't' },
+  });
+  const result = await svc.runLoLeadScrape({ fetchCount: 25 });
+
+  assert.strictEqual(harvestInput.maxItems, 25);
+  assert.deepStrictEqual(harvestInput.locations, ['United States']);
+  assert.ok(harvestInput.currentJobTitles.includes('Loan Officer'));
+
+  assert.strictEqual(result.leadsAdded, 2);
+  const nicki = supa.inserted.find(r => r.email === 'nicki@leaderone.com');
+  assert.strictEqual(nicki.name, 'Nicki Soares');
+  assert.strictEqual(nicki.employer, 'LeaderOne Financial');
+  assert.strictEqual(nicki.job_title, 'Mortgage Lender');
+  assert.strictEqual(nicki.city, 'Yuba City, California');
+  assert.strictEqual(nicki.linkedin, 'https://www.linkedin.com/in/nicki-soares-a0a8aa156');
+
+  const jon = supa.inserted.find(r => r.name === 'Jonathan Fesser');
+  assert.strictEqual(jon.email, null); // LinkedIn-only lead — DM queue material
+  assert.strictEqual(jon.linkedin, 'https://www.linkedin.com/in/jonathan-fesser-611b88234');
+});
+
+test('harvest engine: dedupes by LinkedIn URL when the lead has no email', async () => {
+  const fakeFetch = async () => ({ ok: true, json: async () => [HARVEST_ROW_NO_EMAIL, HARVEST_ROW_NO_EMAIL] });
+  const supa = makeFakeSupabase({ existingLinkedins: [] });
+  const svc = require('../loLeadScraperService').createLoLeadScraperService({
+    supabaseAdmin: supa, fetchImpl: fakeFetch, engine: 'harvest', env: { APIFY_TOKEN: 't' },
+  });
+  const result = await svc.runLoLeadScrape({});
+  assert.strictEqual(result.leadsAdded, 1);
+  assert.strictEqual(result.dupesSkipped, 1);
+
+  // Already in the pool from a previous run → skipped entirely.
+  const supa2 = makeFakeSupabase({ existingLinkedins: [HARVEST_ROW_NO_EMAIL.linkedinUrl] });
+  const svc2 = require('../loLeadScraperService').createLoLeadScraperService({
+    supabaseAdmin: supa2, fetchImpl: fakeFetch, engine: 'harvest', env: { APIFY_TOKEN: 't' },
+  });
+  const result2 = await svc2.runLoLeadScrape({});
+  assert.strictEqual(result2.leadsAdded, 0);
+  assert.strictEqual(result2.dupesSkipped, 2);
+});
+
+test('importApifyLeads: sniffs HarvestAPI rows in a pasted dataset and maps them', async () => {
+  const fakeFetch = async (url) => {
+    assert.ok(url.includes('/datasets/DSHARVEST/items'));
+    return { ok: true, json: async () => [HARVEST_ROW_NO_EMAIL] };
+  };
+  const supa = makeFakeSupabase();
+  const svc = require('../loLeadScraperService').createLoLeadScraperService({
+    supabaseAdmin: supa, fetchImpl: fakeFetch, env: { APIFY_TOKEN: 't' },
+  });
+  const r = await svc.importApifyLeads({ datasetId: 'DSHARVEST' });
+  assert.strictEqual(r.leadsAdded, 1);
+  assert.strictEqual(supa.inserted[0].email, null);
+  assert.strictEqual(supa.inserted[0].linkedin, HARVEST_ROW_NO_EMAIL.linkedinUrl);
+});
+
+test('importApifyLeads: source harvest reads the harvest actor last run', async () => {
+  let urlSeen = '';
+  const fakeFetch = async (url) => { urlSeen = url; return { ok: true, json: async () => [] }; };
+  const svc = require('../loLeadScraperService').createLoLeadScraperService({
+    supabaseAdmin: makeFakeSupabase(), fetchImpl: fakeFetch, env: { APIFY_TOKEN: 't' },
+  });
+  await svc.importApifyLeads({ source: 'harvest' });
+  assert.ok(urlSeen.includes('/acts/qXMa8kADnUQdmz18G/runs/last/dataset/items'));
+});
+
+test('CSV import: keeps a row with LinkedIn but no email (DM-only lead)', async () => {
+  const supa = makeFakeSupabase();
+  const svc = require('../loLeadScraperService').createLoLeadScraperService({
+    supabaseAdmin: supa, fetchImpl: async () => { throw new Error('no'); }, env: {},
+  });
+  const r = await svc.importCsvRows([
+    { name: 'DM Only', linkedin: 'https://linkedin.com/in/dm-only', company: 'Acme' },
+    { name: 'No Contact At All', company: 'Acme' },
+  ]);
+  assert.strictEqual(r.leadsAdded, 1);
+  assert.strictEqual(supa.inserted[0].email, null);
+  assert.strictEqual(supa.inserted[0].linkedin, 'https://linkedin.com/in/dm-only');
 });

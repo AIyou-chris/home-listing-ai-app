@@ -43,7 +43,7 @@ function parseCsv(text: string): Record<string, string>[] {
 
 type Lead = {
   id: string;
-  email: string;
+  email: string | null;      // null = LinkedIn-only lead (work it via the DM queue)
   name: string | null;
   employer: string | null;
   job_title: string | null;
@@ -52,7 +52,7 @@ type Lead = {
   city: string | null;
   source_url: string | null;
   is_role: boolean;
-  status: string;            // new | sent | skipped
+  status: string;            // new | sent | dm_sent | skipped
   found_at: string;
   sent_at: string | null;
 };
@@ -74,7 +74,8 @@ const fillTemplate = (tpl: string, l: Lead) =>
 
 const STATUS_TABS: Array<{ key: string; label: string }> = [
   { key: 'new', label: 'New' },
-  { key: 'sent', label: 'Sent' },
+  { key: 'sent', label: 'Emailed' },
+  { key: 'dm_sent', label: "DM'd" },
   { key: 'skipped', label: 'Skipped' },
 ];
 
@@ -89,6 +90,8 @@ const AdminLoLeadFinderPanel: React.FC = () => {
   const [datasetId, setDatasetId] = useState('');
   const [msg, setMsg] = useState('');
   const [poolOpen, setPoolOpen] = useState(true);
+  const [finding, setFinding] = useState(false);
+  const [dmQueue, setDmQueue] = useState<Lead[] | null>(null); // null = closed
 
   const auth = useMemo(() => AuthService.getInstance(), []);
 
@@ -153,6 +156,35 @@ const AdminLoLeadFinderPanel: React.FC = () => {
     }
   };
 
+  // One-click LinkedIn search via the HarvestAPI actor (pay-per-event — runs
+  // fine on the free Apify plan, unlike the rental leads-finder).
+  const findOnLinkedIn = async () => {
+    if (finding) return;
+    if (!window.confirm('Search LinkedIn for 50 US loan officers now? Costs a few dollars of Apify credit and takes 1–3 minutes.')) return;
+    setFinding(true);
+    setMsg('🔎 Searching LinkedIn… this takes 1–3 minutes, leave this tab open.');
+    try {
+      const res = await auth.makeAuthenticatedRequest('/api/admin/lo-leads/run', {
+        method: 'POST',
+        body: JSON.stringify({ engine: 'harvest', fetchCount: 50 }),
+      });
+      const d = await res.json() as { success?: boolean; leadsAdded?: number; dupesSkipped?: number; rowsFetched?: number; skipped?: string; error?: string };
+      if (!res.ok || !d.success || d.error) {
+        setMsg(d.skipped === 'missing_apify_token' ? '⚠️ No Apify token set on the server.' : '❌ LinkedIn search failed — check the Apify console for the run, then import it above.');
+        return;
+      }
+      setMsg(`✅ Found ${d.leadsAdded ?? 0} new US loan officers (${d.rowsFetched ?? 0} profiles scanned, ${d.dupesSkipped ?? 0} already in your pool).`);
+      setStatusFilter('new');
+      await load('new');
+    } catch {
+      // The proxy can time out before Apify finishes — the search usually still
+      // completes and saves in the background.
+      setMsg('⏳ Still working in the background… tap the New tab again in 2–3 minutes and your leads should be there.');
+    } finally {
+      setFinding(false);
+    }
+  };
+
   const sendOne = async (id: string) => {
     setRowBusy(id);
     try {
@@ -196,6 +228,50 @@ const AdminLoLeadFinderPanel: React.FC = () => {
     } finally {
       setRowBusy(null);
     }
+  };
+
+  // ── DM Queue — rapid-fire LinkedIn connection notes, one lead at a time.
+  // The note is pre-copied and the profile opens in a new tab; a human taps
+  // Connect + paste + send on LinkedIn, then marks it done here. No bot.
+  const dmQueueCurrent = dmQueue && dmQueue.length ? dmQueue[0] : null;
+
+  const dmQueueStart = () => {
+    const queue = leads.filter(l => l.status === 'new' && l.linkedin);
+    if (!queue.length) { toast.error('No new leads with a LinkedIn profile.'); return; }
+    setDmQueue(queue);
+    // Pre-copy the first note so the very first profile is paste-ready.
+    void navigator.clipboard?.writeText(fillTemplate(LINKEDIN_TEMPLATE, queue[0])).catch(() => {});
+  };
+
+  const dmQueueAdvance = () => {
+    setDmQueue(prev => {
+      const rest = prev && prev.length > 1 ? prev.slice(1) : null;
+      if (rest) void navigator.clipboard?.writeText(fillTemplate(LINKEDIN_TEMPLATE, rest[0])).catch(() => {});
+      else toast.success('DM queue finished 🎉');
+      return rest;
+    });
+  };
+
+  const dmQueueMarkSent = async () => {
+    if (!dmQueueCurrent) return;
+    const id = dmQueueCurrent.id;
+    try {
+      await auth.makeAuthenticatedRequest(`/api/admin/lo-leads/${id}/dm-sent`, { method: 'POST' });
+      setLeads(prev => prev.filter(l => l.id !== id));
+      dmQueueAdvance();
+    } catch {
+      toast.error('Could not mark as sent — try again');
+    }
+  };
+
+  const dmQueueSkip = async () => {
+    if (!dmQueueCurrent) return;
+    const id = dmQueueCurrent.id;
+    try {
+      await auth.makeAuthenticatedRequest(`/api/admin/lo-leads/${id}/skip`, { method: 'POST' });
+      setLeads(prev => prev.filter(l => l.id !== id));
+    } catch { /* advance anyway — worst case the lead stays in New */ }
+    dmQueueAdvance();
   };
 
   const sendBulk = async () => {
@@ -245,11 +321,21 @@ const AdminLoLeadFinderPanel: React.FC = () => {
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 className="text-xl font-bold text-slate-900">🧲 LO Lead Finder</h2>
         <p className="mt-1 text-sm text-slate-500">
-          Run the leads-finder in Apify (free plan: click <span className="font-semibold">Start</span>, 100 leads/run), then import the result here.
-          Review the pool, then send your LO Acquisition Link.
+          Find loan officers on LinkedIn with one tap, or import an Apify run / CSV.
+          Review the pool, then work leads by DM, text, or email.
         </p>
 
-        <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="mt-5">
+          <button
+            onClick={findOnLinkedIn}
+            disabled={finding || importing}
+            className="w-full rounded-xl bg-sky-600 px-6 py-3 text-sm font-bold text-white transition-all hover:bg-sky-700 disabled:opacity-50 sm:w-auto"
+          >
+            {finding ? '🔎 Searching LinkedIn…' : '🔎 Find 50 US Loan Officers on LinkedIn'}
+          </button>
+        </div>
+
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
           <input
             className="flex-1 rounded-xl border border-slate-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
             placeholder="Apify dataset ID (optional — blank = your last run)"
@@ -269,7 +355,7 @@ const AdminLoLeadFinderPanel: React.FC = () => {
               onChange={e => { const f = e.target.files?.[0]; if (f) void importCsv(f); e.target.value = ''; }} />
           </label>
         </div>
-        <p className="mt-2 text-xs text-slate-400">CSV columns auto-detected (email, name, company, phone, LinkedIn, city/state). No-email rows and dupes are skipped.</p>
+        <p className="mt-2 text-xs text-slate-400">CSV columns auto-detected (email, name, company, phone, LinkedIn, city/state). Rows need an email or a LinkedIn URL; dupes are skipped.</p>
         {msg && <p className="mt-3 text-sm font-semibold text-slate-700">{msg}</p>}
       </div>
 
@@ -298,13 +384,21 @@ const AdminLoLeadFinderPanel: React.FC = () => {
           </div>
           </div>
           {isNew && leads.length > 0 && (
-            <button
-              onClick={sendBulk}
-              disabled={bulkSending}
-              className="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white transition-all hover:bg-emerald-700 disabled:opacity-50"
-            >
-              {bulkSending ? 'Sending…' : selected.size > 0 ? `🚀 Send to ${selected.size} selected` : '🚀 Send to all new'}
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={dmQueueStart}
+                className="rounded-xl bg-sky-600 px-5 py-2.5 text-sm font-bold text-white transition-all hover:bg-sky-700"
+              >
+                🔗 DM Queue ({leads.filter(l => l.linkedin).length})
+              </button>
+              <button
+                onClick={sendBulk}
+                disabled={bulkSending}
+                className="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white transition-all hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {bulkSending ? 'Sending…' : selected.size > 0 ? `🚀 Send to ${selected.size} selected` : '🚀 Send to all new'}
+              </button>
+            </div>
           )}
         </div>
 
@@ -333,7 +427,7 @@ const AdminLoLeadFinderPanel: React.FC = () => {
                       <p className="font-semibold text-slate-900">{l.name || '—'}</p>
                       <p className="text-xs text-slate-400">{l.job_title || ''}{l.is_role && <span className="ml-1 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">role</span>}</p>
                     </td>
-                    <td className="px-4 py-3 text-slate-600">{l.email}</td>
+                    <td className="px-4 py-3 text-slate-600">{l.email || <span className="text-slate-300">— DM only</span>}</td>
                     <td className="px-4 py-3">
                       <p className="text-slate-600">{l.employer || '—'}</p>
                       <p className="text-xs text-slate-400">{l.city || ''}</p>
@@ -349,7 +443,7 @@ const AdminLoLeadFinderPanel: React.FC = () => {
                         <div className="flex flex-wrap gap-1.5">
                           <button onClick={() => textLead(l)} disabled={!l.phone} title={l.phone ? 'Open Messages with a ready-to-send text' : 'No phone number'} className="rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-40">💬 Text</button>
                           <button onClick={() => dmLead(l)} disabled={!l.linkedin} title={l.linkedin ? 'Copy the DM + open their LinkedIn' : 'No LinkedIn'} className="rounded-lg bg-sky-600 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-sky-700 disabled:opacity-40">🔗 DM</button>
-                          <button onClick={() => sendOne(l.id)} disabled={rowBusy === l.id} title="Email the acquisition link (use sparingly — cold email risks spam)" className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-100 disabled:opacity-50">Email</button>
+                          <button onClick={() => sendOne(l.id)} disabled={rowBusy === l.id || !l.email} title={l.email ? 'Email the acquisition link (use sparingly — cold email risks spam)' : 'No email — use 🔗 DM'} className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-100 disabled:opacity-40">Email</button>
                           <button onClick={() => skip(l.id)} disabled={rowBusy === l.id} className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-400 hover:bg-slate-100 disabled:opacity-50">Skip</button>
                         </div>
                       </td>
@@ -368,6 +462,52 @@ const AdminLoLeadFinderPanel: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* DM Queue overlay — one lead at a time, ~10 seconds each */}
+      {dmQueueCurrent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-bold uppercase tracking-wide text-sky-600">🔗 DM Queue · {dmQueue?.length} left</p>
+              <button onClick={() => setDmQueue(null)} aria-label="Close DM queue" className="text-slate-400 hover:text-slate-600">✕</button>
+            </div>
+
+            <h3 className="mt-3 text-lg font-bold text-slate-900">{dmQueueCurrent.name || 'Unknown name'}</h3>
+            <p className="text-sm text-slate-500">
+              {[dmQueueCurrent.job_title, dmQueueCurrent.employer].filter(Boolean).join(' · ') || 'Loan officer'}
+              {dmQueueCurrent.city ? ` — ${dmQueueCurrent.city}` : ''}
+            </p>
+
+            <div className="mt-4 rounded-xl bg-slate-50 p-3 text-sm text-slate-700">
+              {fillTemplate(LINKEDIN_TEMPLATE, dmQueueCurrent)}
+            </div>
+            <p className="mt-2 text-xs text-slate-400">This note is already on your clipboard. On LinkedIn: Connect → Add a note → paste → Send.</p>
+
+            <div className="mt-5 flex flex-col gap-2">
+              <button
+                onClick={() => dmLead(dmQueueCurrent)}
+                className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-bold text-white transition-all hover:bg-sky-700"
+              >
+                📋 Copy note + Open their LinkedIn
+              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={dmQueueMarkSent}
+                  className="flex-1 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white transition-all hover:bg-emerald-700"
+                >
+                  ✅ Sent — next
+                </button>
+                <button
+                  onClick={dmQueueSkip}
+                  className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-500 hover:bg-slate-100"
+                >
+                  Skip
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

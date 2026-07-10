@@ -32205,7 +32205,12 @@ app.post('/api/admin/lo-leads/run', verifyAdmin, async (req, res) => {
     const maxSearches = Number.isFinite(max) && max > 0
       ? Math.min(max, Number(process.env.LO_SCRAPER_MAX_SEARCHES || 100))
       : Number(process.env.LO_SCRAPER_MAX_SEARCHES || 100);
-    const result = await loLeadScraperService.runLoLeadScrape({ maxSearches });
+    // Optional engine override (e.g. the "Find US LOs on LinkedIn" button sends
+    // engine:'harvest') — whitelisted so a bad value can't select junk behavior.
+    const engine = ['google', 'apify', 'leads', 'harvest'].includes(req.body?.engine) ? req.body.engine : undefined;
+    const fc = Number(req.body?.fetchCount);
+    const fetchCount = Number.isFinite(fc) && fc > 0 ? Math.min(fc, 500) : undefined;
+    const result = await loLeadScraperService.runLoLeadScrape({ maxSearches, engine, fetchCount });
     res.json({ success: true, ...result });
   } catch (err) {
     console.error('[LO Lead Finder] Run failed:', err);
@@ -32220,7 +32225,8 @@ app.post('/api/admin/lo-leads/run', verifyAdmin, async (req, res) => {
 app.post('/api/admin/lo-leads/import-apify', verifyAdmin, async (req, res) => {
   try {
     const datasetId = req.body?.datasetId ? String(req.body.datasetId) : undefined;
-    const result = await loLeadScraperService.importApifyLeads({ datasetId });
+    const source = req.body?.source === 'harvest' ? 'harvest' : undefined;
+    const result = await loLeadScraperService.importApifyLeads({ datasetId, source });
     res.json({ success: true, ...result });
   } catch (err) {
     console.error('[LO Lead Finder] Import failed:', err);
@@ -32270,6 +32276,7 @@ app.post('/api/admin/lo-leads/:id/send', verifyAdmin, async (req, res) => {
       .from('lo_lead_pool').select('*').eq('id', id).maybeSingle();
     if (error) throw error;
     if (!lead) return res.status(404).json({ error: 'lead_not_found' });
+    if (!lead.email) return res.status(400).json({ error: 'no_email' }); // LinkedIn-only lead — use the DM queue
 
     const { data: supp } = await supabaseAdmin
       .from('lo_suppression_list').select('email').eq('email', lead.email).maybeSingle();
@@ -32294,7 +32301,8 @@ app.post('/api/admin/lo-leads/send-bulk', verifyAdmin, async (req, res) => {
   try {
     const { ids, all } = req.body || {};
     let q = supabaseAdmin.from('lo_lead_pool').select('*')
-      .eq('status', 'new').eq('is_role', false);
+      .eq('status', 'new').eq('is_role', false)
+      .not('email', 'is', null); // LinkedIn-only leads can't be emailed — DM queue instead
     if (Array.isArray(ids) && ids.length) q = q.in('id', ids);
     else if (!all) return res.status(400).json({ error: 'ids_or_all_required' });
     const { data: leads, error } = await q.limit(500);
@@ -32336,6 +32344,21 @@ app.post('/api/admin/lo-leads/send-bulk', verifyAdmin, async (req, res) => {
   } catch (err) {
     console.error('[LO Lead Finder] Bulk send failed:', err);
     if (!res.headersSent) res.status(500).json({ error: 'bulk_send_failed' });
+  }
+});
+
+// ── POST /api/admin/lo-leads/:id/dm-sent — mark a lead DM'd (DM queue) ─────────
+// The human sent the LinkedIn connection note themselves; we just record it so
+// the queue advances and the lead shows under the DM'd tab.
+app.post('/api/admin/lo-leads/:id/dm-sent', verifyAdmin, async (req, res) => {
+  try {
+    const { error } = await supabaseAdmin
+      .from('lo_lead_pool').update({ status: 'dm_sent', sent_at: nowIso() }).eq('id', req.params.id);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[LO Lead Finder] DM-sent failed:', err);
+    res.status(500).json({ error: 'dm_sent_failed' });
   }
 });
 
