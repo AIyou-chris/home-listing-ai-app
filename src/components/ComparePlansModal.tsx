@@ -7,7 +7,7 @@ interface ComparePlansModalProps {
     isOpen: boolean;
     onClose: () => void;
     /** Pre-highlight a specific plan. Defaults to 'pro'. */
-    highlightPlan?: 'free' | 'starter' | 'pro';
+    highlightPlan?: 'free' | 'lite' | 'starter' | 'pro';
     /** Context label shown at top of modal, e.g. "Upgrade to unlock videos" */
     contextLabel?: string;
     /**
@@ -16,7 +16,7 @@ interface ComparePlansModalProps {
      * sessionStorage and sends the user to /signup so they can create an
      * account first and finish the upgrade on first login.
      */
-    onUpgrade?: (planId: 'starter' | 'pro') => void;
+    onUpgrade?: (planId: 'lite' | 'starter' | 'pro') => void;
 }
 
 const CHECK = (
@@ -38,6 +38,18 @@ const plans = [
         ctaLabel: 'Get Started Free',
         ctaStyle: 'border border-slate-300 text-slate-700 hover:bg-slate-50',
         checkoutPath: '/signup',
+    },
+    {
+        id: 'lite',
+        name: 'LO Lite',
+        price: '$79',
+        period: '/mo',
+        tagline: 'Try the platform with your first agent partners.',
+        color: 'border-slate-200',
+        badge: null,
+        ctaLabel: 'Get LO Lite',
+        ctaStyle: 'bg-slate-800 text-white hover:bg-slate-700',
+        checkoutPath: '/lo-signup?plan=lo_lite',
     },
     {
         id: 'starter',
@@ -65,32 +77,32 @@ const plans = [
     },
 ];
 
-// Feature rows: [label, free, starter, pro, note?]
+// Feature rows: [label, free, lite, starter, pro, note?]
 // true = check, false = cross, string = custom value
 type FeatureValue = boolean | string;
-const featureRows: { label: string; free: FeatureValue; starter: FeatureValue; pro: FeatureValue; section?: string }[] = [
-    { section: 'Listings', label: '', free: false, starter: false, pro: false },
-    { label: 'Active listings (partner network)', free: '1', starter: '20', pro: '50' },
-    { label: 'AI buyer chatbot on each listing', free: false, starter: true, pro: true },
-    { label: 'Full marketing package per listing', free: false, starter: true, pro: true },
+const featureRows: { label: string; free: FeatureValue; lite: FeatureValue; starter: FeatureValue; pro: FeatureValue; section?: string }[] = [
+    { section: 'Listings', label: '', free: false, lite: false, starter: false, pro: false },
+    { label: 'Active listings (partner network)', free: '1', lite: '5', starter: '20', pro: '50' },
+    { label: 'AI buyer chatbot on each listing', free: false, lite: true, starter: true, pro: true },
+    { label: 'Full marketing package per listing', free: false, lite: true, starter: true, pro: true },
 
-    { section: 'Lead Machine', label: '', free: false, starter: false, pro: false },
-    { label: 'Warm lead alerts (LO + agent)', free: false, starter: true, pro: true },
-    { label: 'Pre-approval request capture', free: false, starter: true, pro: true },
-    { label: 'Lead inbox + activity timeline', free: false, starter: true, pro: true },
-    { label: 'Priority lead routing', free: false, starter: false, pro: true },
+    { section: 'Lead Machine', label: '', free: false, lite: false, starter: false, pro: false },
+    { label: 'Warm lead alerts (LO + agent)', free: false, lite: true, starter: true, pro: true },
+    { label: 'Pre-approval request capture', free: false, lite: false, starter: true, pro: true },
+    { label: 'Lead inbox + activity timeline', free: false, lite: true, starter: true, pro: true },
+    { label: 'Priority lead routing', free: false, lite: false, starter: false, pro: true },
 
-    { section: 'Branding', label: '', free: false, starter: false, pro: false },
-    { label: 'Co-branded with your name + NMLS #', free: false, starter: true, pro: true },
-    { label: 'Agent partner management dashboard', free: false, starter: false, pro: true },
-    { label: 'ROI dashboard', free: false, starter: false, pro: true },
+    { section: 'Branding', label: '', free: false, lite: false, starter: false, pro: false },
+    { label: 'Co-branded with your name + NMLS #', free: false, lite: true, starter: true, pro: true },
+    { label: 'Agent partner management dashboard', free: false, lite: false, starter: false, pro: true },
+    { label: 'ROI dashboard', free: false, lite: false, starter: false, pro: true },
 
-    { section: 'Communications', label: '', free: false, starter: false, pro: false },
-    { label: 'Automated SMS / month', free: false, starter: '250 / mo', pro: 'Unlimited' },
-    { label: 'Appointment reminder automation', free: false, starter: false, pro: true },
+    { section: 'Communications', label: '', free: false, lite: false, starter: false, pro: false },
+    { label: 'Automated SMS / month', free: false, lite: '50 / mo', starter: '250 / mo', pro: 'Unlimited' },
+    { label: 'Appointment reminder automation', free: false, lite: false, starter: false, pro: true },
 
-    { section: 'Support', label: '', free: false, starter: false, pro: false },
-    { label: 'Support', free: 'Email', starter: 'Priority email', pro: 'Priority + onboarding' },
+    { section: 'Support', label: '', free: false, lite: false, starter: false, pro: false },
+    { label: 'Support', free: 'Email', lite: 'Email', starter: 'Priority email', pro: 'Priority + onboarding' },
 ];
 
 const Cell: React.FC<{ value: FeatureValue; isPro?: boolean }> = ({ value, isPro }) => {
@@ -122,7 +134,7 @@ const ComparePlansModal: React.FC<ComparePlansModalProps> = ({
             return;
         }
 
-        const planId = plan.id as 'starter' | 'pro';
+        const planId = plan.id as 'lite' | 'starter' | 'pro';
 
         // Authenticated context (inside dashboard) — trigger Stripe immediately
         if (onUpgrade) {
@@ -173,7 +185,7 @@ const ComparePlansModal: React.FC<ComparePlansModalProps> = ({
                 <div className="overflow-y-auto flex-1">
 
                     {/* Plan header cards */}
-                    <div className="grid grid-cols-3 gap-0 border-b border-slate-100">
+                    <div className="grid grid-cols-4 gap-0 border-b border-slate-100">
                         {plans.map((plan) => {
                             const isHighlighted = plan.id === highlightPlan;
                             return (
@@ -218,7 +230,7 @@ const ComparePlansModal: React.FC<ComparePlansModalProps> = ({
                                 if (row.section) {
                                     return (
                                         <tr key={`section-${i}`} className="bg-slate-50">
-                                            <td colSpan={4} className="px-4 py-2 text-xs font-bold uppercase tracking-widest text-slate-400">
+                                            <td colSpan={5} className="px-4 py-2 text-xs font-bold uppercase tracking-widest text-slate-400">
                                                 {row.section}
                                             </td>
                                         </tr>
@@ -226,14 +238,17 @@ const ComparePlansModal: React.FC<ComparePlansModalProps> = ({
                                 }
                                 return (
                                     <tr key={row.label} className="border-t border-slate-100 hover:bg-slate-50/50 transition-colors">
-                                        <td className="px-4 py-2.5 text-slate-700 text-xs sm:text-sm w-2/5">{row.label}</td>
-                                        <td className="px-2 py-2.5 text-center w-[20%]">
+                                        <td className="px-4 py-2.5 text-slate-700 text-xs sm:text-sm w-[28%]">{row.label}</td>
+                                        <td className="px-2 py-2.5 text-center w-[18%]">
                                             <Cell value={row.free} />
                                         </td>
-                                        <td className="px-2 py-2.5 text-center w-[20%]">
+                                        <td className="px-2 py-2.5 text-center w-[18%]">
+                                            <Cell value={row.lite} />
+                                        </td>
+                                        <td className="px-2 py-2.5 text-center w-[18%]">
                                             <Cell value={row.starter} />
                                         </td>
-                                        <td className="px-2 py-2.5 text-center w-[20%] bg-primary-50/40">
+                                        <td className="px-2 py-2.5 text-center w-[18%] bg-primary-50/40">
                                             <Cell value={row.pro} isPro />
                                         </td>
                                     </tr>
@@ -245,8 +260,8 @@ const ComparePlansModal: React.FC<ComparePlansModalProps> = ({
                     {/* Footer */}
                     <div className="px-5 py-4 bg-slate-50 border-t border-slate-100 text-center">
                         <p className="text-xs text-slate-500">
-                            One closed loan covers 20+ months of the LO plan.{' '}
-                            <span className="font-medium text-slate-700">7-day free trial. No contracts. Cancel anytime.</span>
+                            Plans start at $79/mo — one closed loan covers years of it.{' '}
+                            <span className="font-medium text-slate-700">7-day free trial, no card needed. No contracts. Cancel anytime.</span>
                         </p>
                     </div>
                 </div>

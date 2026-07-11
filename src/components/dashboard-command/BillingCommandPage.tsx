@@ -29,6 +29,11 @@ const planMeta: Record<PlanId, { name: string; monthly: string; subtitle: string
     monthly: '$0/mo',
     subtitle: 'Start free and get your first WOW Link out the door.'
   },
+  lo_lite: {
+    name: 'LO Lite',
+    monthly: '$79/mo',
+    subtitle: '5 listings, 50 SMS/month, full co-branding on every page.'
+  },
   starter: {
     name: 'LO',
     monthly: '$149/mo',
@@ -70,7 +75,7 @@ const formatWarningLine = (snapshot: DashboardBillingSnapshot, key: keyof Dashbo
 
 const BillingCommandPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState<'starter' | 'pro' | 'portal' | null>(null);
+  const [busy, setBusy] = useState<'lo_lite' | 'starter' | 'pro' | 'portal' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [snapshot, setSnapshot] = useState<DashboardBillingSnapshot | null>(null);
 
@@ -107,7 +112,7 @@ const BillingCommandPage: React.FC = () => {
       .filter((line): line is string => Boolean(line));
   }, [snapshot]);
 
-  const startUpgrade = async (plan: 'starter' | 'pro') => {
+  const startUpgrade = async (plan: 'lo_lite' | 'starter' | 'pro') => {
     try {
       setBusy(plan);
       const checkout = await createBillingCheckoutSession(plan);
@@ -187,6 +192,14 @@ const BillingCommandPage: React.FC = () => {
               <>
                 <button
                   type="button"
+                  onClick={() => void startUpgrade('lo_lite')}
+                  disabled={busy !== null}
+                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  {busy === 'lo_lite' ? 'Loading…' : 'Upgrade to LO Lite — $79/mo'}
+                </button>
+                <button
+                  type="button"
                   onClick={() => void startUpgrade('starter')}
                   disabled={busy !== null}
                   className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
@@ -214,13 +227,15 @@ const BillingCommandPage: React.FC = () => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => void startUpgrade(currentPlanId === 'starter' ? 'pro' : 'starter')}
+                  onClick={() => void startUpgrade(currentPlanId === 'pro' ? 'starter' : currentPlanId === 'starter' ? 'pro' : 'starter')}
                   disabled={busy !== null}
                   className="rounded-lg bg-[#233074] px-3 py-2 text-sm font-semibold text-white hover:bg-[#1b275e] disabled:opacity-50"
                 >
-                  {currentPlanId === 'starter'
-                    ? busy === 'pro' ? 'Loading…' : 'Upgrade to LO Pro — $299/mo'
-                    : busy === 'starter' ? 'Loading…' : 'Downgrade to LO — $149/mo'}
+                  {currentPlanId === 'pro'
+                    ? busy === 'starter' ? 'Loading…' : 'Downgrade to LO — $149/mo'
+                    : currentPlanId === 'starter'
+                      ? busy === 'pro' ? 'Loading…' : 'Upgrade to LO Pro — $299/mo'
+                      : busy === 'starter' ? 'Loading…' : 'Upgrade to LO — $149/mo'}
                 </button>
                 <button
                   type="button"
@@ -246,6 +261,7 @@ const BillingCommandPage: React.FC = () => {
               <tr className="border-b border-slate-200 text-slate-500">
                 <th className="px-3 py-3 font-semibold">Feature</th>
                 <th className="px-3 py-3 font-semibold">Free</th>
+                <th className="px-3 py-3 font-semibold">LO Lite — $79/mo</th>
                 <th className="px-3 py-3 font-semibold text-primary-700">LO — $149/mo</th>
                 <th className="px-3 py-3 font-semibold">LO Pro — $299/mo</th>
               </tr>
@@ -254,6 +270,7 @@ const BillingCommandPage: React.FC = () => {
               <tr className="border-b border-slate-100">
                 <td className="px-3 py-3 font-medium">Active listings</td>
                 <td className="px-3 py-3">1</td>
+                <td className="px-3 py-3">5</td>
                 <td className="px-3 py-3">20</td>
                 <td className="px-3 py-3">50</td>
               </tr>
@@ -262,15 +279,18 @@ const BillingCommandPage: React.FC = () => {
                 <td className="px-3 py-3">—</td>
                 <td className="px-3 py-3">✓ Every listing</td>
                 <td className="px-3 py-3">✓ Every listing</td>
+                <td className="px-3 py-3">✓ Every listing</td>
               </tr>
               <tr className="border-b border-slate-100">
                 <td className="px-3 py-3 font-medium">Co-branded with your NMLS #</td>
                 <td className="px-3 py-3">—</td>
                 <td className="px-3 py-3">✓</td>
                 <td className="px-3 py-3">✓</td>
+                <td className="px-3 py-3">✓</td>
               </tr>
               <tr className="border-b border-slate-100">
                 <td className="px-3 py-3 font-medium">Pre-approval request capture</td>
+                <td className="px-3 py-3">—</td>
                 <td className="px-3 py-3">—</td>
                 <td className="px-3 py-3">✓</td>
                 <td className="px-3 py-3">✓</td>
@@ -279,11 +299,13 @@ const BillingCommandPage: React.FC = () => {
                 <td className="px-3 py-3 font-medium">Warm lead alerts (LO + agent)</td>
                 <td className="px-3 py-3">—</td>
                 <td className="px-3 py-3">✓</td>
+                <td className="px-3 py-3">✓</td>
                 <td className="px-3 py-3">✓ Priority routing</td>
               </tr>
               <tr className="border-b border-slate-100">
                 <td className="px-3 py-3 font-medium">Automated SMS / month</td>
                 <td className="px-3 py-3">—</td>
+                <td className="px-3 py-3">50</td>
                 <td className="px-3 py-3">250</td>
                 <td className="px-3 py-3">Unlimited</td>
               </tr>
@@ -291,10 +313,12 @@ const BillingCommandPage: React.FC = () => {
                 <td className="px-3 py-3 font-medium">ROI dashboard</td>
                 <td className="px-3 py-3">—</td>
                 <td className="px-3 py-3">—</td>
+                <td className="px-3 py-3">—</td>
                 <td className="px-3 py-3">✓</td>
               </tr>
               <tr>
                 <td className="px-3 py-3 font-medium">Support</td>
+                <td className="px-3 py-3">Email</td>
                 <td className="px-3 py-3">Email</td>
                 <td className="px-3 py-3">Priority email</td>
                 <td className="px-3 py-3">Priority + onboarding</td>
@@ -303,13 +327,26 @@ const BillingCommandPage: React.FC = () => {
           </table>
         </div>
 
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
             <p className="text-xs uppercase tracking-wide text-slate-500">Free</p>
             <p className="mt-1 text-lg font-semibold text-slate-900">$0/mo</p>
             <p className="text-xs text-slate-400 mt-0.5">1 listing, lead capture</p>
             <button type="button" disabled className="mt-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-500">
               {currentPlanId === 'free' ? 'Current plan' : 'Included'}
+            </button>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-3">
+            <p className="text-xs uppercase tracking-wide text-slate-500">LO Lite</p>
+            <p className="mt-1 text-lg font-semibold text-slate-900">$79/mo</p>
+            <p className="text-xs text-slate-400 mt-0.5">5 listings · 50 SMS/mo</p>
+            <button
+              type="button"
+              onClick={() => void startUpgrade('lo_lite')}
+              disabled={busy !== null || currentPlanId === 'lo_lite'}
+              className="mt-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            >
+              {currentPlanId === 'lo_lite' ? 'Current plan' : busy === 'lo_lite' ? 'Loading…' : 'Choose plan'}
             </button>
           </div>
           <div className="rounded-xl border border-primary-200 bg-primary-50 p-3">
@@ -371,7 +408,7 @@ const BillingCommandPage: React.FC = () => {
       </section>
 
       <section className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-        LO includes 250 outbound SMS per month. LO Pro includes unlimited. Only automated outbound texts count toward your limit.
+        LO Lite includes 50 outbound SMS per month, LO includes 250, and LO Pro is unlimited. Only automated outbound texts count toward your limit.
       </section>
     </div>
   );

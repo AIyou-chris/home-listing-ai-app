@@ -4,7 +4,7 @@ import { isDemoModeActive } from '../demo/useDemoMode';
 import { supabase } from './supabase';
 import { waitForAuthenticatedUserId, waitForAuthenticatedSession } from './authSession';
 
-export type PlanId = 'free' | 'starter' | 'pro';
+export type PlanId = 'free' | 'lo_lite' | 'starter' | 'pro';
 
 export interface UsageMeter {
   used: number;
@@ -114,7 +114,7 @@ const assertResponse = async (response: Response) => {
   if (errorCode === 'limit_reached') {
     const upgradePlanCandidate = String(payload.upgrade_plan_id || '').toLowerCase();
     const upgradePlanId =
-      upgradePlanCandidate === 'starter' || upgradePlanCandidate === 'pro'
+      upgradePlanCandidate === 'lo_lite' || upgradePlanCandidate === 'starter' || upgradePlanCandidate === 'pro'
         ? (upgradePlanCandidate as Exclude<PlanId, 'free'>)
         : null;
     throw new BillingLimitError('limit_reached', {

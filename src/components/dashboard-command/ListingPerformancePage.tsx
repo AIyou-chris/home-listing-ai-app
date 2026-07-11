@@ -53,7 +53,7 @@ const ListingPerformancePage: React.FC = () => {
     title: string;
     body: string;
     reasonLine: string | null;
-    targetPlan: 'starter' | 'pro' | null;
+    targetPlan: 'lo_lite' | 'starter' | 'pro' | null;
   }>({
     open: false,
     title: "You're at your limit.",

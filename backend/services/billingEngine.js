@@ -2,6 +2,7 @@ const crypto = require('crypto');
 
 const PLAN_IDS = {
   FREE: 'free',
+  LO_LITE: 'lo_lite',
   STARTER: 'starter',
   PRO: 'pro'
 };
@@ -13,9 +14,16 @@ const DEFAULT_LIMITS = {
     reminder_calls_per_month: 0,
     stored_leads_cap: 25
   },
-  // 'starter' = LO plan ($149/mo, 20 listings) and 'pro' = LO Pro ($299/mo,
-  // 50 listings) — must stay in sync with the marketed plans in
-  // src/components/ComparePlansModal.tsx and LOSignupPage.tsx.
+  // 'lo_lite' = LO Lite ($79/mo, 5 listings), 'starter' = LO plan ($149/mo,
+  // 20 listings), 'pro' = LO Pro ($299/mo, 50 listings) — must stay in sync
+  // with the marketed plans in src/components/ComparePlansModal.tsx and
+  // LOSignupPage.tsx.
+  [PLAN_IDS.LO_LITE]: {
+    active_listings: 5,
+    reports_per_month: 5,
+    reminder_calls_per_month: 10,
+    stored_leads_cap: 100
+  },
   [PLAN_IDS.STARTER]: {
     active_listings: 20,
     reports_per_month: 10,
@@ -66,6 +74,9 @@ const isMissingTableError = (error) =>
 const clone = (value) => JSON.parse(JSON.stringify(value));
 
 const buildDefaultPlanRows = () => {
+  const litePriceId =
+    process.env.STRIPE_LO_LITE_PRICE_ID ||
+    null;
   const starterPriceId =
     process.env.STRIPE_LO_PRICE_ID ||
     process.env.STRIPE_STARTER_PRICE_ID ||
@@ -85,6 +96,14 @@ const buildDefaultPlanRows = () => {
       price_monthly_usd: 0,
       stripe_price_id: null,
       limits: DEFAULT_LIMITS[PLAN_IDS.FREE],
+      created_at: nowIso()
+    },
+    {
+      id: PLAN_IDS.LO_LITE,
+      name: 'LO Lite',
+      price_monthly_usd: 79,
+      stripe_price_id: litePriceId,
+      limits: DEFAULT_LIMITS[PLAN_IDS.LO_LITE],
       created_at: nowIso()
     },
     {
@@ -108,6 +127,7 @@ const buildDefaultPlanRows = () => {
 
 const normalizePlanId = (value) => {
   const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === PLAN_IDS.LO_LITE || normalized === 'lite') return PLAN_IDS.LO_LITE;
   if (normalized === PLAN_IDS.STARTER) return PLAN_IDS.STARTER;
   if (normalized === PLAN_IDS.PRO) return PLAN_IDS.PRO;
   return PLAN_IDS.FREE;
@@ -127,7 +147,7 @@ const deriveEffectivePlanId = (subscription) => {
   const status = normalizeSubscriptionStatus(subscription?.status);
   const planId = normalizePlanId(subscription?.plan_id);
   if (!ACTIVE_SUB_STATUSES.has(status)) return PLAN_IDS.FREE;
-  if (planId === PLAN_IDS.STARTER || planId === PLAN_IDS.PRO) return planId;
+  if (planId === PLAN_IDS.LO_LITE || planId === PLAN_IDS.STARTER || planId === PLAN_IDS.PRO) return planId;
   return PLAN_IDS.FREE;
 };
 
@@ -312,7 +332,7 @@ const createBillingEngine = ({ supabaseAdmin, stripe, enqueueJob, appBaseUrl }) 
     const agent = await resolveAgentRecord(agentId).catch(() => null);
     const legacyPlan = normalizePlanId(agent?.plan);
     const legacyStatus = normalizeSubscriptionStatus(agent?.subscription_status);
-    const starterPlan = legacyPlan === PLAN_IDS.STARTER || legacyPlan === PLAN_IDS.PRO ? legacyPlan : PLAN_IDS.FREE;
+    const starterPlan = legacyPlan === PLAN_IDS.LO_LITE || legacyPlan === PLAN_IDS.STARTER || legacyPlan === PLAN_IDS.PRO ? legacyPlan : PLAN_IDS.FREE;
     const starterStatus = ACTIVE_SUB_STATUSES.has(legacyStatus) ? legacyStatus : 'free';
 
     const created = await upsertSubscription({

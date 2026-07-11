@@ -26,8 +26,8 @@ export const parseResponse = async <T>(response: Response): Promise<T> => {
     if (String(payload.error || '') === 'limit_reached') {
       const upgradePlanCandidate = String(payload.upgrade_plan_id || '').toLowerCase();
       const upgradePlanId =
-        upgradePlanCandidate === 'starter' || upgradePlanCandidate === 'pro'
-          ? (upgradePlanCandidate as 'starter' | 'pro')
+        upgradePlanCandidate === 'lo_lite' || upgradePlanCandidate === 'starter' || upgradePlanCandidate === 'pro'
+          ? (upgradePlanCandidate as 'lo_lite' | 'starter' | 'pro')
           : null;
       throw new BillingLimitError('limit_reached', {
         feature: String(payload.feature || 'unknown'),

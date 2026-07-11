@@ -193,6 +193,15 @@ No long explanations. No walls of text. Table in, table out.
 
 ## 7. Current State Snapshot (as of 2026-07-05)
 
+### ✅ Recently completed — Stale-pricing purge + LO Lite everywhere (2026-07-10)
+
+| Feature | Notes |
+|---|---|
+| **AI-crawlable layer de-staled** | An AI-written marketing guide surfaced old info ($149 entry, $299, 3-day trial, no $79 plan). Root cause: `public/llms.txt`, `public/ai.txt`, `scripts/generate-seo-pages.mjs` (prerendered SEO pages — last remaining "3-day trial" copy), and the `index.html` JSON-LD (offers + FAQ) all predated LO Lite. All now say: $79 LO Lite (5 listings, 50 WOW links, 50 SMS) / $149 LO / $299 LO Pro, 7-day free trial, no card, month-to-month. **Rule: any future pricing change must also update these four AI/SEO surfaces.** |
+| **Sales bot + drips** | `helpSalesChatBot.ts` SALES_SYSTEM_PROMPT and day-6/day-7 trial drip emails (`emailService.js`) reframed from "$149/mo" to "starts at $79/mo". |
+| **LO Lite is now a first-class billing plan** | `billingEngine.js`: new `PLAN_IDS.LO_LITE` ('lo_lite', $79, 5 listings, price id from `STRIPE_LO_LITE_PRICE_ID`, plans-table row auto-upserts on boot). Frontend `PlanId` union widened. Billing pages (`BillingSettings.tsx`, `BillingCommandPage.tsx`) show/label/upgrade-to LO Lite; fixed legacy name-inference where "79" mapped to **pro**. `ComparePlansModal` now 4 columns incl. LO Lite. Dead `_PricingSection` (stale "$149 • $299" hero) deleted from `LandingPage.tsx`. |
+| Verification | tsc clean (2 pre-existing unrelated errors remain: `PublicPropertyApp` nmlsNumber, `setupTests` jest namespace), Jest 53/53, backend node:test 30/31 (1 pre-existing `loLeadScraperService` failure, unrelated). Compare Plans modal visually verified in dev preview. |
+
 ### ✅ Recently completed — Post-signup loop: trial banner, activation, testimonials (2026-07-06)
 
 | Feature | Notes |
