@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import PageGuide from './PageGuide';
 import { buildApiUrl } from '../../lib/api';
 import { supabase } from '../../services/supabase';
+import { useDemoMode } from '../../demo/useDemoMode';
 import toast from 'react-hot-toast';
 
 const getApiHeaders = async (): Promise<HeadersInit> => {
@@ -32,6 +33,33 @@ interface ChatbotConfig {
   is_active: boolean;
 }
 
+// Pre-seeded config shown on /demo-dashboard — no API calls in demo mode
+const DEMO_CHATBOT_CONFIG: ChatbotConfig = {
+  bot_name: "Alex's Financing Assistant",
+  greeting: "Hi! I'm Alex's financing assistant. Ask me anything about down payments, monthly costs, or getting pre-approved for this home. 🏡",
+  personality: 'Friendly, plain-English mortgage advisor. No jargon. Always encourage buyers to connect with Alex directly for personalized numbers.',
+  knowledge_base: '[From: rate-sheet-july.pdf]\nConventional 30-yr from 6.25% · FHA from 5.99% · VA from 5.75% (0% down for eligible veterans). First-time buyer programs available with as little as 3% down.',
+  compliance_rules: 'Never quote a locked rate — always say rates shown are samples and subject to credit approval. Include NMLS #123456 when asked about licensing. Never promise loan approval.',
+  faq: [
+    {
+      id: 'demo-faq-1',
+      question: "What's the minimum down payment?",
+      answer: 'Great news — you may need less than you think! Conventional loans start at 3% down for first-time buyers, FHA at 3.5%, and VA loans can be 0% down. Alex can tell you exactly which program fits you.'
+    },
+    {
+      id: 'demo-faq-2',
+      question: 'What would my monthly payment be?',
+      answer: "It depends on your down payment and rate, but on this home most buyers land between $3,800–$4,600/mo including taxes and insurance. Want exact numbers? Alex can run them for you in about 10 minutes."
+    },
+    {
+      id: 'demo-faq-3',
+      question: 'How do I get pre-approved?',
+      answer: "It's fast — most buyers finish in under 24 hours. You'll need pay stubs, two years of W-2s, and bank statements. Tap 'Get Pre-Approved' and Alex will walk you through it personally."
+    }
+  ],
+  is_active: true
+};
+
 // ─── Knowledge Base Section ───────────────────────────────────────────────────
 
 type KbTab = 'text' | 'file' | 'url';
@@ -41,7 +69,8 @@ const KnowledgeBaseSection: React.FC<{
   onChange: (text: string) => void;
   onAutoSave: (text: string, successMsg?: string) => Promise<void>;
   getHeaders: () => Promise<HeadersInit>;
-}> = ({ value, onChange, onAutoSave, getHeaders }) => {
+  isDemo?: boolean;
+}> = ({ value, onChange, onAutoSave, getHeaders, isDemo }) => {
   const [tab, setTab] = useState<KbTab>('text');
   const [urlInput, setUrlInput] = useState('');
   const [scanning, setScanning] = useState(false);
@@ -77,6 +106,10 @@ const KnowledgeBaseSection: React.FC<{
   };
 
   const scanUrl = async () => {
+    if (isDemo) {
+      toast('Website scanning is disabled in the demo — sign up free to train your own bot.', { icon: '🔒' });
+      return;
+    }
     const url = urlInput.trim();
     if (!url) return;
     setScanning(true);
@@ -99,6 +132,10 @@ const KnowledgeBaseSection: React.FC<{
   };
 
   const uploadFile = async (file: File) => {
+    if (isDemo) {
+      toast('File uploads are disabled in the demo — sign up free to train your own bot.', { icon: '🔒' });
+      return;
+    }
     setUploading(true);
     try {
       const headers = await getHeaders();
@@ -332,12 +369,17 @@ const ComplianceSection: React.FC<{
   onChange: (text: string) => void;
   onAutoSave: (text: string, successMsg?: string) => Promise<void>;
   getHeaders: () => Promise<HeadersInit>;
-}> = ({ value, onChange, onAutoSave, getHeaders }) => {
+  isDemo?: boolean;
+}> = ({ value, onChange, onAutoSave, getHeaders, isDemo }) => {
   const [uploading, setUploading] = useState(false);
   const [removing, setRemoving] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const uploadComplianceFile = async (file: File) => {
+    if (isDemo) {
+      toast('File uploads are disabled in the demo — sign up free to add your compliance rules.', { icon: '🔒' });
+      return;
+    }
     setUploading(true);
     try {
       const headers = await getHeaders();
@@ -364,6 +406,11 @@ const ComplianceSection: React.FC<{
 
   const removeDoc = async () => {
     if (!window.confirm('Remove your uploaded compliance rules? Platform guardrails will still apply.')) return;
+    if (isDemo) {
+      onChange('');
+      toast.success('Compliance rules removed');
+      return;
+    }
     setRemoving(true);
     try {
       const headers = await getHeaders();
@@ -587,9 +634,15 @@ const LOChatbotSetupPage: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const [activeTab, setActiveTab] = useState<'identity' | 'knowledge' | 'compliance' | 'faq'>('identity');
+  const demoMode = useDemoMode();
 
   // ── Load existing config ──────────────────────────────────────────────────
   useEffect(() => {
+    if (demoMode) {
+      setConfig(DEMO_CHATBOT_CONFIG);
+      setLoading(false);
+      return;
+    }
     const fetch_ = async () => {
       try {
         const headers = await getApiHeaders();
@@ -616,10 +669,15 @@ const LOChatbotSetupPage: React.FC = () => {
       }
     };
     void fetch_();
-  }, []);
+  }, [demoMode]);
 
   // ── Save ─────────────────────────────────────────────────────────────────
   const save = async () => {
+    if (demoMode) {
+      setIsDirty(false);
+      toast.success('Chatbot saved! (Demo — changes reset on refresh)');
+      return;
+    }
     setSaving(true);
     try {
       const headers = await getApiHeaders();
@@ -643,6 +701,7 @@ const LOChatbotSetupPage: React.FC = () => {
 
   // Auto-save compliance rules after upload
   const autoSaveComplianceRules = async (newRules: string, _successMsg?: string) => {
+    if (demoMode) return;
     setSaving(true);
     try {
       const headers = await getApiHeaders();
@@ -665,6 +724,10 @@ const LOChatbotSetupPage: React.FC = () => {
 
   // Auto-save after file/URL upload — receives the new KB text directly to avoid state timing issues
   const autoSaveKnowledgeBase = async (newKbText: string, successMsg?: string) => {
+    if (demoMode) {
+      if (successMsg) toast.success(successMsg);
+      return;
+    }
     setSaving(true);
     try {
       const headers = await getApiHeaders();
@@ -853,6 +916,7 @@ const LOChatbotSetupPage: React.FC = () => {
                 onChange={(text) => setConfig((c) => ({ ...c, knowledge_base: text }))}
                 onAutoSave={autoSaveKnowledgeBase}
                 getHeaders={getApiHeaders}
+                isDemo={demoMode}
               />
             )}
 
@@ -863,6 +927,7 @@ const LOChatbotSetupPage: React.FC = () => {
                 onChange={(text) => setConfig((c) => ({ ...c, compliance_rules: text }))}
                 onAutoSave={autoSaveComplianceRules}
                 getHeaders={getApiHeaders}
+                isDemo={demoMode}
               />
             )}
 
