@@ -1,0 +1,17 @@
+# Keeps the Render free-tier backend from spinning down (15-min idle sleep →
+# 30-60s cold starts on the next visitor). Free tier includes 750 instance
+# hours/month, enough to stay awake 24/7. Remove this workflow after
+# upgrading the Render service to a paid instance type.
+name: Keep backend warm
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping backend healthz
+        run: curl -sf --max-time 60 https://home-listing-ai-backend.onrender.com/healthz || true

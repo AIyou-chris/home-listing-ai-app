@@ -528,6 +528,76 @@ app.use(helmet({
   contentSecurityPolicy: false // Disable CSP for demo flexibility
 }));
 
+// ── Public-endpoint rate limiting + AI spend guard ──────────────────────────
+// Behind Netlify/Render proxies the client IP arrives via X-Forwarded-For;
+// trust exactly one proxy hop so req.ip is the real visitor, not the proxy.
+app.set('trust proxy', 1);
+
+const rateLimit = require('express-rate-limit');
+
+const makeLimiter = (windowMs, limit, message) => rateLimit({
+  windowMs,
+  limit,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { success: false, error: 'rate_limited', message }
+});
+
+// Unauthenticated AI chat — the expensive one
+const aiChatLimiter = makeLimiter(60 * 1000, 20, 'Too many messages. Please wait a minute and try again.');
+// Public lead capture / subscriptions
+const leadLimiter = makeLimiter(60 * 1000, 10, 'Too many requests. Please wait a minute and try again.');
+// Account signup
+const signupLimiter = makeLimiter(15 * 60 * 1000, 8, 'Too many signup attempts. Please try again in a few minutes.');
+
+// Daily OpenAI spend guard for unauthenticated endpoints: per-visitor-IP cap plus
+// a global cap so a bot (or botnet) cannot run up the OpenAI bill. In-memory —
+// resets on restart, which is acceptable as a cost ceiling, not an exact meter.
+const AI_DAILY_IP_CAP = parseInt(process.env.AI_PUBLIC_DAILY_IP_CAP || '150', 10);
+const AI_DAILY_GLOBAL_CAP = parseInt(process.env.AI_PUBLIC_DAILY_GLOBAL_CAP || '5000', 10);
+const aiDailyUsage = { day: '', perIp: new Map(), global: 0 };
+const aiSpendGuard = (req, res, next) => {
+  const today = new Date().toISOString().slice(0, 10);
+  if (aiDailyUsage.day !== today) {
+    aiDailyUsage.day = today;
+    aiDailyUsage.perIp.clear();
+    aiDailyUsage.global = 0;
+  }
+  if (aiDailyUsage.global >= AI_DAILY_GLOBAL_CAP) {
+    return res.status(429).json({ success: false, error: 'ai_daily_cap', message: 'The assistant is very busy today. Please try again tomorrow or contact the agent directly.' });
+  }
+  const ipCount = aiDailyUsage.perIp.get(req.ip) || 0;
+  if (ipCount >= AI_DAILY_IP_CAP) {
+    return res.status(429).json({ success: false, error: 'ai_daily_cap', message: 'Daily message limit reached. Please contact the agent directly.' });
+  }
+  aiDailyUsage.perIp.set(req.ip, ipCount + 1);
+  aiDailyUsage.global += 1;
+  next();
+};
+
+// Unauthenticated OpenAI-backed chat. Only POSTs trigger OpenAI — reads
+// (conversation history) must not consume the daily AI budget.
+const postOnly = (...mws) => (req, res, next) => {
+  if (req.method !== 'POST') return next();
+  let i = 0;
+  const run = (err) => {
+    if (err) return next(err);
+    const mw = mws[i++];
+    if (!mw) return next();
+    mw(req, res, run);
+  };
+  run();
+};
+app.use('/api/public/lo-chat', postOnly(aiChatLimiter, aiSpendGuard));
+app.use('/api/public/conversations', postOnly(aiChatLimiter, aiSpendGuard));
+// Public lead capture / opt-ins
+app.use('/api/leads/capture', leadLimiter);
+app.use('/api/leads/public', leadLimiter);
+app.use('/api/leads/pre-qual', leadLimiter);
+app.use('/api/public/listing-alerts/subscribe', leadLimiter);
+// Signup
+app.use('/api/agents/register', signupLimiter);
+
 app.get('/healthz', (_req, res) => {
   res.status(200).json({
     ok: true,
