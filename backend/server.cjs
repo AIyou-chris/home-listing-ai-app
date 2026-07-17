@@ -500,14 +500,30 @@ const corsOptions = {
 app.use(rejectDisallowedOrigins);
 app.use(cors(corsOptions));
 // Middleware: Capture Raw Body for Stripe Webhooks (must be before processing JSON)
+const captureRawBody = (req, res, buf) => {
+  req.rawBody = buf.toString();
+};
+
+// A few endpoints legitimately carry large JSON payloads (base64 images from the
+// listing/profile editors, extracted knowledge-base text, bulk CSV rows). Everything
+// else gets a small default limit so oversized requests are rejected up front.
+const LARGE_JSON_PATHS = [
+  '/api/listings/photo-upload',   // base64 dataUrl photo uploads
+  '/api/agent/profile',           // base64 logo/headshot
+  '/api/lo/profile',              // base64 logo/headshot
+  '/api/lo/chatbot-config',       // knowledge_base text from 25MB doc extracts
+  '/api/ai-card',                 // base64 card imagery
+  '/api/admin/lo-leads'           // bulk CSV row imports (admin-authed)
+];
+const largeJsonParser = express.json({ limit: '30mb', verify: captureRawBody });
+LARGE_JSON_PATHS.forEach((p) => app.use(p, largeJsonParser));
+
 app.use(express.json({
-  limit: '50mb',
-  verify: (req, res, buf) => {
-    req.rawBody = buf.toString();
-  }
+  limit: '2mb',
+  verify: captureRawBody
 }));
 
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 app.use(helmet({
   contentSecurityPolicy: false // Disable CSP for demo flexibility
 }));
