@@ -6,7 +6,6 @@ import ErrorBoundary from './components/ErrorBoundary';
 
 const App = lazy(() => import('./App'));
 const LandingPage = lazy(() => import('./components/LandingPage'));
-const NewLandingPage = lazy(() => import('./components/NewLandingPage'));
 const ConsultationModal = lazy(() => import('./components/ConsultationModal'));
 const Toaster = lazy(() => import('react-hot-toast').then((module) => ({ default: module.Toaster })));
 const BlogIndex = lazy(() => import('./pages/Blog/BlogIndex'));
@@ -133,16 +132,6 @@ const PublicApp: React.FC = () => {
           <Route path="/listing/:id" element={<PublicListingPage />} />
           <Route path="/l/:publicSlug" element={<PublicListingPage />} />
           <Route path="/demo-live/:publicSlug" element={<DemoPublicListingPage />} />
-          <Route
-            path="/new-landing"
-            element={
-              <NewLandingPage
-                onNavigateToSignUp={handleNavigateToSignUp}
-                onNavigateToSignIn={handleNavigateToSignIn}
-                onEnterDemoMode={handleEnterDemoMode}
-              />
-            }
-          />
           <Route path="*" element={<PrivateAppLoader />} />
         </Routes>
       </Suspense>

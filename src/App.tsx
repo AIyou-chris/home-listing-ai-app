@@ -5,10 +5,8 @@ import { supabase } from './services/supabase';
 import ScrollToTop from './components/ScrollToTop';
 import LoTrialBanner from './components/LoTrialBanner';
 import { Property, View, AgentProfile, NotificationSettings, EmailSettings, CalendarSettings, BillingSettings, Lead, Appointment, Interaction } from './types';
-import { DEMO_FAT_PROPERTIES, DEMO_FAT_LEADS, DEMO_FAT_APPOINTMENTS } from './demoConstants';
-import { SAMPLE_AGENT, SAMPLE_INTERACTIONS } from './constants';
+import { SAMPLE_AGENT } from './constants';
 const LandingPage = lazy(() => import('./components/LandingPage'));
-const NewLandingPage = lazy(() => import('./components/NewLandingPage'));
 const HowItWorksPage = lazy(() => import('./pages/HowItWorksPage'));
 const SignUpPage = lazy(() => import('./components/SignUpPage'));
 const SignInPage = lazy(() => import('./components/SignInPage'));
@@ -606,9 +604,9 @@ const App: React.FC = () => {
 
     const [_selectedPropertyId, _setSelectedPropertyId] = useState<string | null>(null);
     const [_properties, setProperties] = useState<Property[]>([]);
-    const [leads, setLeads] = useState<Lead[]>([]);
+    const [leads] = useState<Lead[]>([]);
     const [_appointments, setAppointments] = useState<Appointment[]>();
-    const [_interactions, setInteractions] = useState<Interaction[]>();
+    const [_interactions] = useState<Interaction[]>();
 
 
 
@@ -1316,17 +1314,6 @@ const App: React.FC = () => {
         }
     };
 
-    const handleEnterDemoMode = () => {
-        setIsDemoMode(true);
-        setProperties(DEMO_FAT_PROPERTIES);
-        setLeads(DEMO_FAT_LEADS);
-        setAppointments(DEMO_FAT_APPOINTMENTS);
-        setInteractions(SAMPLE_INTERACTIONS);
-
-        setUserProfile(SAMPLE_AGENT);
-        navigate('/demo-dashboard');
-    };
-
     const handleNavigateToAdmin = () => {
         navigate('/admin-login');
     };
@@ -1831,7 +1818,6 @@ const App: React.FC = () => {
                     <Route path="/demo/listings/:id" element={<DemoListingPage />} />
                     <Route path="/lo-demo" element={<Navigate to="/demo-dashboard/lo-today" replace />} />
                     <Route path="/how-it-works" element={<HowItWorksPage />} />
-                    <Route path="/new-landing" element={<NewLandingPage onNavigateToSignUp={handleNavigateToSignUp} onNavigateToSignIn={handleNavigateToSignIn} onEnterDemoMode={handleEnterDemoMode} />} />
 
                     {/* Fallback */}
                     <Route path="*" element={<NotFound />} />

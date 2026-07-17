@@ -5,8 +5,6 @@ const insertAppointmentMock = jest.fn()
 const listAppointmentsMock = jest.fn()
 const fetchCalendarSettingsMock = jest.fn()
 const createMeetEventMock = jest.fn()
-const sendConsultationConfirmationMock = jest.fn()
-const sendAdminNotificationMock = jest.fn()
 
 let scheduleAppointment: typeof import('../schedulerService')['scheduleAppointment']
 
@@ -42,13 +40,6 @@ jest.mock('../googleOAuthService', () => ({
 jest.mock('../googleMeetService', () => ({
   googleMeetService: {
     createMeetEvent: (...args: unknown[]) => createMeetEventMock(...args)
-  }
-}))
-
-jest.mock('../emailService', () => ({
-  emailService: {
-    sendConsultationConfirmation: (...args: unknown[]) => sendConsultationConfirmationMock(...args),
-    sendAdminNotification: (...args: unknown[]) => sendAdminNotificationMock(...args)
   }
 }))
 
