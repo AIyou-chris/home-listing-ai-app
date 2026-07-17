@@ -1790,67 +1790,6 @@ app.get('/api/agents/:slug', async (req, res) => {
   }
 });
 
-// Voice Clone API Routes
-const voiceCloneService = require('./services/voiceCloneService');
-
-app.post('/api/voice-clone/submit-recording', upload.single('audioFile'), async (req, res) => {
-  try {
-    const { agentId } = req.body;
-    if (!req.file) {
-      return res.status(400).json({ error: 'No audio file uploaded' });
-    }
-    const result = await voiceCloneService.submitVoiceRecording(agentId, req.file.path);
-    res.json(result);
-  } catch (error) {
-    console.error('Voice recording submit error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-
-
-app.get('/api/voice-clone/my-recording', async (req, res) => {
-  try {
-    const { agentId } = req.query;
-    if (!agentId) {
-      return res.status(400).json({ error: 'Agent ID required' });
-    }
-    const recording = await voiceCloneService.getAgentRecording(agentId);
-    res.json(recording || { status: 'none' });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.get('/api/voice-clone/pending-approvals', async (req, res) => {
-  try {
-    const recordings = await voiceCloneService.getPendingRecordings();
-    res.json({ recordings });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.post('/api/voice-clone/approve', async (req, res) => {
-  try {
-    const { recordingId, adminId } = req.body;
-    const result = await voiceCloneService.approveRecording(recordingId, adminId);
-    res.json(result);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.post('/api/voice-clone/reject', async (req, res) => {
-  try {
-    const { recordingId, adminId, reason } = req.body;
-    const result = await voiceCloneService.rejectRecording(recordingId, adminId, reason);
-    res.json(result);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
 const FOLLOW_UP_SEQUENCES_TABLE = 'follow_up_sequences_store';
 const FOLLOW_UP_ACTIVE_TABLE = 'follow_up_active_store';
 
@@ -36337,42 +36276,6 @@ app.get(/.*/, (req, res, next) => {
 });
 
 // Legacy Retell route kept for backwards compatibility; now handled by Vapi service.
-app.post(['/api/voice/retell/webhook', '/api/retell/webhook'], async (req, res) => {
-  try {
-    const payload = req.body || {};
-    const message = payload.message || {};
-    const forcedEventId =
-      payload.id ||
-      message?.id ||
-      message?.eventId ||
-      (message?.call?.id ? `vapi:${message.call.id}:${message.type || 'unknown'}` : null);
-
-    const queued = await enqueueWebhookEvent({
-      provider: 'vapi',
-      payload,
-      forcedEventId: forcedEventId || deriveWebhookEventId('vapi', payload),
-      priority: 1
-    });
-
-    res.status(200).json({
-      received: true,
-      provider: 'vapi',
-      webhook_event_id: queued?.webhookEvent?.id || null,
-      job_id: queued?.job?.id || null
-    });
-  } catch (error) {
-    if (isJobQueueMissingTableError(error)) {
-      return res.status(500).json({ error: 'job_queue_tables_missing_run_phase3_1_migration' });
-    }
-    console.error('Legacy retell webhook enqueue failed:', error?.message || error);
-    res.status(500).json({ error: 'failed_to_enqueue_vapi_webhook' });
-  }
-});
-
-app.get(['/api/voice/retell/webhook', '/api/retell/webhook'], async (req, res) => {
-  res.status(200).json({ ok: true, provider: 'vapi' });
-});
-
 const handleVoiceOutboundCall = async (req, res) => {
   try {
     const { to, prompt, ...context } = req.body;
@@ -36406,7 +36309,6 @@ const handleVoiceOutboundCall = async (req, res) => {
 // Primary voice endpoints
 app.post('/api/voice/outbound-call', handleVoiceOutboundCall);
 app.post('/api/voice/vapi/outbound-call', handleVoiceOutboundCall);
-app.post('/api/voice/retell/outbound-call', handleVoiceOutboundCall);
 
 // Backward compatibility alias so existing clients do not break during cutover.
 app.post('/api/voice/hume/outbound-call', handleVoiceOutboundCall);
