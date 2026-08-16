@@ -37251,9 +37251,11 @@ const executeDelayedStep = async (userId, lead, step, signature, sequenceId) => 
       }
 
       // 2. Tracking Options
+      // Click tracking rewrites links through email.mg.homelistingai.com, which has
+      // no CNAME/cert configured in Mailgun yet — leave it off until that's set up.
       const options = {
         trackOpens: !!step.trackOpens,
-        trackClicks: !!step.trackOpens // Enable both if "Tracking" is on
+        trackClicks: false
       };
 
       await emailService.sendEmail({
