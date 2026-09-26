@@ -701,7 +701,6 @@ const App: React.FC = () => {
 
     const resolveRoleForSession = useCallback(async (nextSession: Session): Promise<Exclude<AppRole, null>> => {
         const userId = String(nextSession.user.id || '');
-        const userEmail = String(nextSession.user.email || '').toLowerCase();
         const profileRoleCandidates: string[] = [];
 
         const normalizedMetaRole = String(
@@ -715,10 +714,7 @@ const App: React.FC = () => {
             nextSession.user.app_metadata?.claims_admin ||
             nextSession.user.app_metadata?.admin
         );
-        const envAdminEmail = String(import.meta.env.VITE_ADMIN_EMAIL || '').trim().toLowerCase();
-        const adminEmails = ['admin@homelistingai.com', 'homelistingai@gmail.com', 'cdipotter@me.com'];
-        if (envAdminEmail) adminEmails.push(envAdminEmail);
-        if (adminClaim || adminEmails.includes(userEmail)) {
+        if (adminClaim) {
             return 'admin';
         }
 
@@ -856,29 +852,8 @@ const App: React.FC = () => {
         const loadUserData = async (currentUser: AppUser) => {
             try {
 
-                // 1. Admin Check logic - OPTIMIZED ORDER
-                // Fast Local Check: Check email whitelist FIRST to avoid blocking network calls
-                const envAdminEmail = import.meta.env.VITE_ADMIN_EMAIL as string | undefined;
-                const adminEmails = ['admin@homelistingai.com', 'homelistingai@gmail.com', 'cdipotter@me.com'];
-                if (envAdminEmail) adminEmails.push(envAdminEmail.toLowerCase());
-
-                const isEnvAdmin = currentUser.email && adminEmails.includes(currentUser.email.toLowerCase());
-
-                if (isEnvAdmin) {
-                    setIsAdmin(true);
-                    setUserProfile({
-                        ...SAMPLE_AGENT,
-                        name: 'System Administrator',
-                        email: currentUser.email ?? '',
-                        headshotUrl: `https://i.pravatar.cc/150?u=${currentUser.uid}`,
-                    });
-
-                    // CRITICAL: Unblock UI immediately
-                    setIsLoading(false);
-                    return;
-                }
-
-                // Slow Remote Check: Only RPC if not locally confirmed
+                // 1. Admin Check logic — real check only (RPC reads a server-controlled
+                // claim on the user's account; never a hardcoded/env email list).
                 const { data: isRpcAdmin } = await supabase.rpc('is_user_admin', { uid: currentUser.uid });
 
                 if (isRpcAdmin) {
@@ -889,6 +864,7 @@ const App: React.FC = () => {
                         email: currentUser.email ?? '',
                         headshotUrl: `https://i.pravatar.cc/150?u=${currentUser.uid}`,
                     });
+                    setIsLoading(false);
                     return;
                 }
 
@@ -1087,12 +1063,14 @@ const App: React.FC = () => {
             created_at: supaUser.created_at
         });
 
-        // Fast admin email check
-        const fastAdminCheck = (email: string | null | undefined) => {
-            const envAdminEmail = import.meta.env.VITE_ADMIN_EMAIL as string | undefined;
-            const adminEmails = ['admin@homelistingai.com', 'homelistingai@gmail.com', 'cdipotter@me.com'];
-            if (envAdminEmail) adminEmails.push(envAdminEmail.toLowerCase());
-            if (email && adminEmails.includes(email.toLowerCase())) {
+        // Fast admin check — reads the server-controlled claim already present on the
+        // session object (no network call, no hardcoded/env email list).
+        const fastAdminCheck = (sessionUser: NonNullable<typeof session>['user'] | null | undefined) => {
+            const adminClaim = Boolean(
+                sessionUser?.app_metadata?.claims_admin ||
+                sessionUser?.app_metadata?.admin
+            );
+            if (adminClaim) {
                 setIsAdmin(true);
             }
         };
@@ -1105,13 +1083,13 @@ const App: React.FC = () => {
                 if (session?.user) {
                     const currentUser = buildAppUser(session.user);
                     setUser(currentUser);
-                    fastAdminCheck(session.user.email);
+                    fastAdminCheck(session.user);
                 }
             } else if (event === 'SIGNED_IN') {
                 if (session?.user) {
                     const currentUser = buildAppUser(session.user);
                     setUser(currentUser);
-                    fastAdminCheck(session.user.email);
+                    fastAdminCheck(session.user);
                     await loadUserData(currentUser);
 
                     // Security Notification (Non-blocking)
@@ -1125,7 +1103,7 @@ const App: React.FC = () => {
                 if (session?.user) {
                     const currentUser = buildAppUser(session.user);
                     setUser(currentUser);
-                    fastAdminCheck(session.user.email);
+                    fastAdminCheck(session.user);
                 }
             } else if (event === 'SIGNED_OUT') {
                 setUser(null);
@@ -1351,22 +1329,14 @@ const App: React.FC = () => {
                 return;
             }
 
-            // Check email whitelist first (fast path — no RPC needed)
-            const envAdminEmail = import.meta.env.VITE_ADMIN_EMAIL as string | undefined;
-            const adminEmails = ['admin@homelistingai.com', 'homelistingai@gmail.com', 'cdipotter@me.com'];
-            if (envAdminEmail) adminEmails.push(envAdminEmail.toLowerCase());
-            const isWhitelistedAdmin = adminEmails.includes(trimmedEmail);
+            // Real admin check only — no hardcoded/env email shortcut.
+            const { data: isRpcAdmin, error: rpcError } = await supabase.rpc('is_user_admin', { uid: data.user.id });
 
-            if (!isWhitelistedAdmin) {
-                // Not in whitelist — fall back to RPC check
-                const { data: isRpcAdmin, error: rpcError } = await supabase.rpc('is_user_admin', { uid: data.user.id });
-
-                if (rpcError || !isRpcAdmin) {
-                    console.warn('Login successful but user is not an admin', rpcError);
-                    await supabase.auth.signOut();
-                    setAdminLoginError('Unauthorized: You do not have admin privileges.');
-                    return;
-                }
+            if (rpcError || !isRpcAdmin) {
+                console.warn('Login successful but user is not an admin', rpcError);
+                await supabase.auth.signOut();
+                setAdminLoginError('Unauthorized: You do not have admin privileges.');
+                return;
             }
 
             // Admin confirmed (whitelist or RPC) — proceed to dashboard

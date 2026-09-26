@@ -15792,28 +15792,28 @@ async function verifyAdmin(req, res, next) {
       return res.status(401).json({ error: 'Unauthorized: Invalid token' });
     }
 
-    // Check Admin Role via RPC
+    // Check Admin Role via RPC (reads a server-controlled claim on the user's
+    // account in Supabase — never a hardcoded/env email list, which was a real
+    // authorization-bypass risk once that email became publicly known).
     const { data: isAdmin, error: rpcError } = await supabaseAdmin.rpc('is_user_admin', { uid: user.id });
 
     if (rpcError) {
-      console.warn('⚠️ Admin check RPC failed (function might be missing):', rpcError.message);
-      // Fall through to env check, do not throw
+      console.warn('⚠️ Admin check RPC failed:', rpcError.message);
     }
 
-    // Fallback: Check strictly against Env Var (both prefixed and unprefixed names)
-    const adminEmailEnv = process.env.ADMIN_EMAIL || process.env.VITE_ADMIN_EMAIL;
-    const hardcodedAdminEmails = ['admin@homelistingai.com', 'homelistingai@gmail.com', 'cdipotter@me.com'];
-    if (adminEmailEnv) hardcodedAdminEmails.push(adminEmailEnv.toLowerCase());
-    const isEnvAdmin = user.email && hardcodedAdminEmails.includes(user.email.toLowerCase());
+    // Same server-controlled claim, checked directly off the verified token as a
+    // second legitimate signal (covers accounts whose claim was set before the
+    // is_user_admin() RPC function existed) — still not an email-based bypass.
+    const isSuperAdmin = Boolean(user.app_metadata?.claims_admin || user.app_metadata?.admin);
 
-    if (!isAdmin && !isEnvAdmin) {
+    if (!isAdmin && !isSuperAdmin) {
       console.warn(`⛔ Blocked non-admin access attempt by: ${user.email}`);
       return res.status(403).json({ error: 'Forbidden: You do not have admin privileges.' });
     }
 
     // 3. Pro Feature Access Control (Check Subscription)
     // Avoid checking for demo-blueprint or super admins
-    if (!isEnvAdmin && user.email !== 'demo@homelistingai.com') {
+    if (!isSuperAdmin && user.email !== 'demo@homelistingai.com') {
       const { data: agentProfile } = await supabaseAdmin
         .from('agents')
         .select('subscription_status')
