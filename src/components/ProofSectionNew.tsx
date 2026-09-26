@@ -8,7 +8,6 @@ interface ProofSectionProps {
 }
 
 const credibilityChips = [
-    "Windermere",
     "John L. Scott",
     "RE/MAX",
     "Century 21",
