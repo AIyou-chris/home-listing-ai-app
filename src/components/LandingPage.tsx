@@ -568,9 +568,8 @@ const Hero: React.FC<{ onNavigateToSignUp: () => void, onEnterDemoMode: () => vo
                         AI That Delivers{' '}<br className="hidden lg:block" />
                         <span className="drop-shadow-sm">Leads &amp; <span className="text-cyan-400">Partners</span> to Your <span className="text-cyan-400">Pipeline</span>.</span>
                     </h1>
-                    <div className="sr-only">HomeListingAI is an AI-powered platform for loan officers and their real estate agent partners. Give your agents AI-powered listing pages that wow buyers — and get every warm lead routed back to you. Build the agent partnerships that fill your pipeline.</div>
                     <p className="mt-8 max-w-xl mx-auto lg:mx-0 text-xl text-slate-400 animate-fade-in-up font-light leading-relaxed" style={{ animationDelay: "200ms" }}>
-                        In this market, standing out isn't optional — it's everything. HomeListingAI gives you and your agent partners an unfair advantage that buyers notice and competitors can't match. Getting started takes 30 seconds. All you need is a name and an email.
+                        Give your agents AI-powered listing pages that wow buyers — and get every warm lead routed back to you. Build the agent partnerships that fill your pipeline. Getting started takes 30 seconds — all you need is a name and an email.
                     </p>
                     <div className="mt-10 animate-fade-in-up px-4 lg:px-0 flex flex-col sm:flex-row justify-center lg:justify-start gap-3" style={{ animationDelay: "400ms" }}>
                         <button
@@ -616,6 +615,7 @@ const Hero: React.FC<{ onNavigateToSignUp: () => void, onEnterDemoMode: () => vo
                                 <span>homelistingai.com/admin</span>
                             </div>
                             <div className="flex items-center gap-2">
+                                <span className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 text-[10px] font-semibold uppercase tracking-wider">Sample data</span>
                                 <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
                                 <span className="text-xs text-slate-500">Active</span>
                             </div>
