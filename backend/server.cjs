@@ -36965,6 +36965,19 @@ app.post('/api/payments/checkout-session', async (req, res) => {
     const loProPriceId = process.env.STRIPE_LO_PRO_PRICE_ID || process.env.STRIPE_DEFAULT_PRICE_ID;
     const resolvedPriceId = plan === 'lo_pro' ? loProPriceId : (plan === 'lo_lite' ? loLitePriceId : (plan === 'lo' ? loPriceId : undefined));
 
+    // STRIPE_LO_LITE_PRICE_ID is the newest of the three price env vars and its
+    // presence on Render is unverified. Unlike LO/LO Pro (which have been live and
+    // charging correctly for months), silently falling back to STRIPE_DEFAULT_PRICE_ID
+    // here could checkout a $79 LO Lite signup at the wrong price with no error.
+    // Fail loud instead of mischarging — LO/LO Pro behavior is untouched.
+    if (plan === 'lo_lite' && !process.env.STRIPE_LO_LITE_PRICE_ID) {
+      console.error('[Checkout] STRIPE_LO_LITE_PRICE_ID is not set on this environment — refusing to fall back to a different plan\'s price for a LO Lite signup.');
+      return res.status(500).json({
+        success: false,
+        error: 'checkout_misconfigured_missing_STRIPE_LO_LITE_PRICE_ID'
+      });
+    }
+
     const session = await paymentService.createCheckoutSession({
       slug,
       email: agent.email,

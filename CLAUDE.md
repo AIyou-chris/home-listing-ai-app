@@ -191,7 +191,16 @@ No long explanations. No walls of text. Table in, table out.
 
 ---
 
-## 7. Current State Snapshot (as of 2026-07-05)
+## 7. Current State Snapshot (as of 2026-09-26)
+
+### ✅ Recently completed — Post-deploy audit + 2 defensive fixes (2026-09-26)
+
+| Feature | Notes |
+|---|---|
+| **Audit** | The 2026-07-10 pricing fix branch sat unmerged for ~2 months while `main` moved on (dead-code purge, security hardening, LO Lite pricing feature, Buffer social posting, price-drop SMS alerts). Rebased cleanly (no file overlap) and pushed to `main`. Live-verified `/lo-signup` now shows all 3 plans correctly. Full audit of `main` followed — see fixes below. |
+| **Fix: SMS STOP-reply webhook now has a real fallback chain** | `getTextbeltReplyWebhookUrl()` in `smsService.js` previously returned `null` unless `TEXTBELT_REPLY_WEBHOOK_URL` was manually set on Render — meaning STOP replies from price-drop SMS alert subscribers might never reach the suppression handler (TCPA risk: opted-out buyers keep getting texted). Now falls back to `RENDER_EXTERNAL_URL` (auto-populated by Render, no manual step) → `BACKEND_BASE_URL` → hardcoded `https://home-listing-ai-backend.onrender.com`. Never resolves to null again. **Still worth setting `TEXTBELT_REPLY_WEBHOOK_URL` explicitly if the backend ever moves off that Render URL.** |
+| **Fix: LO Lite checkout fails loud instead of mischarging** | `POST /api/payments/checkout-session` silently fell back `STRIPE_LO_LITE_PRICE_ID → STRIPE_DEFAULT_PRICE_ID` — if the LO Lite env var was never set on Render, a $79 signup could get checked out at the wrong price with zero error. Added a guard: if `plan==='lo_lite'` and `STRIPE_LO_LITE_PRICE_ID` is unset, return `500 checkout_misconfigured_missing_STRIPE_LO_LITE_PRICE_ID` instead of silently proceeding. **LO/LO Pro fallback behavior is untouched** (they've been live for months — not worth the regression risk of tightening them without being able to verify their env vars first). |
+| **Still open (needs a human, not a code fix)** | (1) `STRIPE_LO_LITE_PRICE_ID` presence on Render is still unverified — the fix above makes it fail safely, but someone should confirm it's actually set. (2) Admin 2FA (`verifyAdmin`) fails *open* on an MFA-check error by design (avoids locking the admin out) and nobody has enrolled yet per earlier notes — flipping fail-open→fail-closed is a real security-policy call with lockout risk, not something to change silently; flag if you want it changed. |
 
 ### ✅ Recently completed — Stale-pricing purge + LO Lite everywhere (2026-07-10)
 
@@ -322,8 +331,8 @@ No long explanations. No walls of text. Table in, table out.
 
 | Issue | Where | Notes |
 |---|---|---|
-| **Service worker serves stale builds** | `src/main.tsx` registers a SW; `homelistingai.com/sw.js` live | After every deploy, users (incl. admin) keep seeing the OLD bundle until cache clears. Hard-refresh often isn't enough — use **Incognito** or clear site data. Worth fixing the SW to `skipWaiting` + auto-reload on new deploys so updates land without manual cache-busting. Bit us repeatedly. |
 | Day-6 trial warning overlap | Email drip | Day 6 drip handles "trial ending" but standalone `checkTrialWarnings` billing email may also fire — minor, low impact |
+| ~~Service worker serves stale builds~~ | ~~`src/main.tsx`~~ | **RESOLVED 2026-07-05** — `public/sw.js` kill-switch (skipWaiting + wipe caches + unregister + reload) ships and is live in the current tree. This row was stale for ~2.5 months after the fix landed; removed 2026-09-26. If you're reading an even older cached copy of this file, the fix is real — check `public/sw.js` directly. |
 
 ### ⏳ Pending manual steps (user to do)
 

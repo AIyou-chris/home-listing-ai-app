@@ -51,8 +51,19 @@ const validatePhoneNumber = (phoneNumber) => {
   return digits.length >= 10 && digits.length <= 15;
 };
 
+// STOP replies MUST reach our inbound webhook or opt-outs silently fail (TCPA risk).
+// TEXTBELT_REPLY_WEBHOOK_URL requires a manual Render env var — don't depend on that
+// alone. RENDER_EXTERNAL_URL is auto-populated by Render on every web service (no
+// manual config needed), and the hardcoded URL is the known production backend
+// (see CLAUDE.md infra notes) as a last-resort safety net so this never silently
+// resolves to null.
 const getTextbeltReplyWebhookUrl = () => {
-  return process.env.TEXTBELT_REPLY_WEBHOOK_URL || null;
+  return (
+    process.env.TEXTBELT_REPLY_WEBHOOK_URL ||
+    process.env.RENDER_EXTERNAL_URL ||
+    process.env.BACKEND_BASE_URL ||
+    'https://home-listing-ai-backend.onrender.com'
+  );
 };
 
 const buildReplyWebhookUrl = () => {
