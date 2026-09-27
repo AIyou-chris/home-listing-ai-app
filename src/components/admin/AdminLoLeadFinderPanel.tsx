@@ -122,14 +122,14 @@ const AdminLoLeadFinderPanel: React.FC = () => {
         method: 'POST',
         body: JSON.stringify({ rows }),
       });
-      const d = await res.json() as { success?: boolean; rowsReceived?: number; leadsAdded?: number; dupesSkipped?: number; roleFiltered?: number };
-      if (!res.ok || !d.success) { setMsg('❌ CSV import failed.'); return; }
+      const d = await res.json() as { success?: boolean; rowsReceived?: number; leadsAdded?: number; dupesSkipped?: number; roleFiltered?: number; message?: string };
+      if (!res.ok || !d.success) { setMsg(`❌ CSV import failed${d.message ? `: ${d.message}` : '.'}`); return; }
       const roleNote = d.roleFiltered ? `, ${d.roleFiltered} filtered as not a real LO` : '';
       setMsg(`✅ Imported ${d.leadsAdded ?? 0} new leads from CSV (${d.rowsReceived ?? 0} rows, ${d.dupesSkipped ?? 0} skipped as dupes/no-email${roleNote}).`);
       setStatusFilter('new');
       await load('new');
-    } catch {
-      setMsg('❌ CSV import failed.');
+    } catch (err) {
+      setMsg(`❌ CSV import failed${err instanceof Error ? `: ${err.message}` : '.'}`);
     } finally {
       setImporting(false);
     }
@@ -144,15 +144,15 @@ const AdminLoLeadFinderPanel: React.FC = () => {
         method: 'POST',
         body: JSON.stringify(datasetId.trim() ? { datasetId: datasetId.trim() } : {}),
       });
-      const d = await res.json() as { success?: boolean; rowsFetched?: number; leadsAdded?: number; dupesSkipped?: number; roleFiltered?: number; skipped?: string };
-      if (!res.ok || !d.success) { setMsg(d.skipped === 'missing_apify_token' ? '⚠️ No Apify token set on the server.' : "❌ Import failed."); return; }
+      const d = await res.json() as { success?: boolean; rowsFetched?: number; leadsAdded?: number; dupesSkipped?: number; roleFiltered?: number; skipped?: string; message?: string };
+      if (!res.ok || !d.success) { setMsg(d.skipped === 'missing_apify_token' ? '⚠️ No Apify token set on the server.' : `❌ Import failed${d.message ? `: ${d.message}` : '.'}`); return; }
       const roleNote = d.roleFiltered ? `, ${d.roleFiltered} filtered as not a real LO` : '';
       setMsg(`✅ Imported ${d.leadsAdded ?? 0} new leads (${d.rowsFetched ?? 0} scanned, ${d.dupesSkipped ?? 0} dupes${roleNote}).`);
       setDatasetId('');
       setStatusFilter('new');
       await load('new');
-    } catch {
-      setMsg('❌ Import failed.');
+    } catch (err) {
+      setMsg(`❌ Import failed${err instanceof Error ? `: ${err.message}` : '.'}`);
     } finally {
       setImporting(false);
     }

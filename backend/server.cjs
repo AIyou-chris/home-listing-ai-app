@@ -32255,7 +32255,7 @@ app.post('/api/admin/lo-leads/import-apify', verifyAdmin, async (req, res) => {
     res.json({ success: true, ...result });
   } catch (err) {
     console.error('[LO Lead Finder] Import failed:', err);
-    res.status(500).json({ error: 'import_failed' });
+    res.status(500).json({ error: 'import_failed', message: err?.message || 'Unknown error' });
   }
 });
 
@@ -32270,7 +32270,7 @@ app.post('/api/admin/lo-leads/import-csv', verifyAdmin, async (req, res) => {
     res.json({ success: true, ...result });
   } catch (err) {
     console.error('[LO Lead Finder] CSV import failed:', err);
-    res.status(500).json({ error: 'import_failed' });
+    res.status(500).json({ error: 'import_failed', message: err?.message || 'Unknown error' });
   }
 });
 
