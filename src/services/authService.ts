@@ -485,7 +485,7 @@ export class AuthService {
     }
 
     // Make authenticated API request
-    async makeAuthenticatedRequest(url: string, options: RequestInit = {}): Promise<Response> {
+    async makeAuthenticatedRequest(url: string, options: RequestInit = {}, requestTimeoutMs: number = 15000): Promise<Response> {
         const resolvedUrl = resolveApiUrl(url)
         console.log('[AuthDebug] makeAuthenticatedRequest started for:', resolvedUrl);
 
@@ -621,7 +621,7 @@ export class AuthService {
             const response = await withTimeout(fetch(resolvedUrl, {
                 ...options,
                 headers
-            }), 15000, 'API Network Request');
+            }), requestTimeoutMs, 'API Network Request');
 
             console.log('[AuthDebug] Fetch completed, Status:', response.status);
             return response;

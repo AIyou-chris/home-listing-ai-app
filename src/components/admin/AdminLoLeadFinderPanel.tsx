@@ -118,10 +118,13 @@ const AdminLoLeadFinderPanel: React.FC = () => {
     try {
       const rows = parseCsv(await file.text());
       if (!rows.length) { setMsg('❌ No rows found in that CSV.'); return; }
+      // Longer timeout than the 15s default: every row with a job_title now gets
+      // a TypeSafe classification call (see ADR-0003), and Render's free-tier
+      // instance can add 50+ seconds of its own cold-start delay on top of that.
       const res = await auth.makeAuthenticatedRequest('/api/admin/lo-leads/import-csv', {
         method: 'POST',
         body: JSON.stringify({ rows }),
-      });
+      }, 60000);
       const d = await res.json() as { success?: boolean; rowsReceived?: number; leadsAdded?: number; dupesSkipped?: number; roleFiltered?: number; message?: string };
       if (!res.ok || !d.success) { setMsg(`❌ CSV import failed${d.message ? `: ${d.message}` : '.'}`); return; }
       const roleNote = d.roleFiltered ? `, ${d.roleFiltered} filtered as not a real LO` : '';
@@ -140,10 +143,11 @@ const AdminLoLeadFinderPanel: React.FC = () => {
     setImporting(true);
     setMsg('');
     try {
+      // Same longer timeout as importCsv -- see the comment there.
       const res = await auth.makeAuthenticatedRequest('/api/admin/lo-leads/import-apify', {
         method: 'POST',
         body: JSON.stringify(datasetId.trim() ? { datasetId: datasetId.trim() } : {}),
-      });
+      }, 60000);
       const d = await res.json() as { success?: boolean; rowsFetched?: number; leadsAdded?: number; dupesSkipped?: number; roleFiltered?: number; skipped?: string; message?: string };
       if (!res.ok || !d.success) { setMsg(d.skipped === 'missing_apify_token' ? '⚠️ No Apify token set on the server.' : `❌ Import failed${d.message ? `: ${d.message}` : '.'}`); return; }
       const roleNote = d.roleFiltered ? `, ${d.roleFiltered} filtered as not a real LO` : '';
