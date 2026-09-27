@@ -1,6 +1,7 @@
 'use strict';
 
 const cheerio = require('cheerio');
+const { createTypeSafeClient } = require('./typesafeClient');
 
 // Local-parts that are role/catch-all addresses — captured but flagged for manual-only send.
 const ROLE_LOCALPARTS = new Set([
@@ -98,6 +99,7 @@ function createLoLeadScraperService(deps) {
     cities = DEFAULT_CITIES,
     queryTemplates = DEFAULT_QUERY_TEMPLATES,
     engine = (env.LO_SCRAPER_ENGINE || 'google'),
+    typesafeClient = createTypeSafeClient({ apiKey: env.TYPESAFE_API_KEY, fetchImpl }),
   } = deps || {};
 
   // ── Engine A: Google Custom Search JSON API (free 100/day) ──
@@ -299,9 +301,66 @@ function createLoLeadScraperService(deps) {
     return new Set(data.map(r => r[column]));
   }
 
+  // ── Role classification (TypeSafe / Jev) ──────────────────────────────────
+  // The scraper engines already send keyword title-filters to Apify/HarvestAPI
+  // (leadsCfg/harvestCfg above), but those are the *third party's* fuzzy
+  // matching — "Loan Officer Assistant" or "Senior Loan Processor" can still
+  // slip through since they contain the word "loan". This is a second,
+  // semantic pass on our side before a lead is stored.
+  //
+  // Conservative on purpose: only drops a contact when Jev is >85% confident
+  // ("no" probability < ROLE_MATCH_DROP_THRESHOLD) the title is NOT a real
+  // loan-officer decision-maker. An uncertain/borderline title is kept, not
+  // guessed away — false positives here cost the admin one wasted review
+  // click; false negatives cost a real lead. Contacts with no job_title
+  // (most Google-CSE-engine results) pass through unclassified.
+  //
+  // Fails open: unconfigured TYPESAFE_API_KEY or an API error keeps every
+  // contact and logs a warning — a broken classifier should never block the
+  // Lead Finder from working.
+  const ROLE_MATCH_DROP_THRESHOLD = 0.15;
+  let typesafeUnconfiguredWarned = false;
+
+  async function classifyRoleMatches(contacts) {
+    if (!typesafeClient.isConfigured()) {
+      if (!typesafeUnconfiguredWarned) {
+        console.warn('[LO Lead Finder] TYPESAFE_API_KEY not set — skipping role classification (all leads kept).');
+        typesafeUnconfiguredWarned = true;
+      }
+      return { kept: contacts, roleFiltered: 0 };
+    }
+
+    let roleFiltered = 0;
+    const kept = await Promise.all(contacts.map(async (c) => {
+      if (!c.job_title) return c; // nothing to judge — keep as-is
+      try {
+        const answers = await typesafeClient.evaluate({
+          state: { job_title: c.job_title, employer: c.employer || null },
+          questions: {
+            isLoanOfficerRole: {
+              type: 'noul',
+              instructions: 'Does this job title describe someone who currently works as a mortgage loan officer, loan originator, or mortgage broker — a decision-maker who could realistically buy loan-officer software for themselves? Answer no for assistants, processors, underwriters, recruiters, marketing/ops staff, or unrelated professions, even if the title contains the word "loan" or "mortgage".',
+            },
+          },
+        });
+        const score = answers.isLoanOfficerRole?.noul;
+        if (typeof score === 'number' && score < ROLE_MATCH_DROP_THRESHOLD) {
+          roleFiltered++;
+          return null;
+        }
+        return c;
+      } catch (err) {
+        console.warn('[LO Lead Finder] Role classification failed (keeping lead):', err?.message);
+        return c; // fail open — never lose a lead over a transient API error
+      }
+    }));
+
+    return { kept: kept.filter(Boolean), roleFiltered };
+  }
+
   // Dedupe a batch against the pool + suppression list + this-run set, insert the rest.
   // Leads dedupe by email when they have one, and by LinkedIn URL otherwise.
-  // Mutates `counters` {leadsAdded, dupesSkipped}; `seen` is the per-run key Set.
+  // Mutates `counters` {leadsAdded, dupesSkipped, roleFiltered}; `seen` is the per-run key Set.
   async function storeBatch(contacts, { city = null, defaultSourceUrl = null, seen, counters }) {
     if (!contacts.length) return;
     const emails = contacts.map(c => c.email).filter(Boolean);
@@ -321,7 +380,10 @@ function createLoLeadScraperService(deps) {
       return true;
     });
     if (!fresh.length) return;
-    const rows = fresh.map(c => ({
+    const { kept: roleMatched, roleFiltered } = await classifyRoleMatches(fresh);
+    counters.roleFiltered = (counters.roleFiltered || 0) + roleFiltered;
+    if (!roleMatched.length) return;
+    const rows = roleMatched.map(c => ({
       email: c.email || null,
       name: c.name || null,
       employer: c.employer,
@@ -351,7 +413,7 @@ function createLoLeadScraperService(deps) {
 
     let searchesUsed = 0, pagesScanned = 0;
     const seen = new Set();
-    const counters = { leadsAdded: 0, dupesSkipped: 0 };
+    const counters = { leadsAdded: 0, dupesSkipped: 0, roleFiltered: 0 };
 
     // Engine D: HarvestAPI LinkedIn search — one structured query, no crawl.
     if (eng === 'harvest') {
@@ -435,7 +497,7 @@ function createLoLeadScraperService(deps) {
       .map(r => (isHarvestRow(r) ? harvestRowToContact(r) : leadRowToContact(r)))
       .filter(Boolean);
     const seen = new Set();
-    const counters = { leadsAdded: 0, dupesSkipped: 0 };
+    const counters = { leadsAdded: 0, dupesSkipped: 0, roleFiltered: 0 };
     await storeBatch(contacts, { seen, counters });
     return { rowsFetched: Array.isArray(rows) ? rows.length : 0, ...counters };
   }
@@ -445,7 +507,7 @@ function createLoLeadScraperService(deps) {
   async function importCsvRows(rows) {
     const contacts = (Array.isArray(rows) ? rows : []).map(leadRowToContact).filter(Boolean);
     const seen = new Set();
-    const counters = { leadsAdded: 0, dupesSkipped: 0 };
+    const counters = { leadsAdded: 0, dupesSkipped: 0, roleFiltered: 0 };
     await storeBatch(contacts, { seen, counters });
     return { rowsReceived: Array.isArray(rows) ? rows.length : 0, ...counters };
   }

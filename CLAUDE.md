@@ -191,7 +191,17 @@ No long explanations. No walls of text. Table in, table out.
 
 ---
 
-## 7. Current State Snapshot (as of 2026-09-26)
+## 7. Current State Snapshot (as of 2026-09-27)
+
+### ✅ Recently completed — TypeSafe (Jev) integration: LO Lead Finder role classification (2026-09-27)
+
+| Feature | Notes |
+|---|---|
+| **New shared client** | `backend/services/typesafeClient.js` — raw-`fetch` wrapper for TypeSafe's System One HTTP API (`POST https://api.typesafe.ai/v1/systemone`, Bearer auth). Deliberately not the `@typesafe-ai/sdk` package — it's ESM-only and this backend is CommonJS throughout. DI-friendly (`fetchImpl` injectable), generic — not scoped to any one feature. Full pattern + rationale: `docs/adr/0003-typesafe-jev-integration.md`. |
+| **First real use** | `loLeadScraperService.js` → `classifyRoleMatches()`. Every fresh Lead Finder contact with a `job_title` gets one Jev Noul question before being stored in `lo_lead_pool`: is this actually a loan-officer decision-maker, not an assistant/processor/underwriter (catches false positives the keyword-based Apify/HarvestAPI title filters let through, e.g. "Loan Processor"). Conservative: only drops when Jev is >85% confident "no" (`noul < 0.15`) — uncertain titles are kept. **Fails open**: no `TYPESAFE_API_KEY` or an API error keeps every contact and logs once; Lead Finder works exactly as before with zero TypeSafe calls if unconfigured. New `roleFiltered` counter alongside `leadsAdded`/`dupesSkipped` in scrape/import results. |
+| **Env needed (Render)** | `TYPESAFE_API_KEY` — not yet confirmed set. Get it at console.typesafe.ai/keys. No `VITE_` prefix (backend-only, must never reach the browser bundle). |
+| Verification | 25/25 `loLeadScraperService.test.js` (5 new role-classification tests), 7/7 new `typesafeClient.test.js`, full backend suite 62/62, tsc clean. Backend `node_modules` had to be installed fresh in this worktree first (`cheerio` missing) — unrelated to this change, just a fresh-worktree artifact. |
+| **Not yet built** | Two other TypeSafe candidates identified but not implemented: buyer-chatbot question routing (financing vs. property vs. scheduling), and a real lead-quality Score to replace `LeadScoringService.js`'s current logic. Both would reuse `typesafeClient.js` as-is. |
 
 ### ✅ Recently completed — Post-deploy audit + 2 defensive fixes (2026-09-26)
 

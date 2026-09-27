@@ -405,3 +405,95 @@ test('CSV import: keeps a row with LinkedIn but no email (DM-only lead)', async 
   assert.strictEqual(supa.inserted[0].email, null);
   assert.strictEqual(supa.inserted[0].linkedin, 'https://linkedin.com/in/dm-only');
 });
+
+// ---- Role classification (TypeSafe / Jev) ----
+
+function makeFakeTypesafe(scoreByJobTitle) {
+  const calls = [];
+  return {
+    calls,
+    isConfigured: () => true,
+    async evaluate({ state, questions }) {
+      calls.push(state);
+      const score = scoreByJobTitle[state.job_title];
+      if (score === undefined) throw new Error(`no fake score configured for "${state.job_title}"`);
+      const questionId = Object.keys(questions)[0];
+      return { [questionId]: { type: 'noul', noul: score } };
+    },
+  };
+}
+
+test('role classification: drops a contact Jev is confident is not a loan officer', async () => {
+  const supa = makeFakeSupabase();
+  const typesafeClient = makeFakeTypesafe({
+    'Loan Officer': 0.95,
+    'Loan Processor': 0.03, // confidently NOT a loan officer despite the word "loan"
+  });
+  const svc = require('../loLeadScraperService').createLoLeadScraperService({
+    supabaseAdmin: supa, fetchImpl: async () => { throw new Error('unused'); }, env: {}, typesafeClient,
+  });
+  const r = await svc.importCsvRows([
+    { name: 'Real LO', email: 'real.lo@acme.com', job_title: 'Loan Officer', company: 'Acme' },
+    { name: 'Processor', email: 'processor@acme.com', job_title: 'Loan Processor', company: 'Acme' },
+  ]);
+  const emails = supa.inserted.map(row => row.email);
+  assert.deepStrictEqual(emails, ['real.lo@acme.com']);
+  assert.strictEqual(r.leadsAdded, 1);
+  assert.strictEqual(r.roleFiltered, 1);
+});
+
+test('role classification: keeps a borderline/uncertain score rather than guessing it away', async () => {
+  const supa = makeFakeSupabase();
+  const typesafeClient = makeFakeTypesafe({ 'Mortgage Consultant': 0.5 });
+  const svc = require('../loLeadScraperService').createLoLeadScraperService({
+    supabaseAdmin: supa, fetchImpl: async () => { throw new Error('unused'); }, env: {}, typesafeClient,
+  });
+  const r = await svc.importCsvRows([
+    { name: 'Maybe LO', email: 'maybe@acme.com', job_title: 'Mortgage Consultant', company: 'Acme' },
+  ]);
+  assert.strictEqual(r.leadsAdded, 1);
+  assert.strictEqual(r.roleFiltered, 0);
+});
+
+test('role classification: fails open (keeps the lead) when the API call errors', async () => {
+  const supa = makeFakeSupabase();
+  const typesafeClient = {
+    isConfigured: () => true,
+    evaluate: async () => { throw new Error('TypeSafe API HTTP 500'); },
+  };
+  const svc = require('../loLeadScraperService').createLoLeadScraperService({
+    supabaseAdmin: supa, fetchImpl: async () => { throw new Error('unused'); }, env: {}, typesafeClient,
+  });
+  const r = await svc.importCsvRows([
+    { name: 'LO', email: 'lo@acme.com', job_title: 'Loan Officer', company: 'Acme' },
+  ]);
+  assert.strictEqual(r.leadsAdded, 1);
+  assert.strictEqual(r.roleFiltered, 0);
+});
+
+test('role classification: skipped entirely (all leads kept) when TYPESAFE_API_KEY is not set', async () => {
+  const supa = makeFakeSupabase();
+  const svc = require('../loLeadScraperService').createLoLeadScraperService({
+    supabaseAdmin: supa, fetchImpl: async () => { throw new Error('unused'); }, env: {},
+    // no typesafeClient injected -> falls back to createTypeSafeClient({ apiKey: undefined }), unconfigured
+  });
+  const r = await svc.importCsvRows([
+    { name: 'Marketing Coordinator', email: 'mc@acme.com', job_title: 'Marketing Coordinator', company: 'Acme' },
+  ]);
+  assert.strictEqual(r.leadsAdded, 1);
+  assert.strictEqual(r.roleFiltered, 0);
+});
+
+test('role classification: contacts with no job_title are never sent to Jev', async () => {
+  const supa = makeFakeSupabase();
+  let evaluateCalls = 0;
+  const typesafeClient = { isConfigured: () => true, evaluate: async () => { evaluateCalls++; return {}; } };
+  const svc = require('../loLeadScraperService').createLoLeadScraperService({
+    supabaseAdmin: supa, fetchImpl: async () => { throw new Error('unused'); }, env: {}, typesafeClient,
+  });
+  const r = await svc.importCsvRows([
+    { name: 'No Title', email: 'notitle@acme.com', company: 'Acme' },
+  ]);
+  assert.strictEqual(r.leadsAdded, 1);
+  assert.strictEqual(evaluateCalls, 0);
+});
