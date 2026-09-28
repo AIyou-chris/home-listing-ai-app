@@ -333,7 +333,92 @@ interface PhoneLineView {
   error: string | null;
   isTest: boolean;
   aiAnswering: boolean;
+  transferNumber?: string | null;
 }
+
+interface PhoneCallView {
+  id: string;
+  from: string | null;
+  name: string | null;
+  status: string;
+  mode: string;
+  summary: string | null;
+  intent: string | null;
+  handoff: boolean;
+  startedAt: string;
+  seconds: number | null;
+  transcript: { role: 'caller' | 'ai'; text: string }[];
+}
+
+const INTENT_PILL: Record<string, string> = { hot: 'bg-red-100 text-red-700', warm: 'bg-amber-100 text-amber-800', cold: 'bg-slate-100 text-slate-600' };
+
+const RecentCalls: React.FC<{ demo: boolean }> = ({ demo }) => {
+  const [calls, setCalls] = useState<PhoneCallView[] | null>(null);
+  const [open, setOpen] = useState<string | null>(null);
+  useEffect(() => {
+    if (demo) { setCalls([]); return; }
+    (async () => {
+      try {
+        const res = await fetch(buildApiUrl('/api/lo/phone-calls'), { headers: await getApiHeaders() });
+        const data = await res.json().catch(() => ({}));
+        setCalls(Array.isArray(data.calls) ? data.calls : []);
+      } catch { setCalls([]); }
+    })();
+  }, [demo]);
+  if (!calls) return null;
+  return (
+    <div className="flex flex-col gap-2">
+      <span className="lb-label">Recent calls</span>
+      {calls.length === 0 && <p className="lb-dim text-sm">No calls yet. Call your number to hear your AI.</p>}
+      {calls.map((c) => (
+        <div key={c.id} className="rounded-xl border border-slate-200 bg-white">
+          <button type="button" className="flex w-full items-center gap-3 px-3 py-2.5 text-left" onClick={() => setOpen(open === c.id ? null : c.id)} aria-expanded={open === c.id}>
+            <Icon name={c.handoff ? 'phone_forwarded' : 'call'} className="text-xl text-blue-600" />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-semibold">{c.name || prettyPhone(c.from) || 'Unknown caller'}</span>
+              <span className="lb-dim block truncate text-xs">{c.summary || (c.mode === 'ai' ? 'Call in progress or no words said' : c.mode === 'forward' ? 'Rang your cell' : 'Missed')}</span>
+            </span>
+            {c.intent && <span className={`rounded-full px-2 py-0.5 text-xs font-semibold capitalize ${INTENT_PILL[c.intent] || INTENT_PILL.cold}`}>{c.intent}</span>}
+            <span className="lb-dim text-xs">{new Date(c.startedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>
+          </button>
+          {open === c.id && (
+            <div className="flex flex-col gap-1.5 border-t border-slate-100 px-3 py-3 text-sm">
+              {c.transcript.length === 0 && <span className="lb-dim">No transcript for this call.</span>}
+              {c.transcript.map((m, i) => (
+                <p key={i}><span className={`font-semibold ${m.role === 'ai' ? 'text-blue-700' : 'text-slate-800'}`}>{m.role === 'ai' ? 'AI' : 'Caller'}:</span> {m.text}</p>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+};
+
+const HandoffNumber: React.FC<{ demo: boolean; value: string | null; onSaved: (line: PhoneLineView) => void }> = ({ demo, value, onSaved }) => {
+  const [number, setNumber] = useState(value ? prettyPhone(value) : '');
+  const [saving, setSaving] = useState(false);
+  const save = async () => {
+    if (demo) { toast.success('Saved (demo).'); return; }
+    setSaving(true);
+    try {
+      const res = await fetch(buildApiUrl('/api/lo/phone-line/transfer'), { method: 'PUT', headers: await getApiHeaders(), body: JSON.stringify({ number }) });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.line) { onSaved(data.line); toast.success('Saved. Hot callers will ring this phone.'); }
+      else toast.error(data.message || 'Could not save that number.');
+    } catch { toast.error('Could not save. Try again.'); } finally { setSaving(false); }
+  };
+  return (
+    <div>
+      <label htmlFor="handoff-cell" className="lb-label mb-1 block">Pass hot callers to my cell</label>
+      <div className="flex gap-2">
+        <input id="handoff-cell" inputMode="tel" className="lb-input max-w-[220px]" placeholder="Your profile phone" value={number} onChange={(e) => setNumber(e.target.value)} />
+        <button type="button" className="lb-ghost" disabled={saving} onClick={() => void save()}>{saving ? 'Saving…' : 'Save'}</button>
+      </div>
+      <p className="lb-dim mt-1 text-xs">Leave empty to use the phone on your profile.</p>
+    </div>
+  );
+};
 
 const prettyPhone = (e164: string | null) => {
   const d = String(e164 || '').replace(/\D/g, '').slice(-10);
@@ -410,14 +495,18 @@ const PhoneNumberBox: React.FC<{ demo: boolean }> = ({ demo }) => {
 
   if (line?.phoneNumber) {
     return (
-      <div className="flex flex-wrap items-center gap-4 rounded-xl border border-green-200 bg-green-50 px-4 py-4">
-        <Icon name="phone_in_talk" className="text-3xl text-green-700" />
-        <div className="min-w-0 flex-1">
-          <span className="lb-dim block text-xs font-semibold uppercase tracking-wide">Your AI phone number</span>
-          <span className="block text-2xl font-bold">{prettyPhone(line.phoneNumber)}</span>
-          <span className="lb-muted block text-sm">{line.aiAnswering ? 'Your AI answers this number 24/7.' : 'AI answering turns on in the next update. Hold off printing it for now.'}</span>
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-wrap items-center gap-4 rounded-xl border border-green-200 bg-green-50 px-4 py-4">
+          <Icon name="phone_in_talk" className="text-3xl text-green-700" />
+          <div className="min-w-0 flex-1">
+            <span className="lb-dim block text-xs font-semibold uppercase tracking-wide">Your AI phone number</span>
+            <span className="block text-2xl font-bold">{prettyPhone(line.phoneNumber)}</span>
+            <span className="lb-muted block text-sm">{line.aiAnswering ? 'Your AI answers this number 24/7 and passes hot callers to you.' : line.isTest ? 'Practice number — it can\'t ring. Get a real one when live numbers are on.' : 'Calls ring your cell until AI answering is switched on.'}</span>
+          </div>
+          {testBadge}
         </div>
-        {testBadge}
+        <HandoffNumber demo={demo} value={line.transferNumber || null} onSaved={setLine} />
+        <RecentCalls demo={demo} />
       </div>
     );
   }

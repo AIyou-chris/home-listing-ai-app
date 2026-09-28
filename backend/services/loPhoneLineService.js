@@ -93,7 +93,12 @@ function createLoPhoneLineService({ supabase, env = process.env, telnyx = null }
 
   async function claimLine(loAgentId, areaCode) {
     const existing = await currentLine(loAgentId);
-    if (existing) return existing;
+    // A practice (mock) line never blocks a real one once live buying is on.
+    if (existing && existing.is_mock && !config().mock) {
+      await patchLine(existing.id, { status: 'released', deactivated_at: new Date().toISOString() });
+    } else if (existing) {
+      return existing;
+    }
     const row = {
       lo_agent_id: loAgentId,
       requested_area_code: cleanAreaCode(areaCode) || null,
@@ -218,7 +223,7 @@ function createLoPhoneLineService({ supabase, env = process.env, telnyx = null }
   }
 
   // What the page may show. Never the tool token or Telnyx ids.
-  function publicView(line) {
+  function publicView(line, { aiReady = false } = {}) {
     if (!line) return null;
     return {
       status: line.status,
@@ -230,11 +235,22 @@ function createLoPhoneLineService({ supabase, env = process.env, telnyx = null }
       monthlyCost: line.monthly_cost || null,
       error: line.status === 'failed' ? line.provisioning_error : null,
       isTest: Boolean(line.is_mock),
-      aiAnswering: false, // turns on when the OpenAI voice link ships (next slice)
+      transferNumber: line.transfer_number || null,
+      aiAnswering: Boolean(aiReady && line.status === 'active' && !line.is_mock),
     };
   }
 
-  return { currentLine, claimLine, previewNumber, buyNumber, publicView, reservationIsLive };
+  // Where hot callers get passed to. Empty clears it (falls back to the LO's profile phone).
+  async function setTransferNumber(loAgentId, value) {
+    const line = await currentLine(loAgentId);
+    if (!line) return { ok: false, reason: 'no_line' };
+    const raw = String(value ?? '').trim();
+    const number = raw ? normalizePhone(raw) : '';
+    if (raw && !number) return { ok: false, reason: 'bad_number', error: 'Enter a 10-digit US cell number.' };
+    return { ok: true, line: await patchLine(line.id, { transfer_number: number || null }) };
+  }
+
+  return { currentLine, claimLine, previewNumber, buyNumber, publicView, reservationIsLive, setTransferNumber };
 }
 
 module.exports = { createLoPhoneLineService, phoneLineConfig, isEnabledFor, cleanAreaCode, normalizePhone, maskPhone, LIVE_STATUSES };
