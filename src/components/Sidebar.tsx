@@ -37,7 +37,7 @@ const LO_NAV_ITEMS = [
   { key: 'lo-today', icon: 'today', label: 'Today', path: '/lo-today', testid: 'nav-today' },
   { key: 'lo-partners', icon: 'handshake', label: 'Partners', path: '/lo-partners', testid: 'nav-lo-partners' },
   { key: 'lo-listings', icon: 'storefront', label: 'Listings', path: '/lo-listings', testid: 'nav-lo-listings' },
-  { key: 'lo-chatbot', icon: 'smart_toy', label: 'AI Bot', path: '/lo-chatbot', testid: 'nav-lo-chatbot' },
+  { key: 'lo-chatbot', icon: 'psychology', label: 'AI Brain', path: '/lo-chatbot', testid: 'nav-lo-chatbot' },
   { key: 'lo-leads', icon: 'person_search', label: 'Leads', path: '/lo-leads', testid: 'nav-lo-leads' },
   { key: 'lo-appointments', icon: 'event_available', label: 'Appointments', path: '/lo-appointments', testid: 'nav-lo-appointments' },
   { key: 'settings', icon: 'settings', label: 'Settings', path: '/settings', testid: 'nav-settings' }
