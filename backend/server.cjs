@@ -31654,6 +31654,10 @@ const resolveLoPlanTier = async (loAgent) => {
   // Fallback: app-level trial flag (date-based). 'awaiting_payment' is the status
   // assigned to brand-new LO signups before they go through Stripe — treat it the
   // same as 'trial' so fresh accounts can send WOW links during the 7-day window.
+  // Comped accounts (team, testers, partners) get full LO Pro. Set by an admin in
+  // the database only — no user-facing endpoint ever writes payment_status='comp'.
+  if (loAgent?.payment_status === 'comp') return 'lo_pro';
+
   const TRIAL_STATUSES = new Set(['trial', 'awaiting_payment']);
   if (TRIAL_STATUSES.has(loAgent?.payment_status) && loAgent?.created_at) {
     const trialEnd = new Date(loAgent.created_at);
