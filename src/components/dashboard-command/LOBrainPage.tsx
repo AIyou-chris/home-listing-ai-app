@@ -181,20 +181,20 @@ const AddSourceModal: React.FC<{
   };
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-labelledby="add-source-title">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/50 p-4" role="dialog" aria-modal="true" aria-labelledby="add-source-title">
       <div className="lo-brain lb-card w-full max-w-xl p-6">
         <div className="mb-4 flex items-start justify-between gap-4">
-          <h2 id="add-source-title" className="lb-h text-3xl">Add knowledge</h2>
+          <h2 id="add-source-title" className="lb-h text-2xl">Add knowledge</h2>
           <button type="button" onClick={onClose} aria-label="Close" className="lb-ghost !min-h-[40px] !px-3"><Icon name="close" /></button>
         </div>
         <label className="lb-label mb-1 block" htmlFor="src-type">What is it?</label>
         <select id="src-type" className="lb-input mb-4" value={type} onChange={(e) => setType(e.target.value as SourceType)}>
           {SOURCE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
         </select>
-        <div className="mb-4 grid grid-cols-3 gap-2 rounded-xl border border-[#143047] bg-[#020b18] p-1" role="tablist" aria-label="How to add it">
+        <div className="mb-4 grid grid-cols-3 gap-2 rounded-xl border border-slate-200 bg-slate-50 p-1" role="tablist" aria-label="How to add it">
           {([['text', 'Paste text', 'edit_note'], ['file', 'Upload file', 'upload_file'], ['url', 'Scan website', 'travel_explore']] as const).map(([id, label, icon]) => (
             <button key={id} type="button" role="tab" aria-selected={mode === id} onClick={() => setMode(id)}
-              className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-2.5 text-sm font-semibold ${mode === id ? 'bg-[#00dbea] text-[#020b18]' : 'text-[#b7c6d9]'}`}>
+              className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-2.5 text-sm font-semibold ${mode === id ? 'bg-blue-600 text-white' : 'text-slate-600'}`}>
               <Icon name={icon} className="text-lg" />{label}
             </button>
           ))}
@@ -215,8 +215,8 @@ const AddSourceModal: React.FC<{
         {mode === 'file' && (
           <div>
             <input ref={fileRef} id="src-file" type="file" accept=".pdf,.txt,.csv" className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; if (f) void addFile(f); }} />
-            <label htmlFor="src-file" className="flex cursor-pointer flex-col items-center gap-2 rounded-2xl border border-dashed border-[#00dbea] bg-[#020b18] px-6 py-10 text-center">
-              <Icon name="upload_file" className="text-4xl text-[#00dbea]" />
+            <label htmlFor="src-file" className="flex cursor-pointer flex-col items-center gap-2 rounded-2xl border border-dashed border-blue-400 bg-slate-50 px-6 py-10 text-center">
+              <Icon name="upload_file" className="text-4xl text-blue-600" />
               <span className="font-bold">{busy ? 'Reading your file…' : 'Choose a PDF, TXT or CSV'}</span>
               <span className="lb-dim text-sm">Up to 25 MB</span>
             </label>
@@ -265,6 +265,54 @@ const ChipsInput: React.FC<{
         <button type="button" className="lb-ghost shrink-0" onClick={add}>Add</button>
       </div>
     </div>
+  );
+};
+
+// ─── Collapsible section (open/closed remembered per browser) ────────────────
+
+const Section: React.FC<{
+  id: string;
+  icon: string;
+  title: React.ReactNode;
+  subtitle?: string;
+  badge?: React.ReactNode;
+  accent?: 'amber' | 'blue';
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}> = ({ id, icon, title, subtitle, badge, accent, defaultOpen = false, children }) => {
+  const storageKey = `hlai_lo_brain_open_${id}`;
+  const [open, setOpen] = useState<boolean>(() => {
+    try {
+      const saved = window.localStorage.getItem(storageKey);
+      return saved === null ? defaultOpen : saved === '1';
+    } catch {
+      return defaultOpen;
+    }
+  });
+  const toggle = () => {
+    setOpen((o) => {
+      try { window.localStorage.setItem(storageKey, o ? '0' : '1'); } catch { /* per-browser convenience only */ }
+      return !o;
+    });
+  };
+  const border = accent === 'amber' ? '!border-amber-300' : accent === 'blue' ? '!border-blue-300' : '';
+  const iconColor = accent === 'amber' ? 'text-amber-600' : 'text-blue-600';
+  return (
+    <section className={`lb-card ${border}`}>
+      <h2 className="m-0">
+        <button type="button" onClick={toggle} aria-expanded={open} aria-controls={`sec-${id}`}
+          className="flex w-full items-center gap-3 rounded-2xl px-5 py-4 text-left hover:bg-slate-50">
+          <Icon name={icon} className={`text-2xl ${iconColor}`} />
+          <span className="min-w-0 flex-1">
+            <span className="lb-h block text-lg">{title}</span>
+            {subtitle && <span className="lb-dim block text-sm font-normal">{subtitle}</span>}
+          </span>
+          {badge}
+          <Icon name="expand_more" className={`text-2xl text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+        </button>
+      </h2>
+      {open && <div id={`sec-${id}`} className="border-t border-slate-100 px-5 pb-5 pt-4">{children}</div>}
+    </section>
   );
 };
 
@@ -421,63 +469,60 @@ const LOBrainPage: React.FC = () => {
     { icon: 'language', label: 'Your website', hint: '', ready: hasType('Website') || sources.some((s) => /https?:\/\//.test(s.label)) }
   ];
   const readyCount = library.filter((l) => l.ready).length + (config.company_name ? 1 : 0);
-  const readiness = readyCount >= 5 ? { text: 'Strong', cls: 'text-[#4ade80]' } : readyCount >= 3 ? { text: 'Getting there', cls: 'text-[#fbbf24]' } : { text: 'Just started', cls: 'text-[#fda4af]' };
+  const readiness = readyCount >= 5 ? { text: 'Strong', cls: 'text-green-700' } : readyCount >= 3 ? { text: 'Getting there', cls: 'text-amber-700' } : { text: 'Just started', cls: 'text-red-600' };
 
   if (loading) {
-    return <div className="lo-brain flex min-h-screen items-center justify-center"><span className="lb-muted">Loading your AI Brain…</span></div>;
+    return <div className="lo-brain flex min-h-[60vh] items-center justify-center"><span className="lb-muted">Loading your AI Brain…</span></div>;
   }
 
+  const libraryMissing = library.filter((l) => !l.ready).length;
+
   return (
-    <div className="lo-brain min-h-screen px-4 pb-28 pt-8 sm:px-8 lg:px-12">
-      <div className="mx-auto flex max-w-6xl flex-col gap-6">
+    <div className="lo-brain px-4 pb-28 pt-6 sm:px-6 lg:px-8">
+      <div className="mx-auto flex max-w-4xl flex-col gap-4">
         {/* Header */}
-        <header className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="max-w-3xl">
+        <header className="flex flex-col gap-3 pr-10 sm:flex-row sm:items-start sm:justify-between">
+          <div className="max-w-2xl">
             <p className="lb-eyebrow">Your AI Brain</p>
-            <h1 className="lb-h mt-2 text-5xl leading-[0.98] sm:text-6xl lg:text-7xl">Train it once.<br /><span className="text-[#00dbea]">Every listing gets it.</span></h1>
-            <p className="lb-muted mt-3 text-lg leading-relaxed">Your listing chat and financing AI use this one brain on every listing — same name, same knowledge, same rules.</p>
+            <h1 className="lb-h mt-1 text-3xl sm:text-4xl">Train it once. <span className="text-blue-600">Every listing gets it.</span></h1>
+            <p className="lb-muted mt-2 text-base leading-relaxed">Your listing chat and financing AI use this one brain on every listing — same name, same knowledge, same rules.</p>
           </div>
           <label className="lb-ghost shrink-0 cursor-pointer self-start">
-            <input type="checkbox" className="h-5 w-5 accent-[#00dbea]" checked={config.is_active} onChange={(e) => update({ is_active: e.target.checked })} />
+            <input type="checkbox" className="h-5 w-5 accent-blue-600" checked={config.is_active} onChange={(e) => update({ is_active: e.target.checked })} />
             AI answering on my listings
           </label>
         </header>
 
-        {/* Summary */}
-        <section className="lb-card flex flex-col gap-6 p-6 lg:flex-row lg:items-center">
+        {/* Summary — always open */}
+        <section className="lb-card flex flex-col gap-5 p-5 md:flex-row md:items-center">
           <div className="flex flex-1 gap-4">
-            <Icon name="psychology" className="text-4xl text-[#00dbea]" />
-            <div className="flex flex-col gap-4">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-50"><Icon name="psychology" className="text-2xl text-blue-600" /></span>
+            <div className="flex flex-col gap-3">
               <div>
-                <h2 className="lb-h text-3xl">Your Loan Officer Brain</h2>
-                <p className="lb-muted text-sm">One source of truth for your AI team and every listing.</p>
+                <h2 className="lb-h text-xl">Your Loan Officer Brain</h2>
+                <p className="lb-dim text-sm">One source of truth for your AI team and every listing.</p>
               </div>
-              <dl className="flex flex-wrap gap-x-10 gap-y-3">
-                <div><dt className="lb-dim text-xs font-bold tracking-widest">SOURCES</dt><dd className="lb-h text-3xl">{sources.length}</dd></div>
-                <div><dt className="lb-dim text-xs font-bold tracking-widest">LISTINGS USING IT</dt><dd className="lb-h text-3xl">{summary?.listings.length ?? '—'}</dd></div>
-                <div><dt className="lb-dim text-xs font-bold tracking-widest">LAST UPDATED</dt><dd className="pt-2 font-semibold">{formatDate(summary?.lastUpdated ?? null)}</dd></div>
-                <div><dt className="lb-dim text-xs font-bold tracking-widest">READINESS</dt><dd className={`pt-2 font-bold ${readiness.cls}`}>{readiness.text}</dd></div>
+              <dl className="flex flex-wrap gap-x-8 gap-y-3">
+                <div><dt className="lb-dim text-xs font-semibold uppercase tracking-wide">Sources</dt><dd className="text-2xl font-bold">{sources.length}</dd></div>
+                <div><dt className="lb-dim text-xs font-semibold uppercase tracking-wide">Listings using it</dt><dd className="text-2xl font-bold">{summary?.listings.length ?? '—'}</dd></div>
+                <div><dt className="lb-dim text-xs font-semibold uppercase tracking-wide">Last updated</dt><dd className="pt-1.5 text-sm font-semibold">{formatDate(summary?.lastUpdated ?? null)}</dd></div>
+                <div><dt className="lb-dim text-xs font-semibold uppercase tracking-wide">Readiness</dt><dd className={`pt-1.5 text-sm font-bold ${readiness.cls}`}>{readiness.text}</dd></div>
               </dl>
             </div>
           </div>
-          <button type="button" onClick={() => setShowAdd(true)} className="flex items-center gap-4 rounded-2xl bg-[#00dbea] px-6 py-5 text-left text-[#020b18] transition hover:-translate-y-0.5 lg:w-[380px]">
-            <Icon name="add_circle" className="text-3xl" />
-            <span><span className="block text-lg font-extrabold">Add knowledge to your brain</span><span className="text-sm font-medium">Loan programs, rate sheet, FAQs, your bio — anything your AI should know.</span></span>
+          <button type="button" onClick={() => setShowAdd(true)} className="flex items-center gap-3 rounded-xl bg-blue-600 px-5 py-4 text-left text-white transition hover:bg-blue-700 md:w-[320px]">
+            <Icon name="add_circle" className="text-2xl" />
+            <span><span className="block font-semibold">Add knowledge to your brain</span><span className="text-sm text-blue-100">Loan programs, rate sheet, FAQs, your bio — anything your AI should know.</span></span>
           </button>
         </section>
 
-        {/* Test chat + library/voice */}
-        <div className="grid gap-5 lg:grid-cols-2">
-          <section className="lb-card flex flex-col gap-4 p-6">
-            <div>
-              <h2 className="lb-h text-3xl">Talk to your brain</h2>
-              <p className="lb-muted text-sm">Ask what a buyer would ask. This is the real AI buyers talk to.</p>
-            </div>
-            <div className="lb-inset flex max-h-80 min-h-[180px] flex-col gap-3 overflow-y-auto p-4" aria-live="polite">
+        <Section id="test" icon="forum" title="Talk to your brain" subtitle="Ask what a buyer would ask. This is the real AI buyers talk to.">
+          <div className="flex flex-col gap-3">
+            <div className="lb-inset flex max-h-80 min-h-[140px] flex-col gap-3 overflow-y-auto p-4" aria-live="polite">
               {!chat.length && <p className="lb-dim text-sm">Try: “Can I buy with 3% down?” or “What does the payment look like on a $400k home?”</p>}
               {chat.map((m, i) => (
                 <div key={i} className={`flex flex-col gap-1.5 ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
-                  <div className={`max-w-[88%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${m.role === 'user' ? 'rounded-br-sm bg-[#00dbea] font-medium text-[#020b18]' : 'rounded-bl-sm border border-[#176078] bg-[#0b2033] text-[#e6eef6]'}`}>{m.content}</div>
+                  <div className={`max-w-[88%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${m.role === 'user' ? 'rounded-br-sm bg-blue-600 text-white' : 'rounded-bl-sm border border-slate-200 bg-white text-slate-800'}`}>{m.content}</div>
                   {m.role === 'assistant' && m.question && (
                     <div className="flex flex-wrap items-center gap-2">
                       {m.route && <span className="lb-pill lb-info">Used: {ROUTE_LABEL[m.route] || m.route}</span>}
@@ -500,190 +545,150 @@ const LOBrainPage: React.FC = () => {
                 onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void sendTest(); } }} />
               <button type="button" className="lb-btn shrink-0" disabled={asking || !ask.trim()} onClick={() => void sendTest()}>Ask</button>
             </div>
-          </section>
-
-          <div className="flex flex-col gap-5">
-            <section className="lb-card flex flex-col gap-3 p-6">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h2 className="lb-h text-3xl">Knowledge library</h2>
-                  <p className="lb-muted text-sm">What every listing's AI learns from you.</p>
-                </div>
-                <button type="button" className="lb-btn shrink-0" onClick={() => setShowAdd(true)}>+ Add source</button>
-              </div>
-              <ul>
-                {library.map((l) => (
-                  <li key={l.label} className="flex items-center gap-3 border-t border-[#143047] py-3">
-                    <Icon name={l.icon} className="text-xl text-[#00dbea]" />
-                    <span className="flex-1 text-sm font-semibold">{l.label}{l.hint && <span className="lb-dim font-normal"> · {l.hint}</span>}</span>
-                    <span className={`lb-pill ${l.ready ? 'lb-ready' : 'lb-missing'}`}>{l.ready ? 'Ready' : 'Missing'}</span>
-                  </li>
-                ))}
-              </ul>
-            </section>
-
-            <section className="lb-card flex flex-col gap-4 p-6">
-              <div>
-                <h2 className="lb-h text-3xl">Voice and personality</h2>
-                <p className="lb-muted text-sm">How your AI introduces itself and sounds.</p>
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="lb-label mb-1 block" htmlFor="bot-name">AI name</label>
-                  <input id="bot-name" className="lb-input" value={config.bot_name} onChange={(e) => update({ bot_name: e.target.value })} placeholder="e.g. Sky, your financing assistant" />
-                </div>
-                <div>
-                  <label className="lb-label mb-1 block" htmlFor="tone">Tone</label>
-                  <select id="tone" className="lb-input" value={config.tone} onChange={(e) => update({ tone: e.target.value })}>
-                    {[...new Set([config.tone, ...TONES].filter(Boolean))].map((t) => <option key={t} value={t}>{t}</option>)}
-                  </select>
-                </div>
-                <div className="sm:col-span-2">
-                  <label className="lb-label mb-1 block" htmlFor="greeting">First message buyers see</label>
-                  <input id="greeting" className="lb-input" value={config.greeting} onChange={(e) => update({ greeting: e.target.value })} />
-                </div>
-                <label className="lb-inset flex items-center justify-between gap-3 px-4 py-3 text-sm font-semibold sm:col-span-2">
-                  Say my NMLS# when introducing itself
-                  <input type="checkbox" className="h-5 w-5 accent-[#00dbea]" checked={config.nmls_in_intro} onChange={(e) => update({ nmls_in_intro: e.target.checked })} />
-                </label>
-              </div>
-            </section>
           </div>
-        </div>
+        </Section>
 
-        {/* Rulebooks */}
-        <section className="lb-card flex flex-col gap-4 p-6">
-          <div className="grid gap-5 lg:grid-cols-3">
-            {([
-              ['marketing_voice', 'Your Marketing Voice', 'How your marketing is written. Your Marketing Studio posts and videos follow this.'],
-              ['loan_advisor_rules', 'Your Loan Advisor AI', 'Used when a buyer asks about money — what to ask, what to offer, when to hand off to you.'],
-              ['borrower_care_rules', 'Your Borrower Care', 'Used for everything else, and whenever the AI is unsure. How people are looked after.']
-            ] as const).map(([key, title, help]) => (
-              <div key={key} className="flex flex-col gap-2">
-                <h2 className="lb-h text-2xl text-[#00dbea]"><label htmlFor={key}>{title}</label></h2>
-                <p className="lb-muted text-sm leading-relaxed">{help}</p>
-                <textarea id={key} className="lb-input h-60" value={config[key]} onChange={(e) => update({ [key]: e.target.value } as Partial<BrainConfig>)} />
-              </div>
+        <Section id="library" icon="library_books" title="Knowledge library" subtitle="What every listing's AI learns from you."
+          badge={<span className={`lb-pill ${libraryMissing ? 'lb-missing' : 'lb-ready'}`}>{libraryMissing ? `${libraryMissing} missing` : 'All ready'}</span>}>
+          <ul>
+            {library.map((l) => (
+              <li key={l.label} className="flex items-center gap-3 border-b border-slate-100 py-3 last:border-b-0">
+                <Icon name={l.icon} className="text-xl text-blue-600" />
+                <span className="flex-1 text-sm font-semibold">{l.label}{l.hint && <span className="lb-dim font-normal"> · {l.hint}</span>}</span>
+                <span className={`lb-pill ${l.ready ? 'lb-ready' : 'lb-missing'}`}>{l.ready ? 'Ready' : 'Missing'}</span>
+              </li>
             ))}
-          </div>
-          <p className="lb-dim text-[13px]">Each starts with sensible wording — change anything that isn't how you work. None can override your Compliance Brain or HomeListingAI's safety rules.</p>
-        </section>
+          </ul>
+          <button type="button" className="lb-btn mt-3" onClick={() => setShowAdd(true)}>+ Add source</button>
+        </Section>
 
-        {/* Compliance Brain */}
-        <section className="lb-card flex flex-col gap-5 !border-[#fbbf24] p-6">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex gap-4">
-              <Icon name="verified_user" className="text-4xl text-[#fbbf24]" />
-              <div>
-                <h2 className="lb-h text-3xl">Your Compliance Brain</h2>
-                <p className="lb-muted max-w-3xl text-sm leading-relaxed">Your company's rules. Every answer is checked before it reaches a buyer. Stricter always wins.</p>
-              </div>
+        <Section id="voice" icon="record_voice_over" title="Voice and personality" subtitle="How your AI introduces itself and sounds.">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="lb-label mb-1 block" htmlFor="bot-name">AI name</label>
+              <input id="bot-name" className="lb-input" value={config.bot_name} onChange={(e) => update({ bot_name: e.target.value })} placeholder="e.g. Sky, your financing assistant" />
             </div>
-            <span className="lb-pill lb-warn shrink-0">ALWAYS ON</span>
+            <div>
+              <label className="lb-label mb-1 block" htmlFor="tone">Tone</label>
+              <select id="tone" className="lb-input" value={config.tone} onChange={(e) => update({ tone: e.target.value })}>
+                {[...new Set([config.tone, ...TONES].filter(Boolean))].map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+            <div className="sm:col-span-2">
+              <label className="lb-label mb-1 block" htmlFor="greeting">First message buyers see</label>
+              <input id="greeting" className="lb-input" value={config.greeting} onChange={(e) => update({ greeting: e.target.value })} />
+            </div>
+            <label className="lb-inset flex items-center justify-between gap-3 px-4 py-3 text-sm font-semibold sm:col-span-2">
+              Say my NMLS# when introducing itself
+              <input type="checkbox" className="h-5 w-5 accent-blue-600" checked={config.nmls_in_intro} onChange={(e) => update({ nmls_in_intro: e.target.checked })} />
+            </label>
           </div>
-          <div className="grid gap-6 lg:grid-cols-2">
-            <div className="flex flex-col gap-4">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div><label className="lb-label mb-1 block" htmlFor="co-name">Company name</label><input id="co-name" className="lb-input" value={config.company_name} onChange={(e) => update({ company_name: e.target.value })} /></div>
-                <div><label className="lb-label mb-1 block" htmlFor="co-nmls">Company NMLS#</label><input id="co-nmls" className="lb-input" value={config.company_nmls} onChange={(e) => update({ company_nmls: e.target.value })} /></div>
-              </div>
-              <ChipsInput id="states" label="States you're licensed in" hint="AI won't discuss loans outside these" values={config.licensed_states} onChange={(v) => update({ licensed_states: v })} tone="info" placeholder="e.g. WA" upper />
-              <div>
-                <label className="lb-label mb-1 block" htmlFor="disclosure">Required disclosure <span className="lb-dim font-normal">· added whenever the AI gives a number</span></label>
-                <textarea id="disclosure" className="lb-input h-24" value={config.required_disclosure} onChange={(e) => update({ required_disclosure: e.target.value })} placeholder="e.g. Estimates only. Not a commitment to lend." />
-              </div>
-              <ChipsInput id="banned" label="Words the AI must never use" values={config.banned_phrases} onChange={(v) => update({ banned_phrases: v })} tone="missing" placeholder="e.g. lowest rate" />
-            </div>
-            <div className="flex flex-col gap-4">
-              <input ref={complianceFileRef} id="compliance-file" type="file" accept=".pdf,.txt,.csv" className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; if (f) void uploadCompliance(f); }} />
-              <label htmlFor="compliance-file" className="flex cursor-pointer items-center gap-4 rounded-2xl border border-dashed border-[#fbbf24] bg-[#020b18] p-5">
-                <Icon name="upload_file" className="text-3xl text-[#fbbf24]" />
-                <span><span className="block font-bold">{complianceUploading ? 'Reading your file…' : "Upload your company's compliance rules"}</span><span className="lb-muted text-sm">Marketing policy, social media policy, state rules. PDF or TXT.</span></span>
-              </label>
-              {config.compliance_rules.trim() && (
-                <div className="lb-inset flex items-center justify-between gap-3 px-4 py-3">
-                  <span className="text-sm"><Icon name="description" className="mr-2 align-middle text-lg text-[#fbbf24]" />{parseSources(config.compliance_rules).map((s) => s.label).join(', ') || 'Company rules'} — active</span>
-                  <button type="button" className="lb-ghost !min-h-[36px] !px-3 !text-xs" onClick={() => { if (window.confirm('Remove your uploaded compliance rules? Platform safety rules still apply.')) { const next = { ...config, compliance_rules: '' }; setConfig(next); void persist(next, 'Compliance rules removed'); } }}>Remove</button>
-                </div>
-              )}
-              <div className="lb-inset flex flex-col gap-2.5 p-4">
-                <span className="lb-dim text-xs font-bold tracking-widest">CHECKED BEFORE IT GOES OUT</span>
-                <span className="flex items-center gap-2 text-sm"><Icon name="check_circle" className="text-lg text-[#4ade80]" />Every listing chat answer</span>
-                <span className="flex items-center gap-2 text-sm"><Icon name="check_circle" className="text-lg text-[#4ade80]" />Every answer in your test chat</span>
-                <span className="lb-dim flex items-center gap-2 text-sm"><Icon name="schedule" className="text-lg" />Texts, posts and AI Phone — as each one moves onto the brain</span>
-              </div>
-              <div className="flex items-center gap-4 rounded-2xl border border-[#6b5313] bg-[#2e2408] px-5 py-4">
-                <span className="lb-h text-4xl text-[#fbbf24]">{summary?.complianceEventsThisMonth ?? '—'}</span>
-                <span className="text-sm leading-snug text-[#fde9b8]">Answers stopped or fixed this month because they broke a rule.</span>
-              </div>
-            </div>
-          </div>
-        </section>
+        </Section>
 
-        {/* Listings */}
-        <section className="lb-card flex flex-col gap-4 !border-[#00dbea] p-6">
-          <div>
-            <h2 className="lb-h text-3xl">Your listings use this brain <span className="text-[#00dbea]">automatically</span></h2>
-            <p className="lb-muted text-sm">Nothing to retrain. Each listing adds its own home facts. The only thing you can add per listing is a payment schedule — if you want.</p>
+        {([
+          ['marketing_voice', 'campaign', 'Your Marketing Voice', 'How your marketing is written. Your Marketing Studio posts and videos follow this.'],
+          ['loan_advisor_rules', 'payments', 'Your Loan Advisor AI', 'Used when a buyer asks about money — what to ask, what to offer, when to hand off to you.'],
+          ['borrower_care_rules', 'support_agent', 'Your Borrower Care', 'Used for everything else, and whenever the AI is unsure. How people are looked after.']
+        ] as const).map(([key, icon, title, help]) => (
+          <Section key={key} id={key} icon={icon} title={title} subtitle={help}>
+            <label htmlFor={key} className="sr-only">{title}</label>
+            <textarea id={key} className="lb-input h-48" value={config[key]} onChange={(e) => update({ [key]: e.target.value } as Partial<BrainConfig>)} />
+            <p className="lb-dim mt-2 text-xs">Starts with sensible wording — change anything that isn't how you work. It can't override your Compliance Brain or HomeListingAI's safety rules.</p>
+          </Section>
+        ))}
+
+        <Section id="compliance" icon="verified_user" accent="amber" title="Your Compliance Brain" subtitle="Your company's rules. Every answer is checked before it reaches a buyer. Stricter always wins."
+          badge={<span className="lb-pill lb-warn">ALWAYS ON</span>}>
+          <div className="flex flex-col gap-5">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div><label className="lb-label mb-1 block" htmlFor="co-name">Company name</label><input id="co-name" className="lb-input" value={config.company_name} onChange={(e) => update({ company_name: e.target.value })} /></div>
+              <div><label className="lb-label mb-1 block" htmlFor="co-nmls">Company NMLS#</label><input id="co-nmls" className="lb-input" value={config.company_nmls} onChange={(e) => update({ company_nmls: e.target.value })} /></div>
+            </div>
+            <ChipsInput id="states" label="States you're licensed in" hint="AI won't discuss loans outside these" values={config.licensed_states} onChange={(v) => update({ licensed_states: v })} tone="info" placeholder="e.g. WA" upper />
+            <div>
+              <label className="lb-label mb-1 block" htmlFor="disclosure">Required disclosure <span className="lb-dim font-normal">· added whenever the AI gives a number</span></label>
+              <textarea id="disclosure" className="lb-input h-24" value={config.required_disclosure} onChange={(e) => update({ required_disclosure: e.target.value })} placeholder="e.g. Estimates only. Not a commitment to lend." />
+            </div>
+            <ChipsInput id="banned" label="Words the AI must never use" values={config.banned_phrases} onChange={(v) => update({ banned_phrases: v })} tone="missing" placeholder="e.g. lowest rate" />
+            <input ref={complianceFileRef} id="compliance-file" type="file" accept=".pdf,.txt,.csv" className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; if (f) void uploadCompliance(f); }} />
+            <label htmlFor="compliance-file" className="flex cursor-pointer items-center gap-4 rounded-xl border border-dashed border-amber-400 bg-amber-50 p-4">
+              <Icon name="upload_file" className="text-3xl text-amber-600" />
+              <span><span className="block font-semibold">{complianceUploading ? 'Reading your file…' : "Upload your company's compliance rules"}</span><span className="lb-muted text-sm">Marketing policy, social media policy, state rules. PDF or TXT.</span></span>
+            </label>
+            {config.compliance_rules.trim() && (
+              <div className="lb-inset flex items-center justify-between gap-3 px-4 py-3">
+                <span className="text-sm"><Icon name="description" className="mr-2 align-middle text-lg text-amber-600" />{parseSources(config.compliance_rules).map((s) => s.label).join(', ') || 'Company rules'} — active</span>
+                <button type="button" className="lb-ghost !min-h-[36px] !px-3 !text-xs" onClick={() => { if (window.confirm('Remove your uploaded compliance rules? Platform safety rules still apply.')) { const next = { ...config, compliance_rules: '' }; setConfig(next); void persist(next, 'Compliance rules removed'); } }}>Remove</button>
+              </div>
+            )}
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="lb-inset flex flex-col gap-2 p-4">
+                <span className="lb-dim text-xs font-semibold uppercase tracking-wide">Checked before it goes out</span>
+                <span className="flex items-center gap-2 text-sm"><Icon name="check_circle" className="text-lg text-green-600" />Every listing chat answer</span>
+                <span className="flex items-center gap-2 text-sm"><Icon name="check_circle" className="text-lg text-green-600" />Every answer in your test chat</span>
+                <span className="lb-dim flex items-center gap-2 text-sm"><Icon name="schedule" className="text-lg" />Texts, posts and AI Phone — as each moves onto the brain</span>
+              </div>
+              <div className="flex items-center gap-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                <span className="text-3xl font-bold text-amber-700">{summary?.complianceEventsThisMonth ?? '—'}</span>
+                <span className="text-sm leading-snug text-amber-900">Answers stopped or fixed this month because they broke a rule.</span>
+              </div>
+            </div>
           </div>
+        </Section>
+
+        <Section id="listings" icon="home_work" accent="blue" title={<>Your listings use this brain <span className="text-blue-600">automatically</span></>}
+          subtitle="Nothing to retrain. The only thing you can add per listing is a payment schedule — if you want."
+          badge={<span className="lb-pill lb-info">{summary?.listings.length ?? 0} connected</span>}>
           {!summary?.listings.length && <p className="lb-dim text-sm">No listings yet. When a partner agent's listing is assigned to you, it shows up here already connected.</p>}
           <ul className="flex flex-col gap-2.5">
             {summary?.listings.map((l) => (
               <li key={l.id} className="lb-inset flex flex-wrap items-center gap-3 px-4 py-3">
-                <Icon name="home" className="text-2xl text-[#00dbea]" />
-                <span className="min-w-[180px] flex-1 font-semibold">{l.address}</span>
+                <Icon name="home" className="text-2xl text-blue-600" />
+                <span className="min-w-[160px] flex-1 font-semibold">{l.address}</span>
                 <span className="lb-pill lb-info">Brain connected</span>
-                <span className={`w-52 text-[13px] ${l.hasPaymentSchedule ? 'font-semibold text-[#4ade80]' : 'lb-dim'}`}>{l.hasPaymentSchedule ? 'Payment schedule added' : 'No payment schedule (optional)'}</span>
-                {!demo && <Link to="/dashboard/lo-listings" className="text-sm font-bold">{l.hasPaymentSchedule ? 'Edit' : 'Add schedule'}</Link>}
+                <span className={`w-52 text-[13px] ${l.hasPaymentSchedule ? 'font-semibold text-green-700' : 'lb-dim'}`}>{l.hasPaymentSchedule ? 'Payment schedule added' : 'No payment schedule (optional)'}</span>
+                {!demo && <Link to="/dashboard/lo-listings" className="text-sm font-semibold">{l.hasPaymentSchedule ? 'Edit' : 'Add schedule'}</Link>}
               </li>
             ))}
           </ul>
-        </section>
+        </Section>
 
-        {/* FAQs */}
-        <section className="lb-card flex flex-col gap-4 p-6">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <h2 className="lb-h text-3xl">FAQs</h2>
-              <p className="lb-muted text-sm">Questions buyers ask you all the time, answered your way.</p>
-            </div>
-            <button type="button" className="lb-ghost shrink-0" onClick={() => update({ faq: [...config.faq, { question: '', answer: '' }] })}>+ Add FAQ</button>
+        <Section id="faq" icon="quiz" title="FAQs" subtitle="Questions buyers ask you all the time, answered your way."
+          badge={<span className="lb-pill lb-info">{config.faq.length} saved</span>}>
+          <div className="flex flex-col gap-3">
+            {!config.faq.length && <p className="lb-dim text-sm">No FAQs yet.</p>}
+            {config.faq.map((f, i) => (
+              <div key={i} className="lb-inset grid gap-3 p-4 sm:grid-cols-[1fr_1.4fr_auto] sm:items-start">
+                <div><label className="lb-label mb-1 block" htmlFor={`faq-q-${i}`}>Question</label><input id={`faq-q-${i}`} className="lb-input" value={f.question} onChange={(e) => update({ faq: config.faq.map((x, j) => (j === i ? { ...x, question: e.target.value } : x)) })} /></div>
+                <div><label className="lb-label mb-1 block" htmlFor={`faq-a-${i}`}>Answer</label><textarea id={`faq-a-${i}`} className="lb-input h-20" value={f.answer} onChange={(e) => update({ faq: config.faq.map((x, j) => (j === i ? { ...x, answer: e.target.value } : x)) })} /></div>
+                <button type="button" aria-label="Delete FAQ" className="lb-ghost sm:mt-6" onClick={() => update({ faq: config.faq.filter((_, j) => j !== i) })}><Icon name="delete" /></button>
+              </div>
+            ))}
+            <button type="button" className="lb-ghost self-start" onClick={() => update({ faq: [...config.faq, { question: '', answer: '' }] })}>+ Add FAQ</button>
           </div>
-          {!config.faq.length && <p className="lb-dim text-sm">No FAQs yet.</p>}
-          {config.faq.map((f, i) => (
-            <div key={i} className="lb-inset grid gap-3 p-4 sm:grid-cols-[1fr_1.4fr_auto] sm:items-start">
-              <div><label className="lb-label mb-1 block" htmlFor={`faq-q-${i}`}>Question</label><input id={`faq-q-${i}`} className="lb-input" value={f.question} onChange={(e) => update({ faq: config.faq.map((x, j) => (j === i ? { ...x, question: e.target.value } : x)) })} /></div>
-              <div><label className="lb-label mb-1 block" htmlFor={`faq-a-${i}`}>Answer</label><textarea id={`faq-a-${i}`} className="lb-input h-20" value={f.answer} onChange={(e) => update({ faq: config.faq.map((x, j) => (j === i ? { ...x, answer: e.target.value } : x)) })} /></div>
-              <button type="button" aria-label="Delete FAQ" className="lb-ghost sm:mt-6" onClick={() => update({ faq: config.faq.filter((_, j) => j !== i) })}><Icon name="delete" /></button>
-            </div>
-          ))}
-        </section>
+        </Section>
 
-        {/* All sources */}
-        <section className="lb-card flex flex-col gap-4 p-6">
-          <div>
-            <h2 className="lb-h text-3xl">All sources</h2>
-            <p className="lb-muted text-sm">Everything saved in your brain.</p>
-          </div>
+        <Section id="sources" icon="folder_open" title="All sources" subtitle="Everything saved in your brain."
+          badge={<span className="lb-pill lb-info">{sources.length} total</span>}>
           {!sources.length && <p className="lb-dim text-sm">Nothing yet. Add your loan programs and rate sheet first — those answer most buyer questions.</p>}
           <ul className="flex flex-col gap-2.5">
             {sources.map((s) => (
               <li key={`${s.index}-${s.label}`} className="lb-inset flex items-center gap-3 px-4 py-3">
-                <Icon name={/https?:\/\//.test(s.label) ? 'language' : /\.pdf$/i.test(s.label) ? 'picture_as_pdf' : 'notes'} className="text-2xl text-[#00dbea]" />
+                <Icon name={/https?:\/\//.test(s.label) ? 'language' : /\.pdf$/i.test(s.label) ? 'picture_as_pdf' : 'notes'} className="text-2xl text-blue-600" />
                 <span className="min-w-0 flex-1"><span className="block truncate font-semibold">{s.label}</span><span className="lb-dim block truncate text-[13px]">{s.preview}</span></span>
                 <button type="button" aria-label={`Delete ${s.label}`} className="lb-ghost !min-h-[40px] !px-3" onClick={() => { if (window.confirm(`Remove "${s.label}" from your brain?`)) void removeSource(s.index); }}><Icon name="delete" /></button>
               </li>
             ))}
           </ul>
-        </section>
+        </Section>
 
-        <p className="lb-dim text-[13px]">Secure and private: your brain is only used by your own AI team. It is never shared with other loan officers.</p>
+        <p className="lb-dim text-xs">Secure and private: your brain is only used by your own AI team. It is never shared with other loan officers.</p>
       </div>
 
       {/* Save bar */}
       {dirty && (
-        <div className="fixed inset-x-0 bottom-0 z-[150] border-t border-[#176078] bg-[#051423]/95 px-4 py-3 backdrop-blur">
-          <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
+        <div className="fixed inset-x-0 bottom-0 z-[150] border-t border-slate-200 bg-white/95 px-4 py-3 shadow-[0_-4px_16px_rgba(15,23,42,0.06)] backdrop-blur">
+          <div className="mx-auto flex max-w-4xl items-center justify-between gap-4">
             <span className="lb-muted text-sm">You have unsaved changes.</span>
             <button type="button" className="lb-btn" disabled={saving} onClick={() => void persist(config)}>{saving ? 'Saving…' : 'Save changes'}</button>
           </div>
