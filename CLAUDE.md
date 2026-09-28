@@ -1,3 +1,6 @@
+<!-- AI-HANDOFF-POINTER -->
+> **🤝 Claude + Codex both work in this repo.** At the start of every session read `AI_HANDOFF.md` (latest entries). At the end, add an entry at the top of its log. Use **Jev (TypeSafe)** for yes/no, category and scoring judgments. Rules are in `AI_HANDOFF.md`.
+
 # HomeListingAI — Claude Project Context
 
 > This file is read automatically at the start of every Claude session.
