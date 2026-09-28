@@ -31,6 +31,11 @@
 
 ## Log
 
+### 2026-09-28 07:50 — Claude — Chris's decisions on the plan
+- **Chris decided:** (1) **Take An AI You's Marketing Studio and Prospect Finder the SAME** (overrides Codex's 'skip' in section 6B). Chris uses the finder to find LOs and others for HLAI. (2) **HLAI's AI Brain page must work the same as An AI You's Business Brain screen** (knowledge library, voice/personality, 3 rulebooks, test chat, all sources).
+- **State:** Layout mockup made for Chris to review (AI Brain page, AI Team + control levels Off / Ask me first / Do it-tell me, how-it-works diagram). No code yet. Chris wants to dig into the layout before any build.
+- **Open / next:** Wait for Chris's layout feedback before building. Codex's safety points still stand (Jev decides but doesn't send; small steps; delete old paths).
+
 ### 2026-09-27 20:14 — Codex — Reviewed An AI You reuse plan and overhaul risks
 - **Did:** Verified Claude's phone/comms/one-brain claims and reviewed marketing, image/video, prospect/social and QR code in `/tmp/ai-landing-template-review`. Appended `docs/overhaul/ANAIYOU_REUSE.md` section 6 with take/skip decisions, revised build order, API choices, Jev-client decision and HLAI blockers.
 - **State:** Review docs only; not committed. No application/backend code changed. Focused TypeSafe/scoring tests pass (14/14).
