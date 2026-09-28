@@ -144,6 +144,11 @@ function createTelnyxClient({ apiKey, fetchImpl, timeoutMs = DEFAULT_TIMEOUT_MS,
     async setNumberVoiceConnection(phoneNumberId, connectionId) {
       return request('PATCH', `/phone_numbers/${encodeURIComponent(phoneNumberId)}`, { body: { connection_id: connectionId } });
     },
+
+    // ── Live call control (Voice API app). Each is one command on one call leg. ──
+    async callAction(callControlId, action, body = {}) {
+      return request('POST', `/calls/${encodeURIComponent(callControlId)}/actions/${action}`, { body });
+    },
   };
 }
 
@@ -186,6 +191,9 @@ function createMockTelnyxClient({ now = () => Date.now() } = {}) {
     },
     async setNumberVoiceConnection() {
       return { ok: true, data: { record_type: 'phone_number' } };
+    },
+    async callAction(callControlId, action) {
+      return { ok: true, data: { result: 'ok', call_control_id: callControlId, action } };
     },
   };
 }

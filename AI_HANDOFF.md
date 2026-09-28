@@ -31,6 +31,11 @@
 
 ## Log
 
+### 2026-09-28 16:45 — Claude — AI answers the LO's phone (Telnyx → OpenAI Realtime SIP)
+- **Did:** backend/services/loPhoneCallService.js: Telnyx webhook `POST /api/webhooks/telnyx/voice` answers, then transfers the call over SIP to `sip:$OPENAI_PROJECT_ID@sip.api.openai.com` with X-HLAI-Call + HMAC token (keyed by the line's tool_token). OpenAI webhook `POST /api/webhooks/openai/realtime` (realtime.call.incoming) checks the token and accepts with the LO Brain prompt + phone rules, the LO's voice, tools (save_caller_details, transfer_to_loan_officer, end_call). A side WebSocket collects the transcript and runs tools. After hangup, finalize() (once): Jev intent (hot/warm/cold), OpenAI summary, compliance flags (channel `phone`), lead upsert (source_type `phone`), hot-lead alert. Fallbacks: AI not ready/fails → rings LO cell; no cell → polite message + hang up. 15-min cap. New `webhookSignatures.js` (Telnyx Ed25519 + OpenAI standard-webhooks). Table `lo_phone_calls` (migration applied). UI: hand-off cell + Recent calls with transcripts under the number.
+- **State:** Needs on Render: OPENAI_PROJECT_ID, OPENAI_WEBHOOK_SECRET, TELNYX_PUBLIC_KEY, TELNYX_LIVE_PROVISIONING=true (to buy a real number). OpenAI project webhook must point at /api/webhooks/openai/realtime. Telnyx app "HomeListingAI Phone" needs an Outbound Voice Profile (SIP transfer + cell hand-off are outbound legs). Render web is on the FREE plan: it sleeps, so a call to a sleeping server fails — needs Starter.
+- **Open / next:** Live test call. Then outbound calls (consent-gated), texts after 10DLC, delete Vapi/Hume paths. Old web-voice path still defaults to removed gpt-4o-realtime-preview (server.cjs ~15151, useRealtimeClient.ts).
+
 ### 2026-09-28 13:30 — Claude — Get my AI phone number (PR #20, live, off by default)
 - **Did:** Ported An AI You number provisioning into HLAI: backend/services/telnyxClient.js (numbers + mock), loPhoneLineService.js, GET /api/lo/phone-line, POST /preview, POST /buy. Table lo_phone_lines (migration applied). UI lives in AI Brain > Calls & Texts.
 - **State:** Merged + live but hidden: needs TELNYX_PHONE_ENABLED=true or PHONE_BETA_LO_IDS. Mock (no cost) unless TELNYX_LIVE_PROVISIONING=true + TELNYX_API_KEY. TELNYX_CONNECTION_ID for a NEW HLAI Voice API app not created yet (do not reuse ai-you-phone).

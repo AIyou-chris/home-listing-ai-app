@@ -34086,7 +34086,7 @@ app.get('/api/lo/phone-line', requireLoAgent, async (req, res) => {
     if (!enabled) return res.json({ enabled: false, line: null });
     const svc = getLoPhoneLines();
     const line = await svc.currentLine(req.loAgentId);
-    res.json({ enabled: true, testMode: phoneLineConfig().mock, line: svc.publicView(line) });
+    res.json({ enabled: true, testMode: phoneLineConfig().mock, line: svc.publicView(line, { aiReady: getLoPhoneCalls().isAiReady() }) });
   } catch (err) {
     const missing = err?.code === '42P01' || err?.code === 'PGRST205';
     console.error('[LO Phone GET] Error:', err?.message || err);
@@ -34101,7 +34101,7 @@ app.post('/api/lo/phone-line/preview', requireLoAgent, async (req, res) => {
     const svc = getLoPhoneLines();
     const result = await svc.previewNumber(req.loAgentId, req.body?.areaCode);
     if (!result.ok && result.reason === 'bad_area_code') return res.status(400).json({ error: result.reason, message: result.error });
-    res.status(result.ok ? 200 : 422).json({ ok: result.ok, reason: result.reason || null, line: svc.publicView(result.line) });
+    res.status(result.ok ? 200 : 422).json({ ok: result.ok, reason: result.reason || null, line: svc.publicView(result.line, { aiReady: getLoPhoneCalls().isAiReady() }) });
   } catch (err) {
     console.error('[LO Phone preview] Error:', err?.message || err);
     res.status(500).json({ error: 'phone_preview_failed' });
@@ -34115,10 +34115,107 @@ app.post('/api/lo/phone-line/buy', requireLoAgent, async (req, res) => {
     if (req.body?.confirm !== true) return res.status(400).json({ error: 'confirmation_required' });
     const svc = getLoPhoneLines();
     const result = await svc.buyNumber(req.loAgentId);
-    res.status(result.ok ? 200 : 422).json({ ok: result.ok, reason: result.reason || null, message: result.error || null, line: svc.publicView(result.line) });
+    res.status(result.ok ? 200 : 422).json({ ok: result.ok, reason: result.reason || null, message: result.error || null, line: svc.publicView(result.line, { aiReady: getLoPhoneCalls().isAiReady() }) });
   } catch (err) {
     console.error('[LO Phone buy] Error:', err?.message || err);
     res.status(500).json({ error: 'phone_buy_failed' });
+  }
+});
+
+// ─── LO AI answers the phone (Telnyx → OpenAI Realtime over SIP) ───
+const { createLoPhoneCallService } = require('./services/loPhoneCallService');
+const { createTelnyxClient: createTelnyxCallClient } = require('./services/telnyxClient');
+const { verifyTelnyxSignature, verifyOpenAiWebhook } = require('./services/webhookSignatures');
+const WebSocketClient = require('ws');
+let loPhoneCallsInstance = null;
+function getLoPhoneCalls() {
+  if (!loPhoneCallsInstance) {
+    loPhoneCallsInstance = createLoPhoneCallService({
+      supabase: supabaseAdmin,
+      telnyx: createTelnyxCallClient({ apiKey: process.env.TELNYX_API_KEY }),
+      brain: getLoBrain(),
+      typesafeClient: createLoBrainJevClient({ apiKey: process.env.TYPESAFE_API_KEY }),
+      generateSummary: openAiChatReply,
+      WebSocketImpl: WebSocketClient,
+      onLead: async ({ loAgentId, lead, intent, handoff }) => {
+        if (intent === 'hot' || handoff) return deliverHotLeadAlert(loAgentId, 'lo', lead, 90);
+        await supabaseAdmin.from('notifications').insert({
+          user_id: loAgentId,
+          title: `📞 New call: ${lead.full_name || lead.name || 'Phone caller'}`,
+          content: lead.lead_summary || 'Your AI answered a call. Tap to see what they said.',
+          type: 'lead',
+          priority: 'normal',
+          is_read: false
+        });
+      }
+    });
+  }
+  return loPhoneCallsInstance;
+}
+
+let telnyxKeyWarned = false;
+// POST /api/webhooks/telnyx/voice — the LO's number is ringing (Voice API app "HomeListingAI Phone")
+app.post('/api/webhooks/telnyx/voice', async (req, res) => {
+  const publicKey = process.env.TELNYX_PUBLIC_KEY;
+  if (publicKey) {
+    const check = verifyTelnyxSignature({ headers: req.headers, rawBody: req.rawBody, publicKey });
+    if (!check.ok) {
+      console.warn('[LO Call] Telnyx webhook refused:', check.reason);
+      return res.status(401).json({ error: check.reason });
+    }
+  } else if (!telnyxKeyWarned) {
+    telnyxKeyWarned = true;
+    console.warn('[LO Call] TELNYX_PUBLIC_KEY not set — Telnyx webhooks are not signature-checked.');
+  }
+  try {
+    const result = await getLoPhoneCalls().handleTelnyxEvent(req.body);
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    console.error('[LO Call] Telnyx event failed:', err?.message || err);
+    res.json({ ok: false }); // 200 so Telnyx doesn't hammer retries; the call falls back on its own
+  }
+});
+
+// POST /api/webhooks/openai/realtime — OpenAI got our SIP leg; accept it with the LO Brain
+app.post('/api/webhooks/openai/realtime', async (req, res) => {
+  const secret = process.env.OPENAI_WEBHOOK_SECRET;
+  if (secret) {
+    const check = verifyOpenAiWebhook({ headers: req.headers, rawBody: req.rawBody, secret });
+    if (!check.ok) {
+      console.warn('[LO Call] OpenAI webhook refused:', check.reason);
+      return res.status(401).json({ error: check.reason });
+    }
+  }
+  try {
+    const result = await getLoPhoneCalls().handleOpenAiEvent(req.body);
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    console.error('[LO Call] OpenAI event failed:', err?.message || err);
+    res.status(500).json({ ok: false });
+  }
+});
+
+// PUT /api/lo/phone-line/transfer { number } — the cell hot callers get passed to
+app.put('/api/lo/phone-line/transfer', requireLoAgent, async (req, res) => {
+  try {
+    const svc = getLoPhoneLines();
+    const result = await svc.setTransferNumber(req.loAgentId, req.body?.number);
+    if (!result.ok) return res.status(400).json({ error: result.reason, message: result.error || null });
+    res.json({ ok: true, line: svc.publicView(result.line, { aiReady: getLoPhoneCalls().isAiReady() }) });
+  } catch (err) {
+    console.error('[LO Phone transfer] Error:', err?.message || err);
+    res.status(500).json({ error: 'phone_transfer_failed' });
+  }
+});
+
+// GET /api/lo/phone-calls — the LO's recent AI calls, newest first
+app.get('/api/lo/phone-calls', requireLoAgent, async (req, res) => {
+  try {
+    res.json({ calls: await getLoPhoneCalls().recentCalls(req.loAgentId, 20) });
+  } catch (err) {
+    const missing = err?.code === '42P01' || err?.code === 'PGRST205';
+    console.error('[LO Phone calls] Error:', err?.message || err);
+    res.status(missing ? 200 : 500).json(missing ? { calls: [] } : { error: 'failed_to_load_calls' });
   }
 });
 
