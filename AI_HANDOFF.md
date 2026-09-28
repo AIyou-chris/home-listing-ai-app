@@ -31,6 +31,12 @@
 
 ## Log
 
+### 2026-09-28 10:45 — Claude — AI Brain light redesign + Calls & Texts settings (PRs #18, #19, live)
+- **Did:** AI Brain page now matches LO Today (light, one column, collapsible). New Calls & Texts section: OpenAI voice picker (Marin/Cedar) + "Hear it" (`POST /api/lo/brain/voice-preview`, gpt-4o-mini-tts), Off/Ask/Auto for calls + texts, call opening, voicemail, text templates. New columns on `lo_chatbot_configs` (`lo-brain-calls-texts-migration.sql`, applied).
+- **State:** Merged + live. Settings save only — nothing dials or texts yet (badge says "Phone line not connected yet").
+- **Open / next:** Wire outbound/inbound calls: Telnyx number → OpenAI Realtime (gpt-realtime-2.1, SIP) using the LO Brain prompt + compliance; texts through the An AI You comms engine port. Then delete Vapi/Hume paths. Chris decided: voice = OpenAI only, no third-party voice apps; Telnyx is only the phone line.
+- **Heads-up:** Consent rules must gate every call/text (only opted-in, STOP, 8am–9pm local, says it's an AI).
+
 ### 2026-09-28 09:00 — Claude — Built LO Brain slice 1 (branch `feat/lo-brain`, PR #17)
 - **Did:** New `backend/services/loBrainService.js` (stacked prompt: platform safety > LO Compliance Brain > identity > ONE rulebook picked by Jev > knowledge > listing + payment schedule; plain-code reply check: banned words block, disclosure appended, logged). `/api/public/lo-chat` now runs it. New `/api/lo/brain/summary|test|feedback`. New AI Brain page `LOBrainPage.tsx` (replaces `LOChatbotSetupPage`, same route `/dashboard/lo-chatbot`, sidebar "AI Brain"). `lo-brain-migration.sql` (idempotent).
 - **State:** Pushed to GitHub branch `feat/lo-brain`, PR https://github.com/AIyou-chris/home-listing-ai-app/pull/17. MERGED to main 2026-09-28 and LIVE (Render + Netlify verified). Migration RUN in Supabase (HOMELISTINGAI project) by Claude. Tests: 16 new, backend 78/78, jest 43/43, build OK.
