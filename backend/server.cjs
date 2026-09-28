@@ -34074,6 +34074,54 @@ app.post('/api/lo/brain/test', requireLoAgent, async (req, res) => {
   }
 });
 
+// ─── LO AI phone number (Telnyx line; voice = OpenAI, wired in the next slice) ───
+const { createLoPhoneLineService, isEnabledFor: loPhoneEnabledFor, phoneLineConfig } = require('./services/loPhoneLineService');
+let loPhoneLinesInstance = null;
+const getLoPhoneLines = () => (loPhoneLinesInstance ||= createLoPhoneLineService({ supabase: supabaseAdmin }));
+
+// GET /api/lo/phone-line — is the feature on for this LO, and their line (if any)
+app.get('/api/lo/phone-line', requireLoAgent, async (req, res) => {
+  try {
+    const enabled = loPhoneEnabledFor(req.loAgentId);
+    if (!enabled) return res.json({ enabled: false, line: null });
+    const svc = getLoPhoneLines();
+    const line = await svc.currentLine(req.loAgentId);
+    res.json({ enabled: true, testMode: phoneLineConfig().mock, line: svc.publicView(line) });
+  } catch (err) {
+    const missing = err?.code === '42P01' || err?.code === 'PGRST205';
+    console.error('[LO Phone GET] Error:', err?.message || err);
+    res.status(500).json({ error: missing ? 'phone_migration_not_run' : 'failed_to_load_phone_line' });
+  }
+});
+
+// POST /api/lo/phone-line/preview { areaCode } — hold a real number at its real price (buys nothing)
+app.post('/api/lo/phone-line/preview', requireLoAgent, async (req, res) => {
+  try {
+    if (!loPhoneEnabledFor(req.loAgentId)) return res.status(403).json({ error: 'phone_not_enabled' });
+    const svc = getLoPhoneLines();
+    const result = await svc.previewNumber(req.loAgentId, req.body?.areaCode);
+    if (!result.ok && result.reason === 'bad_area_code') return res.status(400).json({ error: result.reason, message: result.error });
+    res.status(result.ok ? 200 : 422).json({ ok: result.ok, reason: result.reason || null, line: svc.publicView(result.line) });
+  } catch (err) {
+    console.error('[LO Phone preview] Error:', err?.message || err);
+    res.status(500).json({ error: 'phone_preview_failed' });
+  }
+});
+
+// POST /api/lo/phone-line/buy — buy the held number (never retried automatically)
+app.post('/api/lo/phone-line/buy', requireLoAgent, async (req, res) => {
+  try {
+    if (!loPhoneEnabledFor(req.loAgentId)) return res.status(403).json({ error: 'phone_not_enabled' });
+    if (req.body?.confirm !== true) return res.status(400).json({ error: 'confirmation_required' });
+    const svc = getLoPhoneLines();
+    const result = await svc.buyNumber(req.loAgentId);
+    res.status(result.ok ? 200 : 422).json({ ok: result.ok, reason: result.reason || null, message: result.error || null, line: svc.publicView(result.line) });
+  } catch (err) {
+    console.error('[LO Phone buy] Error:', err?.message || err);
+    res.status(500).json({ error: 'phone_buy_failed' });
+  }
+});
+
 // POST /api/lo/brain/voice-preview — play a sample of the chosen OpenAI voice
 const loVoicePreviewHits = new Map(); // loAgentId -> [timestamps]
 app.post('/api/lo/brain/voice-preview', requireLoAgent, async (req, res) => {

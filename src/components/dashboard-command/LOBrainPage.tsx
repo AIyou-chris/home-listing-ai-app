@@ -323,6 +323,142 @@ const ChipsInput: React.FC<{
   );
 };
 
+// ─── AI phone number (one per LO) ────────────────────────────────────────────
+
+interface PhoneLineView {
+  status: string;
+  phoneNumber: string | null;
+  reservedNumber: string | null;
+  reservationExpiresAt: string | null;
+  error: string | null;
+  isTest: boolean;
+  aiAnswering: boolean;
+}
+
+const prettyPhone = (e164: string | null) => {
+  const d = String(e164 || '').replace(/\D/g, '').slice(-10);
+  return d.length === 10 ? `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}` : String(e164 || '');
+};
+
+const PhoneNumberBox: React.FC<{ demo: boolean }> = ({ demo }) => {
+  const [loading, setLoading] = useState(true);
+  const [enabled, setEnabled] = useState(false);
+  const [testMode, setTestMode] = useState(false);
+  const [line, setLine] = useState<PhoneLineView | null>(null);
+  const [areaCode, setAreaCode] = useState('');
+  const [busy, setBusy] = useState<'' | 'find' | 'buy'>('');
+
+  useEffect(() => {
+    if (demo) { setEnabled(true); setTestMode(true); setLoading(false); return; }
+    (async () => {
+      try {
+        const res = await fetch(buildApiUrl('/api/lo/phone-line'), { headers: await getApiHeaders() });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) { setEnabled(Boolean(data.enabled)); setTestMode(Boolean(data.testMode)); setLine(data.line || null); }
+      } catch { /* shows as not available */ } finally { setLoading(false); }
+    })();
+  }, [demo]);
+
+  const find = async () => {
+    const code = areaCode.replace(/\D/g, '');
+    if (!/^[2-9]\d{2}$/.test(code)) { toast.error('Enter a 3-digit US area code, like 509.'); return; }
+    setBusy('find');
+    try {
+      if (demo) {
+        setLine({ status: 'searching', phoneNumber: null, reservedNumber: `+1${code}5550100`, reservationExpiresAt: new Date(Date.now() + 15 * 60000).toISOString(), error: null, isTest: true, aiAnswering: false });
+        return;
+      }
+      const res = await fetch(buildApiUrl('/api/lo/phone-line/preview'), { method: 'POST', headers: await getApiHeaders(), body: JSON.stringify({ areaCode: code }) });
+      const data = await res.json().catch(() => ({}));
+      if (data.line) setLine(data.line);
+      if (!res.ok) toast.error(data.message || data.line?.error || 'Could not find a number there. Try a nearby area code.');
+    } catch {
+      toast.error('Could not reach the phone service. Try again.');
+    } finally { setBusy(''); }
+  };
+
+  const buy = async () => {
+    setBusy('buy');
+    try {
+      if (demo) {
+        setLine((l) => (l ? { ...l, status: 'active', phoneNumber: l.reservedNumber, reservedNumber: null } : l));
+        toast.success('Demo number set up.');
+        return;
+      }
+      const res = await fetch(buildApiUrl('/api/lo/phone-line/buy'), { method: 'POST', headers: await getApiHeaders(), body: JSON.stringify({ confirm: true }) });
+      const data = await res.json().catch(() => ({}));
+      if (data.line) setLine(data.line);
+      if (res.ok) toast.success('Your AI phone number is yours.');
+      else toast.error(data.message || 'Could not get that number. Try again.');
+    } catch {
+      toast.error('Could not reach the phone service. Try again.');
+    } finally { setBusy(''); }
+  };
+
+  if (loading) return <div className="lb-inset px-4 py-3 text-sm lb-dim">Checking your phone number…</div>;
+
+  if (!enabled) {
+    return (
+      <div className="lb-inset flex items-center gap-3 px-4 py-3">
+        <Icon name="phone_in_talk" className="text-2xl text-slate-400" />
+        <span className="text-sm"><span className="block font-semibold">Your own AI phone number</span><span className="lb-dim">Coming soon — a local number buyers can call or text 24/7.</span></span>
+      </div>
+    );
+  }
+
+  const testBadge = (testMode || line?.isTest) ? <span className="lb-pill lb-warn">Test number — not a real line</span> : null;
+
+  if (line?.phoneNumber) {
+    return (
+      <div className="flex flex-wrap items-center gap-4 rounded-xl border border-green-200 bg-green-50 px-4 py-4">
+        <Icon name="phone_in_talk" className="text-3xl text-green-700" />
+        <div className="min-w-0 flex-1">
+          <span className="lb-dim block text-xs font-semibold uppercase tracking-wide">Your AI phone number</span>
+          <span className="block text-2xl font-bold">{prettyPhone(line.phoneNumber)}</span>
+          <span className="lb-muted block text-sm">{line.aiAnswering ? 'Your AI answers this number 24/7.' : 'AI answering turns on in the next update. Hold off printing it for now.'}</span>
+        </div>
+        {testBadge}
+      </div>
+    );
+  }
+
+  if (line?.reservedNumber) {
+    const until = line.reservationExpiresAt ? new Date(line.reservationExpiresAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
+    return (
+      <div className="flex flex-col gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-sm font-semibold text-blue-900">We found you a local number:</span>
+          {testBadge}
+        </div>
+        <span className="text-3xl font-bold text-slate-900">{prettyPhone(line.reservedNumber)}</span>
+        <span className="text-sm text-blue-900">Held for you{until ? ` until ${until}` : ''}. Included in your plan.</span>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" className="lb-btn" disabled={busy !== ''} onClick={() => void buy()}>{busy === 'buy' ? 'Setting it up…' : 'Get this number'}</button>
+          <button type="button" className="lb-ghost" disabled={busy !== ''} onClick={() => setLine(null)}>Try another area code</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white px-4 py-4">
+      <div className="flex items-center gap-3">
+        <Icon name="add_call" className="text-2xl text-blue-600" />
+        <span><span className="block font-semibold">Get my AI phone number</span><span className="lb-dim text-sm">A local number buyers can call or text. Included in your plan.</span></span>
+        <span className="ml-auto">{testBadge}</span>
+      </div>
+      {line?.error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{line.error}</p>}
+      <div className="flex gap-2">
+        <label htmlFor="area-code" className="sr-only">Area code</label>
+        <input id="area-code" inputMode="numeric" maxLength={3} className="lb-input max-w-[140px]" placeholder="Area code" value={areaCode}
+          onChange={(e) => setAreaCode(e.target.value.replace(/\D/g, '').slice(0, 3))}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void find(); } }} />
+        <button type="button" className="lb-btn" disabled={busy !== '' || areaCode.length !== 3} onClick={() => void find()}>{busy === 'find' ? 'Looking…' : 'Find my number'}</button>
+      </div>
+    </div>
+  );
+};
+
 // ─── Collapsible section (open/closed remembered per browser) ────────────────
 
 const Section: React.FC<{
@@ -664,10 +800,8 @@ const LOBrainPage: React.FC = () => {
         <Section id="calls-texts" icon="call" title="Calls & Texts" subtitle="Your AI's phone voice, what it says, and how much it can do on its own."
           badge={<span className="lb-pill lb-warn">Phone line not connected yet</span>}>
           <div className="flex flex-col gap-5">
-            <div className="flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
-              <Icon name="info" className="text-xl text-blue-600" />
-              <span>Your settings save now. Calls and automatic texts start once your AI phone number is connected. The voice is OpenAI's newest; Telnyx just provides the phone line.</span>
-            </div>
+            <PhoneNumberBox demo={demo} />
+            <p className="lb-dim text-xs">Your settings below save now. Calls and automatic texts start once AI answering is turned on for your number.</p>
 
             <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-end">
               <div>
