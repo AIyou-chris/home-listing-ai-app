@@ -133,7 +133,7 @@ const PAGE_GUIDES: Record<string, GuideContent> = {
     ]
   },
   'lo-chatbot': {
-    title: 'How to set up your AI Bot',
+    title: 'How to set up your AI Brain',
     subtitle: 'Your 24/7 financing assistant on every listing.',
     steps: [
       'Set your bot’s name, greeting, and tone so it sounds like you.',

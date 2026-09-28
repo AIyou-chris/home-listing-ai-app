@@ -1,0 +1,27 @@
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800&display=swap');
+
+/* LO Brain — same look as the approved landing page (navy + cyan, condensed caps headings). */
+.lo-brain { background: #020b18; color: #fff; font-family: Inter, Arial, sans-serif; }
+.lo-brain .lb-h { font-family: 'Barlow Condensed', Impact, sans-serif; font-weight: 800; text-transform: uppercase; letter-spacing: -0.01em; }
+.lo-brain .lb-card { background: #061426; border: 1px solid #176078; border-radius: 20px; }
+.lo-brain .lb-inset { background: #020b18; border: 1px solid #143047; border-radius: 14px; }
+.lo-brain .lb-input { background: #020b18; border: 1px solid #176078; border-radius: 12px; color: #fff; padding: 11px 14px; font-size: 14px; width: 100%; outline: none; }
+.lo-brain .lb-input:focus { border-color: #00dbea; box-shadow: 0 0 0 2px #00dbea40; }
+.lo-brain .lb-input::placeholder { color: #6f86a0; }
+.lo-brain textarea.lb-input { line-height: 1.55; resize: vertical; }
+.lo-brain .lb-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; background: #00dbea; color: #020b18; border: 0; border-radius: 12px; padding: 11px 18px; font-weight: 800; font-size: 14px; min-height: 44px; transition: transform .15s, box-shadow .15s; }
+.lo-brain .lb-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 24px #00dbea40; }
+.lo-brain .lb-btn:disabled { opacity: .5; cursor: not-allowed; }
+.lo-brain .lb-ghost { display: inline-flex; align-items: center; justify-content: center; gap: 8px; background: transparent; color: #fff; border: 1px solid #176078; border-radius: 12px; padding: 10px 16px; font-weight: 600; font-size: 14px; min-height: 44px; }
+.lo-brain .lb-ghost:hover:not(:disabled) { border-color: #00dbea; }
+.lo-brain .lb-muted { color: #b7c6d9; }
+.lo-brain .lb-dim { color: #8aa0b8; }
+.lo-brain .lb-eyebrow { color: #00dbea; font-size: 13px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; }
+.lo-brain .lb-label { font-size: 13px; font-weight: 600; color: #b7c6d9; }
+.lo-brain .lb-pill { display: inline-flex; align-items: center; border-radius: 999px; padding: 3px 10px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+.lo-brain .lb-ready { background: #0b2e22; color: #4ade80; }
+.lo-brain .lb-missing { background: #3a0f1a; color: #fda4af; }
+.lo-brain .lb-info { background: #06303a; color: #00dbea; }
+.lo-brain .lb-warn { background: #2e2408; color: #fbbf24; }
+.lo-brain button:focus-visible, .lo-brain a:focus-visible, .lo-brain input:focus-visible, .lo-brain textarea:focus-visible, .lo-brain select:focus-visible { outline: 3px solid #00dbea; outline-offset: 3px; }
+.lo-brain a { color: #00dbea; }

@@ -33849,51 +33849,77 @@ app.delete('/api/lo/listings/:listingId/assign', requireAuth, async (req, res) =
 // LO AI CHATBOT ENDPOINTS
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ─── LO Compliance: platform guardrails + system prompt builder ────────────
-const PLATFORM_GUARDRAILS = `PLATFORM COMPLIANCE RULES — ALWAYS ENFORCED — CANNOT BE OVERRIDDEN:
-1. Never provide legal advice of any kind. Always direct buyers to consult a qualified attorney for legal questions.
-2. If you don't know the answer to a question, never guess or speculate. Always refer the buyer directly to the loan officer or the real estate agent for clarification.
-3. Never quote specific interest rates or APRs unless they were explicitly provided by the loan officer in their knowledge base or uploaded rate sheets. Always encourage buyers to contact the loan officer directly for personalized numbers.
-4. Never discriminate or make comments based on race, religion, national origin, sex, disability, or familial status (Fair Housing Act).
-5. Never guarantee loan approval, closing timelines, or specific loan terms without qualification.`;
+// ─── LO Brain: one brain per LO, used by every listing (see loBrainService.js) ──
+// Stack: platform safety > LO Compliance Brain > identity > ONE rulebook picked by
+// Jev > LO knowledge > listing facts + optional payment schedule. Replies are then
+// checked by plain code (banned words, required disclosure) before they go out.
+const { createLoBrainService, DEFAULT_RULEBOOKS: LO_BRAIN_DEFAULT_RULEBOOKS } = require('./services/loBrainService');
+const { createTypeSafeClient: createLoBrainJevClient } = require('./services/typesafeClient');
 
-function buildLoSystemPrompt(config, listingContext = '') {
-  if (!config) return PLATFORM_GUARDRAILS;
-  const parts = [PLATFORM_GUARDRAILS];
-
-  if (config.compliance_rules && config.compliance_rules.trim()) {
-    parts.push(`COMPANY COMPLIANCE RULES — FOLLOW THESE AS HARD CONSTRAINTS:\n${config.compliance_rules.trim()}`);
+async function openAiChatReply(messages) {
+  const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
+    },
+    body: JSON.stringify({
+      model: process.env.OPENAI_CHAT_MODEL || 'gpt-4o',
+      messages,
+      max_tokens: 260,
+      temperature: 0.5
+    })
+  });
+  if (!openaiRes.ok) {
+    const errBody = await openaiRes.text().catch(() => '');
+    console.error('[LO Brain] OpenAI error:', errBody.slice(0, 300));
+    return "I'm having trouble connecting right now. Please contact me directly for financing questions.";
   }
+  const data = await openaiRes.json();
+  return data.choices?.[0]?.message?.content?.trim() || '';
+}
 
-  parts.push(`You are ${config.bot_name || 'a mortgage and financing assistant'}.`);
-
-  if (config.personality && config.personality.trim()) {
-    parts.push(config.personality.trim());
+let loBrainInstance = null;
+function getLoBrain() {
+  if (!loBrainInstance) {
+    loBrainInstance = createLoBrainService({
+      supabase: supabaseAdmin,
+      typesafeClient: createLoBrainJevClient({ apiKey: process.env.TYPESAFE_API_KEY }),
+      generateReply: openAiChatReply
+    });
   }
+  return loBrainInstance;
+}
 
-  if (listingContext) {
-    parts.push(listingContext);
+// Fields the LO Brain page may write. Anything not sent is left as it is.
+const LO_BRAIN_TEXT_FIELDS = ['bot_name', 'greeting', 'personality', 'knowledge_base', 'compliance_rules', 'tone', 'marketing_voice', 'loan_advisor_rules', 'borrower_care_rules', 'company_name', 'company_nmls', 'required_disclosure'];
+const LO_BRAIN_LIST_FIELDS = ['licensed_states', 'banned_phrases'];
+const LO_BRAIN_BOOL_FIELDS = ['is_active', 'nmls_in_intro', 'equal_housing'];
+
+function pickLoBrainPatch(body = {}) {
+  const patch = {};
+  for (const key of LO_BRAIN_TEXT_FIELDS) {
+    if (typeof body[key] === 'string') patch[key] = body[key].slice(0, 60000);
   }
-
-  if (config.knowledge_base && config.knowledge_base.trim()) {
-    parts.push(`Knowledge base (reference material provided by the loan officer):\n${config.knowledge_base.trim()}`);
+  for (const key of LO_BRAIN_LIST_FIELDS) {
+    if (Array.isArray(body[key])) {
+      patch[key] = [...new Set(body[key].map((v) => String(v || '').trim()).filter(Boolean))].slice(0, 60);
+    }
   }
-
-  const faqText = Array.isArray(config.faq) && config.faq.length > 0
-    ? 'Frequently Asked Questions:\n' + config.faq.map(
-        (item) => `Q: ${item.question}\nA: ${item.answer}`
-      ).join('\n\n')
-    : '';
-
-  if (faqText) parts.push(faqText);
-
-  parts.push('Keep responses brief (2-4 sentences). Only answer questions related to real estate financing and mortgages — politely decline off-topic requests.');
-
-  return parts.join('\n\n');
+  for (const key of LO_BRAIN_BOOL_FIELDS) {
+    if (typeof body[key] === 'boolean') patch[key] = body[key];
+  }
+  if (Array.isArray(body.faq)) {
+    patch.faq = body.faq
+      .filter((f) => f && typeof f.question === 'string' && typeof f.answer === 'string')
+      .map((f) => ({ question: f.question.slice(0, 1000), answer: f.answer.slice(0, 4000) }))
+      .slice(0, 100);
+  }
+  return patch;
 }
 // ──────────────────────────────────────────────────────────────────────────────
 
-// GET /api/lo/chatbot-config — fetch authenticated LO's chatbot config
+// GET /api/lo/chatbot-config — the LO Brain (defaults filled in for anything not saved yet)
 app.get('/api/lo/chatbot-config', requireLoAgent, async (req, res) => {
   try {
     const agentId = req.loAgentId;
@@ -33906,46 +33932,50 @@ app.get('/api/lo/chatbot-config', requireLoAgent, async (req, res) => {
 
     if (error) throw error;
 
-    // Return defaults if no config saved yet
-    if (!data) {
-      return res.json({
-        bot_name: 'Your Loan Officer',
-        greeting: 'Hi! I can answer your financing and mortgage questions. What would you like to know?',
-        personality: 'Professional, friendly, and knowledgeable mortgage advisor. Keep answers clear and concise. Always encourage the visitor to reach out directly for personalized numbers.',
-        knowledge_base: '',
-        compliance_rules: '',
-        faq: [],
-        is_active: true
-      });
+    const defaults = {
+      bot_name: 'Your Loan Officer',
+      greeting: 'Hi! I can answer your financing and mortgage questions. What would you like to know?',
+      personality: 'Professional, friendly, and knowledgeable mortgage advisor. Keep answers clear and concise. Always encourage the visitor to reach out directly for personalized numbers.',
+      knowledge_base: '',
+      compliance_rules: '',
+      faq: [],
+      is_active: true,
+      tone: 'Friendly and straight',
+      nmls_in_intro: true,
+      marketing_voice: LO_BRAIN_DEFAULT_RULEBOOKS.marketing_voice,
+      loan_advisor_rules: LO_BRAIN_DEFAULT_RULEBOOKS.loan_advisor_rules,
+      borrower_care_rules: LO_BRAIN_DEFAULT_RULEBOOKS.borrower_care_rules,
+      company_name: '',
+      company_nmls: '',
+      licensed_states: [],
+      required_disclosure: '',
+      banned_phrases: [],
+      equal_housing: true
+    };
+    const merged = { ...defaults };
+    for (const [key, value] of Object.entries(data || {})) {
+      // null/empty rulebooks fall back to the starter wording
+      if (value === null || value === undefined) continue;
+      if (['marketing_voice', 'loan_advisor_rules', 'borrower_care_rules'].includes(key) && !String(value).trim()) continue;
+      merged[key] = value;
     }
-
-    res.json(data);
+    res.json(merged);
   } catch (err) {
     console.error('[LO Chatbot Config GET] Error:', err);
     res.status(500).json({ error: 'failed_to_fetch_chatbot_config' });
   }
 });
 
-// PUT /api/lo/chatbot-config — save LO's chatbot config
+// PUT /api/lo/chatbot-config — save the LO Brain. Only fields sent are changed.
 app.put('/api/lo/chatbot-config', requireLoAgent, async (req, res) => {
   try {
     const agentId = req.loAgentId;
-
-    const { bot_name, greeting, personality, knowledge_base, compliance_rules, faq, is_active } = req.body;
+    const patch = pickLoBrainPatch(req.body || {});
+    if (typeof patch.bot_name === 'string' && !patch.bot_name.trim()) patch.bot_name = 'Your Loan Officer';
 
     const { data, error } = await supabaseAdmin
       .from('lo_chatbot_configs')
-      .upsert({
-        lo_agent_id: agentId,
-        bot_name: bot_name || 'Your Loan Officer',
-        greeting: greeting || 'Hi! I can answer your financing and mortgage questions.',
-        personality: personality || '',
-        knowledge_base: knowledge_base || '',
-        compliance_rules: typeof compliance_rules === 'string' ? compliance_rules : '',
-        faq: Array.isArray(faq) ? faq : [],
-        is_active: is_active !== false,
-        updated_at: new Date().toISOString()
-      }, { onConflict: 'lo_agent_id' })
+      .upsert({ ...patch, lo_agent_id: agentId, updated_at: new Date().toISOString() }, { onConflict: 'lo_agent_id' })
       .select()
       .single();
 
@@ -33953,7 +33983,101 @@ app.put('/api/lo/chatbot-config', requireLoAgent, async (req, res) => {
     res.json({ success: true, config: data });
   } catch (err) {
     console.error('[LO Chatbot Config PUT] Error:', err);
-    res.status(500).json({ error: 'failed_to_save_chatbot_config' });
+    const missingColumn = err?.code === '42703' || err?.code === 'PGRST204';
+    res.status(500).json({ error: missingColumn ? 'lo_brain_migration_not_run' : 'failed_to_save_chatbot_config' });
+  }
+});
+
+// GET /api/lo/brain/summary — numbers + listings for the AI Brain page
+app.get('/api/lo/brain/summary', requireLoAgent, async (req, res) => {
+  try {
+    const loAgentId = req.loAgentId;
+    const monthStart = new Date();
+    monthStart.setDate(1);
+    monthStart.setHours(0, 0, 0, 0);
+
+    const [{ data: config }, { data: agent }, { data: assignments }, complianceRes] = await Promise.all([
+      supabaseAdmin.from('lo_chatbot_configs').select('knowledge_base, faq, updated_at, company_name').eq('lo_agent_id', loAgentId).maybeSingle(),
+      supabaseAdmin.from('agents').select('first_name, last_name, nmls_number').eq('id', loAgentId).maybeSingle(),
+      supabaseAdmin.from('listing_lo_assignments').select('listing_id').eq('lo_agent_id', loAgentId),
+      supabaseAdmin.from('lo_compliance_events').select('id', { count: 'exact', head: true }).eq('lo_agent_id', loAgentId).gte('created_at', monthStart.toISOString())
+    ]);
+
+    const listingIds = [...new Set((assignments || []).map((a) => a.listing_id).filter(Boolean))];
+    let listings = [];
+    if (listingIds.length) {
+      const [{ data: props }, { data: docs }] = await Promise.all([
+        supabaseAdmin.from('properties').select('id, address, status').in('id', listingIds),
+        supabaseAdmin.from('lo_listing_kb_docs').select('address').eq('lo_agent_id', loAgentId)
+      ]);
+      const docAddresses = (docs || []).map((d) => String(d.address || '').toLowerCase());
+      listings = (props || []).map((p) => {
+        const street = String(p.address || '').split(',')[0].trim().toLowerCase();
+        return {
+          id: p.id,
+          address: p.address || 'Listing',
+          status: p.status || null,
+          hasPaymentSchedule: Boolean(street) && docAddresses.some((a) => a.startsWith(street))
+        };
+      });
+    }
+
+    const kb = String(config?.knowledge_base || '');
+    const sources = kb.split('\n\n---\n\n').map((c) => c.trim()).filter(Boolean); // same separator the Brain page writes
+    res.json({
+      sourceCount: sources.length,
+      faqCount: Array.isArray(config?.faq) ? config.faq.length : 0,
+      lastUpdated: config?.updated_at || null,
+      hasNmls: Boolean(agent?.nmls_number),
+      hasCompany: Boolean(config?.company_name),
+      complianceEventsThisMonth: complianceRes?.error ? null : (complianceRes?.count || 0),
+      listings
+    });
+  } catch (err) {
+    console.error('[LO Brain Summary] Error:', err);
+    res.status(500).json({ error: 'failed_to_load_brain_summary' });
+  }
+});
+
+// POST /api/lo/brain/test — "Talk to your brain": same pipeline buyers get
+app.post('/api/lo/brain/test', requireLoAgent, async (req, res) => {
+  try {
+    const message = typeof req.body?.message === 'string' ? req.body.message.trim().slice(0, 2000) : '';
+    if (!message) return res.status(400).json({ error: 'message_required' });
+    const result = await getLoBrain().answer({
+      loAgentId: req.loAgentId,
+      listingId: req.body?.listing_id || null,
+      message,
+      history: req.body?.history,
+      channel: 'brain_test',
+      requireActive: false
+    });
+    res.json(result);
+  } catch (err) {
+    console.error('[LO Brain Test] Error:', err);
+    res.status(500).json({ error: 'brain_test_failed' });
+  }
+});
+
+// POST /api/lo/brain/feedback — "Good answer" / "Needs work"
+app.post('/api/lo/brain/feedback', requireLoAgent, async (req, res) => {
+  try {
+    const rating = req.body?.rating === 'good' ? 'good' : req.body?.rating === 'needs_work' ? 'needs_work' : null;
+    const question = typeof req.body?.question === 'string' ? req.body.question.slice(0, 2000) : '';
+    const answer = typeof req.body?.answer === 'string' ? req.body.answer.slice(0, 4000) : '';
+    if (!rating || !question || !answer) return res.status(400).json({ error: 'rating_question_answer_required' });
+    const { error } = await supabaseAdmin.from('lo_brain_feedback').insert({
+      lo_agent_id: req.loAgentId,
+      rating,
+      question,
+      answer,
+      route: typeof req.body?.route === 'string' ? req.body.route.slice(0, 40) : null
+    });
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[LO Brain Feedback] Error:', err);
+    res.status(500).json({ error: 'failed_to_save_feedback' });
   }
 });
 
@@ -34239,103 +34363,22 @@ app.post('/api/lo/chatbot/extract-file', (req, res, next) => {
   }
 });
 
-// POST /api/public/lo-chat — visitor sends message to LO chatbot
+// POST /api/public/lo-chat — buyer asks the listing's AI. Runs the LO Brain:
+// Jev picks the rulebook, one prompt stacks every layer, compliance check runs last.
 app.post('/api/public/lo-chat', async (req, res) => {
   try {
     const { listing_id, lo_agent_id, message, history } = req.body;
     if (!listing_id || !lo_agent_id || !message) {
       return res.status(400).json({ error: 'missing_required_fields' });
     }
-
-    // Fetch LO config
-    const { data: config, error: configErr } = await supabaseAdmin
-      .from('lo_chatbot_configs')
-      .select('bot_name, greeting, personality, knowledge_base, compliance_rules, faq, is_active')
-      .eq('lo_agent_id', lo_agent_id)
-      .eq('is_active', true)
-      .maybeSingle();
-
-    if (configErr) throw configErr;
-    if (!config) {
-      return res.json({
-        reply: "I'm setting up my financing assistant. Please contact me directly for mortgage questions."
-      });
-    }
-
-    // Fetch listing address for context. LO-platform listing_id = properties.id
-    // (the rich table); `listings` is a legacy stub and must not be used here.
-    const { data: listing } = await supabaseAdmin
-      .from('properties')
-      .select('address, price')
-      .eq('id', listing_id)
-      .maybeSingle();
-
-    let listingContext = listing
-      ? `The visitor is looking at a listing at ${listing.address}${listing.price ? ` listed at $${Number(listing.price).toLocaleString('en-US')}` : ''}.`
-      : '';
-
-    // Pull the LO's per-listing financing docs (rate sheet + payment disclosures
-    // saved on the Listing Brain tab) and give them to the bot verbatim.
-    if (listing?.address) {
-      try {
-        const streetPart = String(listing.address).split(',')[0].trim();
-        const { data: kbDocs } = await supabaseAdmin
-          .from('lo_listing_kb_docs')
-          .select('content')
-          .eq('lo_agent_id', lo_agent_id)
-          .ilike('address', `${streetPart}%`)
-          .order('updated_at', { ascending: false });
-        const kbText = (kbDocs || []).map((d) => d.content).filter(Boolean).join('\n\n').trim();
-        if (kbText) {
-          listingContext += `\n\nLoan officer's financing details for THIS listing — quote these exact programs, rates, and figures when relevant:\n${kbText}`;
-        }
-      } catch (kbErr) {
-        console.warn('[LO Chat] Could not load per-listing KB docs:', kbErr?.message || kbErr);
-      }
-    }
-
-    const systemPrompt = buildLoSystemPrompt(config, listingContext);
-
-    // Build messages array
-    const safeHistory = Array.isArray(history) ? history.slice(-8) : [];
-    const messages = [
-      { role: 'system', content: systemPrompt },
-      ...safeHistory
-        .map((m) => ({
-          // Frontend sends { role: 'user'|'assistant', content }; tolerate legacy { role:'visitor'|'bot', text }
-          role: (m.role === 'user' || m.role === 'visitor') ? 'user' : 'assistant',
-          content: String(m.content || m.text || '')
-        }))
-        .filter((m) => m.content),
-      { role: 'user', content: message }
-    ];
-
-    // Call OpenAI
-    const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
-      },
-      body: JSON.stringify({
-        model: process.env.OPENAI_CHAT_MODEL || 'gpt-4o',
-        messages,
-        max_tokens: 200,
-        temperature: 0.5
-      })
+    const result = await getLoBrain().answer({
+      loAgentId: lo_agent_id,
+      listingId: listing_id,
+      message: String(message).slice(0, 2000),
+      history,
+      channel: 'listing_chat'
     });
-
-    if (!openaiRes.ok) {
-      const errBody = await openaiRes.text();
-      console.error('[LO Chat] OpenAI error:', errBody);
-      return res.json({ reply: "I'm having trouble connecting right now. Please contact me directly for financing questions." });
-    }
-
-    const openaiData = await openaiRes.json();
-    const reply = openaiData.choices?.[0]?.message?.content?.trim()
-      || "I'm not able to answer that right now. Please reach out to me directly.";
-
-    res.json({ reply });
+    res.json({ reply: result.reply });
   } catch (err) {
     console.error('[LO Chat] Error:', err);
     res.json({ reply: "Something went wrong. Please contact the loan officer directly for financing questions." });

@@ -34,7 +34,7 @@ const OnboardingCommandPage = lazy(() => import('./components/dashboard-command/
 const LOOnboardingPage = lazy(() => import('./components/dashboard-command/LOOnboardingPage'));
 const LOListingsPage = lazy(() => import('./components/dashboard-command/LOListingsPage'));
 const LOPartnersPage = lazy(() => import('./components/dashboard-command/LOPartnersPage'));
-const LOChatbotSetupPage = lazy(() => import('./components/dashboard-command/LOChatbotSetupPage'));
+const LOBrainPage = lazy(() => import('./components/dashboard-command/LOBrainPage'));
 const LOLeadsPage = lazy(() => import('./components/dashboard-command/LOLeadsPage'));
 const LOAppointmentsPage = lazy(() => import('./components/dashboard-command/LOAppointmentsPage'));
 const LOTodayPage = lazy(() => import('./components/dashboard-command/LOTodayPage'));
@@ -297,6 +297,8 @@ const DashboardRouteGate = () => {
 
 const resolveDashboardPageTitle = (pathname: string) => {
     if (pathname.includes('/command-center')) return 'Command Center';
+    if (pathname.includes('/lo-chatbot')) return 'AI Brain';
+    if (pathname.includes('/lo-partners')) return 'Partners';
     if (pathname.includes('/listings')) return 'Listings';
     if (pathname.includes('/leads')) return 'Leads';
     if (pathname.includes('/appointments')) return 'Appointments';
@@ -1607,7 +1609,7 @@ const App: React.FC = () => {
                         <Route path="lo-partners" element={<LOPartnersPage />} />
                         <Route path="lo-leads" element={<LOLeadsPage />} />
                         <Route path="lo-appointments" element={<LOAppointmentsPage />} />
-                        <Route path="lo-chatbot" element={<LOChatbotSetupPage />} />
+                        <Route path="lo-chatbot" element={<LOBrainPage />} />
                         <Route path="office" element={<OfficeDashboardPage />} />
                         <Route path="gallery/:listingId" element={<DemoAssetGalleryPage />} />
                         <Route path="gallery" element={<DemoAssetGalleryPage />} />
@@ -1631,7 +1633,7 @@ const App: React.FC = () => {
                         <Route path="lo-partners" element={<LOPartnersPage />} />
                         <Route path="lo-leads" element={<LOLeadsPage />} />
                         <Route path="lo-appointments" element={<LOAppointmentsPage />} />
-                        <Route path="lo-chatbot" element={<LOChatbotSetupPage />} />
+                        <Route path="lo-chatbot" element={<LOBrainPage />} />
                         <Route path="office" element={<OfficeDashboardPage />} />
                         <Route path="billing" element={<BillingCommandPage />} />
                         <Route path="onboarding" element={<OnboardingCommandPage />} />
@@ -1735,7 +1737,7 @@ const App: React.FC = () => {
                         <Route path="/dashboard/listings/:listingId/edit" element={<ListingEditorPage />} />
                         <Route path="/dashboard/lo-listings" element={<LOListingsPage />} />
                         <Route path="/dashboard/lo-partners" element={<LOPartnersPage />} />
-                        <Route path="/dashboard/lo-chatbot" element={<LOChatbotSetupPage />} />
+                        <Route path="/dashboard/lo-chatbot" element={<LOBrainPage />} />
                         <Route path="/dashboard/lo-leads" element={<LOLeadsPage />} />
                         <Route path="/dashboard/lo-appointments" element={<LOAppointmentsPage />} />
                         <Route path="/dashboard/office" element={<OfficeDashboardPage />} />
