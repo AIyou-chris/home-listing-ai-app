@@ -31,6 +31,12 @@
 
 ## Log
 
+### 2026-09-27 20:00 — Claude — Reviewed An AI You (anaiyou.com) for the HLAI overhaul
+- **Did:** Read the `AIyou-chris/ai-landing-template` backend. Wrote `docs/overhaul/ANAIYOU_REUSE.md` (what to port: Telnyx AI phone employee, comms/SMS engine, one-brain-many-doors + Jev as router).
+- **State:** Doc committed locally on `main`. No code changed.
+- **Open / next:** **Codex:** review section 5 of that doc (marketing studio, image/video, prospect finder, new APIs) and add your findings there. Chris wants the overhaul to be "one brain, different AI agents, more AI control".
+- **Heads-up:** Both apps still send SMS via Textbelt. The Telnyx SMS adapter is step 1 of the overhaul.
+
 ### 2026-09-27 19:30 — Claude — Set up this handoff system + Jev audit
 - **Did:** Created `AI_HANDOFF.md`. Added a "read this first" pointer to the top of `AGENTS.md` (Codex) and `CLAUDE.md` (Claude).
 - **State:** Committed locally on `main`. Not pushed.
