@@ -25,7 +25,7 @@ export const PricingSectionNew: React.FC<PricingProps> = ({ onNavigateToSignUp: 
                 <div className="text-center max-w-3xl mx-auto mb-16 lg:mb-20">
                     <p className="text-cyan-400 font-bold tracking-widest text-sm uppercase mb-3">PRICING</p>
                     <h2 className="text-4xl md:text-5xl font-bold text-white tracking-tight mb-6">
-                        One Listing Can Pay for This Forever.
+                        Build Your Pipeline. Pick Your Plan.
                     </h2>
                     <h3 className="text-xl md:text-2xl text-slate-300 font-medium leading-relaxed mb-6">
                         Try it free for 7 days. Your plan unlocks the moment your trial ends.
@@ -391,11 +391,11 @@ export const PricingSectionNew: React.FC<PricingProps> = ({ onNavigateToSignUp: 
                             onClick={() => navigate('/lo-signup')}
                             className="w-full sm:w-auto px-8 py-4 bg-white text-slate-950 hover:bg-slate-200 font-bold rounded-lg transition-all text-lg flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(255,255,255,0.2)]"
                         >
-                            Create Free Account
+                            Start Your 7-Day Trial
                         </button>
                     </div>
                     <p className="text-slate-500 text-sm font-medium">
-                        No credit card required to start.
+                        Card required · No charge until day 7 · Cancel anytime.
                     </p>
                     {onOpenComparePlans && (
                         <button

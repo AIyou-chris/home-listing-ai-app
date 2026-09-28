@@ -8,7 +8,7 @@ import React, { useEffect, useRef, useState } from 'react';
 const DEMO_QA: { q: string; a: string }[] = [
   {
     q: 'What are rates like right now?',
-    a: "Rates move daily, but based on the loan officer's current rate sheet, well-qualified buyers are seeing 30-yr fixed offers in the low-to-mid 6s. Want an exact quote for your situation? I can have the LO text you today's numbers — what's the best number to reach you?"
+    a: "Rates change daily and depend on your credit, down payment, loan type, and other details. Your loan officer can provide a current quote for your situation. Want to connect with the LO to discuss today's options?"
   },
   {
     q: 'How much do I need down?',

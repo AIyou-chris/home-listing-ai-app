@@ -17,6 +17,7 @@ import { ProofSectionNew } from './ProofSectionNew';
 import { StatStripNew } from './StatStripNew';
 import { FinalCtaNew } from './FinalCtaNew';
 import InlineLoDemo from './InlineLoDemo';
+import ApprovedLandingPage from './ApprovedLandingPage';
 
 // Unused components removed to fix lint errors.
 // const DashboardShowcaseSection ...
@@ -1116,7 +1117,7 @@ interface LandingPageProps {
     onNavigateToShowcase?: () => void;
 }
 
-const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigateToSignIn, onEnterDemoMode, onOpenConsultationModal, onNavigateToAdmin, onNavigateToShowcase }) => {
+const _LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigateToSignIn, onEnterDemoMode, onOpenConsultationModal, onNavigateToAdmin, onNavigateToShowcase }) => {
     const [isChatOpen, setIsChatOpen] = useState(false);
     const [isComparePlansOpen, setIsComparePlansOpen] = useState(false);
     const [shouldLoadChat, setShouldLoadChat] = useState(false);
@@ -1306,4 +1307,4 @@ const LandingPage: React.FC<LandingPageProps> = ({ onNavigateToSignUp, onNavigat
     );
 };
 
-export default LandingPage;
+export default ApprovedLandingPage;
