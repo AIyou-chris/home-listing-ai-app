@@ -33892,7 +33892,10 @@ function getLoBrain() {
 }
 
 // Fields the LO Brain page may write. Anything not sent is left as it is.
-const LO_BRAIN_TEXT_FIELDS = ['bot_name', 'greeting', 'personality', 'knowledge_base', 'compliance_rules', 'tone', 'marketing_voice', 'loan_advisor_rules', 'borrower_care_rules', 'company_name', 'company_nmls', 'required_disclosure'];
+const LO_BRAIN_TEXT_FIELDS = ['bot_name', 'greeting', 'personality', 'knowledge_base', 'compliance_rules', 'tone', 'marketing_voice', 'loan_advisor_rules', 'borrower_care_rules', 'company_name', 'company_nmls', 'required_disclosure', 'voice_style', 'call_opening', 'voicemail_message', 'sms_followup_template', 'sms_reminder_template'];
+// OpenAI speech voices (gpt-4o-mini-tts + Realtime). Marin and Cedar sound the most natural.
+const LO_BRAIN_VOICES = ['marin', 'cedar', 'alloy', 'ash', 'ballad', 'coral', 'echo', 'fable', 'nova', 'onyx', 'sage', 'shimmer', 'verse'];
+const LO_BRAIN_MODES = ['off', 'ask', 'auto'];
 const LO_BRAIN_LIST_FIELDS = ['licensed_states', 'banned_phrases'];
 const LO_BRAIN_BOOL_FIELDS = ['is_active', 'nmls_in_intro', 'equal_housing'];
 
@@ -33908,6 +33911,10 @@ function pickLoBrainPatch(body = {}) {
   }
   for (const key of LO_BRAIN_BOOL_FIELDS) {
     if (typeof body[key] === 'boolean') patch[key] = body[key];
+  }
+  if (typeof body.voice_name === 'string' && LO_BRAIN_VOICES.includes(body.voice_name)) patch.voice_name = body.voice_name;
+  for (const key of ['calls_mode', 'texts_mode']) {
+    if (typeof body[key] === 'string' && LO_BRAIN_MODES.includes(body[key])) patch[key] = body[key];
   }
   if (Array.isArray(body.faq)) {
     patch.faq = body.faq
@@ -33950,7 +33957,15 @@ app.get('/api/lo/chatbot-config', requireLoAgent, async (req, res) => {
       licensed_states: [],
       required_disclosure: '',
       banned_phrases: [],
-      equal_housing: true
+      equal_housing: true,
+      voice_name: 'marin',
+      voice_style: 'Warm, calm and friendly. Speak at an easy pace, like a helpful neighbor.',
+      calls_mode: 'off',
+      texts_mode: 'ask',
+      call_opening: "Hi {first_name}, this is {ai_name}, the AI assistant for {lo_name}. You asked about {listing_address} — is now a good time for a quick question or two?",
+      voicemail_message: "Hi {first_name}, this is {ai_name}, the AI assistant for {lo_name}, following up on {listing_address}. No rush — call or text back any time.",
+      sms_followup_template: "Hi {first_name}, it's {lo_name}'s AI assistant. Thanks for checking out {listing_address}! Want me to run payment numbers for you? Reply STOP to opt out.",
+      sms_reminder_template: "Hi {first_name}, quick reminder about your call with {lo_name} on {appointment_time}. Reply STOP to opt out."
     };
     const merged = { ...defaults };
     for (const [key, value] of Object.entries(data || {})) {
@@ -34056,6 +34071,43 @@ app.post('/api/lo/brain/test', requireLoAgent, async (req, res) => {
   } catch (err) {
     console.error('[LO Brain Test] Error:', err);
     res.status(500).json({ error: 'brain_test_failed' });
+  }
+});
+
+// POST /api/lo/brain/voice-preview — play a sample of the chosen OpenAI voice
+const loVoicePreviewHits = new Map(); // loAgentId -> [timestamps]
+app.post('/api/lo/brain/voice-preview', requireLoAgent, async (req, res) => {
+  try {
+    const now = Date.now();
+    const recent = (loVoicePreviewHits.get(req.loAgentId) || []).filter((t) => now - t < 60 * 60 * 1000);
+    if (recent.length >= 30) return res.status(429).json({ error: 'too_many_previews' });
+    recent.push(now);
+    loVoicePreviewHits.set(req.loAgentId, recent);
+
+    const voice = LO_BRAIN_VOICES.includes(req.body?.voice) ? req.body.voice : 'marin';
+    const text = (typeof req.body?.text === 'string' && req.body.text.trim()
+      ? req.body.text.trim()
+      : 'Hi! I am your AI assistant. I can answer questions about this home and your financing options.').slice(0, 400);
+    const instructions = typeof req.body?.style === 'string' ? req.body.style.slice(0, 400) : undefined;
+    if (!process.env.OPENAI_API_KEY) return res.status(503).json({ error: 'voice_not_configured' });
+
+    const speechRes = await fetch('https://api.openai.com/v1/audio/speech', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+      body: JSON.stringify({ model: process.env.OPENAI_TTS_MODEL || 'gpt-4o-mini-tts', voice, input: text, ...(instructions ? { instructions } : {}), response_format: 'mp3' })
+    });
+    if (!speechRes.ok) {
+      const body = await speechRes.text().catch(() => '');
+      console.error('[LO Voice Preview] OpenAI error:', speechRes.status, body.slice(0, 300));
+      return res.status(502).json({ error: 'voice_preview_failed' });
+    }
+    const audio = Buffer.from(await speechRes.arrayBuffer());
+    res.set('Content-Type', 'audio/mpeg');
+    res.set('Cache-Control', 'no-store');
+    res.send(audio);
+  } catch (err) {
+    console.error('[LO Voice Preview] Error:', err);
+    res.status(500).json({ error: 'voice_preview_failed' });
   }
 });
 

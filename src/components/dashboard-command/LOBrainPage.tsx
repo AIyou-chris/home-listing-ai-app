@@ -42,7 +42,17 @@ interface BrainConfig {
   licensed_states: string[];
   required_disclosure: string;
   banned_phrases: string[];
+  voice_name: string;
+  voice_style: string;
+  calls_mode: Mode;
+  texts_mode: Mode;
+  call_opening: string;
+  voicemail_message: string;
+  sms_followup_template: string;
+  sms_reminder_template: string;
 }
+
+type Mode = 'off' | 'ask' | 'auto';
 
 interface BrainSummary {
   sourceCount: number;
@@ -57,8 +67,53 @@ interface BrainSummary {
 const EMPTY_CONFIG: BrainConfig = {
   bot_name: '', greeting: '', personality: '', knowledge_base: '', compliance_rules: '', faq: [], is_active: true,
   tone: 'Friendly and straight', nmls_in_intro: true, marketing_voice: '', loan_advisor_rules: '', borrower_care_rules: '',
-  company_name: '', company_nmls: '', licensed_states: [], required_disclosure: '', banned_phrases: []
+  company_name: '', company_nmls: '', licensed_states: [], required_disclosure: '', banned_phrases: [],
+  voice_name: 'marin',
+  voice_style: 'Warm, calm and friendly. Speak at an easy pace, like a helpful neighbor.',
+  calls_mode: 'off',
+  texts_mode: 'ask',
+  call_opening: 'Hi {first_name}, this is {ai_name}, the AI assistant for {lo_name}. You asked about {listing_address} — is now a good time for a quick question or two?',
+  voicemail_message: 'Hi {first_name}, this is {ai_name}, the AI assistant for {lo_name}, following up on {listing_address}. No rush — call or text back any time.',
+  sms_followup_template: "Hi {first_name}, it's {lo_name}'s AI assistant. Thanks for checking out {listing_address}! Want me to run payment numbers for you? Reply STOP to opt out.",
+  sms_reminder_template: 'Hi {first_name}, quick reminder about your call with {lo_name} on {appointment_time}. Reply STOP to opt out.'
 };
+
+const VOICES: { id: string; label: string }[] = [
+  { id: 'marin', label: 'Marin — most natural (recommended)' },
+  { id: 'cedar', label: 'Cedar — most natural (recommended)' },
+  { id: 'coral', label: 'Coral' }, { id: 'sage', label: 'Sage' }, { id: 'ballad', label: 'Ballad' }, { id: 'verse', label: 'Verse' },
+  { id: 'alloy', label: 'Alloy' }, { id: 'ash', label: 'Ash' }, { id: 'echo', label: 'Echo' }, { id: 'fable', label: 'Fable' },
+  { id: 'nova', label: 'Nova' }, { id: 'onyx', label: 'Onyx' }, { id: 'shimmer', label: 'Shimmer' }
+];
+
+const MODES: { id: Mode; label: string; help: string }[] = [
+  { id: 'off', label: 'Off', help: 'Does nothing' },
+  { id: 'ask', label: 'Ask me first', help: 'Drafts it, you tap send' },
+  { id: 'auto', label: 'Do it, tell me', help: 'Acts on its own, you get a note' }
+];
+
+const ModePicker: React.FC<{ label: string; value: Mode; onChange: (m: Mode) => void }> = ({ label, value, onChange }) => (
+  <div>
+    <span className="lb-label mb-1.5 block" id={`mode-${label}`}>{label}</span>
+    <div role="radiogroup" aria-labelledby={`mode-${label}`} className="grid grid-cols-3 gap-1.5 rounded-xl border border-slate-200 bg-slate-50 p-1">
+      {MODES.map((m) => (
+        <button key={m.id} type="button" role="radio" aria-checked={value === m.id} onClick={() => onChange(m.id)} title={m.help}
+          className={`rounded-lg px-2 py-2.5 text-sm font-semibold transition ${value === m.id ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-white'}`}>
+          {m.label}
+        </button>
+      ))}
+    </div>
+    <p className="lb-dim mt-1 text-xs">{MODES.find((m) => m.id === value)?.help}</p>
+  </div>
+);
+
+const fillSample = (text: string, botName: string) => text
+  .replace(/\{first_name\}/g, 'Jordan')
+  .replace(/\{ai_name\}/g, botName || 'your AI assistant')
+  .replace(/\{lo_name\}/g, 'your loan officer')
+  .replace(/\{listing_address\}/g, '123 Maple Street')
+  .replace(/\{appointment_time\}/g, 'Tuesday at 2 PM');
+
 
 const DEMO_CONFIG: BrainConfig = {
   ...EMPTY_CONFIG,
@@ -331,6 +386,27 @@ const LOBrainPage: React.FC = () => {
   const [asking, setAsking] = useState(false);
   const [complianceUploading, setComplianceUploading] = useState(false);
   const complianceFileRef = useRef<HTMLInputElement>(null);
+  const [previewing, setPreviewing] = useState(false);
+
+  const playVoice = async () => {
+    if (demo) { toast('Voice samples are off in the demo — start your free trial to hear your AI.', { icon: '🔒' }); return; }
+    setPreviewing(true);
+    try {
+      const res = await fetch(buildApiUrl('/api/lo/brain/voice-preview'), {
+        method: 'POST', headers: await getApiHeaders(),
+        body: JSON.stringify({ voice: config.voice_name, style: config.voice_style, text: fillSample(config.call_opening, config.bot_name) })
+      });
+      if (!res.ok) throw new Error(res.status === 429 ? 'Too many samples — try again in a bit.' : 'Could not play the sample.');
+      const url = URL.createObjectURL(await res.blob());
+      const audio = new Audio(url);
+      audio.onended = () => URL.revokeObjectURL(url);
+      await audio.play();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not play the sample.');
+    } finally {
+      setPreviewing(false);
+    }
+  };
 
   const loadSummary = useCallback(async () => {
     if (demo) { setSummary(DEMO_SUMMARY); return; }
@@ -582,6 +658,64 @@ const LOBrainPage: React.FC = () => {
               Say my NMLS# when introducing itself
               <input type="checkbox" className="h-5 w-5 accent-blue-600" checked={config.nmls_in_intro} onChange={(e) => update({ nmls_in_intro: e.target.checked })} />
             </label>
+          </div>
+        </Section>
+
+        <Section id="calls-texts" icon="call" title="Calls & Texts" subtitle="Your AI's phone voice, what it says, and how much it can do on its own."
+          badge={<span className="lb-pill lb-warn">Phone line not connected yet</span>}>
+          <div className="flex flex-col gap-5">
+            <div className="flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+              <Icon name="info" className="text-xl text-blue-600" />
+              <span>Your settings save now. Calls and automatic texts start once your AI phone number is connected. The voice is OpenAI's newest; Telnyx just provides the phone line.</span>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-end">
+              <div>
+                <label className="lb-label mb-1 block" htmlFor="voice-name">Phone voice</label>
+                <select id="voice-name" className="lb-input" value={config.voice_name} onChange={(e) => update({ voice_name: e.target.value })}>
+                  {VOICES.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
+                </select>
+              </div>
+              <button type="button" className="lb-ghost" disabled={previewing} onClick={() => void playVoice()}>
+                <Icon name={previewing ? 'hourglass_top' : 'play_circle'} className="text-xl text-blue-600" />{previewing ? 'Playing…' : 'Hear it'}
+              </button>
+            </div>
+            <div>
+              <label className="lb-label mb-1 block" htmlFor="voice-style">How it should sound</label>
+              <input id="voice-style" className="lb-input" value={config.voice_style} onChange={(e) => update({ voice_style: e.target.value })} placeholder="e.g. Warm, calm and friendly. Easy pace." />
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <ModePicker label="AI calls" value={config.calls_mode} onChange={(m) => update({ calls_mode: m })} />
+              <ModePicker label="AI texts" value={config.texts_mode} onChange={(m) => update({ texts_mode: m })} />
+            </div>
+
+            <div>
+              <label className="lb-label mb-1 block" htmlFor="call-opening">What the AI says when it calls</label>
+              <textarea id="call-opening" className="lb-input h-24" value={config.call_opening} onChange={(e) => update({ call_opening: e.target.value })} />
+            </div>
+            <div>
+              <label className="lb-label mb-1 block" htmlFor="voicemail">Voicemail it leaves</label>
+              <textarea id="voicemail" className="lb-input h-20" value={config.voicemail_message} onChange={(e) => update({ voicemail_message: e.target.value })} />
+            </div>
+            {([
+              ['sms_followup_template', 'Follow-up text after a chat or call'],
+              ['sms_reminder_template', 'Appointment reminder text']
+            ] as const).map(([key, label]) => (
+              <div key={key}>
+                <label className="lb-label mb-1 block" htmlFor={key}>{label}</label>
+                <textarea id={key} className="lb-input h-20" value={config[key]} onChange={(e) => update({ [key]: e.target.value } as Partial<BrainConfig>)} />
+                <p className={`mt-1 text-xs ${config[key].length > 160 ? 'text-amber-700' : 'lb-dim'}`}>{config[key].length}/160 characters{config[key].length > 160 ? ' — will send as 2 texts' : ''}</p>
+              </div>
+            ))}
+            <p className="lb-dim text-xs">Fill-ins: {'{first_name}'} {'{ai_name}'} {'{lo_name}'} {'{listing_address}'} {'{appointment_time}'}</p>
+
+            <div className="lb-inset flex flex-col gap-2 p-4">
+              <span className="lb-dim text-xs font-semibold uppercase tracking-wide">Rules that always apply</span>
+              {['Only calls or texts people who said yes', 'STOP always stops — no more texts, ever', 'Always says it is an AI', 'Only between 8 AM and 9 PM their time', 'Checked by your Compliance Brain first'].map((r) => (
+                <span key={r} className="flex items-center gap-2 text-sm"><Icon name="lock" className="text-lg text-slate-500" />{r}</span>
+              ))}
+            </div>
           </div>
         </Section>
 
