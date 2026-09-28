@@ -33,7 +33,7 @@
 
 ### 2026-09-28 09:00 — Claude — Built LO Brain slice 1 (branch `feat/lo-brain`, PR #17)
 - **Did:** New `backend/services/loBrainService.js` (stacked prompt: platform safety > LO Compliance Brain > identity > ONE rulebook picked by Jev > knowledge > listing + payment schedule; plain-code reply check: banned words block, disclosure appended, logged). `/api/public/lo-chat` now runs it. New `/api/lo/brain/summary|test|feedback`. New AI Brain page `LOBrainPage.tsx` (replaces `LOChatbotSetupPage`, same route `/dashboard/lo-chatbot`, sidebar "AI Brain"). `lo-brain-migration.sql` (idempotent).
-- **State:** Pushed to GitHub branch `feat/lo-brain`, PR https://github.com/AIyou-chris/home-listing-ai-app/pull/17. NOT merged. Migration NOT run yet. Tests: 16 new, backend 78/78, jest 43/43, build OK.
+- **State:** Pushed to GitHub branch `feat/lo-brain`, PR https://github.com/AIyou-chris/home-listing-ai-app/pull/17. MERGED to main 2026-09-28 and LIVE (Render + Netlify verified). Migration RUN in Supabase (HOMELISTINGAI project) by Claude. Tests: 16 new, backend 78/78, jest 43/43, build OK.
 - **Open / next:** Chris runs the migration, then merge. Next slices: Listing Brain page, Admin Brain, AI Team control levels, texting onto the comms engine.
 - **Heads-up:** Jev routing uses `typesafeClient.js` `choice` (the one client — no SDK). Codex: your uncommitted lead-scoring work should reuse this same client. `/api/public/lo-chat` still trusts the `lo_agent_id` the browser sends (pre-existing) — worth checking it against `listing_lo_assignments`.
 
