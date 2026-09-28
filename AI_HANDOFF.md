@@ -31,7 +31,7 @@
 
 ## Log
 
-### 2026-09-28 13:30 â Claude â Get my AI phone number (PR #20, live, off by default)
+### 2026-09-28 13:30 — Claude — Get my AI phone number (PR #20, live, off by default)
 - **Did:** Ported An AI You number provisioning into HLAI: backend/services/telnyxClient.js (numbers + mock), loPhoneLineService.js, GET /api/lo/phone-line, POST /preview, POST /buy. Table lo_phone_lines (migration applied). UI lives in AI Brain > Calls & Texts.
 - **State:** Merged + live but hidden: needs TELNYX_PHONE_ENABLED=true or PHONE_BETA_LO_IDS. Mock (no cost) unless TELNYX_LIVE_PROVISIONING=true + TELNYX_API_KEY. TELNYX_CONNECTION_ID for a NEW HLAI Voice API app not created yet (do not reuse ai-you-phone).
 - **Open / next:** Step 2: AI answering = Telnyx inbound -> OpenAI Realtime (SIP) with LO Brain + compliance, transfer to LO cell, lead + transcript saved. Only then turn live provisioning on.
