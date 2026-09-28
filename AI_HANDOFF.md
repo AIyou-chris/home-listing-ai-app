@@ -31,6 +31,12 @@
 
 ## Log
 
+### 2026-09-27 20:14 — Codex — Reviewed An AI You reuse plan and overhaul risks
+- **Did:** Verified Claude's phone/comms/one-brain claims and reviewed marketing, image/video, prospect/social and QR code in `/tmp/ai-landing-template-review`. Appended `docs/overhaul/ANAIYOU_REUSE.md` section 6 with take/skip decisions, revised build order, API choices, Jev-client decision and HLAI blockers.
+- **State:** Review docs only; not committed. No application/backend code changed. Focused TypeSafe/scoring tests pass (14/14).
+- **Open / next:** Keep `backend/services/typesafeClient.js` as the single Jev boundary. The uncommitted lead-scoring prototype should not merge until its direct SDK client is removed/consolidated and integration/idempotency/compliance tests are added. Start 10DLC paperwork in parallel; implement one-brain + comms as vertical slices, not a big-bang replacement.
+- **Heads-up:** Treat the uncommitted TypeSafe lead-scoring files as Codex work and leave them untouched. HLAI already has stronger QR tracking, Buffer publishing and a specialized Lead Finder; do not port those An AI You subsystems wholesale. OpenAI's Sora Videos API shut down 2026-09-24; use deterministic FFmpeg first and evaluate Gemini video only later.
+
 ### 2026-09-27 20:00 — Claude — Reviewed An AI You (anaiyou.com) for the HLAI overhaul
 - **Did:** Read the `AIyou-chris/ai-landing-template` backend. Wrote `docs/overhaul/ANAIYOU_REUSE.md` (what to port: Telnyx AI phone employee, comms/SMS engine, one-brain-many-doors + Jev as router).
 - **State:** Doc committed locally on `main`. No code changed.
