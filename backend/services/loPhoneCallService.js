@@ -423,6 +423,17 @@ function createLoPhoneCallService({
 
   async function handleRealtimeEvent(call, state, ev, { send, hangup, line, lo }) {
     const t = ev?.type || '';
+    if (t === 'error' || t === 'conversation.item.input_audio_transcription.failed') {
+      log.warn('[LO Call] realtime event problem', { call: call.id, type: t, error: ev.error?.message || ev.error || null });
+      return;
+    }
+    if (t === 'session.created' || t === 'session.updated') {
+      if (!state.loggedSession) {
+        state.loggedSession = true;
+        log.log('[LO Call] session', { call: call.id, transcription: ev.session?.audio?.input?.transcription || ev.session?.input_audio_transcription || null });
+      }
+      return;
+    }
     if (t === 'conversation.item.input_audio_transcription.completed' && clean(ev.transcript)) {
       state.transcript.push({ role: 'caller', text: clean(ev.transcript), at: new Date().toISOString() });
       return;
@@ -494,7 +505,7 @@ function createLoPhoneCallService({
   }
 
   async function summarize(transcript) {
-    if (!generateSummary || !transcript.length) return '';
+    if (!generateSummary || !transcript.some((m) => m.role === 'caller')) return '';
     try {
       const text = transcript.map((m) => `${m.role === 'caller' ? 'Caller' : 'AI'}: ${m.text}`).join('\n').slice(-8000);
       const out = await generateSummary([
