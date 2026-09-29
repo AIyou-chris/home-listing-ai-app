@@ -164,6 +164,8 @@ const ListingCard: React.FC<ListingCardProps> = ({ listing, mode, onRemove, onAd
 
   const handleShareDashboard = async () => {
     setSharingDash(true);
+    // Open the tab right away (browsers block pop-ups that open after a wait), then point it at the dashboard.
+    const tab = window.open('', '_blank');
     try {
       const headers = await getApiHeaders();
       const res = await fetch(buildApiUrl(`/api/listing/${listing.id}/dashboard-link`), {
@@ -172,10 +174,14 @@ const ListingCard: React.FC<ListingCardProps> = ({ listing, mode, onRemove, onAd
       });
       const json = await res.json() as { success?: boolean; url?: string };
       if (!res.ok || !json.url) throw new Error('failed');
-      await navigator.clipboard.writeText(json.url);
-      showToast.success('Live dashboard link copied!');
+      if (tab) tab.location.href = json.url;
+      let copied = false;
+      try { await navigator.clipboard.writeText(json.url); copied = true; } catch { /* copy is a bonus */ }
+      if (tab) showToast.success(copied ? 'Opened. Link copied so you can send it to the agent.' : 'Opened.');
+      else showToast.success(copied ? 'Link copied. Paste it in a new tab to view it.' : 'Could not open a new tab. Allow pop-ups and try again.');
     } catch {
-      showToast.error('Could not create the dashboard link. Try again.');
+      tab?.close();
+      showToast.error('Could not open the dashboard. Try again.');
     } finally {
       setSharingDash(false);
     }
@@ -217,7 +223,7 @@ const ListingCard: React.FC<ListingCardProps> = ({ listing, mode, onRemove, onAd
                 disabled={sharingDash}
                 className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition-all hover:bg-emerald-100 disabled:opacity-40"
               >
-                {sharingDash ? 'Creating…' : '📊 Live Dashboard'}
+                {sharingDash ? 'Opening…' : '📊 Live Dashboard'}
               </button>
               <button
                 onClick={() => setShowToggles(v => !v)}
