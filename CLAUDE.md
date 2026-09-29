@@ -91,7 +91,7 @@ It helps agents:
 **LO (Loan Officer) Platform:**
 - `/dashboard/lo-partners` — agent partnerships + WOW Link sender
 - `/dashboard/lo-listings` — assigned listings + branding toggles + rate sheet upload + Payment Reference toggle + "📊 Live Dashboard" share
-- `/dashboard/lo-chatbot` — LO AI financing bot setup
+- `/dashboard/lo-chatbot` — **AI Brain** (LO Brain: train once, every listing uses it; Compliance Brain; Calls & Texts; AI phone number + recent calls)
 - `/partner-invite/:token` — **WOW Link**: live listing demo w/ chatbots, sent to agents
 - `/listing-dashboard/:token` — public per-listing live lead dashboard (token-gated)
 - `/for-loan-officers` + `/for-loan-officers/:token` — **LO Acquisition Link**: marketing pitch page admin sends to *prospective* LOs (inverse of the WOW Link). Tokened version tracks opens/clicks + personalizes the hero; CTA → `/lo-signup`. Untokened version is shareable but untracked. Admin sends/tracks from Marketing Funnels (`AdminLoOutreachPanel`).
@@ -194,7 +194,23 @@ No long explanations. No walls of text. Table in, table out.
 
 ---
 
-## 7. Current State Snapshot (as of 2026-09-27)
+## 7. Current State Snapshot (as of 2026-09-28)
+
+### ✅ Recently completed — LO Brain + AI phone that answers (2026-09-28, PRs #17–#24)
+
+| Feature | Notes |
+|---|---|
+| **LO Brain** (`backend/services/loBrainService.js`) | One brain per LO behind every listing chat. Prompt stacks: platform guardrails → Compliance Brain (company, NMLS, licensed states, disclosure, banned phrases) → identity → ONE rulebook picked by **Jev** (money→Loan Advisor, home→Listing, help→Borrower Care, fallback Borrower Care) → knowledge/FAQ → listing facts + optional payment schedule. Plain-code compliance check on every reply (`lo_compliance_events`). |
+| **AI Brain page** (`LOBrainPage.tsx`, route `/dashboard/lo-chatbot`) | Light LO-Today look, one column, collapsible cards. Talk-to-your-brain test chat, knowledge library, voice + personality, **Calls & Texts** (OpenAI voice picker + "Hear it" via gpt-4o-mini-tts, Off/Ask/Auto modes, call/voicemail/SMS templates), rulebooks, Compliance Brain, FAQs. |
+| **AI phone number** (`telnyxClient.js`, `loPhoneLineService.js`, table `lo_phone_lines`) | One Telnyx number per LO. Search → hold at real price → buy (never auto-retried, never released, one live line per LO). Mock (555-01xx) unless `TELNYX_LIVE_PROVISIONING=true` + `TELNYX_API_KEY`. Visible to `PHONE_BETA_LO_IDS` or all if `TELNYX_PHONE_ENABLED`. |
+| **AI answers the phone** (`loPhoneCallService.js`, `webhookSignatures.js`, table `lo_phone_calls`) | Caller → Telnyx Voice API app **"HomeListingAI Phone"** (webhook `/api/webhooks/telnyx/voice`) → answer + SIP transfer to `sip:$OPENAI_PROJECT_ID@sip.api.openai.com` with signed X-HLAI headers → OpenAI webhook `/api/webhooks/openai/realtime` accepts with the LO Brain (gpt-realtime-2.1, LO's voice). Tools: save_caller_details, transfer_to_loan_officer (LO cell), end_call. After hang-up: transcript, Jev hot/warm/cold, summary, compliance flags, lead (source_type `phone`), alert. Falls back to LO cell or a polite message. 15-min cap. |
+| **Comped accounts** | `agents.payment_status='comp'` → LO Pro (admin-set in DB only). Chris's test LO (anaiyou@pm.me) is comped. |
+| **First live call worked (2026-09-28)** | Chris's test LO has **(754) 243-8686** (moved from An AI You's numbers, attached to HomeListingAI Phone app). AI answered in his voice. **Bug:** only the AI side was transcribed, so no lead was made — PR #24 adds logging; next step is one more test call and read the logs. |
+
+**Render env set for phone:** `OPENAI_PROJECT_ID`, `OPENAI_WEBHOOK_SECRET`, `TELNYX_API_KEY`, `TELNYX_PUBLIC_KEY`, `TELNYX_CONNECTION_ID` (HomeListingAI Phone app), `TELNYX_LIVE_PROVISIONING=true`, `PHONE_BETA_LO_IDS`. OpenAI project webhook → `/api/webhooks/openai/realtime` (event `realtime.call.incoming`). Telnyx app has the Default outbound voice profile.
+
+**Phone — still to do:** fix caller-side transcript · move Render web off the FREE plan (a sleeping server can't answer a call) · outbound calls (consent-gated) · texts after 10DLC brand approval · delete old Vapi/Hume paths · old web-voice path still defaults to removed `gpt-4o-realtime-preview` · `/api/public/lo-chat` trusts the browser's `lo_agent_id` (validate against `listing_lo_assignments`) · Listing Brain + Admin Brain pages · port An AI You Marketing Studio + Prospect Finder.
+
 
 ### ✅ Recently completed — TypeSafe (Jev) integration: LO Lead Finder role classification (2026-09-27)
 
