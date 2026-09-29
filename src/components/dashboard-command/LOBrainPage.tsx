@@ -768,7 +768,7 @@ const LOBrainPage: React.FC = () => {
           <div className="max-w-2xl">
             <p className="lb-eyebrow">Your AI Brain</p>
             <h1 className="lb-h mt-1 text-3xl sm:text-4xl">Train it once. <span className="text-blue-600">Every listing gets it.</span></h1>
-            <p className="lb-muted mt-2 text-base leading-relaxed">Your listing chat and financing AI use this one brain on every listing — same name, same knowledge, same rules.</p>
+            <p className="lb-muted mt-2 text-base leading-relaxed">Your chat, your phone and every listing use this one brain.</p>
           </div>
           <label className="lb-ghost shrink-0 cursor-pointer self-start">
             <input type="checkbox" className="h-5 w-5 accent-blue-600" checked={config.is_active} onChange={(e) => update({ is_active: e.target.checked })} />
