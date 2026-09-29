@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import PageGuide from './PageGuide';
 import AiPowerSwitch from './AiPowerSwitch';
+import ListingPhonePanel, { ListingPhoneLine } from './ListingPhonePanel';
 import { useNavigate } from 'react-router-dom';
 import { buildApiUrl } from '../../lib/api';
 import { supabase } from '../../services/supabase';
@@ -33,6 +34,11 @@ type Listing = {
   brandingEnabled?: boolean;
   assignedAt?: string | null;
   canEdit?: boolean;
+};
+
+const prettyPhone = (e164: string | null) => {
+  const d = String(e164 || '').replace(/\D/g, '').slice(-10);
+  return d.length === 10 ? `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}` : String(e164 || '');
 };
 
 const getApiHeaders = async (): Promise<HeadersInit> => {
@@ -88,6 +94,10 @@ type ListingCardProps = {
   onRemove?: (id: string) => void;
   onAdd?: (id: string) => void;
   loading?: boolean;
+  phoneEnabled?: boolean;
+  phoneLine?: ListingPhoneLine | null;
+  onPhoneLine?: (listingId: string, line: ListingPhoneLine | null) => void;
+  demo?: boolean;
 };
 
 // ─── Branding Toggle Panel ────────────────────────────────────────────────────
@@ -156,8 +166,9 @@ const BrandingTogglePanel: React.FC<{ listingId: string; demo?: boolean }> = ({ 
 
 // ─── Listing card ─────────────────────────────────────────────────────────────
 
-const ListingCard: React.FC<ListingCardProps> = ({ listing, mode, onRemove, onAdd, loading }) => {
+const ListingCard: React.FC<ListingCardProps> = ({ listing, mode, onRemove, onAdd, loading, phoneEnabled, phoneLine, onPhoneLine, demo }) => {
   const [showToggles, setShowToggles] = useState(false);
+  const [showPhone, setShowPhone] = useState(false);
   const [sharingDash, setSharingDash] = useState(false);
   const [removeConfirm, setRemoveConfirm] = useState(false);
   const navigate = useNavigate();
@@ -225,6 +236,14 @@ const ListingCard: React.FC<ListingCardProps> = ({ listing, mode, onRemove, onAd
               >
                 {sharingDash ? 'Opening…' : '📊 Live Dashboard'}
               </button>
+              {phoneEnabled && (
+                <button
+                  onClick={() => setShowPhone(v => !v)}
+                  className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all ${showPhone ? 'border-primary-300 bg-primary-50 text-primary-700' : 'border-slate-200 text-slate-500 hover:border-primary-200 hover:text-primary-600'}`}
+                >
+                  {phoneLine?.phoneNumber ? `📞 ${prettyPhone(phoneLine.phoneNumber)}` : '📞 AI phone number'}
+                </button>
+              )}
               <button
                 onClick={() => setShowToggles(v => !v)}
                 className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all ${showToggles ? 'border-primary-300 bg-primary-50 text-primary-700' : 'border-slate-200 text-slate-500 hover:border-primary-200 hover:text-primary-600'}`}
@@ -268,6 +287,9 @@ const ListingCard: React.FC<ListingCardProps> = ({ listing, mode, onRemove, onAd
           )}
         </div>
       </div>
+      {mode === 'assigned' && phoneEnabled && showPhone && (
+        <ListingPhonePanel listingId={listing.id} line={phoneLine || null} demo={demo} onChange={(l) => onPhoneLine?.(listing.id, l)} />
+      )}
       {mode === 'assigned' && showToggles && (
         <BrandingTogglePanel listingId={listing.id} />
       )}
@@ -284,6 +306,8 @@ const LOListingsPage: React.FC = () => {
   const [assigned, setAssigned] = useState<Listing[]>([]);
   const [loadingAssigned, setLoadingAssigned] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [phoneEnabled, setPhoneEnabled] = useState(false);
+  const [phoneLines, setPhoneLines] = useState<Record<string, ListingPhoneLine>>({});
 
   const [query, setQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Listing[]>([]);
@@ -292,6 +316,29 @@ const LOListingsPage: React.FC = () => {
   const [removingId, setRemovingId] = useState<string | null>(null);
 
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Which listings already have their own AI phone number
+  useEffect(() => {
+    if (demoMode) { setPhoneEnabled(true); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(buildApiUrl('/api/lo/listing-phone-lines'), { headers: await getApiHeaders() });
+        if (!res.ok) return;
+        const data = await res.json() as { enabled?: boolean; lines?: Record<string, ListingPhoneLine> };
+        if (!cancelled) { setPhoneEnabled(Boolean(data.enabled)); setPhoneLines(data.lines || {}); }
+      } catch { /* the button just stays hidden */ }
+    })();
+    return () => { cancelled = true; };
+  }, [demoMode]);
+
+  const handlePhoneLine = (listingId: string, line: ListingPhoneLine | null) => {
+    setPhoneLines((prev) => {
+      const next = { ...prev };
+      if (line) next[listingId] = line; else delete next[listingId];
+      return next;
+    });
+  };
 
   // Load assigned listings on mount
   useEffect(() => {
@@ -542,6 +589,10 @@ const LOListingsPage: React.FC = () => {
                 mode="assigned"
                 onRemove={handleRemove}
                 loading={removingId === listing.id}
+                phoneEnabled={phoneEnabled}
+                phoneLine={phoneLines[listing.id] || null}
+                onPhoneLine={handlePhoneLine}
+                demo={demoMode}
               />
             ))}
           </div>

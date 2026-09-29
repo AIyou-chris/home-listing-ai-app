@@ -29,6 +29,13 @@
 
 ---
 
+### 2026-09-29 10:30 — Claude — Per-listing AI phone numbers (LO / LO Pro)
+- **Did:** `lo_phone_lines.listing_id` (migration `lo-phone-listing-lines-migration.sql`, APPLIED in Supabase). Main line = `listing_id IS NULL` (still one per LO); a listing line = one per listing. `loPhoneLineService` methods take an optional `listingId`; new `listingLines()`. `loPhoneCallService` focuses the AI on that one home (`focusListing`). Routes: `GET /api/lo/listing-phone-lines`, `POST /api/lo/listings/:id/phone-line/{preview,buy}` — gated to tiers `lo` / `lo_pro` (+ office/white_label) and to listings the LO owns or is assigned to. UI: `ListingPhonePanel.tsx` + "📞 AI phone number" button on each assigned listing card. Calls share the LO's monthly minute pool (`minuteUsage` counts by `lo_agent_id`).
+- **State:** backend tests 102/102, tsc clean apart from the 2 known pre-existing errors.
+- **Open / next:** numbers are never auto-released (by design), so a sold listing's number keeps costing ~$1/mo until someone releases it — a "retire after 60 days" job is NOT built. The $20 / 200-minute pack is NOT built. Live buy on a listing not yet clicked through by Chris.
+- **Heads-up:** run the migration before deploying any code that reads `listing_id` (already done in prod).
+
+
 ## Log
 
 ### 2026-09-29 09:10 — Claude — Phone costs: mini model + monthly AI-minute caps
