@@ -430,6 +430,7 @@ const PhoneNumberBox: React.FC<{ demo: boolean }> = ({ demo }) => {
   const [enabled, setEnabled] = useState(false);
   const [testMode, setTestMode] = useState(false);
   const [line, setLine] = useState<PhoneLineView | null>(null);
+  const [minutes, setMinutes] = useState<{ used: number; limit: number | null; left: number | null } | null>(null);
   const [areaCode, setAreaCode] = useState('');
   const [busy, setBusy] = useState<'' | 'find' | 'buy'>('');
 
@@ -439,7 +440,7 @@ const PhoneNumberBox: React.FC<{ demo: boolean }> = ({ demo }) => {
       try {
         const res = await fetch(buildApiUrl('/api/lo/phone-line'), { headers: await getApiHeaders() });
         const data = await res.json().catch(() => ({}));
-        if (res.ok) { setEnabled(Boolean(data.enabled)); setTestMode(Boolean(data.testMode)); setLine(data.line || null); }
+        if (res.ok) { setEnabled(Boolean(data.enabled)); setTestMode(Boolean(data.testMode)); setLine(data.line || null); setMinutes(data.minutes || null); }
       } catch { /* shows as not available */ } finally { setLoading(false); }
     })();
   }, [demo]);
@@ -505,6 +506,18 @@ const PhoneNumberBox: React.FC<{ demo: boolean }> = ({ demo }) => {
           </div>
           {testBadge}
         </div>
+        {minutes && minutes.limit != null && (
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center justify-between text-sm">
+              <span className="font-semibold">AI minutes this month</span>
+              <span className={minutes.left === 0 ? 'font-semibold text-red-700' : 'lb-muted'}>{minutes.used} of {minutes.limit}</span>
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+              <div className={`h-full rounded-full ${minutes.left === 0 ? 'bg-red-500' : (minutes.limit && minutes.used / minutes.limit > 0.8 ? 'bg-amber-500' : 'bg-blue-600')}`} style={{ width: `${Math.min(100, minutes.limit ? (minutes.used / minutes.limit) * 100 : 100)}%` }} />
+            </div>
+            {minutes.left === 0 && <p className="text-xs text-red-700">You've used this month's AI minutes. Calls ring your cell until the 1st.</p>}
+          </div>
+        )}
         <HandoffNumber demo={demo} value={line.transferNumber || null} onSaved={setLine} />
         <RecentCalls demo={demo} />
       </div>

@@ -105,6 +105,7 @@ function createLoPhoneCallService({
   env = process.env,
   fetchImpl = globalThis.fetch,
   WebSocketImpl = null,
+  getMinuteLimit = null, // async (loAgentId) => AI minutes allowed this month (null = no cap)
   setTimer = setTimeout,
   log = console,
 } = {}) {
@@ -116,12 +117,36 @@ function createLoPhoneCallService({
     return {
       openaiKey,
       projectId,
-      model: clean(env.OPENAI_REALTIME_MODEL) || 'gpt-realtime-2.1',
+      // Mini costs about a third as much and is plenty for short buyer calls.
+      model: clean(env.OPENAI_REALTIME_MODEL) || 'gpt-realtime-2.1-mini',
       transcribeModel: clean(env.OPENAI_TRANSCRIBE_MODEL) || 'whisper-1',
       aiReady: Boolean(openaiKey && projectId),
       maxCallMs: Number(env.PHONE_MAX_CALL_MS) || MAX_CALL_MS,
     };
   };
+
+  // ── AI minutes used this calendar month (UTC), AI-answered calls only ──────
+  async function minutesUsed(loAgentId, now = new Date()) {
+    const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
+    const { data } = await supabase
+      .from('lo_phone_calls')
+      .select('mode, answered_at, ended_at, started_at')
+      .eq('lo_agent_id', loAgentId)
+      .gte('started_at', monthStart);
+    let seconds = 0;
+    for (const c of data || []) {
+      if (c.mode !== 'ai' || !c.answered_at) continue;
+      const end = c.ended_at ? new Date(c.ended_at) : now; // a live call counts too
+      seconds += Math.max(0, (end - new Date(c.answered_at)) / 1000);
+    }
+    return Math.ceil(seconds / 60);
+  }
+
+  async function minuteUsage(loAgentId) {
+    const used = await minutesUsed(loAgentId);
+    const limit = getMinuteLimit ? await getMinuteLimit(loAgentId) : null;
+    return { used, limit, left: limit == null ? null : Math.max(0, limit - used) };
+  }
 
   // ── small data helpers ───────────────────────────────────────────────────
   async function getCall(id) {
@@ -287,8 +312,17 @@ function createLoPhoneCallService({
       const { config, lo } = await loadLo(line.lo_agent_id);
       const brainOn = Boolean(config) && config.is_active !== false;
       const cell = await transferTarget(line, lo);
-      const mode = brainOn && cfg().aiReady ? 'ai' : (cell ? 'forward' : 'unavailable');
-      await patchCall(call.id, { mode });
+      let overCap = false;
+      if (brainOn && cfg().aiReady && getMinuteLimit) {
+        try {
+          const usage = await minuteUsage(line.lo_agent_id);
+          overCap = usage.limit != null && usage.left <= 0;
+        } catch (err) {
+          log.warn('[LO Call] minute check failed, allowing AI', err?.message || err);
+        }
+      }
+      const mode = brainOn && cfg().aiReady && !overCap ? 'ai' : (cell ? 'forward' : 'unavailable');
+      await patchCall(call.id, { mode, ...(overCap ? { error: 'monthly_ai_minutes_used' } : {}) });
       await telnyx.callAction(ccid, 'answer', { client_state: b64({ c: call.id }) });
       return { handled: 'answered', mode, callId: call.id };
     }
@@ -650,7 +684,7 @@ function createLoPhoneCallService({
     }));
   }
 
-  return { handleTelnyxEvent, handleOpenAiEvent, finalize, recentCalls, buildInstructions, openingLine, isAiReady: () => cfg().aiReady, _sessions: sessions, _handleRealtimeEvent: handleRealtimeEvent };
+  return { handleTelnyxEvent, handleOpenAiEvent, finalize, recentCalls, minuteUsage, buildInstructions, openingLine, isAiReady: () => cfg().aiReady, _sessions: sessions, _handleRealtimeEvent: handleRealtimeEvent };
 }
 
 module.exports = { createLoPhoneCallService, TOOLS, UNAVAILABLE_MESSAGE, sipHeader };

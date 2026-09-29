@@ -31,6 +31,11 @@
 
 ## Log
 
+### 2026-09-29 09:10 — Claude — Phone costs: mini model + monthly AI-minute caps
+- **Did:** Default realtime model is now `gpt-realtime-2.1-mini` (~1/3 cost; override with `OPENAI_REALTIME_MODEL`). Monthly AI minutes per plan (`LO_PHONE_MINUTES` in server.cjs): trial 30, lo_lite 100, lo 300, lo_pro/office/comp 1000, none 0. Counted from `lo_phone_calls` (AI-answered, this UTC month). Out of minutes → call rings the LO's cell (or polite message). AI Brain page shows a minutes bar under the number. `GET /api/lo/phone-line` returns `minutes {used, limit, left}`.
+- **Decided with Chris:** LO Lite target cost ~$7/mo for phone (100 min on mini + number + carrier). Per-listing numbers only on LO / LO Pro (not built yet). Extra-minute pack ($20 / 200 min, like An AI You) planned, not built.
+- **Open / next:** caller-side transcript bug (needs a test call + logs); per-listing numbers; minute pack via Stripe; Render web off FREE plan.
+
 ### 2026-09-28 19:20 — Claude — AI phone live-tested; state saved
 - **Did:** PR #22/#23 comp plan (`payment_status='comp'` → LO Pro, constraint updated). Chris's test LO comped and given (754) 243-8686 (row updated directly; number re-pointed to HomeListingAI Phone app in Telnyx). First live call: AI answered correctly. PR #24: logs realtime `error` / `input_audio_transcription.failed` / session transcription config; no summary when caller said nothing.
 - **State:** Everything merged to main and deployed. CLAUDE.md section 7 updated with the full phone picture.
