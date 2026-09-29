@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import PageGuide from './PageGuide';
+import AiPowerSwitch from './AiPowerSwitch';
 import { useNavigate } from 'react-router-dom';
 import { buildApiUrl } from '../../lib/api';
 import { supabase } from '../../services/supabase';
@@ -415,6 +416,11 @@ const LOListingsPage: React.FC = () => {
 
   return (
     <div className="mx-auto max-w-2xl space-y-8 px-4 py-8">
+      {/* AI on/off — the first thing on the page */}
+      <div className="pr-10">
+        <AiPowerSwitch demo={demoMode} />
+      </div>
+
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-slate-900">My Listings</h1>
