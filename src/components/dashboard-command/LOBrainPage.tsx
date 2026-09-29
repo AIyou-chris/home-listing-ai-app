@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { buildApiUrl } from '../../lib/api';
 import { supabase } from '../../services/supabase';
@@ -86,33 +85,6 @@ const VOICES: { id: string; label: string }[] = [
   { id: 'nova', label: 'Nova' }, { id: 'onyx', label: 'Onyx' }, { id: 'shimmer', label: 'Shimmer' }
 ];
 
-const MODES: { id: Mode; label: string; help: string }[] = [
-  { id: 'off', label: 'Off', help: 'Does nothing' },
-  { id: 'ask', label: 'Ask me first', help: 'Drafts it, you tap send' },
-  { id: 'auto', label: 'Do it, tell me', help: 'Acts on its own, you get a note' }
-];
-
-const ModePicker: React.FC<{ label: string; value: Mode; onChange: (m: Mode) => void }> = ({ label, value, onChange }) => (
-  <div>
-    <span className="lb-label mb-1.5 block" id={`mode-${label}`}>{label}</span>
-    <div role="radiogroup" aria-labelledby={`mode-${label}`} className="grid grid-cols-3 gap-1.5 rounded-xl border border-slate-200 bg-slate-50 p-1">
-      {MODES.map((m) => (
-        <button key={m.id} type="button" role="radio" aria-checked={value === m.id} onClick={() => onChange(m.id)} title={m.help}
-          className={`rounded-lg px-2 py-2.5 text-sm font-semibold transition ${value === m.id ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-white'}`}>
-          {m.label}
-        </button>
-      ))}
-    </div>
-    <p className="lb-dim mt-1 text-xs">{MODES.find((m) => m.id === value)?.help}</p>
-  </div>
-);
-
-const fillSample = (text: string, botName: string) => text
-  .replace(/\{first_name\}/g, 'Jordan')
-  .replace(/\{ai_name\}/g, botName || 'your AI assistant')
-  .replace(/\{lo_name\}/g, 'your loan officer')
-  .replace(/\{listing_address\}/g, '123 Maple Street')
-  .replace(/\{appointment_time\}/g, 'Tuesday at 2 PM');
 
 
 const DEMO_CONFIG: BrainConfig = {
@@ -162,11 +134,6 @@ const parseSources = (kb: string) => {
   }).filter((c) => c.label || c.preview);
 };
 
-const formatDate = (iso: string | null) => {
-  if (!iso) return 'Not yet';
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? 'Recently' : d.toLocaleDateString();
-};
 
 // ─── Add knowledge modal ─────────────────────────────────────────────────────
 
@@ -625,6 +592,8 @@ const LOBrainPage: React.FC = () => {
   const [complianceUploading, setComplianceUploading] = useState(false);
   const complianceFileRef = useRef<HTMLInputElement>(null);
   const [previewing, setPreviewing] = useState(false);
+  const [showTest, setShowTest] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const playVoice = async () => {
     if (demo) { toast('Voice samples are off in the demo — start your free trial to hear your AI.', { icon: '🔒' }); return; }
@@ -632,7 +601,7 @@ const LOBrainPage: React.FC = () => {
     try {
       const res = await fetch(buildApiUrl('/api/lo/brain/voice-preview'), {
         method: 'POST', headers: await getApiHeaders(),
-        body: JSON.stringify({ voice: config.voice_name, style: config.voice_style, text: fillSample(config.call_opening, config.bot_name) })
+        body: JSON.stringify({ voice: config.voice_name, style: config.voice_style, text: `Hi, thanks for calling! This is ${config.bot_name || 'your AI assistant'}. How can I help you today?` })
       });
       if (!res.ok) throw new Error(res.status === 429 ? 'Too many samples — try again in a bit.' : 'Could not play the sample.');
       const url = URL.createObjectURL(await res.blob());
@@ -808,103 +777,122 @@ const LOBrainPage: React.FC = () => {
         </header>
 
         {/* Summary — always open */}
-        <section className="lb-card flex flex-col gap-5 p-5 md:flex-row md:items-center">
-          <div className="flex flex-1 gap-4">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-50"><Icon name="psychology" className="text-2xl text-blue-600" /></span>
-            <div className="flex flex-col gap-3">
-              <div>
-                <h2 className="lb-h text-xl">Your Loan Officer Brain</h2>
-                <p className="lb-dim text-sm">One source of truth for your AI team and every listing.</p>
+        <section className="lb-card flex flex-col gap-5 p-5">
+          <div className="flex flex-col gap-5 md:flex-row md:items-center">
+            <div className="flex flex-1 gap-4">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-50"><Icon name="psychology" className="text-2xl text-blue-600" /></span>
+              <div className="flex flex-col gap-3">
+                <div>
+                  <h2 className="lb-h text-xl">Your Loan Officer Brain</h2>
+                  <p className="lb-dim text-sm">One brain for your chat, your phone and every listing.</p>
+                </div>
+                <dl className="flex flex-wrap gap-x-8 gap-y-3">
+                  <div><dt className="lb-dim text-xs font-semibold uppercase tracking-wide">Sources</dt><dd className="text-2xl font-bold">{sources.length}</dd></div>
+                  <div><dt className="lb-dim text-xs font-semibold uppercase tracking-wide">Listings using it</dt><dd className="text-2xl font-bold">{summary?.listings.length ?? '—'}</dd></div>
+                  <div><dt className="lb-dim text-xs font-semibold uppercase tracking-wide">Readiness</dt><dd className={`pt-1.5 text-sm font-bold ${readiness.cls}`}>{readiness.text}</dd></div>
+                </dl>
               </div>
-              <dl className="flex flex-wrap gap-x-8 gap-y-3">
-                <div><dt className="lb-dim text-xs font-semibold uppercase tracking-wide">Sources</dt><dd className="text-2xl font-bold">{sources.length}</dd></div>
-                <div><dt className="lb-dim text-xs font-semibold uppercase tracking-wide">Listings using it</dt><dd className="text-2xl font-bold">{summary?.listings.length ?? '—'}</dd></div>
-                <div><dt className="lb-dim text-xs font-semibold uppercase tracking-wide">Last updated</dt><dd className="pt-1.5 text-sm font-semibold">{formatDate(summary?.lastUpdated ?? null)}</dd></div>
-                <div><dt className="lb-dim text-xs font-semibold uppercase tracking-wide">Readiness</dt><dd className={`pt-1.5 text-sm font-bold ${readiness.cls}`}>{readiness.text}</dd></div>
-              </dl>
+            </div>
+            <div className="flex flex-col gap-2 md:w-[260px]">
+              <button type="button" onClick={() => setShowAdd(true)} className="lb-btn justify-center"><Icon name="add_circle" className="text-xl" />Add knowledge</button>
+              <button type="button" onClick={() => setShowTest((v) => !v)} className="lb-ghost justify-center" aria-expanded={showTest}><Icon name="forum" className="text-xl text-blue-600" />{showTest ? 'Close test chat' : 'Test it'}</button>
             </div>
           </div>
-          <button type="button" onClick={() => setShowAdd(true)} className="flex items-center gap-3 rounded-xl bg-blue-600 px-5 py-4 text-left text-white transition hover:bg-blue-700 md:w-[320px]">
-            <Icon name="add_circle" className="text-2xl" />
-            <span><span className="block font-semibold">Add knowledge to your brain</span><span className="text-sm text-blue-100">Loan programs, rate sheet, FAQs, your bio — anything your AI should know.</span></span>
-          </button>
+
+          {showTest && (
+            <div className="flex flex-col gap-3 border-t border-slate-100 pt-4">
+              <div className="lb-inset flex max-h-80 min-h-[120px] flex-col gap-3 overflow-y-auto p-4" aria-live="polite">
+                {!chat.length && <p className="lb-dim text-sm">Ask what a buyer would ask, like “Can I buy with 3% down?”</p>}
+                {chat.map((m, i) => (
+                  <div key={i} className={`flex flex-col gap-1.5 ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
+                    <div className={`max-w-[88%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${m.role === 'user' ? 'rounded-br-sm bg-blue-600 text-white' : 'rounded-bl-sm border border-slate-200 bg-white text-slate-800'}`}>{m.content}</div>
+                    {m.role === 'assistant' && m.question && (
+                      <div className="flex flex-wrap items-center gap-2">
+                        {m.route && <span className="lb-pill lb-info">Used: {ROUTE_LABEL[m.route] || m.route}</span>}
+                        {m.fixed && <span className="lb-pill lb-warn">Compliance fixed this</span>}
+                        {!m.rated && (
+                          <>
+                            <button type="button" onClick={() => void rate(i, 'good')} className="lb-pill lb-ready !py-1.5"><Icon name="thumb_up" className="mr-1 text-[15px]" />Good</button>
+                            <button type="button" onClick={() => void rate(i, 'needs_work')} className="lb-pill lb-missing !py-1.5"><Icon name="thumb_down" className="mr-1 text-[15px]" />Needs work</button>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+                {asking && <p className="lb-dim text-sm">Thinking…</p>}
+              </div>
+              <div className="flex gap-2">
+                <label htmlFor="brain-ask" className="sr-only">Ask your brain</label>
+                <input id="brain-ask" className="lb-input" value={ask} onChange={(e) => setAsk(e.target.value)} placeholder="Ask anything a buyer might ask…"
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void sendTest(); } }} />
+                <button type="button" className="lb-btn shrink-0" disabled={asking || !ask.trim()} onClick={() => void sendTest()}>Ask</button>
+              </div>
+            </div>
+          )}
         </section>
 
-        <Section id="test" icon="forum" title="Talk to your brain" subtitle="Ask what a buyer would ask. This is the real AI buyers talk to.">
-          <div className="flex flex-col gap-3">
-            <div className="lb-inset flex max-h-80 min-h-[140px] flex-col gap-3 overflow-y-auto p-4" aria-live="polite">
-              {!chat.length && <p className="lb-dim text-sm">Try: “Can I buy with 3% down?” or “What does the payment look like on a $400k home?”</p>}
-              {chat.map((m, i) => (
-                <div key={i} className={`flex flex-col gap-1.5 ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
-                  <div className={`max-w-[88%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${m.role === 'user' ? 'rounded-br-sm bg-blue-600 text-white' : 'rounded-bl-sm border border-slate-200 bg-white text-slate-800'}`}>{m.content}</div>
-                  {m.role === 'assistant' && m.question && (
-                    <div className="flex flex-wrap items-center gap-2">
-                      {m.route && <span className="lb-pill lb-info">Used: {ROUTE_LABEL[m.route] || m.route}</span>}
-                      {m.fixed && <span className="lb-pill lb-warn">Compliance fixed this</span>}
-                      {!m.rated && (
-                        <>
-                          <button type="button" onClick={() => void rate(i, 'good')} className="lb-pill lb-ready !py-1.5"><Icon name="thumb_up" className="mr-1 text-[15px]" />Good answer</button>
-                          <button type="button" onClick={() => void rate(i, 'needs_work')} className="lb-pill lb-missing !py-1.5"><Icon name="thumb_down" className="mr-1 text-[15px]" />Needs work</button>
-                        </>
-                      )}
-                    </div>
-                  )}
+        {/* 1. What it knows */}
+        <Section id="knows" icon="library_books" title="What it knows" subtitle="Your loan programs, rates, FAQs and bio."
+          badge={<span className={`lb-pill ${libraryMissing ? 'lb-missing' : 'lb-ready'}`}>{libraryMissing ? `${libraryMissing} missing` : 'All ready'}</span>}>
+          <div className="flex flex-col gap-5">
+            <ul>
+              {library.map((l) => (
+                <li key={l.label} className="flex items-center gap-3 border-b border-slate-100 py-3 last:border-b-0">
+                  <Icon name={l.icon} className="text-xl text-blue-600" />
+                  <span className="flex-1 text-sm font-semibold">{l.label}{l.hint && <span className="lb-dim font-normal"> · {l.hint}</span>}</span>
+                  <span className={`lb-pill ${l.ready ? 'lb-ready' : 'lb-missing'}`}>{l.ready ? 'Ready' : 'Missing'}</span>
+                </li>
+              ))}
+            </ul>
+            <button type="button" className="lb-btn self-start" onClick={() => setShowAdd(true)}>+ Add knowledge</button>
+
+            {sources.length > 0 && (
+              <div className="flex flex-col gap-2">
+                <span className="lb-label">Saved ({sources.length})</span>
+                {sources.map((s) => (
+                  <div key={`${s.index}-${s.label}`} className="lb-inset flex items-center gap-3 px-4 py-2.5">
+                    <Icon name={/https?:\/\//.test(s.label) ? 'language' : /\.pdf$/i.test(s.label) ? 'picture_as_pdf' : 'notes'} className="text-xl text-blue-600" />
+                    <span className="min-w-0 flex-1 truncate text-sm font-semibold">{s.label}</span>
+                    <button type="button" aria-label={`Delete ${s.label}`} className="lb-ghost !min-h-[36px] !px-3" onClick={() => { if (window.confirm(`Remove "${s.label}" from your brain?`)) void removeSource(s.index); }}><Icon name="delete" /></button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex flex-col gap-3">
+              <span className="lb-label">FAQs ({config.faq.length})</span>
+              {config.faq.map((f, i) => (
+                <div key={i} className="lb-inset grid gap-3 p-4 sm:grid-cols-[1fr_1.4fr_auto] sm:items-start">
+                  <div><label className="lb-label mb-1 block" htmlFor={`faq-q-${i}`}>Question</label><input id={`faq-q-${i}`} className="lb-input" value={f.question} onChange={(e) => update({ faq: config.faq.map((x, j) => (j === i ? { ...x, question: e.target.value } : x)) })} /></div>
+                  <div><label className="lb-label mb-1 block" htmlFor={`faq-a-${i}`}>Answer</label><textarea id={`faq-a-${i}`} className="lb-input h-20" value={f.answer} onChange={(e) => update({ faq: config.faq.map((x, j) => (j === i ? { ...x, answer: e.target.value } : x)) })} /></div>
+                  <button type="button" aria-label="Delete FAQ" className="lb-ghost sm:mt-6" onClick={() => update({ faq: config.faq.filter((_, j) => j !== i) })}><Icon name="delete" /></button>
                 </div>
               ))}
-              {asking && <p className="lb-dim text-sm">Thinking…</p>}
-            </div>
-            <div className="flex gap-2">
-              <label htmlFor="brain-ask" className="sr-only">Ask your brain</label>
-              <input id="brain-ask" className="lb-input" value={ask} onChange={(e) => setAsk(e.target.value)} placeholder="Ask anything a buyer might ask…"
-                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void sendTest(); } }} />
-              <button type="button" className="lb-btn shrink-0" disabled={asking || !ask.trim()} onClick={() => void sendTest()}>Ask</button>
+              <button type="button" className="lb-ghost self-start" onClick={() => update({ faq: [...config.faq, { question: '', answer: '' }] })}>+ Add FAQ</button>
             </div>
           </div>
         </Section>
 
-        <Section id="library" icon="library_books" title="Knowledge library" subtitle="What every listing's AI learns from you."
-          badge={<span className={`lb-pill ${libraryMissing ? 'lb-missing' : 'lb-ready'}`}>{libraryMissing ? `${libraryMissing} missing` : 'All ready'}</span>}>
-          <ul>
-            {library.map((l) => (
-              <li key={l.label} className="flex items-center gap-3 border-b border-slate-100 py-3 last:border-b-0">
-                <Icon name={l.icon} className="text-xl text-blue-600" />
-                <span className="flex-1 text-sm font-semibold">{l.label}{l.hint && <span className="lb-dim font-normal"> · {l.hint}</span>}</span>
-                <span className={`lb-pill ${l.ready ? 'lb-ready' : 'lb-missing'}`}>{l.ready ? 'Ready' : 'Missing'}</span>
-              </li>
-            ))}
-          </ul>
-          <button type="button" className="lb-btn mt-3" onClick={() => setShowAdd(true)}>+ Add source</button>
-        </Section>
-
-        <Section id="voice" icon="record_voice_over" title="Voice and personality" subtitle="How your AI introduces itself and sounds.">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className="lb-label mb-1 block" htmlFor="bot-name">AI name</label>
-              <input id="bot-name" className="lb-input" value={config.bot_name} onChange={(e) => update({ bot_name: e.target.value })} placeholder="e.g. Sky, your financing assistant" />
+        {/* 2. How it talks */}
+        <Section id="talks" icon="record_voice_over" title="How it talks" subtitle="Its name, tone and voice.">
+          <div className="flex flex-col gap-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="lb-label mb-1 block" htmlFor="bot-name">AI name</label>
+                <input id="bot-name" className="lb-input" value={config.bot_name} onChange={(e) => update({ bot_name: e.target.value })} placeholder="e.g. Sky, your financing assistant" />
+              </div>
+              <div>
+                <label className="lb-label mb-1 block" htmlFor="tone">Tone</label>
+                <select id="tone" className="lb-input" value={config.tone} onChange={(e) => update({ tone: e.target.value })}>
+                  {[...new Set([config.tone, ...TONES].filter(Boolean))].map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
             </div>
             <div>
-              <label className="lb-label mb-1 block" htmlFor="tone">Tone</label>
-              <select id="tone" className="lb-input" value={config.tone} onChange={(e) => update({ tone: e.target.value })}>
-                {[...new Set([config.tone, ...TONES].filter(Boolean))].map((t) => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </div>
-            <div className="sm:col-span-2">
-              <label className="lb-label mb-1 block" htmlFor="greeting">First message buyers see</label>
+              <label className="lb-label mb-1 block" htmlFor="greeting">First chat message buyers see</label>
               <input id="greeting" className="lb-input" value={config.greeting} onChange={(e) => update({ greeting: e.target.value })} />
             </div>
-            <label className="lb-inset flex items-center justify-between gap-3 px-4 py-3 text-sm font-semibold sm:col-span-2">
-              Say my NMLS# when introducing itself
-              <input type="checkbox" className="h-5 w-5 accent-blue-600" checked={config.nmls_in_intro} onChange={(e) => update({ nmls_in_intro: e.target.checked })} />
-            </label>
-          </div>
-        </Section>
-
-        <Section id="calls-texts" icon="call" title="Calls & Texts" subtitle="Your AI's phone voice, what it says, and how much it can do on its own."
-          badge={<span className="lb-pill lb-warn">Phone line not connected yet</span>}>
-          <div className="flex flex-col gap-5">
-            <PhoneNumberBox demo={demo} />
-            <p className="lb-dim text-xs">Your settings below save now. Calls and automatic texts start once AI answering is turned on for your number.</p>
-
             <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-end">
               <div>
                 <label className="lb-label mb-1 block" htmlFor="voice-name">Phone voice</label>
@@ -916,58 +904,42 @@ const LOBrainPage: React.FC = () => {
                 <Icon name={previewing ? 'hourglass_top' : 'play_circle'} className="text-xl text-blue-600" />{previewing ? 'Playing…' : 'Hear it'}
               </button>
             </div>
-            <div>
-              <label className="lb-label mb-1 block" htmlFor="voice-style">How it should sound</label>
-              <input id="voice-style" className="lb-input" value={config.voice_style} onChange={(e) => update({ voice_style: e.target.value })} placeholder="e.g. Warm, calm and friendly. Easy pace." />
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <ModePicker label="AI calls" value={config.calls_mode} onChange={(m) => update({ calls_mode: m })} />
-              <ModePicker label="AI texts" value={config.texts_mode} onChange={(m) => update({ texts_mode: m })} />
-            </div>
-
-            <div>
-              <label className="lb-label mb-1 block" htmlFor="call-opening">What the AI says when it calls</label>
-              <textarea id="call-opening" className="lb-input h-24" value={config.call_opening} onChange={(e) => update({ call_opening: e.target.value })} />
-            </div>
-            <div>
-              <label className="lb-label mb-1 block" htmlFor="voicemail">Voicemail it leaves</label>
-              <textarea id="voicemail" className="lb-input h-20" value={config.voicemail_message} onChange={(e) => update({ voicemail_message: e.target.value })} />
-            </div>
-            {([
-              ['sms_followup_template', 'Follow-up text after a chat or call'],
-              ['sms_reminder_template', 'Appointment reminder text']
-            ] as const).map(([key, label]) => (
-              <div key={key}>
-                <label className="lb-label mb-1 block" htmlFor={key}>{label}</label>
-                <textarea id={key} className="lb-input h-20" value={config[key]} onChange={(e) => update({ [key]: e.target.value } as Partial<BrainConfig>)} />
-                <p className={`mt-1 text-xs ${config[key].length > 160 ? 'text-amber-700' : 'lb-dim'}`}>{config[key].length}/160 characters{config[key].length > 160 ? ' — will send as 2 texts' : ''}</p>
+            <label className="lb-inset flex items-center justify-between gap-3 px-4 py-3 text-sm font-semibold">
+              Say my NMLS# when introducing itself
+              <input type="checkbox" className="h-5 w-5 accent-blue-600" checked={config.nmls_in_intro} onChange={(e) => update({ nmls_in_intro: e.target.checked })} />
+            </label>
+            <button type="button" className="lb-ghost self-start" onClick={() => setShowAdvanced((v) => !v)} aria-expanded={showAdvanced}>
+              <Icon name={showAdvanced ? 'expand_less' : 'tune'} className="text-xl text-blue-600" />{showAdvanced ? 'Hide advanced' : 'Advanced'}
+            </button>
+            {showAdvanced && (
+              <div className="flex flex-col gap-4">
+                <div>
+                  <label className="lb-label mb-1 block" htmlFor="voice-style">How the phone voice should sound</label>
+                  <input id="voice-style" className="lb-input" value={config.voice_style} onChange={(e) => update({ voice_style: e.target.value })} placeholder="e.g. Warm, calm and friendly. Easy pace." />
+                </div>
+                {([
+                  ['loan_advisor_rules', 'Money questions', 'What to ask, what to offer, when to hand off to you.'],
+                  ['borrower_care_rules', 'Everything else', 'How people are looked after, and what it does when unsure.']
+                ] as const).map(([key, title, help]) => (
+                  <div key={key}>
+                    <label htmlFor={key} className="lb-label block">{title}</label>
+                    <p className="lb-dim mb-1 text-xs">{help}</p>
+                    <textarea id={key} className="lb-input h-32" value={config[key]} onChange={(e) => update({ [key]: e.target.value } as Partial<BrainConfig>)} />
+                  </div>
+                ))}
+                <p className="lb-dim text-xs">These can't override your Compliance Brain or HomeListingAI's safety rules.</p>
               </div>
-            ))}
-            <p className="lb-dim text-xs">Fill-ins: {'{first_name}'} {'{ai_name}'} {'{lo_name}'} {'{listing_address}'} {'{appointment_time}'}</p>
-
-            <div className="lb-inset flex flex-col gap-2 p-4">
-              <span className="lb-dim text-xs font-semibold uppercase tracking-wide">Rules that always apply</span>
-              {['Only calls or texts people who said yes', 'STOP always stops — no more texts, ever', 'Always says it is an AI', 'Only between 8 AM and 9 PM their time', 'Checked by your Compliance Brain first'].map((r) => (
-                <span key={r} className="flex items-center gap-2 text-sm"><Icon name="lock" className="text-lg text-slate-500" />{r}</span>
-              ))}
-            </div>
+            )}
           </div>
         </Section>
 
-        {([
-          ['marketing_voice', 'campaign', 'Your Marketing Voice', 'How your marketing is written. Your Marketing Studio posts and videos follow this.'],
-          ['loan_advisor_rules', 'payments', 'Your Loan Advisor AI', 'Used when a buyer asks about money — what to ask, what to offer, when to hand off to you.'],
-          ['borrower_care_rules', 'support_agent', 'Your Borrower Care', 'Used for everything else, and whenever the AI is unsure. How people are looked after.']
-        ] as const).map(([key, icon, title, help]) => (
-          <Section key={key} id={key} icon={icon} title={title} subtitle={help}>
-            <label htmlFor={key} className="sr-only">{title}</label>
-            <textarea id={key} className="lb-input h-48" value={config[key]} onChange={(e) => update({ [key]: e.target.value } as Partial<BrainConfig>)} />
-            <p className="lb-dim mt-2 text-xs">Starts with sensible wording — change anything that isn't how you work. It can't override your Compliance Brain or HomeListingAI's safety rules.</p>
-          </Section>
-        ))}
+        {/* 3. Your phone */}
+        <Section id="phone" icon="call" title="Your phone" subtitle="Your AI answers, gets their info and passes hot buyers to you.">
+          <PhoneNumberBox demo={demo} />
+        </Section>
 
-        <Section id="compliance" icon="verified_user" accent="amber" title="Your Compliance Brain" subtitle="Your company's rules. Every answer is checked before it reaches a buyer. Stricter always wins."
+        {/* 4. Compliance */}
+        <Section id="compliance" icon="verified_user" accent="amber" title="Your Compliance Brain" subtitle="Your company's rules. Every answer is checked. Stricter always wins."
           badge={<span className="lb-pill lb-warn">ALWAYS ON</span>}>
           <div className="flex flex-col gap-5">
             <div className="grid gap-4 sm:grid-cols-2">
@@ -983,7 +955,7 @@ const LOBrainPage: React.FC = () => {
             <input ref={complianceFileRef} id="compliance-file" type="file" accept=".pdf,.txt,.csv" className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; if (f) void uploadCompliance(f); }} />
             <label htmlFor="compliance-file" className="flex cursor-pointer items-center gap-4 rounded-xl border border-dashed border-amber-400 bg-amber-50 p-4">
               <Icon name="upload_file" className="text-3xl text-amber-600" />
-              <span><span className="block font-semibold">{complianceUploading ? 'Reading your file…' : "Upload your company's compliance rules"}</span><span className="lb-muted text-sm">Marketing policy, social media policy, state rules. PDF or TXT.</span></span>
+              <span><span className="block font-semibold">{complianceUploading ? 'Reading your file…' : "Upload your company's compliance rules"}</span><span className="lb-muted text-sm">PDF or TXT.</span></span>
             </label>
             {config.compliance_rules.trim() && (
               <div className="lb-inset flex items-center justify-between gap-3 px-4 py-3">
@@ -991,65 +963,11 @@ const LOBrainPage: React.FC = () => {
                 <button type="button" className="lb-ghost !min-h-[36px] !px-3 !text-xs" onClick={() => { if (window.confirm('Remove your uploaded compliance rules? Platform safety rules still apply.')) { const next = { ...config, compliance_rules: '' }; setConfig(next); void persist(next, 'Compliance rules removed'); } }}>Remove</button>
               </div>
             )}
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="lb-inset flex flex-col gap-2 p-4">
-                <span className="lb-dim text-xs font-semibold uppercase tracking-wide">Checked before it goes out</span>
-                <span className="flex items-center gap-2 text-sm"><Icon name="check_circle" className="text-lg text-green-600" />Every listing chat answer</span>
-                <span className="flex items-center gap-2 text-sm"><Icon name="check_circle" className="text-lg text-green-600" />Every answer in your test chat</span>
-                <span className="lb-dim flex items-center gap-2 text-sm"><Icon name="schedule" className="text-lg" />Texts, posts and AI Phone — as each moves onto the brain</span>
-              </div>
-              <div className="flex items-center gap-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
-                <span className="text-3xl font-bold text-amber-700">{summary?.complianceEventsThisMonth ?? '—'}</span>
-                <span className="text-sm leading-snug text-amber-900">Answers stopped or fixed this month because they broke a rule.</span>
-              </div>
+            <div className="flex items-center gap-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+              <span className="text-3xl font-bold text-amber-700">{summary?.complianceEventsThisMonth ?? '—'}</span>
+              <span className="text-sm leading-snug text-amber-900">Answers stopped, fixed or flagged this month because they broke a rule.</span>
             </div>
           </div>
-        </Section>
-
-        <Section id="listings" icon="home_work" accent="blue" title={<>Your listings use this brain <span className="text-blue-600">automatically</span></>}
-          subtitle="Nothing to retrain. The only thing you can add per listing is a payment schedule — if you want."
-          badge={<span className="lb-pill lb-info">{summary?.listings.length ?? 0} connected</span>}>
-          {!summary?.listings.length && <p className="lb-dim text-sm">No listings yet. When a partner agent's listing is assigned to you, it shows up here already connected.</p>}
-          <ul className="flex flex-col gap-2.5">
-            {summary?.listings.map((l) => (
-              <li key={l.id} className="lb-inset flex flex-wrap items-center gap-3 px-4 py-3">
-                <Icon name="home" className="text-2xl text-blue-600" />
-                <span className="min-w-[160px] flex-1 font-semibold">{l.address}</span>
-                <span className="lb-pill lb-info">Brain connected</span>
-                <span className={`w-52 text-[13px] ${l.hasPaymentSchedule ? 'font-semibold text-green-700' : 'lb-dim'}`}>{l.hasPaymentSchedule ? 'Payment schedule added' : 'No payment schedule (optional)'}</span>
-                {!demo && <Link to="/dashboard/lo-listings" className="text-sm font-semibold">{l.hasPaymentSchedule ? 'Edit' : 'Add schedule'}</Link>}
-              </li>
-            ))}
-          </ul>
-        </Section>
-
-        <Section id="faq" icon="quiz" title="FAQs" subtitle="Questions buyers ask you all the time, answered your way."
-          badge={<span className="lb-pill lb-info">{config.faq.length} saved</span>}>
-          <div className="flex flex-col gap-3">
-            {!config.faq.length && <p className="lb-dim text-sm">No FAQs yet.</p>}
-            {config.faq.map((f, i) => (
-              <div key={i} className="lb-inset grid gap-3 p-4 sm:grid-cols-[1fr_1.4fr_auto] sm:items-start">
-                <div><label className="lb-label mb-1 block" htmlFor={`faq-q-${i}`}>Question</label><input id={`faq-q-${i}`} className="lb-input" value={f.question} onChange={(e) => update({ faq: config.faq.map((x, j) => (j === i ? { ...x, question: e.target.value } : x)) })} /></div>
-                <div><label className="lb-label mb-1 block" htmlFor={`faq-a-${i}`}>Answer</label><textarea id={`faq-a-${i}`} className="lb-input h-20" value={f.answer} onChange={(e) => update({ faq: config.faq.map((x, j) => (j === i ? { ...x, answer: e.target.value } : x)) })} /></div>
-                <button type="button" aria-label="Delete FAQ" className="lb-ghost sm:mt-6" onClick={() => update({ faq: config.faq.filter((_, j) => j !== i) })}><Icon name="delete" /></button>
-              </div>
-            ))}
-            <button type="button" className="lb-ghost self-start" onClick={() => update({ faq: [...config.faq, { question: '', answer: '' }] })}>+ Add FAQ</button>
-          </div>
-        </Section>
-
-        <Section id="sources" icon="folder_open" title="All sources" subtitle="Everything saved in your brain."
-          badge={<span className="lb-pill lb-info">{sources.length} total</span>}>
-          {!sources.length && <p className="lb-dim text-sm">Nothing yet. Add your loan programs and rate sheet first — those answer most buyer questions.</p>}
-          <ul className="flex flex-col gap-2.5">
-            {sources.map((s) => (
-              <li key={`${s.index}-${s.label}`} className="lb-inset flex items-center gap-3 px-4 py-3">
-                <Icon name={/https?:\/\//.test(s.label) ? 'language' : /\.pdf$/i.test(s.label) ? 'picture_as_pdf' : 'notes'} className="text-2xl text-blue-600" />
-                <span className="min-w-0 flex-1"><span className="block truncate font-semibold">{s.label}</span><span className="lb-dim block truncate text-[13px]">{s.preview}</span></span>
-                <button type="button" aria-label={`Delete ${s.label}`} className="lb-ghost !min-h-[40px] !px-3" onClick={() => { if (window.confirm(`Remove "${s.label}" from your brain?`)) void removeSource(s.index); }}><Icon name="delete" /></button>
-              </li>
-            ))}
-          </ul>
         </Section>
 
         <p className="lb-dim text-xs">Secure and private: your brain is only used by your own AI team. It is never shared with other loan officers.</p>
