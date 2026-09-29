@@ -32,6 +32,7 @@ type Listing = {
   heroPhoto: string | null;
   brandingEnabled?: boolean;
   assignedAt?: string | null;
+  canEdit?: boolean;
 };
 
 const getApiHeaders = async (): Promise<HeadersInit> => {
@@ -159,6 +160,7 @@ const ListingCard: React.FC<ListingCardProps> = ({ listing, mode, onRemove, onAd
   const [showToggles, setShowToggles] = useState(false);
   const [sharingDash, setSharingDash] = useState(false);
   const [removeConfirm, setRemoveConfirm] = useState(false);
+  const navigate = useNavigate();
 
   const handleShareDashboard = async () => {
     setSharingDash(true);
@@ -202,6 +204,14 @@ const ListingCard: React.FC<ListingCardProps> = ({ listing, mode, onRemove, onAd
         <div className="flex flex-col items-end gap-2 flex-shrink-0">
           {mode === 'assigned' ? (
             <>
+              {listing.canEdit && (
+                <button
+                  onClick={() => navigate(`/dashboard/listings/${listing.id}/edit`)}
+                  className="rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white transition-all hover:bg-primary-700"
+                >
+                  ✏️ Edit
+                </button>
+              )}
               <button
                 onClick={handleShareDashboard}
                 disabled={sharingDash}

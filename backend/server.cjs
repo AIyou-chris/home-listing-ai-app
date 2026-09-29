@@ -33784,7 +33784,9 @@ app.get('/api/lo/listings', requireAuth, async (req, res) => {
       status: r.status,
       heroPhoto: r.heroPhoto,
       brandingEnabled: r.brandingEnabled,
-      assignedAt: r.assignedAt
+      assignedAt: r.assignedAt,
+      // Only listings the LO built themselves can be edited. Partner agents' listings stay the agent's.
+      canEdit: Boolean(r.ownerAuthId && (r.ownerAuthId === req.authUserId || r.ownerAuthId === loProfileId))
     }));
     res.json({ success: true, listings });
   } catch (error) {
