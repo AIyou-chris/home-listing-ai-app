@@ -34090,7 +34090,9 @@ app.get('/api/lo/phone-line', requireLoAgent, async (req, res) => {
     if (!enabled) return res.json({ enabled: false, line: null });
     const svc = getLoPhoneLines();
     const line = await svc.currentLine(req.loAgentId);
-    res.json({ enabled: true, testMode: phoneLineConfig().mock, line: svc.publicView(line, { aiReady: getLoPhoneCalls().isAiReady() }) });
+    let minutes = null;
+    try { minutes = await getLoPhoneCalls().minuteUsage(req.loAgentId); } catch { /* table may not exist yet */ }
+    res.json({ enabled: true, testMode: phoneLineConfig().mock, minutes, line: svc.publicView(line, { aiReady: getLoPhoneCalls().isAiReady() }) });
   } catch (err) {
     const missing = err?.code === '42P01' || err?.code === 'PGRST205';
     console.error('[LO Phone GET] Error:', err?.message || err);
@@ -34131,6 +34133,20 @@ const { createLoPhoneCallService } = require('./services/loPhoneCallService');
 const { createTelnyxClient: createTelnyxCallClient } = require('./services/telnyxClient');
 const { verifyTelnyxSignature, verifyOpenAiWebhook } = require('./services/webhookSignatures');
 const WebSocketClient = require('ws');
+// AI phone minutes per month, by plan. Out of minutes → calls ring the LO's cell.
+const LO_PHONE_MINUTES = { trial: 30, lo_lite: 100, lo: 300, lo_pro: 1000, none: 0 };
+const loMinuteLimitCache = new Map(); // loAgentId -> { limit, at }
+async function getLoPhoneMinuteLimit(loAgentId) {
+  const hit = loMinuteLimitCache.get(loAgentId);
+  if (hit && Date.now() - hit.at < 10 * 60 * 1000) return hit.limit;
+  const { data: agentRow } = await supabaseAdmin.from('agents').select('plan, stripe_customer_id, payment_status, created_at').eq('id', loAgentId).maybeSingle();
+  let limit;
+  if (agentRow?.plan === 'office' || agentRow?.plan === 'white_label') limit = LO_PHONE_MINUTES.lo_pro;
+  else limit = LO_PHONE_MINUTES[await resolveLoPlanTier(agentRow || {})] ?? 0;
+  loMinuteLimitCache.set(loAgentId, { limit, at: Date.now() });
+  return limit;
+}
+
 let loPhoneCallsInstance = null;
 function getLoPhoneCalls() {
   if (!loPhoneCallsInstance) {
@@ -34141,6 +34157,7 @@ function getLoPhoneCalls() {
       typesafeClient: createLoBrainJevClient({ apiKey: process.env.TYPESAFE_API_KEY }),
       generateSummary: openAiChatReply,
       WebSocketImpl: WebSocketClient,
+      getMinuteLimit: getLoPhoneMinuteLimit,
       onLead: async ({ loAgentId, lead, intent, handoff }) => {
         if (intent === 'hot' || handoff) return deliverHotLeadAlert(loAgentId, 'lo', lead, 90);
         await supabaseAdmin.from('notifications').insert({

@@ -22,6 +22,7 @@ function fakeSupabase(seed = {}) {
       eq(c, v) { filters.push((r) => r[c] === v); return q; },
       is(c, v) { filters.push((r) => (r[c] ?? null) === v); return q; },
       in(c, vs) { filters.push((r) => vs.includes(r[c])); return q; },
+      gte(c, v) { filters.push((r) => String(r[c] ?? '') >= String(v)); return q; },
       order() { return q; },
       limit(k) { limit = k; return q; },
       insert(p) { op = 'insert'; payload = p; return q; },
@@ -80,7 +81,7 @@ class FakeSocket extends EventEmitter {
 const ENV = { OPENAI_API_KEY: 'sk', OPENAI_PROJECT_ID: 'proj_1' };
 const LINE = { id: 'line-1', lo_agent_id: 'lo1', phone_number: '+15095550100', status: 'active', tool_token: 'secret-token', is_mock: false };
 
-function setup({ env = ENV, config, agentPhone = '9495550111', timers = [] } = {}) {
+function setup({ env = ENV, config, agentPhone = '9495550111', timers = [], getMinuteLimit = null } = {}) {
   const supabase = fakeSupabase({ lo_phone_lines: [{ ...LINE }], agents: [{ id: 'lo1', phone: agentPhone }] });
   const telnyx = fakeTelnyx();
   const fetchImpl = fakeFetch();
@@ -91,6 +92,7 @@ function setup({ env = ENV, config, agentPhone = '9495550111', timers = [] } = {
     generateSummary: async () => 'Jordan wants pre-approval for 12 Oak St.',
     typesafeClient: { isConfigured: () => true, evaluate: async () => ({ intent: { choice: 'hot' } }) },
     onLead: async (x) => leads.push(x),
+    getMinuteLimit,
     log: { warn() {}, error() {}, log() {} },
   });
   return { svc, supabase, telnyx, fetchImpl, leads, timers };
@@ -166,7 +168,7 @@ test('OpenAI: our call is accepted with the brain, voice and tools', async () =>
   const { r, socket } = await liveCall(ctx);
   assert.ok(r.accepted);
   const accept = ctx.fetchImpl.hits.find((h) => /\/accept$/.test(h.url));
-  assert.equal(accept.body.model, 'gpt-realtime-2.1');
+  assert.equal(accept.body.model, 'gpt-realtime-2.1-mini');
   assert.equal(accept.body.audio.output.voice, 'cedar');
   assert.match(accept.body.instructions, /BRAIN PROMPT/);
   assert.match(accept.body.instructions, /LIVE PHONE CALL/);
@@ -226,4 +228,21 @@ test('webhook signatures: OpenAI standard-webhooks and Telnyx ed25519', () => {
   const tsig = sign(null, Buffer.from(`${ts}|${body}`), privateKey).toString('base64');
   assert.equal(verifyTelnyxSignature({ headers: { 'telnyx-signature-ed25519': tsig, 'telnyx-timestamp': ts }, rawBody: body, publicKey: rawPub, now }).ok, true);
   assert.equal(verifyTelnyxSignature({ headers: { 'telnyx-signature-ed25519': tsig, 'telnyx-timestamp': ts }, rawBody: `${body} `, publicKey: rawPub, now }).ok, false);
+});
+
+test('out of AI minutes: the call rings the LO cell instead', async () => {
+  const ctx = setup({ getMinuteLimit: async () => 100 });
+  const start = new Date(Date.now() - 200 * 60000).toISOString();
+  ctx.supabase.tables.lo_phone_calls.push({ id: 'old', lo_agent_id: 'lo1', telnyx_call_control_id: 'old-cc', mode: 'ai', started_at: new Date().toISOString(), answered_at: start, ended_at: new Date(Date.now() - 90 * 60000).toISOString() });
+  const usage = await ctx.svc.minuteUsage('lo1');
+  assert.equal(usage.used, 110);
+  assert.equal(usage.left, 0);
+  const r = await ctx.svc.handleTelnyxEvent(ring('cc-9'));
+  assert.equal(r.mode, 'forward');
+});
+
+test('under the cap: the AI answers', async () => {
+  const ctx = setup({ getMinuteLimit: async () => 100 });
+  const r = await ctx.svc.handleTelnyxEvent(ring());
+  assert.equal(r.mode, 'ai');
 });
