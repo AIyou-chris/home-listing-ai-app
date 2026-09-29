@@ -34130,6 +34130,74 @@ app.post('/api/lo/phone-line/buy', requireLoAgent, async (req, res) => {
   }
 });
 
+// ─── Per-listing AI phone numbers (LO / LO Pro only; calls share the LO's minute pool) ───
+const LISTING_NUMBER_TIERS = new Set(['lo', 'lo_pro']);
+async function loListingPhoneAccess(req, listingId) {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(listingId || ''))) {
+    return { status: 400, error: 'bad_listing_id' };
+  }
+  if (!loPhoneEnabledFor(req.loAgentId)) return { status: 403, error: 'phone_not_enabled' };
+  const { data: agentRow } = await supabaseAdmin.from('agents').select('plan, stripe_customer_id, payment_status, created_at').eq('id', req.loAgentId).maybeSingle();
+  const tier = (agentRow?.plan === 'office' || agentRow?.plan === 'white_label') ? 'lo_pro' : await resolveLoPlanTier(agentRow || {});
+  if (!LISTING_NUMBER_TIERS.has(tier)) return { status: 403, error: 'listing_numbers_need_lo_plan' };
+  const { data: prop } = await supabaseAdmin.from('properties').select('id, agent_id, user_id').eq('id', listingId).maybeSingle();
+  if (!prop) return { status: 404, error: 'listing_not_found' };
+  const owner = prop.agent_id || prop.user_id || null;
+  let mine = Boolean(owner && (owner === req.loAgentId || owner === req.authUserId));
+  if (!mine) {
+    const { data: assigned } = await supabaseAdmin.from('listing_lo_assignments').select('listing_id').eq('lo_agent_id', req.loAgentId).eq('listing_id', listingId).limit(1).maybeSingle();
+    mine = Boolean(assigned);
+  }
+  if (!mine) return { status: 403, error: 'listing_access_denied' };
+  return { ok: true, tier };
+}
+
+// GET /api/lo/listing-phone-lines — which of my listings already have their own number
+app.get('/api/lo/listing-phone-lines', requireLoAgent, async (req, res) => {
+  try {
+    if (!loPhoneEnabledFor(req.loAgentId)) return res.json({ enabled: false, lines: {} });
+    const svc = getLoPhoneLines();
+    const rows = await svc.listingLines(req.loAgentId);
+    const lines = {};
+    for (const row of rows) lines[row.listing_id] = svc.publicView(row, { aiReady: getLoPhoneCalls().isAiReady() });
+    res.json({ enabled: true, testMode: phoneLineConfig().mock, lines });
+  } catch (err) {
+    const missing = err?.code === '42P01' || err?.code === 'PGRST205' || err?.code === '42703';
+    console.error('[LO Listing Phone GET] Error:', err?.message || err);
+    res.status(missing ? 200 : 500).json(missing ? { enabled: false, lines: {} } : { error: 'failed_to_load_listing_lines' });
+  }
+});
+
+// POST /api/lo/listings/:listingId/phone-line/preview { areaCode } — hold a number (buys nothing)
+app.post('/api/lo/listings/:listingId/phone-line/preview', requireLoAgent, async (req, res) => {
+  try {
+    const access = await loListingPhoneAccess(req, req.params.listingId);
+    if (!access.ok) return res.status(access.status).json({ error: access.error });
+    const svc = getLoPhoneLines();
+    const result = await svc.previewNumber(req.loAgentId, req.body?.areaCode, req.params.listingId);
+    if (!result.ok && result.reason === 'bad_area_code') return res.status(400).json({ error: result.reason, message: result.error });
+    res.status(result.ok ? 200 : 422).json({ ok: result.ok, reason: result.reason || null, line: svc.publicView(result.line, { aiReady: getLoPhoneCalls().isAiReady() }) });
+  } catch (err) {
+    console.error('[LO Listing Phone preview] Error:', err?.message || err);
+    res.status(500).json({ error: 'phone_preview_failed' });
+  }
+});
+
+// POST /api/lo/listings/:listingId/phone-line/buy — buy the held number (never retried automatically)
+app.post('/api/lo/listings/:listingId/phone-line/buy', requireLoAgent, async (req, res) => {
+  try {
+    if (req.body?.confirm !== true) return res.status(400).json({ error: 'confirmation_required' });
+    const access = await loListingPhoneAccess(req, req.params.listingId);
+    if (!access.ok) return res.status(access.status).json({ error: access.error });
+    const svc = getLoPhoneLines();
+    const result = await svc.buyNumber(req.loAgentId, req.params.listingId);
+    res.status(result.ok ? 200 : 422).json({ ok: result.ok, reason: result.reason || null, message: result.error || null, line: svc.publicView(result.line, { aiReady: getLoPhoneCalls().isAiReady() }) });
+  } catch (err) {
+    console.error('[LO Listing Phone buy] Error:', err?.message || err);
+    res.status(500).json({ error: 'phone_buy_failed' });
+  }
+});
+
 // ─── LO AI answers the phone (Telnyx → OpenAI Realtime over SIP) ───
 const { createLoPhoneCallService } = require('./services/loPhoneCallService');
 const { createTelnyxClient: createTelnyxCallClient } = require('./services/telnyxClient');

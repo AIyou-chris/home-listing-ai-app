@@ -19,11 +19,17 @@ function fakeSupabase() {
       select() { return q; },
       eq(col, val) { filters.push((r) => r[col] === val); return q; },
       in(col, vals) { filters.push((r) => vals.includes(r[col])); return q; },
+      is(col, val) { filters.push((r) => (val === null ? r[col] == null : r[col] === val)); return q; },
+      not(col, _op, val) { filters.push((r) => (val === null ? r[col] != null : r[col] !== val)); return q; },
+      then(resolve) {
+        const hits = rows.filter((r) => filters.every((f) => f(r)));
+        return Promise.resolve({ data: hits, error: null }).then(resolve);
+      },
       insert(row) { op = 'insert'; payload = row; return q; },
       update(patch) { op = 'update'; payload = patch; return q; },
       async maybeSingle() {
         if (op === 'insert') {
-          if (rows.some((r) => r.lo_agent_id === payload.lo_agent_id && LIVE.includes(r.status))) {
+          if (rows.some((r) => r.lo_agent_id === payload.lo_agent_id && (r.listing_id || null) === (payload.listing_id || null) && LIVE.includes(r.status))) {
             return { data: null, error: { code: '23505' } };
           }
           const row = { id: `line-${++id}`, ...payload };
@@ -135,4 +141,30 @@ test('public view hides secrets', async () => {
   assert.equal(view.reservedNumber, '+15095550100');
   assert.ok(!('tool_token' in view));
   assert.ok(!('telnyx_reservation_id' in view));
+});
+
+test('listing numbers: a listing gets its own line, separate from the main line', async () => {
+  const db = fakeSupabase();
+  const svc = createLoPhoneLineService({ supabase: db, env: {}, telnyx: createMockTelnyxClient() });
+  await svc.previewNumber('lo1', '509');
+  await svc.buyNumber('lo1');
+  await svc.previewNumber('lo1', '509', 'listing-a');
+  const listingLine = await svc.buyNumber('lo1', 'listing-a');
+  assert.equal(listingLine.ok, true);
+  assert.equal(listingLine.line.listing_id, 'listing-a');
+  const main = await svc.currentLine('lo1');
+  assert.notEqual(main.id, listingLine.line.id);
+  assert.equal(main.listing_id ?? null, null);
+  assert.equal(svc.publicView(listingLine.line).listingId, 'listing-a');
+});
+
+test('listing numbers: two quick clicks on one listing make one line; another listing is separate', async () => {
+  const db = fakeSupabase();
+  const svc = createLoPhoneLineService({ supabase: db, env: {}, telnyx: createMockTelnyxClient() });
+  const [a, b] = await Promise.all([svc.claimLine('lo1', '509', 'listing-a'), svc.claimLine('lo1', '509', 'listing-a')]);
+  assert.equal(a.id, b.id);
+  const other = await svc.claimLine('lo1', '509', 'listing-b');
+  assert.notEqual(other.id, a.id);
+  const all = await svc.listingLines('lo1');
+  assert.equal(all.length, 2);
 });

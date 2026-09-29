@@ -246,3 +246,16 @@ test('under the cap: the AI answers', async () => {
   const r = await ctx.svc.handleTelnyxEvent(ring());
   assert.equal(r.mode, 'ai');
 });
+
+test('listing number: instructions focus the AI on that one home', () => {
+  const { svc } = setup();
+  const text = svc.buildInstructions({
+    config: { bot_name: 'Ava' },
+    lo: { first_name: 'Sam' },
+    listings: [{ address: '12 Oak St', price: 450000, bedrooms: 3, bathrooms: 2, description: 'Corner lot with a big yard.' }],
+    focusListing: true,
+  });
+  assert.match(text, /THIS PHONE NUMBER IS FOR ONE HOME: 12 Oak St/);
+  assert.match(text, /Corner lot with a big yard/);
+  assert.doesNotMatch(text, /Homes Sam is working on/);
+});

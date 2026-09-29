@@ -67,13 +67,15 @@ function createLoPhoneLineService({ supabase, env = process.env, telnyx = null }
   const config = () => phoneLineConfig(env);
   const client = () => telnyx || (config().mock ? createMockTelnyxClient() : createTelnyxClient({ apiKey: config().apiKey }));
 
-  async function currentLine(loAgentId) {
-    const { data, error } = await supabase
+  // listingId null/undefined = the LO's main line; otherwise that listing's own line.
+  async function currentLine(loAgentId, listingId = null) {
+    let query = supabase
       .from('lo_phone_lines')
       .select('*')
       .eq('lo_agent_id', loAgentId)
-      .in('status', LIVE_STATUSES)
-      .maybeSingle();
+      .in('status', LIVE_STATUSES);
+    query = listingId ? query.eq('listing_id', listingId) : query.is('listing_id', null);
+    const { data, error } = await query.maybeSingle();
     if (error) throw error;
     return data || null;
   }
@@ -91,8 +93,8 @@ function createLoPhoneLineService({ supabase, env = process.env, telnyx = null }
 
   const failLine = (lineId, message) => patchLine(lineId, { status: 'failed', provisioning_error: String(message || '').slice(0, 500) });
 
-  async function claimLine(loAgentId, areaCode) {
-    const existing = await currentLine(loAgentId);
+  async function claimLine(loAgentId, areaCode, listingId = null) {
+    const existing = await currentLine(loAgentId, listingId);
     // A practice (mock) line never blocks a real one once live buying is on.
     if (existing && existing.is_mock && !config().mock) {
       await patchLine(existing.id, { status: 'released', deactivated_at: new Date().toISOString() });
@@ -101,6 +103,7 @@ function createLoPhoneLineService({ supabase, env = process.env, telnyx = null }
     }
     const row = {
       lo_agent_id: loAgentId,
+      listing_id: listingId || null,
       requested_area_code: cleanAreaCode(areaCode) || null,
       status: 'searching',
       tool_token: randomBytes(32).toString('base64url'),
@@ -109,7 +112,7 @@ function createLoPhoneLineService({ supabase, env = process.env, telnyx = null }
     const { data, error } = await supabase.from('lo_phone_lines').insert(row).select('*').maybeSingle();
     if (error) {
       if (error.code === UNIQUE_VIOLATION) {
-        const won = await currentLine(loAgentId);
+        const won = await currentLine(loAgentId, listingId);
         if (won) return won;
       }
       throw error;
@@ -123,11 +126,11 @@ function createLoPhoneLineService({ supabase, env = process.env, telnyx = null }
   }
 
   // Find a real number in the area code and HOLD it at its real price. Buys nothing.
-  async function previewNumber(loAgentId, areaCode) {
+  async function previewNumber(loAgentId, areaCode, listingId = null) {
     const code = cleanAreaCode(areaCode);
     if (!code) return { ok: false, reason: 'bad_area_code', error: 'Enter a 3-digit US area code.' };
 
-    let line = await claimLine(loAgentId, code);
+    let line = await claimLine(loAgentId, code, listingId);
     if (line.phone_number) return { ok: true, line }; // already owns one — never a second
 
     // New area code, or retrying after a failure: start the hold over.
@@ -172,9 +175,9 @@ function createLoPhoneLineService({ supabase, env = process.env, telnyx = null }
   }
 
   // Buy the held number and point it at our voice app. Never retried automatically.
-  async function buyNumber(loAgentId) {
+  async function buyNumber(loAgentId, listingId = null) {
     const cfg = config();
-    let line = await currentLine(loAgentId);
+    let line = await currentLine(loAgentId, listingId);
     if (!line) return { ok: false, reason: 'no_line', error: 'Pick an area code first.' };
     if (line.phone_number && line.status === 'active') return { ok: true, line };
 
@@ -227,6 +230,7 @@ function createLoPhoneLineService({ supabase, env = process.env, telnyx = null }
     if (!line) return null;
     return {
       status: line.status,
+      listingId: line.listing_id || null,
       phoneNumber: line.phone_number || null,
       areaCode: line.requested_area_code || null,
       reservedNumber: reservationIsLive(line) ? line.reserved_number : null,
@@ -242,7 +246,7 @@ function createLoPhoneLineService({ supabase, env = process.env, telnyx = null }
 
   // Where hot callers get passed to. Empty clears it (falls back to the LO's profile phone).
   async function setTransferNumber(loAgentId, value) {
-    const line = await currentLine(loAgentId);
+    const line = await currentLine(loAgentId, null);
     if (!line) return { ok: false, reason: 'no_line' };
     const raw = String(value ?? '').trim();
     const number = raw ? normalizePhone(raw) : '';
@@ -250,7 +254,19 @@ function createLoPhoneLineService({ supabase, env = process.env, telnyx = null }
     return { ok: true, line: await patchLine(line.id, { transfer_number: number || null }) };
   }
 
-  return { currentLine, claimLine, previewNumber, buyNumber, publicView, reservationIsLive, setTransferNumber };
+  // Every live listing number this LO has, keyed for the Listings page.
+  async function listingLines(loAgentId) {
+    const { data, error } = await supabase
+      .from('lo_phone_lines')
+      .select('*')
+      .eq('lo_agent_id', loAgentId)
+      .not('listing_id', 'is', null)
+      .in('status', LIVE_STATUSES);
+    if (error) throw error;
+    return data || [];
+  }
+
+  return { listingLines, currentLine, claimLine, previewNumber, buyNumber, publicView, reservationIsLive, setTransferNumber };
 }
 
 module.exports = { createLoPhoneLineService, phoneLineConfig, isEnabledFor, cleanAreaCode, normalizePhone, maskPhone, LIVE_STATUSES };

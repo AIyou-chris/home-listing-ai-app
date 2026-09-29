@@ -196,8 +196,12 @@ function createLoPhoneCallService({
     return { config, lo: { ...(lo || {}), phone: extra?.phone || null } };
   }
 
-  async function listingsFor(loAgentId) {
+  async function listingsFor(loAgentId, onlyListingId = null) {
     try {
+      if (onlyListingId) {
+        const { data: one } = await supabase.from('properties').select('*').eq('id', onlyListingId).maybeSingle();
+        return one ? [one] : [];
+      }
       const { data: rows } = await supabase.from('listing_lo_assignments').select('listing_id').eq('lo_agent_id', loAgentId).limit(15);
       const ids = (rows || []).map((r) => r.listing_id).filter(Boolean);
       if (!ids.length) return [];
@@ -210,14 +214,24 @@ function createLoPhoneCallService({
   }
 
   // ── the instructions: the LO Brain, plus phone rules ─────────────────────
-  function buildInstructions({ config, lo, listings = [], callerNumber = '', canTransfer = false }) {
+  function buildInstructions({ config, lo, listings = [], callerNumber = '', canTransfer = false, focusListing = false }) {
     const loName = [clean(lo.first_name), clean(lo.last_name)].filter(Boolean).join(' ') || 'the loan officer';
     const loFirst = clean(lo.first_name) || loName;
     const botName = clean(config.bot_name) || 'the AI assistant';
     const parts = [brain.buildBrainPrompt({ config, lo, route: 'borrower_care' })];
     const advisor = clean(config.loan_advisor_rules);
     if (advisor) parts.push(`When the caller asks about money or loans, also follow the Loan Advisor rules:\n${advisor}`);
-    if (listings.length) {
+    if (focusListing && listings.length === 1) {
+      const l = listings[0];
+      const bits = [l.address, l.price ? `$${Number(l.price).toLocaleString('en-US')}` : '', l.bedrooms ? `${l.bedrooms} bd` : '', l.bathrooms ? `${l.bathrooms} ba` : '', l.sqft ? `${Number(l.sqft).toLocaleString('en-US')} sqft` : ''].filter(Boolean);
+      const about = clean(l.description).slice(0, 1200);
+      parts.push([
+        `THIS PHONE NUMBER IS FOR ONE HOME: ${bits.join(', ')}.`,
+        'Callers dialed the number on this home\'s sign or ad, so assume they are calling about THIS home. Answer questions about it, and only say what you know. Never invent details.',
+        about ? `About the home: ${about}` : '',
+        'Try to book a showing, and get their name and best number. If they ask about financing, answer as the loan officer\'s assistant.',
+      ].filter(Boolean).join('\n'));
+    } else if (listings.length) {
       const lines = listings.slice(0, 15).map((l) => {
         const bits = [l.address, l.price ? `$${Number(l.price).toLocaleString('en-US')}` : '', l.bedrooms ? `${l.bedrooms} bd` : '', l.bathrooms ? `${l.bathrooms} ba` : ''].filter(Boolean);
         return `- ${bits.join(', ')}`;
@@ -393,13 +407,13 @@ function createLoPhoneCallService({
     await patchCall(call.id, { openai_call_id: openaiCallId });
 
     const { config, lo } = await loadLo(call.lo_agent_id);
-    const listings = await listingsFor(call.lo_agent_id);
+    const listings = await listingsFor(call.lo_agent_id, line.listing_id || null);
     const canTransfer = Boolean(await transferTarget(line, lo));
     const c = cfg();
     const accepted = await openai(`/realtime/calls/${encodeURIComponent(openaiCallId)}/accept`, {
       type: 'realtime',
       model: c.model,
-      instructions: buildInstructions({ config: config || {}, lo, listings, callerNumber: call.from_number, canTransfer }),
+      instructions: buildInstructions({ config: config || {}, lo, listings, callerNumber: call.from_number, canTransfer, focusListing: Boolean(line.listing_id) }),
       audio: {
         input: { transcription: { model: c.transcribeModel }, turn_detection: { type: 'semantic_vad' } },
         output: { voice: clean(config?.voice_name) || 'marin' },
