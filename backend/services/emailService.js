@@ -559,10 +559,17 @@ const buildTrialHtml = (firstName, day, dashboardUrl) => {
 module.exports = (supabaseAdmin) => {
   const mailgunKey = process.env.MAILGUN_API_KEY;
   const mailgunDomain = process.env.MAILGUN_DOMAIN || 'mg.homelistingai.com';
-  const mailgunFromEmail =
-    process.env.MAILGUN_FROM_EMAIL ||
-    process.env.FROM_EMAIL ||
-    'notifications@mg.homelistingai.com';
+  // DMARC alignment: the From address must live on the domain Mailgun signs for. A From on
+  // gmail.com (or any other domain) passes SPF/DKIM but FAILS DMARC, and Proton/Gmail show a
+  // "failed its domain's authentication" warning. If the env var points elsewhere, send from
+  // the Mailgun domain instead; replies still go to the real inbox via Reply-To.
+  const configuredFrom = process.env.MAILGUN_FROM_EMAIL || process.env.FROM_EMAIL || '';
+  const fromDomain = String(configuredFrom).split('@')[1]?.trim().toLowerCase() || '';
+  const fromIsAligned = fromDomain && (fromDomain === mailgunDomain.toLowerCase() || fromDomain.endsWith(`.${mailgunDomain.toLowerCase()}`));
+  if (configuredFrom && !fromIsAligned) {
+    console.warn(`[Email] From address "${configuredFrom}" is not on ${mailgunDomain}; sending from notifications@${mailgunDomain} so DMARC aligns.`);
+  }
+  const mailgunFromEmail = fromIsAligned ? configuredFrom : `notifications@${mailgunDomain}`;
   const mailgunFromName =
     process.env.MAILGUN_FROM_NAME ||
     process.env.FROM_NAME ||
