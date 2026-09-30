@@ -90,6 +90,98 @@ type ListingCardProps = {
   loading?: boolean;
 };
 
+type ListingPhoneLine = {
+  status: string;
+  phoneNumber: string | null;
+  reservedNumber: string | null;
+  reservedMonthlyCost: string | null;
+  isTest: boolean;
+  aiAnswering: boolean;
+  error: string | null;
+};
+
+const ListingPhonePanel: React.FC<{ listingId: string; demo?: boolean }> = ({ listingId, demo = false }) => {
+  const [open, setOpen] = useState(false);
+  const [line, setLine] = useState<ListingPhoneLine | null>(null);
+  const [areaCode, setAreaCode] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+  const [eligible, setEligible] = useState(true);
+
+  useEffect(() => {
+    if (!open || demo) return;
+    let active = true;
+    (async () => {
+      try {
+        const res = await fetch(buildApiUrl(`/api/lo/listings/${listingId}/phone-line`), { headers: await getApiHeaders() });
+        const data = await res.json();
+        if (!active) return;
+        if (res.status === 403) { setEligible(false); return; }
+        if (!res.ok) throw new Error('Could not load this listing’s phone line.');
+        setLine(data.line || null);
+      } catch { if (active) setMessage('Could not load the phone line. Try again.'); }
+    })();
+    return () => { active = false; };
+  }, [open, listingId, demo]);
+
+  const submit = async (action: 'preview' | 'buy') => {
+    setBusy(true);
+    setMessage('');
+    try {
+      const res = await fetch(buildApiUrl(`/api/lo/listings/${listingId}/phone-line/${action}`), {
+        method: 'POST',
+        headers: await getApiHeaders(),
+        body: JSON.stringify(action === 'buy' ? { confirm: true } : { areaCode })
+      });
+      const data = await res.json();
+      if (data.line) setLine(data.line);
+      if (!res.ok) setMessage(data.message || 'Could not set up this number. Try again.');
+      else if (action === 'buy') showToast.success('This home has its own AI phone number.');
+    } catch { setMessage('Could not reach the phone service. Try again.'); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+      <button type="button" className="w-full text-left text-xs font-bold text-emerald-800" onClick={() => setOpen(v => !v)}>
+        📞 AI phone for this home {open ? '▴' : '▾'}
+      </button>
+      {open && (
+        <div className="mt-3 space-y-2 text-xs text-slate-700">
+          {demo ? <p>Each real listing can have its own number.</p>
+            : !eligible ? <p>Listing phone numbers are available on LO and LO Pro plans when AI phone is enabled.</p>
+            : line?.phoneNumber ? (
+              <div>
+                <p className="font-bold text-emerald-900">{line.phoneNumber}</p>
+                <p>{line.isTest ? 'Test number — buyers cannot call it.' : line.aiAnswering ? 'Live on this listing.' : 'Number is active; AI answering is unavailable.'}</p>
+              </div>
+            ) : line?.reservedNumber ? (
+              <div className="space-y-2">
+                <p>{line.reservedNumber} · {line.isTest ? 'Test number' : `$${line.reservedMonthlyCost || '?'} per month`}</p>
+                <button type="button" disabled={busy} onClick={() => void submit('buy')}
+                  className="rounded-lg bg-emerald-700 px-3 py-2 font-bold text-white disabled:opacity-50">
+                  {busy ? 'Setting up…' : line.isTest ? 'Activate test number' : 'Buy this number for this home'}
+                </button>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <input aria-label="Three-digit area code" inputMode="numeric" maxLength={3} value={areaCode}
+                  onChange={e => setAreaCode(e.target.value.replace(/\D/g, '').slice(0, 3))}
+                  placeholder="Area code" className="w-28 rounded-lg border border-slate-300 px-2 py-2" />
+                <button type="button" disabled={busy || areaCode.length !== 3} onClick={() => void submit('preview')}
+                  className="rounded-lg bg-emerald-700 px-3 py-2 font-bold text-white disabled:opacity-50">
+                  {busy ? 'Finding…' : 'Find a number'}
+                </button>
+              </div>
+            )}
+          {message && <p role="alert" className="text-red-700">{message}</p>}
+          {line?.error && <p role="alert" className="text-red-700">{line.error}</p>}
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ─── Branding Toggle Panel ────────────────────────────────────────────────────
 
 const BrandingTogglePanel: React.FC<{ listingId: string; demo?: boolean }> = ({ listingId, demo = false }) => {
@@ -271,6 +363,7 @@ const ListingCard: React.FC<ListingCardProps> = ({ listing, mode, onRemove, onAd
       {mode === 'assigned' && showToggles && (
         <BrandingTogglePanel listingId={listing.id} />
       )}
+      {mode === 'assigned' && <ListingPhonePanel listingId={listing.id} demo={listing.id.startsWith('demo-')} />}
     </div>
   );
 };

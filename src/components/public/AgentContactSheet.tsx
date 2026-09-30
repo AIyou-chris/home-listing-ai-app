@@ -11,6 +11,7 @@ export type AgentContactInfo = {
   website?: string;
   headshotUrl?: string;
   brandColor?: string;
+  nmlsNumber?: string;
 };
 
 interface AgentContactSheetProps {

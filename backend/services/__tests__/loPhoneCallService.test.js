@@ -178,6 +178,17 @@ test('OpenAI: our call is accepted with the brain, voice and tools', async () =>
   assert.equal(socket.sent[0].type, 'response.create');
 });
 
+test('a listing number identifies the home in the call and AI greeting context', async () => {
+  const ctx = setup();
+  ctx.supabase.tables.lo_phone_lines[0].listing_id = 'home-1';
+  ctx.supabase.tables.properties.push({ id: 'home-1', address: '12 Oak St', price: 875000 });
+  await liveCall(ctx);
+  assert.equal(ctx.supabase.tables.lo_phone_calls[0].listing_id, 'home-1');
+  const accept = ctx.fetchImpl.hits.find((h) => /\/accept$/.test(h.url));
+  assert.match(accept.body.instructions, /12 Oak St/);
+  assert.match(accept.body.instructions, /This number belongs to the listing/);
+});
+
 test('hand-off moves the caller to the LO cell', async () => {
   const ctx = setup();
   const { socket, callId } = await liveCall(ctx);

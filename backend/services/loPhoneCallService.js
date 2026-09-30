@@ -210,7 +210,7 @@ function createLoPhoneCallService({
   }
 
   // ── the instructions: the LO Brain, plus phone rules ─────────────────────
-  function buildInstructions({ config, lo, listings = [], callerNumber = '', canTransfer = false }) {
+  function buildInstructions({ config, lo, listings = [], callerNumber = '', canTransfer = false, listingAddress = '' }) {
     const loName = [clean(lo.first_name), clean(lo.last_name)].filter(Boolean).join(' ') || 'the loan officer';
     const loFirst = clean(lo.first_name) || loName;
     const botName = clean(config.bot_name) || 'the AI assistant';
@@ -224,6 +224,7 @@ function createLoPhoneCallService({
       });
       parts.push(`Homes ${loFirst} is working on (callers may be calling about one of these):\n${lines.join('\n')}`);
     }
+    if (listingAddress) parts.push(`This number belongs to the listing at ${listingAddress}. Start by mentioning this home. Focus on this home unless the caller asks about another one.`);
     const style = clean(config.voice_style);
     parts.push([
       'THIS IS A LIVE PHONE CALL. Rules for the phone:',
@@ -300,6 +301,7 @@ function createLoPhoneCallService({
       const { data: call, error } = await supabase.from('lo_phone_calls').insert({
         lo_agent_id: line.lo_agent_id,
         line_id: line.id,
+        listing_id: line.listing_id || null,
         telnyx_call_control_id: ccid,
         from_number: normalizePhone(p.from) || String(p.from || '').slice(0, 40) || null,
         to_number: to,
@@ -393,13 +395,20 @@ function createLoPhoneCallService({
     await patchCall(call.id, { openai_call_id: openaiCallId });
 
     const { config, lo } = await loadLo(call.lo_agent_id);
-    const listings = await listingsFor(call.lo_agent_id);
+    const listings = call.listing_id
+      ? await (async () => {
+          const { data } = await supabase.from('properties').select('*').eq('id', call.listing_id).maybeSingle();
+          return data ? [data] : [];
+        })()
+      : await listingsFor(call.lo_agent_id);
     const canTransfer = Boolean(await transferTarget(line, lo));
     const c = cfg();
     const accepted = await openai(`/realtime/calls/${encodeURIComponent(openaiCallId)}/accept`, {
       type: 'realtime',
       model: c.model,
-      instructions: buildInstructions({ config: config || {}, lo, listings, callerNumber: call.from_number, canTransfer }),
+      instructions: buildInstructions({ config: config || {}, lo, listings,
+        listingAddress: call.listing_id ? listings[0]?.address || '' : '',
+        callerNumber: call.from_number, canTransfer }),
       audio: {
         input: { transcription: { model: c.transcribeModel }, turn_detection: { type: 'semantic_vad' } },
         output: { voice: clean(config?.voice_name) || 'marin' },
@@ -573,7 +582,11 @@ function createLoPhoneCallService({
     const lastCaller = [...transcript].reverse().find((m) => m.role === 'caller')?.text || '';
     const name = clean(details.name) || 'Phone caller';
     const email = clean(details.email) || null;
-    const notes = [summary, details.best_time ? `Best time to call: ${details.best_time}` : '', details.property ? `Asked about: ${details.property}` : ''].filter(Boolean).join('\n');
+    const { data: listing } = call.listing_id
+      ? await supabase.from('properties').select('address').eq('id', call.listing_id).maybeSingle()
+      : { data: null };
+    const propertyInterest = clean(listing?.address) || clean(details.property) || clean(details.interest) || null;
+    const notes = [summary, details.best_time ? `Best time to call: ${details.best_time}` : '', propertyInterest ? `Asked about: ${propertyInterest}` : ''].filter(Boolean).join('\n');
     const common = {
       last_message: lastCaller.slice(0, 2000) || null,
       last_message_preview: (summary || lastCaller).slice(0, 140) || null,
@@ -590,6 +603,7 @@ function createLoPhoneCallService({
       const { data } = await supabase.from('leads').update({
         ...common,
         notes: [notes, existing.notes].filter(Boolean).join('\n\n').slice(0, 8000),
+        ...(propertyInterest ? { property_interest: propertyInterest } : {}),
         ...(details.name ? { full_name: name, name } : {}),
         ...(email ? { email, email_lower: email.toLowerCase() } : {}),
       }).eq('id', existing.id).select('*').maybeSingle();
@@ -609,11 +623,11 @@ function createLoPhoneCallService({
       source_type: 'phone',
       source: 'phone_call',
       source_key: call.id,
-      source_meta: { phone_call_id: call.id },
+      source_meta: { phone_call_id: call.id, ...(call.listing_id ? { listing_id: call.listing_id } : {}) },
       status: 'New',
       timeline: clean(details.timeline) || 'unknown',
       financing: clean(details.financing) || null,
-      property_interest: clean(details.property) || clean(details.interest) || null,
+      property_interest: propertyInterest,
       notes: notes || null,
       first_touch_at: ts,
       created_at: ts,

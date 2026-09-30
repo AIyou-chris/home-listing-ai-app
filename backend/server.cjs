@@ -34130,6 +34130,73 @@ app.post('/api/lo/phone-line/buy', requireLoAgent, async (req, res) => {
   }
 });
 
+// A listing line is bought only after the assigned LO explicitly confirms it.
+async function listingPhoneAccess(req, res) {
+  const listingId = req.params.listingId;
+  const { data: assignment, error } = await supabaseAdmin.from('listing_lo_assignments')
+    .select('lo_agent_id').eq('listing_id', listingId).maybeSingle();
+  if (error) throw error;
+  if (!assignment || assignment.lo_agent_id !== req.loAgentId) {
+    res.status(403).json({ error: 'listing_access_denied' });
+    return false;
+  }
+  const { data: agent, error: agentError } = await supabaseAdmin.from('agents')
+    .select('plan, stripe_customer_id, payment_status, created_at').eq('id', req.loAgentId).maybeSingle();
+  if (agentError) throw agentError;
+  const tier = agent?.plan === 'office' || agent?.plan === 'white_label'
+    ? 'lo_pro' : await resolveLoPlanTier(agent || {});
+  if (tier !== 'lo' && tier !== 'lo_pro') {
+    res.status(403).json({ error: 'listing_phone_plan_required' });
+    return false;
+  }
+  if (!loPhoneEnabledFor(req.loAgentId)) {
+    res.status(403).json({ error: 'phone_not_enabled' });
+    return false;
+  }
+  return true;
+}
+
+app.get('/api/lo/listings/:listingId/phone-line', requireLoAgent, async (req, res) => {
+  try {
+    if (!await listingPhoneAccess(req, res)) return;
+    const svc = getLoPhoneLines();
+    const line = await svc.currentLine(req.loAgentId, req.params.listingId);
+    res.json({ line: svc.publicView(line, { aiReady: getLoPhoneCalls().isAiReady() }) });
+  } catch (err) {
+    console.error('[Listing Phone GET] Error:', err?.message || err);
+    res.status(500).json({ error: 'listing_phone_failed' });
+  }
+});
+
+app.post('/api/lo/listings/:listingId/phone-line/preview', requireLoAgent, async (req, res) => {
+  try {
+    if (!await listingPhoneAccess(req, res)) return;
+    const svc = getLoPhoneLines();
+    const result = await svc.previewNumber(req.loAgentId, req.body?.areaCode, req.params.listingId);
+    res.status(result.ok ? 200 : result.reason === 'bad_area_code' ? 400 : 422)
+      .json({ ok: result.ok, reason: result.reason || null, message: result.error || null,
+        line: svc.publicView(result.line, { aiReady: getLoPhoneCalls().isAiReady() }) });
+  } catch (err) {
+    console.error('[Listing Phone preview] Error:', err?.message || err);
+    res.status(500).json({ error: 'listing_phone_preview_failed' });
+  }
+});
+
+app.post('/api/lo/listings/:listingId/phone-line/buy', requireLoAgent, async (req, res) => {
+  try {
+    if (!await listingPhoneAccess(req, res)) return;
+    if (req.body?.confirm !== true) return res.status(400).json({ error: 'confirmation_required' });
+    const svc = getLoPhoneLines();
+    const result = await svc.buyNumber(req.loAgentId, req.params.listingId);
+    res.status(result.ok ? 200 : 422).json({ ok: result.ok, reason: result.reason || null,
+      message: result.error || null,
+      line: svc.publicView(result.line, { aiReady: getLoPhoneCalls().isAiReady() }) });
+  } catch (err) {
+    console.error('[Listing Phone buy] Error:', err?.message || err);
+    res.status(500).json({ error: 'listing_phone_buy_failed' });
+  }
+});
+
 // ─── LO AI answers the phone (Telnyx → OpenAI Realtime over SIP) ───
 const { createLoPhoneCallService } = require('./services/loPhoneCallService');
 const { createTelnyxClient: createTelnyxCallClient } = require('./services/telnyxClient');
@@ -34464,7 +34531,14 @@ app.get('/api/public/listing/:listingId/lo-chatbot', async (req, res) => {
       greeting: config.greeting,
       lo_name: loFullName || config.bot_name,
       lo_photo: loAgent?.headshot_url || null,
-      lo_company: loAgent?.company || null
+      lo_company: loAgent?.company || null,
+      ai_phone_number: loPhoneEnabledFor(loAgentId)
+        ? await (async () => {
+            const line = await getLoPhoneLines().currentLine(loAgentId, listingId);
+            return line?.status === 'active' && !line.is_mock && getLoPhoneCalls().isAiReady()
+              ? line.phone_number : null;
+          })()
+        : null
     });
   } catch (err) {
     console.error('[LO Chatbot Public Info] Error:', err);

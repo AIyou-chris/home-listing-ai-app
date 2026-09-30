@@ -157,7 +157,7 @@ const PublicListingPage: React.FC = () => {
     const [notPublished, setNotPublished] = useState(false);
     const [talkToHomeOpen, setTalkToHomeOpen] = useState(false);
     const [loFinanceChatOpen, setLoFinanceChatOpen] = useState(false);
-    const [loBot, setLoBot] = useState<{ enabled: boolean; name?: string | null; photo?: string | null; company?: string | null } | null>(null);
+    const [loBot, setLoBot] = useState<{ enabled: boolean; name?: string | null; photo?: string | null; company?: string | null; aiPhoneNumber?: string | null } | null>(null);
     const safePublicSlug = useMemo(() => normalizeRouteSlug(publicSlug), [publicSlug]);
     const alertVisitorId = typeof window !== 'undefined' ? (localStorage.getItem(VISITOR_STORAGE_KEY) || undefined) : undefined;
     useEffect(() => {
@@ -234,9 +234,9 @@ const PublicListingPage: React.FC = () => {
                 try {
                     const loInfoRes = await fetch(buildApiUrl(`/api/public/listing/${encodeURIComponent(loaded.id)}/lo-chatbot`));
                     if (loInfoRes.ok) {
-                        const loInfo = await loInfoRes.json() as { enabled?: boolean; lo_name?: string | null; lo_photo?: string | null; lo_company?: string | null };
+                        const loInfo = await loInfoRes.json() as { enabled?: boolean; lo_name?: string | null; lo_photo?: string | null; lo_company?: string | null; ai_phone_number?: string | null };
                         setLoBot(loInfo.enabled === true
-                            ? { enabled: true, name: loInfo.lo_name || null, photo: loInfo.lo_photo || null, company: loInfo.lo_company || null }
+                            ? { enabled: true, name: loInfo.lo_name || null, photo: loInfo.lo_photo || null, company: loInfo.lo_company || null, aiPhoneNumber: loInfo.ai_phone_number || null }
                             : { enabled: false });
                     }
                 } catch {

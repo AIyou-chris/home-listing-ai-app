@@ -52,7 +52,7 @@ const ForLoanOfficersPage: React.FC = () => {
             {firstName ? `${firstName}, stop` : 'Stop'} buying leads that were <span className="text-[#38bdf8]">sold to 5 other LOs</span> first.
           </h1>
           <p className="mx-auto mt-3 max-w-[340px] text-sm leading-relaxed text-slate-300">
-            HomeListingAI puts your AI assistant on your partner agents' listings. Buyers chat 24/7 — every financing question routes to you. Only you.
+            Put your AI on your partner agents' listings. You can give each home its own number so buyers can call about that exact property, day or night.
           </p>
           <button onClick={scrollToDemo} className="mt-5 w-full rounded-2xl bg-gradient-to-r from-blue-600 to-blue-500 py-4 text-[16px] font-extrabold text-white shadow-[0_8px_24px_rgba(37,99,235,0.4)] active:scale-[0.99]">
             ▶ Try it right now — no signup
@@ -98,7 +98,7 @@ const ForLoanOfficersPage: React.FC = () => {
           <p className="text-center text-[10px] font-extrabold uppercase tracking-widest text-blue-600">How it works</p>
           {[
             { icon: '🤝', t: 'You send your agent a magic link', d: 'One tap. Your agent gets a live AI-powered listing demo — branded to you. Free for them, so saying yes is easy.' },
-            { icon: '🏡', t: 'Their listings answer buyers 24/7', d: 'Your AI is live on every listing — answering questions, qualifying buyers, night and day.' },
+            { icon: '🏡', t: 'Give each home its own AI phone number', d: 'Buyers call from the listing page. Your AI knows which home they mean and answers day or night.' },
             { icon: '🔥', t: 'Warm leads come straight to you', d: 'Every buyer who asks about financing gets routed to you — with name, phone, and what they asked.' }
           ].map(s => (
             <div key={s.t} className="flex items-start gap-3 rounded-2xl bg-[#f8fafc] p-3.5">

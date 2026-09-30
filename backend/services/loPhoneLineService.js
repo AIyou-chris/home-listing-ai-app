@@ -1,12 +1,12 @@
 'use strict';
 
-// Each loan officer's own AI phone number. Ported from An AI You's provisioning
+// Each loan officer's general AI number and one optional number per listing.
+// Ported from An AI You's provisioning
 // (ai-landing-template/server/lib/phone/provisioning.cjs) — the only code that
 // spends real money on an outside account, so the same guarantees apply:
 //
-//  * The line row is written FIRST. A unique index on lo_phone_lines(lo_agent_id)
-//    (live statuses) means two quick clicks race for one row and the loser gets
-//    the winner's line having spent nothing. Never two numbers.
+//  * The line row is written FIRST. Unique live indexes on general LO lines and
+//    listing lines mean two quick clicks race for one row, not two purchases.
 //  * Each step records its intent before acting ('ordering' before the order),
 //    so a crash mid-order is recoverable instead of buying again.
 //  * A number order is never retried automatically.
@@ -67,13 +67,14 @@ function createLoPhoneLineService({ supabase, env = process.env, telnyx = null }
   const config = () => phoneLineConfig(env);
   const client = () => telnyx || (config().mock ? createMockTelnyxClient() : createTelnyxClient({ apiKey: config().apiKey }));
 
-  async function currentLine(loAgentId) {
-    const { data, error } = await supabase
+  async function currentLine(loAgentId, listingId = null) {
+    let query = supabase
       .from('lo_phone_lines')
       .select('*')
       .eq('lo_agent_id', loAgentId)
-      .in('status', LIVE_STATUSES)
-      .maybeSingle();
+      .in('status', LIVE_STATUSES);
+    query = listingId ? query.eq('listing_id', listingId) : query.is('listing_id', null);
+    const { data, error } = await query.maybeSingle();
     if (error) throw error;
     return data || null;
   }
@@ -91,8 +92,8 @@ function createLoPhoneLineService({ supabase, env = process.env, telnyx = null }
 
   const failLine = (lineId, message) => patchLine(lineId, { status: 'failed', provisioning_error: String(message || '').slice(0, 500) });
 
-  async function claimLine(loAgentId, areaCode) {
-    const existing = await currentLine(loAgentId);
+  async function claimLine(loAgentId, areaCode, listingId = null) {
+    const existing = await currentLine(loAgentId, listingId);
     // A practice (mock) line never blocks a real one once live buying is on.
     if (existing && existing.is_mock && !config().mock) {
       await patchLine(existing.id, { status: 'released', deactivated_at: new Date().toISOString() });
@@ -101,6 +102,7 @@ function createLoPhoneLineService({ supabase, env = process.env, telnyx = null }
     }
     const row = {
       lo_agent_id: loAgentId,
+      listing_id: listingId,
       requested_area_code: cleanAreaCode(areaCode) || null,
       status: 'searching',
       tool_token: randomBytes(32).toString('base64url'),
@@ -109,7 +111,7 @@ function createLoPhoneLineService({ supabase, env = process.env, telnyx = null }
     const { data, error } = await supabase.from('lo_phone_lines').insert(row).select('*').maybeSingle();
     if (error) {
       if (error.code === UNIQUE_VIOLATION) {
-        const won = await currentLine(loAgentId);
+        const won = await currentLine(loAgentId, listingId);
         if (won) return won;
       }
       throw error;
@@ -123,11 +125,11 @@ function createLoPhoneLineService({ supabase, env = process.env, telnyx = null }
   }
 
   // Find a real number in the area code and HOLD it at its real price. Buys nothing.
-  async function previewNumber(loAgentId, areaCode) {
+  async function previewNumber(loAgentId, areaCode, listingId = null) {
     const code = cleanAreaCode(areaCode);
     if (!code) return { ok: false, reason: 'bad_area_code', error: 'Enter a 3-digit US area code.' };
 
-    let line = await claimLine(loAgentId, code);
+    let line = await claimLine(loAgentId, code, listingId);
     if (line.phone_number) return { ok: true, line }; // already owns one — never a second
 
     // New area code, or retrying after a failure: start the hold over.
@@ -172,9 +174,9 @@ function createLoPhoneLineService({ supabase, env = process.env, telnyx = null }
   }
 
   // Buy the held number and point it at our voice app. Never retried automatically.
-  async function buyNumber(loAgentId) {
+  async function buyNumber(loAgentId, listingId = null) {
     const cfg = config();
-    let line = await currentLine(loAgentId);
+    let line = await currentLine(loAgentId, listingId);
     if (!line) return { ok: false, reason: 'no_line', error: 'Pick an area code first.' };
     if (line.phone_number && line.status === 'active') return { ok: true, line };
 
@@ -188,7 +190,15 @@ function createLoPhoneLineService({ supabase, env = process.env, telnyx = null }
       if (!line.phone_number) {
         if (!reservationIsLive(line)) return { ok: false, line, reason: 'hold_expired', error: 'That number hold expired. Pick your area code again.' };
         const candidate = normalizePhone(line.reserved_number);
-        line = await patchLine(line.id, { status: 'ordering', provisioning_error: null }); // intent BEFORE the order
+        // Claim the order atomically. Two simultaneous clicks must not each buy
+        // the same held number from Telnyx.
+        const { data: claimed, error: claimError } = await supabase.from('lo_phone_lines')
+          .update({ status: 'ordering', provisioning_error: null, updated_at: new Date().toISOString() })
+          .eq('id', line.id).eq('status', 'searching').select('*').maybeSingle();
+        if (claimError) throw claimError;
+        if (!claimed) return { ok: false, line: await currentLine(loAgentId, listingId),
+          reason: 'order_in_progress', error: 'Your number order is already in progress. Refresh in a minute.' };
+        line = claimed;
         const order = await client().orderNumber({ phoneNumber: candidate, connectionId: cfg.connectionId || undefined, customerReference: `hlai-line-${line.id}` });
         if (!order.ok) return { ok: false, line: await failLine(line.id, order.error), reason: 'order_failed', error: order.error };
         line = await patchLine(line.id, {

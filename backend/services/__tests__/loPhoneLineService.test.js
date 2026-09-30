@@ -6,7 +6,7 @@ const { createLoPhoneLineService, phoneLineConfig, isEnabledFor, cleanAreaCode, 
 const { createMockTelnyxClient } = require('../telnyxClient');
 
 // Tiny in-memory stand-in for the lo_phone_lines table, including the
-// "one live line per LO" unique index.
+// general-line and per-listing unique indexes.
 function fakeSupabase() {
   const rows = [];
   let id = 0;
@@ -18,12 +18,14 @@ function fakeSupabase() {
     const q = {
       select() { return q; },
       eq(col, val) { filters.push((r) => r[col] === val); return q; },
+      is(col, val) { filters.push((r) => (r[col] ?? null) === val); return q; },
       in(col, vals) { filters.push((r) => vals.includes(r[col])); return q; },
       insert(row) { op = 'insert'; payload = row; return q; },
       update(patch) { op = 'update'; payload = patch; return q; },
       async maybeSingle() {
         if (op === 'insert') {
-          if (rows.some((r) => r.lo_agent_id === payload.lo_agent_id && LIVE.includes(r.status))) {
+          if (rows.some((r) => r.lo_agent_id === payload.lo_agent_id &&
+            (r.listing_id ?? null) === (payload.listing_id ?? null) && LIVE.includes(r.status))) {
             return { data: null, error: { code: '23505' } };
           }
           const row = { id: `line-${++id}`, ...payload };
@@ -108,6 +110,20 @@ test('an LO who owns a number is never offered a second one', async () => {
   const r = await svc.previewNumber('lo1', '206');
   assert.equal(r.line.phone_number, '+15095550100');
   assert.equal(telnyx.orders, 1);
+});
+
+test('each listing has its own line while the LO general line stays separate', async () => {
+  const db = fakeSupabase();
+  const svc = createLoPhoneLineService({ supabase: db, telnyx: countingMock() });
+  const general = await svc.previewNumber('lo1', '509');
+  const homeA = await svc.previewNumber('lo1', '206', 'listing-a');
+  const homeB = await svc.previewNumber('lo1', '425', 'listing-b');
+  assert.equal(db.rows.length, 3);
+  assert.notEqual(homeA.line.id, homeB.line.id);
+  assert.notEqual(homeA.line.id, general.line.id);
+  assert.equal((await svc.currentLine('lo1', 'listing-a')).id, homeA.line.id);
+  assert.equal((await svc.currentLine('lo1')).id, general.line.id);
+  assert.equal((await svc.previewNumber('lo1', '509', 'listing-a')).line.id, homeA.line.id);
 });
 
 test('buy without a hold asks for an area code', async () => {

@@ -12,6 +12,7 @@ export interface PublicListingLoBot {
     name?: string | null;
     photo?: string | null;
     company?: string | null;
+    aiPhoneNumber?: string | null;
 }
 
 interface PublicPropertyAppProps {
@@ -69,7 +70,8 @@ const toAgentContactInfo = (property: Property): AgentContactInfo => {
         email: raw.email?.trim() || undefined,
         website: raw.website?.trim() || undefined,
         headshotUrl: raw.headshotUrl?.trim() || undefined,
-        brandColor: raw.brandColor?.trim() || '#28a7e8'
+        brandColor: raw.brandColor?.trim() || '#28a7e8',
+        nmlsNumber: raw.nmlsNumber?.trim() || undefined
     };
 };
 
@@ -287,6 +289,13 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({
                                     <p className="-mt-1.5 mb-3 px-3.5 text-center text-[11px] font-semibold text-slate-400 dark:text-slate-500">
                                         Ask this listing anything — like you would a person
                                     </p>
+                                    {loBot?.aiPhoneNumber && (
+                                        <a href={`tel:${loBot.aiPhoneNumber}`}
+                                            className="mx-3.5 mb-3.5 flex items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-3 text-center text-[13px] font-bold text-emerald-800"
+                                            aria-label={`Call the AI financing assistant for this home at ${loBot.aiPhoneNumber}`}>
+                                            📞 Call this home's AI · {loBot.aiPhoneNumber}
+                                        </a>
+                                    )}
                                 </>
                             )}
 
