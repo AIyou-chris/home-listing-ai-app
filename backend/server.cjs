@@ -31982,7 +31982,7 @@ app.get('/api/public/partner-invite/:token', async (req, res) => {
     const { token } = req.params;
     const { data: invite } = await supabaseAdmin
       .from('agent_invites')
-      .select('id, invited_email, invited_name, claimed_at, expires_at, listing_id, lo_agent_id')
+      .select('id, invited_email, invited_name, invited_phone, claimed_at, claimed_agent_id, expires_at, listing_id, lo_agent_id')
       .eq('token', token)
       .maybeSingle();
     if (!invite) return res.status(404).json({ error: 'invite_not_found' });
@@ -32044,9 +32044,31 @@ app.get('/api/public/partner-invite/:token', async (req, res) => {
     // #18 White Label: if the LO belongs to an office, inherit its brand.
     const brand = await resolveBrandForLoAgent(loProfileId);
 
+    // The listing agent's card: whatever we know. Claimed agents have a full profile;
+    // unclaimed ones only have what the LO typed into the invite.
+    let agentRow = null;
+    if (invite.claimed_agent_id) {
+      const { data: row } = await supabaseAdmin
+        .from('agents')
+        .select('first_name, last_name, brokerage, company, headshot_url, phone, email, website')
+        .eq('id', invite.claimed_agent_id)
+        .maybeSingle();
+      agentRow = row || null;
+    }
+    const agentProfileName = [agentRow?.first_name, agentRow?.last_name].filter(Boolean).join(' ');
+    const agent = {
+      name: agentProfileName || invite.invited_name || null,
+      company: agentRow?.brokerage || agentRow?.company || null,
+      headshotUrl: agentRow?.headshot_url || null,
+      phone: agentRow?.phone || null,
+      email: agentRow?.email || null,
+      website: agentRow?.website || null
+    };
+
     res.json({
       success: true,
       token,
+      agent,
       claimed: !!invite.claimed_at,
       inviteeName: invite.invited_name || null,
       lo: {
@@ -32908,101 +32930,87 @@ const resolveOfficeBrand = async (officeId) => {
   };
 };
 
-// Build a branded email header block. Falls back to HomeListingAI styling when whiteLabel:false.
-const buildWowLinkEmail = ({ name, loName, loBrand, wowLink, claimLink }) => {
-  const brandColor = (loBrand?.whiteLabel && loBrand?.brandColor) ? loBrand.brandColor : '#2563eb';
-  const logoUrl = (loBrand?.whiteLabel && loBrand?.logoUrl) ? loBrand.logoUrl : 'https://homelistingai.com/newlogo.png';
+// Partner-agent invite email: App Store–style "listing page" with real screenshots of the demo app.
+// Email-safe: tables + inline CSS, system fonts, bulletproof buttons, hosted PNG previews.
+const buildWowLinkEmail = ({ name, loName, loBrand, wowLink, claimLink, agentCompany }) => {
+  const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const siteBase = 'https://homelistingai.com';
+  const logoUrl = (loBrand?.whiteLabel && loBrand?.logoUrl) ? loBrand.logoUrl : `${siteBase}/newlogo.png`;
   const companyName = (loBrand?.whiteLabel && loBrand?.companyName) ? loBrand.companyName : 'HomeListingAI';
-  const firstName = loName.split(' ')[0];
+  const loFirst = esc(String(loName || '').split(' ')[0] || 'Your loan officer');
+  const loFull = esc(loName || 'Your loan officer');
+  const hasName = Boolean(String(name || '').trim());
+  const greetName = esc(hasName ? String(name).trim() : 'there');
+  const agentFull = esc(hasName ? String(name).trim() : 'Your name here');
+  const agentFirst = esc(hasName ? String(name).trim().split(' ')[0] : 'your');
+  const agentPossessive = hasName ? `${agentFirst}&rsquo;s` : 'your';
+  const initial = esc((String(name || 'A').trim()[0] || 'A').toUpperCase());
+  const font = "-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',Helvetica,Arial,sans-serif";
+  const BLUE = '#1d4ed8';
+  const stat = (k, v, sub) => `<td width="33%" align="center" style="padding:14px 4px;border-top:1px solid #d1d1d6;border-bottom:1px solid #d1d1d6;"><div style="font:700 11px/1.2 ${font};color:#6c6c70;letter-spacing:1px;">${k}</div><div style="font:800 22px/1.3 ${font};color:#1c1c1e;">${v}</div><div style="font:400 12px/1.3 ${font};color:#6c6c70;">${sub}</div></td>`;
+  const shot = (file, label) => `<td width="33%" align="center" valign="top" style="padding:0 4px;"><img src="${siteBase}/email/${file}" width="172" alt="${label}" style="display:block;width:100%;max-width:172px;height:auto;border:0;"><div style="font:700 13px/1.3 ${font};color:#1c1c1e;padding-top:8px;">${label}</div></td>`;
 
   return `<!DOCTYPE html>
 <html lang="en">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${loName} has something for you</title></head>
-<body style="margin:0;padding:0;background-color:#0a0f1e;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#0a0f1e;min-height:100vh;">
-    <tr><td align="center" style="padding:40px 20px;">
-
-      <table role="presentation" width="100%" style="max-width:580px;">
-
-        <!-- Logo row -->
-        <tr><td align="center" style="padding-bottom:28px;">
-          <img src="${logoUrl}" alt="${companyName}" style="width:48px;height:48px;border-radius:12px;object-fit:contain;background:#ffffff;padding:6px;">
-        </td></tr>
-
-        <!-- Hero card -->
-        <tr><td style="background:linear-gradient(145deg,#0f172a 0%,#1e3a5f 50%,#0f2744 100%);border-radius:20px;overflow:hidden;border:1px solid rgba(255,255,255,0.08);">
-
-          <!-- Top accent bar -->
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-            <tr><td style="background:linear-gradient(90deg,${brandColor},#6366f1);height:4px;"></td></tr>
-          </table>
-
-          <!-- Hero content -->
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-            <tr><td style="padding:48px 48px 16px;">
-              <p style="margin:0 0 16px;font-size:13px;font-weight:700;letter-spacing:0.12em;color:${brandColor};text-transform:uppercase;">For Real Estate Agents</p>
-              <h1 style="margin:0 0 20px;font-size:30px;font-weight:800;color:#ffffff;line-height:1.25;">${firstName} built something for your listings 🏠</h1>
-              <p style="margin:0;font-size:16px;color:rgba(255,255,255,0.72);line-height:1.7;">Hi${name ? ` ${name}` : ''},<br><br>I set up a live demo of what your listings could look like with an AI mortgage assistant built right in. Buyers get instant answers to financing questions — 24/7, no waiting.</p>
-            </td></tr>
-
-            <!-- Feature pills -->
-            <tr><td style="padding:24px 48px;">
-              <table role="presentation" cellpadding="0" cellspacing="0">
-                <tr>
-                  <td style="background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.1);border-radius:100px;padding:8px 16px;margin-right:8px;">
-                    <span style="font-size:13px;color:rgba(255,255,255,0.85);font-weight:600;">⚡ AI answers buyer questions live</span>
-                  </td>
-                </tr>
-                <tr><td style="height:8px;"></td></tr>
-                <tr>
-                  <td style="background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.1);border-radius:100px;padding:8px 16px;">
-                    <span style="font-size:13px;color:rgba(255,255,255,0.85);font-weight:600;">🎯 Pre-qualifies buyers automatically</span>
-                  </td>
-                </tr>
-                <tr><td style="height:8px;"></td></tr>
-                <tr>
-                  <td style="background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.1);border-radius:100px;padding:8px 16px;">
-                    <span style="font-size:13px;color:rgba(255,255,255,0.85);font-weight:600;">📊 You see every lead in real time</span>
-                  </td>
-                </tr>
-              </table>
-            </td></tr>
-
-            <!-- CTA -->
-            <tr><td style="padding:8px 48px 48px;text-align:center;">
-              <a href="${wowLink}" style="display:inline-block;background:linear-gradient(135deg,${brandColor},#6366f1);color:#ffffff;text-decoration:none;padding:18px 48px;border-radius:14px;font-weight:800;font-size:17px;letter-spacing:0.01em;box-shadow:0 8px 32px rgba(37,99,235,0.45);">See the Live Demo →</a>
-              <p style="margin:16px 0 0;font-size:12px;color:rgba(255,255,255,0.35);">No sign-up needed · Opens instantly · Expires in 30 days</p>
-            </td></tr>
-          </table>
-
-        </td></tr>
-
-        <!-- Divider -->
-        <tr><td style="padding:32px 0 0;"></td></tr>
-
-        <!-- Claim account nudge -->
-        <tr><td style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);border-radius:16px;padding:24px 32px;">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-            <tr>
-              <td style="vertical-align:middle;">
-                <p style="margin:0 0 4px;font-size:14px;font-weight:700;color:#ffffff;">Ready to claim your free account?</p>
-                <p style="margin:0;font-size:13px;color:rgba(255,255,255,0.5);">Take control of your listing platform — it's already set up.</p>
-              </td>
-              <td style="vertical-align:middle;text-align:right;white-space:nowrap;padding-left:16px;">
-                <a href="${claimLink}" style="display:inline-block;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.15);color:#ffffff;text-decoration:none;padding:10px 20px;border-radius:10px;font-weight:700;font-size:13px;">Claim Account →</a>
-              </td>
-            </tr>
-          </table>
-        </td></tr>
-
-        <!-- Footer -->
-        <tr><td style="padding:28px 0;text-align:center;">
-          <p style="margin:0;font-size:12px;color:rgba(255,255,255,0.25);">Sent by ${loName} via ${companyName} · You received this because an agent invited you</p>
-        </td></tr>
-
-      </table>
-    </td></tr>
-  </table>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>${loFull} built a listing demo for you</title></head>
+<body style="margin:0;padding:0;background:#f2f2f7;">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;">${loFirst} set up a live assistant for your listing. Try it in 30 seconds.</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f2f2f7;">
+<tr><td align="center" style="padding:24px 12px;">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:100%;max-width:600px;background:#ffffff;border-radius:20px;">
+<tr><td style="padding:32px 28px 8px;">
+  <div style="font:400 14px/1.4 ${font};color:#6c6c70;">From ${loFull} &middot; ${esc(companyName)}</div>
+</td></tr>
+<tr><td style="padding:12px 28px 20px;">
+  <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+    <td valign="middle" style="padding-right:20px;"><img src="${esc(logoUrl)}" width="104" height="104" alt="${esc(companyName)}" style="display:block;width:104px;height:104px;border-radius:24px;background:#ffffff;border:1px solid #e5e5ea;object-fit:contain;"></td>
+    <td valign="middle">
+      <div style="font:800 28px/1.15 ${font};color:#1c1c1e;">Listing Assistant</div>
+      <div style="font:400 15px/1.4 ${font};color:#6c6c70;padding:4px 0 12px;">Built for ${agentPossessive} listings</div>
+      <table role="presentation" cellpadding="0" cellspacing="0"><tr><td align="center" bgcolor="#e6eeff" style="border-radius:999px;"><a href="${esc(wowLink)}" style="display:inline-block;padding:10px 24px;font:800 14px/1 ${font};color:#0b4fd6;text-decoration:none;letter-spacing:0.5px;">VIEW DEMO</a></td></tr></table>
+    </td>
+  </tr></table>
+</td></tr>
+<tr><td style="padding:0 28px 20px;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+    ${stat('ANSWERS', '24/7', 'buyer questions')}${stat('PRICE', 'Free', 'for agents')}${stat('LEADS', 'To you', 'first')}
+  </tr></table>
+</td></tr>
+<tr><td style="padding:0 28px 8px;"><div style="font:800 22px/1.3 ${font};color:#1c1c1e;">Preview</div></td></tr>
+<tr><td style="padding:8px 24px 20px;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+    ${shot('wow-preview-home.png', 'Your listing')}${shot('wow-preview-contact.png', 'Your contact card')}${shot('wow-preview-loan.png', 'Loan questions')}
+  </tr></table>
+</td></tr>
+<tr><td style="padding:0 28px 20px;">
+  <div style="font:800 22px/1.3 ${font};color:#1c1c1e;padding-bottom:6px;">What&rsquo;s included</div>
+  <div style="font:400 16px/1.5 ${font};color:#3c3c43;">Hi ${greetName}, your listing answers buyer questions on its own, day or night. Serious buyers are passed to you first, and the loan questions go to ${loFirst}. You can print a flyer with a QR code that has your name on it.</div>
+</td></tr>
+<tr><td style="padding:0 28px 24px;">
+  <div style="font:800 22px/1.3 ${font};color:#1c1c1e;padding-bottom:10px;">How buyers will see you</div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="${BLUE}" style="background:${BLUE};border-radius:20px;"><tr>
+    <td width="76" valign="middle" style="padding:16px 0 16px 18px;"><table role="presentation" cellpadding="0" cellspacing="0"><tr><td width="56" height="56" align="center" valign="middle" bgcolor="#6f93f5" style="width:56px;height:56px;border-radius:28px;border:2px solid #ffffff;font:800 22px/1 ${font};color:#ffffff;">${initial}</td></tr></table></td>
+    <td valign="middle" style="padding:16px 12px;">
+      <div style="font:800 11px/1.3 ${font};letter-spacing:1px;color:#dbe6ff;">LISTING AGENT</div>
+      <div style="font:800 20px/1.25 ${font};color:#ffffff;">${agentFull}</div>
+      ${agentCompany ? `<div style="font:400 14px/1.3 ${font};color:#dbe6ff;">${esc(agentCompany)}</div>` : ''}
+    </td>
+    <td valign="middle" align="right" style="padding:16px 18px 16px 0;"><table role="presentation" cellpadding="0" cellspacing="0"><tr><td bgcolor="#ffffff" style="border-radius:999px;"><a href="${esc(wowLink)}" style="display:inline-block;padding:10px 18px;font:800 14px/1 ${font};color:${BLUE};text-decoration:none;">Contact</a></td></tr></table></td>
+  </tr></table>
+  <div style="font:400 14px/1.45 ${font};color:#6c6c70;padding-top:10px;">Your photo, name and contact details sit right under the listing. Buyers tap Contact to reach you.</div>
+</td></tr>
+<tr><td style="padding:0 28px 12px;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" bgcolor="${BLUE}" style="border-radius:14px;"><a href="${esc(wowLink)}" style="display:block;padding:16px;font:800 18px/1.2 ${font};color:#ffffff;text-decoration:none;">See ${agentPossessive} demo</a></td></tr></table>
+</td></tr>
+<tr><td align="center" style="padding:4px 28px 28px;">
+  <a href="${esc(claimLink)}" style="font:700 14px/1.4 ${font};color:${BLUE};text-decoration:none;">Ready? Claim your free account &rarr;</a>
+</td></tr>
+<tr><td align="center" style="padding:0 28px 28px;">
+  <div style="font:400 12px/1.5 ${font};color:#6c6c70;">Sent by ${loFull} via ${esc(companyName)}. You received this because a loan officer built this demo for you.</div>
+</td></tr>
+</table>
+</td></tr>
+</table>
 </body>
 </html>`;
 };
