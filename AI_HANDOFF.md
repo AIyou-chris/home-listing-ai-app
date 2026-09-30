@@ -29,6 +29,12 @@
 
 ---
 
+### 2026-09-30 09:40 — Claude — LO Share Kit (co-branded link / QR / flyer / social)
+- **Did:** the agent Share Kit is owner-only (`loadListingForVideoAccess`), so LOs on a partner's listing could not reach flyers. Added a lighter LO version: `GET /api/lo/listings/:listingId/share-kit` (LO must be assigned; listing must be published with a stored `public_slug`, else 409 NOT_PUBLISHED / NO_SHARE_LINK; returns listing basics, LO profile, branding toggles), page `LOShareKitPage.tsx` at `/dashboard/lo-listings/:listingId/share-kit`, and a "📤 Share Kit" button on each assigned listing card. Pieces: tracked link, QR (client-side `qrcode`), printable flyer (opens a print window), social caption. Each piece has its own branding switch (same `listing_branding_toggles` table).
+- **State:** tsc + eslint clean (2 known tsc errors), jest 43/43, backend 102/102. Not visually checked while logged in; flyer print window untested in a real browser.
+- **Open / next:** Open House piece and the `share_kit` toggle are not wired to anything here. Toggle OFF only removes the LO block from that piece; it does not yet change the agent-side listing page. UTM params (`utm_source=lo_share_kit`) are not yet tied to lead attribution.
+
+
 ### 2026-09-30 08:50 — Claude — Trimmed the listing editor's Listing Brain tab
 - **Did:** `ListingEditorPage.tsx` brain tab: 5 boxes -> 2. "Teach this home's AI" (paste/upload/scan + plain source list; "Train AI" button only when something is untrained; no "0 sources / last trained" bar) and one closed "Financing" card holding Payment Reference, rate sheet CSV, notes, and a tucked-away optional "Custom fine print" (old Payment Disclosures box; same state + save handler, so data is unchanged). Removed fake sample text (TX/CA/FL, "Close in 21 days").
 - **State:** tsc + eslint clean (except 2 known tsc errors), jest 43/43. Not visually checked in a logged-in browser.
