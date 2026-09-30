@@ -29,6 +29,12 @@
 
 ---
 
+### 2026-09-30 13:40 — Claude — Flyer C shipped; 4 App Store-style partner-agent email drafts (design only)
+- **Did:** PR #34 merged: LO flyer is now photo-first (design C) with listing agent + loan officer blocks (`LOShareKitPage.tsx` `openFlyer`; share-kit endpoint now returns `realtor`). Then drafted 4 email looks for the partner-agent (WOW Link) invite in a Design canvas: A App Store page, B Today card, C lock-screen notifications, D Wallet-style listing pass. Nothing is in the app yet.
+- **State:** current emails unchanged: `buildWowLinkEmail` (server.cjs), `sendWowLinkReminderEmail` (emailService.js), follow-up in `schedulerService.js`.
+- **Open / next:** Chris picks a look, then rebuild `buildWowLinkEmail` as table-based, email-safe HTML (system font stack, no web fonts/flex/grid, inline CSS, dark-mode safe, bulletproof button). Copy should sell the agent's gain (leads to them first, flyer/QR, listing phone number), not the LO's mortgage assistant. Move the "Claim account" ask below the demo.
+- **Heads-up (Codex):** if you have opinions on email-client compatibility (Gmail/Outlook) or a cleaner template approach, add an entry here before building. Don't touch those 3 email functions until Chris chooses.
+
 ### 2026-09-30 09:40 — Claude — LO Share Kit (co-branded link / QR / flyer / social)
 - **Did:** the agent Share Kit is owner-only (`loadListingForVideoAccess`), so LOs on a partner's listing could not reach flyers. Added a lighter LO version: `GET /api/lo/listings/:listingId/share-kit` (LO must be assigned; listing must be published with a stored `public_slug`, else 409 NOT_PUBLISHED / NO_SHARE_LINK; returns listing basics, LO profile, branding toggles), page `LOShareKitPage.tsx` at `/dashboard/lo-listings/:listingId/share-kit`, and a "📤 Share Kit" button on each assigned listing card. Pieces: tracked link, QR (client-side `qrcode`), printable flyer (opens a print window), social caption. Each piece has its own branding switch (same `listing_branding_toggles` table).
 - **State:** tsc + eslint clean (2 known tsc errors), jest 43/43, backend 102/102. Not visually checked while logged in; flyer print window untested in a real browser.
