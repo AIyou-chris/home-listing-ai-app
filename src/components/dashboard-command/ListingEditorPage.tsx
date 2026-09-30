@@ -64,13 +64,6 @@ const SECTIONS: Array<{ key: EditorSection; label: string }> = [
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-const formatUpdatedTime = (iso: string | null) => {
-  if (!iso) return 'Unknown'
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return 'Unknown'
-  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
-}
-
 const createEmptyDraft = (): ListingDraftState => ({
   address: '', price: 0, beds: 0, baths: 0, sqft: 0, description: ''
 })
@@ -78,12 +71,6 @@ const createEmptyDraft = (): ListingDraftState => ({
 const normalizeStatusLabel = (status: string) => {
   const n = String(status || '').toLowerCase()
   return n === 'draft' || n === 'pending' ? 'Draft' : 'Published'
-}
-
-const sourceTypeLabel = (type: ListingBrainSourceType) => {
-  if (type === 'doc') return 'Doc'
-  if (type === 'url') return 'URL'
-  return 'Text'
 }
 
 const sourceTypeIcon = (type: ListingBrainSourceType) => {
@@ -579,7 +566,8 @@ const LoBrainSection: React.FC<LoBrainSectionProps> = ({
           <textarea
             value={loBrainContent}
             onChange={e => setLoBrainContent(e.target.value)}
-            placeholder={`• Close in 21 days — fast underwriting\n• 2/1 buydown available — seller can contribute\n• First-time buyer programs: TSAHC, TDHCA (TX)\n• Jumbo up to $3M available\n• Bank statement loans for self-employed buyers`}
+            placeholder="Anything else buyers should know about financing this home."
+
             rows={5}
             className="w-full resize-none rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:border-violet-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-violet-100"
           />
@@ -641,6 +629,7 @@ const ListingEditorPage: React.FC = () => {
   const [photos, setPhotos] = useState<string[]>([])
   const [sources, setSources] = useState<ListingBuilderSource[]>([])
   const [photoUrlInput, setPhotoUrlInput] = useState('')
+  const [financingOpen, setFinancingOpen] = useState(false)
   const [sourceBusy, setSourceBusy] = useState(false)
   const [uploadingDoc, setUploadingDoc] = useState(false)
   const [docUploadError, setDocUploadError] = useState<string | null>(null)
@@ -741,15 +730,6 @@ const ListingEditorPage: React.FC = () => {
       Number(sqftDisplay) > 0,
     [draft.address, priceDisplay, bedsDisplay, bathsDisplay, sqftDisplay]
   )
-
-  const lastTrainedAt = useMemo(() => {
-    const times = sources
-      .map((s) => s.trained_at)
-      .filter((v): v is string => typeof v === 'string' && v.length > 0)
-      .map((v) => new Date(v).getTime())
-      .filter((v) => Number.isFinite(v))
-    return times.length === 0 ? null : new Date(Math.max(...times)).toISOString()
-  }, [sources])
 
   // ── Load ──────────────────────────────────────────────────────────────────
 
@@ -1978,16 +1958,16 @@ const ListingEditorPage: React.FC = () => {
                   <span className="mt-0.5 text-base">🧠</span>
                   <div>
                     <p className="text-sm font-semibold text-violet-800">Your workspace is below</p>
-                    <p className="text-xs text-violet-600 mt-0.5">The listing agent manages the brain sources. Scroll down to update your <strong>LO Financing Brain</strong> — rate sheet, programs, and disclosures.</p>
+                    <p className="text-xs text-violet-600 mt-0.5">The listing agent manages the brain sources. Open <strong>Financing</strong> below to add your rate sheet and notes.</p>
                   </div>
                 </div>
               )}
 
-              {/* Header + actions */}
+              {/* Teach this home: add stuff, see what's added */}
               <div className="rounded-xl border border-slate-100 bg-slate-50 p-5">
-                <p className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Listing Brain</p>
+                <p className="mb-1 text-sm font-semibold text-slate-800">Teach this home&apos;s AI</p>
                 <p className="mb-4 text-sm text-slate-500">
-                  Feed the AI everything you know about this property. This trains the home&apos;s AI voice for descriptions, scripts, and follow-up copy.
+                  Add anything you know about the property. The AI uses it to answer buyers and write copy.
                 </p>
                 {viewerRole === 'owner' && (
                 <div className="flex flex-wrap gap-2">
@@ -2023,67 +2003,40 @@ const ListingEditorPage: React.FC = () => {
                 {docUploadError && (
                   <p className="mt-3 text-xs font-medium text-rose-600">{docUploadError}</p>
                 )}
-              </div>
 
-              {/* Sources list */}
-              <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-                <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
-                  <div>
-                    <span className="text-sm font-semibold text-slate-800">
-                      {sources.length} {sources.length === 1 ? 'Source' : 'Sources'}
-                    </span>
-                    <span className="ml-2 text-xs text-slate-400">
-                      Last trained: {lastTrainedAt ? formatUpdatedTime(lastTrainedAt) : 'Never'}
-                    </span>
-                  </div>
-                  {viewerRole === 'owner' && (
-                  <button
-                    type="button"
-                    disabled={sourceBusy || sources.length === 0}
-                    onClick={() => void handleRetrain()}
-                    className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    Retrain AI
-                  </button>
-                  )}
-                </div>
-
-                {sources.length === 0 ? (
-                  <div className="px-4 py-10 text-center">
-                    <p className="text-sm font-semibold text-slate-500">No sources yet</p>
-                    <p className="mt-1 text-xs text-slate-400">Add your first source above to train this home&apos;s AI before publishing.</p>
-                  </div>
-                ) : (
-                  <ul className="divide-y divide-slate-100">
+                {sources.length > 0 && (
+                  <ul className="mt-4 divide-y divide-slate-100 rounded-lg border border-slate-200 bg-white">
                     {sources.map((source) => (
-                      <li key={source.id} className="flex items-center gap-4 px-4 py-3">
+                      <li key={source.id} className="flex items-center gap-3 px-4 py-2.5">
                         <span className="text-lg leading-none">{sourceTypeIcon(source.type)}</span>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-semibold text-slate-800">{source.title}</p>
-                          <p className="text-xs text-slate-400">{sourceTypeLabel(source.type)} · {formatUpdatedTime(source.updated_at)}</p>
-                        </div>
-                        <div className="flex shrink-0 items-center gap-3">
-                          <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-                            source.status === 'trained'
-                              ? 'bg-emerald-100 text-emerald-700'
-                              : 'bg-amber-100 text-amber-700'
-                          }`}>
-                            {source.status === 'trained' ? '✓ Trained' : 'Needs retrain'}
-                          </span>
-                          {viewerRole === 'owner' && (
-                          <button
-                            type="button"
-                            disabled={sourceBusy}
-                            onClick={() => void handleDeleteSource(source.id)}
-                            className="text-xs font-semibold text-rose-500 transition hover:text-rose-700 disabled:opacity-40"
-                          >
-                            Remove
-                          </button>
-                          )}
-                        </div>
+                        <p className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-800">{source.title}</p>
+                        {viewerRole === 'owner' && (
+                        <button
+                          type="button"
+                          disabled={sourceBusy}
+                          onClick={() => void handleDeleteSource(source.id)}
+                          className="shrink-0 text-xs font-semibold text-rose-500 transition hover:text-rose-700 disabled:opacity-40"
+                        >
+                          Remove
+                        </button>
+                        )}
                       </li>
                     ))}
                   </ul>
+                )}
+
+                {viewerRole === 'owner' && sources.some((s) => s.status !== 'trained') && (
+                  <div className="mt-3 flex items-center justify-between gap-3 rounded-lg bg-amber-50 px-4 py-2.5">
+                    <p className="text-sm text-amber-800">New stuff added. Teach it to the AI.</p>
+                    <button
+                      type="button"
+                      disabled={sourceBusy}
+                      onClick={() => void handleRetrain()}
+                      className="shrink-0 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-700 disabled:opacity-40"
+                    >
+                      Train AI
+                    </button>
+                  </div>
                 )}
               </div>
 
@@ -2117,54 +2070,29 @@ const ListingEditorPage: React.FC = () => {
                 }}
               />
 
-              {/* ═══ PAYMENT REFERENCE ═══ */}
-              <PaymentScenariosSection
-                price={draft.price}
-                rate={loRate}
-                onRateChange={setLoRate}
-                enabled={showPaymentRef}
-                onToggle={togglePaymentRef}
-              />
+              {/* ═══ FINANCING (one closed card) ═══ */}
+              <details
+                open={financingOpen}
+                onToggle={(e) => setFinancingOpen((e.currentTarget as HTMLDetailsElement).open)}
+                className="overflow-hidden rounded-xl border border-violet-200 bg-white shadow-sm"
+              >
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 bg-violet-50 px-5 py-4">
+                  <span>
+                    <span className="block text-sm font-semibold text-slate-800">💰 Financing</span>
+                    <span className="block text-xs text-slate-500">Rate sheet, notes and payment estimates. Optional.</span>
+                  </span>
+                  <span className="material-symbols-outlined text-slate-400">expand_more</span>
+                </summary>
+                <div className="space-y-4 p-4">
 
-              {/* ═══ PAYMENT DISCLOSURES ═══ */}
-              <div className="rounded-xl border border-amber-200 bg-white shadow-sm overflow-hidden">
-                <div className="border-b border-amber-100 bg-amber-50 px-5 py-4">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-base">📋</span>
-                    <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-600">Payment Disclosures</p>
-                  </div>
-                  <p className="text-sm text-slate-500">
-                    Required regulatory fine print — NMLS #, APR assumptions, licensing, state-specific disclosures. Displayed below every payment scenario shown to buyers.
-                  </p>
-                </div>
-                <div className="p-5 space-y-3">
-                  <textarea
-                    value={disclosuresContent}
-                    onChange={e => setDisclosuresContent(e.target.value)}
-                    placeholder={`Example:\nNMLS# 123456 · Licensed in TX, CA, FL · Equal Housing Lender\n\nAPR is based on a 30-year fixed-rate loan, a credit score of 740+, and the assumptions shown. Actual APR will vary. Not all applicants will qualify. Rates subject to change without notice. This is not a commitment to lend.\n\nFHA loans require mortgage insurance premiums (MIP). Conventional loans with less than 20% down require private mortgage insurance (PMI). Rates quoted include discount points where applicable.\n\nLicensed by the Texas Department of Savings and Mortgage Lending. NMLS Consumer Access: nmlsconsumeraccess.org`}
-                    rows={8}
-                    className="w-full resize-none rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs text-slate-700 font-mono placeholder-slate-400 focus:border-amber-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-100 leading-relaxed"
+                  <PaymentScenariosSection
+                    price={draft.price}
+                    rate={loRate}
+                    onRateChange={setLoRate}
+                    enabled={showPaymentRef}
+                    onToggle={togglePaymentRef}
                   />
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="text-[11px] text-slate-400 space-y-0.5">
-                      <p>✅ Include: NMLS #, state licensing, APR assumptions, MIP/PMI notes</p>
-                      <p>✅ Include: "Not a commitment to lend" · "Equal Housing Lender"</p>
-                      <p>✅ Check your state's specific disclosure requirements</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => void handleSaveDisclosures()}
-                      disabled={savingDisclosures || !disclosuresContent.trim()}
-                      className="flex-shrink-0 flex items-center gap-1.5 rounded-lg bg-amber-500 px-4 py-2 text-xs font-bold text-white transition hover:bg-amber-600 disabled:opacity-50"
-                    >
-                      <span className="material-symbols-outlined text-sm">{disclosuresSaved ? 'check_circle' : 'save'}</span>
-                      {savingDisclosures ? 'Saving…' : disclosuresSaved ? 'Saved!' : 'Save Disclosures'}
-                    </button>
-                  </div>
-                </div>
-              </div>
 
-              {/* ═══ LO FINANCING BRAIN ═══ */}
               <LoBrainSection
                 draft={draft}
                 demoMode={demoMode}
@@ -2186,6 +2114,38 @@ const ListingEditorPage: React.FC = () => {
                 onSave={handleSaveLoBrain}
                 onDelete={handleDeleteLoBrain}
               />
+
+
+                  {/* Custom fine print, tucked away */}
+                  <details className="rounded-xl border border-slate-200 bg-white">
+                    <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-slate-700">
+                      📋 Custom fine print for this home <span className="font-normal text-slate-400">· optional</span>
+                    </summary>
+                    <div className="space-y-3 border-t border-slate-100 p-4">
+                      <p className="text-xs text-slate-500">Shown under every payment estimate buyers see on this home.</p>
+                      <textarea
+                        value={disclosuresContent}
+                        onChange={e => setDisclosuresContent(e.target.value)}
+                        placeholder="Your NMLS number, licensing and any required fine print."
+                        rows={5}
+                        className="w-full resize-none rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs text-slate-700 placeholder-slate-400 focus:border-amber-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-100"
+                      />
+                      <div className="flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => void handleSaveDisclosures()}
+                          disabled={savingDisclosures || !disclosuresContent.trim()}
+                          className="flex items-center gap-1.5 rounded-lg bg-amber-500 px-4 py-2 text-xs font-bold text-white transition hover:bg-amber-600 disabled:opacity-50"
+                        >
+                          <span className="material-symbols-outlined text-sm">{disclosuresSaved ? 'check_circle' : 'save'}</span>
+                          {savingDisclosures ? 'Saving…' : disclosuresSaved ? 'Saved!' : 'Save fine print'}
+                        </button>
+                      </div>
+                    </div>
+                  </details>
+
+                </div>
+              </details>
 
             </div>
           )}

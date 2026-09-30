@@ -29,6 +29,12 @@
 
 ---
 
+### 2026-09-30 08:50 — Claude — Trimmed the listing editor's Listing Brain tab
+- **Did:** `ListingEditorPage.tsx` brain tab: 5 boxes -> 2. "Teach this home's AI" (paste/upload/scan + plain source list; "Train AI" button only when something is untrained; no "0 sources / last trained" bar) and one closed "Financing" card holding Payment Reference, rate sheet CSV, notes, and a tucked-away optional "Custom fine print" (old Payment Disclosures box; same state + save handler, so data is unchanged). Removed fake sample text (TX/CA/FL, "Close in 21 days").
+- **State:** tsc + eslint clean (except 2 known tsc errors), jest 43/43. Not visually checked in a logged-in browser.
+- **Open / next:** unverified whether the buyer-facing payment estimates fall back to the Compliance Brain when a listing has no custom fine print — that's why the box was tucked away, not deleted.
+
+
 ### 2026-09-29 10:30 — Claude — Per-listing AI phone numbers (LO / LO Pro)
 - **Did:** `lo_phone_lines.listing_id` (migration `lo-phone-listing-lines-migration.sql`, APPLIED in Supabase). Main line = `listing_id IS NULL` (still one per LO); a listing line = one per listing. `loPhoneLineService` methods take an optional `listingId`; new `listingLines()`. `loPhoneCallService` focuses the AI on that one home (`focusListing`). Routes: `GET /api/lo/listing-phone-lines`, `POST /api/lo/listings/:id/phone-line/{preview,buy}` — gated to tiers `lo` / `lo_pro` (+ office/white_label) and to listings the LO owns or is assigned to. UI: `ListingPhonePanel.tsx` + "📞 AI phone number" button on each assigned listing card. Calls share the LO's monthly minute pool (`minuteUsage` counts by `lo_agent_id`).
 - **State:** backend tests 102/102, tsc clean apart from the 2 known pre-existing errors.
