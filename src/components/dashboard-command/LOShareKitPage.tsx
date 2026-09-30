@@ -17,6 +17,7 @@ interface KitLo {
   name: string; company: string | null; nmls_number: string | null;
   headshot_url: string | null; logo_url: string | null; phone: string | null; email: string | null;
 }
+interface KitRealtor { name: string | null; brokerage: string | null; headshot_url: string | null; phone: string | null; }
 type Toggles = Record<string, boolean>;
 
 const getHeaders = async (): Promise<HeadersInit> => {
@@ -77,6 +78,7 @@ const LOShareKitPage: React.FC = () => {
   const [state, setState] = useState<'loading' | 'ready' | 'not_published' | 'no_link' | 'error'>('loading');
   const [listing, setListing] = useState<KitListing | null>(null);
   const [lo, setLo] = useState<KitLo | null>(null);
+  const [realtor, setRealtor] = useState<KitRealtor | null>(null);
   const [toggles, setToggles] = useState<Toggles>({});
   const [qr, setQr] = useState('');
 
@@ -90,7 +92,7 @@ const LOShareKitPage: React.FC = () => {
       const data = await res.json().catch(() => ({}));
       if (res.status === 409) { setState(data.error === 'NO_SHARE_LINK' ? 'no_link' : 'not_published'); return; }
       if (!res.ok) { setState('error'); return; }
-      setListing(data.listing); setLo(data.lo); setToggles(data.toggles || {}); setState('ready');
+      setListing(data.listing); setLo(data.lo); setRealtor(data.realtor || null); setToggles(data.toggles || {}); setState('ready');
     } catch { setState('error'); }
   }, [demo, listingId]);
 
@@ -134,38 +136,63 @@ const LOShareKitPage: React.FC = () => {
     if (!w) { showToast.error('Allow pop-ups for this site, then try again.'); return; }
     const branded = toggles.flyer !== false;
     const photo = listing.photos[0] || '';
-    const loBlock = branded ? `
-      <div class="lo">
-        ${lo.headshot_url ? `<img class="head" src="${esc(lo.headshot_url)}" />` : ''}
-        <div class="lotext"><b>${esc(lo.name)}</b>${lo.company ? `<br>${esc(lo.company)}` : ''}${lo.nmls_number ? `<br>NMLS #${esc(lo.nmls_number)}` : ''}${lo.phone ? `<br>${esc(lo.phone)}` : ''}</div>
-        ${lo.logo_url ? `<img class="logo" src="${esc(lo.logo_url)}" />` : ''}
-      </div>` : '';
+    const person = (label: string, name: string, l2: string, l3: string, img: string | null) => `
+      <div class="person">
+        ${img ? `<img class="head" src="${esc(img)}" />` : ''}
+        <div class="ptext"><div class="label">${esc(label)}</div><div class="pname">${esc(name)}</div>${l2 ? `<div class="pline">${esc(l2)}</div>` : ''}${l3 ? `<div class="pline strong">${esc(l3)}</div>` : ''}</div>
+      </div>`;
+    const people = [
+      realtor?.name ? person('Listing agent', realtor.name, realtor.brokerage || '', realtor.phone || '', realtor.headshot_url) : '',
+      branded ? person('Loan officer', lo.name, [lo.company, lo.nmls_number ? `NMLS #${lo.nmls_number}` : ''].filter(Boolean).join(' · '), lo.phone || '', lo.headshot_url) : ''
+    ].join('');
+    const bedBath = [listing.bedrooms ? `${listing.bedrooms} bed` : '', listing.bathrooms ? `${listing.bathrooms} bath` : ''].filter(Boolean).join('<br>');
     w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Flyer - ${esc(listing.address)}</title>
+      <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&display=swap" rel="stylesheet">
       <style>
-        @page { size: letter; margin: 0.4in; }
-        body { font-family: -apple-system, Segoe UI, Roboto, sans-serif; color: #0f172a; margin: 0; }
-        .photo { width: 100%; height: 4.6in; object-fit: cover; border-radius: 12px; background: #e2e8f0; }
-        h1 { font-size: 30px; margin: 18px 0 4px; }
-        .price { font-size: 26px; font-weight: 800; color: #1d4ed8; }
-        .facts { font-size: 16px; color: #475569; margin-top: 4px; }
-        .row { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 22px; gap: 24px; }
-        .qr { width: 1.7in; height: 1.7in; }
-        .scan { font-size: 13px; color: #475569; text-align: center; margin-top: 4px; }
-        .lo { display: flex; align-items: center; gap: 14px; border-top: 2px solid #e2e8f0; margin-top: 22px; padding-top: 16px; }
-        .head { width: 78px; height: 78px; border-radius: 50%; object-fit: cover; }
-        .logo { max-height: 56px; max-width: 150px; margin-left: auto; }
-        .lotext { font-size: 15px; line-height: 1.45; }
-        .fine { font-size: 10px; color: #64748b; margin-top: 14px; }
+        @page { size: letter; margin: 0; }
+        * { box-sizing: border-box; }
+        html, body { margin: 0; padding: 0; }
+        body { font-family: 'Bricolage Grotesque', -apple-system, Segoe UI, sans-serif; color: #101418; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .page { position: relative; width: 8.5in; height: 11in; overflow: hidden; background: #101418; }
+        .photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+        .tag { position: absolute; left: 0.42in; top: 0.42in; background: #fff; font-weight: 800; font-size: 14px; letter-spacing: 3px; padding: 10px 16px; }
+        .card { position: absolute; left: 0.42in; right: 0.42in; bottom: 0.42in; background: #fff; padding: 0.36in; }
+        .top { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; }
+        .addr { font-size: 26px; font-weight: 500; }
+        .price { font-size: 72px; font-weight: 800; line-height: 1; letter-spacing: -2px; color: #0b5cd6; margin-top: 6px; }
+        .bb { font-size: 22px; font-weight: 800; text-align: right; line-height: 1.25; }
+        .rule { height: 2px; background: #101418; margin: 22px 0; }
+        .bottom { display: flex; align-items: center; gap: 22px; }
+        .people { flex: 1; display: flex; gap: 22px; }
+        .person { flex: 1; display: flex; align-items: center; gap: 12px; min-width: 0; }
+        .head { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+        .label { font-size: 11px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; color: #0b5cd6; }
+        .pname { font-size: 20px; font-weight: 800; }
+        .pline { font-size: 13px; font-weight: 500; }
+        .pline.strong { font-weight: 800; }
+        .qrbox { text-align: center; flex-shrink: 0; }
+        .qr { width: 1.25in; height: 1.25in; display: block; }
+        .scan { font-size: 13px; font-weight: 800; margin-top: 4px; }
+        .logo { max-height: 40px; max-width: 130px; margin-top: 8px; }
+        .fine { font-size: 10px; color: #4a5560; margin-top: 16px; }
       </style></head><body>
-      ${photo ? `<img class="photo" src="${esc(photo)}" />` : '<div class="photo"></div>'}
-      <h1>${esc(listing.address)}</h1>
-      <div class="price">${esc(money(listing.price))}</div>
-      <div class="facts">${esc(facts)}</div>
-      <div class="row"><div style="font-size:17px;max-width:4.6in">Scan to see photos, ask our AI questions any time, and book a showing.</div>
-        <div><img class="qr" src="${qr}" /><div class="scan">Scan me</div></div></div>
-      ${loBlock}
-      <div class="fine">Equal Housing Opportunity.${branded && lo.nmls_number ? ` NMLS #${esc(lo.nmls_number)}.` : ''} Not a commitment to lend.</div>
-      <script>window.onload = function () { setTimeout(function () { window.print(); }, 400); };</script>
+      <div class="page">
+        ${photo ? `<img class="photo" src="${esc(photo)}" />` : ''}
+        <div class="tag">JUST LISTED</div>
+        <div class="card">
+          <div class="top">
+            <div><div class="addr">${esc(listing.address)}</div><div class="price">${esc(money(listing.price))}</div></div>
+            <div class="bb">${bedBath}</div>
+          </div>
+          <div class="rule"></div>
+          <div class="bottom">
+            <div class="people">${people}</div>
+            <div class="qrbox"><img class="qr" src="${qr}" /><div class="scan">Scan to see it &amp; ask our AI</div>${branded && lo.logo_url ? `<img class="logo" src="${esc(lo.logo_url)}" />` : ''}</div>
+          </div>
+          <div class="fine">Equal Housing Opportunity.${branded && lo.nmls_number ? ` NMLS #${esc(lo.nmls_number)}.` : ''} Not a commitment to lend.</div>
+        </div>
+      </div>
+      <script>window.onload = function () { setTimeout(function () { window.print(); }, 700); };</script>
       </body></html>`);
     w.document.close();
   };

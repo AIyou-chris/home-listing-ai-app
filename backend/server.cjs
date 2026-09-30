@@ -33536,11 +33536,17 @@ app.get('/api/lo/listings/:listingId/share-kit', requireLoAgent, async (req, res
 
     const { data: listing } = await supabaseAdmin
       .from('properties')
-      .select('id, address, title, price, bedrooms, bathrooms, sqft, status, is_published, hero_photos, gallery_photos, public_slug, description')
+      .select('id, address, title, price, bedrooms, bathrooms, sqft, status, is_published, hero_photos, gallery_photos, public_slug, description, agent_id, user_id')
       .eq('id', listingId).maybeSingle();
     if (!listing) return res.status(404).json({ error: 'listing_not_found' });
     if (!isListingPublished(listing)) return res.status(409).json({ error: 'NOT_PUBLISHED' });
     if (!toTrimmedOrNull(listing.public_slug)) return res.status(409).json({ error: 'NO_SHARE_LINK' });
+
+    // The realtor who owns the listing (properties.agent_id/user_id = AUTH id).
+    const ownerAuthId = listing.user_id || listing.agent_id || null;
+    const { data: realtor } = ownerAuthId
+      ? await supabaseAdmin.from('agents').select('first_name, last_name, full_name, brokerage, headshot_url, phone').eq('auth_user_id', ownerAuthId).maybeSingle()
+      : { data: null };
 
     const { data: lo } = await supabaseAdmin
       .from('agents')
@@ -33579,6 +33585,12 @@ app.get('/api/lo/listings/:listingId/share-kit', requireLoAgent, async (req, res
         phone: lo?.phone || null,
         email: lo?.email || null
       },
+      realtor: realtor ? {
+        name: realtor.full_name || `${realtor.first_name || ''} ${realtor.last_name || ''}`.trim() || null,
+        brokerage: realtor.brokerage || null,
+        headshot_url: realtor.headshot_url || null,
+        phone: realtor.phone || null
+      } : null,
       toggles
     });
   } catch (err) {
