@@ -29,6 +29,13 @@
 
 ---
 
+### 2026-09-30 16:30 — Claude: CLAUDE.md refresh + frontend/backend match audit
+- CLAUDE.md section 7 updated (PRs #34–#38, email/text/DMARC, still-open list).
+- Audit found 14 frontend calls with no backend route. Built the 3 that hurt LOs: `PATCH /api/lo/leads/:leadId/status`, `POST /api/lo/leads/:leadId/sms` (blocks opted-out numbers via `sms_suppression`), `GET /api/lo/search?q=`.
+- Pre-qual leads have no status column; status is written to the linked `leads` row.
+- Left for Chris's call (likely legacy): `/api/blueprint/ai-sidekicks*`, `/api/email/google/oauth-url`.
+- Backend tests 102/102.
+
 ### 2026-09-30 15:10 — Claude — WOW email = mix of A + B; WOW text = C (copy, sent by the LO)
 - **Did:** `buildWowLinkEmail` now opens with B's "YOUR LISTING, UPGRADED / {street} can now answer buyers by itself." headline, keeps A's App Store layout, adds B's 3-step "How it works", and shows the LO's NMLS in the footer. New `buildWowLinkText` (concept C wording); `POST /api/lo/partners/invite` returns `smsText`, and the invite modal in `LOPartnersPage.tsx` has a "Copy the text to send" button. The LO sends the text from their own phone (human send, so Textbelt's link block and 10DLC don't apply).
 - **State:** committed and pushed on `feat/wow-email-text-mix` (PR open); tsc (2 known errors), eslint and backend tests run; email rendered and checked visually.

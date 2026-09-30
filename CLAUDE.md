@@ -90,9 +90,10 @@ It helps agents:
 
 **LO (Loan Officer) Platform:**
 - `/dashboard/lo-partners` — agent partnerships + WOW Link sender
+- `/dashboard/lo-listings/:listingId/share-kit` — **LO Share Kit** (link, QR, flyer, social post)
 - `/dashboard/lo-listings` — assigned listings + branding toggles + rate sheet upload + Payment Reference toggle + "📊 Live Dashboard" share
 - `/dashboard/lo-chatbot` — **AI Brain** (LO Brain: train once, every listing uses it; Compliance Brain; Calls & Texts; AI phone number + recent calls)
-- `/partner-invite/:token` — **WOW Link**: live listing demo w/ chatbots, sent to agents
+- `/partner-invite/:token` — **WOW Link**: iPhone-style app (listing, agent card, LO card, loan chat, tour booking preview), sent to agents
 - `/listing-dashboard/:token` — public per-listing live lead dashboard (token-gated)
 - `/for-loan-officers` + `/for-loan-officers/:token` — **LO Acquisition Link**: marketing pitch page admin sends to *prospective* LOs (inverse of the WOW Link). Tokened version tracks opens/clicks + personalizes the hero; CTA → `/lo-signup`. Untokened version is shareable but untracked. Admin sends/tracks from Marketing Funnels (`AdminLoOutreachPanel`).
 
@@ -194,7 +195,27 @@ No long explanations. No walls of text. Table in, table out.
 
 ---
 
-## 7. Current State Snapshot (as of 2026-09-28)
+## 7. Current State Snapshot (as of 2026-09-30)
+
+### ✅ Recently completed — Partner-agent experience + email deliverability (2026-09-30, PRs #34–#38)
+
+| Feature | Notes |
+|---|---|
+| **WOW Link page is an iPhone-style app** (`src/pages/PartnerInvitePage.tsx`, `/partner-invite/:token`) | Phone frame on desktop, full screen on phones. Letterboxed photo card with price / facts / address / **listing description** (3 lines + Read more), blue **listing-agent** card + Contact sheet, green **loan-officer** card + "Loan questions" chat, glass tab bar (Home / Tour the Home / Contact). Colors: **agent = blue, LO = green** everywhere. Demo token `demo` is fully client-side (`DEMO_AGENT` Sarah Johnson / `DEMO_LISTING` / Alex Rivera). The old dark pitch hero is gone on purpose. |
+| **Tour the Home = booking calendar (preview)** | `TourSheet`: 7 days, 9 time slots, name + phone, confirmation with "Add to my calendar" (.ics). **Saves nothing yet**; the page says "Preview". Real booking needs the agent to claim an account (then reuse `POST /api/appointments`, which is owner-scoped). |
+| **Payment schedule in Loan chat** | Only the demo (and any LO-supplied `schedule`) shows a schedule card + CSV download. Generated numbers (7.1%, 30 yr, P&I only) are labeled "Example only, not a quote" and never shown to real invites. LO uploads are free text (`lo_listing_kb_docs.content`), so a structured schedule is **not wired yet**. |
+| **API** | `GET /api/public/partner-invite/:token` also returns `agent {name, company, headshotUrl, phone, email, website}`. Phone/email come **only from the claimed agent profile** (unclaimed invitee contact data is never exposed). |
+| **Invite email = mix of concept A + B** (`buildWowLinkEmail` in `server.cjs`) | "YOUR LISTING, UPGRADED / {street} can now answer buyers by itself", App Store-style header, stats strip, 3 hosted phone previews (`public/email/wow-preview-{home,contact,loan}.png`), 3-step How it works, agent card, blue demo button, claim link, footer with LO NMLS. Email-safe: tables, inline CSS, system fonts. Blank agent name reads "your", not "there's". |
+| **Invite text = concept C** (`buildWowLinkText`) | `POST /api/lo/partners/invite` returns `smsText`; the invite modal has **"Copy the text to send"**. The **LO sends it from their own phone** (human send), so Textbelt's link block and 10DLC do not apply. **Automated** sending still needs the SMS provider switch (Telnyx + 10DLC). |
+| **Email deliverability fix** (`emailService.js`) | Real headers showed SPF pass, DKIM pass, **DMARC fail** because From was `homelistingai@gmail.com` while mail is signed for `mg.homelistingai.com` (Proton showed "failed its domain's authentication"). `From` is now forced onto the Mailgun domain (`notifications@mg.homelistingai.com`) whenever the env From is on another domain; Reply-To still goes to the real inbox. Mailgun DNS (MX, SPF, DKIM `pic`, tracking CNAME) all verified. |
+| **LO Share Kit** (`LOShareKitPage.tsx`, `/dashboard/lo-listings/:listingId/share-kit`) | `GET /api/lo/listings/:listingId/share-kit` (LO must be assigned; listing published with a `public_slug`, else 409 `NOT_PUBLISHED` / `NO_SHARE_LINK`). Tracked link, QR, social post, and **flyer design C** (full-bleed photo, big price, listing agent + loan officer blocks, QR). Share-kit response includes `realtor {name, brokerage, headshot_url, phone}`. |
+| **Per-listing AI phone numbers** (LO / LO Pro) | `lo_phone_lines.listing_id`; `GET /api/lo/listing-phone-lines`, `POST /api/lo/listings/:id/phone-line/{preview,buy}`; `ListingPhonePanel.tsx`. Numbers are never auto-released; "retire ~60 days after sale" and the $20 / 200-minute pack are **not built**. |
+| **Listing editor Brain tab trimmed** | `ListingEditorPage.tsx`: 2 boxes ("Teach this home's AI" and a closed "Financing" card). |
+| **Phone cost caps** | Default realtime model `gpt-realtime-2.1-mini`; monthly AI minutes by plan (`LO_PHONE_MINUTES`: trial 30, lo_lite 100, lo 300, lo_pro/office/comp 1000). |
+
+**Still open from this block:** reminder + follow-up WOW emails (`sendWowLinkReminderEmail`, `schedulerService.js`) use the old copy · social buttons on the WOW page are demo-only (no social fields in `agents`) · real headshots only after the agent claims · `agentCompany` is not passed to the email (unknown before claim) · automated WOW text needs Telnyx + 10DLC · real tour booking · phone caller-side transcript bug (needs a test call to (754) 243-8686) · move Render web off the FREE plan.
+
+**Rule:** any pricing or plan change must also update the AI/SEO surfaces (`public/llms.txt`, `public/ai.txt`, `scripts/generate-seo-pages.mjs`, `index.html` JSON-LD).
 
 ### ✅ Recently completed — LO Brain + AI phone that answers (2026-09-28, PRs #17–#24)
 

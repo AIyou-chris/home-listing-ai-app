@@ -31585,6 +31585,101 @@ app.get('/api/lo/leads/:leadId/conversation', requireAuth, async (req, res) => {
   }
 });
 
+// ── Helpers shared by the LO lead actions below ───────────────────────────────
+// Finds a lead that belongs to this LO in either table (chat leads or pre-quals).
+const findOwnedLoLead = async (leadId, loAgentId) => {
+  const { data: chat } = await supabaseAdmin
+    .from('leads').select('id, phone, full_name, name')
+    .eq('id', leadId).eq('lo_agent_id', loAgentId).maybeSingle();
+  if (chat) return { table: 'leads', row: chat, phone: chat.phone || null };
+  const { data: pq } = await supabaseAdmin
+    .from('pre_qual_submissions').select('id, phone, full_name, lead_id')
+    .eq('id', leadId).eq('lo_agent_id', loAgentId).maybeSingle();
+  if (pq) return { table: 'pre_qual_submissions', row: pq, phone: pq.phone || null };
+  return null;
+};
+
+// ── PATCH /api/lo/leads/:leadId/status — LO moves a lead through the pipeline ─
+app.patch('/api/lo/leads/:leadId/status', requireAuth, async (req, res) => {
+  try {
+    const allowed = ['New', 'Contacted', 'Qualified', 'Closed'];
+    const newStatus = String(req.body?.status || '').trim();
+    if (!allowed.includes(newStatus)) return res.status(400).json({ error: 'invalid_status' });
+    let loAgentId = req.authUserId;
+    try { loAgentId = (await resolveLoAgentId(req)) || loAgentId; } catch { /* fallback */ }
+    const found = await findOwnedLoLead(req.params.leadId, loAgentId);
+    if (!found) return res.status(404).json({ error: 'lead_not_found' });
+    // Pre-quals have no status of their own; the status lives on the linked lead.
+    const targetId = found.table === 'leads' ? found.row.id : found.row.lead_id;
+    if (!targetId) return res.json({ success: true, id: found.row.id, status: newStatus, persisted: false });
+    const { error } = await supabaseAdmin
+      .from('leads').update({ status: newStatus }).eq('id', targetId);
+    if (error) {
+      console.error('[LO Lead Status] update failed:', error.message);
+      return res.status(500).json({ error: 'update_failed' });
+    }
+    return res.json({ success: true, id: found.row.id, status: newStatus });
+  } catch (err) {
+    console.error('[LO Lead Status] Failed:', err);
+    return res.status(500).json({ error: 'update_failed' });
+  }
+});
+
+// ── POST /api/lo/leads/:leadId/sms — LO texts one of their own leads ─────────
+app.post('/api/lo/leads/:leadId/sms', requireAuth, async (req, res) => {
+  try {
+    const message = String(req.body?.message || '').trim();
+    if (!message) return res.status(400).json({ error: 'message_required' });
+    if (message.length > 600) return res.status(400).json({ error: 'message_too_long' });
+    let loAgentId = req.authUserId;
+    try { loAgentId = (await resolveLoAgentId(req)) || loAgentId; } catch { /* fallback */ }
+    const found = await findOwnedLoLead(req.params.leadId, loAgentId);
+    if (!found) return res.status(404).json({ error: 'lead_not_found' });
+    const to = normalizePhoneE164(found.phone || '');
+    if (!to) return res.status(422).json({ error: 'lead_has_no_phone' });
+
+    // Respect STOP replies (TCPA): never text a number that opted out.
+    const { data: optedOut } = await supabaseAdmin
+      .from('sms_suppression').select('phone').eq('phone', to).maybeSingle();
+    if (optedOut) return res.status(409).json({ error: 'lead_opted_out' });
+
+    const result = await sendSms(to, message, [], loAgentId || null);
+    if (!result) return res.status(502).json({ error: 'send_failed' });
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('[LO Lead SMS] Failed:', err);
+    return res.status(500).json({ error: 'send_failed' });
+  }
+});
+
+// ── GET /api/lo/search?q= — agent looks up an LO to attach to a listing ──────
+app.get('/api/lo/search', requireAuth, async (req, res) => {
+  try {
+    const q = String(req.query.q || '').trim().replace(/[%,()]/g, ' ').trim();
+    if (q.length < 2) return res.json({ results: [] });
+    const { data, error } = await supabaseAdmin
+      .from('agents')
+      .select('id, first_name, last_name, email, phone, headshot_url, company, nmls_number')
+      .eq('account_type', 'lo')
+      .or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%,company.ilike.%${q}%,nmls_number.ilike.%${q}%`)
+      .limit(10);
+    if (error) throw error;
+    const results = (data || []).map((lo) => ({
+      id: lo.id,
+      name: [lo.first_name, lo.last_name].filter(Boolean).join(' ') || lo.company || 'Loan Officer',
+      email: lo.email || null,
+      phone: lo.phone || null,
+      headshot_url: lo.headshot_url || null,
+      company: lo.company || null,
+      nmls_number: lo.nmls_number || null,
+    }));
+    return res.json({ results });
+  } catch (err) {
+    console.error('[LO Search] Failed:', err);
+    return res.status(500).json({ error: 'search_failed', results: [] });
+  }
+});
+
 // ── GET /api/lo/leads/export.csv — download all LO leads as CSV ──────────────
 app.get('/api/lo/leads/export.csv', requireAuth, async (req, res) => {
   try {
