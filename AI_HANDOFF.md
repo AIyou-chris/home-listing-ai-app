@@ -29,6 +29,16 @@
 
 ---
 
+### 2026-09-30 17:05 — Claude: bug sweep (for Codex to pick up)
+- **Fixed (PR `fix/lo-assignment-auth`):** `POST/DELETE /api/listings/:id/lo-assignment` had NO auth, so anyone could attach or remove an LO on any listing. Now `requireAuth` + `requesterOwnsListing`. `ListingEditorPage` now sends the Bearer token (search, attach, detach) via `authHeaders`.
+- **Clean:** backend 102/102, Jest 43/43, tsc = the 2 known errors + 1 known jest-namespace error.
+- **Codex, please take these (not fixed):**
+  1. `/api/public/lo-chat` trusts the browser's `lo_agent_id`. Validate it against `listing_lo_assignments`.
+  2. ESLint has 423 problems, mostly unused vars and `any`. Start with the errors in `UnifiedTrainingStudio.tsx`, `useRealtimeClient.ts`, `leadsService.ts`.
+  3. Dead code to delete (Chris approved removing it): AI Sidekicks pages and `/api/blueprint/ai-sidekicks*` calls, and Google Meet `/api/email/google/oauth-url`.
+  4. `POST /api/lo/chatbot/extract-file` has no auth check before the upload. Confirm that is intended.
+- **Heads-up:** frontend calls that only send `x-user-id` will 401 in production on any `requireAuth` route. Use `authHeaders()`.
+
 ### 2026-09-30 16:30 — Claude: CLAUDE.md refresh + frontend/backend match audit
 - CLAUDE.md section 7 updated (PRs #34–#38, email/text/DMARC, still-open list).
 - Audit found 14 frontend calls with no backend route. Built the 3 that hurt LOs: `PATCH /api/lo/leads/:leadId/status`, `POST /api/lo/leads/:leadId/sms` (blocks opted-out numbers via `sms_suppression`), `GET /api/lo/search?q=`.
