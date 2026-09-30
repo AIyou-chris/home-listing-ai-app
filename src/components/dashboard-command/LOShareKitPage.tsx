@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import QRCode from 'qrcode';
 import { buildApiUrl } from '../../lib/api';
@@ -81,6 +81,14 @@ const LOShareKitPage: React.FC = () => {
   const [realtor, setRealtor] = useState<KitRealtor | null>(null);
   const [toggles, setToggles] = useState<Toggles>({});
   const [qr, setQr] = useState('');
+  const [flyerHtml, setFlyerHtml] = useState<string | null>(null);
+  const flyerFrame = useRef<HTMLIFrameElement>(null);
+  const [vw, setVw] = useState(typeof window !== 'undefined' ? window.innerWidth : 816);
+  useEffect(() => {
+    const onResize = () => setVw(window.innerWidth);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   const load = useCallback(async () => {
     if (demo) {
@@ -132,8 +140,6 @@ const LOShareKitPage: React.FC = () => {
 
   const openFlyer = () => {
     if (!listing || !lo) return;
-    const w = window.open('', '_blank');
-    if (!w) { showToast.error('Allow pop-ups for this site, then try again.'); return; }
     const branded = toggles.flyer !== false;
     const photo = listing.photos[0] || '';
     const person = (label: string, name: string, l2: string, l3: string, img: string | null) => `
@@ -146,7 +152,7 @@ const LOShareKitPage: React.FC = () => {
       branded ? person('Loan officer', lo.name, [lo.company, lo.nmls_number ? `NMLS #${lo.nmls_number}` : ''].filter(Boolean).join(' · '), lo.phone || '', lo.headshot_url) : ''
     ].join('');
     const bedBath = [listing.bedrooms ? `${listing.bedrooms} bed` : '', listing.bathrooms ? `${listing.bathrooms} bath` : ''].filter(Boolean).join('<br>');
-    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Flyer - ${esc(listing.address)}</title>
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Flyer - ${esc(listing.address)}</title>
       <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&display=swap" rel="stylesheet">
       <style>
         @page { size: letter; margin: 0; }
@@ -192,9 +198,15 @@ const LOShareKitPage: React.FC = () => {
           <div class="fine">Equal Housing Opportunity.${branded && lo.nmls_number ? ` NMLS #${esc(lo.nmls_number)}.` : ''} Not a commitment to lend.</div>
         </div>
       </div>
-      <script>window.onload = function () { setTimeout(function () { window.print(); }, 700); };</script>
-      </body></html>`);
-    w.document.close();
+      </body></html>`;
+    setFlyerHtml(html);
+  };
+
+  const printFlyer = () => {
+    const win = flyerFrame.current?.contentWindow;
+    if (!win) return;
+    win.focus();
+    win.print();
   };
 
   if (state === 'loading') return <div className="mx-auto max-w-3xl px-4 py-8 text-sm text-slate-500">Loading your share kit…</div>;
@@ -238,9 +250,9 @@ const LOShareKitPage: React.FC = () => {
         </div>
       </Card>
 
-      <Card title="📄 Flyer" hint="A one-page flyer with your photo, name and NMLS. Opens ready to print or save as PDF."
+      <Card title="📄 Flyer" hint="A one-page flyer with your photo, name and NMLS. Tap to see it, then print or save as PDF."
         right={<Switch on={toggles.flyer !== false} label="Branding on the flyer" onChange={(v) => void setToggle('flyer', v)} />}>
-        <button type="button" onClick={openFlyer} disabled={!qr} className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-bold text-white hover:bg-primary-700 disabled:opacity-40">Open flyer</button>
+        <button type="button" onClick={openFlyer} disabled={!qr} className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-bold text-white hover:bg-primary-700 disabled:opacity-40">See my flyer</button>
       </Card>
 
       <Card title="📱 Social post" hint="Copy the words, paste them on Facebook, Instagram or LinkedIn."
@@ -253,6 +265,27 @@ const LOShareKitPage: React.FC = () => {
       </Card>
 
       <p className="text-xs text-slate-400">Your name, photo, logo and NMLS come from your profile in Settings.</p>
+      {flyerHtml && (() => {
+        const scale = Math.min(1, (vw - 32) / 816);
+        return (
+          <div className="fixed inset-0 z-[70] flex flex-col bg-slate-900/80" role="dialog" aria-modal="true" aria-label="Flyer">
+            <div className="flex items-center justify-between gap-2 bg-white px-4 py-3">
+              <button type="button" onClick={() => setFlyerHtml(null)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700">Close</button>
+              <button type="button" onClick={printFlyer} className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-bold text-white">Print / Save as PDF</button>
+            </div>
+            <div className="flex-1 overflow-auto p-4">
+              <div style={{ width: 816 * scale, height: 1056 * scale, margin: '0 auto' }}>
+                <iframe
+                  ref={flyerFrame}
+                  title="Flyer preview"
+                  srcDoc={flyerHtml}
+                  style={{ width: 816, height: 1056, border: 0, background: '#fff', transform: `scale(${scale})`, transformOrigin: 'top left' }}
+                />
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };

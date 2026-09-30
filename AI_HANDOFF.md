@@ -7,6 +7,10 @@
 > **End of every session (or before handing off):** add a new entry at the TOP of the log. Keep it short.
 > **Before editing a file another agent touched in its last entry:** read that entry first. Don't redo or undo their work silently.
 
+## 2026-09-30 16:50 — Claude: flyer viewer + price-alert card shows once
+- Share Kit flyer no longer uses a blank pop-up tab (broke on phones). It opens an in-page viewer with "Print / Save as PDF". File: `LOShareKitPage.tsx`.
+- Price-drop alert card (`ListingAlertOptIn.tsx`) remembers per listing in localStorage (`hlai_alert_seen_<id>`): after signup or the new close button it never shows again on that phone.
+
 ## Entry template
 
 ```
