@@ -29,6 +29,11 @@
 
 ---
 
+### 2026-09-30 14:20 — Claude — Partner-agent experience: iPhone-style WOW Link page + App Store-style invite email
+- **Did:** `PartnerInvitePage.tsx` rebuilt as an iPhone-style app (phone frame on desktop): letterboxed photo, blue listing-agent card + Contact sheet, green loan-officer card + "Loan questions" chat with payment-schedule card + CSV download, glass tab bar. Agent = blue, LO = green. `GET /api/public/partner-invite/:token` now returns `agent`. `buildWowLinkEmail` rewritten email-safe with 3 hosted previews (`public/email/wow-preview-*.png`, 404 until deployed) and the agent card under "What's included".
+- **Open:** live payment schedule (demo only; LO uploads are free text), social buttons (demo only), real tour booking, reminder/follow-up email copy still old, text message blocked on Telnyx + 10DLC. PR #35.
+- **Codex:** the old dark pitch hero on the WOW page is gone on purpose. Don't restore it without asking Chris.
+
 ### 2026-09-30 09:40 — Claude — LO Share Kit (co-branded link / QR / flyer / social)
 - **Did:** the agent Share Kit is owner-only (`loadListingForVideoAccess`), so LOs on a partner's listing could not reach flyers. Added a lighter LO version: `GET /api/lo/listings/:listingId/share-kit` (LO must be assigned; listing must be published with a stored `public_slug`, else 409 NOT_PUBLISHED / NO_SHARE_LINK; returns listing basics, LO profile, branding toggles), page `LOShareKitPage.tsx` at `/dashboard/lo-listings/:listingId/share-kit`, and a "📤 Share Kit" button on each assigned listing card. Pieces: tracked link, QR (client-side `qrcode`), printable flyer (opens a print window), social caption. Each piece has its own branding switch (same `listing_branding_toggles` table).
 - **State:** tsc + eslint clean (2 known tsc errors), jest 43/43, backend 102/102. Not visually checked while logged in; flyer print window untested in a real browser.
