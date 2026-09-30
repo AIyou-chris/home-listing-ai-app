@@ -3,6 +3,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import PublicPropertyApp from '../components/PublicPropertyApp';
 import PublicListingChatModule from '../components/public/PublicListingChatModule';
 import LOFinanceChatPanel from '../components/public/LOFinanceChatPanel';
+import PreApprovalSheet from '../components/public/PreApprovalSheet';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ListingAlertOptIn from '../components/listing/ListingAlertOptIn';
 import { Property } from '../types';
@@ -157,7 +158,8 @@ const PublicListingPage: React.FC = () => {
     const [notPublished, setNotPublished] = useState(false);
     const [talkToHomeOpen, setTalkToHomeOpen] = useState(false);
     const [loFinanceChatOpen, setLoFinanceChatOpen] = useState(false);
-    const [loBot, setLoBot] = useState<{ enabled: boolean; name?: string | null; photo?: string | null; company?: string | null } | null>(null);
+    const [preApprovalOpen, setPreApprovalOpen] = useState(false);
+    const [loBot, setLoBot] = useState<{ enabled: boolean; name?: string | null; photo?: string | null; company?: string | null; nmls?: string | null } | null>(null);
     const safePublicSlug = useMemo(() => normalizeRouteSlug(publicSlug), [publicSlug]);
     const alertVisitorId = typeof window !== 'undefined' ? (localStorage.getItem(VISITOR_STORAGE_KEY) || undefined) : undefined;
     useEffect(() => {
@@ -234,9 +236,9 @@ const PublicListingPage: React.FC = () => {
                 try {
                     const loInfoRes = await fetch(buildApiUrl(`/api/public/listing/${encodeURIComponent(loaded.id)}/lo-chatbot`));
                     if (loInfoRes.ok) {
-                        const loInfo = await loInfoRes.json() as { enabled?: boolean; lo_name?: string | null; lo_photo?: string | null; lo_company?: string | null };
+                        const loInfo = await loInfoRes.json() as { enabled?: boolean; lo_name?: string | null; lo_photo?: string | null; lo_company?: string | null; lo_nmls?: string | null };
                         setLoBot(loInfo.enabled === true
-                            ? { enabled: true, name: loInfo.lo_name || null, photo: loInfo.lo_photo || null, company: loInfo.lo_company || null }
+                            ? { enabled: true, name: loInfo.lo_name || null, photo: loInfo.lo_photo || null, company: loInfo.lo_company || null, nmls: loInfo.lo_nmls || null }
                             : { enabled: false });
                     }
                 } catch {
@@ -338,6 +340,7 @@ const PublicListingPage: React.FC = () => {
                 publicSlug={safePublicSlug || undefined}
                 loBot={loBot}
                 onAskFinancing={() => setLoFinanceChatOpen(true)}
+                onGetPreApproved={() => setPreApprovalOpen(true)}
             />
             {property.id && (
                 <div className="fixed bottom-20 left-0 right-0 z-30 px-4 pointer-events-none">
@@ -352,6 +355,13 @@ const PublicListingPage: React.FC = () => {
                 open={talkToHomeOpen}
                 hideLauncher
                 onOpenChange={setTalkToHomeOpen}
+            />
+            <PreApprovalSheet
+                open={preApprovalOpen}
+                onClose={() => setPreApprovalOpen(false)}
+                listingId={property.id}
+                propertyType={property.propertyType}
+                lo={loBot?.enabled ? { name: loBot.name || 'your loan officer', photo: loBot.photo || null, nmls: loBot.nmls || null } : null}
             />
             <LOFinanceChatPanel
                 listingId={property.id}
