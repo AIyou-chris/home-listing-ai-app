@@ -31982,7 +31982,7 @@ app.get('/api/public/partner-invite/:token', async (req, res) => {
     const { token } = req.params;
     const { data: invite } = await supabaseAdmin
       .from('agent_invites')
-      .select('id, invited_email, invited_name, claimed_at, expires_at, listing_id, lo_agent_id')
+      .select('id, invited_email, invited_name, invited_phone, claimed_at, claimed_agent_id, expires_at, listing_id, lo_agent_id')
       .eq('token', token)
       .maybeSingle();
     if (!invite) return res.status(404).json({ error: 'invite_not_found' });
@@ -32044,9 +32044,31 @@ app.get('/api/public/partner-invite/:token', async (req, res) => {
     // #18 White Label: if the LO belongs to an office, inherit its brand.
     const brand = await resolveBrandForLoAgent(loProfileId);
 
+    // The listing agent's card: whatever we know. Claimed agents have a full profile;
+    // unclaimed ones only have what the LO typed into the invite.
+    let agentRow = null;
+    if (invite.claimed_agent_id) {
+      const { data: row } = await supabaseAdmin
+        .from('agents')
+        .select('first_name, last_name, brokerage, company, headshot_url, phone, email, website')
+        .eq('id', invite.claimed_agent_id)
+        .maybeSingle();
+      agentRow = row || null;
+    }
+    const agentProfileName = [agentRow?.first_name, agentRow?.last_name].filter(Boolean).join(' ');
+    const agent = {
+      name: agentProfileName || invite.invited_name || null,
+      company: agentRow?.brokerage || agentRow?.company || null,
+      headshotUrl: agentRow?.headshot_url || null,
+      phone: agentRow?.phone || invite.invited_phone || null,
+      email: agentRow?.email || invite.invited_email || null,
+      website: agentRow?.website || null
+    };
+
     res.json({
       success: true,
       token,
+      agent,
       claimed: !!invite.claimed_at,
       inviteeName: invite.invited_name || null,
       lo: {
