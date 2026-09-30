@@ -162,6 +162,21 @@ const PublicListingPage: React.FC = () => {
     const [loBot, setLoBot] = useState<{ enabled: boolean; name?: string | null; photo?: string | null; company?: string | null; nmls?: string | null } | null>(null);
     const safePublicSlug = useMemo(() => normalizeRouteSlug(publicSlug), [publicSlug]);
     const alertVisitorId = typeof window !== 'undefined' ? (localStorage.getItem(VISITOR_STORAGE_KEY) || undefined) : undefined;
+    // Count one view per visit so the agent's Performance box shows real numbers.
+    const viewedId = property?.id
+    useEffect(() => {
+        if (!viewedId) return;
+        try {
+            const key = `hlai_viewed_${viewedId}`;
+            if (sessionStorage.getItem(key)) return;
+            sessionStorage.setItem(key, '1');
+        } catch { /* private mode: count anyway */ }
+        void fetch(buildApiUrl(`/api/public/listing/${viewedId}/view`), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ visitor_id: alertVisitorId || null })
+        }).catch(() => undefined);
+    }, [viewedId, alertVisitorId]);
     useEffect(() => {
         document.body.classList.add('public-listing-fullscreen');
         return () => {

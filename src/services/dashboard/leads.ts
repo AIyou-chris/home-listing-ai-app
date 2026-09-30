@@ -8,7 +8,7 @@ import {
   logDemoAgentAction,
   createDemoTestLead
 } from '../../demo/demoData';
-import { resolveAgentId, defaultJsonHeaders, withAgentQuery, parseResponse } from './utils';
+import { resolveAgentId, authHeaders, defaultJsonHeaders, withAgentQuery, parseResponse } from './utils';
 
 export type LeadIntentLevel = 'Hot' | 'Warm' | 'Cold';
 
@@ -168,7 +168,7 @@ export const fetchDashboardLeads = async (filters: LeadsFilterInput = {}, agentI
   if (filters.sort) params.set('sort', filters.sort);
 
   const url = buildApiUrl(withAgentQuery(`/api/dashboard/leads?${params.toString()}`, agentId));
-  const response = await fetch(url, { headers: defaultJsonHeaders(agentId) });
+  const response = await fetch(url, { headers: await authHeaders(agentId) });
   return parseResponse<{ success: boolean; leads: DashboardLeadItem[] }>(response);
 };
 
