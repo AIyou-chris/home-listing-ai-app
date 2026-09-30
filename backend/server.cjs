@@ -34145,7 +34145,7 @@ async function listingPhoneAccess(req, res) {
   if (agentError) throw agentError;
   const tier = agent?.plan === 'office' || agent?.plan === 'white_label'
     ? 'lo_pro' : await resolveLoPlanTier(agent || {});
-  if (tier !== 'lo' && tier !== 'lo_pro') {
+  if (tier !== 'lo_lite' && tier !== 'lo' && tier !== 'lo_pro') {
     res.status(403).json({ error: 'listing_phone_plan_required' });
     return false;
   }

@@ -149,7 +149,7 @@ const ListingPhonePanel: React.FC<{ listingId: string; demo?: boolean }> = ({ li
       {open && (
         <div className="mt-3 space-y-2 text-xs text-slate-700">
           {demo ? <p>Each real listing can have its own number.</p>
-            : !eligible ? <p>Listing phone numbers are available on LO and LO Pro plans when AI phone is enabled.</p>
+            : !eligible ? <p>Listing phone numbers are available on LO Lite, LO, and LO Pro when AI phone is enabled.</p>
             : line?.phoneNumber ? (
               <div>
                 <p className="font-bold text-emerald-900">{line.phoneNumber}</p>

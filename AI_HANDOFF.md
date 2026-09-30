@@ -31,10 +31,15 @@
 
 ## Log
 
+### 2026-09-30 — Codex — LO Lite included in listing phone
+- **Did:** Chris clarified that LO Lite also gets one AI number per listing. Updated the entitlement check and setup copy in draft PR #44.
+- **State:** LO Lite's existing 100 AI-minute monthly cap remains shared across its numbers. Each real listing number still requires explicit purchase and has a separate monthly carrier charge.
+- **Open / next:** Apply the migration, deploy, and live-test one listing call before broad rollout.
+
 ### 2026-09-30 — Codex — One AI phone number per listing
 - **Did:** Added a listing-scoped phone line and call attribution migration; LO listing number setup endpoints/UI; buyer call link; listing-specific AI phone context and lead source metadata; updated LO pitch copy. Work lives in the managed listing-ai-phone worktree.
 - **State:** Local build and 23 focused phone tests pass. Typecheck has one existing error in src/test/setupTests.ts. Migration and live Telnyx purchase/call have not been run.
-- **Open / next:** Apply supabase/migrations/20260930234119_listing_ai_phone_lines.sql before deploying backend; review plan eligibility (currently LO/LO Pro per prior decision); live-test number purchase and a buyer call. Caller-side transcription was already a known production issue.
+- **Open / next:** Apply supabase/migrations/20260930234119_listing_ai_phone_lines.sql before deploying backend; live-test number purchase and a buyer call. Caller-side transcription was already a known production issue.
 
 ### 2026-09-29 09:10 — Claude — Phone costs: mini model + monthly AI-minute caps
 - **Did:** Default realtime model is now `gpt-realtime-2.1-mini` (~1/3 cost; override with `OPENAI_REALTIME_MODEL`). Monthly AI minutes per plan (`LO_PHONE_MINUTES` in server.cjs): trial 30, lo_lite 100, lo 300, lo_pro/office/comp 1000, none 0. Counted from `lo_phone_calls` (AI-answered, this UTC month). Out of minutes → call rings the LO's cell (or polite message). AI Brain page shows a minutes bar under the number. `GET /api/lo/phone-line` returns `minutes {used, limit, left}`.
