@@ -12,6 +12,7 @@ export interface PublicListingLoBot {
     name?: string | null;
     photo?: string | null;
     company?: string | null;
+    nmls?: string | null;
 }
 
 interface PublicPropertyAppProps {
@@ -23,6 +24,7 @@ interface PublicPropertyAppProps {
     isDemo?: boolean;
     loBot?: PublicListingLoBot | null;
     onAskFinancing?: () => void;
+    onGetPreApproved?: () => void;
 }
 
 const FALLBACK_AGENT: AgentContactInfo = {
@@ -87,7 +89,8 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({
     publicSlug,
     isDemo = false,
     loBot = null,
-    onAskFinancing
+    onAskFinancing,
+    onGetPreApproved
 }) => {
     const descriptionText = isAIDescription(property.description)
         ? property.description.paragraphs.join(' ')
@@ -398,7 +401,7 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({
                             showCta={financingEnabled}
                             ctaLabel="Ask About Financing"
                             autoDark
-                            onGetPreApproved={() => onAskFinancing?.()}
+                            onGetPreApproved={() => (onGetPreApproved ?? onAskFinancing)?.()}
                         />
                     )}
 
@@ -409,7 +412,7 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({
                                 <p className="text-[11px] font-extrabold uppercase tracking-widest text-emerald-300">Financing</p>
                                 <h3 className="mt-1 text-[18px] font-black leading-snug">Ready to know your number?</h3>
                                 <p className="mt-2 text-[13px] leading-relaxed text-emerald-100">
-                                    Chat with the AI financing assistant — ask about rates, programs, or what you qualify for. No forms. No hard credit pull.
+                                    Tap four quick answers and your loan officer gets back to you today. Or chat with the AI financing assistant. No credit check.
                                 </p>
                             </div>
                             <div className="space-y-2.5 bg-white px-5 pb-5 pt-4 dark:bg-[#0f172a]">
@@ -422,6 +425,15 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({
                                         {chip}
                                     </button>
                                 ))}
+                                {onGetPreApproved && (
+                                    <button
+                                        type="button"
+                                        onClick={() => onGetPreApproved()}
+                                        className="mt-1 flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-800 py-3.5 text-[15px] font-extrabold text-white transition-all active:scale-[0.99]"
+                                    >
+                                        Get pre-approved
+                                    </button>
+                                )}
                                 <button
                                     onClick={() => onAskFinancing?.()}
                                     className="mt-1 flex w-full items-center justify-center gap-2 rounded-2xl py-3.5 text-[14px] font-extrabold text-white transition-all active:scale-[0.99]"

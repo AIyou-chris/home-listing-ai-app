@@ -33553,7 +33553,7 @@ app.post('/api/agent/claim/:token', async (req, res) => {
 // ── Pre-Qual 5-Question Form ──────────────────────────────────────────────────
 app.post('/api/leads/pre-qual', async (req, res) => {
   try {
-    const { listing_id: listingId, full_name: fullName, email, phone, purchase_timeline, credit_range, income_range, down_payment, property_type, notes } = req.body || {};
+    const { listing_id: listingId, full_name: fullName, email, phone, purchase_timeline, credit_range, income_range, down_payment, property_type, notes, currently_preapproved } = req.body || {};
     if (!listingId) return res.status(400).json({ error: 'listing_id_required' });
     if (!email && !phone) return res.status(400).json({ error: 'email_or_phone_required' });
     const emailLower = (email || '').trim().toLowerCase() || null;
@@ -33592,7 +33592,7 @@ app.post('/api/leads/pre-qual', async (req, res) => {
     }
 
     // 2) The pre-qual answers, linked to that lead.
-    const { data: preQual, error: pqError } = await supabaseAdmin.from('pre_qual_submissions').insert({ listing_id: listingId, lead_id: leadId, lo_agent_id: loAgentId, full_name: fullName || null, email: emailLower, phone: phone || null, purchase_timeline: purchase_timeline || null, credit_range: credit_range || null, income_range: income_range || null, down_payment: down_payment || null, property_type: property_type || null, notes: notes || null }).select('id').single();
+    const { data: preQual, error: pqError } = await supabaseAdmin.from('pre_qual_submissions').insert({ listing_id: listingId, lead_id: leadId, lo_agent_id: loAgentId, full_name: fullName || null, email: emailLower, phone: phone || null, purchase_timeline: purchase_timeline || null, credit_range: credit_range || null, income_range: income_range || null, down_payment: down_payment || null, property_type: property_type || null, currently_preapproved: typeof currently_preapproved === 'boolean' ? currently_preapproved : null, notes: notes || null }).select('id').single();
     if (pqError) throw pqError;
 
     // 3) Tell the LO and the listing agent (dual notify).
@@ -34797,7 +34797,7 @@ app.get('/api/public/listing/:listingId/lo-chatbot', async (req, res) => {
     // Get LO's name and photo
     const { data: loAgent, error: agentErr } = await supabaseAdmin
       .from('agents')
-      .select('first_name, last_name, headshot_url, company')
+      .select('first_name, last_name, headshot_url, company, nmls_number')
       .or(`id.eq.${loAgentId},auth_user_id.eq.${loAgentId}`)
       .limit(1)
       .maybeSingle();
@@ -34812,7 +34812,8 @@ app.get('/api/public/listing/:listingId/lo-chatbot', async (req, res) => {
       greeting: config.greeting,
       lo_name: loFullName || config.bot_name,
       lo_photo: loAgent?.headshot_url || null,
-      lo_company: loAgent?.company || null
+      lo_company: loAgent?.company || null,
+      lo_nmls: loAgent?.nmls_number || null
     });
   } catch (err) {
     console.error('[LO Chatbot Public Info] Error:', err);
