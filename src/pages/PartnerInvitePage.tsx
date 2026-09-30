@@ -87,7 +87,7 @@ const buildExampleSchedule = (price: number): ScheduleRow[] =>
   }));
 
 const downloadSchedule = (rows: ScheduleRow[], address: string) => {
-  const csv = ['Down payment,Estimated monthly payment (principal and interest)', ...rows.map(r => `"${r.label}","${r.payment}"`)].join('\n');
+  const csv = ['Down payment,Estimated monthly payment (principal and interest)', ...rows.map(r => `"${r.label}","${r.payment}"`), `"Example only: ${(EXAMPLE_RATE * 100).toFixed(1)}% rate, 30-year term, principal and interest only. Not a quote.",""`].join('\n');
   const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
   const a = document.createElement('a');
   a.href = url;
@@ -182,10 +182,13 @@ const LiveChat: React.FC<{
     historyRef.current = [...historyRef.current, { role: 'user', content: clean }];
 
     // Payment schedule: show the LO's schedule as a card with a download button
-    if (clean === SCHEDULE_PROMPT) {
+    if (clean === SCHEDULE_PROMPT && ((schedule && schedule.length) || lo.id === 'demo-lo')) {
       const rows = schedule && schedule.length ? schedule : buildExampleSchedule(price);
       await new Promise(r => setTimeout(r, 500));
-      setMessages(prev => [...prev, { id: `b-${Date.now()}`, role: 'bot', text: 'Here is the payment schedule for this home. Your real number depends on your credit and down payment.', schedule: rows }]);
+      const note = schedule && schedule.length
+        ? 'Here is the payment schedule for this home.'
+        : `Example only: principal and interest at ${(EXAMPLE_RATE * 100).toFixed(1)}% over 30 years. Not a quote.`;
+      setMessages(prev => [...prev, { id: `b-${Date.now()}`, role: 'bot', text: note, schedule: rows }]);
       setSending(false);
       return;
     }
@@ -603,8 +606,9 @@ const PartnerInvitePage: React.FC = () => {
   const { lo, listing, chatbot, brand } = data;
   const isDemoToken = token === 'demo';
   const agent: AgentInfo = data.agent || { name: data.inviteeName, company: null, headshotUrl: null, phone: null, email: null, website: null };
-  const agentName = agent.name?.trim() || 'Your Name Here';
-  const agentFirst = agentName.split(' ')[0];
+  const hasAgentName = Boolean(agent.name?.trim());
+  const agentName = hasAgentName ? agent.name!.trim() : 'Your Name Here';
+  const agentFirst = hasAgentName ? agentName.split(' ')[0] : 'you';
   const displayListing = listing || DEMO_LISTING;
   const botName = chatbot?.bot_name || `${lo.name.split(' ')[0]}'s Finance Assistant`;
   const greeting = chatbot?.greeting || `Hi! I'm ${lo.name}'s AI mortgage assistant. Ask me anything — how much you can qualify for, pre-approval steps, down payment options, loan programs. I'm here 24/7 and it won't affect your credit.`;
@@ -752,7 +756,7 @@ const PartnerInvitePage: React.FC = () => {
               {agent.email && <ContactRow icon="mail" label="Email" value={agent.email} href={`mailto:${agent.email}`} />}
               {agent.website && <ContactRow icon="language" label="Website" value={agent.website.replace(/^https?:\/\//, '')} href={agent.website.startsWith('http') ? agent.website : `https://${agent.website}`} />}
               {!agent.phone && !agent.email && !agent.website && (
-                <p className="px-4 py-5 text-[14px] text-slate-500">{agentFirst}&rsquo;s contact details show here once they claim their free account.</p>
+                <p className="px-4 py-5 text-[14px] text-slate-500">Contact details show here once the agent claims the free account.</p>
               )}
               {isDemoToken && (
                 <div className="px-4 pb-6 pt-4">

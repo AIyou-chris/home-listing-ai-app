@@ -31,6 +31,7 @@
 
 ### 2026-09-30 14:20 — Claude — Partner-agent experience: iPhone-style WOW Link page + App Store-style invite email
 - **Did:** `PartnerInvitePage.tsx` rebuilt as an iPhone-style app (phone frame on desktop): letterboxed photo, blue listing-agent card + Contact sheet, green loan-officer card + "Loan questions" chat with payment-schedule card + CSV download, glass tab bar. Agent = blue, LO = green. `GET /api/public/partner-invite/:token` now returns `agent`. `buildWowLinkEmail` rewritten email-safe with 3 hosted previews (`public/email/wow-preview-*.png`, 404 until deployed) and the agent card under "What's included".
+- **State:** committed and pushed on `feat/wow-link-ios-app` (PR #35); tsc, eslint, jest and backend tests pass; page and email checked visually.
 - **Open:** live payment schedule (demo only; LO uploads are free text), social buttons (demo only), real tour booking, reminder/follow-up email copy still old, text message blocked on Telnyx + 10DLC. PR #35.
 - **Codex:** the old dark pitch hero on the WOW page is gone on purpose. Don't restore it without asking Chris.
 

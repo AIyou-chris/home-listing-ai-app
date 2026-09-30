@@ -32060,8 +32060,8 @@ app.get('/api/public/partner-invite/:token', async (req, res) => {
       name: agentProfileName || invite.invited_name || null,
       company: agentRow?.brokerage || agentRow?.company || null,
       headshotUrl: agentRow?.headshot_url || null,
-      phone: agentRow?.phone || invite.invited_phone || null,
-      email: agentRow?.email || invite.invited_email || null,
+      phone: agentRow?.phone || null,
+      email: agentRow?.email || null,
       website: agentRow?.website || null
     };
 
@@ -32939,8 +32939,11 @@ const buildWowLinkEmail = ({ name, loName, loBrand, wowLink, claimLink, agentCom
   const companyName = (loBrand?.whiteLabel && loBrand?.companyName) ? loBrand.companyName : 'HomeListingAI';
   const loFirst = esc(String(loName || '').split(' ')[0] || 'Your loan officer');
   const loFull = esc(loName || 'Your loan officer');
-  const agentFull = esc(name || 'there');
-  const agentFirst = esc(String(name || '').split(' ')[0] || 'there');
+  const hasName = Boolean(String(name || '').trim());
+  const greetName = esc(hasName ? String(name).trim() : 'there');
+  const agentFull = esc(hasName ? String(name).trim() : 'Your name here');
+  const agentFirst = esc(hasName ? String(name).trim().split(' ')[0] : 'your');
+  const agentPossessive = hasName ? `${agentFirst}&rsquo;s` : 'your';
   const initial = esc((String(name || 'A').trim()[0] || 'A').toUpperCase());
   const font = "-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',Helvetica,Arial,sans-serif";
   const BLUE = '#1d4ed8';
@@ -32963,7 +32966,7 @@ const buildWowLinkEmail = ({ name, loName, loBrand, wowLink, claimLink, agentCom
     <td valign="middle" style="padding-right:20px;"><img src="${esc(logoUrl)}" width="104" height="104" alt="${esc(companyName)}" style="display:block;width:104px;height:104px;border-radius:24px;background:#ffffff;border:1px solid #e5e5ea;object-fit:contain;"></td>
     <td valign="middle">
       <div style="font:800 28px/1.15 ${font};color:#1c1c1e;">Listing Assistant</div>
-      <div style="font:400 15px/1.4 ${font};color:#6c6c70;padding:4px 0 12px;">Built for ${agentFirst}&rsquo;s listings</div>
+      <div style="font:400 15px/1.4 ${font};color:#6c6c70;padding:4px 0 12px;">Built for ${agentPossessive} listings</div>
       <table role="presentation" cellpadding="0" cellspacing="0"><tr><td align="center" bgcolor="#e6eeff" style="border-radius:999px;"><a href="${esc(wowLink)}" style="display:inline-block;padding:10px 24px;font:800 14px/1 ${font};color:#0b4fd6;text-decoration:none;letter-spacing:0.5px;">VIEW DEMO</a></td></tr></table>
     </td>
   </tr></table>
@@ -32981,7 +32984,7 @@ const buildWowLinkEmail = ({ name, loName, loBrand, wowLink, claimLink, agentCom
 </td></tr>
 <tr><td style="padding:0 28px 20px;">
   <div style="font:800 22px/1.3 ${font};color:#1c1c1e;padding-bottom:6px;">What&rsquo;s included</div>
-  <div style="font:400 16px/1.5 ${font};color:#3c3c43;">Hi ${agentFull}, your listing answers buyer questions on its own, day or night. Serious buyers are passed to you first, and the loan questions go to ${loFirst}. You can print a flyer with a QR code that has your name on it.</div>
+  <div style="font:400 16px/1.5 ${font};color:#3c3c43;">Hi ${greetName}, your listing answers buyer questions on its own, day or night. Serious buyers are passed to you first, and the loan questions go to ${loFirst}. You can print a flyer with a QR code that has your name on it.</div>
 </td></tr>
 <tr><td style="padding:0 28px 24px;">
   <div style="font:800 22px/1.3 ${font};color:#1c1c1e;padding-bottom:10px;">How buyers will see you</div>
@@ -32997,7 +33000,7 @@ const buildWowLinkEmail = ({ name, loName, loBrand, wowLink, claimLink, agentCom
   <div style="font:400 14px/1.45 ${font};color:#6c6c70;padding-top:10px;">Your photo, name and contact details sit right under the listing. Buyers tap Contact to reach you.</div>
 </td></tr>
 <tr><td style="padding:0 28px 12px;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" bgcolor="${BLUE}" style="border-radius:14px;"><a href="${esc(wowLink)}" style="display:block;padding:16px;font:800 18px/1.2 ${font};color:#ffffff;text-decoration:none;">See ${agentFirst}&rsquo;s demo</a></td></tr></table>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" bgcolor="${BLUE}" style="border-radius:14px;"><a href="${esc(wowLink)}" style="display:block;padding:16px;font:800 18px/1.2 ${font};color:#ffffff;text-decoration:none;">See ${agentPossessive} demo</a></td></tr></table>
 </td></tr>
 <tr><td align="center" style="padding:4px 28px 28px;">
   <a href="${esc(claimLink)}" style="font:700 14px/1.4 ${font};color:${BLUE};text-decoration:none;">Ready? Claim your free account &rarr;</a>
