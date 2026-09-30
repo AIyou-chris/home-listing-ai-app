@@ -1146,11 +1146,12 @@ const ListingEditorPage: React.FC = () => {
     try {
       const { waitForAuthenticatedUserId } = await import('../../services/authSession')
       const uid = await waitForAuthenticatedUserId()
-      await fetch(`/api/listings/${listingId}/lo-assignment`, {
+      const res = await fetch(`/api/listings/${listingId}/lo-assignment`, {
         method: 'DELETE',
         headers: await (await import('../../services/dashboard/utils')).authHeaders(uid),
         body: JSON.stringify({ lo_id: attachedLo.id })
       })
+      if (!res.ok) throw new Error('detach failed')
       setAttachedLo(null)
       toast.success('LO removed from this listing.')
     } catch { toast.error('Could not remove LO.') } finally { setDetachingLo(false) }
