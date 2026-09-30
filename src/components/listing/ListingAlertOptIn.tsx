@@ -1,10 +1,20 @@
 // src/components/listing/ListingAlertOptIn.tsx
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { subscribeToListingAlerts } from '../../services/listingAlerts';
 
 interface Props { listingId: string; visitorId?: string; }
 
+// One ask per phone: once a buyer signs up or closes the card, it never comes back.
+const seenKey = (listingId: string) => `hlai_alert_seen_${listingId}`;
+const readSeen = (listingId: string) => {
+  try { return localStorage.getItem(seenKey(listingId)) === '1'; } catch { return false; }
+};
+const writeSeen = (listingId: string) => {
+  try { localStorage.setItem(seenKey(listingId), '1'); } catch { /* private mode: fine */ }
+};
+
 const ListingAlertOptIn: React.FC<Props> = ({ listingId, visitorId }) => {
+  const [hidden, setHidden] = useState(() => readSeen(listingId));
   const [phone, setPhone] = useState('');
   const [state, setState] = useState<'idle' | 'sending' | 'done' | 'error'>('idle');
 
@@ -14,11 +24,22 @@ const ListingAlertOptIn: React.FC<Props> = ({ listingId, visitorId }) => {
     setState('sending');
     try {
       await subscribeToListingAlerts(listingId, phone, visitorId);
+      writeSeen(listingId);
       setState('done');
     } catch {
       setState('error');
     }
   };
+
+  useEffect(() => {
+    if (state !== 'done') return undefined;
+    const t = setTimeout(() => setHidden(true), 4000);
+    return () => clearTimeout(t);
+  }, [state]);
+
+  const dismiss = () => { writeSeen(listingId); setHidden(true); };
+
+  if (hidden) return null;
 
   if (state === 'done') {
     return (
@@ -29,7 +50,8 @@ const ListingAlertOptIn: React.FC<Props> = ({ listingId, visitorId }) => {
   }
 
   return (
-    <form onSubmit={submit} className="rounded-2xl border border-cyan-500/30 bg-[#0f1b2e] p-4">
+    <form onSubmit={submit} className="relative rounded-2xl border border-cyan-500/30 bg-[#0f1b2e] p-4">
+      <button type="button" onClick={dismiss} aria-label="Close" className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full text-slate-400 hover:text-slate-200">✕</button>
       <div className="text-sm font-semibold text-cyan-300">🔔 Get price-drop alerts</div>
       <p className="mt-1 text-xs text-slate-400">Get a text the second the price changes or an open house is set.</p>
       <input
