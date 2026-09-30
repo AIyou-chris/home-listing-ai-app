@@ -31781,7 +31781,7 @@ app.post('/api/lo/partners/invite', requireAuth, async (req, res) => {
     const invitedPhone = (phone && String(phone).trim()) || null;
     // Agent profile is used for email personalization only — never block the
     // invite if the profile row is missing (some accounts have no agents row).
-    const { data: loAgent } = await supabaseAdmin.from('agents').select('id, first_name, last_name, company, email, headshot_url, stripe_customer_id, payment_status, created_at').eq('id', loProfileId).limit(1).maybeSingle();
+    const { data: loAgent } = await supabaseAdmin.from('agents').select('id, first_name, last_name, company, email, headshot_url, stripe_customer_id, payment_status, created_at, nmls_number').eq('id', loProfileId).limit(1).maybeSingle();
     const emailLower = email.trim().toLowerCase();
 
     // ── WOW invite cap — enforce per-LO-plan limit ───────────────────────────
@@ -31841,11 +31841,19 @@ app.post('/api/lo/partners/invite', requireAuth, async (req, res) => {
     const claimLink = `${appBase.replace(/\/$/, '')}/agent/claim/${token}`;
     const loName = [loAgent?.first_name, loAgent?.last_name].filter(Boolean).join(' ') || 'Your Loan Officer';
     const loBrand = await resolveBrandForLoAgent(loAgent?.id).catch(() => ({ whiteLabel: false, brandColor: '#2563eb', logoUrl: null, companyName: null }));
-    const emailHtml = buildWowLinkEmail({ name, loName, loBrand, wowLink, claimLink });
+    let listingAddress = null;
+    if (resolvedListingId) {
+      const { data: prop } = await supabaseAdmin.from('properties').select('address').eq('id', resolvedListingId).maybeSingle();
+      listingAddress = prop?.address || null;
+    }
+    const nmls = loAgent?.nmls_number || null;
+    const emailHtml = buildWowLinkEmail({ name, loName, loBrand, wowLink, claimLink, address: listingAddress, nmls });
     try {
       await emailService.sendEmail({ to: emailLower, subject: `${loName} built a listing demo for you`, html: emailHtml });
     } catch (emailErr) { console.warn('[LO Invite] Email failed (non-fatal):', emailErr?.message); }
-    res.json({ success: true, message: 'Invite sent', wowLink, claimLink });
+    // Text version (concept C). Returned as copy so the LO sends it from their own phone.
+    const smsText = buildWowLinkText({ name, loName, wowLink, address: listingAddress });
+    res.json({ success: true, message: 'Invite sent', wowLink, claimLink, smsText });
   } catch (err) {
     console.error('[LO Invite] Failed:', err);
     res.status(500).json({ error: 'invite_failed' });
@@ -31886,7 +31894,7 @@ app.post('/api/lo/partners/invite/:inviteId/resend', requireAuth, async (req, re
     const loBrand = await resolveBrandForLoAgent(loAgent?.id).catch(() => ({ whiteLabel: false, brandColor: '#2563eb', logoUrl: null, companyName: null }));
     const name = invite.invited_name;
 
-    const emailHtml = buildWowLinkEmail({ name, loName, loBrand, wowLink, claimLink });
+    const emailHtml = buildWowLinkEmail({ name, loName, loBrand, wowLink, claimLink, nmls: loAgent?.nmls_number || null });
 
     await emailService.sendEmail({
       to: invite.invited_email,
@@ -32932,7 +32940,14 @@ const resolveOfficeBrand = async (officeId) => {
 
 // Partner-agent invite email: App Store–style "listing page" with real screenshots of the demo app.
 // Email-safe: tables + inline CSS, system fonts, bulletproof buttons, hosted PNG previews.
-const buildWowLinkEmail = ({ name, loName, loBrand, wowLink, claimLink, agentCompany }) => {
+const buildWowLinkText = ({ name, loName, wowLink, address }) => {
+  const first = String(name || '').trim().split(' ')[0];
+  const loFirstName = String(loName || '').trim() || 'your loan officer';
+  const where = address ? ` at ${String(address).split(',')[0].trim()}` : '';
+  return `Hi ${first || 'there'}, it's ${loFirstName}. A buyer could text your listing${where}: "Can I get pre-approved before the open house?" I built it to answer that and send the lead to you.\n\nTry it yourself, 30 seconds:\n${wowLink}\n\nReply STOP to opt out`;
+};
+
+const buildWowLinkEmail = ({ name, loName, loBrand, wowLink, claimLink, agentCompany, address, nmls }) => {
   const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const siteBase = 'https://homelistingai.com';
   const logoUrl = (loBrand?.whiteLabel && loBrand?.logoUrl) ? loBrand.logoUrl : `${siteBase}/newlogo.png`;
@@ -32958,7 +32973,9 @@ const buildWowLinkEmail = ({ name, loName, loBrand, wowLink, claimLink, agentCom
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f2f2f7;">
 <tr><td align="center" style="padding:24px 12px;">
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:100%;max-width:600px;background:#ffffff;border-radius:20px;">
-<tr><td style="padding:32px 28px 8px;">
+<tr><td style="padding:32px 28px 4px;">
+  <div style="font:800 12px/1.3 ${font};letter-spacing:1.5px;color:${BLUE};">YOUR LISTING, UPGRADED</div>
+  <div style="font:800 26px/1.2 ${font};color:#1c1c1e;padding:6px 0 8px;">${esc(address ? String(address).split(',')[0] : 'Your listing')} can now answer buyers by itself.</div>
   <div style="font:400 14px/1.4 ${font};color:#6c6c70;">From ${loFull} &middot; ${esc(companyName)}</div>
 </td></tr>
 <tr><td style="padding:12px 28px 20px;">
@@ -32981,6 +32998,14 @@ const buildWowLinkEmail = ({ name, loName, loBrand, wowLink, claimLink, agentCom
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
     ${shot('wow-preview-home.png', 'Your listing')}${shot('wow-preview-contact.png', 'Your contact card')}${shot('wow-preview-loan.png', 'Loan questions')}
   </tr></table>
+</td></tr>
+<tr><td style="padding:0 28px 22px;">
+  <div style="font:800 22px/1.3 ${font};color:#1c1c1e;padding-bottom:6px;">How it works</div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+    <tr><td width="36" valign="top" style="padding:6px 0;"><table role="presentation" cellpadding="0" cellspacing="0"><tr><td width="28" height="28" align="center" valign="middle" bgcolor="${BLUE}" style="width:28px;height:28px;border-radius:14px;font:800 14px/28px ${font};color:#ffffff;">1</td></tr></table></td><td valign="middle" style="padding:6px 0;font:400 16px/1.4 ${font};color:#3c3c43;">Tap View and try it like a buyer would.</td></tr>
+    <tr><td width="36" valign="top" style="padding:6px 0;"><table role="presentation" cellpadding="0" cellspacing="0"><tr><td width="28" height="28" align="center" valign="middle" bgcolor="${BLUE}" style="width:28px;height:28px;border-radius:14px;font:800 14px/28px ${font};color:#ffffff;">2</td></tr></table></td><td valign="middle" style="padding:6px 0;font:400 16px/1.4 ${font};color:#3c3c43;">Claim it free. Your name goes on the listing.</td></tr>
+    <tr><td width="36" valign="top" style="padding:6px 0;"><table role="presentation" cellpadding="0" cellspacing="0"><tr><td width="28" height="28" align="center" valign="middle" bgcolor="${BLUE}" style="width:28px;height:28px;border-radius:14px;font:800 14px/28px ${font};color:#ffffff;">3</td></tr></table></td><td valign="middle" style="padding:6px 0;font:400 16px/1.4 ${font};color:#3c3c43;">Buyer leads land with you first.</td></tr>
+  </table>
 </td></tr>
 <tr><td style="padding:0 28px 20px;">
   <div style="font:800 22px/1.3 ${font};color:#1c1c1e;padding-bottom:6px;">What&rsquo;s included</div>
@@ -33006,7 +33031,7 @@ const buildWowLinkEmail = ({ name, loName, loBrand, wowLink, claimLink, agentCom
   <a href="${esc(claimLink)}" style="font:700 14px/1.4 ${font};color:${BLUE};text-decoration:none;">Ready? Claim your free account &rarr;</a>
 </td></tr>
 <tr><td align="center" style="padding:0 28px 28px;">
-  <div style="font:400 12px/1.5 ${font};color:#6c6c70;">Sent by ${loFull} via ${esc(companyName)}. You received this because a loan officer built this demo for you.</div>
+  <div style="font:400 12px/1.5 ${font};color:#6c6c70;">Sent by ${loFull}${nmls ? ` &middot; NMLS #${esc(nmls)}` : ''} via ${esc(companyName)}. You received this because a loan officer built this demo for you.</div>
 </td></tr>
 </table>
 </td></tr>

@@ -29,6 +29,11 @@
 
 ---
 
+### 2026-09-30 15:10 — Claude — WOW email = mix of A + B; WOW text = C (copy, sent by the LO)
+- **Did:** `buildWowLinkEmail` now opens with B's "YOUR LISTING, UPGRADED / {street} can now answer buyers by itself." headline, keeps A's App Store layout, adds B's 3-step "How it works", and shows the LO's NMLS in the footer. New `buildWowLinkText` (concept C wording); `POST /api/lo/partners/invite` returns `smsText`, and the invite modal in `LOPartnersPage.tsx` has a "Copy the text to send" button. The LO sends the text from their own phone (human send, so Textbelt's link block and 10DLC don't apply).
+- **State:** committed and pushed on `feat/wow-email-text-mix` (PR open); tsc (2 known errors), eslint and backend tests run; email rendered and checked visually.
+- **Open:** automated text sending still needs Telnyx + 10DLC. Reminder/follow-up emails still use the old copy. Listing address only appears when the invite has a listing picked.
+
 ### 2026-09-30 14:20 — Claude — Partner-agent experience: iPhone-style WOW Link page + App Store-style invite email
 - **Did:** `PartnerInvitePage.tsx` rebuilt as an iPhone-style app (phone frame on desktop): letterboxed photo, blue listing-agent card + Contact sheet, green loan-officer card + "Loan questions" chat with payment-schedule card + CSV download, glass tab bar. Agent = blue, LO = green. `GET /api/public/partner-invite/:token` now returns `agent`. `buildWowLinkEmail` rewritten email-safe with 3 hosted previews (`public/email/wow-preview-*.png`, 404 until deployed) and the agent card under "What's included".
 - **State:** committed and pushed on `feat/wow-link-ios-app` (PR #35); tsc, eslint, jest and backend tests pass; page and email checked visually.

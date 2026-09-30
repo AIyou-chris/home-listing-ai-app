@@ -167,6 +167,7 @@ const InviteModal: React.FC<{ onClose: () => void; onSent: (wowLink: string) => 
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
   const [wowLink, setWowLink] = useState('')
+  const [smsText, setSmsText] = useState('')
 
   useEffect(() => {
     if (demoMode) return
@@ -196,7 +197,7 @@ const InviteModal: React.FC<{ onClose: () => void; onSent: (wowLink: string) => 
         headers,
         body: JSON.stringify({ email: email.trim(), name: name.trim() || undefined, phone: phone.trim() || undefined, listingId: listingId || undefined })
       })
-      const json = await res.json() as { success?: boolean; wowLink?: string; error?: string; message?: string }
+      const json = await res.json() as { success?: boolean; wowLink?: string; smsText?: string; error?: string; message?: string }
       if (!res.ok) {
         if (json.error === 'invite_limit_reached') {
           showToast.error(json.message || 'Upgrade your plan to send WOW Links.')
@@ -207,9 +208,10 @@ const InviteModal: React.FC<{ onClose: () => void; onSent: (wowLink: string) => 
       }
       const link = json.wowLink || ''
       setWowLink(link)
+      setSmsText(json.smsText || '')
       setSent(true)
       showToast.success('WOW Link sent!')
-      setTimeout(() => { onSent(link); onClose() }, 3000)
+      setTimeout(() => { onSent(link); onClose() }, 12000)
     } catch {
       showToast.error('Failed to send invite. Try again.')
     } finally {
@@ -231,6 +233,14 @@ const InviteModal: React.FC<{ onClose: () => void; onSent: (wowLink: string) => 
                 className="w-full border border-slate-200 rounded-xl py-2.5 text-xs font-semibold text-primary-600 hover:bg-primary-50 transition-all"
               >
                 📋 Copy WOW Link
+              </button>
+            )}
+            {smsText && (
+              <button
+                onClick={() => { navigator.clipboard.writeText(smsText); showToast.success('Text copied! Paste it in Messages.') }}
+                className="mt-2 w-full rounded-xl bg-primary-600 py-2.5 text-xs font-semibold text-white hover:bg-primary-700 transition-all"
+              >
+                💬 Copy the text to send
               </button>
             )}
           </div>
