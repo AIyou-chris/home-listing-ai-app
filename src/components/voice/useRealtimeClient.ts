@@ -190,7 +190,6 @@ export const useRealtimeClient = (
       const payload = JSON.parse(event.data as string) as { type: string;[key: string]: unknown }
       switch (payload.type) {
         case 'response.function_call_arguments.delta': {
-          const delta = typeof payload.delta === 'string' ? payload.delta : ''
           // We can optionally expose partial arguments if needed, but usually we wait for done.
           break
         }
@@ -203,7 +202,6 @@ export const useRealtimeClient = (
           const argsString = payload.arguments as string
 
           if (callId && argsString) {
-            const name = payload.name as string // Sometimes name comes in .done, or we need to track it from item.added
             // Actually, reliably, we should track the current function call being built.
             // But for simplicity, let's assume valid payload.
             // Wait, standard Realtime API 'response.function_call_arguments.done' has: call_id, arguments. Name might be in item.added.
@@ -213,6 +211,7 @@ export const useRealtimeClient = (
           break
         }
         case 'response.output_item.done': {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const item = payload.item as any
           if (item && item.type === 'function_call') {
             const { name, call_id, arguments: argsString } = item

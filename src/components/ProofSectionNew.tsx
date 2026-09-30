@@ -85,11 +85,11 @@ const testimonials = [
 export const ProofSectionNew: React.FC<ProofSectionProps> = ({ onNavigateToSignUp, onEnterDemoMode }) => {
     const navigate = useNavigate();
     const scrollRef = useRef<HTMLDivElement>(null);
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+     
     const [_activeIndex, setActiveIndex] = useState(0);
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+     
     const [_isAtStart, setIsAtStart] = useState(true);
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+     
     const [_isAtEnd, setIsAtEnd] = useState(false);
 
     const handleScroll = () => {
@@ -115,7 +115,7 @@ export const ProofSectionNew: React.FC<ProofSectionProps> = ({ onNavigateToSignU
         }
     }, []);
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+     
     const _scrollToIndex = (index: number) => {
         if (!scrollRef.current) return;
         const cardElement = scrollRef.current.children[index] as HTMLElement;
@@ -128,7 +128,7 @@ export const ProofSectionNew: React.FC<ProofSectionProps> = ({ onNavigateToSignU
         }
     };
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+     
     const _scrollNext = () => {
         if (!scrollRef.current) return;
         const { scrollLeft, clientWidth } = scrollRef.current;
@@ -138,7 +138,7 @@ export const ProofSectionNew: React.FC<ProofSectionProps> = ({ onNavigateToSignU
         });
     };
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+     
     const _scrollPrev = () => {
         if (!scrollRef.current) return;
         const { scrollLeft, clientWidth } = scrollRef.current;

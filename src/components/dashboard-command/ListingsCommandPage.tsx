@@ -10,6 +10,7 @@ import { subscribeDashboardInvalidation } from '../../services/dashboardInvalida
 import { createListingDraft } from '../../services/listingBuilderService'
 import { listingsService } from '../../services/listingsService'
 import { listLocalListingDrafts, saveLocalListingDraft } from '../../services/listingDraftStorage'
+import { authHeaders } from '../../services/dashboard/utils'
 
 type ListingRow = {
   id: string
@@ -311,10 +312,7 @@ const ListingsCommandPage: React.FC = () => {
     setMarkingSoldId(listingId)
     try {
       const { data: userData } = await supabase.auth.getUser()
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json',
-        ...(userData.user?.id ? { 'x-user-id': userData.user.id } : {})
-      }
+      const headers = await authHeaders(userData.user?.id ?? null)
       const res = await fetch(buildApiUrl(`/api/listings/${listingId}/sold`), {
         method: 'PATCH',
         headers,
@@ -349,10 +347,7 @@ const ListingsCommandPage: React.FC = () => {
     }
     try {
       const { data: userData } = await supabase.auth.getUser()
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json',
-        ...(userData.user?.id ? { 'x-user-id': userData.user.id } : {})
-      }
+      const headers = await authHeaders(userData.user?.id ?? null)
       const res = await fetch(buildApiUrl(`/api/listings/${listingId}/archive`), { method: 'PATCH', headers })
       if (!res.ok) throw new Error('archive_failed')
       setRows((prev) => prev.filter((r) => r.id !== listingId))

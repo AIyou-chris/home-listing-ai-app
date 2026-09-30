@@ -31,7 +31,7 @@ export const LeadUploadModal: React.FC<LeadUploadModalProps> = ({ isOpen, onClos
                 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
                 if (emailRegex.test(part)) email = part;
-                else if (part.match(/\d{10}/) || part.match(/[\d\-\(\)\s]{10,}/)) phone = part;
+                else if (part.match(/\d{10}/) || part.match(/[\d\-()\s]{10,}/)) phone = part;
                 else if (part.length > 2 && !name) name = part;
             });
 

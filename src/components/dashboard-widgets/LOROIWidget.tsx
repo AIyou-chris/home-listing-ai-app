@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { buildApiUrl } from '../../lib/api';
 import { supabase } from '../../services/supabase';
+import { authHeaders } from '../../services/dashboard/utils';
 
 interface ROIData {
   views: number;
@@ -33,6 +34,7 @@ const fmt = (n: number) =>
 
 const LOROIWidget: React.FC<Props> = ({ listingId, demo = false }) => {
   const [data, setData] = useState<ROIData | null>(null);
+  const [failed, setFailed] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -44,14 +46,13 @@ const LOROIWidget: React.FC<Props> = ({ listingId, demo = false }) => {
     (async () => {
       try {
         const { data: userData } = await supabase.auth.getUser();
-        const headers: HeadersInit = userData.user?.id
-          ? { 'x-user-id': userData.user.id }
-          : {};
+        const headers = await authHeaders(userData.user?.id ?? null);
         const res = await fetch(buildApiUrl(`/api/lo/listings/${listingId}/roi`), { headers });
         const json = await res.json();
-        if (json.success) setData(json.roi);
+        if (res.ok && json.success) setData(json.roi);
+        else setFailed(true);
       } catch {
-        // non-fatal — widget just won't show
+        setFailed(true);
       } finally {
         setLoading(false);
       }
@@ -68,7 +69,13 @@ const LOROIWidget: React.FC<Props> = ({ listingId, demo = false }) => {
     );
   }
 
-  if (!data) return null;
+  if (!data) {
+    return failed ? (
+      <p className="rounded-lg border border-amber-200 bg-amber-50 p-2 text-center text-xs text-amber-800">
+        Could not load stats right now.
+      </p>
+    ) : null;
+  }
 
   return (
     <div className="space-y-2">

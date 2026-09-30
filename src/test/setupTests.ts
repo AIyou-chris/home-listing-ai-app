@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom';
+import { jest } from '@jest/globals';
 
 // Vite exposes config via `import.meta.env`. Under ts-jest (CommonJS) `import.meta`
 // is rewritten to `__importMeta__` by src/test/importMetaTransformer.cjs — provide

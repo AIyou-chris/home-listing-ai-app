@@ -135,7 +135,7 @@ const brandingContextValue: AgentBrandingContextValue = {
 }
 
 const originalFetch = global.fetch
-// eslint-disable-next-line @typescript-eslint/no-var-requires
+ 
 const mockedBilling = jest.requireMock('../../services/dashboardBillingService') as {
   fetchDashboardBilling: jest.Mock
   createBillingCheckoutSession: jest.Mock

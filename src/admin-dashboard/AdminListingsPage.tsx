@@ -32,7 +32,7 @@ const PropertyCard: React.FC<PropertyCardProps> = ({
     }
   };
 
-  const handleEditClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+  const _handleEditClick = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
     if (onOpenBuilder) {
       onOpenBuilder();
@@ -41,7 +41,7 @@ const PropertyCard: React.FC<PropertyCardProps> = ({
     onSelect();
   };
 
-  const handleSidekickClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+  const _handleSidekickClick = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
     if (onOpenMarketing) {
       onOpenMarketing();
