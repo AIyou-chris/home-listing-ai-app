@@ -624,6 +624,7 @@ const PartnerInvitePage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [sheet, setSheet] = useState<Sheet>(null);
   const [photoIndex, setPhotoIndex] = useState(0);
+  const [descOpen, setDescOpen] = useState(false);
   const openedFired = useRef(false);
 
   useEffect(() => {
@@ -757,6 +758,16 @@ const PartnerInvitePage: React.FC = () => {
                     <p className="text-[13px] font-bold text-slate-500">{displayListing.beds} bd · {displayListing.baths} ba · {displayListing.sqft.toLocaleString()} sqft</p>
                   </div>
                   <p className="text-[14px] text-slate-500">{displayListing.address}</p>
+                  {displayListing.description?.trim() && (
+                    <div className="mt-2.5 border-t border-slate-200 pt-2.5">
+                      <p className={`text-[13.5px] leading-relaxed text-slate-600 ${descOpen ? '' : 'line-clamp-3'}`}>{displayListing.description.trim()}</p>
+                      {displayListing.description.trim().length > 140 && (
+                        <button type="button" onClick={() => setDescOpen(o => !o)} className="mt-1 text-[13px] font-bold" style={{ color: BLUE }}>
+                          {descOpen ? 'Show less' : 'Read more'}
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 
