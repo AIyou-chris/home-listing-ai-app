@@ -33524,6 +33524,69 @@ app.patch('/api/lo/listings/:listingId/branding-toggles', requireLoAgent, async 
   }
 });
 
+// ── LO Share Kit: co-branded link / QR / flyer / social for a listing the LO is on ──
+// GET /api/lo/listings/:listingId/share-kit
+app.get('/api/lo/listings/:listingId/share-kit', requireLoAgent, async (req, res) => {
+  try {
+    const loAgentId = req.loAgentId;
+    const { listingId } = req.params;
+    const { data: assignment } = await supabaseAdmin
+      .from('listing_lo_assignments').select('listing_id').eq('listing_id', listingId).eq('lo_agent_id', loAgentId).limit(1).maybeSingle();
+    if (!assignment) return res.status(403).json({ error: 'listing_access_denied' });
+
+    const { data: listing } = await supabaseAdmin
+      .from('properties')
+      .select('id, address, title, price, bedrooms, bathrooms, sqft, status, is_published, hero_photos, gallery_photos, public_slug, description')
+      .eq('id', listingId).maybeSingle();
+    if (!listing) return res.status(404).json({ error: 'listing_not_found' });
+    if (!isListingPublished(listing)) return res.status(409).json({ error: 'NOT_PUBLISHED' });
+    if (!toTrimmedOrNull(listing.public_slug)) return res.status(409).json({ error: 'NO_SHARE_LINK' });
+
+    const { data: lo } = await supabaseAdmin
+      .from('agents')
+      .select('first_name, last_name, full_name, company, nmls_number, headshot_url, brand_logo_url, phone, email')
+      .eq('id', loAgentId).maybeSingle();
+
+    const ALL_PIECES = ['listing_page', 'share_kit', 'qr', 'social', 'flyer', 'open_house'];
+    const { data: toggleRows } = await supabaseAdmin
+      .from('listing_branding_toggles').select('piece_type, lo_visible').eq('listing_id', listingId).eq('lo_agent_id', loAgentId);
+    const saved = Object.fromEntries((toggleRows || []).map((r) => [r.piece_type, r.lo_visible]));
+    const toggles = Object.fromEntries(ALL_PIECES.map((piece) => [piece, saved[piece] !== undefined ? saved[piece] : true]));
+
+    const photos = [
+      ...(Array.isArray(listing.hero_photos) ? listing.hero_photos : []),
+      ...(Array.isArray(listing.gallery_photos) ? listing.gallery_photos : [])
+    ].map((item) => (typeof item === 'string' ? item : item?.url)).filter((u) => typeof u === 'string' && /^https?:\/\//i.test(u));
+
+    res.json({
+      success: true,
+      listing: {
+        id: listing.id,
+        address: listing.address || listing.title || 'Listing',
+        price: Number(listing.price) || 0,
+        bedrooms: Number(listing.bedrooms) || 0,
+        bathrooms: Number(listing.bathrooms) || 0,
+        sqft: Number(listing.sqft) || 0,
+        photos: photos.slice(0, 6),
+        share_url: buildListingShareUrl(listing.public_slug)
+      },
+      lo: {
+        name: lo?.full_name || `${lo?.first_name || ''} ${lo?.last_name || ''}`.trim() || 'Loan Officer',
+        company: lo?.company || null,
+        nmls_number: lo?.nmls_number || null,
+        headshot_url: lo?.headshot_url || null,
+        logo_url: lo?.brand_logo_url || null,
+        phone: lo?.phone || null,
+        email: lo?.email || null
+      },
+      toggles
+    });
+  } catch (err) {
+    console.error('[LO Share Kit] Failed:', err?.message || err);
+    res.status(500).json({ error: 'lo_share_kit_failed' });
+  }
+});
+
 // ── Lead Follow-Up Nudge Job ──────────────────────────────────────────────────
 app.post('/api/internal/run-nudge-job', async (req, res) => {
   try {

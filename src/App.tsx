@@ -33,6 +33,7 @@ const BillingCommandPage = lazy(() => import('./components/dashboard-command/Bil
 const OnboardingCommandPage = lazy(() => import('./components/dashboard-command/OnboardingCommandPage'));
 const LOOnboardingPage = lazy(() => import('./components/dashboard-command/LOOnboardingPage'));
 const LOListingsPage = lazy(() => import('./components/dashboard-command/LOListingsPage'));
+const LOShareKitPage = lazy(() => import('./components/dashboard-command/LOShareKitPage'));
 const LOPartnersPage = lazy(() => import('./components/dashboard-command/LOPartnersPage'));
 const LOBrainPage = lazy(() => import('./components/dashboard-command/LOBrainPage'));
 const LOLeadsPage = lazy(() => import('./components/dashboard-command/LOLeadsPage'));
@@ -1606,6 +1607,7 @@ const App: React.FC = () => {
                         <Route path="listings/:listingId/edit" element={<ListingEditorPage />} />
                         <Route path="lo-today" element={<LOTodayPage />} />
                         <Route path="lo-listings" element={<LOListingsPage />} />
+                        <Route path="lo-listings/:listingId/share-kit" element={<LOShareKitPage />} />
                         <Route path="lo-partners" element={<LOPartnersPage />} />
                         <Route path="lo-leads" element={<LOLeadsPage />} />
                         <Route path="lo-appointments" element={<LOAppointmentsPage />} />
@@ -1630,6 +1632,7 @@ const App: React.FC = () => {
                         <Route path="listings/:listingId/edit" element={<ListingEditorPage />} />
                         <Route path="lo-today" element={<LOTodayPage />} />
                         <Route path="lo-listings" element={<LOListingsPage />} />
+                        <Route path="lo-listings/:listingId/share-kit" element={<LOShareKitPage />} />
                         <Route path="lo-partners" element={<LOPartnersPage />} />
                         <Route path="lo-leads" element={<LOLeadsPage />} />
                         <Route path="lo-appointments" element={<LOAppointmentsPage />} />
@@ -1736,6 +1739,7 @@ const App: React.FC = () => {
                         <Route path="/dashboard/listings/:listingId" element={<ListingPerformancePage />} />
                         <Route path="/dashboard/listings/:listingId/edit" element={<ListingEditorPage />} />
                         <Route path="/dashboard/lo-listings" element={<LOListingsPage />} />
+                        <Route path="/dashboard/lo-listings/:listingId/share-kit" element={<LOShareKitPage />} />
                         <Route path="/dashboard/lo-partners" element={<LOPartnersPage />} />
                         <Route path="/dashboard/lo-chatbot" element={<LOBrainPage />} />
                         <Route path="/dashboard/lo-leads" element={<LOLeadsPage />} />

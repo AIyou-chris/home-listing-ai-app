@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { buildApiUrl } from '../../lib/api';
 import { supabase } from '../../services/supabase';
 import { showToast } from '../../utils/toastService';
-import { useDemoMode } from '../../demo/useDemoMode';
+import { buildDashboardPath, useDemoMode } from '../../demo/useDemoMode';
 import { createListingDraft } from '../../services/listingBuilderService';
 
 // ─── Branding toggle types ────────────────────────────────────────────────────
@@ -235,6 +235,12 @@ const ListingCard: React.FC<ListingCardProps> = ({ listing, mode, onRemove, onAd
                 className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition-all hover:bg-emerald-100 disabled:opacity-40"
               >
                 {sharingDash ? 'Opening…' : '📊 Live Dashboard'}
+              </button>
+              <button
+                onClick={() => navigate(buildDashboardPath(`/lo-listings/${listing.id}/share-kit`, Boolean(demo)))}
+                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition-all hover:border-primary-200 hover:text-primary-600"
+              >
+                📤 Share Kit
               </button>
               {phoneEnabled && (
                 <button
