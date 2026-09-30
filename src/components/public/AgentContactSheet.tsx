@@ -10,6 +10,7 @@ export type AgentContactInfo = {
   email?: string;
   website?: string;
   headshotUrl?: string;
+  nmlsNumber?: string;
   brandColor?: string;
 };
 

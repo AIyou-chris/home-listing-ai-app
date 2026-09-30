@@ -32,6 +32,7 @@ const ensureOk = async (response: Response, context: string) => {
   }
 };
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const normalizeLead = (backendLead: any): Lead => {
   if (!backendLead) return backendLead;
   // Map numeric score to LeadScore object if needed

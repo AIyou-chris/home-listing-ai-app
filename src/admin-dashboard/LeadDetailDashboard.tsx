@@ -37,6 +37,7 @@ const LeadDetailDashboard: React.FC<LeadDetailDashboardProps> = ({ leads = [] })
                         const leadConvo = convos.find(c => c.lead_id === id);
                         if (leadConvo) {
                             const messages = await getMessages(leadConvo.id);
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
                             setConversations(messages.map((msg: any) => ({
                                 id: msg.id || Math.random().toString(),
                                 role: msg.sender === 'lead' ? 'user' : 'assistant',

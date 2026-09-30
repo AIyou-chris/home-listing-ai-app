@@ -1,6 +1,6 @@
 import { Property, Lead, Appointment, Interaction, FollowUpSequence, ActiveLeadFollowUp, AnalyticsData, AgentProfile } from '../types';
 import { SAMPLE_AGENT } from '../constants';
-import { DEMO_FAT_PROPERTIES, DEMO_SEQUENCES } from '../demoConstants';
+import { DEMO_SEQUENCES } from '../demoConstants';
 
 // --- AGENT BLUEPRINT CONSTANTS ---
 // This file defines the clean slate state for new agents or the "Blueprint Dashboard".

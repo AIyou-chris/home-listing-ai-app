@@ -2,8 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
     ChatMessage,
     SidekickOption as BaseSidekickOption,
-    ADMIN_SIDEKICKS,
-    TRAINING_ARCHITECT_PROMPT
+    ADMIN_SIDEKICKS
 } from './AIInteractiveTraining';
 
 interface SidekickOption extends BaseSidekickOption {
@@ -35,7 +34,7 @@ const UnifiedTrainingStudio: React.FC<UnifiedTrainingStudioProps> = ({
     sidekicks = ADMIN_SIDEKICKS,
     demoMode = false
 }) => {
-    const [selectedSidekick, setSelectedSidekick] = useState<string>(sidekicks[0]?.id || '');
+    const [selectedSidekick] = useState<string>(sidekicks[0]?.id || '');
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [inputMessage, setInputMessage] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -346,6 +345,7 @@ const UnifiedTrainingStudio: React.FC<UnifiedTrainingStudioProps> = ({
         accuracy: number;
         positive: number;
         negative: number;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         recent: any[];
     }>({ accuracy: 0, positive: 0, negative: 0, recent: [] });
 

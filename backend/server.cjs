@@ -7338,6 +7338,8 @@ const resolveOfficeContext = async (req) => {
 // Use these on routes instead of calling resolveRequesterUserId inline.
 // Attaches resolved IDs to req so the handler body just reads req.authUserId etc.
 
+const { resolveAssignedLoId } = require('./services/loAssignmentGuard');
+
 const requireAuth = async (req, res, next) => {
   const authUserId = await resolveRequesterUserId(req, { allowDefault: false });
   if (!authUserId) return res.status(401).json({ error: 'unauthorized' });
@@ -31400,15 +31402,30 @@ app.get('/api/lo/dashboard/today', requireAuth, async (req, res) => {
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
     const startOf7Days = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
     const startOf30Days = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-    const { data: allLeads } = await supabaseAdmin.from('leads').select('id, full_name, name, email, email_lower, phone, status, source_type, source_meta, created_at, listing_id, lo_agent_id').eq('lo_agent_id', loAgentId).order('created_at', { ascending: false }).limit(200);
-    const leads = allLeads || [];
-    const totalLeads = leads.length;
-    const newToday = leads.filter(l => l.created_at >= startOfToday).length;
-    const newThisWeek = leads.filter(l => l.created_at >= startOf7Days).length;
-    const newThisMonth = leads.filter(l => l.created_at >= startOf30Days).length;
-    const preApprovalLeads = leads.filter(l => l.source_meta?.context === 'pre_approval').length;
-    const showingLeads = leads.filter(l => l.source_meta?.context === 'showing_request').length;
-    const recentLeads = leads.slice(0, 10).map(l => ({ id: l.id, name: l.full_name || l.name || 'Unknown', email: l.email_lower || l.email || null, status: l.status || 'New', context: l.source_meta?.context || 'general_info', listingId: l.listing_id || null, createdAt: l.created_at }));
+    // Leads are stamped with the LO's profile id (agents.id), not the login id.
+    const leadOwnerId = (await resolveLoAgentId(req)) || loAgentId;
+    const leadCount = (extra) => {
+      let q = supabaseAdmin.from('leads').select('id', { count: 'exact', head: true }).eq('lo_agent_id', leadOwnerId);
+      return extra ? extra(q) : q;
+    };
+    const [totalRes, todayRes, weekRes, monthRes, preApprovalRes, showingRes, recentRes, perListingRes] = await Promise.all([
+      leadCount(),
+      leadCount(q => q.gte('created_at', startOfToday)),
+      leadCount(q => q.gte('created_at', startOf7Days)),
+      leadCount(q => q.gte('created_at', startOf30Days)),
+      leadCount(q => q.eq('source_meta->>context', 'pre_approval')),
+      leadCount(q => q.eq('source_meta->>context', 'showing_request')),
+      supabaseAdmin.from('leads').select('id, full_name, name, email, email_lower, phone, status, source_type, source_meta, created_at, listing_id, lo_agent_id').eq('lo_agent_id', leadOwnerId).order('created_at', { ascending: false }).limit(10),
+      supabaseAdmin.from('leads').select('listing_id').eq('lo_agent_id', leadOwnerId).not('listing_id', 'is', null).limit(5000)
+    ]);
+    const leads = perListingRes.data || [];
+    const totalLeads = totalRes.count || 0;
+    const newToday = todayRes.count || 0;
+    const newThisWeek = weekRes.count || 0;
+    const newThisMonth = monthRes.count || 0;
+    const preApprovalLeads = preApprovalRes.count || 0;
+    const showingLeads = showingRes.count || 0;
+    const recentLeads = (recentRes.data || []).map(l => ({ id: l.id, name: l.full_name || l.name || 'Unknown', email: l.email_lower || l.email || null, status: l.status || 'New', context: l.source_meta?.context || 'general_info', listingId: l.listing_id || null, createdAt: l.created_at }));
     const loProfileId = (await resolveLoAgentId(req)) || loAgentId;
     const assignedRows = await fetchLoAssignedListings(loProfileId);
     const listingLeadCounts = leads.reduce((acc, l) => { if (l.listing_id) acc[l.listing_id] = (acc[l.listing_id] || 0) + 1; return acc; }, {});
@@ -33542,13 +33559,54 @@ app.post('/api/leads/pre-qual', async (req, res) => {
     const emailLower = (email || '').trim().toLowerCase() || null;
     const { data: loRow } = await supabaseAdmin.from('listing_lo_assignments').select('lo_agent_id').eq('listing_id', listingId).limit(1);
     const loAgentId = loRow?.[0]?.lo_agent_id || null;
-    const { data: preQual, error: pqError } = await supabaseAdmin.from('pre_qual_submissions').insert({ listing_id: listingId, lo_agent_id: loAgentId, full_name: fullName || null, email: emailLower, phone: phone || null, purchase_timeline: purchase_timeline || null, credit_range: credit_range || null, income_range: income_range || null, down_payment: down_payment || null, property_type: property_type || null, notes: notes || null }).select('id').single();
-    if (pqError) throw pqError;
-    if (loAgentId) {
-      const { data: listingRow } = await supabaseAdmin.from('listings').select('address').eq('id', listingId).single().catch(() => ({ data: null }));
-      await supabaseAdmin.from('notifications').insert({ user_id: loAgentId, title: '🔥 New pre-qual submission', content: `${fullName || 'A buyer'} completed a pre-qual at ${listingRow?.address || 'a listing'}. Timeline: ${purchase_timeline || 'unknown'}.`, type: 'lead', priority: 'high', is_read: false }).catch(() => null);
+    const { data: property } = await supabaseAdmin.from('properties').select('id, address, agent_id, user_id').eq('id', listingId).maybeSingle();
+    if (!property) return res.status(404).json({ error: 'listing_not_found' });
+    const listingAgentId = property.agent_id || property.user_id || null;
+    const phoneE164 = normalizePhoneE164(phone || '') || null;
+    const timestamp = nowIso();
+
+    // 1) Canonical lead: update the buyer's existing lead on this listing, or create one.
+    let leadId = null;
+    let isNewLead = false;
+    let existingQuery = supabaseAdmin.from('leads').select('id').eq('listing_id', listingId).limit(1);
+    if (emailLower) existingQuery = existingQuery.eq('email_lower', emailLower);
+    else existingQuery = existingQuery.eq('phone_e164', phoneE164);
+    const { data: existingLead } = await existingQuery.maybeSingle();
+    const leadMeta = { context: 'pre_approval', purchase_timeline: purchase_timeline || null };
+    if (existingLead?.id) {
+      leadId = existingLead.id;
+      await supabaseAdmin.from('leads').update({ lo_agent_id: loAgentId, intent_level: 'Hot', source_meta: leadMeta, last_touch_at: timestamp, updated_at: timestamp }).eq('id', leadId);
+    } else {
+      const { data: createdLead, error: leadError } = await supabaseAdmin.from('leads').insert({
+        user_id: listingAgentId, agent_id: listingAgentId, lo_agent_id: loAgentId, listing_id: listingId,
+        full_name: fullName || null, name: fullName || null, phone: phoneE164 || phone || null, phone_e164: phoneE164,
+        email: emailLower, email_lower: emailLower, source_type: 'pre_qual', source: 'pre_qual', source_meta: leadMeta,
+        status: 'New', intent_level: 'Hot', timeline: 'unknown', financing: 'unknown', working_with_agent: 'unknown',
+        last_message: 'Pre-approval request', last_message_preview: 'Pre-approval request', last_message_at: timestamp,
+        last_contact: timestamp, first_touch_at: timestamp, last_touch_at: timestamp,
+        notes: 'Capture context: pre_approval', created_at: timestamp, updated_at: timestamp
+      }).select('id').single();
+      if (leadError || !createdLead) throw leadError || new Error('failed_to_create_lead');
+      leadId = createdLead.id;
+      isNewLead = true;
     }
-    res.json({ success: true, preQualId: preQual.id });
+
+    // 2) The pre-qual answers, linked to that lead.
+    const { data: preQual, error: pqError } = await supabaseAdmin.from('pre_qual_submissions').insert({ listing_id: listingId, lead_id: leadId, lo_agent_id: loAgentId, full_name: fullName || null, email: emailLower, phone: phone || null, purchase_timeline: purchase_timeline || null, credit_range: credit_range || null, income_range: income_range || null, down_payment: down_payment || null, property_type: property_type || null, notes: notes || null }).select('id').single();
+    if (pqError) throw pqError;
+
+    // 3) Tell the LO and the listing agent (dual notify).
+    if (loAgentId) {
+      await supabaseAdmin.from('notifications').insert({ user_id: loAgentId, title: '🔥 New pre-qual submission', content: `${fullName || 'A buyer'} completed a pre-qual at ${property.address || 'a listing'}.`, type: 'lead', priority: 'high', is_read: false }).catch(() => null);
+    }
+    if (isNewLead && listingAgentId) {
+      await enqueueLeadCaptureNotifications({
+        lead: { id: leadId, agent_id: listingAgentId },
+        listing: { address: property.address },
+        context: 'pre_approval', fullName, phoneE164, emailLower
+      }).catch((err) => console.warn('[PreQual] agent notification failed:', err?.message || err));
+    }
+    res.json({ success: true, preQualId: preQual.id, leadId });
   } catch (err) {
     console.error('[PreQual] Submission failed:', err);
     res.status(500).json({ error: 'pre_qual_failed' });
@@ -33556,20 +33614,36 @@ app.post('/api/leads/pre-qual', async (req, res) => {
 });
 
 // ── Sold / Archive Listing ────────────────────────────────────────────────────
+// Owner check for a property: the login id OR the agent profile id may own it.
+const requesterOwnedProperty = async (req, listingId, columns = 'id, agent_id, user_id, address') => {
+  const ids = new Set([req.authUserId]);
+  try { const profileId = await resolveAgentProfileId(req.authUserId); if (profileId) ids.add(profileId); } catch { /* fallback */ }
+  const { data } = await supabaseAdmin.from('properties').select(columns).eq('id', listingId).maybeSingle();
+  if (!data) return { status: 404 };
+  if (!ids.has(data.agent_id) && !ids.has(data.user_id)) return { status: 403 };
+  return { status: 200, property: data };
+};
+
 app.patch('/api/listings/:listingId/sold', requireAuth, async (req, res) => {
   try {
-    const agentId = req.authUserId;
     const { listingId } = req.params;
     const { sold_price: soldPrice } = req.body || {};
-    const { data: listing } = await supabaseAdmin.from('listings').select('id, agent_id, address, total_leads, total_views').eq('id', listingId).single();
-    if (!listing) return res.status(404).json({ error: 'listing_not_found' });
-    if (listing.agent_id !== agentId) return res.status(403).json({ error: 'listing_access_denied' });
-    await supabaseAdmin.from('listings').update({ status: 'sold', sold_at: nowIso(), sold_price: soldPrice || null, updated_at: nowIso() }).eq('id', listingId);
+    const owned = await requesterOwnedProperty(req, listingId);
+    if (owned.status === 404) return res.status(404).json({ error: 'listing_not_found' });
+    if (owned.status === 403) return res.status(403).json({ error: 'listing_access_denied' });
+    const listing = owned.property;
+    const [{ count: leadCount }, { count: viewCount }] = await Promise.all([
+      supabaseAdmin.from('leads').select('id', { count: 'exact', head: true }).eq('listing_id', listingId),
+      supabaseAdmin.from('listing_events').select('id', { count: 'exact', head: true }).eq('listing_id', listingId).eq('type', 'view')
+    ]);
+    const { error: updateError } = await supabaseAdmin.from('properties')
+      .update({ status: 'sold', sold_at: nowIso(), sold_price: soldPrice || null, updated_at: nowIso() }).eq('id', listingId);
+    if (updateError) throw updateError;
     const { data: loAssignment } = await supabaseAdmin.from('listing_lo_assignments').select('lo_agent_id').eq('listing_id', listingId).limit(1);
     if (loAssignment?.[0]?.lo_agent_id) {
-      await supabaseAdmin.from('notifications').insert({ user_id: loAssignment[0].lo_agent_id, title: '🎉 Listing sold!', content: `${listing.address} just sold! ${listing.total_leads || 0} leads, ${listing.total_views || 0} views.`, type: 'listing', priority: 'high', is_read: false }).catch(() => null);
+      await supabaseAdmin.from('notifications').insert({ user_id: loAssignment[0].lo_agent_id, title: '🎉 Listing sold!', content: `${listing.address} just sold! ${leadCount || 0} leads, ${viewCount || 0} views.`, type: 'listing', priority: 'high', is_read: false }).catch(() => null);
     }
-    res.json({ success: true, sold_price: soldPrice, total_leads: listing.total_leads || 0, total_views: listing.total_views || 0 });
+    res.json({ success: true, sold_price: soldPrice, total_leads: leadCount || 0, total_views: viewCount || 0 });
   } catch (err) {
     console.error('[Sold] Failed:', err);
     res.status(500).json({ error: 'sold_update_failed' });
@@ -33578,14 +33652,16 @@ app.patch('/api/listings/:listingId/sold', requireAuth, async (req, res) => {
 
 app.patch('/api/listings/:listingId/archive', requireAuth, async (req, res) => {
   try {
-    const agentId = req.authUserId;
     const { listingId } = req.params;
-    const { data: listing } = await supabaseAdmin.from('listings').select('id, agent_id').eq('id', listingId).single();
-    if (!listing) return res.status(404).json({ error: 'listing_not_found' });
-    if (listing.agent_id !== agentId) return res.status(403).json({ error: 'listing_access_denied' });
-    await supabaseAdmin.from('listings').update({ status: 'archived', archived_at: nowIso(), updated_at: nowIso() }).eq('id', listingId);
+    const owned = await requesterOwnedProperty(req, listingId);
+    if (owned.status === 404) return res.status(404).json({ error: 'listing_not_found' });
+    if (owned.status === 403) return res.status(403).json({ error: 'listing_access_denied' });
+    const { error: updateError } = await supabaseAdmin.from('properties')
+      .update({ status: 'archived', archived_at: nowIso(), updated_at: nowIso() }).eq('id', listingId);
+    if (updateError) throw updateError;
     res.json({ success: true });
   } catch (err) {
+    console.error('[Archive] Failed:', err);
     res.status(500).json({ error: 'archive_failed' });
   }
 });
@@ -33598,15 +33674,16 @@ app.get('/api/lo/listings/:listingId/roi', requireAuth, async (req, res) => {
     const { listingId } = req.params;
     const { data: assignment } = await supabaseAdmin.from('listing_lo_assignments').select('id').eq('listing_id', listingId).eq('lo_agent_id', loAgentId).single();
     if (!assignment) return res.status(403).json({ error: 'not_assigned_to_listing' });
-    const [listingRes, leadsRes, preQualRes] = await Promise.all([
-      supabaseAdmin.from('listings').select('address, price, status, total_views, total_leads, sold_at, sold_price').eq('id', listingId).single(),
+    const [listingRes, leadsRes, preQualRes, viewsRes] = await Promise.all([
+      supabaseAdmin.from('properties').select('address, price, status, sold_at, sold_price').eq('id', listingId).maybeSingle(),
       supabaseAdmin.from('leads').select('id, source_meta').eq('listing_id', listingId).eq('lo_agent_id', loAgentId),
-      supabaseAdmin.from('pre_qual_submissions').select('id').eq('listing_id', listingId).eq('lo_agent_id', loAgentId)
+      supabaseAdmin.from('pre_qual_submissions').select('id').eq('listing_id', listingId).eq('lo_agent_id', loAgentId),
+      supabaseAdmin.from('listing_events').select('id', { count: 'exact', head: true }).eq('listing_id', listingId).eq('type', 'view')
     ]);
     const listing = listingRes.data;
     const leads = leadsRes.data || [];
     const preQuals = preQualRes.data || [];
-    res.json({ success: true, roi: { address: listing?.address, status: listing?.status, views: listing?.total_views || 0, leads: leads.length, preQuals: preQuals.length, soldAt: listing?.sold_at || null, soldPrice: listing?.sold_price || null } });
+    res.json({ success: true, roi: { address: listing?.address, status: listing?.status, views: viewsRes?.count || 0, leads: leads.length, preQuals: preQuals.length, soldAt: listing?.sold_at || null, soldPrice: listing?.sold_price || null } });
   } catch (err) {
     console.error('[ROI] Failed:', err);
     res.status(500).json({ error: 'roi_fetch_failed' });
@@ -34859,11 +34936,14 @@ app.post('/api/lo/chatbot/extract-file', (req, res, next) => {
 app.post('/api/public/lo-chat', async (req, res) => {
   try {
     const { listing_id, lo_agent_id, message, history } = req.body;
-    if (!listing_id || !lo_agent_id || !message) {
+    if (!listing_id || !message) {
       return res.status(400).json({ error: 'missing_required_fields' });
     }
+    // Never trust the browser's LO id: the LO must be assigned to this listing.
+    const verifiedLoId = await resolveAssignedLoId({ supabase: supabaseAdmin, listingId: listing_id, requestedLoId: lo_agent_id });
+    if (!verifiedLoId) return res.status(403).json({ error: 'lo_not_assigned_to_listing' });
     const result = await getLoBrain().answer({
-      loAgentId: lo_agent_id,
+      loAgentId: verifiedLoId,
       listingId: listing_id,
       message: String(message).slice(0, 2000),
       history,

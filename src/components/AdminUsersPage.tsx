@@ -36,6 +36,7 @@ const AdminUsersPage: React.FC = () => {
             const data = await response.json();
             setUsers(Array.isArray(data) ? data : (data.users || []));
             setError(null);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (err: any) {
             console.error('Error fetching users:', err);
             setError(err.message || 'Failed to load users');
@@ -87,6 +88,7 @@ const AdminUsersPage: React.FC = () => {
             setError('✅ Deleted! Email is now free.');
             setTimeout(() => setError(null), 3000);
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (err: any) {
             console.error('❌ Delete failed:', err);
             setError(`❌ ${err.message}`);
