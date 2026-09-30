@@ -126,17 +126,14 @@ const TodayDashboardPage: React.FC = () => {
         let selectedKit: ListingShareKitResponse | null = null
         const listingSample = listingRows.slice(0, 5)
 
-        for (const listing of listingSample) {
-          // Prefer first published listing so Share Kit actions are immediately useful.
-          const kit = await fetchListingShareKit(listing.id).catch(() => null)
-          if (!selectedKit && listing.id === selectedListing.id) {
-            selectedKit = kit
-          }
-          if (kit?.is_published) {
-            selectedListing = listing
-            selectedKit = kit
-            break
-          }
+        // Check all samples at once (was one at a time) and prefer the first published one.
+        const kits = await Promise.all(listingSample.map((l) => fetchListingShareKit(l.id).catch(() => null)))
+        const publishedIndex = kits.findIndex((kit) => kit?.is_published)
+        if (publishedIndex >= 0) {
+          selectedListing = listingSample[publishedIndex]
+          selectedKit = kits[publishedIndex]
+        } else {
+          selectedKit = kits[0] ?? null
         }
 
         if (!isMountedRef.current) return
@@ -223,6 +220,8 @@ const TodayDashboardPage: React.FC = () => {
       .filter((appointment) => {
         const startsAt = new Date(appointment.startsAt || appointment.startIso || '').getTime()
         if (Number.isNaN(startsAt)) return false
+        const state = String(appointment.normalizedStatus || appointment.status || '').toLowerCase()
+        if (state.includes('cancel') || state.includes('complete') || state.includes('no_show')) return false
         return startsAt >= now && startsAt <= next24h
       })
       .sort((a, b) => {
@@ -273,7 +272,7 @@ const TodayDashboardPage: React.FC = () => {
     try {
       const published = await publishListingShareKit(recentListing.id, true)
       setShareKit(published)
-      showToast.success('Publish listing')
+      showToast.success('Published! Your listing is live.')
     } catch (error) {
       showToast.error(error instanceof Error ? error.message : 'Failed to publish listing')
     }
@@ -524,7 +523,7 @@ const TodayDashboardPage: React.FC = () => {
                 </div>
               ) : (
                 upcomingAppointments.map((appointment) => {
-                  const isConfirmed = String(appointment.status || '').toLowerCase() === 'confirmed'
+                  const isConfirmed = [appointment.normalizedStatus, appointment.status].some((v) => String(v || '').toLowerCase() === 'confirmed')
                   return (
                   <div key={appointment.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
                     <p className="text-sm font-semibold text-slate-900">{appointment.lead?.name || 'Unknown'}</p>

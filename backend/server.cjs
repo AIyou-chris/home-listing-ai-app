@@ -21932,7 +21932,8 @@ app.get('/api/dashboard/leads', async (req, res) => {
     const intentFilter = req.query.intent ? String(req.query.intent) : null;
     const timeframe = req.query.timeframe ? String(req.query.timeframe) : null;
     const sortMode = req.query.sort ? String(req.query.sort) : 'hot_first';
-    const agentId = String(req.query.agentId || req.headers['x-user-id'] || req.headers['x-agent-id'] || DEFAULT_LEAD_USER_ID || '');
+    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!agentId) return res.status(401).json({ error: 'agent_auth_required' });
 
     if (!agentId) {
       return res.status(400).json({ error: 'agent_id_required' });
@@ -26305,7 +26306,8 @@ app.get('/api/dashboard/listings/:listingId/performance', async (req, res) => {
 app.get('/api/dashboard/appointments', async (req, res) => {
   try {
     const view = String(req.query.view || 'week').toLowerCase();
-    const agentId = String(req.query.agentId || req.headers['x-user-id'] || req.headers['x-agent-id'] || DEFAULT_LEAD_USER_ID || '');
+    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!agentId) return res.status(401).json({ error: 'agent_auth_required' });
     const now = new Date();
     const start = view === 'today'
       ? new Date(now.getFullYear(), now.getMonth(), now.getDate())
@@ -26488,7 +26490,8 @@ app.patch('/api/dashboard/automation-recipes/:recipeKey', async (req, res) => {
 
 app.get('/api/dashboard/roi-metrics', async (req, res) => {
   try {
-    const agentId = String(req.query.agentId || req.headers['x-user-id'] || req.headers['x-agent-id'] || DEFAULT_LEAD_USER_ID || '');
+    const agentId = await resolveRequesterUserId(req, { allowDefault: false });
+    if (!agentId) return res.status(401).json({ error: 'agent_auth_required' });
     if (!agentId) return res.status(400).json({ error: 'agent_id_required' });
 
     const timeframe = String(req.query.timeframe || '7d');
@@ -34765,6 +34768,31 @@ app.delete('/api/lo/chatbot/listing-docs/:docId', async (req, res) => {
 });
 
 // GET /api/public/listing/:listingId/lo-chatbot — get LO chatbot info for a listing (no auth)
+// Counts a public listing page view (feeds "Views" in the agent's Performance box).
+// Public on purpose. Only real property ids count, and one phone is counted once per hour.
+const recentListingViews = new Map();
+app.post('/api/public/listing/:listingId/view', async (req, res) => {
+  try {
+    const { listingId } = req.params;
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(listingId))) {
+      return res.status(400).json({ error: 'invalid_listing_id' });
+    }
+    const visitor = String(req.body?.visitor_id || req.ip || 'anon').slice(0, 80);
+    const key = `${listingId}:${visitor}`;
+    const now = Date.now();
+    if (now - (recentListingViews.get(key) || 0) < 60 * 60 * 1000) return res.json({ success: true, counted: false });
+    if (recentListingViews.size > 5000) recentListingViews.clear();
+    const { data: property } = await supabaseAdmin.from('properties').select('id').eq('id', listingId).maybeSingle();
+    if (!property) return res.status(404).json({ error: 'listing_not_found' });
+    recentListingViews.set(key, now);
+    await recordListingEvent({ listingId, type: 'view', payload: { source: 'public_page' } });
+    return res.json({ success: true, counted: true });
+  } catch (error) {
+    console.warn('[Listing] view count failed:', error?.message || error);
+    return res.status(500).json({ error: 'view_failed' });
+  }
+});
+
 app.get('/api/public/listing/:listingId/lo-chatbot', async (req, res) => {
   try {
     const { listingId } = req.params;

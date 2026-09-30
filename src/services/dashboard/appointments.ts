@@ -10,7 +10,7 @@ import {
   sendDemoReminderNow,
   disableDemoReminders
 } from '../../demo/demoData';
-import { resolveAgentId, defaultJsonHeaders, withAgentQuery, parseResponse } from './utils';
+import { resolveAgentId, authHeaders, defaultJsonHeaders, withAgentQuery, parseResponse } from './utils';
 import type { DashboardLeadAppointment } from './leads';
 
 export interface DashboardAppointmentRow {
@@ -146,7 +146,7 @@ export const fetchDashboardAppointments = async (
   const view = options.view || 'week';
   const url = buildApiUrl(withAgentQuery(`/api/dashboard/appointments?view=${view}`, agentId));
   const response = await fetch(url, {
-    headers: defaultJsonHeaders(agentId)
+    headers: await authHeaders(agentId)
   });
   return parseResponse<{ success: boolean; appointments: DashboardAppointmentRow[]; counts: Record<string, number> }>(response);
 };
