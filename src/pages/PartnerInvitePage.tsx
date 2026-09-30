@@ -422,6 +422,94 @@ const PropertyChat: React.FC<{ listing: ListingInfo; agentName: string }> = ({ l
 
 type Sheet = 'home' | 'loan' | 'contact' | 'tour' | 'how' | null;
 
+
+// Tour booking: pick a day and a time, leave a name and number. On the demo and on
+// unclaimed invites this is a preview of what buyers will see; it saves nothing.
+const TOUR_TIMES = ['9:00 AM', '10:00 AM', '11:00 AM', '12:00 PM', '1:00 PM', '2:00 PM', '3:00 PM', '4:00 PM', '5:00 PM'];
+
+const tourStart = (day: Date, time: string) => {
+  const [hm, ap] = time.split(' ');
+  const [h, m] = hm.split(':').map(Number);
+  const d = new Date(day);
+  d.setHours((h % 12) + (ap === 'PM' ? 12 : 0), m, 0, 0);
+  return d;
+};
+
+const downloadTourIcs = (start: Date, address: string, agentName: string) => {
+  const fmt = (d: Date) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  const end = new Date(start.getTime() + 30 * 60 * 1000);
+  const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//HomeListingAI//Tour//EN', 'BEGIN:VEVENT',
+    `UID:tour-${start.getTime()}@homelistingai.com`, `DTSTAMP:${fmt(new Date())}`, `DTSTART:${fmt(start)}`, `DTEND:${fmt(end)}`,
+    `SUMMARY:Home tour with ${agentName}`, `LOCATION:${address.replace(/[,;]/g, ' ')}`, 'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
+  const url = URL.createObjectURL(new Blob([ics], { type: 'text/calendar' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'home-tour.ics';
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+const TourSheet: React.FC<{ address: string; agentName: string; agentFirst: string; preview: boolean }> = ({ address, agentName, agentFirst, preview }) => {
+  const days = React.useMemo(() => Array.from({ length: 7 }, (_, i) => { const d = new Date(); d.setDate(d.getDate() + i + 1); d.setHours(0, 0, 0, 0); return d; }), []);
+  const [dayIdx, setDayIdx] = useState(0);
+  const [time, setTime] = useState<string | null>(null);
+  const [who, setWho] = useState('');
+  const [phone, setPhone] = useState('');
+  const [done, setDone] = useState<Date | null>(null);
+  const ready = !!time && who.trim().length > 1 && phone.replace(/\D/g, '').length >= 10;
+  const fieldCls = 'w-full rounded-xl border border-slate-200 bg-white/80 px-3.5 py-3 text-[15px] text-slate-900 outline-none focus:border-blue-500';
+
+  if (done) {
+    return (
+      <div className="px-5 pb-6 pt-3 text-center">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full text-white" style={{ background: BLUE }}>
+          <span className="material-symbols-outlined">event_available</span>
+        </div>
+        <h2 className="mt-3 text-[20px] font-black text-slate-900">Tour requested</h2>
+        <p className="mt-1 text-[15px] text-slate-600">{done.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })} at {done.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</p>
+        <p className="mt-1 text-[13px] text-slate-500">{address}</p>
+        <button type="button" onClick={() => downloadTourIcs(done, address, agentName)} className="mt-4 w-full rounded-2xl py-3.5 text-[16px] font-extrabold text-white" style={{ background: `linear-gradient(180deg,#3b73f0,${BLUE})`, boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.5), 0 8px 18px rgba(29,78,216,0.32)' }}>
+          Add to my calendar
+        </button>
+        <p className="mt-3 text-[12px] leading-relaxed text-slate-500">{preview ? `Preview only. Once ${agentFirst} claims the free account, this lands on their calendar and they get a text.` : `${agentFirst} will confirm by text.`}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-5 pb-6 pt-3">
+      <p className="text-[11px] font-extrabold uppercase tracking-widest" style={{ color: BLUE }}>Book a tour</p>
+      <h2 className="mt-1 pr-8 text-[19px] font-black leading-snug text-slate-900">Pick a day and time</h2>
+      <div className="-mx-1 mt-3 flex gap-2 overflow-x-auto px-1 pb-1">
+        {days.map((d, i) => (
+          <button key={i} type="button" onClick={() => setDayIdx(i)} className="flex h-16 w-14 flex-shrink-0 flex-col items-center justify-center rounded-2xl text-[12px] font-bold"
+            style={i === dayIdx ? { background: BLUE, color: '#fff', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.4)' } : { background: 'rgba(37,99,235,0.08)', color: BLUE }}>
+            <span>{d.toLocaleDateString('en-US', { weekday: 'short' })}</span>
+            <span className="text-[20px] font-black leading-none">{d.getDate()}</span>
+          </button>
+        ))}
+      </div>
+      <div className="mt-3 grid grid-cols-3 gap-2">
+        {TOUR_TIMES.map(t => (
+          <button key={t} type="button" onClick={() => setTime(t)} className="rounded-xl py-2.5 text-[13px] font-bold"
+            style={t === time ? { background: BLUE, color: '#fff' } : { background: 'rgba(37,99,235,0.08)', color: BLUE }}>
+            {t}
+          </button>
+        ))}
+      </div>
+      <div className="mt-3 space-y-2">
+        <input className={fieldCls} placeholder="Your name" value={who} onChange={e => setWho(e.target.value)} autoComplete="name" />
+        <input className={fieldCls} placeholder="Your phone" inputMode="tel" value={phone} onChange={e => setPhone(e.target.value)} autoComplete="tel" />
+      </div>
+      <button type="button" disabled={!ready} onClick={() => time && setDone(tourStart(days[dayIdx], time))} className="mt-4 w-full rounded-2xl py-3.5 text-[16px] font-extrabold text-white disabled:opacity-40"
+        style={{ background: `linear-gradient(180deg,#3b73f0,${BLUE})`, boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.5), 0 8px 18px rgba(29,78,216,0.32)' }}>
+        Request this tour
+      </button>
+      <p className="mt-2 text-center text-[11px] text-slate-500">{preview ? 'Preview of what buyers will see.' : `${agentFirst} confirms by text.`}</p>
+    </div>
+  );
+};
+
 const GlassTabBar: React.FC<{ onHome: () => void; onTour: () => void; onContact: () => void }> = ({ onHome, onTour, onContact }) => {
   const tabs = [
     { key: 'home', icon: 'home', label: 'Home', color: BLUE, rgb: '37,99,235', on: true, onClick: onHome },
@@ -742,13 +830,19 @@ const PartnerInvitePage: React.FC = () => {
           )}
 
           {/* Contact + tour */}
-          {(sheet === 'contact' || sheet === 'tour') && (
+          {sheet === 'tour' && (
+            <SheetShell onClose={closeSheet}>
+              <TourSheet address={displayListing.address} agentName={agentName} agentFirst={agentFirst} preview />
+            </SheetShell>
+          )}
+
+          {sheet === 'contact' && (
             <SheetShell onClose={closeSheet}>
               <div className="flex items-center gap-3.5 border-b border-slate-200 px-4 pb-3.5 pr-14">
                 <Headshot url={agent.headshotUrl} name={agentName} size={56} bg="#2f63e6" />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[20px] font-extrabold text-slate-900">{agentName}</p>
-                  <p className="truncate text-[14px] text-slate-500">{sheet === 'tour' ? 'Ask for a showing of this home' : (agent.company || 'Listing agent')}</p>
+                  <p className="truncate text-[14px] text-slate-500">{agent.company || 'Listing agent'}</p>
                 </div>
               </div>
               {agent.phone && <ContactRow icon="call" label="Call" value={agent.phone} href={`tel:${agent.phone.replace(/[^+\d]/g, '')}`} />}
