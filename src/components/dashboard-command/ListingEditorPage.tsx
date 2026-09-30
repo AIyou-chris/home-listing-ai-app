@@ -1115,7 +1115,8 @@ const ListingEditorPage: React.FC = () => {
     try {
       const { waitForAuthenticatedUserId } = await import('../../services/authSession')
       const uid = await waitForAuthenticatedUserId()
-      const res = await fetch(`/api/lo/search?q=${encodeURIComponent(q)}`, { headers: { 'x-user-id': uid } })
+      const { authHeaders } = await import('../../services/dashboard/utils')
+      const res = await fetch(`/api/lo/search?q=${encodeURIComponent(q)}`, { headers: await authHeaders(uid) })
       const j = await res.json()
       setLoSearchResults(j.results || [])
     } catch { setLoSearchResults([]) } finally { setLoSearching(false) }
@@ -1129,7 +1130,7 @@ const ListingEditorPage: React.FC = () => {
       const uid = await waitForAuthenticatedUserId()
       const res = await fetch(`/api/listings/${listingId}/lo-assignment`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-user-id': uid },
+        headers: await (await import('../../services/dashboard/utils')).authHeaders(uid),
         body: JSON.stringify({ lo_id: lo.id })
       })
       const j = await res.json()
@@ -1147,7 +1148,7 @@ const ListingEditorPage: React.FC = () => {
       const uid = await waitForAuthenticatedUserId()
       await fetch(`/api/listings/${listingId}/lo-assignment`, {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json', 'x-user-id': uid },
+        headers: await (await import('../../services/dashboard/utils')).authHeaders(uid),
         body: JSON.stringify({ lo_id: attachedLo.id })
       })
       setAttachedLo(null)

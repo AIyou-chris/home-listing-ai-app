@@ -35295,9 +35295,10 @@ app.get('/api/listings/:listingId/lo-assignment', async (req, res) => {
 });
 
 // POST — attach an LO to this listing
-app.post('/api/listings/:listingId/lo-assignment', async (req, res) => {
+app.post('/api/listings/:listingId/lo-assignment', requireAuth, async (req, res) => {
   try {
     const { listingId } = req.params;
+    if (!(await requesterOwnsListing(listingId, req.authUserId))) return res.status(403).json({ error: 'listing_access_denied' });
     const { lo_id } = req.body;
     if (!lo_id) return res.status(400).json({ error: 'lo_id required' });
     await supabaseAdmin.from('listing_lo_assignments').upsert(
@@ -35329,9 +35330,10 @@ app.post('/api/listings/:listingId/lo-assignment', async (req, res) => {
 });
 
 // DELETE — detach the LO from this listing
-app.delete('/api/listings/:listingId/lo-assignment', async (req, res) => {
+app.delete('/api/listings/:listingId/lo-assignment', requireAuth, async (req, res) => {
   try {
     const { listingId } = req.params;
+    if (!(await requesterOwnsListing(listingId, req.authUserId))) return res.status(403).json({ error: 'listing_access_denied' });
     const { lo_id } = req.body;
     const query = supabaseAdmin.from('listing_lo_assignments').delete().eq('listing_id', listingId);
     if (lo_id) query.eq('lo_agent_id', lo_id);
