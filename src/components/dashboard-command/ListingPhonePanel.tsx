@@ -14,6 +14,7 @@ export interface ListingPhoneLine {
   reservationExpiresAt: string | null;
   error: string | null;
   isTest: boolean;
+  transferNumber?: string | null;
 }
 
 const getHeaders = async (): Promise<HeadersInit> => {
@@ -44,7 +45,38 @@ const ListingPhonePanel: React.FC<{
   onChange: (line: ListingPhoneLine | null) => void;
 }> = ({ listingId, line, demo = false, onChange }) => {
   const [areaCode, setAreaCode] = useState('');
-  const [busy, setBusy] = useState<'' | 'find' | 'buy'>('');
+  const [busy, setBusy] = useState<'' | 'find' | 'buy' | 'transfer'>('');
+  // Who a hot caller gets handed to for THIS home. Blank = the LO's own phone.
+  const [transferInput, setTransferInput] = useState(() => prettyPhone(line?.transferNumber || '') || '');
+  const [transferSaved, setTransferSaved] = useState(false);
+
+  React.useEffect(() => {
+    setTransferInput(prettyPhone(line?.transferNumber || '') || '');
+  }, [line?.transferNumber]);
+
+  const saveTransfer = async () => {
+    setBusy('transfer');
+    setTransferSaved(false);
+    try {
+      if (demo) {
+        onChange(line ? { ...line, transferNumber: transferInput.replace(/\D/g, '') || null } : line);
+        setTransferSaved(true);
+        return;
+      }
+      const res = await fetch(buildApiUrl(`/api/lo/listings/${listingId}/phone-line/transfer`), {
+        method: 'PUT',
+        headers: await getHeaders(),
+        body: JSON.stringify({ number: transferInput })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { fail(data, 'Could not save that number.'); return; }
+      if (data.line) onChange(data.line);
+      setTransferSaved(true);
+      showToast.success(transferInput.trim() ? 'Calls will be passed to that number.' : 'Calls will go to your own phone.');
+    } catch {
+      showToast.error('Could not reach the phone service. Try again.');
+    } finally { setBusy(''); }
+  };
 
   const fail = (data: { error?: string; message?: string; line?: { error?: string | null } }, fallback: string) =>
     showToast.error((data.error && ERROR_TEXT[data.error]) || data.message || data.line?.error || fallback);
@@ -95,6 +127,36 @@ const ListingPhonePanel: React.FC<{
             ? "Practice number: it can't ring."
             : 'Put it on the sign and the ads. Your AI answers about this home 24/7. Calls use your monthly AI minutes.'}
         </p>
+
+        <div className="mt-3 border-t border-green-200 pt-3">
+          <label htmlFor={`transfer-${listingId}`} className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Send hot callers to
+          </label>
+          <p className="mt-0.5 text-sm text-slate-600">
+            When a caller is ready to talk to a person, the AI rings this number. Leave it blank to ring your own phone.
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <input
+              id={`transfer-${listingId}`}
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
+              placeholder="(509) 555-0142"
+              value={transferInput}
+              onChange={(e) => { setTransferInput(e.target.value); setTransferSaved(false); }}
+              onKeyDown={(e) => { if (e.key === 'Enter') void saveTransfer(); }}
+              className="w-48 rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
+            />
+            <button
+              type="button"
+              disabled={busy !== ''}
+              onClick={() => void saveTransfer()}
+              className="rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-primary-700 disabled:opacity-40"
+            >
+              {busy === 'transfer' ? 'Saving…' : transferSaved ? '✓ Saved' : 'Save'}
+            </button>
+          </div>
+        </div>
       </div>
     );
   }

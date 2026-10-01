@@ -7,6 +7,14 @@
 > **End of every session (or before handing off):** add a new entry at the TOP of the log. Keep it short.
 > **Before editing a file another agent touched in its last entry:** read that entry first. Don't redo or undo their work silently.
 
+## 2026-10-01 07:35 — Claude: Listings tab + per-listing call forwarding
+- **NEW: "Send hot callers to" per listing** (Chris's ask). `lo_phone_lines.transfer_number` and `transferTarget()` already existed but were main-line only and had no UI. `setTransferNumber(loAgentId, value, listingId)` now takes a listing; new `PUT /api/lo/listings/:listingId/phone-line/transfer` (requireLoAgent + `listing_lo_assignments` check → 403 `listing_access_denied`); the field lives in `ListingPhonePanel` under an active number. Blank falls back to the LO's own phone, which is the pre-existing behaviour.
+- Branding switches no longer lie: a failed PATCH rolls the switch back and toasts, and a failed GET shows the backend default (all on) instead of spinning forever.
+- Listing list + search now have real failure states; "Build a Listing" says so if the co-brand assignment fails instead of silently leaving the LO unbranded.
+- `/api/listings/search` now returns **drafts as well as published** (Chris: "yes") so an LO can co-brand a home before it goes live.
+- **Audit result: this page was the best-protected so far.** Every endpoint already had `requireAuth`/`requireLoAgent`, assign checks an active `lo_agent_partnerships` row, search is scoped to partner-owned listings, and `dashboard-link` checks assignment or ownership. No auth holes found.
+- Removed the stale CLAUDE.md line claiming `/dashboard/listings/:listingId/edit` is not routed — it is (App.tsx 1607/1632/1740).
+
 ## 2026-10-01 07:10 — Claude: Settings tab locked down
 - **`GET`/`PATCH /api/notifications/settings/:userId` were unauthenticated** — live-confirmed 200 for both with no token, so anyone could read a user's notification prefs or silently switch off their new-lead alerts. New `ownsNotificationSettings(req)` gate: token required, and the `:userId` must be the caller's auth id or their `agents.id` profile id (or `default`). (A PATCH probe sent `smsNewLeadAlerts`, which is not a column — Chris's row was unchanged apart from `updated_at`.)
 - `notificationSettingsService` now goes through `buildApiUrl` and sends `x-user-id` + Bearer on both calls; `SettingsPage`'s SMS probe uses the service instead of a bare relative `fetch`.
