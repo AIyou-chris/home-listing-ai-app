@@ -82,7 +82,16 @@ const { rateLeadIntent } = require('./services/leadIntentRater');
 // or delete anybody's calendar by guessing an id. The owner now always comes from
 // the signed-in user, and a write to a specific appointment must match its owner.
 const appointmentOwnerIds = async (req) => {
-  const authId = await resolveRequesterUserId(req, { allowDefault: false });
+  // An expired or malformed token can make the auth lookup throw. That has to come
+  // back as a clean 401 ("sign in again"), never a 500 — a 500 tells the person the
+  // app is broken when all they need to do is sign in.
+  let authId = null;
+  try {
+    authId = await resolveRequesterUserId(req, { allowDefault: false });
+  } catch (error) {
+    console.warn('[Appointments] auth lookup failed:', error?.message || error);
+    return null;
+  }
   if (!authId) return null;
   const ids = new Set([authId]);
   try { const profileId = await resolveAgentProfileId(authId); if (profileId) ids.add(profileId); } catch { /* auth id alone */ }
@@ -30596,7 +30605,7 @@ app.get('/api/appointments', async (req, res) => {
     }
 
     const agentProfile =
-      (await fetchAiCardProfileForUser(agentId || ownerId)) || DEFAULT_AI_CARD_PROFILE;
+      (await fetchAiCardProfileForUser(agentId || ownerId).catch(() => null)) || DEFAULT_AI_CARD_PROFILE;
 
     const appointments =
       (data || [])
