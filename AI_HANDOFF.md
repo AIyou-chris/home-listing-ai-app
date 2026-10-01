@@ -7,6 +7,11 @@
 > **End of every session (or before handing off):** add a new entry at the TOP of the log. Keep it short.
 > **Before editing a file another agent touched in its last entry:** read that entry first. Don't redo or undo their work silently.
 
+## 2026-09-30 19:20 — Claude: appointment form follow-up
+- Chris hit "Failed to schedule meeting" right after PR #51. Cause: his tab still had the PRE-#51 bundle, which sent only `x-user-id` and no Bearer — the newly owner-scoped `POST /api/appointments` correctly returned 401. Verified the live bundle IS current (`assets/LOAppointmentsPage-MIG81piL.js` contains `Authorization`, `status:"canceled"`, and no `method:"DELETE"`), and the Netlify production deploy (6abdbf18) published commit ee7b66ac at 02:02:34Z. A hard refresh clears it.
+- A 401 from create / complete / cancel now says "Your session expired. Refresh the page and sign in again." instead of a generic failure, so a stale tab explains itself.
+- **Added the Reminders checkboxes that silently never landed in PR #51**: that python edit raised `ValueError: substring not found` BEFORE its `write()`, so the whole script was discarded while a later script's changes went in. The `remindMe`/`remindThem` form fields and the POST wiring were already there (defaulting true), only the UI was missing. **Lesson: when a scripted multi-part edit fails, re-verify every part of it, not just the part that errored.**
+
 ## 2026-09-30 19:05 — Claude: Appointments tab locked down
 - **All four `/api/appointments` routes were unauthenticated.** Live-confirmed: `GET` returned 200 for a fake `x-user-id`; `PUT` and `DELETE` took any appointment id with no token at all (anyone could edit or permanently delete any meeting on the platform). Now: new `appointmentOwnerIds(req)` + `ownedAppointment(req, id)` helpers; GET/PUT/DELETE require a token and scope to the owner (401 `agent_auth_required` / 403 `appointment_access_denied`).
 - **POST keeps public booking working without the body choosing an owner.** Signed in → owner is the authed user. Not signed in → owner is derived from the listing (`properties.agent_id/user_id` via `listingId|listing_id|propertyId`), else 401. `ViewingModal` now passes `propertyId` so the public showing flow still resolves an owner.
