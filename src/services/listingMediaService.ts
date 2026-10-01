@@ -1,5 +1,5 @@
 import { buildApiUrl } from '../lib/api'
-import { waitForAuthenticatedUserId } from './authSession'
+import { waitForAuthenticatedSession, waitForAuthenticatedUserId } from './authSession'
 
 const LISTING_UPLOAD_PATH = buildApiUrl('/api/listings/photo-upload')
 const MAX_UPLOAD_ATTEMPTS = 4
@@ -103,10 +103,15 @@ export const uploadListingPhoto = async (file: File): Promise<string> => {
   for (let index = 0; index < finalAttempts.length; index += 1) {
     const candidate = finalAttempts[index]
     const dataUrl = await fileToDataUrl(candidate)
+    // The upload endpoint is behind requireAuth. Without the Bearer token every
+    // photo upload comes back 401 — a body `userId` is not accepted in production.
+    const session = await waitForAuthenticatedSession()
     const response = await fetch(LISTING_UPLOAD_PATH, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        ...(userId ? { 'x-user-id': userId } : {}),
+        ...(session.accessToken ? { Authorization: `Bearer ${session.accessToken}` } : {})
       },
       body: JSON.stringify({ dataUrl, fileName: candidate.name || file.name, userId })
     })
