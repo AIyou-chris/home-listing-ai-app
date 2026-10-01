@@ -34128,7 +34128,9 @@ app.get('/api/listings/search', requireAuth, async (req, res) => {
       .from('properties')
       .select('id, address, price, bedrooms, bathrooms, sqft, status, hero_photos, title, agent_id, user_id')
       .or(`agent_id.in.(${ownerList.join(',')}),user_id.in.(${ownerList.join(',')})`)
-      .eq('status', 'published')
+      // Drafts are included on purpose: an LO wants to be co-branded BEFORE the home
+      // goes live, so they catch the first day of buyer traffic. The card shows the status.
+      .in('status', ['published', 'draft'])
       .ilike('address', `%${q}%`)
       .limit(10);
     const listings = (properties || []).map(p => ({
@@ -34717,6 +34719,30 @@ app.put('/api/lo/phone-line/transfer', requireLoAgent, async (req, res) => {
     res.json({ ok: true, line: svc.publicView(result.line, { aiReady: getLoPhoneCalls().isAiReady() }) });
   } catch (err) {
     console.error('[LO Phone transfer] Error:', err?.message || err);
+    res.status(500).json({ error: 'phone_transfer_failed' });
+  }
+});
+
+// PUT /api/lo/listings/:listingId/phone-line/transfer { number }
+// Who THIS home's AI phone passes a hot caller to. Empty falls back to the LO's own phone.
+app.put('/api/lo/listings/:listingId/phone-line/transfer', requireLoAgent, async (req, res) => {
+  try {
+    const { listingId } = req.params;
+    const loProfileId = req.loAgentId;
+    const { data: assignment } = await supabaseAdmin
+      .from('listing_lo_assignments')
+      .select('listing_id')
+      .eq('listing_id', listingId)
+      .eq('lo_agent_id', loProfileId)
+      .maybeSingle();
+    if (!assignment) return res.status(403).json({ error: 'listing_access_denied' });
+
+    const svc = getLoPhoneLines();
+    const result = await svc.setTransferNumber(loProfileId, req.body?.number, listingId);
+    if (!result.ok) return res.status(400).json({ error: result.reason, message: result.error || null });
+    res.json({ ok: true, line: svc.publicView(result.line, { aiReady: getLoPhoneCalls().isAiReady() }) });
+  } catch (err) {
+    console.error('[LO Listing phone transfer] Error:', err?.message || err);
     res.status(500).json({ error: 'phone_transfer_failed' });
   }
 });

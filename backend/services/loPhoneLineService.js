@@ -245,8 +245,9 @@ function createLoPhoneLineService({ supabase, env = process.env, telnyx = null }
   }
 
   // Where hot callers get passed to. Empty clears it (falls back to the LO's profile phone).
-  async function setTransferNumber(loAgentId, value) {
-    const line = await currentLine(loAgentId, null);
+  // listingId targets that listing's own number; null is the LO's main line.
+  async function setTransferNumber(loAgentId, value, listingId = null) {
+    const line = await currentLine(loAgentId, listingId);
     if (!line) return { ok: false, reason: 'no_line' };
     const raw = String(value ?? '').trim();
     const number = raw ? normalizePhone(raw) : '';

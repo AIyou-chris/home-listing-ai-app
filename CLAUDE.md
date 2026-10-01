@@ -112,7 +112,6 @@ It helps agents:
 ### 🚧 In Progress / Partial
 
 - **#18 White Label** — custom domain + full office rebrand (IN PROGRESS).
-- **Listing Builder V1 edit route** — `/dashboard/listings/:listingId/edit` not yet in main route table.
 - **SMS messaging** — Textbelt sends text-only messages; link-in-SMS requires key verification at textbelt.com/whitelist.
 - **7-day drip video slots** — `TRIAL_DRIP_VIDEOS` map in `backend/services/emailService.js` ready; paste video URLs to auto-add watch buttons per day.
 

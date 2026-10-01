@@ -116,20 +116,31 @@ const BrandingTogglePanel: React.FC<{ listingId: string; demo?: boolean }> = ({ 
       const res = await fetch(buildApiUrl(`/api/lo/listings/${listingId}/branding-toggles`), { headers });
       const json = await res.json();
       if (json.success) setToggles(json.toggles);
-    } catch { /* non-fatal */ }
+      else throw new Error('load_failed');
+    } catch {
+      // Show every piece as on (the backend default) rather than spinning forever.
+      setToggles(Object.fromEntries(Object.keys(PIECE_LABELS).map((k) => [k, true])));
+    }
   }, [listingId, demo]);
 
   useEffect(() => { void loadToggles(); }, [loadToggles]);
 
   const handleToggle = async (piece: string, value: boolean) => {
+    const previous = toggles;
     const next = { ...toggles, [piece]: value };
     setToggles(next);
     if (demo) return;
     setSaving(true);
     try {
       const headers = await getApiHeaders();
-      await fetch(buildApiUrl(`/api/lo/listings/${listingId}/branding-toggles`), { method: 'PATCH', headers, body: JSON.stringify({ toggles: next }) });
-    } catch { /* non-fatal */ } finally { setSaving(false); }
+      const res = await fetch(buildApiUrl(`/api/lo/listings/${listingId}/branding-toggles`), { method: 'PATCH', headers, body: JSON.stringify({ toggles: next }) });
+      if (!res.ok) throw new Error('save_failed');
+    } catch {
+      // Never leave a switch showing a setting that did not save — the LO would
+      // believe their name is on the flyer when it isn't.
+      setToggles(previous);
+      showToast.error("Couldn't save that switch. Check your connection and try again.");
+    } finally { setSaving(false); }
   };
 
   if (!toggles) return <div className="mt-3 h-16 animate-pulse rounded-lg bg-slate-100" />;
@@ -311,6 +322,8 @@ const LOListingsPage: React.FC = () => {
 
   const [assigned, setAssigned] = useState<Listing[]>([]);
   const [loadingAssigned, setLoadingAssigned] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [searchFailed, setSearchFailed] = useState(false);
   const [creating, setCreating] = useState(false);
   const [phoneEnabled, setPhoneEnabled] = useState(false);
   const [phoneLines, setPhoneLines] = useState<Record<string, ListingPhoneLine>>({});
@@ -357,10 +370,13 @@ const LOListingsPage: React.FC = () => {
       try {
         const headers = await getApiHeaders();
         const res = await fetch(buildApiUrl('/api/lo/listings'), { headers });
+        if (!res.ok) throw new Error('load_failed');
         const data = await res.json();
-        if (data.success) setAssigned(data.listings || []);
+        if (!data.success) throw new Error('load_failed');
+        setAssigned(data.listings || []);
+        setLoadFailed(false);
       } catch {
-        // non-fatal
+        setLoadFailed(true);
       } finally {
         setLoadingAssigned(false);
       }
@@ -383,13 +399,14 @@ const LOListingsPage: React.FC = () => {
       try {
         const headers = await getApiHeaders();
         const res = await fetch(buildApiUrl(`/api/listings/search?q=${encodeURIComponent(query.trim())}`), { headers });
+        if (!res.ok) throw new Error('search_failed');
         const data = await res.json();
-        if (data.success) {
-          const assignedIds = new Set(assigned.map((a) => a.id));
-          setSearchResults((data.listings || []).filter((l: Listing) => !assignedIds.has(l.id)));
-        }
+        if (!data.success) throw new Error('search_failed');
+        const assignedIds = new Set(assigned.map((a) => a.id));
+        setSearchResults((data.listings || []).filter((l: Listing) => !assignedIds.has(l.id)));
+        setSearchFailed(false);
       } catch {
-        // non-fatal
+        setSearchFailed(true);
       } finally {
         setSearching(false);
       }
@@ -446,9 +463,12 @@ const LOListingsPage: React.FC = () => {
       // Co-brand the LO onto their own new listing (best-effort — the builder still opens).
       try {
         const headers = await getApiHeaders();
-        await fetch(buildApiUrl(`/api/lo/listings/${newId}/assign`), { method: 'POST', headers });
+        const assignRes = await fetch(buildApiUrl(`/api/lo/listings/${newId}/assign`), { method: 'POST', headers });
+        if (!assignRes.ok) throw new Error('assign_failed');
       } catch {
-        // assignment is best-effort; LO can still build and we can assign later
+        // The listing is still created and the builder still opens — say so plainly
+        // rather than letting the LO think they are co-branded when they are not.
+        showToast.error("Listing created, but your co-branding didn't attach. Add it from Find a listing.");
       }
 
       navigate(`/dashboard/listings/${newId}/edit`);
@@ -551,7 +571,13 @@ const LOListingsPage: React.FC = () => {
           </div>
         )}
 
-        {query.trim().length >= 2 && !searching && searchResults.length === 0 && (
+        {searchFailed && !searching && (
+          <p className="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+            Search didn't work just now. Try typing it again.
+          </p>
+        )}
+
+        {query.trim().length >= 2 && !searching && !searchFailed && searchResults.length === 0 && (
           <p className="mt-4 text-sm text-slate-400">No listings found for "{query}".</p>
         )}
       </div>
@@ -572,6 +598,11 @@ const LOListingsPage: React.FC = () => {
             {[1, 2].map((i) => (
               <div key={i} className="h-24 animate-pulse rounded-xl bg-slate-100" />
             ))}
+          </div>
+        ) : loadFailed ? (
+          <div className="rounded-xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-800">
+            We couldn't load your listings just now.{' '}
+            <button onClick={() => window.location.reload()} className="font-bold underline">Try again</button>
           </div>
         ) : assigned.length === 0 ? (
           <div className="rounded-xl border border-dashed border-slate-200 p-8 text-center">
