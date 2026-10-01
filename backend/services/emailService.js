@@ -7,6 +7,7 @@ const assertFetchAvailable = () => {
 };
 
 const { sendAlert } = require('./slackService');
+const { buildWowReminderEmail } = require('./wowReminderEmail');
 
 const buildWelcomeHtml = (firstName, dashboardUrl, password, billingUrl) => `<!DOCTYPE html>
 <html>
@@ -893,39 +894,11 @@ module.exports = (supabaseAdmin) => {
         tags: { template: 'password-reset' }
       }),
 
-    sendWowLinkReminderEmail: async ({ to, agentName, loName, loCompany, wowLink }) => {
-      const firstName = agentName ? agentName.split(' ')[0] : 'there';
-      const html = `<!DOCTYPE html>
-<html>
-<head><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-<body style="margin:0;padding:0;background-color:#f1f5f9;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
-  <div style="max-width:600px;margin:0 auto;padding:24px 16px;">
-    <div style="background:linear-gradient(135deg,#0B1121 0%,#0f172a 100%);border-radius:16px 16px 0 0;padding:36px 32px;text-align:center;">
-      <img src="https://homelistingai.com/newlogo.png" alt="HomeListingAI" style="width:44px;height:44px;border-radius:10px;margin-bottom:16px;display:block;margin-left:auto;margin-right:auto;">
-      <h1 style="color:#ffffff;font-size:22px;font-weight:800;margin:0 0 8px;letter-spacing:-0.5px;">Hey ${firstName} — still want to see this? 👋</h1>
-      <p style="color:#94a3b8;font-size:14px;margin:0;">${loName}${loCompany ? ` · ${loCompany}` : ''} sent you something</p>
-    </div>
-    <div style="background:#ffffff;padding:32px;border-left:1px solid #e2e8f0;border-right:1px solid #e2e8f0;">
-      <p style="font-size:15px;color:#334155;line-height:1.7;margin:0 0 24px;">
-        ${loName} set up an AI-powered listing experience for you — it lets buyers ask questions about your listings 24/7 and quietly flags the serious ones. Took them 5 minutes to build.
-      </p>
-      <p style="font-size:15px;color:#334155;line-height:1.7;margin:0 0 28px;">
-        No signup needed to look around. Just take a peek at what they put together for you:
-      </p>
-      <div style="text-align:center;margin:0 0 28px;">
-        <a href="${wowLink}" style="display:inline-block;background:#2563eb;color:#ffffff;font-size:15px;font-weight:700;text-decoration:none;padding:14px 36px;border-radius:12px;box-shadow:0 4px 16px rgba(37,99,235,0.3);">See What ${loName.split(' ')[0]} Built →</a>
-      </div>
-      <p style="font-size:13px;color:#94a3b8;text-align:center;margin:0;">Nothing to sign up for · Takes 30 seconds · Built by ${loName}</p>
-    </div>
-    <div style="background:#0f172a;border-radius:0 0 16px 16px;padding:20px 32px;text-align:center;">
-      <p style="color:#475569;font-size:12px;margin:0;">Powered by <a href="https://homelistingai.com" style="color:#2563eb;text-decoration:none;font-weight:600;">HomeListingAI</a></p>
-    </div>
-  </div>
-</body>
-</html>`;
+    sendWowLinkReminderEmail: async ({ to, agentName, loName, loCompany, nmls, wowLink }) => {
+      const { subject, html } = buildWowReminderEmail({ name: agentName, loName, loCompany, nmls, wowLink, kind: 'nudge' });
       return sendEmail({
         to,
-        subject: `${loName} still has something for your listings`,
+        subject,
         html,
         tags: { template: 'wow-link-reminder' }
       });

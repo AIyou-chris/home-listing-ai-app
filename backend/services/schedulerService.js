@@ -1,5 +1,6 @@
 const cron = require('node-cron');
 const { addMinutes, subHours, differenceInHours } = require('date-fns');
+const { buildWowReminderEmail } = require('./wowReminderEmail');
 
 /**
  * Scheduler Service
@@ -186,11 +187,10 @@ module.exports = (supabaseAdmin, emailService) => {
                 // Look up LO name (lo_agent_id stores auth id in agent_invites)
                 const { data: lo } = await supabaseAdmin
                     .from('agents')
-                    .select('first_name, last_name, company, email')
+                    .select('first_name, last_name, company, email, nmls_number')
                     .eq('auth_user_id', invite.lo_agent_id)
                     .maybeSingle();
 
-                const agentName = invite.invited_name ? invite.invited_name.split(' ')[0] : 'there';
                 const loName = [lo?.first_name, lo?.last_name].filter(Boolean).join(' ') || 'Your Loan Officer';
                 const loCompany = lo?.company || 'HomeListingAI';
                 const appBase = process.env.APP_BASE_URL || 'https://homelistingai.com';
@@ -198,22 +198,14 @@ module.exports = (supabaseAdmin, emailService) => {
 
                 const bccList = [lo?.email, copyEmail].filter(Boolean);
 
+                const { subject, html } = buildWowReminderEmail({
+                    name: invite.invited_name, loName, loCompany, nmls: lo?.nmls_number || null, wowLink, kind: 'followup'
+                });
                 await emailService.sendEmail({
                     to: invite.invited_email,
                     bcc: bccList,
-                    subject: `Following up — did you get a chance to see this?`,
-                    html: `
-<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 520px; margin: 0 auto; padding: 32px 24px; background: #ffffff;">
-  <p style="margin:0 0 20px; font-size:16px; color:#0f172a">Hi ${agentName},</p>
-  <p style="margin:0 0 16px; font-size:15px; color:#374151; line-height:1.6">I wanted to follow up on the listing demo I sent over a few days ago. I'd love to show you how I can help your buyers get pre-approved faster — right from the listing page.</p>
-  <p style="margin:0 0 24px; font-size:15px; color:#374151; line-height:1.6">Take a look when you get a chance:</p>
-  <a href="${wowLink}" style="display:inline-block; background:#2563eb; color:#fff; font-weight:700; font-size:14px; padding:14px 28px; border-radius:10px; text-decoration:none; margin-bottom:28px">
-    View the Demo →
-  </a>
-  <p style="margin:0 0 4px; font-size:15px; color:#0f172a; font-weight:600">${loName}</p>
-  <p style="margin:0 0 28px; font-size:14px; color:#6b7280">${loCompany}</p>
-  <p style="margin:0; font-size:11px; color:#d1d5db">Sent via <a href="${appBase}" style="color:#d1d5db">HomeListingAI</a></p>
-</div>`,
+                    subject,
+                    html,
                     tags: { type: 'partner_followup_reminder', invite_id: invite.id }
                 });
 

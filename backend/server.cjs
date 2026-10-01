@@ -32052,7 +32052,7 @@ app.post('/api/lo/partners/invite/:inviteId/nudge', requireAuth, async (req, res
     let loProfileId = loAuthId;
     try { loProfileId = (await resolveLoAgentId(req)) || loAuthId; } catch { /* fallback */ }
     const { data: loAgent } = await supabaseAdmin.from('agents')
-      .select('id, first_name, last_name, company')
+      .select('id, first_name, last_name, company, nmls_number')
       .eq('id', loProfileId).limit(1).maybeSingle();
 
     const appBase = (process.env.APP_BASE_URL || process.env.DASHBOARD_BASE_URL || 'https://homelistingai.com').replace(/\/$/, '');
@@ -32064,6 +32064,7 @@ app.post('/api/lo/partners/invite/:inviteId/nudge', requireAuth, async (req, res
       agentName: invite.invited_name || null,
       loName,
       loCompany: loAgent?.company || null,
+      nmls: loAgent?.nmls_number || null,
       wowLink,
     });
 
@@ -33302,7 +33303,7 @@ app.post('/api/lo/partners/:partnershipId/recap', requireAuth, async (req, res) 
     // Validate the partnership belongs to this LO + pull the agent.
     const { data: partnership } = await supabaseAdmin
       .from('lo_agent_partnerships')
-      .select('id, agent:agent_id(id, first_name, last_name, email)')
+      .select('id, agent:agent_id(id, auth_user_id, first_name, last_name, email)')
       .eq('id', partnershipId).eq('lo_agent_id', loProfileId)
       .maybeSingle();
     if (!partnership || !partnership.agent) return res.status(404).json({ error: 'partnership_not_found' });
@@ -33317,12 +33318,16 @@ app.post('/api/lo/partners/:partnershipId/recap', requireAuth, async (req, res) 
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
     const monthLabel = now.toLocaleString('en-US', { month: 'long' });
-    const [{ count: leadsThisMonth }, { count: leadsAllTime }, { count: activeListings }] = await Promise.all([
+    // "Live listings" = this partner's published homes that carry this LO's branding (was: every home the LO has).
+    const partnerListings = (await fetchLoAssignedListings(loProfileId)).filter(
+      (r) => r.ownerAuthId && r.ownerAuthId === agent.auth_user_id && r.status === 'published' && r.brandingEnabled !== false
+    );
+    const activeListings = partnerListings.length;
+    const [{ count: leadsThisMonth }, { count: leadsAllTime }] = await Promise.all([
       supabaseAdmin.from('leads').select('id', { count: 'exact', head: true }).eq('lo_agent_id', loProfileId).eq('agent_id', agent.id).gte('created_at', monthStart),
-      supabaseAdmin.from('leads').select('id', { count: 'exact', head: true }).eq('lo_agent_id', loProfileId).eq('agent_id', agent.id),
-      supabaseAdmin.from('listing_lo_assignments').select('id', { count: 'exact', head: true }).eq('lo_agent_id', loProfileId)
+      supabaseAdmin.from('leads').select('id', { count: 'exact', head: true }).eq('lo_agent_id', loProfileId).eq('agent_id', agent.id)
     ]);
-    const stats = { leadsThisMonth: leadsThisMonth || 0, leadsAllTime: leadsAllTime || 0, activeListings: activeListings || 0, monthLabel };
+    const stats = { leadsThisMonth: leadsThisMonth || 0, leadsAllTime: leadsAllTime || 0, activeListings, monthLabel };
 
     const agentFirst = agent.first_name || 'there';
     const appBase = (process.env.APP_BASE_URL || process.env.DASHBOARD_BASE_URL || 'https://homelistingai.com').replace(/\/$/, '');
@@ -33345,8 +33350,13 @@ app.post('/api/lo/partners/:partnershipId/recap', requireAuth, async (req, res) 
         <p style="margin:0; color:#475569;">— ${loName}${lo?.company ? `, ${lo.company}` : ''}</p>
       </div>
     `;
+    const recapSubject = `${loName} & you: our ${monthLabel} recap 🤝`;
+    // Preview mode: show the LO exactly what would be sent, send nothing.
+    if (req.body?.preview === true) {
+      return res.json({ success: true, preview: { to: agent.email, subject: recapSubject, html }, stats });
+    }
     try {
-      await emailService.sendEmail({ to: agent.email, subject: `${loName} & you: our ${monthLabel} recap 🤝`, html });
+      await emailService.sendEmail({ to: agent.email, subject: recapSubject, html });
     } catch (e) {
       console.warn('[LO Recap] email failed:', e.message);
       return res.status(502).json({ error: 'email_failed' });
