@@ -587,6 +587,7 @@ const LOBrainPage: React.FC = () => {
   // overwrite everything the LO trained (knowledge, FAQs, compliance, banned phrases)
   // with blanks, and report success while doing it.
   const [loadFailed, setLoadFailed] = useState(false);
+  const [loadReason, setLoadReason] = useState<string>('');
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
@@ -633,8 +634,17 @@ const LOBrainPage: React.FC = () => {
     if (demo) { setConfig(DEMO_CONFIG); setSummary(DEMO_SUMMARY); setLoading(false); return; }
     (async () => {
       try {
-        const res = await fetch(buildApiUrl('/api/lo/chatbot-config'), { headers: await getApiHeaders() });
-        if (!res.ok) throw new Error('brain_load_failed');
+        // One silent retry first: a cold server or a dropped request shouldn't
+        // put a scary card in front of the LO.
+        let res = await fetch(buildApiUrl('/api/lo/chatbot-config'), { headers: await getApiHeaders() });
+        if (!res.ok) {
+          await new Promise((r) => setTimeout(r, 1500));
+          res = await fetch(buildApiUrl('/api/lo/chatbot-config'), { headers: await getApiHeaders() });
+        }
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({} as { error?: string }));
+          throw new Error(`${res.status}${body?.error ? ` ${body.error}` : ''}`);
+        }
         const d = await res.json();
         setConfig({
           ...EMPTY_CONFIG,
@@ -646,6 +656,7 @@ const LOBrainPage: React.FC = () => {
         setLoadFailed(false);
       } catch (err) {
         console.error('[LOBrainPage] load error', err);
+        setLoadReason(err instanceof Error ? err.message : 'network');
         setLoadFailed(true);
       } finally {
         setLoading(false);
@@ -784,6 +795,11 @@ const LOBrainPage: React.FC = () => {
             Nothing has been changed. Your training is safe — we just can't show it right now.
             If this keeps happening, sign out and back in.
           </p>
+          {loadReason && (
+            <p className="mt-3 rounded-lg bg-white/70 px-3 py-2 font-mono text-xs text-rose-700">
+              Reason: {loadReason}
+            </p>
+          )}
           <button
             type="button"
             onClick={() => window.location.reload()}

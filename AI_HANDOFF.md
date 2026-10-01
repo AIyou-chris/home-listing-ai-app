@@ -7,6 +7,11 @@
 > **End of every session (or before handing off):** add a new entry at the TOP of the log. Keep it short.
 > **Before editing a file another agent touched in its last entry:** read that entry first. Don't redo or undo their work silently.
 
+## 2026-10-01 08:35 — Claude: AI Brain guard card now reports WHY
+- The PR #56 guard card fired for Chris on the live site. His config row is intact (knowledge_base 3265 chars, bot_name "Chris Potter AI"), so the guard did its job, but the load is genuinely failing and I could not determine the status code from here. Ruled out: duplicate `lo_chatbot_configs` rows (none), missing `DEFAULT_RULEBOOKS` export (present at runtime), and an unauthenticated call (returns 401 correctly).
+- Added: one silent retry after 1.5s before showing the card (covers a Render free-plan cold start or a dropped request), and the card now prints `Reason: <status> <error>` so the next report identifies it in one step instead of another guessing round.
+- **Open:** Chris's Compliance Brain is empty — `company_name`, `company_nmls`, `licensed_states`, `required_disclosure` are all blank, and `faq` is empty. The AI currently answers loan questions without naming the company, NMLS or licensed states.
+
 ## 2026-10-01 08:05 — Claude: listing photo upload was 401 in production
 - Chris: "I try to load a pic and it states unauthorized." `listingMediaService.uploadListingPhoto` POSTed to `/api/listings/photo-upload` with ONLY `Content-Type: application/json` — no Bearer, no `x-user-id`. That endpoint is `requireAuth`, and in production `resolveRequesterUserId` ignores a body `userId` without a token (`allowExplicitWithoutAuth` is false), so **every photo upload 401'd**. Pre-existing, not from this audit's changes.
 - Fix: send `waitForAuthenticatedSession()`'s `accessToken` as Bearer plus `x-user-id`, matching `listingBuilderService.defaultJsonHeaders`.
