@@ -7,6 +7,13 @@
 > **End of every session (or before handing off):** add a new entry at the TOP of the log. Keep it short.
 > **Before editing a file another agent touched in its last entry:** read that entry first. Don't redo or undo their work silently.
 
+## 2026-10-01 07:50 — Claude: listing editor publish rules
+- `canPublish` required beds > 0 AND baths > 0 AND sqft > 0, so **land, lots and parking spaces could never be published**. Now publishing needs: address + price + **at least one photo**. Beds/baths/sqft are optional.
+- A photo is newly REQUIRED: the public listing page, flyer (`LOShareKitPage` design C uses `listing.photos[0]`) and WOW link are all built around the first photo and render blank without one.
+- Replaced the dead grey Publish button with `publishBlockers`: a visible "To publish, add …" line plus a title tooltip naming exactly what is missing.
+- Added a `beforeunload` guard for unsaved edits (same as the AI Brain page).
+- Audit note: this editor already handles the load-failure case correctly (falls back to a cached local draft, else shows an error — never a blank form), with a comment calling out the "broken-API-then-save-stale-data feedback loop". It does NOT have the AI Brain's wipe bug.
+
 ## 2026-10-01 07:45 — Claude: AI Brain tab — DATA-LOSS bug fixed
 - **🔴 The LO's trained brain could be silently erased.** `LOBrainPage` loaded `GET /api/lo/chatbot-config` with `if (res.ok)` and NO else branch: any non-OK response (401 after session expiry, 500, blip) left `config` at `EMPTY_CONFIG` and rendered a blank-but-working form. The next `persist()` PUT — including the automatic one from `addSource`/`removeSource` — upserted blanks over `lo_chatbot_configs` (knowledge_base, faq, compliance, banned_phrases, licensed_states) and toasted "AI Brain saved". Fix: a failed load sets `loadFailed`, the page renders a hard-stop card instead of the form, and `persist()` refuses to write while `loadFailed` is true. Verified by forcing a 500 on the config call — the guard card renders and no form is reachable.
 - Unsaved edits now trigger a `beforeunload` warning.

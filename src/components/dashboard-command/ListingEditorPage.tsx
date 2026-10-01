@@ -718,18 +718,31 @@ const ListingEditorPage: React.FC = () => {
   )
   const buildListingPath = (suffix: string) => `${dashboardRoot}${suffix}${appendDemoQuery}`
 
+  // Closing the tab mid-edit shouldn't quietly throw the work away.
+  useEffect(() => {
+    if (!isDirty) return undefined
+    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = '' }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [isDirty])
+
   const listingLabel = draft.address.trim() || 'Untitled Listing'
   const statusLabel = normalizeStatusLabel(listingStatus)
 
-  const canPublish = useMemo(
-    () =>
-      draft.address.trim().length > 0 &&
-      Number(priceDisplay.replace(/,/g, '')) > 0 &&
-      Number(bedsDisplay) > 0 &&
-      Number(bathsDisplay) > 0 &&
-      Number(sqftDisplay) > 0,
-    [draft.address, priceDisplay, bedsDisplay, bathsDisplay, sqftDisplay]
-  )
+  // What publishing really needs: an address, a price, and at least one photo.
+  // Beds/baths/sqft are NOT required — land, lots and parking spaces have none, and the
+  // old rule made them impossible to publish. A photo IS required: the buyer page, the
+  // flyer and the WOW link are all built around the first photo, and they come out blank
+  // without one.
+  const publishBlockers = useMemo(() => {
+    const missing: string[] = []
+    if (!draft.address.trim()) missing.push('a property address')
+    if (!(Number(priceDisplay.replace(/,/g, '')) > 0)) missing.push('a price')
+    if (photos.length === 0) missing.push('at least one photo')
+    return missing
+  }, [draft.address, priceDisplay, photos.length])
+
+  const canPublish = publishBlockers.length === 0
 
   // ── Load ──────────────────────────────────────────────────────────────────
 
@@ -1342,6 +1355,11 @@ const ListingEditorPage: React.FC = () => {
               )}
             </div>
             {notice && <p className="text-xs text-amber-600">{notice}</p>}
+            {viewerRole === 'owner' && statusLabel !== 'Published' && publishBlockers.length > 0 && (
+              <p className="text-xs text-slate-500">
+                To publish, add {publishBlockers.join(' and ')}.
+              </p>
+            )}
           </div>
           {viewerRole === 'owner' && (
             <div className="flex shrink-0 gap-2">
@@ -1361,6 +1379,7 @@ const ListingEditorPage: React.FC = () => {
                 disabled={!canPublish || saving || publishing}
                 onClick={() => void handlePublish()}
                 className={outlineBtn}
+                title={canPublish ? undefined : `Add ${publishBlockers.join(' and ')} to publish.`}
               >
                 {publishing ? 'Publishing…' : statusLabel === 'Published' ? 'View Share Kit' : 'Publish'}
               </button>
