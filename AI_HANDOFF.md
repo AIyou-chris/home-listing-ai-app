@@ -7,6 +7,12 @@
 > **End of every session (or before handing off):** add a new entry at the TOP of the log. Keep it short.
 > **Before editing a file another agent touched in its last entry:** read that entry first. Don't redo or undo their work silently.
 
+## 2026-09-30 18:40 — Claude: Leads tab + Jev lead rating
+- **Jev now rates buyer leads.** New `backend/services/leadIntentRater.js` (+15 tests): a `choice` question (Hot/Warm/Cold, same criteria shape as `loPhoneCallService.INTENT_CRITERIA`) over the four pre-approval answers. Falls back to a plain rules table on unconfigured key, API error, unknown choice, or confidence < 0.4 — `source` says which path ran. `POST /api/leads/pre-qual` uses it instead of hard-coding `intent_level:'Hot'`; the reason lands in `source_meta.intent_reason` and the LO notification title/priority follow the rating. Chris confirmed `TYPESAFE_API_KEY` is set on Render.
+- **Duplicate leads fixed (regression from PR #41).** `GET /api/lo/leads` listed `pre_qual_submissions` AND `leads`, so every pre-approval showed twice. Now only pre-quals with no `lead_id` (legacy) are listed on their own; linked ones enrich their `leads` row (type `pre_qual`, answers + intentReason on the card). Pre-qual status edits now stick, since every card is a real lead row.
+- `LOLeadsPage`: server-side search (debounced), Load more (100/page via `hasMore`), load-failure retry card instead of a false "No leads yet", empty state CTA to Partners, Cold badge + Jev's reason line.
+- Jev still NOT used by `LeadScoringService` (the separate points score). Unchanged, still unused on LO pages.
+
 ## 2026-09-30 18:30 — Claude: Partners polish (4 items)
 - New `backend/services/wowReminderEmail.js` (+4 tests): one email builder (same look as the first WOW invite) used by the manual nudge (`sendWowLinkReminderEmail`) and the hourly follow-up cron in `schedulerService.js`. Old dark-header/"I wanted to follow up" copy is gone. Closes the "reminder + follow-up WOW emails use old copy" open item.
 - Partners page: "Call this week" chip when no contact for 14 days (from `lastFollowUp`, else join date); partners sorted by leads; Recap now opens a preview (`POST /api/lo/partners/:id/recap` with `{preview:true}` returns subject/html and sends nothing) before sending.

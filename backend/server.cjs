@@ -75,6 +75,8 @@ const { parseISO, addMinutes, isBefore, isAfter } = require('date-fns');
 const pdfParse = require('pdf-parse');
 
 const leadScoringService = require('./services/LeadScoringService');
+const { rateLeadIntent } = require('./services/leadIntentRater');
+const { createTypeSafeClient: createJevClient } = require('./services/typesafeClient');
 const MAILGUN_API_KEY = process.env.MAILGUN_API_KEY;
 // The specialized "HTTP Webhook Signing Key" must be used for webhooks, NOT the Sending API Key.
 const MAILGUN_WEBHOOK_SIGNING_KEY = process.env.MAILGUN_WEBHOOK_SIGNING_KEY || process.env.MAILGUN_SIGNING_KEY || process.env.MAILGUN_API_KEY;
@@ -31462,12 +31464,18 @@ app.get('/api/lo/leads', requireAuth, async (req, res) => {
     // ── Pre-qual submissions (financing intent) ──────────────────────────────
     let pqQuery = supabaseAdmin
       .from('pre_qual_submissions')
-      .select('id, full_name, email, phone, purchase_timeline, credit_range, income_range, down_payment, notes, created_at, listing_id', { count: 'exact' })
+      .select('id, lead_id, full_name, email, phone, purchase_timeline, credit_range, income_range, down_payment, notes, created_at, listing_id', { count: 'exact' })
       .eq('lo_agent_id', loAgentId)
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
     if (search) pqQuery = pqQuery.or(`full_name.ilike.%${search}%,email.ilike.%${search}%`);
     const { data: preQuals, count: pqCount } = await pqQuery;
+    // Every pre-qual now also creates a row in `leads` (the canonical lead). Only the
+    // legacy pre-quals with no linked lead are listed on their own, so a buyer who
+    // filled in the pre-approval form appears ONCE, not twice.
+    const orphanPreQuals = (preQuals || []).filter((p) => !p.lead_id);
+    const linkedPreQualByLeadId = {};
+    (preQuals || []).forEach((p) => { if (p.lead_id) linkedPreQualByLeadId[p.lead_id] = p; });
 
     // ── Chat / general leads ──────────────────────────────────────────────────
     let leadsQuery = supabaseAdmin
@@ -31508,7 +31516,7 @@ app.get('/api/lo/leads', requireAuth, async (req, res) => {
       }
     }
 
-    const preQualsMapped = (preQuals || []).map(p => ({
+    const preQualsMapped = orphanPreQuals.map(p => ({
       id: p.id,
       type: 'pre_qual',
       name: p.full_name || 'Unknown',
@@ -31527,26 +31535,37 @@ app.get('/api/lo/leads', requireAuth, async (req, res) => {
       createdAt: p.created_at,
     }));
 
-    const chatLeadsMapped = (chatLeads || []).map(l => ({
-      id: l.id,
-      type: 'chat',
-      name: l.full_name || l.name || 'Unknown',
-      email: l.email_lower || l.email || null,
-      phone: l.phone || null,
-      status: l.status || 'New',
-      intentLevel: l.intent_level || 'Warm',
-      context: l.source_meta?.context || null,
-      listingId: l.listing_id || null,
-      listingAddress: addressMap[l.listing_id] || null,
-      agentName: agentNameByListingId[l.listing_id] || null,
-      createdAt: l.created_at,
-    }));
+    const chatLeadsMapped = (chatLeads || []).map(l => {
+      const pq = linkedPreQualByLeadId[l.id] || null;
+      const meta = l.source_meta || {};
+      return {
+        id: l.id,
+        type: pq ? 'pre_qual' : 'chat',
+        name: l.full_name || l.name || 'Unknown',
+        email: l.email_lower || l.email || null,
+        phone: l.phone || null,
+        status: l.status || 'New',
+        intentLevel: l.intent_level || 'Warm',
+        intentReason: meta.intent_reason || null,
+        context: meta.context || null,
+        // Pre-approval answers travel with the lead so the LO sees them on the card.
+        timeline: pq?.purchase_timeline || meta.purchase_timeline || null,
+        creditRange: pq?.credit_range || meta.credit_range || null,
+        downPayment: pq?.down_payment || meta.down_payment || null,
+        incomeRange: pq?.income_range || null,
+        listingId: l.listing_id || null,
+        listingAddress: addressMap[l.listing_id] || null,
+        agentName: agentNameByListingId[l.listing_id] || null,
+        createdAt: l.created_at,
+      };
+    });
 
     res.json({
       success: true,
       preQuals: preQualsMapped,
       chatLeads: chatLeadsMapped,
-      totals: { preQuals: pqCount || 0, chatLeads: chatCount || 0 },
+      totals: { preQuals: orphanPreQuals.length, chatLeads: chatCount || 0 },
+      hasMore: (chatLeads || []).length >= limit,
     });
   } catch (err) {
     console.error('[LO Leads] Failed:', err);
@@ -33603,16 +33622,30 @@ app.post('/api/leads/pre-qual', async (req, res) => {
     if (emailLower) existingQuery = existingQuery.eq('email_lower', emailLower);
     else existingQuery = existingQuery.eq('phone_e164', phoneE164);
     const { data: existingLead } = await existingQuery.maybeSingle();
-    const leadMeta = { context: 'pre_approval', purchase_timeline: purchase_timeline || null };
+    // Jev reads the four answers and rates the buyer Hot / Warm / Cold.
+    // Falls back to plain rules if Jev is unconfigured or errors — never blocks the lead.
+    const rating = await rateLeadIntent(
+      { purchase_timeline, currently_preapproved, credit_range, down_payment, property_type },
+      { typesafeClient: createJevClient({ apiKey: process.env.TYPESAFE_API_KEY }) }
+    );
+    const leadMeta = {
+      context: 'pre_approval',
+      purchase_timeline: purchase_timeline || null,
+      credit_range: credit_range || null,
+      down_payment: down_payment || null,
+      currently_preapproved: typeof currently_preapproved === 'boolean' ? currently_preapproved : null,
+      intent_reason: rating.reason,
+      intent_source: rating.source
+    };
     if (existingLead?.id) {
       leadId = existingLead.id;
-      await supabaseAdmin.from('leads').update({ lo_agent_id: loAgentId, intent_level: 'Hot', source_meta: leadMeta, last_touch_at: timestamp, updated_at: timestamp }).eq('id', leadId);
+      await supabaseAdmin.from('leads').update({ lo_agent_id: loAgentId, intent_level: rating.level, source_meta: leadMeta, last_touch_at: timestamp, updated_at: timestamp }).eq('id', leadId);
     } else {
       const { data: createdLead, error: leadError } = await supabaseAdmin.from('leads').insert({
         user_id: listingAgentId, agent_id: listingAgentId, lo_agent_id: loAgentId, listing_id: listingId,
         full_name: fullName || null, name: fullName || null, phone: phoneE164 || phone || null, phone_e164: phoneE164,
         email: emailLower, email_lower: emailLower, source_type: 'pre_qual', source: 'pre_qual', source_meta: leadMeta,
-        status: 'New', intent_level: 'Hot', timeline: 'unknown', financing: 'unknown', working_with_agent: 'unknown',
+        status: 'New', intent_level: rating.level, timeline: purchase_timeline || 'unknown', financing: currently_preapproved === true ? 'pre_approved' : 'unknown', working_with_agent: 'unknown',
         last_message: 'Pre-approval request', last_message_preview: 'Pre-approval request', last_message_at: timestamp,
         last_contact: timestamp, first_touch_at: timestamp, last_touch_at: timestamp,
         notes: 'Capture context: pre_approval', created_at: timestamp, updated_at: timestamp
@@ -33628,7 +33661,8 @@ app.post('/api/leads/pre-qual', async (req, res) => {
 
     // 3) Tell the LO and the listing agent (dual notify).
     if (loAgentId) {
-      await supabaseAdmin.from('notifications').insert({ user_id: loAgentId, title: '🔥 New pre-qual submission', content: `${fullName || 'A buyer'} completed a pre-qual at ${property.address || 'a listing'}.`, type: 'lead', priority: 'high', is_read: false }).catch(() => null);
+      const intentIcon = rating.level === 'Hot' ? '🔥' : rating.level === 'Warm' ? '👍' : '❄️';
+      await supabaseAdmin.from('notifications').insert({ user_id: loAgentId, title: `${intentIcon} New ${rating.level.toLowerCase()} pre-approval lead`, content: `${fullName || 'A buyer'} asked about financing at ${property.address || 'a listing'}. ${rating.reason}`, type: 'lead', priority: rating.level === 'Hot' ? 'high' : 'normal', is_read: false }).catch(() => null);
     }
     if (isNewLead && listingAgentId) {
       await enqueueLeadCaptureNotifications({
@@ -33637,7 +33671,7 @@ app.post('/api/leads/pre-qual', async (req, res) => {
         context: 'pre_approval', fullName, phoneE164, emailLower
       }).catch((err) => console.warn('[PreQual] agent notification failed:', err?.message || err));
     }
-    res.json({ success: true, preQualId: preQual.id, leadId });
+    res.json({ success: true, preQualId: preQual.id, leadId, intentLevel: rating.level });
   } catch (err) {
     console.error('[PreQual] Submission failed:', err);
     res.status(500).json({ error: 'pre_qual_failed' });

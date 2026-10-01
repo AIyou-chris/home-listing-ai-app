@@ -1,5 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import PageGuide from './PageGuide';
+import { buildDashboardPath } from '../../demo/useDemoMode';
 import { buildApiUrl } from '../../lib/api';
 import { supabase } from '../../services/supabase';
 import { useDemoMode } from '../../demo/useDemoMode';
@@ -16,6 +18,7 @@ interface Lead {
   notes: string | null;
   status: LeadStatus;
   intent_level: 'Hot' | 'Warm' | 'Cold';
+  intent_reason?: string | null;
   listing_id: string | null;
   listing_address: string | null;
   agent_name: string | null;
@@ -233,11 +236,17 @@ const LeadCard: React.FC<{ lead: Lead; expanded: boolean; onToggle: () => void; 
             {lead.intent_level === 'Warm' && (
               <span className="rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wide bg-amber-100 text-amber-700">Warm</span>
             )}
+            {lead.intent_level === 'Cold' && (
+              <span className="rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wide bg-slate-100 text-slate-500">Cold</span>
+            )}
             <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${src.color}`}>{src.label}</span>
             <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${STATUS_OPTIONS.find(s => s.value === status)?.color || 'bg-slate-100 text-slate-500'}`}>
               {status}
             </span>
           </div>
+          {lead.intent_reason && (
+            <p className="mt-0.5 text-xs text-slate-500 truncate" title={lead.intent_reason}>{lead.intent_reason}</p>
+          )}
           {lead.listing_address && (
             <p className="text-xs text-slate-500 truncate mt-0.5">
               <span className="material-symbols-outlined text-[11px] align-middle mr-0.5">home_pin</span>
@@ -425,61 +434,100 @@ const LeadCard: React.FC<{ lead: Lead; expanded: boolean; onToggle: () => void; 
 
 const LOLeadsPage: React.FC = () => {
   const demoMode = useDemoMode();
+  const navigate = useNavigate();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
 
-  useEffect(() => {
+  const PAGE_SIZE = 100;
+
+  const mapRow = (l: Record<string, unknown>, isPreQual: boolean): Lead => {
+    const bits = [
+      (l.timeline as string) && `Timeline: ${l.timeline}`,
+      (l.creditRange as string) && `Credit: ${l.creditRange}`,
+      (l.incomeRange as string) && `Income: ${l.incomeRange}`,
+      (l.downPayment as string) && `Down: ${l.downPayment}`
+    ].filter(Boolean).join(' · ');
+    return {
+      id: l.id as string,
+      name: (l.name as string) || null,
+      email: (l.email as string) || null,
+      phone: (l.phone as string) || null,
+      source: isPreQual ? 'pre_qual' : ((l.context as string) || 'chatbot'),
+      notes: ((l.notes as string) || bits) || null,
+      status: ((l.status as LeadStatus) || 'New'),
+      intent_level: (((l.intentLevel as string) || 'Warm') as 'Hot' | 'Warm' | 'Cold'),
+      intent_reason: (l.intentReason as string) || null,
+      listing_id: (l.listingId as string) || null,
+      listing_address: (l.listingAddress as string) || null,
+      agent_name: (l.agentName as string) || null,
+      created_at: l.createdAt as string,
+    };
+  };
+
+  const fetchPage = useCallback(async (offset: number, q: string) => {
+    const headers = await getApiHeaders();
+    const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(offset) });
+    if (q.trim()) params.set('search', q.trim());
+    const res = await fetch(buildApiUrl(`/api/lo/leads?${params.toString()}`), { headers });
+    if (!res.ok) throw new Error('leads_load_failed');
+    const data = await res.json();
+    if (!data.success) throw new Error('leads_load_failed');
+    const rows = [
+      ...(data.preQuals || []).map((p: Record<string, unknown>) => mapRow(p, true)),
+      ...(data.chatLeads || []).map((l: Record<string, unknown>) => mapRow(l, (l.type as string) === 'pre_qual'))
+    ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    return { rows, hasMore: Boolean(data.hasMore) };
+  }, []);
+
+  const load = useCallback(async (q: string) => {
     if (demoMode) {
       setLeads(DEMO_LEADS);
       setLoading(false);
       return;
     }
-    (async () => {
-      try {
-        const headers = await getApiHeaders();
-        const res = await fetch(buildApiUrl('/api/lo/leads'), { headers });
-        const data = await res.json();
-        if (data.success) {
-          // Merge pre-quals + chat leads into a unified list
-          const preQuals = (data.preQuals || []).map((p: Record<string, unknown>) => ({
-            id: p.id,
-            name: p.name as string || null,
-            email: p.email as string || null,
-            phone: p.phone as string || null,
-            source: 'pre_qual',
-            notes: (p.notes as string) || [(p.timeline as string) && `Timeline: ${p.timeline}`, (p.creditRange as string) && `Credit: ${p.creditRange}`, (p.incomeRange as string) && `Income: ${p.incomeRange}`, (p.downPayment as string) && `Down: ${p.downPayment}`].filter(Boolean).join(' · ') || null,
-            status: 'New' as LeadStatus,
-            intent_level: 'Hot' as const,
-            listing_id: p.listingId as string || null,
-            listing_address: p.listingAddress as string || null,
-            agent_name: p.agentName as string || null,
-            created_at: p.createdAt as string,
-          }));
-          const chatLeads = (data.chatLeads || []).map((l: Record<string, unknown>) => ({
-            id: l.id,
-            name: l.name as string || null,
-            email: l.email as string || null,
-            phone: l.phone as string || null,
-            source: l.context as string || 'chatbot',
-            notes: null,
-            status: (l.status as LeadStatus) || 'New',
-            intent_level: ((l.intentLevel as string) || 'Warm') as 'Hot' | 'Warm' | 'Cold',
-            listing_id: l.listingId as string || null,
-            listing_address: l.listingAddress as string || null,
-            agent_name: l.agentName as string || null,
-            created_at: l.createdAt as string,
-          }));
-          // Merge and sort newest first
-          setLeads([...preQuals, ...chatLeads].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
-        }
-      } catch {
-        // non-fatal
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [demoMode]);
+    setLoading(true);
+    try {
+      const { rows, hasMore: more } = await fetchPage(0, q);
+      setLeads(rows);
+      setHasMore(more);
+      setLoadFailed(false);
+    } catch {
+      setLoadFailed(true);
+    } finally {
+      setLoading(false);
+    }
+  }, [demoMode, fetchPage]);
+
+  useEffect(() => { void load(''); }, [load]);
+
+  // Search runs on the server so it covers every lead, not just the first page.
+  useEffect(() => {
+    if (demoMode) return undefined;
+    const t = setTimeout(() => { void load(search); }, 350);
+    return () => clearTimeout(t);
+  }, [search, demoMode, load]);
+
+  const loadMore = async () => {
+    if (loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const { rows, hasMore: more } = await fetchPage(leads.length, search);
+      setLeads(prev => {
+        const seen = new Set(prev.map(l => l.id));
+        return [...prev, ...rows.filter(r => !seen.has(r.id))];
+      });
+      setHasMore(more);
+    } catch {
+      showToast.error('Could not load more leads.');
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   const toggle = (id: string) => setExpandedId((prev) => (prev === id ? null : id));
 
@@ -520,6 +568,18 @@ const LOLeadsPage: React.FC = () => {
 
       <PageGuide pageKey="lo-leads" />
 
+      {/* Search */}
+      {(!loading || leads.length > 0) && (
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search by name, email or phone"
+          aria-label="Search leads"
+          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-800 placeholder-slate-400"
+        />
+      )}
+
       {/* List */}
       {loading ? (
         <div className="space-y-3">
@@ -527,13 +587,30 @@ const LOLeadsPage: React.FC = () => {
             <div key={i} className="h-16 animate-pulse rounded-xl bg-slate-100" />
           ))}
         </div>
+      ) : loadFailed ? (
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-800">
+          We couldn't load your leads just now.{' '}
+          <button onClick={() => void load(search)} className="font-bold underline">Try again</button>
+        </div>
       ) : leads.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-200 py-16 text-center">
           <span className="material-symbols-outlined text-4xl text-slate-300">person_search</span>
-          <p className="mt-3 text-sm font-semibold text-slate-600">No leads yet</p>
-          <p className="mt-1 text-xs text-slate-400 max-w-xs mx-auto">
-            When buyers chat with your AI bot and share their contact info, they'll show up here.
+          <p className="mt-3 text-sm font-semibold text-slate-600">
+            {search.trim() ? 'No leads match that search' : 'No leads yet'}
           </p>
+          <p className="mt-1 text-xs text-slate-400 max-w-xs mx-auto">
+            {search.trim()
+              ? 'Try a different name, email or phone number.'
+              : "Buyers who use your AI bot or the pre-approval form land here. Get in front of more of them by partnering with an agent."}
+          </p>
+          {!search.trim() && (
+            <button
+              onClick={() => navigate(buildDashboardPath('/lo-partners', demoMode))}
+              className="mt-4 rounded-lg bg-primary-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-primary-700"
+            >
+              Send a WOW link to an agent
+            </button>
+          )}
         </div>
       ) : (
         <div className="space-y-2">
@@ -547,6 +624,15 @@ const LOLeadsPage: React.FC = () => {
               demo={demoMode}
             />
           ))}
+          {hasMore && (
+            <button
+              onClick={() => void loadMore()}
+              disabled={loadingMore}
+              className="w-full rounded-xl border border-slate-200 bg-white py-3 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-60"
+            >
+              {loadingMore ? 'Loading…' : 'Load more leads'}
+            </button>
+          )}
         </div>
       )}
     </div>
