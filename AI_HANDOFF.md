@@ -7,6 +7,11 @@
 > **End of every session (or before handing off):** add a new entry at the TOP of the log. Keep it short.
 > **Before editing a file another agent touched in its last entry:** read that entry first. Don't redo or undo their work silently.
 
+## 2026-09-30 18:30 — Claude: Partners polish (4 items)
+- New `backend/services/wowReminderEmail.js` (+4 tests): one email builder (same look as the first WOW invite) used by the manual nudge (`sendWowLinkReminderEmail`) and the hourly follow-up cron in `schedulerService.js`. Old dark-header/"I wanted to follow up" copy is gone. Closes the "reminder + follow-up WOW emails use old copy" open item.
+- Partners page: "Call this week" chip when no contact for 14 days (from `lastFollowUp`, else join date); partners sorted by leads; Recap now opens a preview (`POST /api/lo/partners/:id/recap` with `{preview:true}` returns subject/html and sends nothing) before sending.
+- Recap "live listings" now counts only that partner's published, branded homes (was every home the LO has).
+
 ## 2026-09-30 18:00 — Claude: LO Partners tab fixes
 - `GET /api/lo/partners` now returns real per-listing `totalLeads` (leads.lo_agent_id + listing_id) and `totalViews` (listing_events type 'view'). Were hard-coded 0.
 - `DELETE /api/lo/partners/:id` now really turns off co-branding: finds the removed agent's homes in `properties` (agent_id/user_id = auth id) and sets `listing_lo_assignments.branding_enabled=false` with the LO PROFILE id. Old code queried legacy `listings` and used the auth id, so it never matched.

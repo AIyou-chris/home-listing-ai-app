@@ -333,24 +333,60 @@ const PartnerCard: React.FC<{ partner: Partner; onViewListings: (p: Partner) => 
   const [notesSaved, setNotesSaved] = React.useState(false)
   const [removeConfirm, setRemoveConfirm] = React.useState(false)
   const [recapSending, setRecapSending] = React.useState(false)
+  const [recapLoading, setRecapLoading] = React.useState(false)
+  const [recapPreview, setRecapPreview] = React.useState<{ to: string; subject: string; html: string } | null>(null)
+  const firstName = partner.name.split(' ')[0]
 
+  // Step 1: show the LO exactly what will be emailed. Nothing is sent yet.
+  const openRecapPreview = async () => {
+    if (recapLoading) return
+    setRecapLoading(true)
+    try {
+      if (demoMode) {
+        setRecapPreview({
+          to: partner.email || 'agent@example.com',
+          subject: `Your recap with ${firstName}`,
+          html: `<div style="font-family:Arial,sans-serif;padding:20px"><h2>What we pulled off together this month 🤝</h2><p>Hey ${firstName}, this is a sample recap.</p></div>`
+        })
+        return
+      }
+      const headers = await getApiHeaders(true)
+      const res = await fetch(buildApiUrl(`/api/lo/partners/${partner.partnershipId}/recap`), {
+        method: 'POST', headers, body: JSON.stringify({ preview: true })
+      })
+      const json = await res.json() as { success?: boolean; error?: string; preview?: { to: string; subject: string; html: string } }
+      if (!res.ok || !json.success || !json.preview) {
+        showToast.error(json.error === 'agent_has_no_email' ? 'No email on file for this partner' : 'Could not build the recap')
+        return
+      }
+      setRecapPreview(json.preview)
+    } catch {
+      showToast.error('Could not build the recap')
+    } finally {
+      setRecapLoading(false)
+    }
+  }
+
+  // Step 2: the LO taps Send.
   const sendRecap = async () => {
     if (recapSending) return
     setRecapSending(true)
     try {
       if (demoMode) {
         await new Promise(r => setTimeout(r, 800))
-        showToast.success(`Recap sent to ${partner.name.split(' ')[0]}! 🤝`)
+        showToast.success(`Recap sent to ${firstName}! 🤝`)
+        setRecapPreview(null)
         return
       }
-      const headers = await getApiHeaders()
-      const res = await fetch(buildApiUrl(`/api/lo/partners/${partner.partnershipId}/recap`), { method: 'POST', headers })
-      const json = await res.json() as { success?: boolean; error?: string; stats?: { leadsThisMonth: number } }
+      const headers = await getApiHeaders(true)
+      const res = await fetch(buildApiUrl(`/api/lo/partners/${partner.partnershipId}/recap`), { method: 'POST', headers, body: JSON.stringify({}) })
+      const json = await res.json() as { success?: boolean; error?: string }
       if (!res.ok || !json.success) {
         showToast.error(json.error === 'agent_has_no_email' ? 'No email on file for this partner' : 'Could not send recap')
         return
       }
-      showToast.success(`Recap sent to ${partner.name.split(' ')[0]}! 🤝`)
+      showToast.success(`Recap sent to ${firstName}! 🤝`)
+      setRecapPreview(null)
     } catch {
       showToast.error('Could not send recap')
     } finally {
@@ -390,6 +426,10 @@ const PartnerCard: React.FC<{ partner: Partner; onViewListings: (p: Partner) => 
   }
 
   const followUpLabel = toFollowUpLabel(meta.lastFollowUp)
+  // Partnerships go cold fast: flag anyone not contacted in 14 days (counts from the day they joined if never contacted).
+  const lastTouch = meta.lastFollowUp || partner.joinedAt
+  const daysSinceTouch = lastTouch ? Math.floor((Date.now() - new Date(lastTouch).getTime()) / 86400000) : 0
+  const needsCall = daysSinceTouch >= 14
   const activeRating = RATINGS.find(r => r.key === meta.rating)
 
   return (
@@ -409,6 +449,11 @@ const PartnerCard: React.FC<{ partner: Partner; onViewListings: (p: Partner) => 
           <p className="text-slate-500 text-xs truncate">{partner.company || partner.email || '—'}</p>
           {followUpLabel && (
             <p className="text-[11px] text-slate-400 mt-0.5">{followUpLabel}</p>
+          )}
+          {needsCall && (
+            <span className="mt-1 inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-800">
+              📞 Call this week · {daysSinceTouch}d since you talked
+            </span>
           )}
         </div>
         <div className="flex items-center gap-3 flex-shrink-0">
@@ -550,12 +595,12 @@ const PartnerCard: React.FC<{ partner: Partner; onViewListings: (p: Partner) => 
           📞
         </button>
         <button
-          onClick={sendRecap}
-          disabled={recapSending}
+          onClick={openRecapPreview}
+          disabled={recapLoading}
           className="px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 text-xs font-semibold transition-all disabled:opacity-50"
           title="Email this partner a 'what we did together this month' recap"
         >
-          {recapSending ? '…' : '📊 Recap'}
+          {recapLoading ? '…' : '📊 Recap'}
         </button>
         {partner.email && (
           <a
@@ -601,6 +646,36 @@ const PartnerCard: React.FC<{ partner: Partner; onViewListings: (p: Partner) => 
           </button>
         )}
       </div>
+
+      {recapPreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-label="Recap preview">
+          <div className="flex max-h-[90vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <div className="border-b border-slate-100 px-5 py-4">
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Preview. Nothing is sent yet.</p>
+              <p className="mt-1 text-sm font-semibold text-slate-900">To: {recapPreview.to}</p>
+              <p className="text-sm text-slate-600">{recapPreview.subject}</p>
+            </div>
+            <iframe title="Recap email preview" srcDoc={recapPreview.html} sandbox="" className="h-80 w-full flex-1 border-0 bg-white" />
+            <div className="flex gap-3 border-t border-slate-100 px-5 py-4">
+              <button
+                type="button"
+                onClick={() => setRecapPreview(null)}
+                className="flex-1 rounded-xl border border-slate-300 py-3 text-sm font-bold text-slate-700"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={sendRecap}
+                disabled={recapSending}
+                className="flex-1 rounded-xl bg-primary-600 py-3 text-sm font-bold text-white disabled:opacity-60"
+              >
+                {recapSending ? 'Sending…' : `Send to ${firstName}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -981,7 +1056,9 @@ const LOPartnersPage: React.FC = () => {
       {/* Partner grid */}
       {partners.length > 0 && (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {partners.map(partner => (
+          {[...partners]
+            .sort((a, b) => (b.totalLeads - a.totalLeads) || (new Date(b.joinedAt || 0).getTime() - new Date(a.joinedAt || 0).getTime()))
+            .map(partner => (
             <PartnerCard
               key={partner.partnershipId}
               partner={partner}
