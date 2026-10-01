@@ -69,24 +69,32 @@ export const fetchCommandCenterSnapshot = async (agentIdOverride?: string | null
 
   const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
   const response = await fetch(buildApiUrl(withAgentQuery('/api/dashboard/command-center', agentId)), {
-    headers: defaultJsonHeaders(agentId)
+    headers: await defaultJsonHeaders(agentId)
   });
   return parseResponse<{ success: boolean } & DashboardCommandCenterSnapshot>(response);
 };
 
 export const fetchAutomationRecipes = async (agentIdOverride?: string | null) => {
+  // The demo dashboard has no signed-in session, and the backend route now
+  // requires one, so the demo answers itself instead of 401-ing.
+  if (isDemoModeActive()) return { success: true, recipes: [] as AutomationRecipe[] };
+
   const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
   const response = await fetch(buildApiUrl(withAgentQuery('/api/dashboard/automation-recipes', agentId)), {
-    headers: defaultJsonHeaders(agentId)
+    headers: await defaultJsonHeaders(agentId)
   });
   return parseResponse<{ success: boolean; recipes: AutomationRecipe[] }>(response);
 };
 
 export const updateAutomationRecipe = async (recipeKey: string, enabled: boolean, agentIdOverride?: string | null) => {
+  if (isDemoModeActive()) {
+    return { success: true, recipe: { key: recipeKey, name: recipeKey, trigger: 'demo', enabled } as AutomationRecipe };
+  }
+
   const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
   const response = await fetch(buildApiUrl(withAgentQuery(`/api/dashboard/automation-recipes/${encodeURIComponent(recipeKey)}`, agentId)), {
     method: 'PATCH',
-    headers: defaultJsonHeaders(agentId),
+    headers: await defaultJsonHeaders(agentId),
     body: JSON.stringify({ enabled, agentId })
   });
   return parseResponse<{ success: boolean; recipe: AutomationRecipe }>(response);

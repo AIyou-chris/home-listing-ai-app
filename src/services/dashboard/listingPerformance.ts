@@ -32,7 +32,7 @@ export const fetchListingPerformance = async (
   const range = options.range || '30d';
   const response = await fetch(
     buildApiUrl(withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}/performance?range=${encodeURIComponent(range)}`, agentId)),
-    { headers: defaultJsonHeaders(agentId) }
+    { headers: await defaultJsonHeaders(agentId) }
   );
   return parseResponse<{
     success: boolean;

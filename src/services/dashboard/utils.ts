@@ -5,12 +5,10 @@ import { waitForAuthenticatedUserId, waitForAuthenticatedSession } from '../auth
 
 export { buildApiUrl, isDemoModeActive };
 
-export const defaultJsonHeaders = (agentId: string | null): HeadersInit => ({
-  'Content-Type': 'application/json',
-  ...(agentId ? { 'x-user-id': agentId } : {})
-});
-
-// Async version that includes the Bearer token so backend auth passes in production
+// Every /api/dashboard route is owner-scoped on the backend and needs the Bearer
+// token, so there is only ONE header builder now. `defaultJsonHeaders` used to be
+// a sync, token-less version; it is kept as an alias so older call sites keep
+// working, but it is the same authenticated headers and must be awaited.
 export const authHeaders = async (agentId: string | null): Promise<HeadersInit> => {
   const session = isDemoModeActive() ? { accessToken: null } : await waitForAuthenticatedSession();
   return {
@@ -19,6 +17,8 @@ export const authHeaders = async (agentId: string | null): Promise<HeadersInit> 
     ...(session.accessToken ? { Authorization: `Bearer ${session.accessToken}` } : {})
   };
 };
+
+export const defaultJsonHeaders = authHeaders;
 
 export const parseResponse = async <T>(response: Response): Promise<T> => {
   if (!response.ok) {

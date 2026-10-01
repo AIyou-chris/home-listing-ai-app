@@ -20602,8 +20602,39 @@ app.post('/api/leads/capture', async (req, res) => {
   }
 });
 
-const resolveDashboardOwnerId = (req) =>
-  String(req.body?.agentId || req.query.agentId || req.headers['x-user-id'] || req.headers['x-agent-id'] || DEFAULT_LEAD_USER_ID || '');
+// Every /api/dashboard route below reads (or writes) ONE agent's own leads,
+// appointments and reminders. The owner id used to be taken straight from a
+// query param or an x-user-id header with DEFAULT_LEAD_USER_ID as a fallback,
+// so anyone could read — or delete — another agent's data just by sending an id.
+// It now comes from the signed-in session. Returns the owner id, or null → 401.
+const resolveDashboardOwnerId = async (req) => {
+  let authId = null;
+  try {
+    authId = await resolveRequesterUserId(req, { allowDefault: false });
+  } catch (error) {
+    // An expired or malformed token must read as "sign in again" (401), not 500.
+    console.warn('[Dashboard] auth lookup failed:', error?.message || error);
+    return null;
+  }
+  if (authId) return String(authId);
+
+  // A mismatch is not always an attack: a caller may send the agents-table
+  // PROFILE id while the token carries the login id. That one case is allowed.
+  const mismatch = req.requesterUserIdMismatch;
+  if (!mismatch?.authedUserId || !Array.isArray(mismatch.explicitIds)) return null;
+  let profileId = null;
+  try {
+    profileId = await resolveAgentProfileId(mismatch.authedUserId);
+  } catch {
+    return null;
+  }
+  if (!profileId) return null;
+  return mismatch.explicitIds.every((value) => String(value) === String(profileId))
+    ? String(mismatch.authedUserId)
+    : null;
+};
+
+const UNAUTHORIZED_DASHBOARD = { success: false, error: 'unauthorized' };
 
 const resolveBillingAgentId = async (req) => {
   const requesterUserId = await resolveRequesterUserId(req, { allowDefault: false });
@@ -21309,7 +21340,8 @@ const loadDashboardAppointmentsWindow = async ({ agentId, fromIso, toIso }) => {
 
 app.post('/api/dashboard/agent-actions', async (req, res) => {
   try {
-    const agentId = resolveDashboardOwnerId(req);
+    const agentId = await resolveDashboardOwnerId(req);
+    if (!agentId) return res.status(401).json(UNAUTHORIZED_DASHBOARD);
     const leadId = req.body?.lead_id ? String(req.body.lead_id) : null;
     const action = req.body?.action ? String(req.body.action) : null;
     const metadata = req.body?.metadata && typeof req.body.metadata === 'object' ? req.body.metadata : {};
@@ -21508,9 +21540,9 @@ const enqueueManualReminderForAppointment = async ({
 app.get('/api/dashboard/appointments/:appointmentId/reminders', async (req, res) => {
   try {
     const { appointmentId } = req.params;
-    const agentId = resolveDashboardOwnerId(req);
+    const agentId = await resolveDashboardOwnerId(req);
+    if (!agentId) return res.status(401).json(UNAUTHORIZED_DASHBOARD);
     if (!appointmentId) return res.status(400).json({ error: 'appointment_id_required' });
-    if (!agentId) return res.status(400).json({ error: 'agent_id_required' });
 
     const scoped = await loadScopedAppointmentForDashboard({ appointmentId, agentId });
     if (scoped.error) return res.status(scoped.status).json({ error: scoped.error });
@@ -21549,10 +21581,10 @@ app.get('/api/dashboard/appointments/:appointmentId/reminders', async (req, res)
 app.post('/api/dashboard/appointments/:appointmentId/reminders/:reminderId/retry', async (req, res) => {
   try {
     const { appointmentId, reminderId } = req.params;
-    const agentId = resolveDashboardOwnerId(req);
+    const agentId = await resolveDashboardOwnerId(req);
+    if (!agentId) return res.status(401).json(UNAUTHORIZED_DASHBOARD);
     if (!appointmentId) return res.status(400).json({ error: 'appointment_id_required' });
     if (!reminderId) return res.status(400).json({ error: 'reminder_id_required' });
-    if (!agentId) return res.status(400).json({ error: 'agent_id_required' });
 
     const scoped = await loadScopedAppointmentForDashboard({ appointmentId, agentId });
     if (scoped.error) return res.status(scoped.status).json({ error: scoped.error });
@@ -21604,9 +21636,9 @@ app.post('/api/dashboard/appointments/:appointmentId/reminders/:reminderId/retry
 app.post('/api/dashboard/appointments/:appointmentId/reminders/send-now', async (req, res) => {
   try {
     const { appointmentId } = req.params;
-    const agentId = resolveDashboardOwnerId(req);
+    const agentId = await resolveDashboardOwnerId(req);
+    if (!agentId) return res.status(401).json(UNAUTHORIZED_DASHBOARD);
     if (!appointmentId) return res.status(400).json({ error: 'appointment_id_required' });
-    if (!agentId) return res.status(400).json({ error: 'agent_id_required' });
 
     const scoped = await loadScopedAppointmentForDashboard({ appointmentId, agentId });
     if (scoped.error) return res.status(scoped.status).json({ error: scoped.error });
@@ -21676,9 +21708,9 @@ app.post('/api/dashboard/appointments/:appointmentId/reminders/send-now', async 
 app.post('/api/dashboard/appointments/:appointmentId/reminders/disable', async (req, res) => {
   try {
     const { appointmentId } = req.params;
-    const agentId = resolveDashboardOwnerId(req);
+    const agentId = await resolveDashboardOwnerId(req);
+    if (!agentId) return res.status(401).json(UNAUTHORIZED_DASHBOARD);
     if (!appointmentId) return res.status(400).json({ error: 'appointment_id_required' });
-    if (!agentId) return res.status(400).json({ error: 'agent_id_required' });
 
     const scoped = await loadScopedAppointmentForDashboard({ appointmentId, agentId });
     if (scoped.error) return res.status(scoped.status).json({ error: scoped.error });
@@ -21718,9 +21750,9 @@ app.post('/api/dashboard/appointments/:appointmentId/reminders/disable', async (
 app.post('/api/dashboard/reminders/:appointmentId/retry', async (req, res) => {
   try {
     const { appointmentId } = req.params;
-    const agentId = resolveDashboardOwnerId(req);
+    const agentId = await resolveDashboardOwnerId(req);
+    if (!agentId) return res.status(401).json(UNAUTHORIZED_DASHBOARD);
     if (!appointmentId) return res.status(400).json({ error: 'appointment_id_required' });
-    if (!agentId) return res.status(400).json({ error: 'agent_id_required' });
 
     const scoped = await loadScopedAppointmentForDashboard({ appointmentId, agentId });
     if (scoped.error) return res.status(scoped.status).json({ error: scoped.error });
@@ -21759,8 +21791,8 @@ app.post('/api/dashboard/reminders/:appointmentId/retry', async (req, res) => {
 
 app.get('/api/dashboard/command-center', async (req, res) => {
   try {
-    const agentId = resolveDashboardOwnerId(req);
-    if (!agentId) return res.status(400).json({ error: 'agent_id_required' });
+    const agentId = await resolveDashboardOwnerId(req);
+    if (!agentId) return res.status(401).json(UNAUTHORIZED_DASHBOARD);
 
     const loadRecentConfirmations = async () => {
       const sinceIso = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
@@ -22162,7 +22194,8 @@ app.get('/api/dashboard/leads', async (req, res) => {
 app.get('/api/dashboard/leads/:leadId', async (req, res) => {
   try {
     const { leadId } = req.params;
-    const agentId = String(req.query.agentId || req.headers['x-user-id'] || req.headers['x-agent-id'] || DEFAULT_LEAD_USER_ID || '');
+    const agentId = await resolveDashboardOwnerId(req);
+    if (!agentId) return res.status(401).json(UNAUTHORIZED_DASHBOARD);
     const shouldRefreshIntel = String(req.query.refreshIntel || 'false').toLowerCase() === 'true';
 
     const baseLeadQuery = supabaseAdmin
@@ -22396,7 +22429,8 @@ app.get('/api/dashboard/leads/:leadId', async (req, res) => {
 app.get('/api/dashboard/leads/:leadId/conversation', async (req, res) => {
   try {
     const { leadId } = req.params;
-    const agentId = String(req.query.agentId || req.headers['x-user-id'] || req.headers['x-agent-id'] || DEFAULT_LEAD_USER_ID || '');
+    const agentId = await resolveDashboardOwnerId(req);
+    if (!agentId) return res.status(401).json(UNAUTHORIZED_DASHBOARD);
 
     const runLeadScopeQuery = (ownerMode = 'agent_or_user') => {
       let scoped = supabaseAdmin
@@ -22481,8 +22515,8 @@ app.get('/api/dashboard/leads/:leadId/conversation', async (req, res) => {
 // ── Export all conversations for an agent (3 queries, not N) ────────────────
 app.get('/api/dashboard/leads/export-conversations', async (req, res) => {
   try {
-    const agentId = String(req.query.agentId || req.headers['x-user-id'] || req.headers['x-agent-id'] || DEFAULT_LEAD_USER_ID || '');
-    if (!agentId) return res.status(400).json({ error: 'agent_id_required' });
+    const agentId = await resolveDashboardOwnerId(req);
+    if (!agentId) return res.status(401).json(UNAUTHORIZED_DASHBOARD);
 
     // 1. Fetch all leads for this agent
     const runLeadsQuery = async (ownerMode = 'agent_or_user') => {
@@ -22592,6 +22626,23 @@ app.patch('/api/dashboard/leads/:leadId/status', async (req, res) => {
       return res.status(400).json({ error: 'invalid_status' });
     }
 
+    // This route used to take no owner at all: any caller could rewrite the
+    // status and notes of ANY lead in the platform. Same ownership check the
+    // delete route uses.
+    const agentId = await resolveDashboardOwnerId(req);
+    if (!agentId) return res.status(401).json(UNAUTHORIZED_DASHBOARD);
+    const { data: ownerRow, error: ownerError } = await supabaseAdmin
+      .from('leads')
+      .select('id, agent_id, user_id')
+      .eq('id', leadId)
+      .maybeSingle();
+    if (ownerError) throw ownerError;
+    if (!ownerRow) return res.status(404).json({ error: 'lead_not_found' });
+    const leadOwner = ownerRow.agent_id || ownerRow.user_id;
+    if (leadOwner && String(leadOwner) !== String(agentId)) {
+      return res.status(403).json({ error: 'listing_access_denied' });
+    }
+
     const patch = {
       status,
       timeline: updates.timeline || undefined,
@@ -22656,12 +22707,8 @@ app.delete('/api/dashboard/leads/:leadId', async (req, res) => {
       return res.status(400).json({ error: 'lead_id_required' });
     }
 
-    const agentId = String(
-      req.query.agentId || req.body?.agentId || req.headers['x-user-id'] || req.headers['x-agent-id'] || ''
-    );
-    if (!agentId) {
-      return res.status(400).json({ error: 'agent_id_required' });
-    }
+    const agentId = await resolveDashboardOwnerId(req);
+    if (!agentId) return res.status(401).json(UNAUTHORIZED_DASHBOARD);
 
     const { data: leadRow, error: leadFetchError } = await supabaseAdmin
       .from('leads')
@@ -23552,7 +23599,8 @@ app.post('/api/dashboard/listings/:id/retrain', async (req, res) => {
 app.get('/api/dashboard/listings/:listingId/leads', async (req, res) => {
   try {
     const { listingId } = req.params;
-    const agentId = String(req.query.agentId || req.headers['x-user-id'] || DEFAULT_LEAD_USER_ID || '');
+    const agentId = await resolveDashboardOwnerId(req);
+    if (!agentId) return res.status(401).json(UNAUTHORIZED_DASHBOARD);
 
     let query = supabaseAdmin
       .from('leads')
@@ -26232,7 +26280,8 @@ app.get('/api/dashboard/billing/value-proof', async (req, res) => {
 app.get('/api/dashboard/listings/:listingId/performance', async (req, res) => {
   try {
     const { listingId } = req.params;
-    const agentId = String(req.query.agentId || req.headers['x-user-id'] || req.headers['x-agent-id'] || DEFAULT_LEAD_USER_ID || '');
+    const agentId = await resolveDashboardOwnerId(req);
+    if (!agentId) return res.status(401).json(UNAUTHORIZED_DASHBOARD);
     const range = String(req.query.range || '30d').toLowerCase();
     const rangeDays = range === '7d' ? 7 : 30;
     const rangeStartIso = new Date(Date.now() - rangeDays * 24 * 60 * 60 * 1000).toISOString();
@@ -26524,8 +26573,8 @@ app.get('/api/dashboard/appointments', async (req, res) => {
 
 app.get('/api/dashboard/automation-recipes', async (req, res) => {
   try {
-    const agentId = String(req.query.agentId || req.headers['x-user-id'] || req.headers['x-agent-id'] || DEFAULT_LEAD_USER_ID || '');
-    if (!agentId) return res.status(400).json({ error: 'agent_id_required' });
+    const agentId = await resolveDashboardOwnerId(req);
+    if (!agentId) return res.status(401).json(UNAUTHORIZED_DASHBOARD);
     const recipes = await listAutomationRecipes(agentId);
     res.json({ success: true, recipes });
   } catch (error) {
@@ -26537,10 +26586,10 @@ app.get('/api/dashboard/automation-recipes', async (req, res) => {
 app.patch('/api/dashboard/automation-recipes/:recipeKey', async (req, res) => {
   try {
     const { recipeKey } = req.params;
-    const agentId = String(req.body?.agentId || req.query.agentId || req.headers['x-user-id'] || req.headers['x-agent-id'] || DEFAULT_LEAD_USER_ID || '');
+    const agentId = await resolveDashboardOwnerId(req);
+    if (!agentId) return res.status(401).json(UNAUTHORIZED_DASHBOARD);
     const rawEnabled = req.body?.enabled;
     const enabled = rawEnabled === true || rawEnabled === 'true' || rawEnabled === 1 || rawEnabled === '1';
-    if (!agentId) return res.status(400).json({ error: 'agent_id_required' });
 
     const updated = await setAutomationRecipeEnabled({ agentId, recipeKey, enabled });
     res.json({ success: true, recipe: updated });
@@ -36973,7 +37022,9 @@ app.use((err, req, res, next) => {
 // --- AGENT IDENTITY ROUTES ---
 
 app.get('/api/agent/identity', async (req, res) => {
-  const userId = req.headers['x-user-id'];
+  // Was x-user-id only: anyone with an agent's id could read their sending
+  // identity, and the PUT below could rewrite the From address on their email.
+  const userId = await resolveRequesterUserId(req, { allowDefault: false }).catch(() => null);
   if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
   try {
@@ -36992,7 +37043,7 @@ app.get('/api/agent/identity', async (req, res) => {
 });
 
 app.put('/api/agent/identity', async (req, res) => {
-  const userId = req.headers['x-user-id'];
+  const userId = await resolveRequesterUserId(req, { allowDefault: false }).catch(() => null);
   const { senderName, senderEmail, replyTo } = req.body;
   if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 

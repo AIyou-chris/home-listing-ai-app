@@ -182,7 +182,7 @@ export const fetchDashboardLeadDetail = async (leadId: string, refreshIntel = fa
   if (refreshIntel) query.set('refreshIntel', 'true');
   const path = `/api/dashboard/leads/${encodeURIComponent(leadId)}${query.toString() ? `?${query.toString()}` : ''}`;
   const response = await fetch(buildApiUrl(withAgentQuery(path, agentId)), {
-    headers: defaultJsonHeaders(agentId)
+    headers: await defaultJsonHeaders(agentId)
   });
   return parseResponse<DashboardLeadDetail>(response);
 };
@@ -196,7 +196,7 @@ export const fetchDashboardLeadConversation = async (leadId: string, agentIdOver
   const response = await fetch(
     buildApiUrl(withAgentQuery(`/api/dashboard/leads/${encodeURIComponent(leadId)}/conversation`, agentId)),
     {
-      headers: defaultJsonHeaders(agentId)
+      headers: await defaultJsonHeaders(agentId)
     }
   );
   return parseResponse<DashboardLeadConversationResponse>(response);
@@ -216,7 +216,7 @@ export const fetchLeadConversationsForExport = async (agentIdOverride?: string |
   const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
   const response = await fetch(
     buildApiUrl(withAgentQuery('/api/dashboard/leads/export-conversations', agentId)),
-    { headers: defaultJsonHeaders(agentId) }
+    { headers: await defaultJsonHeaders(agentId) }
   );
   const data = await parseResponse<{ success: boolean; leads: ExportConversationLead[] }>(response);
   return data.leads || [];
@@ -234,7 +234,7 @@ export const updateDashboardLeadStatus = async (
   const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
   const response = await fetch(buildApiUrl(withAgentQuery(`/api/dashboard/leads/${encodeURIComponent(leadId)}/status`, agentId)), {
     method: 'PATCH',
-    headers: defaultJsonHeaders(agentId),
+    headers: await defaultJsonHeaders(agentId),
     body: JSON.stringify(payload)
   });
   return parseResponse<{ success: boolean }>(response);
@@ -248,7 +248,7 @@ export const deleteDashboardLead = async (leadId: string, agentIdOverride?: stri
   const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
   const response = await fetch(buildApiUrl(withAgentQuery(`/api/dashboard/leads/${encodeURIComponent(leadId)}`, agentId)), {
     method: 'DELETE',
-    headers: defaultJsonHeaders(agentId)
+    headers: await defaultJsonHeaders(agentId)
   });
   return parseResponse<{ success: boolean }>(response);
 };
@@ -264,7 +264,7 @@ export const logDashboardAgentAction = async (
   const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
   const response = await fetch(buildApiUrl('/api/dashboard/agent-actions'), {
     method: 'POST',
-    headers: defaultJsonHeaders(agentId),
+    headers: await defaultJsonHeaders(agentId),
     body: JSON.stringify({
       ...payload,
       agentId
@@ -297,7 +297,7 @@ export const sendListingTestLeadCapture = async (
     buildApiUrl(withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}/test-capture`, agentId)),
     {
       method: 'POST',
-      headers: defaultJsonHeaders(agentId),
+      headers: await defaultJsonHeaders(agentId),
       body: JSON.stringify({ ...payload, agentId })
     }
   );
