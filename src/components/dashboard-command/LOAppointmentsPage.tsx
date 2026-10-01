@@ -5,6 +5,17 @@ import toast from 'react-hot-toast'
 import { buildApiUrl } from '../../lib/api'
 import { supabase } from '../../services/supabase'
 
+// Every appointment call must carry the login token: the API is owner-scoped now.
+const apiHeaders = async (json = false): Promise<HeadersInit> => {
+  const { data: { session } } = await supabase.auth.getSession()
+  const { data } = await supabase.auth.getUser()
+  return {
+    ...(json ? { 'Content-Type': 'application/json' } : {}),
+    ...(data.user?.id ? { 'x-user-id': data.user.id } : {}),
+    ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {})
+  }
+}
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type MeetingKind = 'Consultation' | 'Coffee Meeting' | 'Borrower Call' | 'Agent Check-in'
@@ -93,6 +104,8 @@ interface ScheduleFormState {
   time: string
   location: string
   notes: string
+  remindMe: boolean
+  remindThem: boolean
 }
 
 const EMPTY_FORM: ScheduleFormState = {
@@ -104,6 +117,8 @@ const EMPTY_FORM: ScheduleFormState = {
   time: '',
   location: '',
   notes: '',
+  remindMe: true,
+  remindThem: true,
 }
 
 interface ScheduleModalProps {
@@ -471,27 +486,24 @@ const LOAppointmentsPage: React.FC = () => {
   const [showModal, setShowModal] = useState(Boolean(prefill))
   const [saving, setSaving] = useState(false)
   const [cancelConfirmId, setCancelConfirmId] = useState<string | null>(null)
+  const [loadFailed, setLoadFailed] = useState(false)
 
   // ── Load ──────────────────────────────────────────────────────────────────
 
   const load = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-      const r = await fetch(buildApiUrl('/api/appointments'), {
-        headers: { 'x-user-id': user.id },
-      })
-      if (!r.ok) return
+      const r = await fetch(buildApiUrl('/api/appointments'), { headers: await apiHeaders() })
+      if (!r.ok) throw new Error('appointments_load_failed')
       const data = await r.json() as { appointments?: LOAppointment[] }
       const raw = data.appointments || []
-      // Only show LO-relevant meeting kinds — filter out agent-specific types if needed
       const mapped: LOAppointment[] = raw.map(a => ({
         ...a,
         type: normalizeKind(a.type ?? (a as unknown as { kind?: string }).kind ?? 'Consultation'),
       }))
       setAppointments(mapped)
+      setLoadFailed(false)
     } catch {
-      toast.error('Failed to load appointments')
+      setLoadFailed(true)
     } finally {
       setLoading(false)
     }
@@ -524,10 +536,7 @@ const LOAppointmentsPage: React.FC = () => {
 
       const r = await fetch(buildApiUrl('/api/appointments'), {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': user.id,
-        },
+        headers: await apiHeaders(true),
         body: JSON.stringify({
           kind:      form.kind,
           name:      form.name,
@@ -540,9 +549,11 @@ const LOAppointmentsPage: React.FC = () => {
           location:  form.location,
           notes:     form.notes,
           status:    'scheduled',
-          remindAgent:  false,
-          remindClient: false,
-          userId:    user.id,
+          // Reminders were hard-wired off, so nobody was ever reminded. The form now decides.
+          remindAgent:  form.remindMe,
+          remindClient: form.remindThem && Boolean(form.email || form.phone),
+          agentReminderMinutes: 60,
+          clientReminderMinutes: 1440,
         }),
       })
       if (!r.ok) throw new Error('Failed to create appointment')
@@ -562,7 +573,7 @@ const LOAppointmentsPage: React.FC = () => {
     try {
       const r = await fetch(buildApiUrl(`/api/appointments/${id}`), {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await apiHeaders(true),
         body: JSON.stringify({ status: 'completed' }),
       })
       if (!r.ok) throw new Error()
@@ -580,11 +591,15 @@ const LOAppointmentsPage: React.FC = () => {
   const handleCancel = async (id: string) => {
     setCancelConfirmId(null)
     try {
+      // Mark it canceled instead of erasing it: the meeting stays in Past Meetings,
+      // and its reminders are called off.
       const r = await fetch(buildApiUrl(`/api/appointments/${id}`), {
-        method: 'DELETE',
+        method: 'PUT',
+        headers: await apiHeaders(true),
+        body: JSON.stringify({ status: 'canceled' }),
       })
       if (!r.ok) throw new Error()
-      setAppointments(prev => prev.filter(a => a.id !== id))
+      setAppointments(prev => prev.map(a => a.id === id ? { ...a, status: 'canceled' } : a))
       toast.success('Meeting canceled')
     } catch {
       toast.error('Failed to cancel meeting')
@@ -639,8 +654,16 @@ const LOAppointmentsPage: React.FC = () => {
           </div>
         )}
 
+        {/* Load failed */}
+        {!loading && loadFailed && (
+          <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-800">
+            We couldn't load your meetings just now.{' '}
+            <button onClick={() => { setLoading(true); void load() }} className="font-bold underline">Try again</button>
+          </div>
+        )}
+
         {/* Empty state */}
-        {!loading && !hasAny && (
+        {!loading && !loadFailed && !hasAny && (
           <div className="flex flex-col items-center justify-center py-24 gap-4">
             <span className="material-symbols-outlined text-5xl text-slate-200">calendar_today</span>
             <div className="text-center">

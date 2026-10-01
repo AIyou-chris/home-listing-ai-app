@@ -7,6 +7,14 @@
 > **End of every session (or before handing off):** add a new entry at the TOP of the log. Keep it short.
 > **Before editing a file another agent touched in its last entry:** read that entry first. Don't redo or undo their work silently.
 
+## 2026-09-30 19:05 — Claude: Appointments tab locked down
+- **All four `/api/appointments` routes were unauthenticated.** Live-confirmed: `GET` returned 200 for a fake `x-user-id`; `PUT` and `DELETE` took any appointment id with no token at all (anyone could edit or permanently delete any meeting on the platform). Now: new `appointmentOwnerIds(req)` + `ownedAppointment(req, id)` helpers; GET/PUT/DELETE require a token and scope to the owner (401 `agent_auth_required` / 403 `appointment_access_denied`).
+- **POST keeps public booking working without the body choosing an owner.** Signed in → owner is the authed user. Not signed in → owner is derived from the listing (`properties.agent_id/user_id` via `listingId|listing_id|propertyId`), else 401. `ViewingModal` now passes `propertyId` so the public showing flow still resolves an owner.
+- Callers updated to send Bearer: `LOAppointmentsPage` (new `apiHeaders`), `services/dashboard/appointments.ts` (create/status/reschedule), `services/schedulerService.ts` (`schedulerAuthHeaders`).
+- Cancel is now a soft cancel (`PUT status:'canceled'`) instead of `DELETE` — the meeting stays in Past Meetings and pending reminders are called off.
+- Schedule form: real reminder checkboxes (me 1h before, them 1 day before; the second needs an email or phone). They were hard-coded `false`, so no reminder ever fired for an LO meeting.
+- Load failure shows a retry card instead of a silently empty week.
+
 ## 2026-09-30 18:50 — Claude: pre-approval form 500 (supabase thenable has no .catch) + email option
 - **ROOT CAUSE of the live 500 on `POST /api/leads/pre-qual`:** a Supabase query builder is a thenable with `then` but NO `catch` (verified: supabase-js 2.81.1 → `typeof builder.catch === 'undefined'`). `await supabaseAdmin.from('notifications').insert({...}).catch(() => null)` therefore threw `TypeError: catch is not a function` AFTER the lead + pre-qual rows were written, so data saved but the buyer saw "Could not send". New `bestEffort(query)` helper wraps the builder in a real promise; applied to all 6 builder-`.catch()` sites in `server.cjs` (lines ~33672–33896: pre-qual LO alert, sold alert, 24h nudge x3, nudge_sent_at). **Never call `.catch()` directly on a Supabase builder.** (+3 tests in `__tests__/bestEffort.test.js`.)
 - **LO alert never landed:** `notifications.user_id` FKs to `auth.users`, but the pre-qual handler passed `loAgentId` (agents.id profile id). Now resolves `agents.auth_user_id` first.

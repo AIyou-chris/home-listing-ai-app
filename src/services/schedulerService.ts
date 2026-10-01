@@ -427,6 +427,18 @@ const loadCalendarContext = async (
   return { settings: resolvedSettings, busyIntervals }
 }
 
+const schedulerAuthHeaders = async (): Promise<HeadersInit> => {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    return {
+      'Content-Type': 'application/json',
+      ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {})
+    };
+  } catch {
+    return { 'Content-Type': 'application/json' };
+  }
+};
+
 export const scheduleAppointment = async (
   input: SchedulerInput
 ): Promise<SchedulerResult> => {
@@ -541,9 +553,11 @@ ${normalizedInput.message || 'No additional notes'}
   }) | null = null
 
   try {
+    // Signed in (dashboard) → the token says whose calendar it is. Not signed in
+    // (a buyer booking from a public listing) → the backend reads the owner off propertyId.
     const response = await fetch(buildApiUrl('/api/appointments'), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: await schedulerAuthHeaders(),
       body: JSON.stringify({
         kind: normalizedInput.kind,
         date: finalDate,
