@@ -6,6 +6,8 @@ import SecuritySettingsPage from './settings/SecuritySettings';
 import BillingSettingsPage from './settings/BillingSettings';
 import EmailSettingsPage from './settings/EmailSettings';
 import CalendarSettingsPage from './settings/CalendarSettings';
+import { fetchOnboardingState } from '../services/onboardingService';
+import { notificationSettingsService } from '../services/notificationSettingsService';
 
 interface SettingsPageProps {
     userId: string;
@@ -52,7 +54,24 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
     isBlueprintMode,
     initialTab = 'profile'
 }) => {
-    const accountType = localStorage.getItem('hla_account_type') || 'realtor';
+    // The account type comes from the server. It used to be read from localStorage,
+    // which anyone can edit in their own browser. localStorage is only a first guess
+    // so the tabs don't flicker while the real answer loads.
+    const [accountType, setAccountType] = useState<string>(() => {
+        try { return localStorage.getItem('hla_account_type') || 'realtor'; } catch { return 'realtor'; }
+    });
+    React.useEffect(() => {
+        if (isDemoMode) return;
+        let cancelled = false;
+        fetchOnboardingState()
+            .then((state) => {
+                if (cancelled || !state?.account_type) return;
+                setAccountType(state.account_type);
+                try { localStorage.setItem('hla_account_type', state.account_type); } catch { /* private mode */ }
+            })
+            .catch(() => { /* keep the local guess */ });
+        return () => { cancelled = true; };
+    }, [isDemoMode]);
     const isLO = accountType === 'lo';
     const [activeTab, setActiveTab] = useState<'profile' | 'notifications' | 'email' | 'calendar' | 'security' | 'billing'>(initialTab);
     const [refreshingApp, setRefreshingApp] = useState(false);
@@ -65,8 +84,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
     React.useEffect(() => {
         if (!_userId || isDemoMode) return;
         let cancelled = false;
-        fetch(`/api/notifications/settings/${encodeURIComponent(_userId)}`)
-            .then((r) => (r.ok ? r.json() : null))
+        notificationSettingsService.fetch(_userId)
+            .then((data) => data as unknown as { channelFlags?: { sms_enabled?: boolean }; smsChannel?: string })
             .then((data) => {
                 if (cancelled || !data) return;
                 setResolvedSmsAvailable(Boolean(data.channelFlags?.sms_enabled));
@@ -102,8 +121,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
     const allTabs = [
         { id: 'profile', label: 'Profile', icon: 'person', loVisible: true },
         { id: 'notifications', label: 'Notifications', icon: 'notifications', loVisible: true },
-        { id: 'email', label: 'Email', icon: 'mail', loVisible: false },
-        { id: 'calendar', label: 'Calendar', icon: 'calendar_month', loVisible: false },
+        { id: 'email', label: 'Email', icon: 'mail', loVisible: true },
+        { id: 'calendar', label: 'Calendar', icon: 'calendar_month', loVisible: true },
         { id: 'security', label: 'Security', icon: 'security', loVisible: true },
         { id: 'billing', label: 'Billing', icon: 'receipt_long', loVisible: true },
     ];

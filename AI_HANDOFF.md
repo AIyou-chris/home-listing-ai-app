@@ -7,6 +7,13 @@
 > **End of every session (or before handing off):** add a new entry at the TOP of the log. Keep it short.
 > **Before editing a file another agent touched in its last entry:** read that entry first. Don't redo or undo their work silently.
 
+## 2026-10-01 07:10 — Claude: Settings tab locked down
+- **`GET`/`PATCH /api/notifications/settings/:userId` were unauthenticated** — live-confirmed 200 for both with no token, so anyone could read a user's notification prefs or silently switch off their new-lead alerts. New `ownsNotificationSettings(req)` gate: token required, and the `:userId` must be the caller's auth id or their `agents.id` profile id (or `default`). (A PATCH probe sent `smsNewLeadAlerts`, which is not a column — Chris's row was unchanged apart from `updated_at`.)
+- `notificationSettingsService` now goes through `buildApiUrl` and sends `x-user-id` + Bearer on both calls; `SettingsPage`'s SMS probe uses the service instead of a bare relative `fetch`.
+- `SettingsPage` account type now comes from `fetchOnboardingState()` instead of `localStorage.hla_account_type` (user-editable). localStorage stays as a first paint guess only, and is refreshed from the server answer.
+- **Email and Calendar tabs are now visible to LOs** (`loVisible: true`). Verified the LO path works: Email reads the slug from `/api/agent/profile` (test LO slug `LoTest_One` → `lotest_one@mg.homelistingai.com`) and Calendar saves through `calendarSettingsService`.
+- Profile and Security tabs audited clean: `/api/agent/profile` is `requireAuth`, password + MFA go straight to Supabase auth.
+
 ## 2026-09-30 19:30 — Claude: appointments 500 hardening (cause not fully pinned)
 - Chris's console showed `/api/appointments` **500** alongside `/api/me/brand` 401 and `rpc/is_user_admin` 403 — i.e. his session token was being rejected across the board.
 - Hardened `appointmentOwnerIds()`: `resolveRequesterUserId` is now inside try/catch, so a malformed/expired token returns a clean 401 ("sign in again") instead of falling through to the handler's catch as a 500. Also made the `fetchAiCardProfileForUser` lookup non-fatal in `GET /api/appointments`.

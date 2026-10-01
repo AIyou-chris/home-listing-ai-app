@@ -15245,8 +15245,25 @@ app.patch('/api/security/settings/:userId', async (req, res) => {
 
 // --- NOTIFICATION SETTINGS ---
 
+// Your notification settings are yours alone: without this check anyone could read
+// them, or quietly switch off a competitor's new-lead alerts.
+const ownsNotificationSettings = async (req) => {
+  let authId = null;
+  try { authId = await resolveRequesterUserId(req, { allowDefault: false }); } catch { return null; }
+  if (!authId) return null;
+  const target = String(req.params.userId || '');
+  if (!target || target === 'default' || target === authId) return authId;
+  try {
+    const profileId = await resolveAgentProfileId(authId);
+    if (profileId && profileId === target) return authId;
+  } catch { /* fall through */ }
+  return null;
+};
+
 app.get('/api/notifications/settings/:userId', async (req, res) => {
   try {
+    const owner = await ownsNotificationSettings(req);
+    if (!owner) return res.status(401).json({ error: 'agent_auth_required' });
     const { userId } = req.params;
     const settings = await getNotificationPreferences(userId);
     const nudgeSettings = await getAgentNotificationSettings(userId).catch(() => ({ ...DEFAULT_AGENT_NOTIFICATION_SETTINGS }));
@@ -15293,6 +15310,8 @@ app.get('/api/notifications/settings/:userId', async (req, res) => {
 
 app.patch('/api/notifications/settings/:userId', async (req, res) => {
   try {
+    const owner = await ownsNotificationSettings(req);
+    if (!owner) return res.status(401).json({ error: 'agent_auth_required' });
     const { userId } = req.params;
     const updates = req.body || {};
     const nudgeUpdates = {};
