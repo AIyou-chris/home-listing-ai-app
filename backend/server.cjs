@@ -31411,24 +31411,26 @@ app.get('/api/lo/dashboard/today', requireAuth, async (req, res) => {
       let q = supabaseAdmin.from('leads').select('id', { count: 'exact', head: true }).eq('lo_agent_id', leadOwnerId);
       return extra ? extra(q) : q;
     };
-    const [totalRes, todayRes, weekRes, monthRes, preApprovalRes, showingRes, recentRes, perListingRes] = await Promise.all([
+    const [totalRes, todayRes, weekRes, monthRes, preApprovalRes, showingRes, recentRes, perListingRes, hotRes] = await Promise.all([
       leadCount(),
       leadCount(q => q.gte('created_at', startOfToday)),
       leadCount(q => q.gte('created_at', startOf7Days)),
       leadCount(q => q.gte('created_at', startOf30Days)),
       leadCount(q => q.eq('source_meta->>context', 'pre_approval')),
       leadCount(q => q.eq('source_meta->>context', 'showing_request')),
-      supabaseAdmin.from('leads').select('id, full_name, name, email, email_lower, phone, status, source_type, source_meta, created_at, listing_id, lo_agent_id').eq('lo_agent_id', leadOwnerId).order('created_at', { ascending: false }).limit(10),
-      supabaseAdmin.from('leads').select('listing_id').eq('lo_agent_id', leadOwnerId).not('listing_id', 'is', null).limit(5000)
+      supabaseAdmin.from('leads').select('id, full_name, name, email, email_lower, phone, status, source_type, source_meta, created_at, listing_id, lo_agent_id, intent_level').eq('lo_agent_id', leadOwnerId).order('created_at', { ascending: false }).limit(10),
+      supabaseAdmin.from('leads').select('listing_id').eq('lo_agent_id', leadOwnerId).not('listing_id', 'is', null).limit(5000),
+      leadCount(q => q.eq('intent_level', 'Hot'))
     ]);
     const leads = perListingRes.data || [];
+    const hotLeads = hotRes.count || 0;
     const totalLeads = totalRes.count || 0;
     const newToday = todayRes.count || 0;
     const newThisWeek = weekRes.count || 0;
     const newThisMonth = monthRes.count || 0;
     const preApprovalLeads = preApprovalRes.count || 0;
     const showingLeads = showingRes.count || 0;
-    const recentLeads = (recentRes.data || []).map(l => ({ id: l.id, name: l.full_name || l.name || 'Unknown', email: l.email_lower || l.email || null, status: l.status || 'New', context: l.source_meta?.context || 'general_info', listingId: l.listing_id || null, createdAt: l.created_at }));
+    const recentLeads = (recentRes.data || []).map(l => ({ id: l.id, name: l.full_name || l.name || 'Unknown', email: l.email_lower || l.email || null, status: l.status || 'New', context: l.source_meta?.context || 'general_info', intentLevel: l.intent_level || 'Warm', listingId: l.listing_id || null, createdAt: l.created_at }));
     const loProfileId = (await resolveLoAgentId(req)) || loAgentId;
     const assignedRows = await fetchLoAssignedListings(loProfileId);
     const listingLeadCounts = leads.reduce((acc, l) => { if (l.listing_id) acc[l.listing_id] = (acc[l.listing_id] || 0) + 1; return acc; }, {});
@@ -31438,8 +31440,9 @@ app.get('/api/lo/dashboard/today', requireAuth, async (req, res) => {
     const loProfileComplete = Boolean(loAgentData?.first_name && loAgentData?.nmls_number);
     // Check partner invites sent
     const { count: partnerInviteCount } = await supabaseAdmin.from('agent_invites').select('id', { count: 'exact', head: true }).eq('lo_agent_id', loAgentId);
+    const { count: partnerOpenedCount } = await supabaseAdmin.from('agent_invites').select('id', { count: 'exact', head: true }).eq('lo_agent_id', loAgentId).not('opened_at', 'is', null);
     const partnerInvited = (partnerInviteCount || 0) > 0;
-    res.json({ success: true, stats: { totalLeads, newToday, newThisWeek, newThisMonth, preApprovalLeads, showingLeads, assignedListings: assignedListings.length, partnersReached: partnerInviteCount || 0 }, recentLeads, assignedListings, loProfileComplete, partnerInvited });
+    res.json({ success: true, stats: { totalLeads, newToday, newThisWeek, newThisMonth, preApprovalLeads, showingLeads, assignedListings: assignedListings.length, partnersReached: partnerInviteCount || 0, partnersOpened: partnerOpenedCount || 0, hotLeads }, recentLeads, assignedListings, loProfileComplete, partnerInvited });
   } catch (err) {
     console.error('[LO Today] Failed:', err);
     res.status(500).json({ error: 'failed_to_load_lo_dashboard' });

@@ -17,6 +17,8 @@ interface LOStats {
   showingLeads: number
   assignedListings: number
   partnersReached: number
+  partnersOpened?: number
+  hotLeads?: number
 }
 
 interface RecentLead {
@@ -60,7 +62,9 @@ const DEMO_DATA: LODashboardData = {
     preApprovalLeads: 14,
     showingLeads: 10,
     assignedListings: 4,
-    partnersReached: 7
+    partnersReached: 7,
+    partnersOpened: 5,
+    hotLeads: 6
   },
   recentLeads: [
     { id: '1', name: 'Jordan Kim', email: 'jordan@email.com', phone: '(512) 900-4421', status: 'New', intentLevel: 'Hot', context: 'pre_approval', sourceType: 'listing_page', listingId: 'l1', createdAt: new Date(Date.now() - 12 * 60000).toISOString() },
@@ -389,10 +393,13 @@ const LOTodayPage: React.FC = () => {
     )
   }
 
-  const { stats, recentLeads, assignedListings } = data
+  const { stats, recentLeads } = data
+  // Live homes first. Unfinished drafts collapse into one line instead of cluttering the list.
+  const assignedListings = data.assignedListings.filter((l) => l.status === 'published')
+  const draftCount = data.assignedListings.length - assignedListings.length
 
   return (
-    <div className="space-y-6 pb-12">
+    <div className="space-y-6 pb-24">
 
       {/* ── Greeting ─────────────────────────────────────────────────────────── */}
       <div>
@@ -418,14 +425,14 @@ const LOTodayPage: React.FC = () => {
       {/* ── Stat row ─────────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">New today</p>
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">New leads today</p>
           <p className="text-3xl font-black text-slate-900">{stats.newToday}</p>
-          <p className="text-xs text-slate-400 mt-1">{stats.newThisWeek} this week</p>
+          <p className="text-xs text-slate-400 mt-1">{stats.newThisWeek} this week · {stats.totalLeads} total</p>
         </div>
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Total leads</p>
-          <p className="text-3xl font-black text-slate-900">{stats.totalLeads}</p>
-          <p className="text-xs text-slate-400 mt-1">{stats.newThisMonth} this month</p>
+        <div className="rounded-2xl border border-rose-100 bg-rose-50 p-5 shadow-sm">
+          <p className="text-xs font-semibold text-rose-600 uppercase tracking-wide mb-2">Hot leads</p>
+          <p className="text-3xl font-black text-rose-700">{stats.hotLeads ?? 0}</p>
+          <p className="text-xs text-rose-500 mt-1">ready to talk</p>
         </div>
         <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-5 shadow-sm">
           <p className="text-xs font-semibold text-emerald-600 uppercase tracking-wide mb-2">Pre-approvals</p>
@@ -438,7 +445,7 @@ const LOTodayPage: React.FC = () => {
         >
           <p className="text-xs font-semibold text-violet-600 uppercase tracking-wide mb-2">Partners Reached</p>
           <p className="text-3xl font-black text-violet-700">{stats.partnersReached ?? 0}</p>
-          <p className="text-xs text-violet-500 mt-1">agents sent WOW links</p>
+          <p className="text-xs text-violet-500 mt-1">{stats.partnersOpened ?? 0} opened their WOW link</p>
         </div>
       </div>
 
@@ -461,8 +468,14 @@ const LOTodayPage: React.FC = () => {
           </div>
 
           {recentLeads.length === 0 ? (
-            <div className="py-12 text-center text-slate-400 text-sm">
-              No leads yet — share your listings to get started
+            <div className="py-12 text-center text-slate-400 text-sm px-5">
+              <p>No leads yet. The fastest way to get one:</p>
+              <button
+                onClick={() => navTo('/lo-partners')}
+                className="mt-3 rounded-lg bg-primary-600 px-4 py-2 text-sm font-bold text-white hover:bg-primary-700"
+              >
+                Send a WOW link to an agent
+              </button>
             </div>
           ) : (
             <ul className="divide-y divide-slate-50">
@@ -516,12 +529,12 @@ const LOTodayPage: React.FC = () => {
 
           {assignedListings.length === 0 ? (
             <div className="py-12 text-center text-slate-400 text-sm px-5">
-              No listings yet —{' '}
+              {draftCount > 0 ? `No live listings yet (${draftCount} in draft) — ` : 'No listings yet — '}{' '}
               <button
                 onClick={() => navTo('/lo-listings')}
                 className="text-primary-600 font-semibold hover:underline"
               >
-                add one
+                {draftCount > 0 ? 'finish one' : 'add one'}
               </button>
             </div>
           ) : (
@@ -561,42 +574,29 @@ const LOTodayPage: React.FC = () => {
               ))}
             </ul>
           )}
+          {assignedListings.length > 0 && draftCount > 0 && (
+            <button
+              onClick={() => navTo('/lo-listings')}
+              className="w-full border-t border-slate-100 px-4 py-3 text-left text-xs font-semibold text-slate-500 hover:bg-slate-50"
+            >
+              {draftCount} draft{draftCount !== 1 ? 's' : ''} not live yet — finish →
+            </button>
+          )}
         </div>
       </div>
 
-      {/* ── Quick actions ─────────────────────────────────────────────────────── */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="font-bold text-slate-900 text-sm mb-4">Quick Actions</h2>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <button
-            onClick={() => navTo('/lo-leads')}
-            className="flex flex-col items-center gap-2 rounded-xl border border-slate-200 p-4 hover:border-primary-300 hover:bg-primary-50 transition-all text-center"
-          >
-            <span className="text-2xl">👥</span>
-            <span className="text-xs font-semibold text-slate-700">All Leads</span>
-          </button>
-          <button
-            onClick={() => navTo('/lo-listings')}
-            className="flex flex-col items-center gap-2 rounded-xl border border-slate-200 p-4 hover:border-primary-300 hover:bg-primary-50 transition-all text-center"
-          >
-            <span className="text-2xl">🏠</span>
-            <span className="text-xs font-semibold text-slate-700">My Listings</span>
-          </button>
-          <button
-            onClick={() => navTo('/lo-appointments')}
-            className="flex flex-col items-center gap-2 rounded-xl border border-slate-200 p-4 hover:border-primary-300 hover:bg-primary-50 transition-all text-center"
-          >
-            <span className="text-2xl">📅</span>
-            <span className="text-xs font-semibold text-slate-700">Appointments</span>
-          </button>
-          <button
-            onClick={() => navTo('/billing')}
-            className="flex flex-col items-center gap-2 rounded-xl border border-slate-200 p-4 hover:border-primary-300 hover:bg-primary-50 transition-all text-center"
-          >
-            <span className="text-2xl">💳</span>
-            <span className="text-xs font-semibold text-slate-700">Billing</span>
-          </button>
+      {/* ── One primary action ────────────────────────────────────────────────── */}
+      <div className="flex flex-col items-start justify-between gap-3 rounded-2xl border border-primary-200 bg-primary-50 p-5 sm:flex-row sm:items-center">
+        <div>
+          <h2 className="text-sm font-bold text-slate-900">Get your next warm lead</h2>
+          <p className="mt-0.5 text-xs text-slate-600">Send an agent a WOW link. Their buyers chat with your AI, and you get the lead.</p>
         </div>
+        <button
+          onClick={() => navTo('/lo-partners')}
+          className="shrink-0 rounded-lg bg-primary-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-primary-700"
+        >
+          Send a WOW link
+        </button>
       </div>
 
     </div>

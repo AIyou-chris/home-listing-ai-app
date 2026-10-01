@@ -7,6 +7,11 @@
 > **End of every session (or before handing off):** add a new entry at the TOP of the log. Keep it short.
 > **Before editing a file another agent touched in its last entry:** read that entry first. Don't redo or undo their work silently.
 
+## 2026-09-30 17:40 — Claude: LO Today page cleanup
+- `LOTodayPage.tsx`: stat cards now New leads today / Hot leads / Pre-approvals / Partners (with "N opened"); drafts collapse into one line under My Listings; empty Recent Leads has a "Send a WOW link" button; Quick Actions (dupe of sidebar) replaced by one primary "Send a WOW link" card; bottom padding so the chat bubble does not cover it.
+- `GET /api/lo/dashboard/today` now returns `stats.hotLeads` (leads.intent_level='Hot'), `stats.partnersOpened` (agent_invites.opened_at not null) and `intentLevel` on recent leads (the red/amber dots were always amber before).
+- Verified in DB: zero `pre_qual_submissions` so far, so the 0s on Chris's dashboard were correct.
+
 ## 2026-09-30 17:20 — Claude: Today tab audit + fixes
 - SECURITY: `GET /api/dashboard/leads`, `/api/dashboard/appointments`, `/api/dashboard/roi-metrics` trusted `x-user-id`/`agentId` with no login (confirmed live: 200 for a fake id). Now `resolveRequesterUserId(req)` → 401 `agent_auth_required`. Frontend `fetchDashboardLeads`/`fetchDashboardAppointments` now send `authHeaders`.
 - STILL OPEN (same hole, Leads/Appointments tabs): `/api/dashboard/leads/:leadId`, `/conversation`, `/status`, appointment reminder routes, `/api/dashboard/agent-actions` use `resolveDashboardOwnerId` (no auth). Fix when auditing tabs 3 and 4.
