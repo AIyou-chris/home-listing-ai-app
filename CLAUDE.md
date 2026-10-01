@@ -61,7 +61,9 @@ It helps agents:
 - Apply schema updates via idempotent SQL migration before relying on new tables/columns.
 - Make targeted changes and avoid collateral edits to unrelated subsystems.
 - Frontend components live in `src/components/`. Page-level route components live in `src/pages/` or `src/components/dashboard-command/`.
-- **API auth pattern**: All dashboard API calls must send `Authorization: Bearer {accessToken}` header. Use `authHeaders(agentId)` (async, from `src/services/dashboard/utils.ts`) for this — NOT the sync `defaultJsonHeaders`. `resolveRequesterUserId()` in production requires a Bearer token; without it the endpoint returns 401.
+- **API auth pattern**: All dashboard API calls must send `Authorization: Bearer {accessToken}`. Use `authHeaders(agentId)` (async, from `src/services/dashboard/utils.ts`). `defaultJsonHeaders` is now an **alias of `authHeaders`** (as of 2026-10-01) — it is async and must be awaited; there is no token-less builder any more. `resolveRequesterUserId()` in production requires a Bearer token; without it the endpoint returns 401.
+- **Never derive an owner id from the request.** No `req.query.agentId`, `req.headers['x-user-id']` or `DEFAULT_LEAD_USER_ID` fallback — that is a hole, not a pattern. Use the guards/resolvers: `requireAuth` · `requireLoAgent` · `requireOffice` · `verifyAdmin` · `resolveDashboardOwnerId(req)` (async, 401 on null) for `/api/dashboard/*` · `resolveLoAgentId(req)` for FK-enforced LO tables · `resolveBillingAgentId(req)` · `appointmentOwnerIds(req)`.
+- **Never write `.catch()` directly on a Supabase query builder.** A builder is a thenable with `then` but **no `catch`**, so `.catch(() => null)` throws *after* the write already happened. Use the `bestEffort(query)` helper in `server.cjs`.
 
 ---
 
@@ -194,7 +196,38 @@ No long explanations. No walls of text. Table in, table out.
 
 ---
 
-## 7. Current State Snapshot (as of 2026-09-30)
+## 7. Current State Snapshot (as of 2026-10-01)
+
+### ✅ Recently completed — Tab-by-tab dashboard audit + auth lockdown (2026-10-01, PRs #43–#60)
+
+A full pass over every dashboard tab, LO side then agent side. Per-PR detail is in `AI_HANDOFF.md`; this is the state it left behind.
+
+| Area | Notes |
+|---|---|
+| **🔴 Auth: 24 unauthenticated endpoints closed across the whole app** | The recurring root cause was an owner id taken from `req.query.agentId` / `req.headers['x-user-id']` with `DEFAULT_LEAD_USER_ID` as a fallback, so **no token was needed at all**. Closed: Today leads/appointments/roi-metrics · all four `/api/appointments` routes (anyone could delete any meeting platform-wide) · notification settings read+write · and on the agent side 17 more (PR #60) including `DELETE /api/dashboard/leads/:leadId`, `PATCH /api/dashboard/leads/:leadId/status` (which had **no owner check of any kind**), `/api/dashboard/leads/:leadId[/conversation]`, `/export-conversations`, `/command-center`, `/automation-recipes`, the five appointment-reminder routes, `/listings/:id/{leads,performance}`, `/agent-actions`, and `GET/PUT /api/agent/identity` (could rewrite the From address on an agent's outgoing email). Live-verified 401 after deploy. |
+| **`resolveDashboardOwnerId` is now async + authenticated** | Resolves the owner from the signed-in session, returns null on a bad/expired token (→ 401, never 500), and allows the one legitimate case where a caller sends the `agents` **profile** id while the token carries the **login** id. Every `/api/dashboard` owner-resolution site goes through it, each followed by `res.status(401).json(UNAUTHORIZED_DASHBOARD)`. |
+| **Frontend: there is only ONE header builder now** | `defaultJsonHeaders` in `src/services/dashboard/utils.ts` is an **alias of `authHeaders`** (async, sends Bearer) and all 32 call sites await it. The sync token-less version is gone, so there is nothing left to reach for by mistake. `listingBuilderService.ts` keeps its own local async version (already sent Bearer). **This closed the bug class that caused three separate production 401s** (ROI/onboarding, dashboard appointments, listing photo upload). |
+| **🔴 AI Brain data-loss bug** (`LOBrainPage.tsx`) | A failed config load left `EMPTY_CONFIG` on screen and the next save — including the automatic one from add/remove source — wiped `knowledge_base`, `faq`, compliance and `banned_phrases` while toasting "AI Brain saved". Now: one silent retry after 1.5s, then a hard-stop card printing `Reason: <status>`, and `persist()` refuses to write while `loadFailed`. **Chris reported the card firing on the live site and has not yet sent the Reason line — that is the open thread.** |
+| **Jev rates every pre-approval lead** (`backend/services/leadIntentRater.js`, +15 tests) | Hot / Warm / Cold via a TypeSafe `choice` question, with a conservative plain-rules fallback on unconfigured / error / unknown choice / confidence < 0.4. Never loses or leaves a lead unrated. Stored in `leads.source_meta` as `intent_reason` + `intent_source` (`jev` or why it fell back). `TYPESAFE_API_KEY` is set on Render; confirmed live (`intent_source: "jev"`). |
+| **Pre-approval form takes name + phone OR email** (`PreApprovalSheet.tsx`) | Was phone-only. Success line matches whichever channel they gave. |
+| **🔴 `bestEffort()` helper** | A Supabase query builder is a thenable with `then` but **no `catch`**, so `.catch(() => null)` threw *after* the rows were written — that was the pre-approval form's 500. `const bestEffort = (query) => Promise.resolve(query).then((r) => r, () => null)` now wraps all six such sites. **Never write `.catch()` directly on a Supabase builder.** |
+| **Listing editor publish rules** (`ListingEditorPage.tsx`) | Publishing needs **address + price + at least one photo**; beds/baths/sqft are optional so land and lots can publish. `publishBlockers` shows "To publish, add …". `beforeunload` guard on unsaved edits. |
+| **Per-listing call forwarding** | `PUT /api/lo/listings/:listingId/phone-line/transfer` + UI in `ListingPhonePanel.tsx`, on the pre-existing `lo_phone_lines.transfer_number`. "Send hot callers to" — **never tested with a real call.** |
+| **Price-drop opt-in shows once** | Per-visitor, was re-prompting on every visit. Flyer fixed. |
+| **Public listing view tracking** | `POST /api/public/listing/:listingId/view`, 1 per visitor per hour → `listing_events` type `view`. |
+| **LO notifications actually land** | `notifications.user_id` FKs to `auth.users`; the code was passing the **profile** id. Now resolves `agents.auth_user_id`. |
+| **Duplicate leads fixed** | A regression from PR #41: a pre-qual writes both a `leads` row and a `pre_qual_submissions` row and `/api/lo/leads` listed both. Now only **orphan** pre-quals (no `lead_id`) are listed; linked ones enrich their `leads` row. |
+| **One WOW reminder email builder** | `backend/services/wowReminderEmail.js` (+4 tests) — the manual nudge and the hourly follow-up cron now match the first invite's look. |
+
+**Verification baseline as of this date:** `npm run test:backend` **129 pass** · `npm test` (Jest) **43 pass** · `npx tsc --noEmit -p .` clean · `npm run lint` clean · `npm run build` ✓.
+
+**🔴 Open threads from this block:**
+1. **Chris's AI Brain page won't load** — he needs to send the `Reason:` line from https://homelistingai.com/dashboard/lo-chatbot.
+2. **His Compliance Brain is empty** — `company_name`, `company_nmls`, `required_disclosure` blank, `licensed_states` 0, `faq` 0, `calls_mode` `off`. The AI answers loan questions without naming the company, NMLS or licensed states.
+3. **Still spoofable, deliberately left** (not agent-dashboard, each needs Chris's call): `POST /api/listings` · `GET /api/listings/:listingId/market-analysis` · `GET /api/video-credits/:listingId` · `POST /api/security/audit` · `GET /api/training/feedback/:sidekick` · the 6-route `/api/ai-card/*` group (that UI is hidden as unused — fix or delete) · the `last_seen_at` middleware on `/api/dashboard` (cosmetic).
+4. **Never tested in the real world:** a real phone call through "Send hot callers to" · a real appointment reminder email · the WOW link end to end with a real agent.
+
+**Lesson recorded:** when a scripted multi-part edit fails partway, **re-verify every part** — a Python edit script that raised before its `write()` silently discarded all its changes, and work was reported as done that was not.
 
 ### ✅ Recently completed — Partner-agent experience + email deliverability (2026-09-30, PRs #34–#38)
 
