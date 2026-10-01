@@ -583,6 +583,10 @@ const LOBrainPage: React.FC = () => {
   const [config, setConfig] = useState<BrainConfig>(EMPTY_CONFIG);
   const [summary, setSummary] = useState<BrainSummary | null>(null);
   const [loading, setLoading] = useState(true);
+  // A brain that never loaded must NEVER be saved: saving an empty config would
+  // overwrite everything the LO trained (knowledge, FAQs, compliance, banned phrases)
+  // with blanks, and report success while doing it.
+  const [loadFailed, setLoadFailed] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
@@ -630,19 +634,19 @@ const LOBrainPage: React.FC = () => {
     (async () => {
       try {
         const res = await fetch(buildApiUrl('/api/lo/chatbot-config'), { headers: await getApiHeaders() });
-        if (res.ok) {
-          const d = await res.json();
-          setConfig({
-            ...EMPTY_CONFIG,
-            ...Object.fromEntries(Object.entries(d).filter(([, v]) => v !== null && v !== undefined)),
-            faq: Array.isArray(d.faq) ? d.faq.map((f: FaqItem) => ({ question: f.question || '', answer: f.answer || '' })) : [],
-            licensed_states: Array.isArray(d.licensed_states) ? d.licensed_states : [],
-            banned_phrases: Array.isArray(d.banned_phrases) ? d.banned_phrases : []
-          } as BrainConfig);
-        }
+        if (!res.ok) throw new Error('brain_load_failed');
+        const d = await res.json();
+        setConfig({
+          ...EMPTY_CONFIG,
+          ...Object.fromEntries(Object.entries(d).filter(([, v]) => v !== null && v !== undefined)),
+          faq: Array.isArray(d.faq) ? d.faq.map((f: FaqItem) => ({ question: f.question || '', answer: f.answer || '' })) : [],
+          licensed_states: Array.isArray(d.licensed_states) ? d.licensed_states : [],
+          banned_phrases: Array.isArray(d.banned_phrases) ? d.banned_phrases : []
+        } as BrainConfig);
+        setLoadFailed(false);
       } catch (err) {
         console.error('[LOBrainPage] load error', err);
-        toast.error('Could not load your AI Brain.');
+        setLoadFailed(true);
       } finally {
         setLoading(false);
       }
@@ -652,8 +656,20 @@ const LOBrainPage: React.FC = () => {
 
   const update = (patch: Partial<BrainConfig>) => { setConfig((c) => ({ ...c, ...patch })); setDirty(true); };
 
+  // Closing the tab mid-edit shouldn't quietly throw the work away.
+  useEffect(() => {
+    if (!dirty) return undefined;
+    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [dirty]);
+
   const persist = async (next: BrainConfig, successMsg = 'AI Brain saved') => {
     if (demo) { setDirty(false); toast.success(`${successMsg} (demo — resets on refresh)`); return true; }
+    if (loadFailed) {
+      toast.error("Your AI Brain didn't load, so nothing can be saved over it. Reload the page first.");
+      return false;
+    }
     setSaving(true);
     try {
       const res = await fetch(buildApiUrl('/api/lo/chatbot-config'), { method: 'PUT', headers: await getApiHeaders(), body: JSON.stringify(next) });
@@ -756,6 +772,28 @@ const LOBrainPage: React.FC = () => {
 
   if (loading) {
     return <div className="lo-brain flex min-h-[60vh] items-center justify-center"><span className="lb-muted">Loading your AI Brain…</span></div>;
+  }
+
+  // Hard stop rather than an empty form: an empty form invites a save that erases the real brain.
+  if (loadFailed) {
+    return (
+      <div className="lo-brain flex min-h-[60vh] items-center justify-center px-4">
+        <div className="max-w-md rounded-2xl border border-rose-200 bg-rose-50 p-6 text-center">
+          <p className="text-lg font-bold text-rose-900">We couldn't load your AI Brain</p>
+          <p className="mt-2 text-sm text-rose-800">
+            Nothing has been changed. Your training is safe — we just can't show it right now.
+            If this keeps happening, sign out and back in.
+          </p>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="mt-4 rounded-lg bg-rose-700 px-5 py-2.5 text-sm font-bold text-white hover:bg-rose-800"
+          >
+            Try again
+          </button>
+        </div>
+      </div>
+    );
   }
 
   const libraryMissing = library.filter((l) => !l.ready).length;
