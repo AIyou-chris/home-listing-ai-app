@@ -81,7 +81,7 @@ export const createLeadAppointment = async (
   const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
   const response = await fetch(buildApiUrl('/api/appointments'), {
     method: 'POST',
-    headers: defaultJsonHeaders(agentId),
+    headers: await authHeaders(agentId),
     body: JSON.stringify({ ...payload, agentId })
   });
   return parseResponse<{ success: boolean; appointment?: DashboardLeadAppointment }>(response);
@@ -95,7 +95,7 @@ export const updateAppointmentStatus = async (appointmentId: string, status: str
   const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
   const response = await fetch(buildApiUrl(`/api/appointments/${encodeURIComponent(appointmentId)}`), {
     method: 'PUT',
-    headers: defaultJsonHeaders(agentId),
+    headers: await authHeaders(agentId),
     body: JSON.stringify({ status, agentId })
   });
   return parseResponse<{ success: boolean }>(response);
@@ -113,7 +113,7 @@ export const rescheduleAppointment = async (
   const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
   const response = await fetch(buildApiUrl(`/api/appointments/${encodeURIComponent(appointmentId)}`), {
     method: 'PUT',
-    headers: defaultJsonHeaders(agentId),
+    headers: await authHeaders(agentId),
     body: JSON.stringify({
       date: payload.date,
       time: payload.time,

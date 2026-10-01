@@ -77,6 +77,31 @@ const pdfParse = require('pdf-parse');
 const leadScoringService = require('./services/LeadScoringService');
 const { rateLeadIntent } = require('./services/leadIntentRater');
 
+// Appointments belong to ONE account. These endpoints used to take the owner id
+// straight from a query param or the x-user-id header, so anyone could read, edit
+// or delete anybody's calendar by guessing an id. The owner now always comes from
+// the signed-in user, and a write to a specific appointment must match its owner.
+const appointmentOwnerIds = async (req) => {
+  const authId = await resolveRequesterUserId(req, { allowDefault: false });
+  if (!authId) return null;
+  const ids = new Set([authId]);
+  try { const profileId = await resolveAgentProfileId(authId); if (profileId) ids.add(profileId); } catch { /* auth id alone */ }
+  return { authId, ids };
+};
+
+const ownedAppointment = async (req, appointmentId) => {
+  const owner = await appointmentOwnerIds(req);
+  if (!owner) return { status: 401 };
+  const { data } = await supabaseAdmin
+    .from('appointments')
+    .select('id, user_id, agent_id')
+    .eq('id', appointmentId)
+    .maybeSingle();
+  if (!data) return { status: 404 };
+  if (!owner.ids.has(data.user_id) && !owner.ids.has(data.agent_id)) return { status: 403 };
+  return { status: 200, appointment: data, owner };
+};
+
 // A Supabase query builder is a thenable, NOT a real promise: it has `then` but no
 // `catch`. So `await supabaseAdmin.from(..).insert(..).catch(fn)` throws
 // "catch is not a function" and takes the whole request down — which is exactly how a
@@ -30541,22 +30566,15 @@ app.get('/api/public/appointments/:appointmentId/ics', async (req, res) => {
 // Get all appointments
 app.get('/api/appointments', async (req, res) => {
   try {
-    const { status, leadId, date, userId, agentId } = req.query;
-    const ownerId =
-      userId ||
-      agentId ||
-      req.headers['x-user-id'] ||
-      req.headers['x-agent-id'] ||
-      DEFAULT_LEAD_USER_ID;
-
-    if (!ownerId) {
-      return res.status(400).json({ error: 'DEFAULT_LEAD_USER_ID is not configured' });
-    }
+    const { status, leadId, date, agentId } = req.query;
+    const owner = await appointmentOwnerIds(req);
+    if (!owner) return res.status(401).json({ error: 'agent_auth_required' });
+    const ownerId = owner.authId;
 
     let query = supabaseAdmin
       .from('appointments')
       .select(APPOINTMENT_SELECT_FIELDS)
-      .eq('user_id', ownerId);
+      .in('user_id', [...owner.ids]);
 
     if (status && status !== 'all') {
       query = query.eq('status', status);
@@ -30634,15 +30652,27 @@ app.post('/api/appointments', async (req, res) => {
       userId
     } = req.body || {};
 
-    const ownerId =
-      userId ||
-      agentId ||
-      req.headers['x-user-id'] ||
-      req.headers['x-agent-id'] ||
-      DEFAULT_LEAD_USER_ID;
+    // Who owns this appointment is NEVER taken from the request body.
+    // Signed in (the dashboard) → it's yours. Not signed in (a buyer booking a
+    // showing from a public listing page) → it belongs to whoever owns that listing.
+    const requestedListingIdForOwner = listingId || listing_id || propertyId || null;
+    const signedInOwner = await appointmentOwnerIds(req);
+    let ownerId = signedInOwner?.authId || null;
+    let publicBooking = false;
     if (!ownerId) {
-      return res.status(400).json({ error: 'DEFAULT_LEAD_USER_ID is not configured' });
+      if (!requestedListingIdForOwner) {
+        return res.status(401).json({ error: 'agent_auth_required' });
+      }
+      const { data: listingOwnerRow } = await supabaseAdmin
+        .from('properties')
+        .select('id, agent_id, user_id')
+        .eq('id', requestedListingIdForOwner)
+        .maybeSingle();
+      ownerId = listingOwnerRow?.agent_id || listingOwnerRow?.user_id || null;
+      if (!ownerId) return res.status(401).json({ error: 'agent_auth_required' });
+      publicBooking = true;
     }
+    void publicBooking;
 
     const requestedLeadId = leadId || lead_id || null;
     const requestedListingId = listingId || listing_id || propertyId || null;
@@ -31041,6 +31071,10 @@ app.post('/api/appointments', async (req, res) => {
 app.put('/api/appointments/:appointmentId', async (req, res) => {
   try {
     const { appointmentId } = req.params;
+    const owned = await ownedAppointment(req, appointmentId);
+    if (owned.status === 401) return res.status(401).json({ error: 'agent_auth_required' });
+    if (owned.status === 404) return res.status(404).json({ error: 'Appointment not found' });
+    if (owned.status === 403) return res.status(403).json({ error: 'appointment_access_denied' });
     const updates = req.body || {};
     let shouldRescheduleReminders = false;
     let shouldCancelPendingReminders = false;
@@ -31235,6 +31269,10 @@ app.put('/api/appointments/:appointmentId', async (req, res) => {
 app.delete('/api/appointments/:appointmentId', async (req, res) => {
   try {
     const { appointmentId } = req.params;
+    const owned = await ownedAppointment(req, appointmentId);
+    if (owned.status === 401) return res.status(401).json({ error: 'agent_auth_required' });
+    if (owned.status === 404) return res.status(404).json({ error: 'Appointment not found' });
+    if (owned.status === 403) return res.status(403).json({ error: 'appointment_access_denied' });
 
     const { data, error } = await supabaseAdmin
       .from('appointments')

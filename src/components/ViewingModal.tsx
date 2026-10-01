@@ -130,6 +130,7 @@ const ViewingModal: React.FC<ViewingModalProps> = ({
         kind: 'Showing',
         agentEmail,
         agentId,
+        propertyId: listingId,
         remindAgent: true,
         remindClient: true,
         agentReminderMinutes: 60,
