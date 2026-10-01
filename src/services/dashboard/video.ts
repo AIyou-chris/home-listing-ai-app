@@ -31,7 +31,7 @@ export const fetchDashboardVideoSignedUrl = async (
     agentId
   );
   const response = await fetch(buildApiUrl(path), {
-    headers: defaultJsonHeaders(agentId)
+    headers: await defaultJsonHeaders(agentId)
   });
   return parseResponse<{
     signedUrl: string;
@@ -49,7 +49,7 @@ export const fetchListingVideos = async (listingId: string, agentIdOverride?: st
 
   const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
   const response = await fetch(buildApiUrl(withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}/videos`, agentId)), {
-    headers: defaultJsonHeaders(agentId)
+    headers: await defaultJsonHeaders(agentId)
   });
   return parseVideoResponse<{
     credits_remaining: number;
@@ -80,7 +80,7 @@ export const fetchDashboardVideoStatus = async (videoId: string, agentIdOverride
   const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
   const response = await fetch(
     buildApiUrl(withAgentQuery(`/api/dashboard/videos/${encodeURIComponent(videoId)}/status`, agentId)),
-    { headers: defaultJsonHeaders(agentId) }
+    { headers: await defaultJsonHeaders(agentId) }
   );
 
   return parseVideoResponse<{
@@ -95,7 +95,7 @@ export const fetchListingVideoCredits = async (listingId: string, agentIdOverrid
   const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
   const response = await fetch(
     buildApiUrl(withAgentQuery(`/api/dashboard/video-credits/${encodeURIComponent(listingId)}`, agentId)),
-    { headers: defaultJsonHeaders(agentId) }
+    { headers: await defaultJsonHeaders(agentId) }
   );
 
   return parseResponse<{
@@ -118,7 +118,7 @@ export const addFreeTestVideoCredits = async (
     buildApiUrl(withAgentQuery('/api/dashboard/video-credits/free-test', agentId)),
     {
       method: 'POST',
-      headers: defaultJsonHeaders(agentId),
+      headers: await defaultJsonHeaders(agentId),
       body: JSON.stringify({ listing_id: listingId, add })
     }
   );
@@ -152,7 +152,7 @@ export const generateListingVideo = async (
   const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
   const response = await fetch(buildApiUrl(withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}/videos/generate`, agentId)), {
     method: 'POST',
-    headers: defaultJsonHeaders(agentId),
+    headers: await defaultJsonHeaders(agentId),
     body: JSON.stringify(payload)
   });
   return parseVideoResponse<{
@@ -174,7 +174,7 @@ export const addDevListingVideoCredits = async (
     buildApiUrl(withAgentQuery(`/api/dev/listings/${encodeURIComponent(listingId)}/videos/credits/add`, agentId)),
     {
       method: 'POST',
-      headers: defaultJsonHeaders(agentId),
+      headers: await defaultJsonHeaders(agentId),
       body: JSON.stringify({ count })
     }
   );

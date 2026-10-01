@@ -163,7 +163,7 @@ export const fetchAppointmentReminders = async (appointmentId: string, agentIdOv
   const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
   const response = await fetch(
     buildApiUrl(withAgentQuery(`/api/dashboard/appointments/${encodeURIComponent(appointmentId)}/reminders`, agentId)),
-    { headers: defaultJsonHeaders(agentId) }
+    { headers: await defaultJsonHeaders(agentId) }
   );
   return parseResponse<{ success: boolean; appointment_id: string; reminders: AppointmentReminderRow[] }>(response);
 };
@@ -176,7 +176,7 @@ export const retryDashboardReminder = async (appointmentId: string, agentIdOverr
   const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
   const response = await fetch(buildApiUrl(`/api/dashboard/reminders/${encodeURIComponent(appointmentId)}/retry`), {
     method: 'POST',
-    headers: defaultJsonHeaders(agentId),
+    headers: await defaultJsonHeaders(agentId),
     body: JSON.stringify({ agentId })
   });
   return parseResponse<{
@@ -203,7 +203,7 @@ export const retryAppointmentReminder = async (
     buildApiUrl(`/api/dashboard/appointments/${encodeURIComponent(appointmentId)}/reminders/${encodeURIComponent(reminderId)}/retry`),
     {
       method: 'POST',
-      headers: defaultJsonHeaders(agentId),
+      headers: await defaultJsonHeaders(agentId),
       body: JSON.stringify({ agentId })
     }
   );
@@ -227,7 +227,7 @@ export const sendAppointmentReminderNow = async (appointmentId: string, agentIdO
     buildApiUrl(`/api/dashboard/appointments/${encodeURIComponent(appointmentId)}/reminders/send-now`),
     {
       method: 'POST',
-      headers: defaultJsonHeaders(agentId),
+      headers: await defaultJsonHeaders(agentId),
       body: JSON.stringify({ agentId })
     }
   );
@@ -251,7 +251,7 @@ export const disableAppointmentReminders = async (appointmentId: string, agentId
     buildApiUrl(`/api/dashboard/appointments/${encodeURIComponent(appointmentId)}/reminders/disable`),
     {
       method: 'POST',
-      headers: defaultJsonHeaders(agentId),
+      headers: await defaultJsonHeaders(agentId),
       body: JSON.stringify({ agentId })
     }
   );

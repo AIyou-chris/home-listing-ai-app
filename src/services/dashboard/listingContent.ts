@@ -185,7 +185,7 @@ export const fetchLightCmaConfig = async (listingId: string, agentIdOverride?: s
   const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
   const response = await fetch(
     buildApiUrl(withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}/light-cma/config`, agentId)),
-    { headers: defaultJsonHeaders(agentId) }
+    { headers: await defaultJsonHeaders(agentId) }
   );
   const payload = await parseResponse<{ success: boolean; listing_id: string; config: LightCmaConfig }>(response);
   return {
@@ -212,7 +212,7 @@ export const saveLightCmaConfig = async (
     buildApiUrl(withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}/light-cma/config`, agentId)),
     {
       method: 'PUT',
-      headers: defaultJsonHeaders(agentId),
+      headers: await defaultJsonHeaders(agentId),
       body: JSON.stringify(config)
     }
   );
@@ -243,7 +243,7 @@ export const previewLightCma = async (
     buildApiUrl(withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}/light-cma/preview`, agentId)),
     {
       method: 'POST',
-      headers: defaultJsonHeaders(agentId),
+      headers: await defaultJsonHeaders(agentId),
       body: JSON.stringify(config)
     }
   );
@@ -272,7 +272,7 @@ export const fetchPropertyReportConfig = async (listingId: string, agentIdOverri
   const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
   const response = await fetch(
     buildApiUrl(withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}/property-report/config`, agentId)),
-    { headers: defaultJsonHeaders(agentId) }
+    { headers: await defaultJsonHeaders(agentId) }
   );
   const payload = await parseResponse<{ success: boolean; listing_id: string; config: PropertyReportConfig }>(response);
   return {
@@ -299,7 +299,7 @@ export const savePropertyReportConfig = async (
     buildApiUrl(withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}/property-report/config`, agentId)),
     {
       method: 'PUT',
-      headers: defaultJsonHeaders(agentId),
+      headers: await defaultJsonHeaders(agentId),
       body: JSON.stringify(config)
     }
   );
@@ -330,7 +330,7 @@ export const previewPropertyReport = async (
     buildApiUrl(withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}/property-report/preview`, agentId)),
     {
       method: 'POST',
-      headers: defaultJsonHeaders(agentId),
+      headers: await defaultJsonHeaders(agentId),
       body: JSON.stringify(config)
     }
   );
@@ -359,7 +359,7 @@ export const fetchOpenHouseFlyerConfig = async (listingId: string, agentIdOverri
   const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
   const response = await fetch(
     buildApiUrl(withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}/open-house-flyer/config`, agentId)),
-    { headers: defaultJsonHeaders(agentId) }
+    { headers: await defaultJsonHeaders(agentId) }
   );
   const payload = await parseResponse<{ success: boolean; listing_id: string; config: OpenHouseFlyerConfig }>(response);
   return {
@@ -386,7 +386,7 @@ export const saveOpenHouseFlyerConfig = async (
     buildApiUrl(withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}/open-house-flyer/config`, agentId)),
     {
       method: 'PUT',
-      headers: defaultJsonHeaders(agentId),
+      headers: await defaultJsonHeaders(agentId),
       body: JSON.stringify(config)
     }
   );
@@ -417,7 +417,7 @@ export const previewOpenHouseFlyer = async (
     buildApiUrl(withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}/open-house-flyer/preview`, agentId)),
     {
       method: 'POST',
-      headers: defaultJsonHeaders(agentId),
+      headers: await defaultJsonHeaders(agentId),
       body: JSON.stringify(config)
     }
   );

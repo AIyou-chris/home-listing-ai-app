@@ -7,6 +7,27 @@
 > **End of every session (or before handing off):** add a new entry at the TOP of the log. Keep it short.
 > **Before editing a file another agent touched in its last entry:** read that entry first. Don't redo or undo their work silently.
 
+## 2026-10-01 09:30 — Claude: agent dashboard — 17 unauthenticated routes closed
+
+Audited every `/api/dashboard/*` route (67 of them) plus the agent-owned routes outside that prefix. **17 took their owner id straight from a query param or an `x-user-id` header with `DEFAULT_LEAD_USER_ID` as a fallback, so no token was needed at all.** Verified live before the fix: `GET /api/dashboard/command-center` and `GET /api/dashboard/automation-recipes` both returned **200** for a made-up `x-user-id` with no Authorization header.
+
+Worst of them:
+- `DELETE /api/dashboard/leads/:leadId` — delete any agent's lead.
+- `PATCH /api/dashboard/leads/:leadId/status` — **no owner check of any kind**, not even a spoofable one: rewrite the status and notes of ANY lead in the platform.
+- `GET /api/dashboard/leads/:leadId`, `/conversation`, `/export-conversations` — read any agent's leads and full chat transcripts.
+- `GET/PUT /api/agent/identity` — read and **rewrite the From / Reply-To address on an agent's outgoing email** (phishing vector). No frontend calls these; locked anyway.
+
+Changes:
+- `resolveDashboardOwnerId` is now **async and authenticated** — it resolves the owner from the signed-in session via `resolveRequesterUserId(req, { allowDefault: false })`, returns null on a bad/expired token (→ 401, never 500), and allows the one legitimate mismatch where a caller sends the `agents` profile id while the token carries the login id. All 7 call sites plus 8 inline `String(req.query.agentId || req.headers['x-user-id'] || … || DEFAULT_LEAD_USER_ID)` expressions now go through it, each followed by `if (!agentId) return res.status(401).json(UNAUTHORIZED_DASHBOARD)`.
+- `PATCH /api/dashboard/leads/:leadId/status` gained the same fetch-then-compare ownership check the delete route uses (404 if the lead is gone, 403 `listing_access_denied` if it is someone else's).
+- The reminder, command-center, listing-leads and listing-performance handlers already scoped their queries by `agentId` — they were only missing the proof that the caller owns that id. Nothing downstream changed.
+- **Frontend: one header builder now.** `defaultJsonHeaders` in `src/services/dashboard/utils.ts` was the sync, token-less version and was still used by 32 call sites across `appointments / commandCenter / leads / listingContent / listingPerformance / video`. It is now an alias of `authHeaders` (async, sends Bearer) and every call site awaits it. This closes the recurring root cause from the last three sessions — there is no longer a token-less builder to reach for. `listingBuilderService.ts` has its own local async version that already sent Bearer; left as-is.
+- Demo mode: `fetchAutomationRecipes` / `updateAutomationRecipe` were the only two dashboard calls with no demo short-circuit, so they would have 401'd the demo. Both now answer locally in demo mode.
+
+Verification: tsc clean, lint clean, Jest 43/43, backend 129/129, `npm run build` ✓. Live 401 checks after deploy are in the PR.
+
+**Found, NOT fixed (needs a decision, none are agent-dashboard):** `POST /api/listings`, `GET /api/listings/:listingId/market-analysis`, `GET /api/video-credits/:listingId`, `POST /api/security/audit`, `GET /api/training/feedback/:sidekick`, and the whole `/api/ai-card/*` group (6 routes — that UI is hidden as unused per CLAUDE.md) are all still spoofable the same way. Also `app.use('/api/dashboard')` has a `last_seen_at` middleware that bumps `agents.last_seen_at` for whatever id is sent — cosmetic only, left alone.
+
 ## 2026-10-01 08:35 — Claude: AI Brain guard card now reports WHY
 - The PR #56 guard card fired for Chris on the live site. His config row is intact (knowledge_base 3265 chars, bot_name "Chris Potter AI"), so the guard did its job, but the load is genuinely failing and I could not determine the status code from here. Ruled out: duplicate `lo_chatbot_configs` rows (none), missing `DEFAULT_RULEBOOKS` export (present at runtime), and an unauthenticated call (returns 401 correctly).
 - Added: one silent retry after 1.5s before showing the card (covers a Render free-plan cold start or a dropped request), and the card now prints `Reason: <status> <error>` so the next report identifies it in one step instead of another guessing round.
