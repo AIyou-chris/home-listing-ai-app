@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import PageGuide from './PageGuide';
 import toast from 'react-hot-toast'
 import { buildApiUrl } from '../../lib/api'
@@ -109,10 +110,11 @@ interface ScheduleModalProps {
   onClose: () => void
   onSave: (form: ScheduleFormState) => Promise<void>
   saving: boolean
+  initial?: Partial<ScheduleFormState>
 }
 
-const ScheduleModal: React.FC<ScheduleModalProps> = ({ onClose, onSave, saving }) => {
-  const [form, setForm] = useState<ScheduleFormState>({ ...EMPTY_FORM })
+const ScheduleModal: React.FC<ScheduleModalProps> = ({ onClose, onSave, saving, initial }) => {
+  const [form, setForm] = useState<ScheduleFormState>({ ...EMPTY_FORM, ...initial })
   const ref = useRef<HTMLDivElement>(null)
 
   // Close on backdrop click
@@ -453,7 +455,20 @@ const Section: React.FC<{
 const LOAppointmentsPage: React.FC = () => {
   const [appointments, setAppointments] = useState<LOAppointment[]>([])
   const [loading, setLoading] = useState(true)
-  const [showModal, setShowModal] = useState(false)
+  const [searchParams, setSearchParams] = useSearchParams()
+  // Arriving from the Partners page with ?name=…: open the form with that agent filled in.
+  const [prefill] = useState<Partial<ScheduleFormState> | undefined>(() => {
+    const name = searchParams.get('name')
+    if (!name) return undefined
+    const kindParam = searchParams.get('kind') as MeetingKind | null
+    return {
+      name,
+      email: searchParams.get('email') || '',
+      phone: searchParams.get('phone') || '',
+      kind: kindParam && MEETING_KINDS.includes(kindParam) ? kindParam : 'Agent Check-in'
+    }
+  })
+  const [showModal, setShowModal] = useState(Boolean(prefill))
   const [saving, setSaving] = useState(false)
   const [cancelConfirmId, setCancelConfirmId] = useState<string | null>(null)
 
@@ -730,9 +745,10 @@ const LOAppointmentsPage: React.FC = () => {
       {/* Schedule modal */}
       {showModal && (
         <ScheduleModal
-          onClose={() => setShowModal(false)}
+          onClose={() => { setShowModal(false); if (searchParams.get('name')) setSearchParams({}, { replace: true }) }}
           onSave={handleSchedule}
           saving={saving}
+          initial={prefill}
         />
       )}
     </div>
