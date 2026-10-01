@@ -34,6 +34,7 @@ const PreApprovalSheet: React.FC<PreApprovalSheetProps> = ({ open, onClose, list
   const [answers, setAnswers] = useState<Partial<Record<AnswerKey, string>>>({});
   const [firstName, setFirstName] = useState('');
   const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,7 +52,10 @@ const PreApprovalSheet: React.FC<PreApprovalSheetProps> = ({ open, onClose, list
   const loFirst = loName.split(' ')[0] || 'your loan officer';
   const answered = QUESTIONS.filter((q) => answers[q.key]).length;
   const digits = phone.replace(/\D/g, '');
-  const canSend = firstName.trim().length > 0 && digits.length >= 10 && !sending;
+  const phoneOk = digits.length >= 10;
+  const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+  // A buyer gives a name plus ONE way to reach them: phone or email, their choice.
+  const canSend = firstName.trim().length > 0 && (phoneOk || emailOk) && !sending;
 
   const submit = async () => {
     if (!canSend) return;
@@ -64,7 +68,8 @@ const PreApprovalSheet: React.FC<PreApprovalSheetProps> = ({ open, onClose, list
         body: JSON.stringify({
           listing_id: listingId,
           full_name: firstName.trim(),
-          phone: phone.trim(),
+          phone: phoneOk ? phone.trim() : null,
+          email: emailOk ? email.trim() : null,
           purchase_timeline: answers.timeline || null,
           currently_preapproved: answers.preapproved ? answers.preapproved === 'Yes' : null,
           credit_range: answers.credit || null,
@@ -75,7 +80,7 @@ const PreApprovalSheet: React.FC<PreApprovalSheetProps> = ({ open, onClose, list
       if (!res.ok) throw new Error('send_failed');
       setSent(true);
     } catch {
-      setError('Could not send. Please check your number and try again.');
+      setError('Could not send. Please check your details and try again.');
     } finally {
       setSending(false);
     }
@@ -97,7 +102,9 @@ const PreApprovalSheet: React.FC<PreApprovalSheetProps> = ({ open, onClose, list
               <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#166534" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
             </div>
             <h2 className="text-2xl font-bold">Got it, {firstName.trim()}!</h2>
-            <p className="text-[17px] leading-snug text-slate-600">{loFirst} will text or call you today, usually within the hour.</p>
+            <p className="text-[17px] leading-snug text-slate-600">
+              {phoneOk ? `${loFirst} will text or call you today, usually within the hour.` : `${loFirst} will email you today, usually within the hour.`}
+            </p>
             <button type="button" onClick={close} className="mt-2 h-[52px] w-full rounded-2xl border-[1.5px] border-slate-300 text-[17px] font-semibold">
               Back to the home
             </button>
@@ -146,27 +153,43 @@ const PreApprovalSheet: React.FC<PreApprovalSheetProps> = ({ open, onClose, list
 
             <div className="flex flex-col gap-2">
               <p className="text-[15px] font-semibold">Where should {loFirst} reach you?</p>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={firstName}
-                  onChange={(e) => setFirstName(e.target.value)}
-                  placeholder="First name"
-                  aria-label="First name"
-                  autoComplete="given-name"
-                  className="h-12 min-w-0 flex-1 rounded-xl border-[1.5px] border-slate-300 px-3.5 text-base"
-                />
-                <input
-                  type="tel"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="Mobile number"
-                  aria-label="Mobile number"
-                  autoComplete="tel"
-                  inputMode="tel"
-                  className="h-12 min-w-0 flex-1 rounded-xl border-[1.5px] border-slate-300 px-3.5 text-base"
-                />
+              <input
+                type="text"
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                placeholder="First name"
+                aria-label="First name"
+                autoComplete="given-name"
+                className="h-12 w-full rounded-xl border-[1.5px] border-slate-300 px-3.5 text-base"
+              />
+              <input
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="Mobile number"
+                aria-label="Mobile number"
+                autoComplete="tel"
+                inputMode="tel"
+                className="h-12 w-full rounded-xl border-[1.5px] border-slate-300 px-3.5 text-base"
+              />
+              <div className="flex items-center gap-3">
+                <span className="h-px flex-1 bg-slate-200" />
+                <span className="text-xs font-semibold text-slate-400">or</span>
+                <span className="h-px flex-1 bg-slate-200" />
               </div>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Email address"
+                aria-label="Email address"
+                autoComplete="email"
+                inputMode="email"
+                className="h-12 w-full rounded-xl border-[1.5px] border-slate-300 px-3.5 text-base"
+              />
+              {firstName.trim().length > 0 && !phoneOk && !emailOk && (phone.length > 0 || email.length > 0) && (
+                <p className="text-xs text-slate-500">Add a mobile number or an email so {loFirst} can get back to you.</p>
+              )}
             </div>
 
             {error && <p role="alert" className="text-sm font-medium text-red-700">{error}</p>}
@@ -180,7 +203,7 @@ const PreApprovalSheet: React.FC<PreApprovalSheetProps> = ({ open, onClose, list
               {sending ? 'Sending…' : `Send to ${loFirst}`}
             </button>
             <p className="text-[11px] leading-snug text-slate-500">
-              No credit check. This is not a loan application or a commitment to lend. {loName}{lo?.nmls ? `, NMLS ${lo.nmls},` : ''} may contact you by text or phone. Reply STOP to opt out.
+              No credit check. This is not a loan application or a commitment to lend. {loName}{lo?.nmls ? `, NMLS ${lo.nmls},` : ''} may contact you by text, phone or email. Reply STOP to opt out of texts.
             </p>
           </div>
         )}

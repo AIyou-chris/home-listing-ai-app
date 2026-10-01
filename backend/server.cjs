@@ -76,6 +76,13 @@ const pdfParse = require('pdf-parse');
 
 const leadScoringService = require('./services/LeadScoringService');
 const { rateLeadIntent } = require('./services/leadIntentRater');
+
+// A Supabase query builder is a thenable, NOT a real promise: it has `then` but no
+// `catch`. So `await supabaseAdmin.from(..).insert(..).catch(fn)` throws
+// "catch is not a function" and takes the whole request down — which is exactly how a
+// best-effort notification was 500-ing the pre-approval form. Wrap the builder in a real
+// promise and swallow the failure: these calls are never allowed to fail the request.
+const bestEffort = (query) => Promise.resolve(query).then((r) => r, () => null);
 const { createTypeSafeClient: createJevClient } = require('./services/typesafeClient');
 const MAILGUN_API_KEY = process.env.MAILGUN_API_KEY;
 // The specialized "HTTP Webhook Signing Key" must be used for webhooks, NOT the Sending API Key.
@@ -33660,9 +33667,13 @@ app.post('/api/leads/pre-qual', async (req, res) => {
     if (pqError) throw pqError;
 
     // 3) Tell the LO and the listing agent (dual notify).
-    if (loAgentId) {
+    // notifications.user_id FKs to auth.users, but loAgentId is the agents.id profile id —
+    // so the LO's alert has to be addressed to their LOGIN id or it silently never lands.
+    const { data: loAuthRow } = await bestEffort(supabaseAdmin.from('agents').select('auth_user_id').eq('id', loAgentId).maybeSingle()) || { data: null };
+    const loAuthId = loAuthRow?.auth_user_id || null;
+    if (loAuthId) {
       const intentIcon = rating.level === 'Hot' ? '🔥' : rating.level === 'Warm' ? '👍' : '❄️';
-      await supabaseAdmin.from('notifications').insert({ user_id: loAgentId, title: `${intentIcon} New ${rating.level.toLowerCase()} pre-approval lead`, content: `${fullName || 'A buyer'} asked about financing at ${property.address || 'a listing'}. ${rating.reason}`, type: 'lead', priority: rating.level === 'Hot' ? 'high' : 'normal', is_read: false }).catch(() => null);
+      await bestEffort(supabaseAdmin.from('notifications').insert({ user_id: loAuthId, title: `${intentIcon} New ${rating.level.toLowerCase()} pre-approval lead`, content: `${fullName || 'A buyer'} asked about financing at ${property.address || 'a listing'}. ${rating.reason}`, type: 'lead', priority: rating.level === 'Hot' ? 'high' : 'normal', is_read: false }));
     }
     if (isNewLead && listingAgentId) {
       await enqueueLeadCaptureNotifications({
@@ -33706,7 +33717,7 @@ app.patch('/api/listings/:listingId/sold', requireAuth, async (req, res) => {
     if (updateError) throw updateError;
     const { data: loAssignment } = await supabaseAdmin.from('listing_lo_assignments').select('lo_agent_id').eq('listing_id', listingId).limit(1);
     if (loAssignment?.[0]?.lo_agent_id) {
-      await supabaseAdmin.from('notifications').insert({ user_id: loAssignment[0].lo_agent_id, title: '🎉 Listing sold!', content: `${listing.address} just sold! ${leadCount || 0} leads, ${viewCount || 0} views.`, type: 'listing', priority: 'high', is_read: false }).catch(() => null);
+      await bestEffort(supabaseAdmin.from('notifications').insert({ user_id: loAssignment[0].lo_agent_id, title: '🎉 Listing sold!', content: `${listing.address} just sold! ${leadCount || 0} leads, ${viewCount || 0} views.`, type: 'listing', priority: 'high', is_read: false }));
     }
     res.json({ success: true, sold_price: soldPrice, total_leads: leadCount || 0, total_views: viewCount || 0 });
   } catch (err) {
@@ -33880,13 +33891,13 @@ app.post('/api/internal/run-nudge-job', async (req, res) => {
     const nudged = [];
     for (const lead of (unworkedLeads || [])) {
       const displayName = lead.full_name || lead.name || 'A lead';
-      const { data: listingRow } = await supabaseAdmin.from('listings').select('address').eq('id', lead.listing_id).single().catch(() => ({ data: null }));
+      const { data: listingRow } = await bestEffort(supabaseAdmin.from('listings').select('address').eq('id', lead.listing_id).single()) || { data: null };
       const address = listingRow?.address || 'a listing';
-      await supabaseAdmin.from('notifications').insert({ user_id: lead.agent_id, title: '⏰ Lead needs follow-up', content: `${displayName} reached out 24h ago at ${address} — no contact yet.`, type: 'lead', priority: 'high', is_read: false }).catch(() => null);
+      await bestEffort(supabaseAdmin.from('notifications').insert({ user_id: lead.agent_id, title: '⏰ Lead needs follow-up', content: `${displayName} reached out 24h ago at ${address} — no contact yet.`, type: 'lead', priority: 'high', is_read: false }));
       if (lead.lo_agent_id && lead.lo_agent_id !== lead.agent_id) {
-        await supabaseAdmin.from('notifications').insert({ user_id: lead.lo_agent_id, title: '⏰ Lead needs follow-up', content: `${displayName} at ${address} hasn't been contacted in 24h.`, type: 'lead', priority: 'high', is_read: false }).catch(() => null);
+        await bestEffort(supabaseAdmin.from('notifications').insert({ user_id: lead.lo_agent_id, title: '⏰ Lead needs follow-up', content: `${displayName} at ${address} hasn't been contacted in 24h.`, type: 'lead', priority: 'high', is_read: false }));
       }
-      await supabaseAdmin.from('leads').update({ nudge_sent_at: nowIso() }).eq('id', lead.id).catch(() => null);
+      await bestEffort(supabaseAdmin.from('leads').update({ nudge_sent_at: nowIso() }).eq('id', lead.id));
       nudged.push(lead.id);
     }
     res.json({ success: true, nudged: nudged.length });
