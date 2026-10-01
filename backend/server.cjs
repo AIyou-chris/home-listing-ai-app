@@ -33265,9 +33265,21 @@ app.get('/api/lo/partners', requireAuth, async (req, res) => {
         .in('agent_id', partnerAgentIdsList);
       (leadCounts || []).forEach(l => { if (l.agent_id) leadCountByAgent[l.agent_id] = (leadCountByAgent[l.agent_id] || 0) + 1; });
     }
+    // Real per-home numbers: leads this LO got from the home, and public page views.
+    const allListingIds = assignedRows.map(r => r.listingId).filter(Boolean);
+    const leadsByListing = {};
+    const viewsByListing = {};
+    if (allListingIds.length > 0) {
+      const [leadRowsRes, viewRowsRes] = await Promise.all([
+        supabaseAdmin.from('leads').select('listing_id').eq('lo_agent_id', loProfileId).in('listing_id', allListingIds).limit(10000),
+        supabaseAdmin.from('listing_events').select('listing_id').eq('type', 'view').in('listing_id', allListingIds).limit(20000)
+      ]);
+      (leadRowsRes.data || []).forEach(r => { leadsByListing[r.listing_id] = (leadsByListing[r.listing_id] || 0) + 1; });
+      (viewRowsRes.data || []).forEach(r => { viewsByListing[r.listing_id] = (viewsByListing[r.listing_id] || 0) + 1; });
+    }
     const partners = (partnerships || []).map(p => {
       const agent = p.agent || {}; const agentId = agent.id;
-      const listings = (listingsByAgent[agentId] || []).map(l => ({ listingId: l.listingId, address: l.address || 'Unknown', price: l.price || null, status: l.status || 'draft', heroPhoto: l.heroPhoto || null, totalLeads: 0, totalViews: 0 }));
+      const listings = (listingsByAgent[agentId] || []).map(l => ({ listingId: l.listingId, address: l.address || 'Unknown', price: l.price || null, status: l.status || 'draft', heroPhoto: l.heroPhoto || null, totalLeads: leadsByListing[l.listingId] || 0, totalViews: viewsByListing[l.listingId] || 0 }));
       return { partnershipId: p.id, agentId, name: [agent.first_name, agent.last_name].filter(Boolean).join(' ') || 'Agent', email: agent.email || null, phone: agent.phone || null, website: agent.website || null, headshotUrl: agent.headshot_url || null, company: agent.company || null, totalLeads: leadCountByAgent[agentId] || 0, listings, joinedAt: p.created_at, notes: p.notes || '', rating: p.rating || null, lastFollowUp: p.last_follow_up || null };
     });
     res.json({ success: true, partners, pendingInvites: (pendingInvites || []).map(i => ({ id: i.id, token: i.token, email: i.invited_email, name: i.invited_name || null, phone: i.invited_phone || null, sentAt: i.created_at, openedAt: i.opened_at || null, ctaClickedAt: i.cta_clicked_at || null })) });
@@ -33455,23 +33467,26 @@ app.delete('/api/lo/partners/:partnershipId', requireAuth, async (req, res) => {
       .update({ status: 'removed' })
       .eq('id', partnershipId);
 
-    // Disable LO branding on listings for this agent
-    // Step 1: get listing IDs owned by the removed agent
-    const { data: agentListings } = await supabaseAdmin
-      .from('listings')
-      .select('id')
-      .eq('agent_id', partnership.agent_id);
-    const agentListingIds = (agentListings || []).map(l => l.id).filter(Boolean);
-    if (agentListingIds.length > 0) {
-      await supabaseAdmin.from('listing_lo_assignments')
-        .update({ branding_enabled: false })
-        .eq('lo_agent_id', loAuthId)
-        .in('listing_id', agentListingIds);
+    // Turn off this LO's co-branding on every home the removed agent owns.
+    // properties.agent_id/user_id hold the owner's AUTH id; listing_lo_assignments.lo_agent_id is the LO's PROFILE id.
+    const { data: agentRow } = await supabaseAdmin.from('agents')
+      .select('email, auth_user_id').eq('id', partnership.agent_id).maybeSingle();
+    const ownerAuthId = agentRow?.auth_user_id || null;
+    if (ownerAuthId) {
+      const { data: ownedProps } = await supabaseAdmin
+        .from('properties')
+        .select('id')
+        .or(`agent_id.eq.${ownerAuthId},user_id.eq.${ownerAuthId}`);
+      const ownedIds = (ownedProps || []).map((r) => r.id).filter(Boolean);
+      if (ownedIds.length > 0) {
+        await supabaseAdmin.from('listing_lo_assignments')
+          .update({ branding_enabled: false })
+          .eq('lo_agent_id', loProfileId)
+          .in('listing_id', ownedIds);
+      }
     }
 
     // Expire all unclaimed invite tokens for this LO+agent pair
-    const { data: agentRow } = await supabaseAdmin.from('agents')
-      .select('email').eq('id', partnership.agent_id).maybeSingle();
     if (agentRow?.email) {
       await supabaseAdmin.from('agent_invites')
         .update({ expires_at: new Date().toISOString() })

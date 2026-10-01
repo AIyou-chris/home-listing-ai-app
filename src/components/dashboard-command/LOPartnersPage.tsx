@@ -117,6 +117,15 @@ const patchPartnerMeta = async (partnershipId: string, updates: { notes?: string
   } catch { /* silently fail — localStorage remains source of truth during session */ }
 }
 
+// Opens the Appointments page with the agent pre-filled in the Schedule Meeting form
+const scheduleWithPartner = (partner: { name: string; email: string | null; phone: string | null }, demoMode: boolean) => {
+  const q = new URLSearchParams({ name: partner.name, kind: 'Agent Check-in' })
+  if (partner.email) q.set('email', partner.email)
+  if (partner.phone) q.set('phone', partner.phone)
+  const base = buildDashboardPath('/appointments', demoMode)
+  return `${base}${base.includes('?') ? '&' : '?'}${q.toString()}`
+}
+
 const toFollowUpLabel = (ts: string | null | undefined) => {
   if (!ts) return null
   const days = Math.round((Date.now() - new Date(ts).getTime()) / 86400000)
@@ -473,7 +482,7 @@ const PartnerCard: React.FC<{ partner: Partner; onViewListings: (p: Partner) => 
           {/* Schedule appointment */}
           <button
             type="button"
-            onClick={() => navigate(buildDashboardPath('/appointments', demoMode))}
+            onClick={() => navigate(scheduleWithPartner(partner, demoMode))}
             className="flex items-center justify-center gap-2 w-full border border-primary-200 rounded-xl py-2.5 text-sm font-bold text-primary-600 bg-primary-50 hover:bg-primary-100 transition-all"
           >
             📅 Schedule Appointment
@@ -622,7 +631,7 @@ const PartnerDetail: React.FC<{ partner: Partner; onClose: () => void }> = ({ pa
     <div className="flex-1 bg-black/30" onClick={onClose} />
     <div className="w-full max-w-lg bg-white h-full overflow-y-auto shadow-2xl">
       {/* Header */}
-      <div className="sticky top-0 bg-white border-b border-slate-100 px-6 py-4 flex items-center gap-4 z-10">
+      <div className="sticky top-0 bg-white border-b border-slate-100 pl-6 pr-16 py-4 flex items-center gap-4 z-10">
         <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-xl font-bold">←</button>
         <Avatar src={partner.headshotUrl} name={partner.name} size={36} />
         <div className="flex-1">
@@ -698,7 +707,7 @@ const PartnerDetail: React.FC<{ partner: Partner; onClose: () => void }> = ({ pa
         {/* Schedule appointment */}
         <button
           type="button"
-          onClick={() => navigate(buildDashboardPath('/appointments', demoMode))}
+          onClick={() => navigate(scheduleWithPartner(partner, demoMode))}
           className="flex items-center justify-center gap-2 w-full bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-xl py-3 text-sm transition-all"
         >
           📅 Schedule Appointment
@@ -747,6 +756,7 @@ const LOPartnersPage: React.FC = () => {
   const [partners, setPartners] = useState<Partner[]>([])
   const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadFailed, setLoadFailed] = useState(false)
   const [showInvite, setShowInvite] = useState(false)
   const [selectedPartner, setSelectedPartner] = useState<Partner | null>(null)
   const [revokeConfirmId, setRevokeConfirmId] = useState<string | null>(null)
@@ -762,6 +772,7 @@ const LOPartnersPage: React.FC = () => {
     try {
       const headers = await getApiHeaders()
       const res = await fetch(buildApiUrl('/api/lo/partners'), { headers })
+      if (!res.ok) throw new Error('partners_load_failed')
       const json = await res.json() as { success: boolean; partners: Partner[]; pendingInvites: PendingInvite[] }
       if (!mountedRef.current) return
       // Seed localStorage from server — server is authoritative after migration
@@ -774,10 +785,12 @@ const LOPartnersPage: React.FC = () => {
         }
       })
       saveMeta(meta)
+      setLoadFailed(false)
       setPartners(json.partners || [])
       setPendingInvites(json.pendingInvites || [])
     } catch {
-      showToast.error('Failed to load partners')
+      setLoadFailed(true)
+      showToast.error('Could not load your partners. Try again.')
     } finally {
       if (mountedRef.current) setLoading(false)
     }
@@ -809,7 +822,14 @@ const LOPartnersPage: React.FC = () => {
       <PageGuide pageKey="lo-partners" />
 
       {/* Empty state */}
-      {partners.length === 0 && pendingInvites.length === 0 && (
+      {loadFailed && (
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-800">
+          We couldn't load your partners just now.{' '}
+          <button onClick={() => { setLoading(true); void load() }} className="font-bold underline">Try again</button>
+        </div>
+      )}
+
+      {!loadFailed && partners.length === 0 && pendingInvites.length === 0 && (
         <div className="rounded-2xl border-2 border-dashed border-slate-200 p-16 text-center">
           <div className="text-5xl mb-4">🤝</div>
           <h3 className="text-lg font-bold text-slate-900 mb-2">No partners yet</h3>

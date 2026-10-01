@@ -7,6 +7,13 @@
 > **End of every session (or before handing off):** add a new entry at the TOP of the log. Keep it short.
 > **Before editing a file another agent touched in its last entry:** read that entry first. Don't redo or undo their work silently.
 
+## 2026-09-30 18:00 — Claude: LO Partners tab fixes
+- `GET /api/lo/partners` now returns real per-listing `totalLeads` (leads.lo_agent_id + listing_id) and `totalViews` (listing_events type 'view'). Were hard-coded 0.
+- `DELETE /api/lo/partners/:id` now really turns off co-branding: finds the removed agent's homes in `properties` (agent_id/user_id = auth id) and sets `listing_lo_assignments.branding_enabled=false` with the LO PROFILE id. Old code queried legacy `listings` and used the auth id, so it never matched.
+- Partners page: load failure shows a retry card instead of a fake empty list; side-panel header leaves room for the bell; "Schedule Appointment" opens LO Appointments with the agent pre-filled (`?name&email&phone&kind`, read by `LOAppointmentsPage`).
+- Deleted Chris's unclaimed test invite (anaiyou@pm.me). Fred Potter (foodtrucknai@gmail.com) left as a partner on purpose.
+- Not changed: appointment reminder/lead-detail routes still trust x-user-id (Leads/Appointments tab audit).
+
 ## 2026-09-30 17:40 — Claude: LO Today page cleanup
 - `LOTodayPage.tsx`: stat cards now New leads today / Hot leads / Pre-approvals / Partners (with "N opened"); drafts collapse into one line under My Listings; empty Recent Leads has a "Send a WOW link" button; Quick Actions (dupe of sidebar) replaced by one primary "Send a WOW link" card; bottom padding so the chat bubble does not cover it.
 - `GET /api/lo/dashboard/today` now returns `stats.hotLeads` (leads.intent_level='Hot'), `stats.partnersOpened` (agent_invites.opened_at not null) and `intentLevel` on recent leads (the red/amber dots were always amber before).
