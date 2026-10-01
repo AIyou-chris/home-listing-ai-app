@@ -35081,7 +35081,9 @@ const chatbotFileUpload = multer({
   }
 });
 
-app.post('/api/lo/chatbot/extract-file', (req, res, next) => {
+// requireAuth runs FIRST so a stranger can't make the server read a 25MB upload
+// before being turned away.
+app.post('/api/lo/chatbot/extract-file', requireAuth, (req, res, next) => {
   chatbotFileUpload.single('file')(req, res, (err) => {
     if (err) {
       if (err.code === 'LIMIT_FILE_SIZE') {
@@ -35094,7 +35096,7 @@ app.post('/api/lo/chatbot/extract-file', (req, res, next) => {
     }
     next();
   });
-}, requireAuth, async (req, res) => {
+}, async (req, res) => {
   try {
     const agentId = req.authUserId;
 

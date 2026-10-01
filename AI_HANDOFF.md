@@ -7,6 +7,13 @@
 > **End of every session (or before handing off):** add a new entry at the TOP of the log. Keep it short.
 > **Before editing a file another agent touched in its last entry:** read that entry first. Don't redo or undo their work silently.
 
+## 2026-10-01 07:45 — Claude: AI Brain tab — DATA-LOSS bug fixed
+- **🔴 The LO's trained brain could be silently erased.** `LOBrainPage` loaded `GET /api/lo/chatbot-config` with `if (res.ok)` and NO else branch: any non-OK response (401 after session expiry, 500, blip) left `config` at `EMPTY_CONFIG` and rendered a blank-but-working form. The next `persist()` PUT — including the automatic one from `addSource`/`removeSource` — upserted blanks over `lo_chatbot_configs` (knowledge_base, faq, compliance, banned_phrases, licensed_states) and toasted "AI Brain saved". Fix: a failed load sets `loadFailed`, the page renders a hard-stop card instead of the form, and `persist()` refuses to write while `loadFailed` is true. Verified by forcing a 500 on the config call — the guard card renders and no form is reachable.
+- Unsaved edits now trigger a `beforeunload` warning.
+- `POST /api/lo/chatbot/extract-file` now runs `requireAuth` BEFORE multer, so an anonymous 25MB upload is rejected without being buffered. (This closes Codex's open question — auth WAS present, just after the upload middleware.)
+- Audit result otherwise clean: every `/api/lo/brain/*`, `/api/lo/chatbot-config`, `/api/lo/phone-*` route is `requireLoAgent`; `extract-url` is `requireAuth`; test chat, voice preview, number purchase and handoff number all surface errors properly.
+- **Pattern worth remembering across this whole audit: `if (res.ok) {…}` with no else is a data-loss bug whenever the loaded value is later written back.**
+
 ## 2026-10-01 07:35 — Claude: Listings tab + per-listing call forwarding
 - **NEW: "Send hot callers to" per listing** (Chris's ask). `lo_phone_lines.transfer_number` and `transferTarget()` already existed but were main-line only and had no UI. `setTransferNumber(loAgentId, value, listingId)` now takes a listing; new `PUT /api/lo/listings/:listingId/phone-line/transfer` (requireLoAgent + `listing_lo_assignments` check → 403 `listing_access_denied`); the field lives in `ListingPhonePanel` under an active number. Blank falls back to the LO's own phone, which is the pre-existing behaviour.
 - Branding switches no longer lie: a failed PATCH rolls the switch back and toasts, and a failed GET shows the backend default (all on) instead of spinning forever.
