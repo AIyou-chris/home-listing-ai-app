@@ -277,6 +277,31 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({ onClose, onSave, saving, 
             />
           </div>
 
+          {/* Reminders */}
+          <div className="rounded-xl border border-slate-200 p-3">
+            <p className="text-sm font-medium text-slate-700 mb-2">Reminders</p>
+            <label className="flex items-center gap-2 text-sm text-slate-600">
+              <input
+                type="checkbox"
+                checked={form.remindMe}
+                onChange={e => setForm(prev => ({ ...prev, remindMe: e.target.checked }))}
+                className="h-4 w-4 rounded border-slate-300"
+              />
+              Remind me 1 hour before
+            </label>
+            <label className="mt-2 flex items-center gap-2 text-sm text-slate-600">
+              <input
+                type="checkbox"
+                checked={form.remindThem && Boolean(form.email || form.phone)}
+                disabled={!form.email && !form.phone}
+                onChange={e => setForm(prev => ({ ...prev, remindThem: e.target.checked }))}
+                className="h-4 w-4 rounded border-slate-300"
+              />
+              Remind them the day before
+              {!form.email && !form.phone && <span className="text-xs text-slate-400">(add an email or phone)</span>}
+            </label>
+          </div>
+
           {/* Actions */}
           <div className="flex justify-end gap-3 pt-2">
             <button
@@ -556,6 +581,10 @@ const LOAppointmentsPage: React.FC = () => {
           clientReminderMinutes: 1440,
         }),
       })
+      if (r.status === 401) {
+        toast.error('Your session expired. Refresh the page and sign in again.')
+        return
+      }
       if (!r.ok) throw new Error('Failed to create appointment')
       toast.success('Meeting scheduled!')
       setShowModal(false)
@@ -576,6 +605,7 @@ const LOAppointmentsPage: React.FC = () => {
         headers: await apiHeaders(true),
         body: JSON.stringify({ status: 'completed' }),
       })
+      if (r.status === 401) { toast.error('Your session expired. Refresh the page and sign in again.'); return }
       if (!r.ok) throw new Error()
       setAppointments(prev =>
         prev.map(a => a.id === id ? { ...a, status: 'completed' } : a)
@@ -598,6 +628,7 @@ const LOAppointmentsPage: React.FC = () => {
         headers: await apiHeaders(true),
         body: JSON.stringify({ status: 'canceled' }),
       })
+      if (r.status === 401) { toast.error('Your session expired. Refresh the page and sign in again.'); return }
       if (!r.ok) throw new Error()
       setAppointments(prev => prev.map(a => a.id === id ? { ...a, status: 'canceled' } : a))
       toast.success('Meeting canceled')
