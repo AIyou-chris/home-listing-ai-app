@@ -7,6 +7,12 @@
 > **End of every session (or before handing off):** add a new entry at the TOP of the log. Keep it short.
 > **Before editing a file another agent touched in its last entry:** read that entry first. Don't redo or undo their work silently.
 
+## 2026-10-01 08:05 — Claude: listing photo upload was 401 in production
+- Chris: "I try to load a pic and it states unauthorized." `listingMediaService.uploadListingPhoto` POSTed to `/api/listings/photo-upload` with ONLY `Content-Type: application/json` — no Bearer, no `x-user-id`. That endpoint is `requireAuth`, and in production `resolveRequesterUserId` ignores a body `userId` without a token (`allowExplicitWithoutAuth` is false), so **every photo upload 401'd**. Pre-existing, not from this audit's changes.
+- Fix: send `waitForAuthenticatedSession()`'s `accessToken` as Bearer plus `x-user-id`, matching `listingBuilderService.defaultJsonHeaders`.
+- Checked the sibling upload paths: `listingBuilderService.uploadListingBrainDoc` already sends Bearer; no other service posts a file without auth.
+- **This is the third instance of the same root cause (ROI/onboarding earlier, dashboard appointments, now photo upload): a fetch written before the Bearer-token convention existed.** CLAUDE.md §3 already documents the rule; the remaining risk is older files that predate it.
+
 ## 2026-10-01 07:50 — Claude: listing editor publish rules
 - `canPublish` required beds > 0 AND baths > 0 AND sqft > 0, so **land, lots and parking spaces could never be published**. Now publishing needs: address + price + **at least one photo**. Beds/baths/sqft are optional.
 - A photo is newly REQUIRED: the public listing page, flyer (`LOShareKitPage` design C uses `listing.photos[0]`) and WOW link are all built around the first photo and render blank without one.
