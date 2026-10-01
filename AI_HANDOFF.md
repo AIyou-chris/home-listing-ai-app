@@ -7,6 +7,12 @@
 > **End of every session (or before handing off):** add a new entry at the TOP of the log. Keep it short.
 > **Before editing a file another agent touched in its last entry:** read that entry first. Don't redo or undo their work silently.
 
+## 2026-09-30 19:30 — Claude: appointments 500 hardening (cause not fully pinned)
+- Chris's console showed `/api/appointments` **500** alongside `/api/me/brand` 401 and `rpc/is_user_admin` 403 — i.e. his session token was being rejected across the board.
+- Hardened `appointmentOwnerIds()`: `resolveRequesterUserId` is now inside try/catch, so a malformed/expired token returns a clean 401 ("sign in again") instead of falling through to the handler's catch as a 500. Also made the `fetchAiCardProfileForUser` lookup non-fatal in `GET /api/appointments`.
+- **Still unproven:** could not reproduce the 500 — Supabase signup is locked down (`email_address_invalid`) so no throwaway token could be minted, and Render logs aren't reachable from here. Evidence is ambiguous: the page rendered the empty state rather than the new retry card, which suggests the GET actually succeeded and the 500 line was from the earlier (pre-#52) POST attempt. **If it recurs, the next step is Render logs for `Error getting appointments:`.**
+- Verified the live bundle is current: `assets/LOAppointmentsPage-BbX27ROp.js` contains both the retry card and "Remind me 1 hour before".
+
 ## 2026-09-30 19:20 — Claude: appointment form follow-up
 - Chris hit "Failed to schedule meeting" right after PR #51. Cause: his tab still had the PRE-#51 bundle, which sent only `x-user-id` and no Bearer — the newly owner-scoped `POST /api/appointments` correctly returned 401. Verified the live bundle IS current (`assets/LOAppointmentsPage-MIG81piL.js` contains `Authorization`, `status:"canceled"`, and no `method:"DELETE"`), and the Netlify production deploy (6abdbf18) published commit ee7b66ac at 02:02:34Z. A hard refresh clears it.
 - A 401 from create / complete / cancel now says "Your session expired. Refresh the page and sign in again." instead of a generic failure, so a stale tab explains itself.
