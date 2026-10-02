@@ -31763,7 +31763,7 @@ app.get('/api/lo/dashboard/today', requireAuth, async (req, res) => {
       leadCount(q => q.gte('created_at', startOf30Days)),
       leadCount(q => q.eq('source_meta->>context', 'pre_approval')),
       leadCount(q => q.eq('source_meta->>context', 'showing_request')),
-      supabaseAdmin.from('leads').select('id, full_name, name, email, email_lower, phone, status, source_type, source_meta, created_at, listing_id, lo_agent_id, intent_level').eq('lo_agent_id', leadOwnerId).order('created_at', { ascending: false }).limit(10),
+      supabaseAdmin.from('leads').select('id, full_name, name, email, email_lower, phone, phone_e164, status, source_type, source_meta, created_at, listing_id, lo_agent_id, intent_level').eq('lo_agent_id', leadOwnerId).order('created_at', { ascending: false }).limit(10),
       supabaseAdmin.from('leads').select('listing_id').eq('lo_agent_id', leadOwnerId).not('listing_id', 'is', null).limit(5000),
       leadCount(q => q.eq('intent_level', 'Hot'))
     ]);
@@ -31775,7 +31775,7 @@ app.get('/api/lo/dashboard/today', requireAuth, async (req, res) => {
     const newThisMonth = monthRes.count || 0;
     const preApprovalLeads = preApprovalRes.count || 0;
     const showingLeads = showingRes.count || 0;
-    const recentLeads = (recentRes.data || []).map(l => ({ id: l.id, name: l.full_name || l.name || 'Unknown', email: l.email_lower || l.email || null, status: l.status || 'New', context: l.source_meta?.context || 'general_info', intentLevel: l.intent_level || 'Warm', listingId: l.listing_id || null, createdAt: l.created_at }));
+    const recentLeads = (recentRes.data || []).map(l => ({ id: l.id, name: l.full_name || l.name || 'Unknown', email: l.email_lower || l.email || null, phone: l.phone_e164 || l.phone || null, status: l.status || 'New', context: l.source_meta?.context || 'general_info', sourceType: l.source_type || 'unknown', intentLevel: l.intent_level || 'Warm', intentReason: l.source_meta?.intent_reason || null, listingId: l.listing_id || null, createdAt: l.created_at }));
     const loProfileId = (await resolveLoAgentId(req)) || loAgentId;
     const assignedRows = await fetchLoAssignedListings(loProfileId);
     const listingLeadCounts = leads.reduce((acc, l) => { if (l.listing_id) acc[l.listing_id] = (acc[l.listing_id] || 0) + 1; return acc; }, {});

@@ -14,7 +14,7 @@ const formatWait = (minutes: number) => {
   return `Waiting ${Math.floor(hours / 24)}d`
 }
 
-export const WaitingBadge: React.FC<{ lead: DashboardLeadItem; className?: string }> = ({ lead, className = '' }) => {
+export const WaitingBadge: React.FC<{ lead: Pick<DashboardLeadItem, 'status' | 'created_at' | 'intent_level' | 'last_agent_action_at'>; className?: string }> = ({ lead, className = '' }) => {
   const now = useNow()
   if (String(lead.status || '').toLowerCase() !== 'new' || lead.last_agent_action_at) return null
   const created = new Date(lead.created_at || '').getTime()

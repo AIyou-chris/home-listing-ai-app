@@ -1731,7 +1731,7 @@ const App: React.FC = () => {
 
                         {/* Today + onboarding always accessible */}
                         <Route path="/dashboard/today" element={<TodayDashboardPage />} />
-                        <Route path="/dashboard/lo-today" element={<LOTodayPage />} />
+                        <Route path="/dashboard/lo-today" element={<div className="mx-auto max-w-7xl px-4 py-6 md:px-8"><LOTodayPage /></div>} />
 
                         {/* All feature routes gated — redirect to onboarding if profile incomplete */}
                         <Route element={<RequireOnboarding />}>

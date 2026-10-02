@@ -4,6 +4,9 @@ import { useNavigate } from 'react-router-dom'
 import { buildDashboardPath, useDemoMode } from '../../demo/useDemoMode'
 import { buildApiUrl } from '../../lib/api'
 import { authHeaders } from '../../services/dashboard/utils'
+import CallNowHero from './CallNowHero'
+import { CallTextButtons, WaitingBadge } from './LeadActions'
+import type { DashboardLeadItem } from '../../services/dashboardCommandService'
 import { supabase } from '../../services/supabase'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -21,6 +24,11 @@ interface LOStats {
   hotLeads?: number
 }
 
+const toIntentLevel = (value: string): 'Hot' | 'Warm' | 'Cold' => {
+  const v = String(value || '').toLowerCase()
+  return v === 'hot' ? 'Hot' : v === 'cold' ? 'Cold' : 'Warm'
+}
+
 interface RecentLead {
   id: string
   name: string
@@ -28,6 +36,7 @@ interface RecentLead {
   phone: string | null
   status: string
   intentLevel: string
+  intentReason?: string | null
   context: string
   sourceType: string
   listingId: string | null
@@ -394,6 +403,17 @@ const LOTodayPage: React.FC = () => {
   }
 
   const { stats, recentLeads } = data
+  // The one lead to call right now: a new one, Hot first, then newest.
+  const heroSource = recentLeads
+    .filter((l) => String(l.status).toLowerCase() === 'new')
+    .sort((a, b) => (toIntentLevel(a.intentLevel) === 'Hot' ? 0 : 1) - (toIntentLevel(b.intentLevel) === 'Hot' ? 0 : 1) || new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0]
+  const heroLead: DashboardLeadItem | null = heroSource ? {
+    id: heroSource.id, name: heroSource.name, phone: heroSource.phone, email: heroSource.email, status: heroSource.status,
+    source_type: heroSource.sourceType, intent_level: toIntentLevel(heroSource.intentLevel), intent_score: 0, timeline: 'unknown', financing: 'unknown',
+    lead_summary: null, next_best_action: null, intent_reason: heroSource.intentReason || null, can_ask_lo: false,
+    last_activity_at: heroSource.createdAt, last_activity_relative: '', last_message_preview: null, created_at: heroSource.createdAt,
+    listing_id: heroSource.listingId, listing: null
+  } : null
   // Live homes first. Unfinished drafts collapse into one line instead of cluttering the list.
   const assignedListings = data.assignedListings.filter((l) => l.status === 'published')
   const draftCount = data.assignedListings.length - assignedListings.length
@@ -410,6 +430,8 @@ const LOTodayPage: React.FC = () => {
           Here's your pipeline across {stats.assignedListings} listing{stats.assignedListings !== 1 ? 's' : ''}.
         </p>
       </div>
+
+      {heroLead && <CallNowHero lead={heroLead} onOpen={() => navTo('/lo-leads')} onCalled={() => undefined} />}
 
       <PageGuide pageKey="lo-today" />
 
@@ -505,6 +527,14 @@ const LOTodayPage: React.FC = () => {
                     <span className={`flex-shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full border ${ctx.color}`}>
                       {ctx.label}
                     </span>
+
+                    {/* Waiting timer + one-tap call/text */}
+                    <WaitingBadge lead={{ status: lead.status, created_at: lead.createdAt, intent_level: toIntentLevel(lead.intentLevel) }} className="hidden sm:inline-flex" />
+                    {lead.phone && (
+                      <span className="flex flex-shrink-0 gap-1.5" onClick={(e) => e.stopPropagation()}>
+                        <CallTextButtons phone={lead.phone} />
+                      </span>
+                    )}
 
                     {/* Time */}
                     <span className="flex-shrink-0 text-xs text-slate-400">{toRelativeTime(lead.createdAt)}</span>

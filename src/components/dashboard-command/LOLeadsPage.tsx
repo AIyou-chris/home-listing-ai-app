@@ -5,6 +5,7 @@ import { buildDashboardPath } from '../../demo/useDemoMode';
 import { buildApiUrl } from '../../lib/api';
 import { supabase } from '../../services/supabase';
 import { useDemoMode } from '../../demo/useDemoMode';
+import { WaitingBadge } from './LeadActions';
 import { showToast } from '../../utils/toastService';
 
 type LeadStatus = 'New' | 'Contacted' | 'Qualified' | 'Closed';
@@ -243,6 +244,7 @@ const LeadCard: React.FC<{ lead: Lead; expanded: boolean; onToggle: () => void; 
             <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${STATUS_OPTIONS.find(s => s.value === status)?.color || 'bg-slate-100 text-slate-500'}`}>
               {status}
             </span>
+            <WaitingBadge lead={{ status, created_at: lead.created_at, intent_level: lead.intent_level }} />
           </div>
           {lead.intent_reason && (
             <p className="mt-0.5 text-xs text-slate-500 truncate" title={lead.intent_reason}>{lead.intent_reason}</p>
