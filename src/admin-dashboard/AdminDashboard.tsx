@@ -5,7 +5,6 @@ import AICardPage from '../components/AICardPage';
 import AIConversationsPage from '../components/AIConversationsPage';
 import AdminCommandCenter from './components/AdminCommandCenter';
 import AdminAISidekicksPage from './components/AdminAISidekicksPage';
-// import EnhancedAISidekicksHub from '../components/EnhancedAISidekicksHub'; // Kept for reference if needed, but unused in new flow
 import AdminMarketingFunnelsPanel from '../components/admin/AdminMarketingFunnelsPanel';
 import InteractionHubPage, { type InteractionThreadMessage } from '../components/InteractionHubPage';
 import AdminSettingsPage from './components/AdminSettingsPage';

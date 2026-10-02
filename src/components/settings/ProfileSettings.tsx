@@ -1,5 +1,4 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
 import { AgentProfile } from '../../types';
 import { FeatureSection } from './SettingsCommon';
 import AgentBusinessCardEditor from '../agent/AgentBusinessCardEditor';
@@ -14,7 +13,6 @@ const ProfileSettings: React.FC<ProfileSettingsProps> = ({
     userProfile,
     onSave
 }) => {
-    const navigate = useNavigate();
     const accountType = localStorage.getItem('hla_account_type') || 'realtor';
     const isLO = accountType === 'lo';
 
@@ -28,16 +26,6 @@ const ProfileSettings: React.FC<ProfileSettingsProps> = ({
                 <FeatureSection title="Loan Officer Profile" icon="badge">
                     <LOProfileSettings />
                 </FeatureSection>
-                <div className="pt-1">
-                    <button
-                        type="button"
-                        onClick={() => navigate('/ai-card')}
-                        className="inline-flex min-w-[150px] items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-primary-700"
-                    >
-                        <span className="material-symbols-outlined text-base">contact_page</span>
-                        Preview AI Card
-                    </button>
-                </div>
             </div>
         );
     }

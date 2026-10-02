@@ -45,10 +45,6 @@ const ForLoanOfficersPage = lazy(() => import('./pages/ForLoanOfficersPage'))
 const ListingDashboardPage = lazy(() => import('./pages/ListingDashboardPage'))
 const OfficeDashboardPage = lazy(() => import('./components/dashboard-command/OfficeDashboardPage'))
 const OfficeInviteClaimPage = lazy(() => import('./pages/OfficeInviteClaimPage'));
-const ShareTestPage = lazy(() => import('./components/dashboard-command/ShareTestPage'));
-const AIConversationsPage = lazy(() => import('./components/AIConversationsPage'));
-const AICardPage = lazy(() => import('./components/AICardPage'));
-const MarketingReportsPage = lazy(() => import('./components/MarketingReportsPage'));
 const CompliancePolicyPage = lazy(() => import('./components/CompliancePolicyPage'));
 const DmcaPolicyPage = lazy(() => import('./components/DmcaPolicyPage'));
 const PrivacyPolicyPage = lazy(() => import('./components/PrivacyPolicyPage'));
@@ -84,15 +80,10 @@ import { notificationSettingsService } from './services/notificationSettingsServ
 import { calendarSettingsService } from './services/calendarSettingsService';
 import { billingSettingsService } from './services/billingSettingsService';
 import { emailSettingsService } from './services/emailSettingsService';
-const EnhancedAISidekicksHub = lazy(() => import('./components/EnhancedAISidekicksHub'));
 const PublicAICard = lazy(() => import('./components/PublicAICard')); // Public View
 const PublicListingPage = lazy(() => import('./pages/PublicListingPage')); // Public View
 const BlogIndex = lazy(() => import('./pages/Blog/BlogIndex'));
 const BlogPost = lazy(() => import('./pages/Blog/BlogPost'));
-const VoiceLabPage = lazy(() => import('./pages/VoiceLabPage'));
-const CombinedTrainingPage = lazy(() => import('./components/AgentAISidekicksPage'));
-// import AIInteractiveTraining from './components/AIInteractiveTraining'; // Keeping as backkup
-const FunnelAnalyticsPanel = lazy(() => import('./components/FunnelAnalyticsPanel'));
 
 import { listingsService } from './services/listingsService';
 // Stubs removed, using real service
@@ -1762,7 +1753,6 @@ const App: React.FC = () => {
                         <Route path="/dashboard/billing" element={<Navigate to="/dashboard/settings/billing" replace />} />
                         <Route path="/dashboard/onboarding" element={<OnboardingCommandPage />} />
                         <Route path="/dashboard/lo-onboarding" element={<LOOnboardingPage />} />
-                        <Route path="/dashboard/dev/share-test" element={<ShareTestPage />} />
 
 
                         <Route path="/listings" element={<Navigate to="/dashboard/listings" replace />} />
@@ -1772,27 +1762,6 @@ const App: React.FC = () => {
                         <Route path="/leads" element={<Navigate to="/dashboard/leads" replace />} />
                         <Route path="/inbox" element={<Navigate to="/dashboard/leads" replace />} />
 
-                        <Route path="/ai-conversations" element={<AIConversationsPage isDemoMode={isDemoMode} />} />
-                        <Route path="/ai-card" element={<AICardPage isDemoMode={isDemoMode} isBlueprintMode={isBlueprintMode} />} />
-                        <Route path="/knowledge-base" element={<EnhancedAISidekicksHub isDemoMode={isDemoMode} />} />
-                        <Route path="/ai-training" element={<CombinedTrainingPage isDemoMode={isDemoMode} initialTab="training" />} />
-                        <Route path="/ai-agent" element={<CombinedTrainingPage isDemoMode={isDemoMode} initialTab="overview" />} />
-                        {/* <Route path="/ai-training" element={<AIInteractiveTraining demoMode={isDemoMode} />} /> */}
-                        <Route path="/funnel-analytics" element={
-                            <FunnelAnalyticsPanel
-                                onBackToDashboard={() => navigate('/dashboard')}
-                                title="Leads Funnel"
-                                subtitle="Homebuyer, Seller, and Showing funnels for every lead"
-                                variant="page"
-                            />
-                        } />
-                        <Route path="/ai-sidekicks" element={<EnhancedAISidekicksHub isDemoMode={isDemoMode} />} />
-                        <Route path="/marketing-reports" element={<MarketingReportsPage />} />
-                        <Route path="/voice-lab" element={
-                            <Suspense fallback={<LoadingSpinner />}>
-                                <VoiceLabPage />
-                            </Suspense>
-                        } />
                         <Route path="/settings" element={<Navigate to="/dashboard/settings" replace />} />
                         <Route path="/settings/billing" element={<Navigate to="/dashboard/settings/billing" replace />} />
                         <Route path="/dashboard/settings" element={renderSettingsPage()} />
