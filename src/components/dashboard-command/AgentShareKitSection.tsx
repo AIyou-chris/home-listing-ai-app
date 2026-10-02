@@ -14,7 +14,7 @@ interface Props {
 
 const DEMO_LISTING: KitListing = {
   id: 'demo', address: '123 Maple Street', price: 450000, bedrooms: 3, bathrooms: 2, sqft: 1850,
-  photos: [], share_url: 'https://homelistingai.com/l/demo'
+  photos: [], share_url: 'https://homelistingai.com/l/demo', description: 'Welcome to this beautifully updated home with an open floor plan, a gourmet kitchen and a private backyard, minutes from schools, parks and shopping. Move-in ready.'
 };
 
 const AgentShareKitSection: React.FC<Props> = ({ listingId, isPublished, demoMode, onPublish }) => {

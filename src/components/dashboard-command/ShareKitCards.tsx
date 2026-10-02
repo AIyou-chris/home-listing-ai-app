@@ -8,7 +8,7 @@ import { showToast } from '../../utils/toastService';
 
 export interface KitListing {
   id: string; address: string; price: number; bedrooms: number; bathrooms: number; sqft: number;
-  photos: string[]; share_url: string;
+  photos: string[]; share_url: string; description?: string;
 }
 export interface KitLo {
   name: string; company: string | null; nmls_number: string | null;
@@ -107,6 +107,8 @@ const ShareKitCards: React.FC<ShareKitCardsProps> = ({ listing, lo = null, realt
       realtor?.name ? person('Listing agent', realtor.name, realtor.brokerage || '', realtor.phone || '', realtor.headshot_url) : '',
       branded && lo ? person('Loan officer', lo.name, [lo.company, lo.nmls_number ? `NMLS #${lo.nmls_number}` : ''].filter(Boolean).join(' · '), lo.phone || '', lo.headshot_url) : ''
     ].join('');
+    const cleaned = (listing.description || '').replace(/\s+/g, ' ').trim()
+    const blurb = cleaned.length > 210 ? `${cleaned.slice(0, 207).trimEnd()}…` : cleaned
     const bedBath = [listing.bedrooms ? `${listing.bedrooms} bed` : '', listing.bathrooms ? `${listing.bathrooms} bath` : ''].filter(Boolean).join('<br>');
     const html = `<!doctype html><html><head><meta charset="utf-8"><title>Flyer - ${esc(listing.address)}</title>
       <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&display=swap" rel="stylesheet">
@@ -121,9 +123,10 @@ const ShareKitCards: React.FC<ShareKitCardsProps> = ({ listing, lo = null, realt
         .card { position: absolute; left: 0.42in; right: 0.42in; bottom: 0.42in; background: #fff; padding: 0.36in; }
         .top { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; }
         .addr { font-size: 26px; font-weight: 500; }
-        .price { font-size: 72px; font-weight: 800; line-height: 1; letter-spacing: -2px; color: #0b5cd6; margin-top: 6px; }
+        .price { font-size: 54px; font-weight: 800; line-height: 1; letter-spacing: -1.5px; color: #0b5cd6; margin-top: 6px; }
         .bb { font-size: 22px; font-weight: 800; text-align: right; line-height: 1.25; }
-        .rule { height: 2px; background: #101418; margin: 22px 0; }
+        .rule { height: 2px; background: #101418; margin: 22px 0 14px; }
+        .desc { font-size: 14px; font-weight: 500; line-height: 1.45; color: #2a323b; margin: 0 0 18px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
         .bottom { display: flex; align-items: center; gap: 22px; }
         .people { flex: 1; display: flex; gap: 22px; }
         .person { flex: 1; display: flex; align-items: center; gap: 12px; min-width: 0; }
@@ -147,6 +150,7 @@ const ShareKitCards: React.FC<ShareKitCardsProps> = ({ listing, lo = null, realt
             <div class="bb">${bedBath}</div>
           </div>
           <div class="rule"></div>
+          ${blurb ? `<div class="desc">${esc(blurb)}</div>` : ''}
           <div class="bottom">
             <div class="people">${people}</div>
             <div class="qrbox"><img class="qr" src="${qr}" /><div class="scan">Scan to see it &amp; ask our AI</div>${branded && lo?.logo_url ? `<img class="logo" src="${esc(lo.logo_url)}" />` : ''}</div>

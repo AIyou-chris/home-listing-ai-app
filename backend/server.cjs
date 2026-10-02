@@ -34195,6 +34195,7 @@ app.get('/api/lo/listings/:listingId/share-kit', requireLoAgent, async (req, res
         bathrooms: Number(listing.bathrooms) || 0,
         sqft: Number(listing.sqft) || 0,
         photos: photos.slice(0, 6),
+        description: String(listing.description || '').replace(/\s+/g, ' ').trim().slice(0, 400),
         share_url: buildListingShareUrl(listing.public_slug)
       },
       lo: {
@@ -34229,7 +34230,7 @@ app.get('/api/dashboard/listings/:listingId/agent-share-kit', async (req, res) =
 
     const { data: listing } = await supabaseAdmin
       .from('properties')
-      .select('id, address, title, price, bedrooms, bathrooms, sqft, status, is_published, hero_photos, gallery_photos, public_slug, agent_id, user_id')
+      .select('id, address, title, price, bedrooms, bathrooms, sqft, status, is_published, hero_photos, gallery_photos, public_slug, description, agent_id, user_id')
       .eq('id', listingId).maybeSingle();
     if (!listing) return res.status(404).json({ error: 'listing_not_found' });
     const ownerId = listing.user_id || listing.agent_id || null;
@@ -34256,6 +34257,7 @@ app.get('/api/dashboard/listings/:listingId/agent-share-kit', async (req, res) =
         bathrooms: Number(listing.bathrooms) || 0,
         sqft: Number(listing.sqft) || 0,
         photos: photos.slice(0, 6),
+        description: String(listing.description || '').replace(/\s+/g, ' ').trim().slice(0, 400),
         share_url: buildListingShareUrl(listing.public_slug)
       },
       realtor: realtor ? {

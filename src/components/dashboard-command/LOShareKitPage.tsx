@@ -22,7 +22,7 @@ const getHeaders = async (): Promise<HeadersInit> => {
 const money = (n: number) => (n > 0 ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n) : '');
 
 const DEMO_KIT = {
-  listing: { id: 'demo', address: '123 Maple Street', price: 450000, bedrooms: 3, bathrooms: 2, sqft: 1850, photos: [], share_url: 'https://homelistingai.com/l/demo' } as KitListing,
+  listing: { id: 'demo', address: '123 Maple Street', price: 450000, bedrooms: 3, bathrooms: 2, sqft: 1850, photos: [], share_url: 'https://homelistingai.com/l/demo', description: 'Welcome to this beautifully updated home with an open floor plan, a gourmet kitchen and a private backyard, minutes from schools, parks and shopping. Move-in ready.' } as KitListing,
   lo: { name: 'Alex Rivera', company: 'Summit Home Loans', nmls_number: '123456', headshot_url: null, logo_url: null, phone: '(555) 010-0142', email: null } as KitLo,
   toggles: { listing_page: true, qr: true, flyer: true, social: true } as Toggles
 };
