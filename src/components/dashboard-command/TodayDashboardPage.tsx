@@ -21,6 +21,10 @@ import { useDashboardRealtimeStore } from '../../state/useDashboardRealtimeStore
 import { showToast } from '../../utils/toastService'
 import { supabase } from '../../services/supabase'
 import TodayROIStrip from '../dashboard-widgets/TodayROIStrip'
+import CallNowHero from './CallNowHero'
+import MyLoanOfficerCard from './MyLoanOfficerCard'
+import InstallAppPrompt from './InstallAppPrompt'
+import { AskLoButton, CallTextButtons, LeadReason, WaitingBadge } from './LeadActions'
 
 const containerCardClass = 'rounded-2xl border border-slate-200 bg-white p-5 shadow-sm'
 
@@ -88,6 +92,7 @@ const TodayDashboardPage: React.FC = () => {
   const appointmentsById = useDashboardRealtimeStore((state) => state.appointmentsById)
   const setInitialLeads = useDashboardRealtimeStore((state) => state.setInitialLeads)
   const setInitialAppointments = useDashboardRealtimeStore((state) => state.setInitialAppointments)
+  const patchLeadAction = useDashboardRealtimeStore((state) => state.patchLeadAction)
   const listingSignalsById = useDashboardRealtimeStore((state) => state.listingSignalsById)
 
   const [loading, setLoading] = useState(true)
@@ -257,6 +262,11 @@ const TodayDashboardPage: React.FC = () => {
     navTo(`/leads/${leadId}`)
   }
 
+  const handleCalled = (leadId: string) => {
+    patchLeadAction(leadId, new Date().toISOString())
+    void logDashboardAgentAction({ lead_id: leadId, action: 'call_clicked', metadata: { source: 'today_hero' } }).catch(() => undefined)
+  }
+
   const handleDownloadQr = () => {
     if (!shareKit?.qr_code_url) return
     const link = document.createElement('a')
@@ -304,6 +314,12 @@ const TodayDashboardPage: React.FC = () => {
         <p className="mt-1 text-base text-slate-700">Good {dayPart()}, {greetingName}.</p>
         <p className="mt-1 text-sm text-slate-500">Here’s what needs your attention right now.</p>
       </header>
+
+      {!loading && newLeads[0] && (
+        <CallNowHero lead={newLeads[0]} onOpen={(id) => void handleOpenLead(id)} onCalled={handleCalled} />
+      )}
+
+      <InstallAppPrompt />
 
       <PageGuide pageKey="today" />
 
@@ -456,7 +472,7 @@ const TodayDashboardPage: React.FC = () => {
                         <p className="text-xs text-slate-500">{lead.listing?.address || 'No listing address'}</p>
                       </div>
                       <div className="flex items-center gap-1">
-                        <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-700">NEW</span>
+                        <WaitingBadge lead={lead} />
                         {lead.intent_level === 'Hot' && (
                           <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold text-rose-700">HOT</span>
                         )}
@@ -466,15 +482,20 @@ const TodayDashboardPage: React.FC = () => {
                       <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5">{sourceChipLabel(lead.source_type)}</span>
                       <span>{toRelativeTime(lead.last_activity_at || lead.created_at)}</span>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        void handleOpenLead(lead.id)
-                      }}
-                      className="mt-3 rounded-md bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white"
-                    >
-                      Open
-                    </button>
+                    <LeadReason lead={lead} className="mt-2" />
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <CallTextButtons phone={lead.phone} onUsed={() => handleCalled(lead.id)} />
+                      <AskLoButton lead={lead} />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void handleOpenLead(lead.id)
+                        }}
+                        className="min-h-[36px] rounded-lg px-3 text-xs font-semibold text-slate-600 hover:bg-slate-100"
+                      >
+                        Details
+                      </button>
+                    </div>
                   </div>
                 ))
               )}
@@ -554,6 +575,7 @@ const TodayDashboardPage: React.FC = () => {
         </div>
 
         <div className="space-y-4">
+          {!blueprintMode && <MyLoanOfficerCard />}
           <article className={containerCardClass}>
             <h2 className="text-lg font-semibold text-slate-900">Share Kit</h2>
             <p className="mt-1 text-sm text-slate-500">Copy your link or download a QR in seconds.</p>

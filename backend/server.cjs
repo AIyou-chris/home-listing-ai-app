@@ -22247,6 +22247,8 @@ app.get('/api/dashboard/leads', async (req, res) => {
       financing: lead.financing || 'unknown',
       lead_summary: lead.lead_summary || null,
       next_best_action: lead.next_best_action || null,
+      intent_reason: (lead.source_meta && typeof lead.source_meta === 'object' && lead.source_meta.intent_reason) || null,
+      can_ask_lo: Boolean(lead.lo_agent_id || (lead.listing_id && loNameByListingId[lead.listing_id])),
       last_activity_at: lead.last_message_at || lead.updated_at || lead.created_at,
       last_activity_relative: computeRelativeTime(lead.last_message_at || lead.updated_at || lead.created_at),
       last_message_preview: lead.last_message_preview || null,
@@ -22292,6 +22294,115 @@ app.get('/api/dashboard/leads', async (req, res) => {
   } catch (error) {
     console.error('[LeadCapture] Failed to load dashboard leads:', error);
     res.status(500).json({ error: 'failed_to_load_leads' });
+  }
+});
+
+// The loan officer this agent partners with (first active partnership), or null.
+const LO_PARTNER_FIELDS = 'id, auth_user_id, first_name, last_name, full_name, company, nmls_number, phone, email, headshot_url';
+async function findAgentLoPartner(authId) {
+  const { data: me } = await supabaseAdmin.from('agents').select('id').eq('auth_user_id', authId).maybeSingle();
+  if (!me?.id) return { me: null, lo: null };
+  const { data: partnership } = await supabaseAdmin
+    .from('lo_agent_partnerships').select('lo_agent_id')
+    .eq('agent_id', me.id).eq('status', 'active')
+    .order('created_at', { ascending: true }).limit(1).maybeSingle();
+  if (!partnership?.lo_agent_id) return { me, lo: null };
+  const { data: lo } = await supabaseAdmin.from('agents').select(LO_PARTNER_FIELDS).eq('id', partnership.lo_agent_id).maybeSingle();
+  return { me, lo: lo || null };
+}
+const loDisplayName = (lo) => lo?.full_name || [lo?.first_name, lo?.last_name].filter(Boolean).join(' ') || lo?.company || 'Your loan officer';
+
+// Today page card: who my loan officer is and what they did for me this week (3 light queries).
+app.get('/api/dashboard/my-loan-officer', async (req, res) => {
+  try {
+    const authId = await resolveDashboardOwnerId(req);
+    if (!authId) return res.status(401).json(UNAUTHORIZED_DASHBOARD);
+    const { me, lo } = await findAgentLoPartner(authId);
+    if (!lo) return res.json({ success: true, lo: null });
+    const owners = [authId, me.id].filter(Boolean);
+    const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const base = () => supabaseAdmin.from('leads').select('id', { count: 'exact', head: true })
+      .eq('lo_agent_id', lo.id).or(`agent_id.in.(${owners.join(',')}),user_id.in.(${owners.join(',')})`).gte('created_at', since);
+    const [leadsRes, preRes] = await Promise.all([base(), base().eq('source_type', 'pre_qual')]);
+    res.json({
+      success: true,
+      lo: {
+        name: loDisplayName(lo), company: lo.company || null, nmls_number: lo.nmls_number || null,
+        phone: lo.phone || null, email: lo.email || null, headshot_url: lo.headshot_url || null
+      },
+      week: { leads: leadsRes.count || 0, pre_approvals: preRes.count || 0 }
+    });
+  } catch (error) {
+    console.error('[Dashboard] my-loan-officer failed:', error?.message || error);
+    res.status(500).json({ error: 'failed_to_load_loan_officer' });
+  }
+});
+
+// One tap: ask my loan officer to call this lead. Tells the LO (bell + email), once per 30 minutes per lead.
+app.post('/api/dashboard/leads/:leadId/ask-lo', async (req, res) => {
+  try {
+    const authId = await resolveDashboardOwnerId(req);
+    if (!authId) return res.status(401).json(UNAUTHORIZED_DASHBOARD);
+    const { leadId } = req.params;
+    const { data: lead } = await supabaseAdmin
+      .from('leads')
+      .select('id, agent_id, user_id, full_name, name, phone, phone_e164, email, email_lower, listing_id, lo_agent_id, source_meta')
+      .eq('id', leadId).maybeSingle();
+    if (!lead) return res.status(404).json({ error: 'lead_not_found' });
+    const owner = lead.agent_id || lead.user_id;
+    if (owner && !(await authOwnsId(authId, owner))) return res.status(403).json({ error: 'listing_access_denied' });
+
+    const meta = (lead.source_meta && typeof lead.source_meta === 'object') ? lead.source_meta : {};
+    const askedAt = meta.lo_asked_at ? new Date(meta.lo_asked_at).getTime() : 0;
+    if (askedAt && Date.now() - askedAt < 30 * 60 * 1000) return res.json({ success: true, already: true });
+
+    let lo = null;
+    if (lead.lo_agent_id) {
+      const { data } = await supabaseAdmin.from('agents').select(LO_PARTNER_FIELDS).eq('id', lead.lo_agent_id).maybeSingle();
+      lo = data || null;
+    }
+    if (!lo && lead.listing_id) {
+      const { data: assignment } = await supabaseAdmin.from('listing_lo_assignments').select('lo_agent_id').eq('listing_id', lead.listing_id).limit(1).maybeSingle();
+      if (assignment?.lo_agent_id) {
+        const { data } = await supabaseAdmin.from('agents').select(LO_PARTNER_FIELDS).eq('id', assignment.lo_agent_id).maybeSingle();
+        lo = data || null;
+      }
+    }
+    if (!lo) lo = (await findAgentLoPartner(authId)).lo;
+    if (!lo) return res.status(409).json({ error: 'no_loan_officer' });
+
+    const { data: agentRow } = await supabaseAdmin.from('agents').select('first_name, last_name, full_name').eq('auth_user_id', authId).maybeSingle();
+    const agentName = agentRow?.full_name || [agentRow?.first_name, agentRow?.last_name].filter(Boolean).join(' ') || 'Your agent partner';
+    const leadName = lead.full_name || lead.name || 'a buyer';
+    const leadPhone = lead.phone_e164 || lead.phone || null;
+    const leadEmail = lead.email_lower || lead.email || null;
+    let address = 'a listing';
+    if (lead.listing_id) {
+      const { data: prop } = await supabaseAdmin.from('properties').select('address').eq('id', lead.listing_id).maybeSingle();
+      if (prop?.address) address = prop.address;
+    }
+    const contactLine = [leadPhone, leadEmail].filter(Boolean).join(' · ') || 'no contact info yet';
+
+    if (lo.auth_user_id) {
+      await bestEffort(supabaseAdmin.from('notifications').insert({
+        user_id: lo.auth_user_id,
+        title: `📞 ${agentName} asked you to call ${leadName}`,
+        content: `${leadName} at ${address}. ${contactLine}`,
+        type: 'lead', priority: 'high', is_read: false
+      }));
+    }
+    if (lo.email) {
+      emailService.sendEmail({
+        to: lo.email,
+        subject: `${agentName} asked you to call ${leadName}`,
+        html: `<div style="font-family:Arial,sans-serif;line-height:1.5"><h3 style="margin:0 0 12px">${escapeHtml(agentName)} asked you to call a buyer</h3><p><strong>${escapeHtml(leadName)}</strong> at ${escapeHtml(address)}</p><p>${escapeHtml(contactLine)}</p><p><a href="${process.env.APP_BASE_URL || 'https://homelistingai.com'}/dashboard/lo-leads">Open your leads</a></p></div>`
+      }).catch(() => null);
+    }
+    await bestEffort(supabaseAdmin.from('leads').update({ source_meta: { ...meta, lo_asked_at: nowIso() } }).eq('id', lead.id));
+    res.json({ success: true, lo: { name: loDisplayName(lo) } });
+  } catch (error) {
+    console.error('[Dashboard] ask-lo failed:', error?.message || error);
+    res.status(500).json({ error: 'ask_lo_failed' });
   }
 });
 

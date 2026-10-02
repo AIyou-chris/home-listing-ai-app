@@ -11,6 +11,7 @@ import {
 } from '../../services/dashboardCommandService'
 import { buildDashboardPath, useDemoMode } from '../../demo/useDemoMode'
 import { useBlueprintMode } from '../../demo/useBlueprintMode'
+import { WaitingBadge } from './LeadActions'
 import { useDashboardRealtimeStore } from '../../state/useDashboardRealtimeStore'
 
 const sortLeadsForInbox = (rows: DashboardLeadItem[]) => {
@@ -380,12 +381,13 @@ const LeadsInboxCommandPage: React.FC = () => {
                       {lead.intent_level === 'Hot' && <span className="rounded px-1.5 py-0.5 bg-rose-100 text-[10px] font-black uppercase tracking-wider text-rose-700">🔥 HOT</span>}
                       {lead.intent_level === 'Warm' && <span className="rounded px-1.5 py-0.5 bg-amber-100 text-[10px] font-black uppercase tracking-wider text-amber-700">☀️ WARM</span>}
                       {lead.intent_level === 'Cold' && <span className="rounded px-1.5 py-0.5 bg-slate-100 text-[10px] font-black uppercase tracking-wider text-slate-500">❄️ COLD</span>}
+                      <WaitingBadge lead={lead} />
                     </div>
                   </div>
 
                   {/* Summary */}
                   <p className="text-slate-700 font-medium text-sm truncate mb-1">
-                    {lead.lead_summary || lead.last_message_preview || 'New lead captured'}
+                    {lead.intent_reason || lead.lead_summary || lead.last_message_preview || 'New lead captured'}
                   </p>
 
                   {/* Metadata line */}
@@ -415,6 +417,16 @@ const LeadsInboxCommandPage: React.FC = () => {
                     title={lead.phone}
                   >
                     <span className="material-symbols-outlined text-[18px]">call</span>
+                  </a>
+                )}
+                {lead.phone && (
+                  <a
+                    href={`sms:${lead.phone}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="flex items-center justify-center w-9 h-9 rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors"
+                    title="Text"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">sms</span>
                   </a>
                 )}
                 <button

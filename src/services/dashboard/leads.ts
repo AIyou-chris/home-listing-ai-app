@@ -25,6 +25,8 @@ export interface DashboardLeadItem {
   financing: string;
   lead_summary: string | null;
   next_best_action: string | null;
+  intent_reason?: string | null;
+  can_ask_lo?: boolean;
   last_activity_at: string | null;
   last_activity_relative: string;
   last_message_preview: string | null;
@@ -311,4 +313,38 @@ export const sendListingTestLeadCapture = async (
     source_key: string | null;
     source_type: string;
   }>(response);
+};
+
+export interface MyLoanOfficer {
+  lo: {
+    name: string;
+    company: string | null;
+    nmls_number: string | null;
+    phone: string | null;
+    email: string | null;
+    headshot_url: string | null;
+  } | null;
+  week?: { leads: number; pre_approvals: number };
+}
+
+// Today-page card: my loan officer + what they sent me this week.
+export const fetchMyLoanOfficer = async (): Promise<MyLoanOfficer> => {
+  if (isDemoModeActive()) {
+    return {
+      lo: { name: 'Alex Rivera', company: 'Summit Home Loans', nmls_number: '123456', phone: '(555) 010-0142', email: null, headshot_url: null },
+      week: { leads: 4, pre_approvals: 2 }
+    };
+  }
+  const response = await fetch(buildApiUrl('/api/dashboard/my-loan-officer'), { headers: await authHeaders(null) });
+  return parseResponse<MyLoanOfficer>(response);
+};
+
+// One tap: ask my loan officer to call this lead.
+export const askLoanOfficerAboutLead = async (leadId: string): Promise<{ already?: boolean; lo?: { name: string } }> => {
+  if (isDemoModeActive()) return { lo: { name: 'Alex Rivera' } };
+  const response = await fetch(buildApiUrl(`/api/dashboard/leads/${encodeURIComponent(leadId)}/ask-lo`), {
+    method: 'POST',
+    headers: await authHeaders(null)
+  });
+  return parseResponse(response);
 };

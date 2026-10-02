@@ -15,6 +15,7 @@ import {
 } from '../../services/dashboardCommandService';
 import { useDashboardRealtimeStore } from '../../state/useDashboardRealtimeStore';
 import ScheduleAppointmentModal, { type ScheduleAppointmentFormData } from '../ScheduleAppointmentModal';
+import { AskLoButton } from './LeadActions';
 import { scheduleAppointment } from '../../services/schedulerService';
 
 const prettyEventName = (value: string) =>
@@ -421,6 +422,9 @@ const LeadDetailCommandPage: React.FC = () => {
             <p className="text-xs font-bold uppercase tracking-widest text-primary-500 mb-0.5">Mortgage Partner</p>
             <p className="text-sm font-bold text-slate-900 truncate">{detail.lo_partner.name}{detail.lo_partner.company ? ` · ${detail.lo_partner.company}` : ''}</p>
             <p className="text-xs text-slate-500 mt-0.5">Notified — ready to help this buyer with financing</p>
+            <div className="mt-2">
+              <AskLoButton lead={{ id: leadId, name: leadName, can_ask_lo: true, lo_name: detail.lo_partner.name }} />
+            </div>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             {detail.lo_partner.phone && (

@@ -272,6 +272,22 @@ const ListingsCommandPage: React.FC = () => {
     }
   }
 
+  // One tap: open the phone's share sheet with the tracked listing link (falls back to copying it).
+  const handleShareListing = async (url: string, address: string) => {
+    const link = `${url}${url.includes('?') ? '&' : '?'}utm_source=agent_share&utm_medium=share`
+    try {
+      if (typeof navigator.share === 'function') {
+        await navigator.share({ title: address, text: `${address}: see it and ask questions 24/7`, url: link })
+        return
+      }
+      await navigator.clipboard.writeText(link)
+      toast.success('Link copied. Paste it anywhere.')
+    } catch (shareError) {
+      if (shareError instanceof DOMException && shareError.name === 'AbortError') return
+      toast.error('Could not share. Open Share Kit to copy the link.')
+    }
+  }
+
   const handleDeleteListing = async (listingId: string) => {
     if (!window.confirm('Delete this listing? This cannot be undone.')) return
     setDeletingId(listingId)
@@ -463,10 +479,22 @@ const ListingsCommandPage: React.FC = () => {
                   </p>
                   {row.shareUrl && <p className="truncate text-xs text-slate-500">{row.shareUrl}</p>}
                   <div className="flex flex-wrap gap-2">
+                    {row.isPublished && row.shareUrl && (
+                      <button
+                        type="button"
+                        onClick={() => void handleShareListing(row.shareUrl!, address)}
+                        className="inline-flex min-h-[36px] items-center gap-1.5 rounded-md bg-primary-600 px-4 py-1.5 text-xs font-bold text-white hover:bg-primary-700"
+                      >
+                        <span className="material-symbols-outlined text-[16px]">ios_share</span>
+                        Share
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => navigate(buildListingPath(`/listings/${row.id}/edit`))}
-                      className="rounded-md bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white"
+                      className={row.isPublished && row.shareUrl
+                        ? 'rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700'
+                        : 'rounded-md bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white'}
                     >
                       Edit Listing
                     </button>
