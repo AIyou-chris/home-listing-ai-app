@@ -34105,6 +34105,57 @@ app.get('/api/lo/listings/:listingId/share-kit', requireLoAgent, async (req, res
   }
 });
 
+// The agent's own share kit data (same pieces as the LO kit, minus the co-branding).
+app.get('/api/dashboard/listings/:listingId/agent-share-kit', async (req, res) => {
+  try {
+    const authId = await resolveDashboardOwnerId(req);
+    if (!authId) return res.status(401).json(UNAUTHORIZED_DASHBOARD);
+    const { listingId } = req.params;
+
+    const { data: listing } = await supabaseAdmin
+      .from('properties')
+      .select('id, address, title, price, bedrooms, bathrooms, sqft, status, is_published, hero_photos, gallery_photos, public_slug, agent_id, user_id')
+      .eq('id', listingId).maybeSingle();
+    if (!listing) return res.status(404).json({ error: 'listing_not_found' });
+    const ownerId = listing.user_id || listing.agent_id || null;
+    if (ownerId && !(await authOwnsId(authId, ownerId))) return res.status(403).json({ error: 'listing_access_denied' });
+    if (!isListingPublished(listing)) return res.status(409).json({ error: 'NOT_PUBLISHED' });
+    if (!toTrimmedOrNull(listing.public_slug)) return res.status(409).json({ error: 'NO_SHARE_LINK' });
+
+    const { data: realtor } = await supabaseAdmin
+      .from('agents').select('first_name, last_name, full_name, brokerage, company, headshot_url, phone')
+      .eq('auth_user_id', authId).maybeSingle();
+
+    const photos = [
+      ...(Array.isArray(listing.hero_photos) ? listing.hero_photos : []),
+      ...(Array.isArray(listing.gallery_photos) ? listing.gallery_photos : [])
+    ].map((item) => (typeof item === 'string' ? item : item?.url)).filter((u) => typeof u === 'string' && /^https?:\/\//i.test(u));
+
+    res.json({
+      success: true,
+      listing: {
+        id: listing.id,
+        address: listing.address || listing.title || 'Listing',
+        price: Number(listing.price) || 0,
+        bedrooms: Number(listing.bedrooms) || 0,
+        bathrooms: Number(listing.bathrooms) || 0,
+        sqft: Number(listing.sqft) || 0,
+        photos: photos.slice(0, 6),
+        share_url: buildListingShareUrl(listing.public_slug)
+      },
+      realtor: realtor ? {
+        name: realtor.full_name || `${realtor.first_name || ''} ${realtor.last_name || ''}`.trim() || null,
+        brokerage: realtor.brokerage || realtor.company || null,
+        headshot_url: realtor.headshot_url || null,
+        phone: realtor.phone || null
+      } : null
+    });
+  } catch (err) {
+    console.error('[Agent Share Kit] Failed:', err?.message || err);
+    res.status(500).json({ error: 'agent_share_kit_failed' });
+  }
+});
+
 // ── Lead Follow-Up Nudge Job ──────────────────────────────────────────────────
 app.post('/api/internal/run-nudge-job', async (req, res) => {
   try {

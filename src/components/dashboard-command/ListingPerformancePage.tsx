@@ -3,16 +3,12 @@ import { useNavigate, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { buildDashboardPath, useDemoMode } from '../../demo/useDemoMode';
 import {
-  fetchListingPerformance,
   fetchListingShareKit,
   publishListingShareKit,
-  sendListingTestLeadCapture,
   type ListingShareKitResponse
 } from '../../services/dashboardCommandService';
-import { fetchListingBuilderPayload } from '../../services/listingBuilderService';
-import { listingsService } from '../../services/listingsService';
 import { useDashboardRealtimeStore } from '../../state/useDashboardRealtimeStore';
-import { ShareKitPanel } from '../dashboard/ShareKitPanel';
+import AgentShareKitSection from './AgentShareKitSection';
 import UpgradePromptModal from '../billing/UpgradePromptModal';
 import {
   BillingLimitError,
@@ -21,8 +17,6 @@ import {
 } from '../../services/dashboardBillingService';
 import ListingPerformanceWidget from '../dashboard-widgets/ListingPerformanceWidget';
 import ListingAlertPanel from './ListingAlertPanel';
-
-type TestCaptureContext = 'report_requested' | 'showing_requested';
 
 const ListingPerformancePage: React.FC = () => {
   const navigate = useNavigate();
@@ -36,16 +30,6 @@ const ListingPerformancePage: React.FC = () => {
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [shareKit, setShareKit] = useState<ListingShareKitResponse | null>(null);
-  const [listingDetails, setListingDetails] = useState<{
-    address: string; price: number; beds: number; baths: number; sqft: number; description: string; photos: string[];
-  } | null>(null);
-  const [shareKitStats, setShareKitStats] = useState<{
-    leadsCaptured: number;
-    topSource: string;
-    lastLeadAgo: string;
-    showingRequestsCount: number;
-    showingRequestsBySource: Array<{ label: string; total: number }>;
-  } | null>(null);
   const [activeListingWarning, setActiveListingWarning] = useState<string | null>(null);
   const [upgradeLoading, setUpgradeLoading] = useState(false);
   const [upgradeModal, setUpgradeModal] = useState<{
@@ -73,57 +57,7 @@ const ListingPerformancePage: React.FC = () => {
     setLoading((current) => current || !hasLoadedOnce);
     setError(null);
     try {
-      const [, details, performance] = await Promise.all([
-        loadShareKit(),
-        fetchListingBuilderPayload(listingId).catch(() => null),
-        fetchListingPerformance(listingId, { range: '30d' }).catch(() => null)
-      ]);
-      if (details) {
-        let photos = details.listing.photos || [];
-        if (photos.length === 0) {
-          try {
-            const property = await listingsService.getPropertyById(listingId);
-            const heroPhotos = property?.heroPhotos || [];
-            const galleryPhotos = property?.galleryPhotos || [];
-            photos = [...heroPhotos, ...galleryPhotos].filter(Boolean);
-          } catch (_error) {
-            photos = [];
-          }
-        }
-        setListingDetails({
-          address: details.listing.address,
-          price: details.listing.price,
-          beds: details.listing.beds,
-          baths: details.listing.baths,
-          sqft: details.listing.sqft,
-          description: details.listing.description || '',
-          photos
-        });
-      }
-      if (performance?.metrics) {
-        const topSource = performance.metrics.top_source?.label || 'None';
-        const lastLeadAgo = performance.metrics.last_lead_captured_at
-          ? new Date(performance.metrics.last_lead_captured_at).toLocaleString()
-          : 'N/A';
-        const showingRequestsBySource = (performance.breakdown?.showing_requests_by_source_type || [])
-          .map((item) => ({
-            label: item.source_type.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase()),
-            total: Number(item.total || 0)
-          }))
-          .filter((item) => item.total > 0)
-          .sort((left, right) => right.total - left.total)
-          .slice(0, 4);
-
-        setShareKitStats({
-          leadsCaptured: Number(performance.metrics.leads_count || 0),
-          topSource,
-          lastLeadAgo,
-          showingRequestsCount: Number(performance.metrics.showing_requests_count || 0),
-          showingRequestsBySource
-        });
-      } else {
-        setShareKitStats(null);
-      }
+      await loadShareKit();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load listing dashboard.');
     } finally {
@@ -228,85 +162,7 @@ const ListingPerformancePage: React.FC = () => {
           <p className="mt-1 text-xs">{activeListingWarning}</p>
         </div>
       ) : null}
-      <ShareKitPanel
-        listing={{
-          id: listingId,
-          title: listingDetails?.address || 'Your Listing',
-          address: listingDetails?.address || '',
-          price: listingDetails?.price
-            ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(listingDetails.price)
-            : '',
-          status: shareKit?.is_published ? 'PUBLISHED' : 'DRAFT',
-          slug: shareKit?.public_slug || '',
-          beds: listingDetails?.beds ?? '-',
-          baths: listingDetails?.baths ?? '-',
-          sqft: listingDetails?.sqft ?? '-',
-          photos: listingDetails?.photos || []
-        }}
-        shareUrl={shareKit?.share_url || null}
-        qrCodeUrl={shareKit?.qr_code_url || null}
-        qrCodeSvg={shareKit?.qr_code_svg || null}
-        loPartner={shareKit?.lo_partner || null}
-        sourceDefaults={shareKit?.source_defaults || {}}
-        stats={shareKitStats || undefined}
-        performanceAnchorId="listing-performance"
-        onPublish={onPublish}
-        onTestLeadSubmit={async (data) => {
-          if (!listingId) return;
-          try {
-            const resolvedSource = (() => {
-              const defaults = shareKit?.source_defaults || {};
-              if (data.source === 'social') {
-                return {
-                  source_key: defaults.social?.source_key || 'social',
-                  source_type: defaults.social?.source_type || 'social'
-                };
-              }
-              if (data.source === 'open_house') {
-                return {
-                  source_key: defaults.open_house?.source_key || 'open_house',
-                  source_type: defaults.open_house?.source_type || 'open_house'
-                };
-              }
-              if (data.source === 'public_contact') {
-                return {
-                  source_key: defaults.link?.source_key || 'link',
-                  source_type: defaults.link?.source_type || 'link'
-                };
-              }
-              return {
-                source_key: defaults.sign?.source_key || 'sign',
-                source_type: defaults.sign?.source_type || 'qr'
-              };
-            })();
-
-            await sendListingTestLeadCapture(listingId, {
-              full_name: data.name,
-              email: data.contact.includes('@') ? data.contact : undefined,
-              phone: !data.contact.includes('@') ? data.contact : undefined,
-              consent_sms: !data.contact.includes('@') ? true : undefined,
-              context: data.context as TestCaptureContext,
-              source_key: resolvedSource.source_key,
-              source_type: resolvedSource.source_type,
-              path_mode: data.source as 'sign' | 'social' | 'open_house' | 'public_contact'
-            });
-            toast.success('Test lead created — open in Leads.');
-            await loadAll();
-          } catch (err) {
-            if (err instanceof BillingLimitError) {
-              setUpgradeModal({
-                open: true,
-                title: err.modal.title,
-                body: err.modal.body,
-                reasonLine: err.reasonLine || err.modal.reason_line || null,
-                targetPlan: err.upgradePlanId
-              });
-              return;
-            }
-            toast.error(err instanceof Error ? err.message : 'Failed to create test lead.');
-          }
-        }}
-      />
+      <AgentShareKitSection listingId={listingId} isPublished={Boolean(shareKit?.is_published)} demoMode={demoMode} onPublish={onPublish} />
       <div id="listing-performance">
         <ListingPerformanceWidget listingId={listingId} />
       </div>
