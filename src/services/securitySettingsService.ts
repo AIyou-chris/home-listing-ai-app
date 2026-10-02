@@ -18,7 +18,20 @@ const handleResponse = async (response: Response): Promise<SecuritySettingsRespo
         throw new Error(message || `Request failed with status ${response.status}`);
     }
 
-    const data = (await response.json()) as SecuritySettingsResponse;
+    const raw = (await response.json()) as Partial<SecuritySettingsResponse> & SecuritySettings;
+
+    // The API returns the settings flat ({ success, loginNotifications, ... }); accept both shapes.
+    const data: SecuritySettingsResponse = raw && raw.settings
+        ? (raw as SecuritySettingsResponse)
+        : {
+            success: raw?.success,
+            settings: {
+                loginNotifications: raw?.loginNotifications,
+                sessionTimeout: raw?.sessionTimeout,
+                analyticsEnabled: raw?.analyticsEnabled,
+                twoFactorEnabled: raw?.twoFactorEnabled
+            }
+        };
 
     if (!data || !data.settings) {
         // If no settings returned, return defaults essentially or throw? 

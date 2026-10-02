@@ -79,7 +79,7 @@ const StorefrontPage = lazy(() => import('./pages/StorefrontPage').then(module =
 
 import LoadingSpinner from './components/LoadingSpinner';
 import { adminAuthService } from './services/adminAuthService';
-import { securitySettingsService } from './services/securitySettingsService';
+import { securitySettingsService, type SecuritySettings as SecuritySettingsValues } from './services/securitySettingsService';
 import { notificationSettingsService } from './services/notificationSettingsService';
 import { calendarSettingsService } from './services/calendarSettingsService';
 import { billingSettingsService } from './services/billingSettingsService';
@@ -662,6 +662,15 @@ const App: React.FC = () => {
     const [smsAvailable, setSmsAvailable] = useState(false);
     const [smsChannel, setSmsChannel] = useState<'coming_soon' | 'active'>('coming_soon');
     const [_emailSettings, setEmailSettings] = useState<EmailSettings>({ integrationType: 'oauth', aiEmailProcessing: true, autoReply: true, leadScoring: true, followUpSequences: true });
+    const [_securitySettings, setSecuritySettings] = useState<SecuritySettingsValues>({});
+    useEffect(() => {
+        if (!user?.uid || isDemoMode) return;
+        let cancelled = false;
+        securitySettingsService.fetch(user.uid)
+            .then((res) => { if (!cancelled) setSecuritySettings(res.settings || {}); })
+            .catch(() => { /* leave the defaults on screen */ });
+        return () => { cancelled = true; };
+    }, [user?.uid, isDemoMode]);
     const [_calendarSettings, setCalendarSettings] = useState<CalendarSettings>({
         integrationType: 'google',
         aiScheduling: true,
@@ -1469,8 +1478,11 @@ const App: React.FC = () => {
                     setCalendarSettings(settings);
                     if (user?.uid) await calendarSettingsService.update(user.uid, settings);
                 }}
-                securitySettings={{}}
-                onSaveSecuritySettings={async () => { }}
+                securitySettings={_securitySettings}
+                onSaveSecuritySettings={async (settings) => {
+                    setSecuritySettings(settings);
+                    if (user?.uid) await securitySettingsService.update(user.uid, settings);
+                }}
                 isBlueprintMode={isBlueprintMode}
                 isDemoMode={isDemoMode}
                 initialTab={initialTab}
