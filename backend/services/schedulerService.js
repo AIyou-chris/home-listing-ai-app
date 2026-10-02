@@ -236,7 +236,7 @@ module.exports = (supabaseAdmin, emailService) => {
             // Get all chatbot leads from the past 7 days that have a listing_id
             const { data: recentLeads, error: leadsErr } = await supabaseAdmin
                 .from('pre_qual_submissions')
-                .select('listing_id, lo_agent_id, name, email, phone, created_at')
+                .select('listing_id, lo_agent_id, full_name, email, phone, created_at')
                 .gte('created_at', sevenDaysAgo)
                 .not('listing_id', 'is', null);
 
@@ -254,14 +254,14 @@ module.exports = (supabaseAdmin, emailService) => {
                     // Get listing owner
                     const { data: property } = await supabaseAdmin
                         .from('properties')
-                        .select('address, city, state, user_id')
+                        .select('address, user_id')
                         .eq('id', listingId)
                         .maybeSingle();
                     if (!property?.user_id) continue;
 
                     const { data: listingAgentUser } = await supabaseAdmin
                         .from('agents')
-                        .select('email, first_name, name')
+                        .select('email, first_name')
                         .eq('auth_user_id', property.user_id)
                         .maybeSingle();
                     if (!listingAgentUser?.email) continue;

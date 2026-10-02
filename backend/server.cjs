@@ -2858,7 +2858,7 @@ const mapLeadForRealtime = async (leadRow) => {
   if (listingId) {
     const { data } = await supabaseAdmin
       .from('properties')
-      .select('id, address, city, state, zip')
+      .select('id, address')
       .eq('id', listingId)
       .maybeSingle();
     listing = data || null;
@@ -11164,7 +11164,7 @@ const dispatchAppointmentReminder = async (reminder) => {
     listingId
       ? supabaseAdmin
         .from('properties')
-        .select('id, address, city, state, zip')
+        .select('id, address')
         .eq('id', listingId)
         .maybeSingle()
       : Promise.resolve({ data: null })
@@ -12458,7 +12458,7 @@ const processLeadSummaryGenerateJob = async (job) => {
   if (conversationId) {
     const { data } = await supabaseAdmin
       .from('ai_conversations')
-      .select('id, listing_id, lead_id, agent_id, user_id, updated_at')
+      .select('id, listing_id, lead_id, user_id, updated_at')
       .eq('id', conversationId)
       .maybeSingle();
     conversationRow = data || null;
@@ -12467,7 +12467,7 @@ const processLeadSummaryGenerateJob = async (job) => {
   if (!conversationRow) {
     const { data } = await supabaseAdmin
       .from('ai_conversations')
-      .select('id, listing_id, lead_id, agent_id, user_id, updated_at')
+      .select('id, listing_id, lead_id, user_id, updated_at')
       .eq('lead_id', leadId)
       .order('updated_at', { ascending: false })
       .limit(1)
@@ -19526,7 +19526,7 @@ const buildPublicListingResponse = async (listingRow) => {
   try {
     const { data: summaryRows, error: summaryError } = await supabaseAdmin
       .from('listing_sources')
-      .select('content, text, updated_at')
+      .select('content, updated_at')
       .eq('listing_id', listingRow.id)
       .eq('title', '🤖 AI Summary')
       .order('updated_at', { ascending: false, nullsFirst: false })
@@ -20117,7 +20117,7 @@ app.post('/api/public/conversations/:conversationId/message', async (req, res) =
 
     const { data: conversationRow, error: conversationError } = await supabaseAdmin
       .from('ai_conversations')
-      .select('id, listing_id, lead_id, user_id, agent_id, visitor_id, metadata, message_count')
+      .select('id, listing_id, lead_id, user_id, metadata, message_count')
       .eq('id', conversationId)
       .maybeSingle();
     if (conversationError) throw conversationError;
@@ -22448,7 +22448,7 @@ app.get('/api/dashboard/leads/:leadId', async (req, res) => {
     if (lead.listing_id) {
       const { data: listingRow } = await supabaseAdmin
         .from('properties')
-        .select('id, address, city, state, zip, price, bedrooms, bathrooms, sqft, status')
+        .select('id, address, price, bedrooms, bathrooms, sqft, status')
         .eq('id', lead.listing_id)
         .single();
       listing = listingRow || null;
@@ -22676,7 +22676,7 @@ app.get('/api/dashboard/leads/:leadId/conversation', async (req, res) => {
 
     const { data: conversationRows, error: conversationError } = await supabaseAdmin
       .from('ai_conversations')
-      .select('id, listing_id, visitor_id, channel, metadata, created_at, updated_at, started_at, last_activity_at')
+      .select('id, listing_id, metadata, created_at, updated_at, last_message_at')
       .eq('lead_id', leadId)
       .order('updated_at', { ascending: false })
       .limit(1);
@@ -22696,7 +22696,7 @@ app.get('/api/dashboard/leads/:leadId/conversation', async (req, res) => {
 
     const { data: messageRows, error: messageError } = await supabaseAdmin
       .from('ai_conversation_messages')
-      .select('id, sender, channel, content, metadata, is_capture_event, intent_tags, confidence, created_at')
+      .select('id, sender, channel, content, metadata, created_at')
       .eq('conversation_id', conversation.id)
       .order('created_at', { ascending: true })
       .limit(200);
@@ -22777,7 +22777,7 @@ app.get('/api/dashboard/leads/export-conversations', async (req, res) => {
     // 2. Fetch most-recent conversation per lead
     const { data: convRows, error: convErr } = await supabaseAdmin
       .from('ai_conversations')
-      .select('id, lead_id, started_at, last_activity_at')
+      .select('id, lead_id, created_at, last_message_at')
       .in('lead_id', leadIds)
       .order('updated_at', { ascending: false });
     if (convErr) throw convErr;
@@ -31004,7 +31004,7 @@ app.post('/api/appointments', async (req, res) => {
     if (resolvedListingId) {
       const { data, error } = await supabaseAdmin
         .from('properties')
-        .select('id, user_id, address, city, state, zip')
+        .select('id, user_id, address')
         .eq('id', resolvedListingId)
         .single();
 
@@ -31939,7 +31939,7 @@ app.get('/api/lo/leads/:leadId/conversation', requireAuth, async (req, res) => {
 
     const { data: conversationRows, error: convError } = await supabaseAdmin
       .from('ai_conversations')
-      .select('id, listing_id, visitor_id, channel, metadata, created_at, updated_at, started_at, last_activity_at')
+      .select('id, listing_id, metadata, created_at, updated_at, last_message_at')
       .eq('lead_id', leadId)
       .order('updated_at', { ascending: false })
       .limit(1);
@@ -31950,7 +31950,7 @@ app.get('/api/lo/leads/:leadId/conversation', requireAuth, async (req, res) => {
 
     const { data: messageRows, error: msgError } = await supabaseAdmin
       .from('ai_conversation_messages')
-      .select('id, sender, channel, content, metadata, is_capture_event, intent_tags, confidence, created_at')
+      .select('id, sender, channel, content, metadata, created_at')
       .eq('conversation_id', conversation.id)
       .order('created_at', { ascending: true })
       .limit(200);
