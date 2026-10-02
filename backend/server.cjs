@@ -2246,7 +2246,11 @@ app.post('/api/webhooks/mailgun/inbound', async (req, res) => {
     console.log(`✅ [Inbound Email] Saved to conversation ${conversationId}`);
 
     // Trigger Lead Scoring (Async)
-    leadScoringService.recalculateLeadScore(lead.id, 'CHAT_REPLY')
+    leadScoringService.recalculateLeadScore(lead.id, 'CHAT_REPLY', {
+      message: strippedText || bodyHtml || '',
+      channel: 'email',
+      subject: subject || null
+    })
       .catch(err => console.error('Failed to score inbound email:', err));
 
     // --- SMART INTERRUPT: STOP FUNNELS ON REPLY ---
@@ -17900,7 +17904,10 @@ const processInboundSmsMessage = async ({
     updated_at: nowIso()
   }).eq('id', conversationId);
 
-  leadScoringService.recalculateLeadScore(lead.id, 'CHAT_REPLY')
+  leadScoringService.recalculateLeadScore(lead.id, 'CHAT_REPLY', {
+    message: textBody,
+    channel: 'sms'
+  })
     .catch(err => console.error('Failed to score inbound SMS:', err));
 
   try {

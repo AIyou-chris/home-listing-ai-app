@@ -1,4 +1,5 @@
 const { createClient } = require('@supabase/supabase-js');
+const { typeSafeLeadQualificationService } = require('./TypeSafeLeadQualificationService');
 const path = require('path');
 require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
 
@@ -73,11 +74,22 @@ class LeadScoringService {
 
             if (historyError) console.warn('⚠️ Could not fetch score history, caps may be inaccurate.');
 
-            // 3. Calculate New Score
-            const calculation = this.calculateScore(lead, history || [], triggerEvent);
+            // 3. Use JEV for semantic qualification when an inbound reply is available.
+            // If the key/API is unavailable, this returns null and deterministic scoring continues.
+            const jevEvaluation = triggerEvent?.toUpperCase() === 'CHAT_REPLY'
+                ? await typeSafeLeadQualificationService.evaluateReply({
+                    message: metadata.message,
+                    channel: metadata.channel,
+                    subject: metadata.subject,
+                    lead
+                })
+                : null;
 
-            // 4. Update Lead if score changed
-            if (calculation.totalScore !== lead.score || calculation.tier !== lead.score_tier) {
+            // 4. Calculate New Score
+            const calculation = this.calculateScore(lead, history || [], triggerEvent, jevEvaluation);
+
+            // 5. Update Lead if score changed
+            if (calculation.totalScore !== lead.score || calculation.tier !== lead.score_tier || jevEvaluation) {
                 await this.updateLead(lead, calculation, triggerEvent);
             } else {
                 console.log(`Start/End score matched (${lead.score}), skipping update.`);
@@ -94,7 +106,7 @@ class LeadScoringService {
     /**
      * Pure logic to determine score based on rules and history.
      */
-    calculateScore(lead, history, currentTrigger) {
+    calculateScore(lead, history, currentTrigger, jevEvaluation = null) {
         let totalScore = 0;
         const breakdown = [];
 
@@ -174,7 +186,13 @@ class LeadScoringService {
             ruleCounts[ruleKey]++;
         });
 
-        totalScore = staticScore + behaviorScore;
+        // Preserve the latest semantic qualification until a newer reply replaces it.
+        const previousJevBreakdown = Array.isArray(lead.score_breakdown)
+            ? lead.score_breakdown.find(item => item.rule === 'JEV Semantic Qualification')
+            : null;
+        const jevPoints = jevEvaluation?.points ?? previousJevBreakdown?.points ?? 0;
+
+        totalScore = staticScore + behaviorScore + jevPoints;
 
         // Decay Logic (Simple check of last_behavior_at)
         if (lead.last_behavior_at) {
@@ -195,10 +213,24 @@ class LeadScoringService {
                 rule: SCORING_RULES[k].name,
                 count: ruleCounts[k],
                 points: Math.min(ruleCounts[k] * SCORING_RULES[k].points, SCORING_RULES[k].cap || 9999)
-            }))
+            })),
+            ...(jevPoints !== 0 || jevEvaluation ? [{
+                rule: 'JEV Semantic Qualification',
+                points: jevPoints,
+                intent: jevEvaluation?.intent ?? previousJevBreakdown?.intent ?? 'unknown',
+                confidence: jevEvaluation?.intentConfidence ?? previousJevBreakdown?.confidence ?? null,
+                readiness: jevEvaluation?.readiness ?? previousJevBreakdown?.readiness ?? null,
+                urgency: jevEvaluation?.urgency ?? previousJevBreakdown?.urgency ?? null,
+                model: jevEvaluation?.model ?? previousJevBreakdown?.model ?? null
+            }] : [])
         ].filter(b => b.points !== 0);
 
-        return { totalScore, tier, breakdown: breakdownData };
+        return {
+            totalScore: Math.max(0, totalScore),
+            tier,
+            breakdown: breakdownData,
+            scoringVersion: jevEvaluation ? 'v2.1-jev' : 'v2.0'
+        };
     }
 
     async updateLead(lead, calculation, triggerEvent) {
@@ -226,11 +258,14 @@ class LeadScoringService {
                 previous_score: lead.score || 0,
                 new_score: calculation.totalScore,
                 event_trigger: triggerEvent, // e.g., 'EMAIL_OPEN'
-                scoring_version: 'v2.0'
+                scoring_version: calculation.scoringVersion
             });
 
         console.log(`✅ [Scoring] Updated Lead ${lead.id}: ${lead.score} -> ${calculation.totalScore} (${calculation.tier})`);
     }
 }
 
-module.exports = new LeadScoringService();
+const leadScoringService = new LeadScoringService();
+
+module.exports = leadScoringService;
+module.exports.LeadScoringService = LeadScoringService;
