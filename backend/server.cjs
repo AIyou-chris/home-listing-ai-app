@@ -633,6 +633,9 @@ const postOnly = (...mws) => (req, res, next) => {
 };
 app.use('/api/public/lo-chat', postOnly(aiChatLimiter, aiSpendGuard));
 app.use('/api/public/conversations', postOnly(aiChatLimiter, aiSpendGuard));
+app.use('/api/ai/property-chat', postOnly(aiChatLimiter, aiSpendGuard));
+app.use('/api/realtime/offer', postOnly(aiChatLimiter, aiSpendGuard));
+app.use('/api/realtime/handoff', postOnly(aiChatLimiter));
 // Public lead capture / opt-ins
 app.use('/api/leads/capture', leadLimiter);
 app.use('/api/leads/public', leadLimiter);
@@ -733,7 +736,7 @@ app.get('/s/:slug', async (req, res) => {
   }
 });
 
-app.post('/api/shorten', async (req, res) => {
+app.post('/api/shorten', (req, res, next) => requireAuth(req, res, next), async (req, res) => {
   const { url, customSlug } = req.body;
   if (!url) return res.status(400).json({ error: 'URL is required' });
 
@@ -19367,7 +19370,7 @@ app.get('/api/leads/stats', async (req, res) => {
 });
 
 // Create new lead (Public/Internal) with SMS Alerts
-app.post('/api/leads', async (req, res) => {
+app.post('/api/leads', requireAuth, async (req, res) => {
   try {
     const { name, email, phone, agentId, notes, source } = req.body;
 
@@ -27416,7 +27419,7 @@ INSTRUCTIONS:
 });
 
 // AI Agent Chat Endpoint (for Business Card)
-app.post('/api/ai/agent-chat', async (req, res) => {
+app.post('/api/ai/agent-chat', requireAuth, async (req, res) => {
   const { agentProfile, messages } = req.body;
 
   if (!agentProfile || !messages) {
@@ -27476,7 +27479,7 @@ Website: ${agentProfile.website}
 });
 
 // AI Listing Generation Endpoint
-app.post('/api/ai/generate-listing', async (req, res) => {
+app.post('/api/ai/generate-listing', requireAuth, async (req, res) => {
   try {
     const { address, beds, baths, sqft, features, title } = req.body;
 
@@ -28326,15 +28329,15 @@ app.post('/api/admin/marketing/sequences', verifyAdmin, async (req, res) => {
 
 // Email sending (Mailgun)
 // Email sending (Unified Service)
-app.post('/api/email/send', async (req, res) => {
+app.post('/api/email/send', requireAuth, async (req, res) => {
   try {
-    const { to, subject, html, text, from, cc, bcc, replyTo, tags } = req.body;
+    // `from` is never taken from the caller: mail always goes out as the platform sender.
+    const { to, subject, html, text, cc, bcc, replyTo, tags } = req.body;
     const result = await emailService.sendEmail({
       to,
       subject,
       html,
       text,
-      from,
       cc,
       bcc,
       replyTo,
@@ -37466,11 +37469,11 @@ const handleVoiceOutboundCall = async (req, res) => {
 };
 
 // Primary voice endpoints
-app.post('/api/voice/outbound-call', handleVoiceOutboundCall);
-app.post('/api/voice/vapi/outbound-call', handleVoiceOutboundCall);
+app.post('/api/voice/outbound-call', requireAuth, handleVoiceOutboundCall);
+app.post('/api/voice/vapi/outbound-call', requireAuth, handleVoiceOutboundCall);
 
 // Backward compatibility alias so existing clients do not break during cutover.
-app.post('/api/voice/hume/outbound-call', handleVoiceOutboundCall);
+app.post('/api/voice/hume/outbound-call', requireAuth, handleVoiceOutboundCall);
 
 // Hard-disable old bridge webhooks after Retell migration.
 app.post(['/api/voice/hume/connect', '/api/voice/telnyx/events'], async (req, res) => {
@@ -38213,9 +38216,10 @@ app.post(['/api/vapi/calendar/availability', '/api/vapi/calendar/book'], async (
 });
 
 // SMS Sending Endpoint (Backend Proxy)
-app.post('/api/sms/send', async (req, res) => {
+app.post('/api/sms/send', requireAuth, async (req, res) => {
   try {
-    const { to, message, userId } = req.body;
+    const { to, message } = req.body;
+    const userId = req.authUserId;
     if (!to || !message) {
       return res.status(400).json({ error: 'Missing to or message' });
     }

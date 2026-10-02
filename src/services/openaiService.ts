@@ -11,6 +11,7 @@ import {
   detectAndUpdateLanguage,
   getPreferredLanguage
 } from './languagePreferenceService'
+import { authedFetch } from './authedFetch'
 import { buildApiUrl, getApiBaseUrl } from '../lib/api'
 
 interface ContinueConversationOptions {
@@ -181,7 +182,7 @@ export const continueAgentConversation = async (
   agentProfile: Record<string, unknown>
 ): Promise<string> => {
   try {
-    const response = await fetch(buildApiUrl('/api/ai/agent-chat'), {
+    const response = await authedFetch(buildApiUrl('/api/ai/agent-chat'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

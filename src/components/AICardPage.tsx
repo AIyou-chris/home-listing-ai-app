@@ -9,6 +9,7 @@ import { notifyProfileChange } from '../services/agentProfileService';
 // import ChatBotFAB from './ChatBotFAB';
 import { AgentSidekickModal } from './AgentSidekickModal';
 import { DEMO_AI_CARD_PROFILE } from '../constants';
+import { authedFetch } from '../services/authedFetch'
 import { BLUEPRINT_AGENT } from '../constants/agentBlueprintData';
 
 type EditableElement = HTMLInputElement | HTMLTextAreaElement;
@@ -553,7 +554,7 @@ const AICardPage: React.FC<{ isDemoMode?: boolean; isBlueprintMode?: boolean }> 
       // 2. Shorten URL (Internal Backend)
       let targetUrl = longUrl;
       try {
-        const res = await fetch(`${baseUrl}/api/shorten`, {
+        const res = await authedFetch(`${baseUrl}/api/shorten`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ url: longUrl })
@@ -617,7 +618,7 @@ const AICardPage: React.FC<{ isDemoMode?: boolean; isBlueprintMode?: boolean }> 
       let targetUrl = longUrl;
 
       try {
-        const res = await fetch(`${baseUrl}/api/shorten`, {
+        const res = await authedFetch(`${baseUrl}/api/shorten`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ url: longUrl })

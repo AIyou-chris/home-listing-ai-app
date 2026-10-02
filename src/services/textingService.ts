@@ -1,3 +1,5 @@
+import { authedFetch } from './authedFetch'
+
 
 
 
@@ -35,7 +37,7 @@ class TextingService {
         try {
             console.log(`📱 Sending SMS to ${destination}...`);
 
-            const response = await fetch('/api/sms/send', {
+            const response = await authedFetch('/api/sms/send', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'

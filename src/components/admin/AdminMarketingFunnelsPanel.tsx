@@ -16,6 +16,7 @@ import { LeadStatus } from '../../types';
 import { leadsService } from '../../services/leadsService';
 import { Toast, ToastType } from '../Toast';
 import { callBotsService } from '../../services/callBotsService';
+import { authedFetch } from '../../services/authedFetch'
 import { AuthService } from '../../services/authService';
 
 interface FunnelAnalyticsPanelProps {
@@ -528,7 +529,7 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                     'http://localhost:3002';
 
                 // Call outbound voice endpoint
-                const response = await fetch(`${voiceApiUrl}/api/voice/outbound-call`, {
+                const response = await authedFetch(`${voiceApiUrl}/api/voice/outbound-call`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'

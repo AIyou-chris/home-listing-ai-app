@@ -379,9 +379,13 @@ export const listingsService = {
     title?: string;
   }): Promise<AIDescription> {
     const { data: userData } = await supabase.auth.getUser();
+    const { data: genSession } = await supabase.auth.getSession();
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (userData?.user?.id) {
       headers['x-agent-id'] = userData.user.id;
+    }
+    if (genSession?.session?.access_token) {
+      headers.Authorization = `Bearer ${genSession.session.access_token}`;
     }
 
     // Parse features string

@@ -4,6 +4,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import Modal from './Modal';
 import { Lead } from '../types';
 import { leadsService, PhoneLogPayload } from '../services/leadsService';
+import { authedFetch } from '../services/authedFetch'
 import { textingService } from '../services/textingService';
 
 type FollowUpSequenceSummary = {
@@ -278,7 +279,7 @@ Best regards,`
 
         setIsSendingEmail(true);
         try {
-            const response = await fetch('/api/email/send', {
+            const response = await authedFetch('/api/email/send', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -315,7 +316,7 @@ Best regards,`
         if (!confirm(`Initialize AI Associate call to ${lead.name}?`)) return;
 
         try {
-            const response = await fetch('/api/voice/outbound-call', {
+            const response = await authedFetch('/api/voice/outbound-call', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
