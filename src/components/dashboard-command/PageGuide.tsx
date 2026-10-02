@@ -225,7 +225,7 @@ const PageGuide: React.FC<{ pageKey: string }> = ({ pageKey }) => {
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       {/* Header — click anywhere to toggle collapse */}
-      <div className="flex items-center gap-3 px-5 py-4">
+      <div className="flex items-center gap-3 py-4 pl-5 pr-5 md:pr-14">
         <button
           type="button"
           onClick={() => persist(expanded ? 'collapsed' : 'expanded')}
