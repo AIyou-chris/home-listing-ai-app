@@ -50,19 +50,6 @@ export const parseResponse = async <T>(response: Response): Promise<T> => {
   return response.json() as Promise<T>;
 };
 
-export const parseVideoResponse = async <T>(response: Response): Promise<T> => {
-  if (!response.ok) {
-    const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
-    const code = typeof payload.error === 'string' && payload.error.trim()
-      ? payload.error.trim()
-      : `http_${response.status}`;
-    const error = new Error(code) as Error & { status?: number };
-    error.status = response.status;
-    throw error;
-  }
-  return response.json() as Promise<T>;
-};
-
 export const resolveAgentId = async (): Promise<string | null> => {
   if (isDemoModeActive()) return 'demo-agent-busy';
   return waitForAuthenticatedUserId();

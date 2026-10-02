@@ -117,59 +117,6 @@ export const getAgentData = async (userId: string): Promise<AgentData | null> =>
 };
 
 /**
- * Get agent data by slug
- */
-export const getAgentDataBySlug = async (slug: string): Promise<AgentData | null> => {
-  try {
-    const { data, error } = await supabase
-      .from('agents')
-      .select('*')
-      .eq('slug', slug)
-      .maybeSingle();
-
-    if (error) {
-      console.error('Error fetching agent data by slug:', error);
-      return null;
-    }
-
-    return data as AgentData | null;
-  } catch (error) {
-    console.error('Exception in getAgentDataBySlug:', error);
-    return null;
-  }
-};
-
-/**
- * Update agent headshot URL
- */
-export const updateAgentHeadshot = async (headshotUrl: string): Promise<boolean> => {
-  try {
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      console.error('Error getting authenticated user for headshot update');
-      return false;
-    }
-
-    const { error } = await supabase
-      .from('agents')
-      .update({ headshot_url: headshotUrl })
-      .eq('auth_user_id', user.id);
-
-    if (error) {
-      console.error('Error updating agent headshot:', error);
-      return false;
-    }
-
-    console.log('✅ Updated agent headshot');
-    return true;
-  } catch (error) {
-    console.error('Exception in updateAgentHeadshot:', error);
-    return false;
-  }
-};
-
-/**
  * Update agent profile information
  */
 export const updateAgentProfile = async (updates: {

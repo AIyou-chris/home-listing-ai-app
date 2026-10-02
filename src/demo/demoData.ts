@@ -53,7 +53,6 @@ interface DemoListingMeta {
 }
 
 const demoNow = Date.now()
-const sampleVideoUrl = '/demo/demo-video.mp4'
 
 const isoMinutesAgo = (minutes: number) => new Date(demoNow - minutes * 60_000).toISOString()
 const isoMinutesFromNow = (minutes: number) => new Date(Date.now() + minutes * 60_000).toISOString()
@@ -439,17 +438,6 @@ const demoVideoStateByListing: Record<string, DemoListingVideoState> = {
     usedCredits: 0,
     scenario: 'normal',
     videos: []
-  }
-}
-
-const demoVideoListeners = new Set<(listingId: string) => void>()
-
-const emitDemoVideoUpdate = (listingId: string) => {
-  for (const listener of demoVideoListeners) {
-    listener(listingId)
-  }
-  if (typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent('hlai:demo-video-updated', { detail: { listingId } }))
   }
 }
 
@@ -1077,111 +1065,4 @@ export const logDemoAgentAction = (payload: { lead_id: string; action: string })
       created_at: new Date().toISOString()
     }
   })
-}
-
-const getVideoState = (listingId: string): DemoListingVideoState => {
-  if (!demoVideoStateByListing[listingId]) {
-    demoVideoStateByListing[listingId] = {
-      includedCredits: 3,
-      extraCredits: 0,
-      usedCredits: 0,
-      scenario: 'normal',
-      videos: []
-    }
-  }
-  return demoVideoStateByListing[listingId]
-}
-
-export const subscribeDemoVideoUpdates = (listener: (listingId: string) => void) => {
-  demoVideoListeners.add(listener)
-  return () => {
-    demoVideoListeners.delete(listener)
-  }
-}
-
-export const setDemoListingVideoScenario = (listingId: string, scenario: DemoVideoScenario) => {
-  const state = getVideoState(listingId)
-  state.scenario = scenario
-  emitDemoVideoUpdate(listingId)
-}
-
-export const getDemoListingVideos = (listingId: string) => {
-  const state = getVideoState(listingId)
-  const totalCredits = state.includedCredits + state.extraCredits
-  const remaining = Math.max(0, totalCredits - state.usedCredits)
-  return clone({
-    credits_remaining: remaining,
-    credits_total: totalCredits,
-    credits_used: state.usedCredits,
-    scenario: state.scenario,
-    videos: [...state.videos].sort(
-      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-    )
-  })
-}
-
-export const getDemoVideoById = (videoId: string): DemoListingVideoRecord | null => {
-  for (const state of Object.values(demoVideoStateByListing)) {
-    const video = state.videos.find((row) => row.id === videoId)
-    if (video) return clone(video)
-  }
-  return null
-}
-
-export const generateDemoListingVideo = (
-  listingId: string,
-  templateStyle: string
-): { queued: boolean; error?: string; credits_remaining: number; video?: DemoListingVideoRecord } => {
-  const state = getVideoState(listingId)
-  const totalCredits = state.includedCredits + state.extraCredits
-  const remaining = Math.max(0, totalCredits - state.usedCredits)
-
-  if (state.scenario === 'limit_reached' || remaining <= 0) {
-    return {
-      queued: false,
-      error: 'Insufficient credits',
-      credits_remaining: 0
-    }
-  }
-
-  const nextVideo: DemoListingVideoRecord = {
-    id: `demo-video-${Date.now()}`,
-    listingId,
-    title: `${templateStyle} social video`,
-    caption: 'See this listing in 15 seconds. Tap for report + showing options.',
-    file_name: `${listingId}-${templateStyle.toLowerCase()}-15s.mp4`,
-    mime_type: 'video/mp4',
-    status: 'processing',
-    video_url: null,
-    creatomate_url: null,
-    created_at: new Date().toISOString()
-  }
-
-  state.videos = [nextVideo, ...state.videos]
-  state.usedCredits += 1
-  emitDemoVideoUpdate(listingId)
-
-  window.setTimeout(() => {
-    const refreshState = getVideoState(listingId)
-    const targetVideo = refreshState.videos.find((video) => video.id === nextVideo.id)
-    if (!targetVideo) return
-
-    if (refreshState.scenario === 'failed_render') {
-      targetVideo.status = 'failed'
-      targetVideo.video_url = null
-      targetVideo.creatomate_url = null
-      refreshState.usedCredits = Math.max(0, refreshState.usedCredits - 1)
-    } else {
-      targetVideo.status = 'ready'
-      targetVideo.video_url = sampleVideoUrl
-      targetVideo.creatomate_url = sampleVideoUrl
-    }
-    emitDemoVideoUpdate(listingId)
-  }, 3500)
-
-  return {
-    queued: true,
-    credits_remaining: Math.max(0, totalCredits - state.usedCredits),
-    video: clone(nextVideo)
-  }
 }

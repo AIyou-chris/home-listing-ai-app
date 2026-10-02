@@ -81,15 +81,6 @@ export const getRegistrationContext = () => {
   }
 };
 
-export const clearRegistrationContext = () => {
-  try {
-    if (typeof window === 'undefined' || !window.sessionStorage) return;
-    window.sessionStorage.removeItem(REGISTRATION_STORAGE_KEY);
-  } catch (error) {
-    console.warn('[AgentOnboarding] Failed to clear registration context', error);
-  }
-};
-
 export const agentOnboardingService = {
   async registerAgent(payload: AgentRegistrationPayload): Promise<AgentRegistrationResponse> {
     const response = await fetch(buildApiUrl('/api/agents/register'), {

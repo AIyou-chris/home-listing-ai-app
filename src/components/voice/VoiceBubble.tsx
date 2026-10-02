@@ -437,11 +437,5 @@ export const VoiceBubble: React.FC<VoiceBubbleProps> = ({
 
 export default VoiceBubble
 
-export const PopupVoicePanel: React.FC<VoiceBubbleProps> = (props) => (
-  <div className='relative h-full w-full'>
-    <VoiceBubble {...props} className={`absolute inset-0 ${props.className ?? ''}`.trim()} />
-  </div>
-)
-
 
 

@@ -69,8 +69,3 @@ export const getLocalListingDraft = (id: string): LocalListingDraftRecord | null
 export const listLocalListingDrafts = (): LocalListingDraftRecord[] => {
   return readAll()
 }
-
-export const clearAllLocalListingDrafts = (): void => {
-  if (typeof window === 'undefined') return
-  window.sessionStorage.removeItem(STORAGE_KEY)
-}

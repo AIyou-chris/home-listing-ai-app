@@ -427,13 +427,3 @@ export const EMAIL_TEMPLATE_CATEGORIES = [
     { id: 'market_update', name: 'Market Updates', description: 'Share market insights and trends' },
     { id: 'recruitment', name: 'Admin / Recruitment', description: ' Recruit agents to HomeListingAI' }
 ];
-
-export const TEMPLATE_VARIABLES = {
-    lead: ['name', 'email', 'phone', 'source'],
-    property: ['address', 'type', 'bedrooms', 'bathrooms', 'squareFeet', 'price', 'features', 'highlights'],
-    agent: ['name', 'title', 'company', 'phone', 'email', 'website'],
-    appointment: ['date', 'time', 'location'],
-    market: ['averagePrice', 'averageDays', 'interestRate', 'buyerInsight', 'sellerInsight'],
-    neighborhood: ['name', 'feature1', 'feature2', 'feature3', 'schools', 'shopping', 'dining'],
-    openHouse: ['date', 'startTime', 'endTime']
-};

@@ -255,28 +255,6 @@ export const createListingBuilderSource = async (listingId: string, input: Creat
   return mapSource(payload.source)
 }
 
-export const updateListingBuilderSource = async (
-  listingId: string,
-  sourceId: string,
-  input: UpdateSourceInput,
-  agentIdOverride?: string | null
-) => {
-  const agentId = await resolveListingAgent(agentIdOverride)
-  const response = await fetch(
-    buildApiUrl(withAgentQuery(`/api/dashboard/listings/${encodeURIComponent(listingId)}/sources/${encodeURIComponent(sourceId)}`, agentId)),
-    {
-      method: 'PATCH',
-      headers: await defaultJsonHeaders(agentId),
-      body: JSON.stringify({
-        ...input,
-        ...(input.type ? { type: sourceTypeToApi(input.type) } : {})
-      })
-    }
-  )
-  const payload = await parseResponse<{ source: ListingSourceApi }>(response)
-  return mapSource(payload.source)
-}
-
 export const deleteListingBuilderSource = async (listingId: string, sourceId: string, agentIdOverride?: string | null) => {
   const agentId = await resolveListingAgent(agentIdOverride)
   const response = await fetch(
@@ -323,8 +301,6 @@ export const uploadListingBrainDoc = async (listingId: string, file: File, agent
   const payload = await parseResponse<{ source: ListingSourceApi }>(response)
   return mapSource(payload.source)
 }
-
-export const uploadListingBuilderSourceFile = uploadListingBrainDoc
 
 export const retrainListingBrain = async (listingId: string, agentIdOverride?: string | null) => {
   const agentId = await resolveListingAgent(agentIdOverride)

@@ -465,8 +465,3 @@ IMPORTANT: Respond with ONLY the JSON object, no explanations or additional text
     this.currentMode = 'general';
   }
 }
-
-// Factory function
-export const createHelpSalesChatBot = (context: ChatBotContext) => {
-  return new HelpSalesChatBot(context);
-};

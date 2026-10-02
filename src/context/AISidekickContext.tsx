@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react';
+import React, { createContext, useEffect, useMemo, useState, useCallback } from 'react';
 import type { AIPersonality } from '../types';
 import { AI_PERSONALITIES } from '../constants';
 import { loadRoleMap, saveRoleMap, type RolePersonalityMap as PersistedRoleMap } from '../services/aiPersonaService';
@@ -136,12 +136,5 @@ export const AISidekickProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 	}), [roleMap, setRolePersonality, setDefaultRole, getPersonality, addOverride]);
 
 	return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
-};
-
-// eslint-disable-next-line react-refresh/only-export-components
-export const useAISidekicks = (): ContextValue => {
-	const v = useContext(Ctx);
-	if (!v) throw new Error('useAISidekicks must be used within AISidekickProvider');
-	return v;
 };
 

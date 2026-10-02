@@ -459,15 +459,6 @@ export const getLocalSidekick = (id: string): AISidekick | undefined => {
   return store.sidekicks.find(sidekick => sidekick.id === id)
 }
 
-export const upsertLocalSidekick = (sidekick: AISidekick): AISidekick => {
-  const saved: AISidekick = deepCloneSidekick(sidekick)
-  updateStore(store => ({
-    voices: store.voices.map(cloneVoice),
-    sidekicks: [saved, ...store.sidekicks.filter(existing => existing.id !== saved.id)].map(deepCloneSidekick)
-  }))
-  return saved
-}
-
 const defaultHeaders = {
   'Content-Type': 'application/json'
 };

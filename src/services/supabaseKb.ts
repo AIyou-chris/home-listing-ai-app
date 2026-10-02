@@ -32,12 +32,6 @@ export const listKb = async (userId: string, sidekick?: SidekickId, propertyId?:
 	return (data || []) as unknown as KbEntry[]
 }
 
-export const getEntry = async (id: string): Promise<KbEntry | null> => {
-	const { data, error } = await supabase.from('ai_kb').select('*').eq('id', id).single()
-	if (error) return null
-	return data as unknown as KbEntry
-}
-
 export const getPublicUrl = (path?: string | null): string | null => {
 	if (!path) return null
 	const { data } = supabase.storage.from(bucket).getPublicUrl(path)

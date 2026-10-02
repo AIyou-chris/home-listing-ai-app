@@ -41,14 +41,6 @@ export interface BillingValueProofSnapshot {
   roi: DashboardRoiSummary;
 }
 
-export const fetchRoiMetrics = async (timeframe: '1d' | '7d' | '14d' | '30d' = '7d', agentIdOverride?: string | null) => {
-  const agentId = agentIdOverride === undefined ? await resolveAgentId() : agentIdOverride;
-  const response = await fetch(buildApiUrl(withAgentQuery(`/api/dashboard/roi-metrics?timeframe=${timeframe}`, agentId)), {
-    headers: await authHeaders(agentId)
-  });
-  return parseResponse<{ success: boolean; metrics: RoiMetrics }>(response);
-};
-
 export const fetchDashboardRoi = async (range: '7d' | '30d' = '7d', agentIdOverride?: string | null) => {
   if (isDemoModeActive()) {
     return {

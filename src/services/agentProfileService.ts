@@ -159,14 +159,6 @@ export const getAgentProfileSnapshot = () => cachedAgentProfile;
 
 export const getAICardProfileSnapshot = () => cachedAICardProfile;
 
-export const resetAgentProfileStore = () => {
-  cachedAgentProfile = null;
-  cachedAICardProfile = null;
-  cachedSource = null;
-  cachedUserId = undefined;
-  inflightLoad = null;
-};
-
 export const refreshAgentProfile = async (options: LoadOptions = {}) => {
   return loadProfile({ ...options, force: true });
 };
@@ -270,50 +262,6 @@ export const getProfileForDashboard = async (userId?: string) => {
   };
 };
 
-export const getProfileForSettings = async (userId?: string) => {
-  const profile = await getAgentProfile(userId);
-  return {
-    name: profile.name,
-    email: profile.email,
-    phone: profile.phone,
-    company: profile.company,
-    title: profile.title,
-    website: profile.website,
-    bio: profile.bio,
-    headshotUrl: profile.headshotUrl,
-    brandColor: profile.brandColor,
-    language: profile.language,
-    socialMedia: profile.socialMedia
-  };
-};
-
-export const getProfileForCommunications = async (userId?: string) => {
-  const profile = await getAgentProfile(userId);
-  return {
-    agentName: profile.name,
-    agentTitle: profile.title,
-    agentCompany: profile.company,
-    agentPhone: profile.phone,
-    agentEmail: profile.email,
-    agentWebsite: profile.website,
-    language: profile.language,
-    signature: `${profile.name}\n${profile.title}\n${profile.company}\n${profile.phone}\n${profile.email}`
-  };
-};
-
-export const getProfileForAppointments = async (userId?: string) => {
-  const profile = await getAgentProfile(userId);
-  return {
-    hostName: profile.name,
-    hostTitle: profile.title,
-    hostCompany: profile.company,
-    hostPhone: profile.phone,
-    hostEmail: profile.email,
-    brandColor: profile.brandColor,
-    language: profile.language
-  };
-};
-
 // Listen for profile changes (for real-time updates across components)
 export const subscribeToProfileChanges = (callback: (profile: AgentProfile) => void) => {
   profileChangeListeners.push(callback);
@@ -339,13 +287,6 @@ export const notifyProfileChange = (profile: AgentProfile, options: { source?: P
     userId: options.userId ?? cachedUserId,
     notify: true
   });
-};
-
-// Enhanced update function that notifies listeners
-export const updateAgentProfileWithNotification = async (profileData: Partial<AgentProfile>, userId?: string): Promise<AgentProfile> => {
-  const updatedProfile = await updateAgentProfile(profileData, userId);
-  notifyProfileChange(updatedProfile, { source: 'supabase', userId });
-  return updatedProfile;
 };
 
 export type { AICardProfile };

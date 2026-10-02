@@ -147,34 +147,6 @@ export const getAICardProfile = async (userId?: string, signal?: AbortSignal): P
   }
 };
 
-// Create new AI Card profile
-export const createAICardProfile = async (profileData: Omit<AICardProfile, 'id' | 'created_at' | 'updated_at'>, userId?: string): Promise<AICardProfile> => {
-  try {
-    const resolvedUserId = await resolveUserId(userId);
-    const response = await authedFetch(buildApiUrl('/api/ai-card/profile'), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        userId: resolvedUserId,
-        ...profileData
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const profile = await withAssetUrls(await response.json());
-    console.log('✅ Created AI Card profile');
-    return profile;
-  } catch (error) {
-    console.error('Error creating AI Card profile:', error);
-    throw error;
-  }
-};
-
 // Update AI Card profile
 export const updateAICardProfile = async (profileData: Partial<AICardProfile>, userId?: string): Promise<AICardProfile> => {
   try {
@@ -265,60 +237,6 @@ export const shareAICard = async (method: string, userId?: string, recipient?: s
   } catch (error) {
     console.error('Error sharing AI Card:', error);
     throw error;
-  }
-};
-
-export const listAICardQRCodes = async (userId?: string): Promise<AICardQRCode[]> => {
-  const resolvedUserId = await resolveUserId(userId);
-  const queryParams = resolvedUserId ? `?userId=${resolvedUserId}` : '';
-  const response = await authedFetch(`${buildApiUrl('/api/ai-card/qr-codes')}${queryParams}`);
-  if (!response.ok) {
-    throw new Error(`Failed to load QR codes: ${response.status}`);
-  }
-  const data = (await response.json()) as AICardQRCode[];
-  return data;
-};
-
-export const createAICardQRCode = async (
-  label: string,
-  destinationUrl?: string,
-  userId?: string
-): Promise<AICardQRCode> => {
-  const resolvedUserId = await resolveUserId(userId);
-  const response = await authedFetch(buildApiUrl('/api/ai-card/qr-codes'), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      userId: resolvedUserId,
-      label,
-      destinationUrl
-    })
-  });
-  if (!response.ok) {
-    throw new Error((await response.text()) || 'Failed to create QR code');
-  }
-  return (await response.json()) as AICardQRCode;
-};
-
-export const updateAICardQRCode = async (
-  qrId: string,
-  updates: { label?: string; destinationUrl?: string }
-): Promise<AICardQRCode> => {
-  const response = await authedFetch(buildApiUrl(`/api/ai-card/qr-codes/${encodeURIComponent(qrId)}`), {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(updates)
-  });
-  if (!response.ok) {
-    throw new Error((await response.text()) || 'Failed to update QR code');
-  }
-  return (await response.json()) as AICardQRCode;
-};
-
-export const deleteAICardQRCode = async (qrId: string): Promise<void> => {
-  const response = await authedFetch(buildApiUrl(`/api/ai-card/qr-codes/${encodeURIComponent(qrId)}`), { method: 'DELETE' });
-  if (!response.ok) {
-    throw new Error((await response.text()) || 'Failed to delete QR code');
   }
 };
 

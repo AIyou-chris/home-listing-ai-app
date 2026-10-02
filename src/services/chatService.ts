@@ -272,29 +272,6 @@ export const touchConversation = async (conversationId: string) => {
   }
 }
 
-export const updateConversationTitle = async (
-  conversationId: string,
-  title: string
-) => {
-  try {
-    const response = await authedFetch(`/api/conversations/${conversationId}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        title: title
-      }),
-    });
-
-    if (!response.ok) {
-      console.warn('Failed to update conversation title:', response.status);
-    }
-  } catch (error) {
-    console.error('Error updating conversation title:', error);
-  }
-}
-
 export interface ConversationUpdatePayload {
   title?: string | null
   status?: 'active' | 'archived' | 'important' | 'follow-up'
@@ -305,42 +282,6 @@ export interface ConversationUpdatePayload {
   contactName?: string | null
   contactEmail?: string | null
   contactPhone?: string | null
-}
-
-export const updateConversation = async (
-  conversationId: string,
-  payload: ConversationUpdatePayload
-) => {
-  try {
-    const body: Record<string, unknown> = {}
-    if (payload.title !== undefined) body.title = payload.title ?? null
-    if (payload.status !== undefined) body.status = payload.status
-    if (payload.followUpTask !== undefined) body.followUpTask = payload.followUpTask ?? null
-    if (payload.intent !== undefined) body.intent = payload.intent ?? null
-    if (payload.language !== undefined) body.language = payload.language ?? null
-    if (payload.leadId !== undefined) body.leadId = payload.leadId ?? null
-    if (payload.contactName !== undefined) body.contactName = payload.contactName ?? null
-    if (payload.contactEmail !== undefined) body.contactEmail = payload.contactEmail ?? null
-    if (payload.contactPhone !== undefined) body.contactPhone = payload.contactPhone ?? null
-
-    const response = await authedFetch(`/api/conversations/${conversationId}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(body),
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const data = await response.json();
-    return data as ConversationRow;
-  } catch (error) {
-    console.error('Error updating conversation:', error);
-    throw error;
-  }
 }
 
 // Export conversations to CSV

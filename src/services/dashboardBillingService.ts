@@ -233,38 +233,3 @@ export const deleteDashboardAccount = async (confirmation = 'DELETE'): Promise<{
     success: Boolean(payload.success)
   };
 };
-
-export const trackDashboardReportGeneration = async (listingId: string, referenceId?: string) => {
-  const agentId = await resolveAgentId();
-  const response = await fetch(buildApiUrl('/api/dashboard/reports/track-generation'), {
-    method: 'POST',
-    headers: await bearerHeaders(agentId, true),
-    body: JSON.stringify({
-      listing_id: listingId,
-      reference_id: referenceId || `report_${Date.now()}`
-    })
-  });
-
-  await assertResponse(response);
-  return parseJson(response);
-};
-
-export const checkBillingEntitlement = async (
-  feature: string,
-  requestedUnits = 1,
-  context: Record<string, unknown> = {}
-) => {
-  const agentId = await resolveAgentId();
-  const response = await fetch(buildApiUrl('/api/dashboard/billing/check-entitlement'), {
-    method: 'POST',
-    headers: await bearerHeaders(agentId, true),
-    body: JSON.stringify({
-      feature,
-      requested_units: requestedUnits,
-      context
-    })
-  });
-
-  await assertResponse(response);
-  return parseJson(response);
-};
