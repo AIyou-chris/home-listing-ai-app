@@ -1,4 +1,5 @@
 import { EmailSettings } from '../types';
+import { authedFetch } from './authedFetch'
 
 interface EmailSettingsResponse {
     success: boolean;
@@ -16,13 +17,13 @@ const handleResponse = async (response: Response): Promise<EmailSettingsResponse
 
 const fetchSettings = async (userId: string): Promise<EmailSettingsResponse> => {
     const safeId = userId || 'default';
-    const response = await fetch(`/api/email/settings/${safeId}`);
+    const response = await authedFetch(`/api/email/settings/${safeId}`);
     return handleResponse(response);
 };
 
 const updateSettings = async (userId: string, settings: Partial<EmailSettings>): Promise<EmailSettingsResponse> => {
     const safeId = userId || 'default';
-    const response = await fetch(`/api/email/settings/${safeId}`, {
+    const response = await authedFetch(`/api/email/settings/${safeId}`, {
         method: 'PATCH',
         headers: {
             'Content-Type': 'application/json',

@@ -1,4 +1,5 @@
 export type ChatScope = 'agent' | 'listing' | 'marketing'
+import { authedFetch } from './authedFetch'
 export type ConversationChannel = 'chat' | 'voice' | 'email' | 'sms'
 
 type ConversationMetadata = Record<string, unknown> | null
@@ -106,7 +107,7 @@ export const createConversation = async (params: {
   metadata?: ConversationMetadata
 }): Promise<ConversationRow> => {
   try {
-    const response = await fetch('/api/conversations', {
+    const response = await authedFetch('/api/conversations', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -154,7 +155,7 @@ export const listConversations = async (params: {
     if (params.scope) queryParams.append('scope', params.scope);
     if (params.listingId) queryParams.append('listingId', params.listingId);
 
-    const response = await fetch(`/api/conversations?${queryParams.toString()}`);
+    const response = await authedFetch(`/api/conversations?${queryParams.toString()}`);
 
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
@@ -173,7 +174,7 @@ export const getMessages = async (
   limit = 100
 ): Promise<MessageRow[]> => {
   try {
-    const response = await fetch(`/api/conversations/${conversationId}/messages?limit=${limit}`);
+    const response = await authedFetch(`/api/conversations/${conversationId}/messages?limit=${limit}`);
 
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
@@ -197,7 +198,7 @@ export const appendMessage = async (params: {
   metadata?: MessageMetadata
 }) => {
   try {
-    const response = await fetch(`/api/conversations/${params.conversationId}/messages`, {
+    const response = await authedFetch(`/api/conversations/${params.conversationId}/messages`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -236,7 +237,7 @@ export const appendMessage = async (params: {
 
 export const deleteConversation = async (conversationId: string) => {
   try {
-    const response = await fetch(`/api/conversations/${conversationId}`, {
+    const response = await authedFetch(`/api/conversations/${conversationId}`, {
       method: 'DELETE'
     });
 
@@ -253,7 +254,7 @@ export const deleteConversation = async (conversationId: string) => {
 
 export const touchConversation = async (conversationId: string) => {
   try {
-    const response = await fetch(`/api/conversations/${conversationId}`, {
+    const response = await authedFetch(`/api/conversations/${conversationId}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -276,7 +277,7 @@ export const updateConversationTitle = async (
   title: string
 ) => {
   try {
-    const response = await fetch(`/api/conversations/${conversationId}`, {
+    const response = await authedFetch(`/api/conversations/${conversationId}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -322,7 +323,7 @@ export const updateConversation = async (
     if (payload.contactEmail !== undefined) body.contactEmail = payload.contactEmail ?? null
     if (payload.contactPhone !== undefined) body.contactPhone = payload.contactPhone ?? null
 
-    const response = await fetch(`/api/conversations/${conversationId}`, {
+    const response = await authedFetch(`/api/conversations/${conversationId}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -356,7 +357,7 @@ export const exportConversationsCSV = async (params: {
     if (params.startDate) queryParams.append('startDate', params.startDate);
     if (params.endDate) queryParams.append('endDate', params.endDate);
 
-    const response = await fetch(`/api/conversations/export/csv?${queryParams.toString()}`);
+    const response = await authedFetch(`/api/conversations/export/csv?${queryParams.toString()}`);
 
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);

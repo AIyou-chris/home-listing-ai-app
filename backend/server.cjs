@@ -1052,7 +1052,7 @@ app.post('/api/webhooks/connect', async (req, res) => {
   res.json({ received: true });
 });
 // DEBUG: Funnel Routes moved to top
-app.get('/api/funnels/:userId', async (req, res) => {
+app.get('/api/funnels/:userId', requireParamOwner, async (req, res) => {
   try {
     const { userId } = req.params;
     const normalizedUserId = userId;
@@ -1184,7 +1184,7 @@ app.get('/api/funnels/:userId', async (req, res) => {
   }
 });
 
-app.post('/api/funnels/:userId/:funnelType', async (req, res) => {
+app.post('/api/funnels/:userId/:funnelType', requireParamOwner, async (req, res) => {
   try {
     const { userId, funnelType } = req.params;
     const { steps } = req.body;
@@ -1300,7 +1300,7 @@ app.post('/api/funnels/:userId/:funnelType', async (req, res) => {
 });
 
 // Feedback Analytics Endpoints
-app.get('/api/analytics/step-performance/:userId', async (req, res) => {
+app.get('/api/analytics/step-performance/:userId', requireParamOwner, async (req, res) => {
   try {
     const { userId } = req.params;
 
@@ -1375,7 +1375,7 @@ app.get('/api/analytics/step-performance/:userId', async (req, res) => {
   }
 });
 
-app.get('/api/analytics/feedback/:userId', async (req, res) => {
+app.get('/api/analytics/feedback/:userId', requireParamOwner, async (req, res) => {
   try {
     const { userId } = req.params;
     const normalizedUserId = userId; // simplify for debug (or use normalizeUserId if available in scope)
@@ -7407,6 +7407,102 @@ const requireOffice = async (req, res, next) => {
   req.officeCtx = officeCtx;
   next();
 };
+
+// Owner gates for routes that name an owner in the URL/body. The id a caller
+// names is never trusted: it must be the signed-in user's login id or their
+// agents profile id. Declared as functions so early route registration can use them.
+async function authOwnsId(authId, target) {
+  const t = String(target || '');
+  if (!authId) return false;
+  if (!t || t === 'default' || t === String(authId)) return true;
+  try {
+    const profileId = await resolveAgentProfileId(authId);
+    return Boolean(profileId) && String(profileId) === t;
+  } catch {
+    return false;
+  }
+}
+
+async function requireParamOwner(req, res, next) {
+  const authId = await resolveDashboardOwnerId(req);
+  if (!authId) return res.status(401).json({ success: false, error: 'unauthorized' });
+  if (!(await authOwnsId(authId, req.params.userId))) {
+    return res.status(403).json({ success: false, error: 'forbidden' });
+  }
+  req.authUserId = authId;
+  next();
+}
+
+async function requireLeadOwner(req, res, next) {
+  const authId = await resolveDashboardOwnerId(req);
+  if (!authId) return res.status(401).json({ success: false, error: 'unauthorized' });
+  try {
+    const { data: lead } = await supabaseAdmin
+      .from('leads')
+      .select('id, agent_id, user_id')
+      .eq('id', String(req.params.leadId || ''))
+      .maybeSingle();
+    if (lead) {
+      const owner = lead.agent_id || lead.user_id;
+      if (!owner || !(await authOwnsId(authId, owner))) {
+        return res.status(403).json({ success: false, error: 'listing_access_denied' });
+      }
+    }
+  } catch (error) {
+    return res.status(500).json({ success: false, error: 'lookup_failed' });
+  }
+  req.authUserId = authId;
+  next();
+}
+
+// Conversations: caller must own the conversation (its user_id is the agent).
+async function requireConversationAccess(req, res, next) {
+  const authId = await resolveDashboardOwnerId(req);
+  if (!authId) return res.status(401).json({ error: 'unauthorized' });
+  req.authUserId = authId;
+  const id = req.params.conversationId;
+  if (useLocalConversationStore || !isUuid(id)) return next();
+  try {
+    const { data } = await supabaseAdmin.from('ai_conversations').select('user_id').eq('id', id).maybeSingle();
+    if (data && !(await authOwnsId(authId, data.user_id))) {
+      return res.status(403).json({ error: 'forbidden' });
+    }
+  } catch {
+    return res.status(500).json({ error: 'lookup_failed' });
+  }
+  next();
+}
+
+// Conversation list/create/export + sidekick create/list: a named userId must be the
+// caller's; with none named, the caller's own profile is used (never the platform default).
+async function requireNamedUserIsCaller(req, res, next) {
+  const authId = await resolveDashboardOwnerId(req);
+  if (!authId) return res.status(401).json({ error: 'unauthorized' });
+  const named = (req.query && req.query.userId) || (req.body && req.body.userId);
+  if (named && !(await authOwnsId(authId, named))) return res.status(403).json({ error: 'forbidden' });
+  let own = authId;
+  try { own = (await resolveAgentProfileId(authId)) || authId; } catch { /* keep login id */ }
+  if (!named) {
+    if (req.method === 'GET') req.query = { ...req.query, userId: own };
+    else req.body = { ...(req.body || {}), userId: own };
+  }
+  req.authUserId = authId;
+  next();
+}
+
+// Sidekick by id: caller must own the row.
+async function requireSidekickOwner(req, res, next) {
+  const authId = await resolveDashboardOwnerId(req);
+  if (!authId) return res.status(401).json({ error: 'unauthorized' });
+  try {
+    const row = await getSidekickRowById(req.params.sidekickId);
+    if (row && !(await authOwnsId(authId, row.user_id))) return res.status(403).json({ error: 'forbidden' });
+  } catch {
+    return res.status(500).json({ error: 'lookup_failed' });
+  }
+  req.authUserId = authId;
+  next();
+}
 
 const isIgnorableCleanupError = (error) =>
   error?.code === '42P01' || // undefined table
@@ -15224,7 +15320,7 @@ app.post('/api/realtime/offer', async (req, res) => {
 
 // ===== Security API =====
 
-app.get('/api/security/settings/:userId', async (req, res) => {
+app.get('/api/security/settings/:userId', requireParamOwner, async (req, res) => {
   try {
     const { userId } = req.params;
     const payload = await getSecuritySettings(userId, supabaseAdmin);
@@ -15235,7 +15331,7 @@ app.get('/api/security/settings/:userId', async (req, res) => {
   }
 });
 
-app.patch('/api/security/settings/:userId', async (req, res) => {
+app.patch('/api/security/settings/:userId', requireParamOwner, async (req, res) => {
   try {
     const { userId } = req.params;
     const updates = req.body || {};
@@ -15521,7 +15617,7 @@ app.post('/api/track/email/bounce', async (req, res) => {
 });
 
 // Get tracking stats for a lead
-app.get('/api/leads/:leadId/tracking-stats', async (req, res) => {
+app.get('/api/leads/:leadId/tracking-stats', requireLeadOwner, async (req, res) => {
   try {
     const { leadId } = req.params;
 
@@ -15823,7 +15919,7 @@ app.post(['/api/security/notify-login', '/api/security/notify_login'], async (re
 });
 
 // Write audit log
-app.post('/api/security/audit', async (req, res) => {
+app.post('/api/security/audit', verifyAdmin, async (req, res) => {
   try {
     const { action, resourceType, severity = 'info', details } = req.body || {};
     if (!action || !resourceType) return res.status(400).json({ error: 'action and resourceType are required' });
@@ -16029,7 +16125,7 @@ app.post('/api/security/alerts', verifyAdmin, async (req, res) => {
 });
 
 // Resolve alert
-app.patch('/api/security/alerts/:id', async (req, res) => {
+app.patch('/api/security/alerts/:id', verifyAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const { confirmed } = req.body;
@@ -16471,7 +16567,7 @@ app.get('/api/admin/marketing/funnel/get', verifyAdmin, async (req, res) => {
 });
 
 // Create backup manifest
-app.post('/api/security/backup', async (req, res) => {
+app.post('/api/security/backup', verifyAdmin, async (req, res) => {
   try {
     const collections = req.body?.collections || ['users', 'properties', 'audit_logs', 'security_alerts'];
     const bucket = 'backups';
@@ -16680,7 +16776,7 @@ app.get('/api/admin/users', verifyAdmin, async (req, res) => {
 
 
 // Create new listing (Persist to DB)
-app.post('/api/listings', async (req, res) => {
+app.post('/api/listings', requireAuth, async (req, res) => {
   try {
     const {
       title,
@@ -16698,7 +16794,7 @@ app.post('/api/listings', async (req, res) => {
       ownerId
     } = req.body;
 
-    const userId = ownerId || agentId || DEFAULT_LEAD_USER_ID;
+    const userId = req.authUserId; // the signed-in caller, never a body-supplied owner
 
     // Validate
     if (!address || !userId) {
@@ -18818,7 +18914,7 @@ app.post('/api/admin/leads/import', verifyAdmin, async (req, res) => {
 // ===== LEAD SCORING API ENDPOINTS =====
 
 // Calculate and get lead score
-app.post('/api/leads/:leadId/score', async (req, res) => {
+app.post('/api/leads/:leadId/score', requireLeadOwner, async (req, res) => {
   try {
     const leadId = (req.params.leadId || '').trim();
 
@@ -18923,7 +19019,7 @@ app.post('/api/leads/:leadId/score', async (req, res) => {
 });
 
 // Get lead score
-app.get('/api/leads/:leadId/score', async (req, res) => {
+app.get('/api/leads/:leadId/score', requireLeadOwner, async (req, res) => {
   try {
     const leadId = (req.params.leadId || '').trim();
 
@@ -19127,11 +19223,12 @@ app.get('/api/leads/scoring-rules', async (req, res) => {
 });
 
 // Get recent scoring interactions (Flattened from all leads)
-app.get('/api/leads/recent-scoring', async (req, res) => {
+app.get('/api/leads/recent-scoring', requireAuth, async (req, res) => {
   try {
     const { data: leads, error } = await supabaseAdmin
       .from('leads')
       .select('id, name, score, aiInteractions')
+      .or(`agent_id.eq.${req.authUserId},user_id.eq.${req.authUserId}`)
       .order('updated_at', { ascending: false })
       .limit(50);
 
@@ -28318,7 +28415,7 @@ app.post('/api/admin/voice/quick-send', verifyAdmin, async (req, res) => {
 });
 
 // Notification preferences
-app.get('/api/notifications/preferences/:userId', async (req, res) => {
+app.get('/api/notifications/preferences/:userId', requireParamOwner, async (req, res) => {
   try {
     const { userId } = req.params;
     const preferences = await getNotificationPreferences(userId)
@@ -28378,7 +28475,7 @@ app.post('/api/language/detect', async (req, res) => {
   }
 })
 
-app.patch('/api/notifications/preferences/:userId', async (req, res) => {
+app.patch('/api/notifications/preferences/:userId', requireParamOwner, async (req, res) => {
   try {
     const { userId } = req.params
     const updates = req.body || {}
@@ -28848,7 +28945,7 @@ app.delete('/api/admin/marketing/qr-codes/:qrCodeId', verifyAdmin, (req, res) =>
 
 // AI Sidekick Command Center Endpoints
 console.log('[Server] Registering AI Sidekick routes');
-app.get('/api/sidekicks', async (req, res) => {
+app.get('/api/sidekicks', requireNamedUserIsCaller, async (req, res) => {
   try {
     const { userId } = req.query;
     const ownerId = resolveSidekickOwner(userId);
@@ -28863,7 +28960,7 @@ app.get('/api/sidekicks', async (req, res) => {
   }
 });
 
-app.post('/api/sidekicks', async (req, res) => {
+app.post('/api/sidekicks', requireNamedUserIsCaller, async (req, res) => {
   try {
     const { userId, name, description, voiceId, personality, metadata } = req.body || {};
     const ownerId = resolveSidekickOwner(userId);
@@ -28925,7 +29022,7 @@ app.post('/api/sidekicks', async (req, res) => {
   }
 });
 
-app.put('/api/sidekicks/:sidekickId/personality', async (req, res) => {
+app.put('/api/sidekicks/:sidekickId/personality', requireSidekickOwner, async (req, res) => {
   try {
     const { sidekickId } = req.params;
     const { description, traits, preset, summary } = req.body || {};
@@ -28987,7 +29084,7 @@ app.put('/api/sidekicks/:sidekickId/personality', async (req, res) => {
   }
 });
 
-app.put('/api/sidekicks/:sidekickId/voice', async (req, res) => {
+app.put('/api/sidekicks/:sidekickId/voice', requireSidekickOwner, async (req, res) => {
   try {
     const { sidekickId } = req.params;
     const { voiceId } = req.body || {};
@@ -29020,7 +29117,7 @@ app.put('/api/sidekicks/:sidekickId/voice', async (req, res) => {
   }
 });
 
-app.delete('/api/sidekicks/:sidekickId', async (req, res) => {
+app.delete('/api/sidekicks/:sidekickId', requireSidekickOwner, async (req, res) => {
   try {
     const { sidekickId } = req.params;
     const existingRow = await getSidekickRowById(sidekickId);
@@ -29047,7 +29144,7 @@ app.delete('/api/sidekicks/:sidekickId', async (req, res) => {
   }
 });
 
-app.post('/api/sidekicks/:sidekickId/knowledge', async (req, res) => {
+app.post('/api/sidekicks/:sidekickId/knowledge', requireSidekickOwner, async (req, res) => {
   try {
     const { sidekickId } = req.params;
     const { content, title, type } = req.body || {};
@@ -29091,7 +29188,7 @@ app.post('/api/sidekicks/:sidekickId/knowledge', async (req, res) => {
   }
 });
 
-app.delete('/api/sidekicks/:sidekickId/knowledge/:index', async (req, res) => {
+app.delete('/api/sidekicks/:sidekickId/knowledge/:index', requireSidekickOwner, async (req, res) => {
   try {
     const { sidekickId, index } = req.params;
     const targetIndex = Number.parseInt(index, 10);
@@ -29140,7 +29237,7 @@ app.delete('/api/sidekicks/:sidekickId/knowledge/:index', async (req, res) => {
   }
 });
 
-app.post('/api/sidekicks/:sidekickId/chat', async (req, res) => {
+app.post('/api/sidekicks/:sidekickId/chat', requireSidekickOwner, async (req, res) => {
   try {
     const { sidekickId } = req.params;
     const { message, history } = req.body || {};
@@ -29213,7 +29310,7 @@ app.post('/api/sidekicks/:sidekickId/chat', async (req, res) => {
   }
 });
 
-app.post('/api/sidekicks/:sidekickId/training', async (req, res) => {
+app.post('/api/sidekicks/:sidekickId/training', requireSidekickOwner, async (req, res) => {
   try {
     const { sidekickId } = req.params;
     const {
@@ -29369,7 +29466,7 @@ app.post('/api/training/feedback', (req, res) => {
   }
 });
 
-app.get('/api/training/feedback/:sidekick', async (req, res) => {
+app.get('/api/training/feedback/:sidekick', requireAuth, async (req, res) => {
   try {
     const { sidekick } = req.params;
     const userId = req.headers['x-user-id']; // Optional: filter by user if specific
@@ -29401,7 +29498,7 @@ app.get('/api/training/feedback/:sidekick', async (req, res) => {
   }
 });
 
-app.get('/api/training/insights/:sidekick', (req, res) => {
+app.get('/api/training/insights/:sidekick', requireAuth, (req, res) => {
   try {
     const { sidekick } = req.params;
     const sidekickFeedback = trainingFeedback.filter(f => f.sidekick === sidekick);
@@ -29485,7 +29582,7 @@ app.post('/api/followup', (req, res) => {
   res.redirect(307, '/api/admin/marketing/active-followups');
 });
 
-app.post('/api/conversations', async (req, res) => {
+app.post('/api/conversations', requireNamedUserIsCaller, async (req, res) => {
   let ownerId = null;
   let insertPayload = null;
 
@@ -29590,7 +29687,7 @@ app.post('/api/conversations', async (req, res) => {
 });
 
 // List conversations
-app.get('/api/conversations', async (req, res) => {
+app.get('/api/conversations', requireNamedUserIsCaller, async (req, res) => {
   const { userId, scope, listingId, status } = req.query;
   const ownerId = ensureConversationOwner(userId);
   try {
@@ -29631,7 +29728,7 @@ app.get('/api/conversations', async (req, res) => {
 });
 
 // Get messages for a conversation
-app.get('/api/conversations/:conversationId/messages', async (req, res) => {
+app.get('/api/conversations/:conversationId/messages', requireConversationAccess, async (req, res) => {
   try {
     const { conversationId } = req.params;
     const { limit = 100 } = req.query;
@@ -29664,7 +29761,7 @@ app.get('/api/conversations/:conversationId/messages', async (req, res) => {
 });
 
 // Add a message to a conversation
-app.post('/api/conversations/:conversationId/messages', async (req, res) => {
+app.post('/api/conversations/:conversationId/messages', requireConversationAccess, async (req, res) => {
   const { conversationId } = req.params;
   const { role, content, userId, metadata, translation, channel } = req.body || {};
   const now = new Date().toISOString();
@@ -29820,7 +29917,7 @@ app.post('/api/conversations/:conversationId/messages', async (req, res) => {
 });
 
 // Update conversation (e.g., title, status)
-app.put('/api/conversations/:conversationId', async (req, res) => {
+app.put('/api/conversations/:conversationId', requireConversationAccess, async (req, res) => {
   try {
     const { conversationId } = req.params;
     const { title, status, last_message_at, followUpTask, intent, language, leadId, contactName, contactEmail, contactPhone } = req.body || {};
@@ -29863,7 +29960,7 @@ app.put('/api/conversations/:conversationId', async (req, res) => {
 });
 
 // Delete conversation
-app.delete('/api/conversations/:conversationId', async (req, res) => {
+app.delete('/api/conversations/:conversationId', requireConversationAccess, async (req, res) => {
   try {
     const { conversationId } = req.params;
     const { data, error } = await supabaseAdmin
@@ -29890,7 +29987,7 @@ app.delete('/api/conversations/:conversationId', async (req, res) => {
 });
 
 // Export conversations to CSV
-app.get('/api/conversations/export/csv', async (req, res) => {
+app.get('/api/conversations/export/csv', requireNamedUserIsCaller, async (req, res) => {
   try {
     const { scope, userId, startDate, endDate } = req.query;
     const ownerId = ensureConversationOwner(userId);
@@ -30147,11 +30244,10 @@ app.get('/api/ai-card/profile', async (req, res) => {
 });
 
 // Create new AI Card profile
-app.post('/api/ai-card/profile', async (req, res) => {
+app.post('/api/ai-card/profile', requireAuth, async (req, res) => {
   try {
-    const { userId, ...profileData } = req.body || {};
-    const validUserId = (userId && userId !== 'null') ? userId : null;
-    const targetUserId = validUserId || DEFAULT_LEAD_USER_ID;
+    const { userId: _ignoredUserId, ...profileData } = req.body || {};
+    const targetUserId = req.authUserId;
 
     if (!targetUserId) {
       return res.status(400).json({ error: 'userId is required to create AI Card profile' });
@@ -30170,7 +30266,7 @@ app.post('/api/ai-card/profile', async (req, res) => {
 });
 
 // Update AI Card profile
-app.put('/api/ai-card/profile', async (req, res) => {
+app.put('/api/ai-card/profile', requireAuth, async (req, res) => {
   try {
     const { userId, ...profileData } = req.body || {};
 
@@ -30182,7 +30278,7 @@ app.put('/api/ai-card/profile', async (req, res) => {
     // Check headers for our standard spoofing/auth headers
     const authUserId = req.headers['x-user-id'] || req.headers['x-admin-user-id'] || (req.user ? req.user.id : null);
 
-    let targetUserId = userId; // Fallback to body-provided ID
+    let targetUserId = req.authUserId; // the signed-in caller; a body-supplied id is never trusted
 
     if (authUserId) {
       // If authenticated, we force usage of that ID unless it's a super-admin override case (omitted for now for safety)
@@ -30214,10 +30310,10 @@ app.put('/api/ai-card/profile', async (req, res) => {
 });
 
 // Generate QR Code for AI Card
-app.post('/api/ai-card/generate-qr', async (req, res) => {
+app.post('/api/ai-card/generate-qr', requireAuth, async (req, res) => {
   try {
-    const { userId, cardUrl } = req.body || {};
-    const targetUserId = userId || DEFAULT_LEAD_USER_ID;
+    const { cardUrl } = req.body || {};
+    const targetUserId = req.authUserId;
 
     if (!targetUserId) {
       console.warn('[AI Card] QR generation fallback to default profile (no user id provided).');
@@ -30243,10 +30339,10 @@ app.post('/api/ai-card/generate-qr', async (req, res) => {
 });
 
 // Share AI Card (WIRED & LIVE)
-app.post('/api/ai-card/share', async (req, res) => {
+app.post('/api/ai-card/share', requireAuth, async (req, res) => {
   try {
-    const { userId, method, recipient } = req.body || {};
-    const targetUserId = userId || DEFAULT_LEAD_USER_ID;
+    const { method, recipient } = req.body || {};
+    const targetUserId = req.authUserId;
 
     if (!targetUserId) {
       console.warn('[AI Card] Sharing with default profile (no user id provided).');
@@ -30382,14 +30478,9 @@ app.post('/api/ai-card/lead', async (req, res) => {
 });
 
 // List AI Card QR codes
-app.get('/api/ai-card/qr-codes', async (req, res) => {
+app.get('/api/ai-card/qr-codes', requireAuth, async (req, res) => {
   try {
-    const { userId } = req.query;
-    const targetUserId = userId || DEFAULT_LEAD_USER_ID;
-
-    if (!targetUserId) {
-      return res.json([]);
-    }
+    const targetUserId = req.authUserId;
 
     const { data, error } = await supabaseAdmin
       .from('ai_card_qr_codes')
@@ -30409,10 +30500,10 @@ app.get('/api/ai-card/qr-codes', async (req, res) => {
 });
 
 // Create QR code
-app.post('/api/ai-card/qr-codes', async (req, res) => {
+app.post('/api/ai-card/qr-codes', requireAuth, async (req, res) => {
   try {
-    const { userId, label, destinationUrl } = req.body || {};
-    const targetUserId = userId || DEFAULT_LEAD_USER_ID;
+    const { label, destinationUrl } = req.body || {};
+    const targetUserId = req.authUserId;
 
     if (!targetUserId) {
       return res.status(400).json({ error: 'userId is required to create a QR code' });
@@ -30469,7 +30560,7 @@ app.post('/api/ai-card/qr-codes', async (req, res) => {
 });
 
 // Update QR code
-app.put('/api/ai-card/qr-codes/:qrId', async (req, res) => {
+app.put('/api/ai-card/qr-codes/:qrId', requireAuth, async (req, res) => {
   try {
     const { qrId } = req.params;
     const { label, destinationUrl } = req.body || {};
@@ -30485,6 +30576,9 @@ app.put('/api/ai-card/qr-codes/:qrId', async (req, res) => {
     }
     if (!existingRow) {
       return res.status(404).json({ error: 'QR code not found' });
+    }
+    if (!(await authOwnsId(req.authUserId, existingRow.user_id))) {
+      return res.status(403).json({ error: 'forbidden' });
     }
 
     const updatePayload = {
@@ -30530,9 +30624,18 @@ app.put('/api/ai-card/qr-codes/:qrId', async (req, res) => {
 });
 
 // Delete QR code
-app.delete('/api/ai-card/qr-codes/:qrId', async (req, res) => {
+app.delete('/api/ai-card/qr-codes/:qrId', requireAuth, async (req, res) => {
   try {
     const { qrId } = req.params;
+
+    const { data: ownedRow } = await supabaseAdmin
+      .from('ai_card_qr_codes')
+      .select('user_id')
+      .eq('id', qrId)
+      .maybeSingle();
+    if (ownedRow && !(await authOwnsId(req.authUserId, ownedRow.user_id))) {
+      return res.status(403).json({ error: 'forbidden' });
+    }
 
     const { data, error } = await supabaseAdmin
       .from('ai_card_qr_codes')
@@ -35258,10 +35361,16 @@ app.post('/api/listings/photo-upload', requireAuth, async (req, res) => {
 });
 
 // Get all listings (DB + Memory Fallback)
-app.get('/api/listings', async (req, res) => {
+app.get('/api/listings', requireAuth, async (req, res) => {
   try {
     const { status, agentId, priceMin, priceMax, bedrooms, propertyType } = req.query;
-    const ownerId = req.query.userId || req.query.user_id;
+    // Never trust a named owner: a caller only ever sees their own listings
+    // (login id and agents profile id both appear in properties.user_id).
+    const ownerIds = [String(req.authUserId)];
+    try {
+      const profileId = await resolveAgentProfileId(req.authUserId);
+      if (profileId && !ownerIds.includes(String(profileId))) ownerIds.push(String(profileId));
+    } catch { /* login id only */ }
 
     // 1. Fetch from Database (properties table)
     let query = supabaseAdmin
@@ -35271,7 +35380,7 @@ app.get('/api/listings', async (req, res) => {
 
     // Apply Filters to DB Query
     if (status && status !== 'all') query = query.eq('status', status);
-    if (ownerId) query = query.eq('user_id', ownerId);
+    query = query.in('user_id', ownerIds);
     if (priceMin) query = query.gte('price', parseInt(priceMin));
     if (priceMax) query = query.lte('price', parseInt(priceMax));
     if (bedrooms) query = query.gte('bedrooms', parseInt(bedrooms));
@@ -35346,7 +35455,7 @@ app.get('/api/listings', async (req, res) => {
 });
 
 // Update listing
-app.put('/api/listings/:listingId', (req, res) => {
+app.put('/api/listings/:listingId', requireAuth, (req, res) => {
   try {
     const { listingId } = req.params;
     const updates = req.body;
@@ -35523,7 +35632,13 @@ app.get('/api/listings/:listingId/market-analysis', async (req, res) => {
       return res.status(404).json({ error: 'Listing not found' })
     }
 
-    const ownerId = req.query.userId || req.query.user_id || headerAgentId || subject.user_id
+    const mktAuthId = await resolveDashboardOwnerId(req)
+    if (!mktAuthId) return res.status(401).json({ error: 'unauthorized' })
+    if (subject.user_id && !(await authOwnsId(mktAuthId, subject.user_id))) {
+      return res.status(403).json({ error: 'listing_access_denied' })
+    }
+
+    const ownerId = subject.user_id
     const zipCode = extractZipFromAddress(subject.address)
 
     let compsQuery = supabaseAdmin
@@ -37494,7 +37609,7 @@ if (wsServer) {
   });
 }
 
-app.get('/api/email/settings/:userId', async (req, res) => {
+app.get('/api/email/settings/:userId', requireParamOwner, async (req, res) => {
   try {
     const { userId } = req.params
     const payload = await getEmailSettings(userId)
@@ -37505,7 +37620,7 @@ app.get('/api/email/settings/:userId', async (req, res) => {
   }
 })
 
-app.patch('/api/email/settings/:userId', async (req, res) => {
+app.patch('/api/email/settings/:userId', requireParamOwner, async (req, res) => {
   try {
     const { userId } = req.params
     const updates = req.body || {}
@@ -37517,7 +37632,7 @@ app.patch('/api/email/settings/:userId', async (req, res) => {
   }
 })
 
-app.post('/api/email/settings/:userId/connections', async (req, res) => {
+app.post('/api/email/settings/:userId/connections', requireParamOwner, async (req, res) => {
   try {
     const { userId } = req.params
     const { provider, email } = req.body || {}
@@ -37535,7 +37650,7 @@ app.post('/api/email/settings/:userId/connections', async (req, res) => {
   }
 })
 
-app.delete('/api/email/settings/:userId/connections/:provider', async (req, res) => {
+app.delete('/api/email/settings/:userId/connections/:provider', requireParamOwner, async (req, res) => {
   try {
     const { userId, provider } = req.params
     const connections = await disconnectEmailProvider(userId, provider)

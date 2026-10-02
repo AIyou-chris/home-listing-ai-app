@@ -1,5 +1,6 @@
 import { resolveUserId } from './authSession';
 import { getEnvVar } from '../lib/env';
+import { authedFetch } from './authedFetch'
 
 export interface Voice {
   id: string;
@@ -485,7 +486,7 @@ export const getSidekicks = async (
   const url = buildUrl('/api/sidekicks', isUuid(userId) ? { userId } : undefined);
 
   try {
-    const response = await fetch(url);
+    const response = await authedFetch(url);
     if (!response.ok) {
       throw new Error(`Failed to load AI sidekicks (${response.status})`);
     }
@@ -522,7 +523,7 @@ export const createSidekick = async (
 ): Promise<AISidekick> => {
   const userId = resolveUserId();
   try {
-    const response = await fetch(buildUrl('/api/sidekicks'), {
+    const response = await authedFetch(buildUrl('/api/sidekicks'), {
       method: 'POST',
       headers: defaultHeaders,
       body: JSON.stringify({
@@ -545,7 +546,7 @@ export const updateSidekickPersonality = async (
   payload: { description: string; traits: string[]; preset: string; summary?: string }
 ): Promise<AISidekick> => {
   try {
-    const response = await fetch(buildUrl(`/api/sidekicks/${sidekickId}/personality`), {
+    const response = await authedFetch(buildUrl(`/api/sidekicks/${sidekickId}/personality`), {
       method: 'PUT',
       headers: defaultHeaders,
       body: JSON.stringify(payload)
@@ -573,7 +574,7 @@ export const updateSidekickVoice = async (
   voiceId: string
 ): Promise<AISidekick> => {
   try {
-    const response = await fetch(buildUrl(`/api/sidekicks/${sidekickId}/voice`), {
+    const response = await authedFetch(buildUrl(`/api/sidekicks/${sidekickId}/voice`), {
       method: 'PUT',
       headers: defaultHeaders,
       body: JSON.stringify({ voiceId })
@@ -602,7 +603,7 @@ export const addKnowledge = async (
   };
 
   try {
-    const response = await fetch(buildUrl(`/api/sidekicks/${sidekickId}/knowledge`), {
+    const response = await authedFetch(buildUrl(`/api/sidekicks/${sidekickId}/knowledge`), {
       method: 'POST',
       headers: defaultHeaders,
       body: JSON.stringify(payload)
@@ -626,7 +627,7 @@ export const removeKnowledge = async (
   index: number
 ): Promise<AISidekick> => {
   try {
-    const response = await fetch(
+    const response = await authedFetch(
       buildUrl(`/api/sidekicks/${sidekickId}/knowledge/${index}`),
       {
         method: 'DELETE'
@@ -669,7 +670,7 @@ export const chatWithSidekick = async (
   const adminUrl = buildUrl(`/api/sidekicks/${sidekickId}/chat`);
 
   try {
-    const response = await fetch(adminUrl, {
+    const response = await authedFetch(adminUrl, {
       method: 'POST',
       headers: defaultHeaders,
       body: JSON.stringify({
@@ -709,7 +710,7 @@ export const trainSidekick = async (
   feedback: 'positive' | 'negative'
 ): Promise<AISidekick | null> => {
   try {
-    const response = await fetch(buildUrl(`/api/sidekicks/${sidekickId}/training`), {
+    const response = await authedFetch(buildUrl(`/api/sidekicks/${sidekickId}/training`), {
       method: 'POST',
       headers: defaultHeaders,
       body: JSON.stringify({
@@ -742,7 +743,7 @@ export const trainSidekick = async (
 
 export const deleteSidekick = async (sidekickId: string): Promise<void> => {
   try {
-    const response = await fetch(buildUrl(`/api/sidekicks/${sidekickId}`), {
+    const response = await authedFetch(buildUrl(`/api/sidekicks/${sidekickId}`), {
       method: 'DELETE',
       headers: defaultHeaders
     });

@@ -1,4 +1,5 @@
 import { buildApiUrl } from '../lib/api';
+import { authedFetch } from './authedFetch'
 
 export interface FeedbackStats {
     sent: number;
@@ -23,7 +24,7 @@ export interface FeedbackEvent {
 export const feedbackService = {
     async fetchAnalytics(userId: string): Promise<FeedbackAnalytics> {
         try {
-            const response = await fetch(buildApiUrl(`/api/analytics/feedback/${encodeURIComponent(userId)}`));
+            const response = await authedFetch(buildApiUrl(`/api/analytics/feedback/${encodeURIComponent(userId)}`));
             if (!response.ok) {
                 throw new Error('Failed to fetch analytics');
             }
@@ -37,7 +38,7 @@ export const feedbackService = {
 
     async fetchStepPerformance(userId: string): Promise<StepPerformance[]> {
         try {
-            const response = await fetch(buildApiUrl(`/api/analytics/step-performance/${encodeURIComponent(userId)}`));
+            const response = await authedFetch(buildApiUrl(`/api/analytics/step-performance/${encodeURIComponent(userId)}`));
             if (!response.ok) throw new Error('Failed to fetch step performance');
             const data = await response.json();
             return data.steps || [];

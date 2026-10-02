@@ -412,9 +412,13 @@ export const listingsService = {
 
   async getMarketAnalysis(listingId: string): Promise<ListingMarketAnalysis> {
     const { data: userData } = await supabase.auth.getUser()
+    const { data: sessionData } = await supabase.auth.getSession()
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     if (userData?.user?.id) {
       headers['x-agent-id'] = userData.user.id
+    }
+    if (sessionData?.session?.access_token) {
+      headers.Authorization = `Bearer ${sessionData.session.access_token}`
     }
 
     const query = userData?.user?.id ? `?userId=${encodeURIComponent(userData.user.id)}` : ''

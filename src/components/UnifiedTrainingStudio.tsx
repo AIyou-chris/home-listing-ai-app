@@ -26,6 +26,7 @@ declare global {
 }
 
 import { supabase } from '../services/supabase';
+import { authedFetch } from '../services/authedFetch';
 
 // ... (existing helper function / variable if any) ...
 
@@ -357,7 +358,7 @@ const UnifiedTrainingStudio: React.FC<UnifiedTrainingStudioProps> = ({
                 // Determine endpoint based on mode? 
                 // Currently server has /api/training/feedback/:sidekick (publicly accessible or protected?)
                 // Let's use the one we just patched.
-                const res = await fetch(`/api/training/feedback/${selectedSidekick}`, {
+                const res = await authedFetch(`/api/training/feedback/${selectedSidekick}`, {
                     headers: { 'x-user-id': currentUserId || '' }
                 });
                 if (!res.ok) return;

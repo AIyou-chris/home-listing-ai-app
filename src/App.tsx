@@ -166,6 +166,7 @@ interface BackendListing {
 }
 
 import { ImpersonationProvider } from './context/ImpersonationContext';
+import { authedFetch } from './services/authedFetch';
 
 // ─── Module-level contexts ───────────────────────────────────────────────────
 // ProtectedDashboardLayout and CheckoutRouteWrapper are defined OUTSIDE App so
@@ -1246,7 +1247,7 @@ const App: React.FC = () => {
     const loadListingsFromBackend = async () => {
         try {
             if (!user?.id) return;
-            const response = await fetch(`/api/listings?userId=${user.id}`);
+            const response = await authedFetch(`/api/listings?userId=${user.id}`);
             if (response.ok) {
                 const data: { listings?: BackendListing[] } = await response.json();
                 // Convert backend format to frontend format
