@@ -14,7 +14,7 @@
     "gate:all": "npm run gate:fe && npm run gate:be",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "test": "TZ=America/Los_Angeles jest",
-    "test:backend": "node --test backend/services/__tests__/*.test.js",
+    "test:backend": "node --test backend/services/__tests__/*.test.js backend/__tests__/*.test.js",
     "preview": "vite preview",
     "deploy": "npm run build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -23,8 +23,9 @@
     "ci": "npm run verify:mailgun && npm run lint && npm run typecheck && npm run build",
     "prepare": "husky",
     "start": "cd backend && node server.cjs",
-    "start-server": "bash -c 'mkdir -p logs; npm --prefix backend run -s start >> logs/backend.out 2>&1 & echo $! > logs/backend.pid; npm run -s dev >> logs/vite.out 2>&1 & echo $! > logs/vite.pid; echo \"✅ Backend PID $(cat logs/backend.pid); Vite PID $(cat logs/vite.pid)\"'",
-    "stop-server": "bash -c 'kill $(cat logs/vite.pid) 2>/dev/null || true; kill $(cat logs/backend.pid) 2>/dev/null || true; kill $(cat logs/preview.pid) 2>/dev/null || true; rm -f logs/*.pid; echo \"✅ Servers stopped\"'"
+    "start-server": "bash -c 'mkdir -p logs; npm --prefix backend run -s start >> logs/backend.out 2>&1 & echo $! > logs/backend.pid; npm run -s dev >> logs/vite.out 2>&1 & echo $! > logs/vite.pid; echo \"\u2705 Backend PID $(cat logs/backend.pid); Vite PID $(cat logs/vite.pid)\"'",
+    "stop-server": "bash -c 'kill $(cat logs/vite.pid) 2>/dev/null || true; kill $(cat logs/backend.pid) 2>/dev/null || true; kill $(cat logs/preview.pid) 2>/dev/null || true; rm -f logs/*.pid; echo \"\u2705 Servers stopped\"'",
+    "check:db": "node backend/scripts/check-db-columns.cjs"
   },
   "dependencies": {
     "@sentry/node": "^10.56.0",
@@ -63,6 +64,7 @@
     "@typescript-eslint/eslint-plugin": "^7.18.0",
     "@typescript-eslint/parser": "^7.18.0",
     "@vitejs/plugin-react": "^4.2.1",
+    "acorn": "^8.18.0",
     "autoprefixer": "^10.4.21",
     "eslint": "^8.57.0",
     "eslint-plugin-react-hooks": "^4.6.0",

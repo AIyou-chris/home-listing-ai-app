@@ -202,8 +202,16 @@ if (!supabaseUrl || !supabaseServiceRoleKey) {
 const supabase = supabaseUrl && supabaseAnonKey
   ? createClient(supabaseUrl, supabaseAnonKey)
   : null;
+// Any query naming a missing column/table is logged loudly (and sent to Sentry), not swallowed.
+const { createLoudFetch } = require('./services/dbErrorWatch');
+const loudDbFetch = createLoudFetch({
+  report: ({ code, message, hint, table, select }) => {
+    console.error(`🚨 [DB SCHEMA ERROR] ${code} on "${table}" select="${select}": ${message}${hint ? ` (hint: ${hint})` : ''}`);
+    if (process.env.SENTRY_DSN) Sentry.captureMessage(`DB schema error ${code} on ${table}: ${message}`, { level: 'error', extra: { select, hint } });
+  }
+});
 const supabaseAdmin = supabaseUrl && supabaseServiceRoleKey
-  ? createClient(supabaseUrl, supabaseServiceRoleKey, { auth: { autoRefreshToken: false, persistSession: false } })
+  ? createClient(supabaseUrl, supabaseServiceRoleKey, { auth: { autoRefreshToken: false, persistSession: false }, global: { fetch: loudDbFetch } })
   : null;
 
 const schemaCapabilities = {
@@ -634,6 +642,8 @@ const postOnly = (...mws) => (req, res, next) => {
 app.use('/api/public/lo-chat', postOnly(aiChatLimiter, aiSpendGuard));
 app.use('/api/public/conversations', postOnly(aiChatLimiter, aiSpendGuard));
 app.use('/api/ai/property-chat', postOnly(aiChatLimiter, aiSpendGuard));
+app.use('/api/continue-conversation', postOnly(aiChatLimiter, aiSpendGuard));
+app.use('/api/blueprint/ai-sidekicks', postOnly(aiChatLimiter));
 app.use('/api/realtime/offer', postOnly(aiChatLimiter, aiSpendGuard));
 app.use('/api/realtime/handoff', postOnly(aiChatLimiter));
 // Public lead capture / opt-ins
@@ -1502,6 +1512,11 @@ app.get('/api/leads/unsubscribe/:leadId', async (req, res) => {
 
 // 2. Email Webhook (Bounce/Spam Handling) - Generic Support
 app.post('/api/webhooks/email', async (req, res) => {
+  // Generic bounce hook: closed unless a shared secret is configured (Mailgun uses /api/webhooks/mailgun).
+  const emailHookSecret = process.env.EMAIL_WEBHOOK_SECRET;
+  if (!emailHookSecret || req.headers['x-webhook-secret'] !== emailHookSecret) {
+    return res.status(401).json({ error: 'unauthorized' });
+  }
   const event = req.body;
 
   // Basic logging
@@ -15879,9 +15894,16 @@ function extractPhoneFromText(text) {
 
 const loginNotificationCooldowns = new Map();
 
-app.post(['/api/security/notify-login', '/api/security/notify_login'], async (req, res) => {
-  const { userId, email, ip, userAgent } = req.body;
-  if (!userId || !email) return res.status(400).json({ error: 'Missing userId or email' });
+app.post(['/api/security/notify-login', '/api/security/notify_login'], requireAuth, async (req, res) => {
+  // Only ever emails the signed-in user, at the address on their own account.
+  const userId = req.authUserId;
+  const { ip, userAgent } = req.body || {};
+  let email = null;
+  try {
+    const { data: authData } = await supabaseAdmin.auth.admin.getUserById(userId);
+    email = authData?.user?.email || null;
+  } catch (_e) { email = null; }
+  if (!email) return res.status(400).json({ error: 'Missing userId or email' });
 
   const lastSent = loginNotificationCooldowns.get(userId);
   if (lastSent && Date.now() - lastSent < 15 * 60 * 1000) {
@@ -15897,8 +15919,8 @@ app.post(['/api/security/notify-login', '/api/security/notify_login'], async (re
           <p>We detected a new login to your account.</p>
           <div style="background: #f5f5f5; padding: 15px; border-radius: 8px; margin: 20px 0;">
             <p style="margin: 5px 0;"><strong>Time:</strong> ${new Date().toLocaleString()}</p>
-            <p style="margin: 5px 0;"><strong>IP Address:</strong> ${ip || 'Unknown'}</p>
-            <p style="margin: 5px 0;"><strong>Device:</strong> ${userAgent || 'Unknown'}</p>
+            <p style="margin: 5px 0;"><strong>IP Address:</strong> ${escapeHtml(ip || 'Unknown')}</p>
+            <p style="margin: 5px 0;"><strong>Device:</strong> ${escapeHtml(userAgent || 'Unknown')}</p>
           </div>
           <p>If this was you, no action is needed.</p>
         </div>
@@ -17173,7 +17195,7 @@ app.put('/api/admin/white-label/offices/:officeId/domain', verifyAdmin, async (r
 });
 
 // SPECIAL CLEANUP ENDPOINT FOR ORPHANED AGENTS
-app.delete('/api/setup/reset-agent/:identifier', async (req, res) => {
+app.delete('/api/setup/reset-agent/:identifier', (req, res, next) => verifyAdmin(req, res, next), async (req, res) => {
   try {
     const { identifier } = req.params;
     console.log(`[Reset] Attempting to reset agent: ${identifier}`);
@@ -19071,7 +19093,7 @@ app.get('/api/leads/:leadId/score', requireLeadOwner, async (req, res) => {
 });
 
 // Bulk score all leads
-app.post('/api/leads/score-all', async (req, res) => {
+app.post('/api/leads/score-all', (req, res, next) => verifyAdmin(req, res, next), async (req, res) => {
   try {
     const { leadIds } = req.body || {};
 
@@ -19266,9 +19288,16 @@ app.get('/api/leads/recent-scoring', requireAuth, async (req, res) => {
 });
 
 // Get lead stats (aggregated)
-app.get('/api/leads/stats', async (req, res) => {
+app.get('/api/leads/stats', requireAuth, async (req, res) => {
   try {
-    const { userId, all } = req.query; // Optional filter if needed, though leadsService usually passes user context
+    const { all } = req.query;
+    let userId = req.query.userId;
+    const callerIsAdmin = await resolveRequesterAdminAccess(req.authUserId).catch(() => false);
+    if (all === 'true' || !userId) {
+      if (!callerIsAdmin) { userId = req.authUserId; req.query.all = 'false'; }
+    } else if (!callerIsAdmin && !(await authOwnsId(req.authUserId, userId))) {
+      return res.status(403).json({ success: false, error: 'forbidden' });
+    } // Optional filter if needed, though leadsService usually passes user context
 
     // In a real app with auth middleware, we'd use req.user.id
     // Here we might need to rely on query param or just return stats for the "demo" user context
@@ -19284,7 +19313,7 @@ app.get('/api/leads/stats', async (req, res) => {
     let query = supabaseAdmin.from('leads').select('status, score, user_id');
 
     // Only filter by userId if NOT requesting all stats
-    if (userId && all !== 'true') {
+    if (userId && req.query.all !== 'true') {
       query = query.eq('user_id', userId);
     }
 
@@ -27984,7 +28013,7 @@ app.post('/api/blueprint/ai-sidekicks/:id/memory', async (req, res) => {
   try {
     let text = content || '';
     if (type === 'url' && url) {
-      const fetched = await fetch(url).then(r => r.text()).catch(() => '');
+      const fetched = await safeFetch(String(url)).then(r => r.text()).catch(() => '');
       text = fetched;
     }
     if (!text) {
@@ -33343,7 +33372,7 @@ app.post('/api/office/branding/test-webhook', requireOffice, async (req, res) =>
     };
     let ok = false, status = 0;
     try {
-      const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(sample) });
+      const r = await safeFetch(String(url), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(sample) });
       ok = r.ok; status = r.status;
     } catch (e) { return res.json({ success: false, error: 'request_failed', detail: e?.message }); }
     res.json({ success: ok, status });
@@ -34280,7 +34309,8 @@ app.get('/api/dashboard/listings/:listingId/agent-share-kit', async (req, res) =
 app.post('/api/internal/run-nudge-job', async (req, res) => {
   try {
     const secret = req.headers['x-internal-secret'];
-    if (secret !== (process.env.INTERNAL_JOB_SECRET || 'hlai-internal')) return res.status(403).json({ error: 'forbidden' });
+    // No built-in default secret: set INTERNAL_JOB_SECRET in the environment.
+    if (!process.env.INTERNAL_JOB_SECRET || secret !== process.env.INTERNAL_JOB_SECRET) return res.status(403).json({ error: 'forbidden' });
     const cutoff24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const cutoff48h = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
     const { data: unworkedLeads } = await supabaseAdmin.from('leads').select('id, agent_id, lo_agent_id, full_name, name, listing_id').lte('created_at', cutoff24h).gte('created_at', cutoff48h).is('contacted_at', null).is('nudge_sent_at', null).limit(100);
@@ -34615,6 +34645,7 @@ app.delete('/api/lo/listings/:listingId/assign', requireAuth, async (req, res) =
 // checked by plain code (banned words, required disclosure) before they go out.
 const { createLoBrainService, DEFAULT_RULEBOOKS: LO_BRAIN_DEFAULT_RULEBOOKS } = require('./services/loBrainService');
 const { rateCaptureIntent, higherLevel } = require('./services/captureIntent');
+const { safeFetch } = require('./services/safeUrl');
 const { createTypeSafeClient: createLoBrainJevClient } = require('./services/typesafeClient');
 
 async function openAiChatReply(messages) {
@@ -35362,7 +35393,7 @@ app.post('/api/lo/chatbot/extract-url', requireAuth, async (req, res) => {
     if (!/^https?:\/\//i.test(fetchUrl)) fetchUrl = `https://${fetchUrl}`;
 
     const cheerio = require('cheerio');
-    const response = await fetch(fetchUrl, {
+    const response = await safeFetch(fetchUrl, {
       headers: { 'User-Agent': 'Mozilla/5.0 (compatible; HomeListingAI/1.0)' },
       signal: AbortSignal.timeout(10000)
     });
@@ -35396,6 +35427,9 @@ app.post('/api/lo/chatbot/extract-url', requireAuth, async (req, res) => {
   } catch (err) {
     const msg = err?.message || String(err);
     console.error('[LO Chatbot extract-url]', msg);
+    if (msg === 'url_not_allowed') {
+      return res.status(400).json({ error: 'url_not_allowed', message: 'That address cannot be fetched. Use a public web page.' });
+    }
     if (msg.includes('TimeoutError') || msg.includes('timeout')) {
       return res.status(422).json({ error: 'timeout', message: 'The page took too long to load.' });
     }
@@ -37265,7 +37299,7 @@ app.post('/api/admin/setup', async (req, res) => {
   }
 });
 
-app.post('/api/vapi/call', async (req, res) => {
+app.post('/api/vapi/call', requireAuth, async (req, res) => {
   try {
     const { leadPhone, script, ...context } = req.body || {};
     const to = (req.body && req.body.to) || leadPhone;
@@ -37497,7 +37531,8 @@ app.use('/api/dashboard', (req, res, next) => {
 // ── Inactivity check — called by pg_cron weekly ──────────────────────────────
 app.post('/api/cron/inactivity-check', async (req, res) => {
   const secret = req.headers['x-cron-secret'] || req.body?.secret;
-  if (secret !== (process.env.CRON_SECRET || 'hlai-cron-secret')) {
+  // No built-in default secret: set CRON_SECRET in the environment (a public default is a hole).
+  if (!process.env.CRON_SECRET || secret !== process.env.CRON_SECRET) {
     return res.status(401).json({ error: 'unauthorized' });
   }
 
@@ -38162,16 +38197,16 @@ app.post('/api/payments/checkout-session', async (req, res) => {
   }
 })
 
-app.post('/api/payments/portal-session', async (req, res) => {
+app.post('/api/payments/portal-session', requireAuth, async (req, res) => {
   try {
     if (!paymentService?.isConfigured?.()) {
       return res.status(503).json({ success: false, error: 'Payment processing is not configured.' })
     }
 
-    const { userId, slug, returnUrl } = req.body || {}
-    if (!userId && !slug) {
-      return res.status(400).json({ success: false, error: 'User ID or Slug required.' })
-    }
+    // The portal opens the SIGNED-IN user's own billing account. A body userId/slug is never trusted.
+    const { returnUrl } = req.body || {}
+    const userId = req.authUserId
+    const slug = null
 
     // Find agent
     let query = supabaseAdmin.from('agents').select('stripe_account_id, email, id')

@@ -72,7 +72,7 @@ const notifyLogin = async (userId: string, email: string): Promise<boolean> => {
         // This is a "fire and forget" notification.
         // We do NOT await the JSON response or let it block the UI if it fails (404, 500, or network error).
         // The backend might not have the route deployed yet.
-        await fetch('/api/security/notify-login', {
+        await authedFetch('/api/security/notify-login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

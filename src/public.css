@@ -285,3 +285,42 @@ html {
 [id] {
   scroll-margin-top: 5rem;
 }
+
+/* ── Accessibility layer for the dashboards ─────────────────────────────────────────
+   Measured on the demo pages: 17–23 text items under 12px, 10–22 below WCAG AA contrast,
+   and 40 tap targets under 36px on Appointments. These rules fix them in one place. */
+
+/* 12px is the smallest text we ship. */
+main .text-\[10px\],
+main .text-\[11px\] {
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+/* Secondary text: slate-400 is 2.6:1 on white. slate-500 is 4.8:1. */
+main .text-slate-400 { color: #64748b; }
+/* …but keep it light on dark surfaces. */
+main :is(.bg-slate-900, .bg-slate-800, .bg-slate-950, .bg-black, .bg-gray-900) .text-slate-400 { color: #94a3b8; }
+
+/* Green text/buttons: emerald-600 is 3.8:1 with white. emerald-700 is 5.5:1. */
+main .text-emerald-600 { color: #047857; }
+main .bg-emerald-600 { background-color: #047857; }
+main .hover\:bg-emerald-700:hover { background-color: #065f46; }
+
+/* Amber text is 3.2:1 on white; amber-700 is 5:1. Grey text on a grey chip needs to be a shade darker. */
+main .text-amber-600 { color: #b45309; }
+main .bg-slate-100.text-slate-500,
+main .bg-slate-100 .text-slate-500 { color: #475569; }
+
+/* Fingers: on touch screens every button and button-like link is at least 40px tall. */
+@media (pointer: coarse) {
+  main button,
+  main a.rounded-lg,
+  main a.rounded-md,
+  main [role="button"] {
+    min-height: 40px;
+  }
+  main button:has(> .material-symbols-outlined:only-child) {
+    min-width: 40px;
+  }
+}

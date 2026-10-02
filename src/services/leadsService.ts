@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { authedFetch } from './authedFetch'
 import { Lead, LeadStatus, LeadFunnelType } from '../types'
 
 export interface LeadPayload {
@@ -309,7 +310,7 @@ export const leadsService = {
         ? `/api/leads/stats?all=true`
         : `/api/leads/stats?userId=${userId}`;
 
-      const response = await fetch(url, {
+      const response = await authedFetch(url, {
         signal: controller.signal
       });
       clearTimeout(timeoutId);
