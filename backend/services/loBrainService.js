@@ -127,12 +127,13 @@ function createLoBrainService({ supabase, typesafeClient, generateReply, log = c
 
     // Compliance Brain
     const compliance = [];
-    const company = clean(config.company_name);
+    // The Compliance Brain starts from the loan officer's profile, so a blank form never means "no company".
+    const company = clean(config.company_name) || clean(lo.company);
     const companyNmls = clean(config.company_nmls);
     if (company || companyNmls) {
       compliance.push(`Company: ${company || '[not set]'}${companyNmls ? ` (Company NMLS# ${companyNmls})` : ''}.`);
     }
-    const states = list(config.licensed_states);
+    const states = list(config.licensed_states).length ? list(config.licensed_states) : list(lo.lending_states);
     if (states.length) {
       compliance.push(`The loan officer is licensed ONLY in: ${states.join(', ')}. For a home outside these states, do not discuss loan options — say the loan officer isn't licensed there and offer to connect the buyer with help.`);
     }
@@ -224,7 +225,7 @@ function createLoBrainService({ supabase, typesafeClient, generateReply, log = c
   async function loadBrain(loAgentId) {
     const [{ data: config }, { data: lo }] = await Promise.all([
       supabase.from('lo_chatbot_configs').select('*').eq('lo_agent_id', loAgentId).maybeSingle(),
-      supabase.from('agents').select('first_name, last_name, nmls_number').eq('id', loAgentId).maybeSingle(),
+      supabase.from('agents').select('first_name, last_name, nmls_number, company, lending_states').eq('id', loAgentId).maybeSingle(),
     ]);
     return { config: config || null, lo: lo || {} };
   }

@@ -17549,7 +17549,7 @@ app.get('/api/admin/listings', verifyAdmin, async (req, res) => {
     if (ownerIds.length > 0) {
       const { data: agentRows, error: agentError } = await supabaseAdmin
         .from('agents')
-        .select('auth_user_id, first_name, last_name, email, phone, headshot_url, brokerage, title')
+        .select('auth_user_id, first_name, last_name, email, phone, headshot_url, company, title')
         .in('auth_user_id', ownerIds);
 
       if (agentError) {
@@ -20406,13 +20406,16 @@ app.post('/api/leads/capture', async (req, res) => {
     let leadId = null;
     let isDeduped = false;
     let leadStatus = 'New';
-    let intentLevel = (phoneE164 || emailLower) ? 'Warm' : 'Cold';
+    const captureRating = rateCaptureIntent({ context, hasPhone: Boolean(phoneE164), hasEmail: Boolean(emailLower) });
+    let intentLevel = captureRating.level;
+    attributionMeta.intent_reason = captureRating.reason;
+    attributionMeta.intent_source = captureRating.source;
 
     if (existingLead) {
       isDeduped = true;
       leadId = existingLead.id;
       leadStatus = existingLead.status || 'New';
-      intentLevel = existingLead.intent_level || intentLevel;
+      intentLevel = higherLevel(existingLead.intent_level, intentLevel);
 
       const updatePayload = {
         updated_at: timestamp,
@@ -20427,6 +20430,7 @@ app.post('/api/leads/capture', async (req, res) => {
         source: effectiveSourceType,
         source_key: effectiveSourceKey || undefined,
         source_meta: attributionMeta,
+        intent_level: intentLevel,
         last_message: 'Contact captured',
         last_message_preview: 'Contact captured',
         last_message_at: timestamp,
@@ -22298,7 +22302,7 @@ app.get('/api/dashboard/leads', async (req, res) => {
 });
 
 // The loan officer this agent partners with (first active partnership), or null.
-const LO_PARTNER_FIELDS = 'id, auth_user_id, first_name, last_name, full_name, company, nmls_number, phone, email, headshot_url';
+const LO_PARTNER_FIELDS = 'id, auth_user_id, first_name, last_name, company, nmls_number, phone, email, headshot_url';
 async function findAgentLoPartner(authId) {
   const { data: me } = await supabaseAdmin.from('agents').select('id').eq('auth_user_id', authId).maybeSingle();
   if (!me?.id) return { me: null, lo: null };
@@ -22310,7 +22314,7 @@ async function findAgentLoPartner(authId) {
   const { data: lo } = await supabaseAdmin.from('agents').select(LO_PARTNER_FIELDS).eq('id', partnership.lo_agent_id).maybeSingle();
   return { me, lo: lo || null };
 }
-const loDisplayName = (lo) => lo?.full_name || [lo?.first_name, lo?.last_name].filter(Boolean).join(' ') || lo?.company || 'Your loan officer';
+const loDisplayName = (lo) => [lo?.first_name, lo?.last_name].filter(Boolean).join(' ') || lo?.company || 'Your loan officer';
 
 // Today page card: who my loan officer is and what they did for me this week (3 light queries).
 app.get('/api/dashboard/my-loan-officer', async (req, res) => {
@@ -22371,8 +22375,8 @@ app.post('/api/dashboard/leads/:leadId/ask-lo', async (req, res) => {
     if (!lo) lo = (await findAgentLoPartner(authId)).lo;
     if (!lo) return res.status(409).json({ error: 'no_loan_officer' });
 
-    const { data: agentRow } = await supabaseAdmin.from('agents').select('first_name, last_name, full_name').eq('auth_user_id', authId).maybeSingle();
-    const agentName = agentRow?.full_name || [agentRow?.first_name, agentRow?.last_name].filter(Boolean).join(' ') || 'Your agent partner';
+    const { data: agentRow } = await supabaseAdmin.from('agents').select('first_name, last_name').eq('auth_user_id', authId).maybeSingle();
+    const agentName = [agentRow?.first_name, agentRow?.last_name].filter(Boolean).join(' ') || 'Your agent partner';
     const leadName = lead.full_name || lead.name || 'a buyer';
     const leadPhone = lead.phone_e164 || lead.phone || null;
     const leadEmail = lead.email_lower || lead.email || null;
@@ -23914,7 +23918,7 @@ app.get('/api/dashboard/listings/:listingId/share-kit', async (req, res) => {
       if (assign?.lo_agent_id) {
         const { data: loAgent } = await supabaseAdmin
           .from('agents')
-          .select('first_name, last_name, full_name, company, nmls_number, headshot_url')
+          .select('first_name, last_name, company, nmls_number, headshot_url')
           .eq('id', assign.lo_agent_id)
           .maybeSingle();
         if (loAgent) {
@@ -23924,7 +23928,7 @@ app.get('/api/dashboard/listings/:listingId/share-kit', async (req, res) => {
             .eq('lo_agent_id', assign.lo_agent_id)
             .maybeSingle();
           loPartner = {
-            name: loAgent.full_name || `${loAgent.first_name || ''} ${loAgent.last_name || ''}`.trim() || 'Loan Officer',
+            name: `${loAgent.first_name || ''} ${loAgent.last_name || ''}`.trim() || 'Loan Officer',
             headshot_url: loAgent.headshot_url || null,
             company: loAgent.company || null,
             nmls_number: loAgent.nmls_number || null,
@@ -32539,7 +32543,7 @@ app.get('/api/public/partner-invite/:token', async (req, res) => {
     if (invite.claimed_agent_id) {
       const { data: row } = await supabaseAdmin
         .from('agents')
-        .select('first_name, last_name, brokerage, company, headshot_url, phone, email, website')
+        .select('first_name, last_name, company, headshot_url, phone, email, website')
         .eq('id', invite.claimed_agent_id)
         .maybeSingle();
       agentRow = row || null;
@@ -32547,7 +32551,7 @@ app.get('/api/public/partner-invite/:token', async (req, res) => {
     const agentProfileName = [agentRow?.first_name, agentRow?.last_name].filter(Boolean).join(' ');
     const agent = {
       name: agentProfileName || invite.invited_name || null,
-      company: agentRow?.brokerage || agentRow?.company || null,
+      company: agentRow?.company || null,
       headshotUrl: agentRow?.headshot_url || null,
       phone: agentRow?.phone || null,
       email: agentRow?.email || null,
@@ -34162,12 +34166,12 @@ app.get('/api/lo/listings/:listingId/share-kit', requireLoAgent, async (req, res
     // The realtor who owns the listing (properties.agent_id/user_id = AUTH id).
     const ownerAuthId = listing.user_id || listing.agent_id || null;
     const { data: realtor } = ownerAuthId
-      ? await supabaseAdmin.from('agents').select('first_name, last_name, full_name, brokerage, headshot_url, phone').eq('auth_user_id', ownerAuthId).maybeSingle()
+      ? await supabaseAdmin.from('agents').select('first_name, last_name, company, headshot_url, phone').eq('auth_user_id', ownerAuthId).maybeSingle()
       : { data: null };
 
     const { data: lo } = await supabaseAdmin
       .from('agents')
-      .select('first_name, last_name, full_name, company, nmls_number, headshot_url, brand_logo_url, phone, email')
+      .select('first_name, last_name, company, nmls_number, headshot_url, brand_logo_url, phone, email')
       .eq('id', loAgentId).maybeSingle();
 
     const ALL_PIECES = ['listing_page', 'share_kit', 'qr', 'social', 'flyer', 'open_house'];
@@ -34194,7 +34198,7 @@ app.get('/api/lo/listings/:listingId/share-kit', requireLoAgent, async (req, res
         share_url: buildListingShareUrl(listing.public_slug)
       },
       lo: {
-        name: lo?.full_name || `${lo?.first_name || ''} ${lo?.last_name || ''}`.trim() || 'Loan Officer',
+        name: `${lo?.first_name || ''} ${lo?.last_name || ''}`.trim() || 'Loan Officer',
         company: lo?.company || null,
         nmls_number: lo?.nmls_number || null,
         headshot_url: lo?.headshot_url || null,
@@ -34203,8 +34207,8 @@ app.get('/api/lo/listings/:listingId/share-kit', requireLoAgent, async (req, res
         email: lo?.email || null
       },
       realtor: realtor ? {
-        name: realtor.full_name || `${realtor.first_name || ''} ${realtor.last_name || ''}`.trim() || null,
-        brokerage: realtor.brokerage || null,
+        name: `${realtor.first_name || ''} ${realtor.last_name || ''}`.trim() || null,
+        brokerage: realtor.company || null,
         headshot_url: realtor.headshot_url || null,
         phone: realtor.phone || null
       } : null,
@@ -34234,7 +34238,7 @@ app.get('/api/dashboard/listings/:listingId/agent-share-kit', async (req, res) =
     if (!toTrimmedOrNull(listing.public_slug)) return res.status(409).json({ error: 'NO_SHARE_LINK' });
 
     const { data: realtor } = await supabaseAdmin
-      .from('agents').select('first_name, last_name, full_name, brokerage, company, headshot_url, phone')
+      .from('agents').select('first_name, last_name, company, headshot_url, phone')
       .eq('auth_user_id', authId).maybeSingle();
 
     const photos = [
@@ -34255,8 +34259,8 @@ app.get('/api/dashboard/listings/:listingId/agent-share-kit', async (req, res) =
         share_url: buildListingShareUrl(listing.public_slug)
       },
       realtor: realtor ? {
-        name: realtor.full_name || `${realtor.first_name || ''} ${realtor.last_name || ''}`.trim() || null,
-        brokerage: realtor.brokerage || realtor.company || null,
+        name: `${realtor.first_name || ''} ${realtor.last_name || ''}`.trim() || null,
+        brokerage: realtor.company || null,
         headshot_url: realtor.headshot_url || null,
         phone: realtor.phone || null
       } : null
@@ -34605,6 +34609,7 @@ app.delete('/api/lo/listings/:listingId/assign', requireAuth, async (req, res) =
 // Jev > LO knowledge > listing facts + optional payment schedule. Replies are then
 // checked by plain code (banned words, required disclosure) before they go out.
 const { createLoBrainService, DEFAULT_RULEBOOKS: LO_BRAIN_DEFAULT_RULEBOOKS } = require('./services/loBrainService');
+const { rateCaptureIntent, higherLevel } = require('./services/captureIntent');
 const { createTypeSafeClient: createLoBrainJevClient } = require('./services/typesafeClient');
 
 async function openAiChatReply(messages) {
@@ -34718,11 +34723,16 @@ app.get('/api/lo/chatbot-config', requireLoAgent, async (req, res) => {
       sms_followup_template: "Hi {first_name}, it's {lo_name}'s AI assistant. Thanks for checking out {listing_address}! Want me to run payment numbers for you? Reply STOP to opt out.",
       sms_reminder_template: "Hi {first_name}, quick reminder about your call with {lo_name} on {appointment_time}. Reply STOP to opt out."
     };
+    // Start the Compliance Brain from the LO's profile so it is never blank by accident.
+    const { data: profileRow } = await supabaseAdmin.from('agents').select('company, lending_states').eq('id', agentId).maybeSingle();
+    if (profileRow?.company) defaults.company_name = profileRow.company;
+    if (Array.isArray(profileRow?.lending_states) && profileRow.lending_states.length) defaults.licensed_states = profileRow.lending_states;
     const merged = { ...defaults };
     for (const [key, value] of Object.entries(data || {})) {
       // null/empty rulebooks fall back to the starter wording
       if (value === null || value === undefined) continue;
-      if (['marketing_voice', 'loan_advisor_rules', 'borrower_care_rules'].includes(key) && !String(value).trim()) continue;
+      if (['marketing_voice', 'loan_advisor_rules', 'borrower_care_rules', 'company_name'].includes(key) && !String(value).trim()) continue;
+      if (key === 'licensed_states' && Array.isArray(value) && value.length === 0) continue;
       merged[key] = value;
     }
     res.json(merged);

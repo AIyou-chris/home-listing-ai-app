@@ -217,6 +217,9 @@ const TodayDashboardPage: React.FC = () => {
     return leads.slice(0, 6)
   }, [leadsById])
 
+  // The first lead lives in the Call now card, so the list below shows the rest.
+  const restLeads = newLeads.slice(1)
+
   const upcomingAppointments = useMemo(() => {
     const now = Date.now()
     const next24h = now + 24 * 60 * 60 * 1000
@@ -425,7 +428,9 @@ const TodayDashboardPage: React.FC = () => {
               </svg>
             </button>
             {leadsOpen && <div className="mt-4 space-y-3">
-              {newLeads.length === 0 ? (
+              {newLeads.length > 0 && restLeads.length === 0 ? (
+                <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">That's your only new lead. Call them first.</p>
+              ) : newLeads.length === 0 ? (
                 <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4">
                   {!blueprintMode && !demoMode && onboarding && !onboarding.onboarding_checklist.first_listing_created ? (
                     <>
@@ -464,7 +469,7 @@ const TodayDashboardPage: React.FC = () => {
                   )}
                 </div>
               ) : (
-                newLeads.map((lead: DashboardLeadItem) => (
+                restLeads.map((lead: DashboardLeadItem) => (
                   <div key={lead.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
                     <div className="flex items-start justify-between gap-2">
                       <div>

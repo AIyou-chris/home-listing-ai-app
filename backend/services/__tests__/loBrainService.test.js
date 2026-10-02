@@ -197,3 +197,24 @@ test('answer returns setup message when the LO has no brain yet', async () => {
   const out = await brain.answer({ loAgentId: 'lo1', message: 'hi' });
   assert.equal(out.configured, false);
 });
+
+test('Compliance Brain falls back to the loan officer profile when its own fields are blank', () => {
+  const brain = createLoBrainService({ supabase: {}, jev: jev('help'), log: quietLog });
+  const prompt = brain.buildBrainPrompt({
+    config: { company_name: '', licensed_states: [] },
+    lo: { company: 'Summit Home Loans', lending_states: ['WA', 'OR'] },
+  });
+  assert.match(prompt, /Company: Summit Home Loans/);
+  assert.match(prompt, /licensed ONLY in: WA, OR/);
+});
+
+test('Compliance Brain fields the loan officer set win over the profile', () => {
+  const brain = createLoBrainService({ supabase: {}, jev: jev('help'), log: quietLog });
+  const prompt = brain.buildBrainPrompt({
+    config: { company_name: 'Custom Co', licensed_states: ['CA'] },
+    lo: { company: 'Summit Home Loans', lending_states: ['WA'] },
+  });
+  assert.match(prompt, /Company: Custom Co/);
+  assert.match(prompt, /licensed ONLY in: CA/);
+  assert.doesNotMatch(prompt, /Summit Home Loans/);
+});
