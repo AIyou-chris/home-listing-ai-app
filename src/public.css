@@ -324,3 +324,25 @@ main .bg-slate-100 .text-slate-500 { color: #475569; }
     min-width: 40px;
   }
 }
+
+
+/* ── Sales guide launcher (headshot bubble on the landing page) ─────────────── */
+@keyframes hl-guide-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-12px); }
+}
+@keyframes hl-guide-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(34, 211, 238, 0.55), 0 14px 32px rgba(2, 132, 199, 0.45); }
+  50% { box-shadow: 0 0 0 16px rgba(34, 211, 238, 0), 0 18px 40px rgba(2, 132, 199, 0.55); }
+}
+@keyframes hl-guide-label-in {
+  from { opacity: 0; transform: translateX(10px) scale(0.96); }
+  to { opacity: 1; transform: translateX(0) scale(1); }
+}
+.hl-guide { animation: hl-guide-bob 2.8s ease-in-out infinite; }
+.hl-guide:hover, .hl-guide:focus-within { animation-play-state: paused; }
+.hl-guide-ring { animation: hl-guide-glow 2.8s ease-in-out infinite; }
+.hl-guide-label { animation: hl-guide-label-in 0.5s ease-out both; }
+@media (prefers-reduced-motion: reduce) {
+  .hl-guide, .hl-guide-ring, .hl-guide-label { animation: none; }
+}

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import SEO from './SEO';
 import { PublicHeader } from './layout/PublicHeader';
@@ -7,6 +7,9 @@ import { PricingSectionNew } from './PricingSectionNew';
 import ComparePlansModal from './ComparePlansModal';
 import InlineLoDemo from './InlineLoDemo';
 import './approved-landing.css';
+
+// The sales guide: loaded a moment after the page so it never slows the first paint.
+const ChatBotFAB = lazy(() => import('./ChatBotFAB'));
 
 interface Props {
   onNavigateToSignUp: () => void;
@@ -42,6 +45,11 @@ export default function ApprovedLandingPage(props: Props) {
   const navigate = useNavigate();
   const [selected, setSelected] = useState<number | null>(2);
   const [compare, setCompare] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
+  useEffect(() => {
+    const t = window.setTimeout(() => setShowGuide(true), 2500);
+    return () => window.clearTimeout(t);
+  }, []);
   const detail = useRef<HTMLDivElement>(null);
   const root = useRef<HTMLDivElement>(null);
   const tool = selected === null ? null : tools[selected];
@@ -92,5 +100,18 @@ export default function ApprovedLandingPage(props: Props) {
       <section id="faq" className="al-section al-reveal"><div className="al-wrap al-faq"><div className="al-heading"><p className="al-eyebrow">FAQ</p><h2>Good questions. <em>Straight answers.</em></h2></div>{questions.map(([question,answer],index) => <details key={question} open={index===0 ? true : undefined}><summary>{question}<Icon name="add" /></summary><p>{answer}{index===5 && <> <button className="al-text-button" onClick={props.onOpenConsultationModal}>Contact us</button></>}</p></details>)}</div></section>
       <section className="al-section al-final al-reveal"><div className="al-wrap"><p className="al-eyebrow">Build your own pipeline</p><h2>Your next borrower<br />is looking at a home<br /><em>right now.</em></h2><p>Be part of that listing. Be there for the question. Be ready for the conversation.</p><button className="al-button" onClick={demo}>See HomeListingAI in action<Icon name="arrow_forward" /></button><a href="#tools" className="al-secondary">Explore the tools</a><p className="al-tagline">Your agent. Their listing. Your lead.</p></div></section>
     </main><PublicFooter onNavigateToAdmin={props.onNavigateToAdmin} /><ComparePlansModal isOpen={compare} onClose={() => setCompare(false)} />
+    {showGuide && (
+      <Suspense fallback={null}>
+        <ChatBotFAB
+          context={{ userType: 'visitor', currentPage: 'landing', previousInteractions: 0, userInfo: {} }}
+          initialMode="sales"
+          launcher="headshot"
+          launcherImage="/sales-guide.jpg"
+          launcherLabel="Welcome, ask me anything"
+          guideName="HomeListingAI Assistant"
+          position="bottom-right"
+        />
+      </Suspense>
+    )}
   </div>;
 }

@@ -14,6 +14,11 @@ interface ChatBotFABProps {
   isOpen?: boolean;
   onToggle?: () => void;
   initialMode?: ChatBotMode;
+  /** 'headshot' = a friendly photo bubble that bobs to get noticed (landing page). */
+  launcher?: 'default' | 'headshot';
+  launcherImage?: string;
+  launcherLabel?: string;
+  guideName?: string;
 }
 
 export const ChatBotFAB: React.FC<ChatBotFABProps> = ({
@@ -26,8 +31,14 @@ export const ChatBotFAB: React.FC<ChatBotFABProps> = ({
   initialOpen = false,
   isOpen: controlledIsOpen,
   onToggle,
-  initialMode
+  initialMode,
+  launcher = 'default',
+  launcherImage = '/sales-guide.jpg',
+  launcherLabel = 'Welcome, ask me anything',
+  guideName = 'HomeListingAI Assistant'
 }) => {
+  const isHeadshot = launcher === 'headshot';
+  const [labelHidden, setLabelHidden] = useState(false);
   const [internalIsOpen, setInternalIsOpen] = useState(initialOpen);
 
   const isControlled = controlledIsOpen !== undefined;
@@ -35,7 +46,8 @@ export const ChatBotFAB: React.FC<ChatBotFABProps> = ({
 
   const [hasNewMessage, setHasNewMessage] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [isVoiceView, setIsVoiceView] = useState(context.userType === 'visitor');
+  // The landing-page guide opens as a normal text chat; voice is one tap away on the mic button.
+  const [isVoiceView, setIsVoiceView] = useState(context.userType === 'visitor' && !isHeadshot);
 
   // Sync internal state if initialOpen changes (only if uncontrolled)
   useEffect(() => {
@@ -123,16 +135,23 @@ export const ChatBotFAB: React.FC<ChatBotFABProps> = ({
         <div className={`fixed ${positionClasses[position]} z-50 max-w-[95vw] ${className}`}>
           <div className="bg-white rounded-lg shadow-2xl border border-gray-200 w-[min(90vw,420px)] h-[min(80vh,640px)] sm:w-[380px] sm:h-[560px] flex flex-col pb-[env(safe-area-inset-bottom)]">
             {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-blue-600 text-white rounded-t-lg">
+            <div className={`flex items-center justify-between p-4 border-b border-gray-200 text-white rounded-t-lg ${isHeadshot ? 'bg-gradient-to-r from-slate-900 via-slate-900 to-sky-900' : 'bg-blue-600'}`}>
               <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
-                  </svg>
-                </div>
+                {isHeadshot ? (
+                  <div className="relative">
+                    <img src={launcherImage} alt="" className="h-10 w-10 rounded-full border-2 border-cyan-300 object-cover" />
+                    <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-slate-900 bg-emerald-400" aria-hidden="true" />
+                  </div>
+                ) : (
+                  <div className="w-8 h-8 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                )}
                 <div>
-                  <h3 className="font-semibold text-sm">AI Assistant</h3>
-                  <p className="text-xs opacity-90">Here to help!</p>
+                  <h3 className="font-semibold text-sm">{isHeadshot ? guideName : 'AI Assistant'}</h3>
+                  <p className="text-xs opacity-90">{isHeadshot ? 'AI guide · ask me anything' : 'Here to help!'}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -202,8 +221,56 @@ export const ChatBotFAB: React.FC<ChatBotFABProps> = ({
         </div>
       )}
 
+      {/* Headshot launcher: a friendly face that bobs up and down to get noticed */}
+      {isHeadshot && (
+        <div className={`fixed ${positionClasses[position]} z-40 flex items-center gap-3 transition-opacity duration-300 ${isOpen ? 'pointer-events-none opacity-0' : 'opacity-100'}`}>
+          {!labelHidden && (
+            <button
+              type="button"
+              onClick={handleToggleChat}
+              className="hl-guide-label relative block max-w-[150px] rounded-2xl bg-white px-3 py-2 text-left text-xs font-bold leading-snug text-slate-900 shadow-xl ring-1 ring-slate-200 sm:max-w-[210px] sm:px-4 sm:py-2.5 sm:text-sm"
+              style={{ animationDelay: '1.2s' }}
+              aria-label={launcherLabel}
+            >
+              {launcherLabel}
+              <span
+                role="button"
+                tabIndex={0}
+                aria-label="Hide this message"
+                onClick={(e) => { e.stopPropagation(); setLabelHidden(true); }}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); setLabelHidden(true); } }}
+                className="absolute -left-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-slate-900 text-xs text-white shadow"
+              >×</span>
+              <span className="absolute -right-1.5 top-1/2 h-3 w-3 -translate-y-1/2 rotate-45 bg-white ring-1 ring-slate-200" style={{ clipPath: 'polygon(100% 0, 100% 100%, 0 0)' }} aria-hidden="true" />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={handleToggleChat}
+            aria-label={`Chat with the ${guideName}`}
+            className="hl-guide group relative rounded-full focus:outline-none focus-visible:ring-4 focus-visible:ring-cyan-300"
+          >
+            <span className="hl-guide-ring block rounded-full bg-gradient-to-br from-cyan-300 via-sky-500 to-indigo-600 p-[3px]">
+              <span className="block rounded-full bg-gradient-to-b from-slate-100 to-sky-200 p-[3px]">
+                <img
+                  src={launcherImage}
+                  alt=""
+                  width={72}
+                  height={72}
+                  className="h-[68px] w-[68px] rounded-full object-cover sm:h-[76px] sm:w-[76px]"
+                />
+              </span>
+            </span>
+            <span className="absolute bottom-1 right-1 h-4 w-4 rounded-full border-2 border-white bg-emerald-400" aria-hidden="true" />
+            {(hasNewMessage || unreadCount > 0) && (
+              <span className="absolute -right-1 -top-1 flex h-6 w-6 items-center justify-center rounded-full bg-rose-500 text-xs font-bold text-white">1</span>
+            )}
+          </button>
+        </div>
+      )}
+
       {/* Floating Action Button */}
-      <div className={`fixed ${positionClasses[position]} z-40`}>
+      <div className={`fixed ${positionClasses[position]} z-40 ${isHeadshot ? 'hidden' : ''}`}>
         <button
           onClick={handleToggleChat}
           aria-label={isOpen ? 'Hide AI assistant' : 'Open AI assistant'}
@@ -230,7 +297,7 @@ export const ChatBotFAB: React.FC<ChatBotFABProps> = ({
       </div>
 
       {/* Welcome Message Tooltip */}
-      {hasNewMessage && !isOpen && (
+      {hasNewMessage && !isOpen && !isHeadshot && (
         <div className={`fixed ${position === 'bottom-right' ? 'bottom-20 right-20' : 'bottom-20 left-20'} z-30`}>
           <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-3 max-w-xs animate-bounce">
             <div className="flex items-start space-x-2">
