@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { buildApiUrl } from '../lib/api'
 import { supabase } from '../services/supabase'
+import { authHeaders } from '../services/dashboard/utils'
 import { DEFAULT_OFFICE_BRAND, OfficeBrand, OfficeBrandContext } from './officeBrand'
 
 export const OfficeBrandProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -11,7 +12,7 @@ export const OfficeBrandProvider: React.FC<{ children: React.ReactNode }> = ({ c
       try {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) return
-        const r = await fetch(buildApiUrl('/api/me/brand'), { headers: { 'x-user-id': user.id } })
+        const r = await fetch(buildApiUrl('/api/me/brand'), { headers: await authHeaders(user.id) })
         if (!r.ok) return
         const data = await r.json() as { brand?: OfficeBrand }
         if (data?.brand?.whiteLabel) setBrand(data.brand)

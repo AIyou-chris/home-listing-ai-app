@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { buildApiUrl } from '../../lib/api';
-import { supabase } from '../../services/supabase';
+import { authHeaders } from '../../services/dashboard/utils';
 import { showToast } from '../../utils/toastService';
 import { buildDashboardPath, useDemoMode } from '../../demo/useDemoMode';
 import ShareKitCards, { type KitListing, type KitLo, type KitRealtor, type Toggles } from './ShareKitCards';
@@ -9,15 +9,7 @@ import ShareKitCards, { type KitListing, type KitLo, type KitRealtor, type Toggl
 // The LO's co-branded kit for a listing they're on: link, QR, flyer, social caption.
 // Each piece has its own "my branding" switch (same switches as the Listings page).
 
-const getHeaders = async (): Promise<HeadersInit> => {
-  const { data: { session } } = await supabase.auth.getSession();
-  const { data } = await supabase.auth.getUser();
-  return {
-    'Content-Type': 'application/json',
-    ...(data.user?.id ? { 'x-user-id': data.user.id } : {}),
-    ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {})
-  };
-};
+const getHeaders = async (): Promise<HeadersInit> => authHeaders(null);
 
 const money = (n: number) => (n > 0 ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n) : '');
 

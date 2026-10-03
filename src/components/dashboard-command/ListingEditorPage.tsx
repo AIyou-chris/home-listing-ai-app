@@ -4,6 +4,7 @@ import toast from 'react-hot-toast'
 import { useDemoMode } from '../../demo/useDemoMode'
 import { useBlueprintMode } from '../../demo/useBlueprintMode'
 import { buildApiUrl } from '../../lib/api'
+import { authHeaders } from '../../services/dashboard/utils'
 import {
   createListingBuilderSource,
   deleteListingBuilderSource,
@@ -1076,8 +1077,8 @@ const ListingEditorPage: React.FC = () => {
         const { waitForAuthenticatedUserId } = await import('../../services/authSession')
         const uid = await waitForAuthenticatedUserId()
         const [profileRes, loRes] = await Promise.all([
-          fetch(`/api/agent/profile`, { headers: { 'x-user-id': uid } }),
-          listingId ? fetch(`/api/listings/${listingId}/lo-assignment`, { headers: { 'x-user-id': uid } }) : Promise.resolve(null)
+          fetch(`/api/agent/profile`, { headers: await authHeaders(uid) }),
+          listingId ? fetch(`/api/listings/${listingId}/lo-assignment`, { headers: await authHeaders(uid) }) : Promise.resolve(null)
         ])
         if (profileRes.ok) {
           const j = await profileRes.json()
@@ -1113,7 +1114,7 @@ const ListingEditorPage: React.FC = () => {
       const uid = await waitForAuthenticatedUserId()
       const res = await fetch('/api/agent/profile', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'x-user-id': uid },
+        headers: await authHeaders(uid),
         body: JSON.stringify(agentProfile)
       })
       if (!res.ok) throw new Error('save failed')
@@ -1128,7 +1129,6 @@ const ListingEditorPage: React.FC = () => {
     try {
       const { waitForAuthenticatedUserId } = await import('../../services/authSession')
       const uid = await waitForAuthenticatedUserId()
-      const { authHeaders } = await import('../../services/dashboard/utils')
       const res = await fetch(`/api/lo/search?q=${encodeURIComponent(q)}`, { headers: await authHeaders(uid) })
       const j = await res.json()
       setLoSearchResults(j.results || [])
@@ -1143,7 +1143,7 @@ const ListingEditorPage: React.FC = () => {
       const uid = await waitForAuthenticatedUserId()
       const res = await fetch(`/api/listings/${listingId}/lo-assignment`, {
         method: 'POST',
-        headers: await (await import('../../services/dashboard/utils')).authHeaders(uid),
+        headers: await authHeaders(uid),
         body: JSON.stringify({ lo_id: lo.id })
       })
       const j = await res.json()
@@ -1161,7 +1161,7 @@ const ListingEditorPage: React.FC = () => {
       const uid = await waitForAuthenticatedUserId()
       const res = await fetch(`/api/listings/${listingId}/lo-assignment`, {
         method: 'DELETE',
-        headers: await (await import('../../services/dashboard/utils')).authHeaders(uid),
+        headers: await authHeaders(uid),
         body: JSON.stringify({ lo_id: attachedLo.id })
       })
       if (!res.ok) throw new Error('detach failed')
@@ -1177,7 +1177,7 @@ const ListingEditorPage: React.FC = () => {
       const { waitForAuthenticatedUserId } = await import('../../services/authSession')
       const uid = await waitForAuthenticatedUserId()
       const streetPart = address.split(',')[0].trim()
-      const res = await fetch(buildApiUrl(`/api/lo/chatbot/listing-docs?address=${encodeURIComponent(streetPart)}`), { headers: { 'x-user-id': uid } })
+      const res = await fetch(buildApiUrl(`/api/lo/chatbot/listing-docs?address=${encodeURIComponent(streetPart)}`), { headers: await authHeaders(uid) })
       if (!res.ok) return
       const j = await res.json()
       const docs: Array<{ id: string; label?: string; content?: string }> = j.docs || []
@@ -1218,7 +1218,7 @@ const ListingEditorPage: React.FC = () => {
         : buildApiUrl('/api/lo/chatbot/listing-docs')
       const res = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json', 'x-user-id': uid },
+        headers: await authHeaders(uid),
         body: JSON.stringify({ address, label: `Financing notes – ${address.split(',')[0]}`, content: combined })
       })
       if (!res.ok) throw new Error('save_failed')
@@ -1245,7 +1245,7 @@ const ListingEditorPage: React.FC = () => {
       const uid = await waitForAuthenticatedUserId()
       const res = await fetch(buildApiUrl(`/api/lo/chatbot/listing-docs/${loBrainDocId}`), {
         method: 'DELETE',
-        headers: { 'x-user-id': uid }
+        headers: await authHeaders(uid)
       })
       if (!res.ok) throw new Error('delete_failed')
       resetFields()
@@ -1273,7 +1273,7 @@ const ListingEditorPage: React.FC = () => {
         : buildApiUrl('/api/lo/chatbot/listing-docs')
       const res = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json', 'x-user-id': uid },
+        headers: await authHeaders(uid),
         body: JSON.stringify({ address, label: `payment-disclosures – ${address.split(',')[0]}`, content: disclosuresContent.trim() })
       })
       if (!res.ok) throw new Error('save_failed')

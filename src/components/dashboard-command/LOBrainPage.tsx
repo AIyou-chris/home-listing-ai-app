@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { buildApiUrl } from '../../lib/api';
-import { supabase } from '../../services/supabase';
+import { authHeaders } from '../../services/dashboard/utils';
 import { useDemoMode } from '../../demo/useDemoMode';
 import './lo-brain.css';
 
@@ -10,16 +10,10 @@ import './lo-brain.css';
 // POST /api/lo/brain/test, POST /api/lo/brain/feedback (see loBrainService.js).
 
 const SEPARATOR = '\n\n---\n\n';
+// The whole knowledge base rides along on every buyer message, so the server caps it.
+const KB_LIMIT = 60000;
 
-const getApiHeaders = async (): Promise<Record<string, string>> => {
-  const { data: { session } } = await supabase.auth.getSession();
-  const { data } = await supabase.auth.getUser();
-  return {
-    'Content-Type': 'application/json',
-    ...(data.user?.id ? { 'x-user-id': data.user.id } : {}),
-    ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {})
-  };
-};
+const getApiHeaders = async (): Promise<Record<string, string>> => ({ ...(await authHeaders(null) as Record<string, string>) });
 
 interface FaqItem { question: string; answer: string }
 
@@ -139,7 +133,7 @@ const parseSources = (kb: string) => {
 
 const AddSourceModal: React.FC<{
   onClose: () => void;
-  onAdd: (text: string, label: string) => Promise<void>;
+  onAdd: (text: string, label: string) => Promise<boolean>;
   demo: boolean;
 }> = ({ onClose, onAdd, demo }) => {
   const [mode, setMode] = useState<'text' | 'file' | 'url'>('text');
@@ -159,9 +153,9 @@ const AddSourceModal: React.FC<{
     if (guardDemo() || !text.trim()) return;
     setBusy(true);
     const name = title.trim() || type;
-    await onAdd(`[From: ${type} — ${name}]\n${text.trim()}`, name);
+    const ok = await onAdd(`[From: ${type} — ${name}]\n${text.trim()}`, name);
     setBusy(false);
-    onClose();
+    if (ok) onClose();
   };
 
   const addFile = async (file: File) => {
@@ -175,8 +169,9 @@ const AddSourceModal: React.FC<{
       const res = await fetch(buildApiUrl('/api/lo/chatbot/extract-file'), { method: 'POST', headers, body: form });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Could not read that file');
-      await onAdd(`[From: ${type} — ${file.name}]\n${data.text}`, file.name);
-      onClose();
+      if (data.truncated) toast('That file was long, so only the first 50,000 characters were read.', { icon: '✂️' });
+      const ok = await onAdd(`[From: ${type} — ${file.name}]\n${data.text}`, file.name);
+      if (ok) onClose();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not read that file');
     } finally {
@@ -193,8 +188,9 @@ const AddSourceModal: React.FC<{
       const res = await fetch(buildApiUrl('/api/lo/chatbot/extract-url'), { method: 'POST', headers, body: JSON.stringify({ url: url.trim() }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Could not scan that page');
-      await onAdd(`[From: ${type} — ${url.trim()}]\n${data.text}`, url.trim());
-      onClose();
+      if (data.truncated) toast('That page was long, so only the first 12,000 characters were read.', { icon: '✂️' });
+      const ok = await onAdd(`[From: ${type} — ${url.trim()}]\n${data.text}`, url.trim());
+      if (ok) onClose();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not scan that page');
     } finally {
@@ -688,13 +684,17 @@ const LOBrainPage: React.FC = () => {
       if (!res.ok) {
         throw new Error(data?.error === 'lo_brain_migration_not_run'
           ? 'The AI Brain database update has not been run yet.'
-          : 'Save failed. Try again.');
+          : data?.error === 'brain_text_too_long'
+            ? `Your ${data.field === 'compliance_rules' ? 'compliance rules are' : 'knowledge is'} over the ${Number(data.limit || KB_LIMIT).toLocaleString()} character limit. Remove or shorten something and save again.`
+            : 'Save failed. Try again.');
       }
       setDirty(false);
       toast.success(successMsg);
       void loadSummary();
       return true;
     } catch (err) {
+      // The change is on screen but not saved: keep the save bar up so it is never silently lost.
+      setDirty(true);
       toast.error(err instanceof Error ? err.message : 'Save failed. Try again.');
       return false;
     } finally {
@@ -702,17 +702,26 @@ const LOBrainPage: React.FC = () => {
     }
   };
 
-  const addSource = async (text: string, label: string) => {
+  const addSource = async (text: string, label: string): Promise<boolean> => {
     const next = { ...config, knowledge_base: config.knowledge_base.trim() ? `${config.knowledge_base}${SEPARATOR}${text}` : text };
+    if (next.knowledge_base.length > KB_LIMIT) {
+      toast.error(`That would put your brain over ${KB_LIMIT.toLocaleString()} characters (you have ${config.knowledge_base.length.toLocaleString()}). Remove something first, or add a shorter version.`);
+      return false;
+    }
+    const previous = config;
     setConfig(next);
-    await persist(next, `"${label}" added`);
+    const ok = await persist(next, `"${label}" added`);
+    if (!ok) setConfig(previous);
+    return ok;
   };
 
   const removeSource = async (index: number) => {
+    const previous = config;
     const chunks = config.knowledge_base.split(SEPARATOR);
     const next = { ...config, knowledge_base: chunks.filter((_, i) => i !== index).join(SEPARATOR) };
     setConfig(next);
-    await persist(next, 'Source removed');
+    const ok = await persist(next, 'Source removed');
+    if (!ok) setConfig(previous);
   };
 
   const uploadCompliance = async (file: File) => {
@@ -728,8 +737,15 @@ const LOBrainPage: React.FC = () => {
       if (!res.ok) throw new Error(data.message || 'Could not read that file');
       const text = `[From: ${file.name}]\n${data.text}`;
       const next = { ...config, compliance_rules: config.compliance_rules.trim() ? `${config.compliance_rules}${SEPARATOR}${text}` : text };
+      if (next.compliance_rules.length > KB_LIMIT) {
+        toast.error(`Your compliance rules would go over ${KB_LIMIT.toLocaleString()} characters. Upload a shorter file.`);
+        return;
+      }
+      if (data.truncated) toast('That file was long, so only the first 50,000 characters were read.', { icon: '✂️' });
+      const previous = config;
       setConfig(next);
-      await persist(next, 'Compliance rules added');
+      const ok = await persist(next, 'Compliance rules added');
+      if (!ok) setConfig(previous);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not read that file');
     } finally {
@@ -897,6 +913,18 @@ const LOBrainPage: React.FC = () => {
             </ul>
             <button type="button" className="lb-btn self-start" onClick={() => setShowAdd(true)}>+ Add knowledge</button>
 
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="lb-label">Brain space</span>
+                <span className={config.knowledge_base.length > KB_LIMIT * 0.9 ? 'font-semibold text-red-700' : 'lb-muted'}>
+                  {config.knowledge_base.length.toLocaleString()} of {KB_LIMIT.toLocaleString()} characters
+                </span>
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-valuemin={0} aria-valuemax={KB_LIMIT} aria-valuenow={config.knowledge_base.length} aria-label="Brain space used">
+                <div className={`h-full rounded-full ${config.knowledge_base.length > KB_LIMIT * 0.9 ? 'bg-red-500' : config.knowledge_base.length > KB_LIMIT * 0.7 ? 'bg-amber-500' : 'bg-blue-600'}`} style={{ width: `${Math.min(100, (config.knowledge_base.length / KB_LIMIT) * 100)}%` }} />
+              </div>
+            </div>
+
             {sources.length > 0 && (
               <div className="flex flex-col gap-2">
                 <span className="lb-label">Saved ({sources.length})</span>
@@ -1010,7 +1038,7 @@ const LOBrainPage: React.FC = () => {
             {config.compliance_rules.trim() && (
               <div className="lb-inset flex items-center justify-between gap-3 px-4 py-3">
                 <span className="text-sm"><Icon name="description" className="mr-2 align-middle text-lg text-amber-600" />{parseSources(config.compliance_rules).map((s) => s.label).join(', ') || 'Company rules'} — active</span>
-                <button type="button" className="lb-ghost !min-h-[36px] !px-3 !text-xs" onClick={() => { if (window.confirm('Remove your uploaded compliance rules? Platform safety rules still apply.')) { const next = { ...config, compliance_rules: '' }; setConfig(next); void persist(next, 'Compliance rules removed'); } }}>Remove</button>
+                <button type="button" className="lb-ghost !min-h-[36px] !px-3 !text-xs" onClick={() => { if (window.confirm('Remove your uploaded compliance rules? Platform safety rules still apply.')) { const previous = config; const next = { ...config, compliance_rules: '' }; setConfig(next); void persist(next, 'Compliance rules removed').then((ok) => { if (!ok) setConfig(previous); }); } }}>Remove</button>
               </div>
             )}
             <div className="flex items-center gap-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">

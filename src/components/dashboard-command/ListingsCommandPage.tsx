@@ -82,7 +82,7 @@ const ListingsCommandPage: React.FC = () => {
       if (!data.user?.id) return;
       try {
         const res = await fetch(buildApiUrl('/api/dashboard/onboarding'), {
-          headers: { 'x-user-id': data.user.id }
+          headers: await authHeaders(data.user.id)
         });
         const json = await res.json();
         if (json?.account_type === 'lo') {

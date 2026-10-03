@@ -1,8 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { LogoWithName } from './LogoWithName';
 import { adminAuthService } from '../services/adminAuthService';
 import { fetchOnboardingState } from '../services/onboardingService';
+import { authHeaders } from '../services/dashboard/utils';
+import { buildApiUrl } from '../lib/api';
+import { AI_POWER_EVENT } from './dashboard-command/AiPowerSwitch';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -48,8 +51,66 @@ const OFFICE_NAV_ITEMS = [
   { key: 'settings', icon: 'settings', label: 'Settings', path: '/settings', testid: 'nav-settings' }
 ] as const;
 
-// Combine for type (kept for reference)
-const _NAV_ITEMS = REALTOR_NAV_ITEMS;
+// The loan officer's AI on/off, visible on every page. Stays in sync with the switch on the Listings page.
+const AiPowerChip: React.FC<{ onNavigate: () => void }> = ({ onNavigate }) => {
+  const navigate = useNavigate();
+  const [on, setOn] = useState<boolean | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(buildApiUrl('/api/lo/chatbot-config'), { headers: await authHeaders(null) });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) setOn(data.is_active !== false);
+      } catch { /* chip stays hidden if the brain can't be reached */ }
+    })();
+    const sync = (e: Event) => setOn(Boolean((e as CustomEvent<{ on: boolean }>).detail?.on));
+    window.addEventListener(AI_POWER_EVENT, sync);
+    return () => { cancelled = true; window.removeEventListener(AI_POWER_EVENT, sync); };
+  }, []);
+
+  if (on === null) return null;
+
+  const flip = async () => {
+    if (saving) return;
+    const next = !on;
+    setOn(next);
+    setSaving(true);
+    try {
+      const res = await fetch(buildApiUrl('/api/lo/chatbot-config'), { method: 'PUT', headers: await authHeaders(null), body: JSON.stringify({ is_active: next }) });
+      if (!res.ok) throw new Error('save_failed');
+      window.dispatchEvent(new CustomEvent(AI_POWER_EVENT, { detail: { on: next } }));
+    } catch {
+      setOn(!next);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className={`mb-3 flex items-center gap-3 rounded-xl border px-3 py-2.5 ${on ? 'border-emerald-200 bg-emerald-50' : 'border-rose-200 bg-rose-50'}`}>
+      <span className={`h-2.5 w-2.5 flex-shrink-0 rounded-full ${on ? 'bg-emerald-600' : 'bg-rose-600'}`} aria-hidden="true" />
+      <button type="button" onClick={() => { onNavigate(); navigate('/dashboard/lo-chatbot'); }} className="min-w-0 flex-1 text-left" aria-label="Open AI Brain">
+        <span className={`block text-sm font-bold ${on ? 'text-emerald-900' : 'text-rose-900'}`}>My AI is {on ? 'ON' : 'OFF'}</span>
+        <span className="block truncate text-xs text-slate-600">{on ? 'Answering buyers 24/7' : 'Buyers come straight to you'}</span>
+      </button>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={on}
+        aria-label="My AI"
+        disabled={saving}
+        onClick={() => void flip()}
+        className={`relative h-6 w-11 flex-shrink-0 rounded-full transition-colors disabled:opacity-70 ${on ? 'bg-emerald-600' : 'bg-rose-500'}`}
+      >
+        <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${on ? 'left-[22px]' : 'left-0.5'}`} />
+      </button>
+    </div>
+  );
+};
 
 const Icon: React.FC<{ name: string; className?: string }> = ({ name, className }) => (
   <span className={`material-symbols-outlined ${className}`}>{name}</span>
@@ -200,6 +261,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
 
           {!derivedDemoMode && !derivedBlueprintMode && (
             <div className="mt-auto border-t border-slate-100 px-2 pb-6 pt-4">
+              {isLO && !isOffice && <AiPowerChip onNavigate={onClose} />}
               <button
                 onClick={() => adminAuthService.logout()}
                 className="flex w-full items-center gap-3 rounded-lg px-4 py-2.5 text-sm font-medium text-rose-600 transition-colors hover:bg-rose-50"

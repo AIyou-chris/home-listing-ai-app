@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import PageGuide from './PageGuide';
 import { buildApiUrl } from '../../lib/api'
-import { supabase } from '../../services/supabase'
+import { authHeaders } from '../../services/dashboard/utils'
+import { useDemoMode } from '../../demo/useDemoMode'
 import { showToast } from '../../utils/toastService'
 
 interface LoanOfficer {
@@ -30,13 +31,20 @@ interface OverviewData {
 }
 
 const getApiHeaders = async (contentType = false): Promise<HeadersInit> => {
-  const { data: { session } } = await supabase.auth.getSession()
-  const { data } = await supabase.auth.getUser()
-  return {
-    ...(contentType ? { 'Content-Type': 'application/json' } : {}),
-    ...(data.user?.id ? { 'x-user-id': data.user.id } : {}),
-    ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {})
-  }
+  const headers = await authHeaders(null) as Record<string, string>
+  if (!contentType) delete headers['Content-Type']
+  return headers
+}
+
+const DEMO_OVERVIEW: OverviewData = {
+  office: { name: 'Summit Mortgage Group' },
+  totals: { loCount: 3, partnerships: 14, leads: 62, listings: 21 },
+  loanOfficers: [
+    { id: 'o1', name: 'Alex Rivera', email: 'alex@summit.example', headshotUrl: null, joinedAt: new Date(Date.now() - 40 * 86400000).toISOString(), partnerships: 7, leads: 31, listings: 9 },
+    { id: 'o2', name: 'Dana Brooks', email: 'dana@summit.example', headshotUrl: null, joinedAt: new Date(Date.now() - 22 * 86400000).toISOString(), partnerships: 5, leads: 22, listings: 8 },
+    { id: 'o3', name: 'Sam Ortiz', email: 'sam@summit.example', headshotUrl: null, joinedAt: new Date(Date.now() - 6 * 86400000).toISOString(), partnerships: 2, leads: 9, listings: 4 }
+  ],
+  pendingInvites: [{ id: 'p1', email: 'jo@summit.example', name: 'Jo Park', sentAt: new Date(Date.now() - 5 * 3600000).toISOString() }]
 }
 
 const toRelative = (v: string) => {
@@ -141,6 +149,7 @@ interface Branding {
 }
 
 const WhiteLabelCard: React.FC = () => {
+  const demoMode = useDemoMode()
   const [b, setB] = useState<Branding>({ companyName: '', brandColor: '#2563eb', logoUrl: '', leadWebhookUrl: '', customDomain: '' })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -154,6 +163,7 @@ const WhiteLabelCard: React.FC = () => {
   }
 
   useEffect(() => {
+    if (demoMode) { setLoading(false); return }
     getApiHeaders().then(headers => {
       fetch(buildApiUrl('/api/office/branding'), { headers })
         .then(r => r.json())
@@ -161,7 +171,7 @@ const WhiteLabelCard: React.FC = () => {
         .catch(() => {})
         .finally(() => setLoading(false))
     })
-  }, [])
+  }, [demoMode])
 
   const save = async () => {
     setSaving(true)
@@ -290,12 +300,18 @@ const WhiteLabelCard: React.FC = () => {
 }
 
 const OfficeDashboardPage: React.FC = () => {
+  const demoMode = useDemoMode()
   const [data, setData] = useState<OverviewData | null>(null)
   const [loading, setLoading] = useState(true)
   const [showInvite, setShowInvite] = useState(false)
   const mountedRef = useRef(true)
 
   const load = useCallback(async () => {
+    if (demoMode) {
+      setData(DEMO_OVERVIEW)
+      setLoading(false)
+      return
+    }
     try {
       const headers = await getApiHeaders()
       const res = await fetch(buildApiUrl('/api/office/overview'), { headers })
@@ -307,7 +323,7 @@ const OfficeDashboardPage: React.FC = () => {
     } finally {
       if (mountedRef.current) setLoading(false)
     }
-  }, [])
+  }, [demoMode])
 
   useEffect(() => {
     mountedRef.current = true

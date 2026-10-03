@@ -4,20 +4,18 @@ import AiPowerSwitch from './AiPowerSwitch';
 import ListingPhonePanel, { ListingPhoneLine } from './ListingPhonePanel';
 import { useNavigate } from 'react-router-dom';
 import { buildApiUrl } from '../../lib/api';
-import { supabase } from '../../services/supabase';
+import { authHeaders } from '../../services/dashboard/utils';
 import { showToast } from '../../utils/toastService';
 import { buildDashboardPath, useDemoMode } from '../../demo/useDemoMode';
 import { createListingDraft } from '../../services/listingBuilderService';
 
 // ─── Branding toggle types ────────────────────────────────────────────────────
 
+// Only the pieces your name actually shows on. (QR, Share Kit and Open House never changed anything.)
 const PIECE_LABELS: Record<string, { label: string; icon: string }> = {
-  listing_page:  { label: 'Listing Page',  icon: '🏠' },
-  share_kit:     { label: 'Share Kit',     icon: '📤' },
-  qr:            { label: 'QR Code',       icon: '⬛' },
-  social:        { label: 'Social Export', icon: '📱' },
-  flyer:         { label: 'Flyer',         icon: '📄' },
-  open_house:    { label: 'Open House',    icon: '🚪' },
+  listing_page:  { label: 'Public listing page', icon: '🏠' },
+  flyer:         { label: 'Flyer',               icon: '📄' },
+  social:        { label: 'Social post',         icon: '📱' },
 };
 type Toggles = Record<string, boolean>;
 
@@ -41,15 +39,7 @@ const prettyPhone = (e164: string | null) => {
   return d.length === 10 ? `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}` : String(e164 || '');
 };
 
-const getApiHeaders = async (): Promise<HeadersInit> => {
-  const { data: { session } } = await supabase.auth.getSession();
-  const { data } = await supabase.auth.getUser();
-  return {
-    'Content-Type': 'application/json',
-    ...(data.user?.id ? { 'x-user-id': data.user.id } : {}),
-    ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {})
-  };
-};
+const getApiHeaders = async (): Promise<HeadersInit> => authHeaders(null);
 
 const fmt = (price: number) =>
   price > 0
@@ -150,7 +140,7 @@ const BrandingTogglePanel: React.FC<{ listingId: string; demo?: boolean }> = ({ 
       <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">
         Where your co-brand shows {saving && <span className="text-primary-500">· Saving…</span>}
       </p>
-      <div className="grid grid-cols-2 gap-1.5">
+      <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-3">
         {Object.entries(PIECE_LABELS).map(([piece, { label, icon }]) => {
           const on = toggles[piece] !== false;
           return (
@@ -158,7 +148,7 @@ const BrandingTogglePanel: React.FC<{ listingId: string; demo?: boolean }> = ({ 
               key={piece}
               type="button"
               onClick={() => void handleToggle(piece, !on)}
-              className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-all ${
+              className={`flex min-h-[40px] items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all ${
                 on
                   ? 'border-primary-200 bg-primary-50 text-primary-700'
                   : 'border-slate-200 bg-white text-slate-400'
@@ -177,14 +167,34 @@ const BrandingTogglePanel: React.FC<{ listingId: string; demo?: boolean }> = ({ 
 
 // ─── Listing card ─────────────────────────────────────────────────────────────
 
+const STATUS_CHIP: Record<string, { label: string; cls: string }> = {
+  published: { label: 'Live', cls: 'bg-emerald-100 text-emerald-800' },
+  draft: { label: 'Draft', cls: 'bg-slate-100 text-slate-700' },
+  sold: { label: 'Sold', cls: 'bg-amber-100 text-amber-900' },
+  archived: { label: 'Archived', cls: 'bg-slate-100 text-slate-700' },
+};
+
 const ListingCard: React.FC<ListingCardProps> = ({ listing, mode, onRemove, onAdd, loading, phoneEnabled, phoneLine, onPhoneLine, demo }) => {
   const [showToggles, setShowToggles] = useState(false);
   const [showPhone, setShowPhone] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [sharingDash, setSharingDash] = useState(false);
   const [removeConfirm, setRemoveConfirm] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+  const chip = STATUS_CHIP[listing.status] || STATUS_CHIP.draft;
+
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+    const close = (e: MouseEvent) => { if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false); };
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenuOpen(false); };
+    document.addEventListener('mousedown', close);
+    document.addEventListener('keydown', esc);
+    return () => { document.removeEventListener('mousedown', close); document.removeEventListener('keydown', esc); };
+  }, [menuOpen]);
 
   const handleShareDashboard = async () => {
+    if (demo) { showToast.success('In your account this opens the live lead dashboard you can send to the agent.'); return; }
     setSharingDash(true);
     // Open the tab right away (browsers block pop-ups that open after a wait), then point it at the dashboard.
     const tab = window.open('', '_blank');
@@ -209,106 +219,116 @@ const ListingCard: React.FC<ListingCardProps> = ({ listing, mode, onRemove, onAd
     }
   };
 
+  const menuItem = 'flex w-full min-h-[44px] items-center gap-2.5 px-4 text-left text-sm font-semibold text-slate-800 hover:bg-slate-50';
+
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="flex items-start gap-4">
+      <div className="flex items-start gap-3 sm:gap-4">
         {listing.heroPhoto ? (
-          <img src={listing.heroPhoto} alt={listing.address} className="h-16 w-24 flex-shrink-0 rounded-lg object-cover" />
+          <img src={listing.heroPhoto} alt="" className="h-16 w-20 flex-shrink-0 rounded-lg object-cover sm:w-24" />
         ) : (
-          <div className="flex h-16 w-24 flex-shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400 text-2xl">🏠</div>
+          <div className="flex h-16 w-20 flex-shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500 sm:w-24" aria-hidden="true">
+            <span className="material-symbols-outlined text-3xl">home</span>
+          </div>
         )}
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-slate-800">{listing.address}</p>
-          <p className="mt-0.5 text-sm text-slate-500">
+          <p className="break-words text-sm font-semibold leading-snug text-slate-900">{listing.address}</p>
+          <p className="mt-0.5 text-sm text-slate-600">
             {fmt(listing.price)}
             {listing.bedrooms > 0 && ` · ${listing.bedrooms}bd`}
             {listing.bathrooms > 0 && ` ${listing.bathrooms}ba`}
             {listing.sqft > 0 && ` · ${listing.sqft.toLocaleString()} sqft`}
           </p>
-          <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-medium ${listing.status === 'published' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-            {listing.status === 'published' ? 'Published' : 'Draft'}
-          </span>
-        </div>
-        <div className="flex flex-col items-end gap-2 flex-shrink-0">
-          {mode === 'assigned' ? (
-            <>
-              {listing.canEdit && (
-                <button
-                  onClick={() => navigate(`/dashboard/listings/${listing.id}/edit`)}
-                  className="rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white transition-all hover:bg-primary-700"
-                >
-                  ✏️ Edit
-                </button>
-              )}
-              <button
-                onClick={handleShareDashboard}
-                disabled={sharingDash}
-                className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition-all hover:bg-emerald-100 disabled:opacity-40"
-              >
-                {sharingDash ? 'Opening…' : '📊 Live Dashboard'}
-              </button>
-              <button
-                onClick={() => navigate(buildDashboardPath(`/lo-listings/${listing.id}/share-kit`, Boolean(demo)))}
-                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition-all hover:border-primary-200 hover:text-primary-600"
-              >
-                📤 Share Kit
-              </button>
-              {phoneEnabled && (
-                <button
-                  onClick={() => setShowPhone(v => !v)}
-                  className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all ${showPhone ? 'border-primary-300 bg-primary-50 text-primary-700' : 'border-slate-200 text-slate-500 hover:border-primary-200 hover:text-primary-600'}`}
-                >
-                  {phoneLine?.phoneNumber ? `📞 ${prettyPhone(phoneLine.phoneNumber)}` : '📞 AI phone number'}
-                </button>
-              )}
-              <button
-                onClick={() => setShowToggles(v => !v)}
-                className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all ${showToggles ? 'border-primary-300 bg-primary-50 text-primary-700' : 'border-slate-200 text-slate-500 hover:border-primary-200 hover:text-primary-600'}`}
-              >
-                {showToggles ? 'Hide Branding' : '⚙️ Branding'}
-              </button>
-              {removeConfirm ? (
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => { setRemoveConfirm(false); onRemove?.(listing.id); }}
-                    disabled={loading}
-                    className="rounded-lg bg-red-500 px-3 py-1.5 text-xs font-bold text-white hover:bg-red-600 disabled:opacity-40"
-                  >
-                    Confirm
-                  </button>
-                  <button
-                    onClick={() => setRemoveConfirm(false)}
-                    className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs text-slate-400 hover:text-slate-600"
-                  >
-                    ✕
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => setRemoveConfirm(true)}
-                  disabled={loading}
-                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-500 hover:border-red-200 hover:text-red-600 disabled:opacity-40"
-                >
-                  Remove
-                </button>
-              )}
-            </>
-          ) : (
-            <button
-              onClick={() => onAdd?.(listing.id)}
-              disabled={loading}
-              className="rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-700 disabled:opacity-40"
-            >
-              {loading ? 'Adding…' : 'Add me'}
-            </button>
-          )}
+          <span className={`mt-1.5 inline-block rounded-full px-2 py-0.5 text-xs font-bold ${chip.cls}`}>{chip.label}</span>
         </div>
       </div>
+
+      {mode === 'assigned' ? (
+        <div className="mt-3 flex items-center gap-2">
+          {/* The one main thing to do with a listing */}
+          <button
+            onClick={() => navigate(buildDashboardPath(`/lo-listings/${listing.id}/share-kit`, Boolean(demo)))}
+            className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 text-sm font-bold text-white hover:bg-primary-700"
+          >
+            <span className="material-symbols-outlined text-xl" aria-hidden="true">ios_share</span> Share Kit
+          </button>
+          <button
+            onClick={handleShareDashboard}
+            disabled={sharingDash}
+            className="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3.5 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+          >
+            <span className="material-symbols-outlined text-xl" aria-hidden="true">monitoring</span>
+            <span className="hidden sm:inline">{sharingDash ? 'Opening…' : 'Live dashboard'}</span>
+          </button>
+          <div className="relative" ref={menuRef}>
+            <button
+              onClick={() => setMenuOpen((v) => !v)}
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              aria-label="More actions"
+              className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+            >
+              <span className="material-symbols-outlined text-xl" aria-hidden="true">more_horiz</span>
+            </button>
+            {menuOpen && (
+              <div role="menu" className="absolute right-0 z-20 mt-1 w-56 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">
+                {listing.canEdit && (
+                  <button role="menuitem" className={menuItem} onClick={() => { setMenuOpen(false); navigate(buildDashboardPath(`/listings/${listing.id}/edit`, Boolean(demo))); }}>
+                    <span className="material-symbols-outlined text-xl text-slate-600" aria-hidden="true">edit</span> Edit listing
+                  </button>
+                )}
+                {phoneEnabled && (
+                  <button role="menuitem" className={menuItem} onClick={() => { setMenuOpen(false); setShowPhone(true); }}>
+                    <span className="material-symbols-outlined text-xl text-slate-600" aria-hidden="true">call</span>
+                    {phoneLine?.phoneNumber ? prettyPhone(phoneLine.phoneNumber) : 'AI phone number'}
+                  </button>
+                )}
+                <button role="menuitem" className={menuItem} onClick={() => { setMenuOpen(false); setShowToggles(true); }}>
+                  <span className="material-symbols-outlined text-xl text-slate-600" aria-hidden="true">brush</span> Branding
+                </button>
+                <button role="menuitem" className={`${menuItem} text-rose-700 hover:bg-rose-50`} onClick={() => { setMenuOpen(false); setRemoveConfirm(true); }}>
+                  <span className="material-symbols-outlined text-xl" aria-hidden="true">remove_circle</span> Remove from my listings
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="mt-3">
+          <button
+            onClick={() => onAdd?.(listing.id)}
+            disabled={loading}
+            className="inline-flex min-h-[44px] w-full items-center justify-center rounded-lg bg-primary-600 px-4 text-sm font-bold text-white hover:bg-primary-700 disabled:opacity-40"
+          >
+            {loading ? 'Adding…' : 'Add me to this listing'}
+          </button>
+        </div>
+      )}
+
+      {mode === 'assigned' && removeConfirm && (
+        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 p-3">
+          <p className="min-w-0 flex-1 text-sm font-semibold text-rose-900">Take your name off this listing?</p>
+          <button
+            onClick={() => { setRemoveConfirm(false); onRemove?.(listing.id); }}
+            disabled={loading}
+            className="min-h-[40px] rounded-lg bg-rose-700 px-4 text-sm font-bold text-white hover:bg-rose-800 disabled:opacity-40"
+          >
+            Yes, remove
+          </button>
+          <button onClick={() => setRemoveConfirm(false)} className="min-h-[40px] rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700">Keep it</button>
+        </div>
+      )}
       {mode === 'assigned' && phoneEnabled && showPhone && (
-        <ListingPhonePanel listingId={listing.id} line={phoneLine || null} demo={demo} onChange={(l) => onPhoneLine?.(listing.id, l)} />
+        <div>
+          <ListingPhonePanel listingId={listing.id} line={phoneLine || null} demo={demo} onChange={(l) => onPhoneLine?.(listing.id, l)} />
+          <button onClick={() => setShowPhone(false)} className="mt-2 text-xs font-semibold text-slate-600 underline">Hide phone settings</button>
+        </div>
       )}
       {mode === 'assigned' && showToggles && (
-        <BrandingTogglePanel listingId={listing.id} />
+        <div>
+          <BrandingTogglePanel listingId={listing.id} demo={demo} />
+          <button onClick={() => setShowToggles(false)} className="mt-2 text-xs font-semibold text-slate-600 underline">Hide branding</button>
+        </div>
       )}
     </div>
   );
@@ -430,8 +450,16 @@ const LOListingsPage: React.FC = () => {
         method: 'POST',
         headers,
       });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error || 'assign_failed');
+      const data = await res.json().catch(() => ({} as { success?: boolean; error?: string; message?: string }));
+      if (!data.success) {
+        const reason = data.error === 'not_partnered_with_listing_owner'
+          ? 'You need to be partnered with this agent first. Send them a WOW Link.'
+          : data.error === 'listing_limit_reached'
+            ? (data.message || 'You have reached your plan’s listing limit.')
+            : 'Failed to add listing. Try again.';
+        showToast.error(reason);
+        return;
+      }
       const found = searchResults.find((l) => l.id === listingId);
       if (found) {
         setAssigned((prev) => [{ ...found, brandingEnabled: true, assignedAt: new Date().toISOString() }, ...prev]);
@@ -456,6 +484,17 @@ const LOListingsPage: React.FC = () => {
     }
     setCreating(true);
     try {
+      // Check the plan first, so we never build a listing the plan won't let you keep.
+      try {
+        const limitRes = await fetch(buildApiUrl('/api/lo/listing-limit'), { headers: await getApiHeaders() });
+        const limit = await limitRes.json().catch(() => null) as { atLimit?: boolean; limit?: number; tier?: string } | null;
+        if (limit?.atLimit) {
+          showToast.error(limit.tier === 'none'
+            ? 'Your free trial has ended. Choose a plan to add more listings.'
+            : `Your plan includes ${limit.limit} listings. Upgrade to add more.`);
+          return;
+        }
+      } catch { /* if the check can't run, the server still enforces the limit on assign */ }
       const payload = await createListingDraft({ status: 'draft', address: 'New Listing' });
       const newId = payload.listing?.id;
       if (!newId) throw new Error('no_listing_id');
@@ -504,7 +543,7 @@ const LOListingsPage: React.FC = () => {
   };
 
   return (
-    <div className="mx-auto max-w-2xl space-y-8 px-4 py-8">
+    <div className="mx-auto max-w-3xl space-y-6 px-4 pb-28 pt-6 sm:pt-8">
       {/* AI on/off — the first thing on the page */}
       <div className="pr-10">
         <AiPowerSwitch demo={demoMode} />
@@ -512,7 +551,7 @@ const LOListingsPage: React.FC = () => {
 
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">My Listings</h1>
+        <h1 className="text-2xl font-black tracking-tight text-slate-900">My Listings</h1>
         <p className="mt-1 text-sm text-slate-500">
           Co-brand any listing — your info and the agent's appear side by side on every marketing piece.
         </p>
@@ -602,7 +641,7 @@ const LOListingsPage: React.FC = () => {
         ) : loadFailed ? (
           <div className="rounded-xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-800">
             We couldn't load your listings just now.{' '}
-            <button onClick={() => window.location.reload()} className="font-bold underline">Try again</button>
+            <button onClick={() => window.location.reload()} className="font-bold underline">Reload the page</button>
           </div>
         ) : assigned.length === 0 ? (
           <div className="rounded-xl border border-dashed border-slate-200 p-8 text-center">
@@ -610,7 +649,7 @@ const LOListingsPage: React.FC = () => {
             <p className="mt-2 text-sm font-medium text-slate-600">No listings yet — they come from your agent partners.</p>
             <p className="mt-1 text-sm text-slate-400">Send your first WOW Link and your agent's listings show up here with your AI on them.</p>
             <button
-              onClick={() => navigate('/dashboard/lo-partners')}
+              onClick={() => navigate(buildDashboardPath('/lo-partners', demoMode))}
               className="mt-4 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-primary-700"
             >
               🚀 Send my first WOW Link →

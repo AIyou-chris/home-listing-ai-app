@@ -290,6 +290,7 @@ const DashboardRouteGate = () => {
 
 const resolveDashboardPageTitle = (pathname: string) => {
     if (pathname.includes('/command-center')) return 'Command Center';
+    if (/\/office(\/|$)/.test(pathname)) return 'Office';
     if (pathname.includes('/lo-chatbot')) return 'AI Brain';
     if (pathname.includes('/lo-partners')) return 'Partners';
     if (pathname.includes('/listings')) return 'Listings';

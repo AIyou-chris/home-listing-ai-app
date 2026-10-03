@@ -82,7 +82,6 @@ module.exports = [
   'GET /api/webhooks/stripe',
   'GET /api/webhooks/textbelt/inbound',
   'POST /api/cron/inactivity-check',
-  'POST /api/internal/run-nudge-job',
   'POST /api/leads/email-forward',
   'POST /api/vapi/calendar/availability',
   'POST /api/vapi/calendar/book',

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import PageGuide from './PageGuide';
-import { useNavigate } from 'react-router-dom'
+import { Navigate, useNavigate } from 'react-router-dom'
 import { buildDashboardPath, useDemoMode } from '../../demo/useDemoMode'
 import LOTodayPage from './LOTodayPage'
 import { buildBlueprintPath, useBlueprintMode } from '../../demo/useBlueprintMode'
@@ -173,6 +173,13 @@ const TodayDashboardPage: React.FC = () => {
 
   useEffect(() => {
     if (hasFetchedInitialStateRef.current) return
+
+    // Wait until we know who this is, and never run the agent queries for a loan officer
+    // or an office (they get their own dashboards below).
+    if (!demoMode && !blueprintMode) {
+      if (accountType === null) return
+      if (accountType === 'lo' || accountType === 'office') return
+    }
     hasFetchedInitialStateRef.current = true
 
     if (blueprintMode) {
@@ -187,7 +194,7 @@ const TodayDashboardPage: React.FC = () => {
     }
 
     void load()
-  }, [load, blueprintMode])
+  }, [load, blueprintMode, demoMode, accountType])
 
   useEffect(() => {
     isMountedRef.current = true
@@ -301,7 +308,16 @@ const TodayDashboardPage: React.FC = () => {
     return 'Needs confirmation'
   }
 
-  // LO gets their own dashboard — swap before rendering the realtor view
+  // Loan officers and offices have their own home. Send them there instead of flashing the agent page.
+  if (!demoMode && !blueprintMode) {
+    if (accountType === null) {
+      return <div className="flex h-64 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-primary-600 border-t-transparent" /></div>
+    }
+    if (accountType === 'lo') return <Navigate to="/dashboard/lo-today" replace />
+    if (accountType === 'office') return <Navigate to="/dashboard/office" replace />
+  }
+
+  // Demo / blueprint: LO gets their own dashboard — swap before rendering the realtor view
   if (accountType === 'lo') {
     return (
       <div className="mx-auto max-w-7xl px-4 py-6 md:px-8">

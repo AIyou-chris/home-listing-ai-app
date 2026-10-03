@@ -3,17 +3,14 @@ import { useSearchParams } from 'react-router-dom'
 import PageGuide from './PageGuide';
 import toast from 'react-hot-toast'
 import { buildApiUrl } from '../../lib/api'
+import { authHeaders } from '../../services/dashboard/utils';
 import { supabase } from '../../services/supabase'
 
 // Every appointment call must carry the login token: the API is owner-scoped now.
 const apiHeaders = async (json = false): Promise<HeadersInit> => {
-  const { data: { session } } = await supabase.auth.getSession()
-  const { data } = await supabase.auth.getUser()
-  return {
-    ...(json ? { 'Content-Type': 'application/json' } : {}),
-    ...(data.user?.id ? { 'x-user-id': data.user.id } : {}),
-    ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {})
-  }
+  const headers = await authHeaders(null) as Record<string, string>
+  if (!json) delete headers['Content-Type']
+  return headers
 }
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -57,19 +54,27 @@ interface LOAppointment {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-const today = () => new Date().toISOString().slice(0, 10)
+// Local calendar dates. toISOString() is UTC, which flips to "tomorrow" every evening in the US.
+const localDate = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+
+const today = () => localDate(new Date())
 
 const startOfWeek = () => {
   const d = new Date()
   d.setDate(d.getDate() - d.getDay())
-  return d.toISOString().slice(0, 10)
+  return localDate(d)
 }
 
 const endOfWeek = () => {
   const d = new Date()
   d.setDate(d.getDate() + (6 - d.getDay()))
-  return d.toISOString().slice(0, 10)
+  return localDate(d)
 }
+
+// Soonest first: by date, then by start time.
+const byWhen = (a: LOAppointment, b: LOAppointment) =>
+  `${a.date} ${a.startIso ? new Date(a.startIso).toTimeString().slice(0, 5) : '99:99'}`.localeCompare(
+    `${b.date} ${b.startIso ? new Date(b.startIso).toTimeString().slice(0, 5) : '99:99'}`)
 
 const formatDate = (dateStr: string) => {
   if (!dateStr) return ''
@@ -134,8 +139,16 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({ onClose, onSave, saving, 
 
   // Close on backdrop click
   const handleBackdrop = (e: React.MouseEvent) => {
-    if (ref.current && !ref.current.contains(e.target as Node)) onClose()
+    // A stray click outside must not throw away a half-filled form.
+    const touched = Boolean(form.name || form.email || form.phone || form.notes || form.location)
+    if (!touched && ref.current && !ref.current.contains(e.target as Node)) onClose()
   }
+
+  useEffect(() => {
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', esc)
+    return () => document.removeEventListener('keydown', esc)
+  }, [onClose])
 
   const set = (field: keyof ScheduleFormState, value: string) =>
     setForm(prev => ({ ...prev, [field]: value }))
@@ -151,6 +164,9 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({ onClose, onSave, saving, 
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
       onMouseDown={handleBackdrop}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="schedule-title"
     >
       <div
         ref={ref}
@@ -158,10 +174,11 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({ onClose, onSave, saving, 
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-          <h2 className="text-lg font-semibold text-slate-800">Schedule Meeting</h2>
+          <h2 id="schedule-title" className="text-lg font-semibold text-slate-800">Schedule Meeting</h2>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 transition-colors"
+            aria-label="Close"
+            className="flex h-10 w-10 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
           >
             <span className="material-symbols-outlined text-xl">close</span>
           </button>
@@ -644,9 +661,11 @@ const LOAppointmentsPage: React.FC = () => {
   const weekEnd     = endOfWeek()
 
   const isTerminal = (s: string) => { const l = s.toLowerCase(); return l === 'completed' || l === 'canceled' || l === 'cancelled' }
-  const active = appointments.filter(a => !isTerminal(a.status))
-  const done   = appointments.filter(a => isTerminal(a.status))
+  const active = appointments.filter(a => !isTerminal(a.status)).sort(byWhen)
+  const done   = appointments.filter(a => isTerminal(a.status)).sort((a, b) => byWhen(b, a))
 
+  // A meeting that already happened but was never marked done used to vanish from the page.
+  const overdueAppts  = active.filter(a => a.date && a.date < todayStr)
   const todayAppts    = active.filter(a => a.date === todayStr)
   const thisWeekAppts = active.filter(a => a.date > todayStr && a.date >= weekStart && a.date <= weekEnd)
   const upcomingAppts = active.filter(a => a.date > weekEnd)
@@ -656,14 +675,14 @@ const LOAppointmentsPage: React.FC = () => {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <div className="max-w-5xl mx-auto px-4 py-8">
+    <div>
+      <div className="max-w-5xl mx-auto px-4 pb-28 pt-6 sm:pt-8">
 
         {/* Header */}
         <div className="flex items-center justify-between mb-8 pr-10">
           <div>
-            <h1 className="text-2xl font-bold text-slate-800">Appointments</h1>
-            <p className="text-sm text-slate-500 mt-1">Consultations, calls, and meetings with agents &amp; borrowers</p>
+            <h1 className="text-2xl font-black tracking-tight text-slate-900">Appointments</h1>
+            <p className="text-sm text-slate-600 mt-1">Consultations, calls, and meetings with agents &amp; borrowers</p>
           </div>
           <button
             onClick={() => setShowModal(true)}
@@ -713,6 +732,22 @@ const LOAppointmentsPage: React.FC = () => {
         {/* Content */}
         {!loading && hasAny && (
           <>
+            {/* Overdue */}
+            {overdueAppts.length > 0 && (
+              <Section title="Overdue — mark done or cancel" count={overdueAppts.length} defaultOpen>
+                {overdueAppts.map(a => (
+                  <AppointmentCard
+                    key={a.id}
+                    appt={a}
+                    onComplete={handleComplete}
+                    onCancel={handleCancel}
+                    cancelConfirmId={cancelConfirmId}
+                    setCancelConfirmId={setCancelConfirmId}
+                  />
+                ))}
+              </Section>
+            )}
+
             {/* Today */}
             {todayAppts.length > 0 && (
               <Section title="Today" count={todayAppts.length} defaultOpen>
@@ -762,7 +797,7 @@ const LOAppointmentsPage: React.FC = () => {
             )}
 
             {/* No upcoming but has active — all today */}
-            {active.length > 0 && todayAppts.length === 0 && thisWeekAppts.length === 0 && upcomingAppts.length === 0 && (
+            {active.length > 0 && overdueAppts.length === 0 && todayAppts.length === 0 && thisWeekAppts.length === 0 && upcomingAppts.length === 0 && (
               <Section title="All Meetings" count={active.length} defaultOpen>
                 {active.map(a => (
                   <AppointmentCard

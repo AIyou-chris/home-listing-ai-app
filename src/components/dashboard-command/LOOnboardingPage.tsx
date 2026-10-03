@@ -2,8 +2,10 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { buildDashboardPath, useDemoMode } from '../../demo/useDemoMode';
 import { buildApiUrl } from '../../lib/api';
+import { authHeaders } from '../../services/dashboard/utils';
 import { supabase } from '../../services/supabase';
 import { showToast } from '../../utils/toastService';
+import { uploadHeadshot } from '../../utils/uploadHeadshot';
 
 // ─── US States list ──────────────────────────────────────────────────────────
 const US_STATES = [
@@ -124,23 +126,7 @@ const cardClass = 'rounded-2xl border border-slate-200 bg-white p-6 shadow-sm';
 const STEP_COUNT = 3;
 const clamp = (n: number) => Math.max(1, Math.min(STEP_COUNT, n));
 
-const readFileAsDataUrl = (file: File): Promise<string> =>
-  new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ''));
-    reader.onerror = () => reject(new Error('Failed to read file.'));
-    reader.readAsDataURL(file);
-  });
-
-const getApiHeaders = async (): Promise<HeadersInit> => {
-  const { data: { session } } = await supabase.auth.getSession();
-  const { data } = await supabase.auth.getUser();
-  return {
-    'Content-Type': 'application/json',
-    ...(data.user?.id ? { 'x-user-id': data.user.id } : {}),
-    ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {})
-  };
-};
+const getApiHeaders = async (): Promise<HeadersInit> => authHeaders(null);
 
 // ─── Component ────────────────────────────────────────────────────────────────
 const LOOnboardingPage: React.FC = () => {
@@ -164,6 +150,7 @@ const LOOnboardingPage: React.FC = () => {
   // Step 2 — Invite realtor (optional)
   const [invite, setInvite] = useState({ realtor_name: '', realtor_email: '' });
   const [inviteSent, setInviteSent] = useState(false);
+  const [inviteSmsText, setInviteSmsText] = useState('');
 
   // Step 3 — first-win test lead
   const [testLeadSent, setTestLeadSent] = useState(false);
@@ -203,8 +190,8 @@ const LOOnboardingPage: React.FC = () => {
   const handleHeadshotUpload = async (file?: File | null) => {
     if (!file) return;
     try {
-      const dataUrl = await readFileAsDataUrl(file);
-      setProfile((prev) => ({ ...prev, headshot_url: dataUrl }));
+      const url = await uploadHeadshot(file);
+      setProfile((prev) => ({ ...prev, headshot_url: url }));
     } catch {
       showToast.error('Failed to attach image.');
     }
@@ -245,27 +232,34 @@ const LOOnboardingPage: React.FC = () => {
   };
 
   const handleSendInvite = async () => {
-    if (!invite.realtor_email.trim()) {
-      showToast.error('Enter a realtor email to invite.');
+    if (!invite.realtor_email.trim() || !invite.realtor_email.includes('@')) {
+      showToast.error('Enter a valid realtor email.');
       return;
     }
     setSaving(true);
     try {
+      if (demoMode) {
+        await new Promise((r) => setTimeout(r, 600));
+        setInviteSent(true);
+        return;
+      }
+      // The same WOW Link the Partners page sends: a live demo of their listing with your AI on it.
       const headers = await getApiHeaders();
-      const res = await fetch(buildApiUrl('/api/lo/invite-realtor'), {
+      const res = await fetch(buildApiUrl('/api/lo/partners/invite'), {
         method: 'POST',
         headers,
         body: JSON.stringify({
-          realtor_name: invite.realtor_name.trim() || null,
-          realtor_email: invite.realtor_email.trim().toLowerCase()
+          name: invite.realtor_name.trim() || undefined,
+          email: invite.realtor_email.trim().toLowerCase()
         })
       });
+      const json = await res.json().catch(() => ({})) as { error?: string; message?: string; smsText?: string };
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || 'Failed to send invite');
+        throw new Error(json.message || (json.error === 'valid_email_required' ? 'Enter a valid realtor email.' : 'Failed to send invite'));
       }
+      setInviteSmsText(json.smsText || '');
       setInviteSent(true);
-      showToast.success("Invite sent! They'll get an email with next steps.");
+      showToast.success('WOW Link sent!');
     } catch (error) {
       showToast.error(error instanceof Error ? error.message : 'Failed to send invite.');
     } finally {
@@ -288,10 +282,10 @@ const LOOnboardingPage: React.FC = () => {
           onboarding_step: 3
         })
       });
-      navigate(buildDashboardPath('/today', demoMode));
+      navigate(buildDashboardPath('/lo-today', demoMode));
     } catch {
       // Non-fatal — go to dashboard anyway
-      navigate(buildDashboardPath('/today', demoMode));
+      navigate(buildDashboardPath('/lo-today', demoMode));
     } finally {
       setSaving(false);
     }
@@ -496,7 +490,7 @@ const LOOnboardingPage: React.FC = () => {
       {/* ─── Step 2 — Invite realtor ─────────────────────────────────────── */}
       {step === 2 && (
         <section className={cardClass}>
-          <h2 className="text-xl font-semibold text-slate-900">Invite your first realtor partner</h2>
+          <h2 className="text-xl font-semibold text-slate-900">Send your first WOW Link</h2>
           <p className="mt-1 text-sm text-slate-600">
             Your brand and theirs appear side by side on every listing. You control what shows.
           </p>
@@ -504,10 +498,10 @@ const LOOnboardingPage: React.FC = () => {
           <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50 p-4 text-sm text-slate-700">
             <p className="font-semibold text-slate-900">How it works</p>
             <ul className="mt-2 space-y-1 text-slate-600">
-              <li>• You invite a realtor by email</li>
-              <li>• They get a link to create their free account</li>
-              <li>• You link them to a listing — both brands show up</li>
-              <li>• Buyer leads go to both of you</li>
+              <li>• You send a realtor a WOW Link</li>
+              <li>• It opens a live demo of a listing with your AI financing chat on it</li>
+              <li>• They claim a free account and you both show up on their listings</li>
+              <li>• Buyer questions about money come straight to you</li>
             </ul>
           </div>
 
@@ -515,8 +509,17 @@ const LOOnboardingPage: React.FC = () => {
             <div className="mt-6 rounded-xl border border-green-200 bg-green-50 p-4">
               <p className="font-semibold text-green-800">Invite sent to {invite.realtor_email}</p>
               <p className="mt-1 text-sm text-green-700">
-                They'll get an email with next steps. You can add more partners from your dashboard.
+                They'll get an email with the live demo. You can add more partners from your dashboard.
               </p>
+              {inviteSmsText && (
+                <button
+                  type="button"
+                  onClick={() => { void navigator.clipboard.writeText(inviteSmsText).then(() => showToast.success('Text copied. Paste it in Messages.')).catch(() => showToast.error('Could not copy.')); }}
+                  className="mt-3 rounded-lg bg-green-700 px-4 py-2 text-sm font-bold text-white hover:bg-green-800"
+                >
+                  💬 Copy the text to send too
+                </button>
+              )}
             </div>
           ) : (
             <div className="mt-5 grid gap-3 md:grid-cols-2">
@@ -554,7 +557,7 @@ const LOOnboardingPage: React.FC = () => {
                 disabled={saving || !invite.realtor_email.trim()}
                 className="rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50 hover:bg-primary-700 transition-colors"
               >
-                {saving ? 'Sending…' : 'Send Invite'}
+                {saving ? 'Sending…' : 'Send WOW Link'}
               </button>
             )}
             <button
@@ -641,7 +644,7 @@ const LOOnboardingPage: React.FC = () => {
             <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 text-center">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Next</p>
               <p className="mt-1 text-sm font-semibold text-slate-900">Set up billing</p>
-              <p className="mt-1 text-xs text-slate-500">5-day trial is running — upgrade anytime</p>
+              <p className="mt-1 text-xs text-slate-500">7-day free trial is running — upgrade anytime</p>
             </div>
           </div>
 

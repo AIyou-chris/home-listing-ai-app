@@ -182,8 +182,7 @@ const ShareKitCards: React.FC<ShareKitCardsProps> = ({ listing, lo = null, realt
         </div>
       </Card>
 
-      <Card title="⬛ QR code" hint="Put it on a sign, a card or a screen. It opens this home."
-        right={switchFor('qr', 'Branding on the QR')}>
+      <Card title="⬛ QR code" hint="Put it on a sign, a card or a screen. It opens this home.">
         <div className="flex flex-wrap items-center gap-5">
           {qr ? <img src={qr} alt="QR code for this listing" className="h-36 w-36 rounded-lg border border-slate-200" /> : <div className="h-36 w-36 animate-pulse rounded-lg bg-slate-100" />}
           <a href={qr} download={`qr-${listing.id}.png`} className={`rounded-lg bg-primary-600 px-4 py-2 text-sm font-bold text-white hover:bg-primary-700 ${qr ? '' : 'pointer-events-none opacity-40'}`}>Download QR</a>

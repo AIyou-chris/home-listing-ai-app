@@ -7,7 +7,7 @@ import { authHeaders } from '../../services/dashboard/utils'
 import CallNowHero from './CallNowHero'
 import { CallTextButtons, WaitingBadge } from './LeadActions'
 import type { DashboardLeadItem } from '../../services/dashboardCommandService'
-import { supabase } from '../../services/supabase'
+import { markLoLeadContacted } from '../../services/loLeads'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -54,10 +54,22 @@ interface AssignedListing {
   leadCount: number
 }
 
+interface AiCallSummary {
+  id: string
+  name: string | null
+  from: string | null
+  summary: string | null
+  intent: string | null
+  leadId: string | null
+  startedAt: string
+}
+
 interface LODashboardData {
   stats: LOStats
   recentLeads: RecentLead[]
   assignedListings: AssignedListing[]
+  aiCalls?: { today: number; week: number; recent: AiCallSummary[] }
+  brain?: { active: boolean; hasKnowledge: boolean }
 }
 
 // ─── Demo data ────────────────────────────────────────────────────────────────
@@ -82,6 +94,15 @@ const DEMO_DATA: LODashboardData = {
     { id: '4', name: 'Ashley Chen', email: 'ashley@email.com', phone: '(512) 771-0033', status: 'New', intentLevel: 'Hot', context: 'pre_approval', sourceType: 'listing_page', listingId: 'l3', createdAt: new Date(Date.now() - 5 * 3600000).toISOString() },
     { id: '5', name: 'Tom Rivera', email: 'tom@email.com', phone: null, status: 'Nurturing', intentLevel: 'Cold', context: 'general_info', sourceType: 'listing_page', listingId: 'l2', createdAt: new Date(Date.now() - 24 * 3600000).toISOString() },
   ],
+  aiCalls: {
+    today: 2,
+    week: 7,
+    recent: [
+      { id: 'c1', name: 'Priya Nair', from: '(512) 555-0188', summary: 'Asked about VA loan eligibility and wants a call back about a $450k home.', intent: 'hot', leadId: '1', startedAt: new Date(Date.now() - 55 * 60000).toISOString() },
+      { id: 'c2', name: null, from: '(737) 555-0114', summary: 'Wanted to know the down payment on the Barton Hills home.', intent: 'warm', leadId: null, startedAt: new Date(Date.now() - 4 * 3600000).toISOString() }
+    ]
+  },
+  brain: { active: true, hasKnowledge: true },
   assignedListings: [
     { listingId: 'l1', brandingEnabled: true, assignedAt: new Date().toISOString(), address: '4821 Ridgecrest Dr, Austin TX', price: 875000, status: 'published', heroPhoto: 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?q=80&w=400&auto=format&fit=crop', leadCount: 14 },
     { listingId: 'l2', brandingEnabled: true, assignedAt: new Date().toISOString(), address: '2203 Barton Hills Dr, Austin TX', price: 1150000, status: 'published', heroPhoto: 'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?q=80&w=400&auto=format&fit=crop', leadCount: 7 },
@@ -108,9 +129,9 @@ const formatPrice = (price: number | null) => {
 }
 
 const contextLabel = (context: string) => {
-  if (context === 'pre_approval') return { label: 'Pre-Approval', color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' }
-  if (context === 'showing_request') return { label: 'Showing', color: 'text-sky-400 bg-sky-500/10 border-sky-500/20' }
-  return { label: 'General', color: 'text-slate-400 bg-slate-500/10 border-slate-500/20' }
+  if (context === 'pre_approval') return { label: 'Pre-Approval', color: 'text-emerald-800 bg-emerald-50 border-emerald-200' }
+  if (context === 'showing_request') return { label: 'Showing', color: 'text-sky-800 bg-sky-50 border-sky-200' }
+  return { label: 'General', color: 'text-slate-700 bg-slate-50 border-slate-200' }
 }
 
 const intentColor = (level: string) => {
@@ -125,21 +146,6 @@ const dayPart = () => {
   if (h < 17) return 'afternoon'
   return 'evening'
 }
-
-// ─── Stat Card ────────────────────────────────────────────────────────────────
-
-const _StatCard: React.FC<{
-  label: string
-  value: number | string
-  sub?: string
-  accent?: string
-}> = ({ label, value, sub, accent = 'text-white' }) => (
-  <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
-    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">{label}</p>
-    <p className={`text-3xl font-black ${accent}`}>{value}</p>
-    {sub && <p className="text-xs text-slate-600 mt-1">{sub}</p>}
-  </div>
-)
 
 // ─── Testimonial ask ──────────────────────────────────────────────────────────
 // Shown once the LO has real leads (totalLeads >= 2 at the render site).
@@ -229,6 +235,74 @@ const LoTestimonialAsk: React.FC = () => {
     </div>
   );
 };
+
+// ─── AI activity ──────────────────────────────────────────────────────────────
+// Shows the LO what their AI did for them: calls it answered, and a nudge if it is off or untrained.
+
+const AiActivityCard: React.FC<{ data: LODashboardData; navTo: (p: string) => void }> = ({ data, navTo }) => {
+  const calls = data.aiCalls
+  const brain = data.brain
+  const recent = calls?.recent ?? []
+  if (!calls && !brain) return null
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-5 py-4">
+        <div className="flex items-center gap-2">
+          <span className="material-symbols-outlined text-xl text-primary-600" aria-hidden="true">psychology</span>
+          <h2 className="text-sm font-bold text-slate-900">Your AI</h2>
+          {brain && (
+            <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${brain.active ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
+              {brain.active ? 'ON' : 'OFF'}
+            </span>
+          )}
+        </div>
+        <button onClick={() => navTo('/lo-chatbot')} className="text-xs font-semibold text-primary-700 hover:underline">Open AI Brain →</button>
+      </div>
+      <div className="px-5 py-4">
+        {brain && !brain.active && (
+          <p className="mb-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-800">
+            Your AI is off. Buyers are sent to you and calls ring your cell. Turn it on from the Listings page.
+          </p>
+        )}
+        {brain && brain.active && !brain.hasKnowledge && (
+          <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">
+            Your AI has nothing to read yet. Add your rate sheet and loan programs so it answers like you.{' '}
+            <button onClick={() => navTo('/lo-chatbot')} className="underline">Teach it now</button>
+          </p>
+        )}
+        {calls && (
+          <p className="text-sm text-slate-700">
+            <span className="text-2xl font-black text-slate-900">{calls.today}</span>{' '}
+            call{calls.today === 1 ? '' : 's'} answered today
+            <span className="text-slate-500"> · {calls.week} this week</span>
+          </p>
+        )}
+        {recent.length > 0 ? (
+          <ul className="mt-3 divide-y divide-slate-100">
+            {recent.map((c) => (
+              <li key={c.id}>
+                <button
+                  type="button"
+                  onClick={() => navTo(c.leadId ? `/lo-leads?lead=${c.leadId}` : '/lo-chatbot')}
+                  className="flex w-full items-start gap-3 py-2.5 text-left hover:bg-slate-50"
+                >
+                  <span className="material-symbols-outlined mt-0.5 text-lg text-slate-500" aria-hidden="true">call</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold text-slate-900">{c.name || c.from || 'Unknown caller'}</span>
+                    <span className="line-clamp-2 text-xs text-slate-500">{c.summary || 'No summary yet'}</span>
+                  </span>
+                  <span className="flex-shrink-0 text-xs text-slate-500">{toRelativeTime(c.startedAt)}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          calls && <p className="mt-2 text-xs text-slate-500">No calls yet. When a buyer calls your AI number, the summary shows up here.</p>
+        )}
+      </div>
+    </section>
+  )
+}
 
 // ─── Setup Checklist ──────────────────────────────────────────────────────────
 
@@ -339,15 +413,12 @@ const LOTodayPage: React.FC = () => {
     }
 
     try {
-      const { data: { user }, } = await supabase.auth.getUser()
-      if (!user) throw new Error('unauthenticated')
-      const { data: { session } } = await supabase.auth.getSession()
-      const bearerHeader = session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}
+      const headers = await authHeaders(null)
 
       // Fetch dashboard + onboarding state in parallel
       const [res, onboardingRes] = await Promise.all([
-        fetch(buildApiUrl('/api/lo/dashboard/today'), { headers: { 'x-user-id': user.id, ...bearerHeader } }),
-        fetch(buildApiUrl('/api/dashboard/onboarding'), { headers: { 'x-user-id': user.id, ...bearerHeader } }).catch(() => null),
+        fetch(buildApiUrl('/api/lo/dashboard/today'), { headers }),
+        fetch(buildApiUrl('/api/dashboard/onboarding'), { headers }).catch(() => null),
       ])
 
       if (!res.ok) throw new Error('fetch_failed')
@@ -379,6 +450,15 @@ const LOTodayPage: React.FC = () => {
     }
   }, [demoMode])
 
+  // Call/Text tapped: the lead is no longer waiting. Update the screen now, tell the server in the background.
+  const handleCalled = useCallback((leadId: string) => {
+    setData((prev) => prev ? {
+      ...prev,
+      recentLeads: prev.recentLeads.map((l) => (l.id === leadId && String(l.status).toLowerCase() === 'new') ? { ...l, status: 'Contacted' } : l)
+    } : prev)
+    if (!demoMode) void markLoLeadContacted(leadId)
+  }, [demoMode])
+
   useEffect(() => {
     mountedRef.current = true
     load()
@@ -396,8 +476,14 @@ const LOTodayPage: React.FC = () => {
 
   if (error || !data) {
     return (
-      <div className="flex h-64 items-center justify-center text-slate-500 text-sm">
-        {error || 'No data available'}
+      <div className="flex h-64 flex-col items-center justify-center gap-3 text-sm text-slate-600">
+        <p>{error || 'No data available'}</p>
+        <button
+          onClick={() => { setError(null); setLoading(true); void load() }}
+          className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-bold text-white hover:bg-primary-700"
+        >
+          Try again
+        </button>
       </div>
     )
   }
@@ -416,7 +502,8 @@ const LOTodayPage: React.FC = () => {
   } : null
   // Live homes first. Unfinished drafts collapse into one line instead of cluttering the list.
   const assignedListings = data.assignedListings.filter((l) => l.status === 'published')
-  const draftCount = data.assignedListings.length - assignedListings.length
+  // Only real drafts count as "not live yet". Sold and archived homes are simply finished.
+  const draftCount = data.assignedListings.filter((l) => l.status === 'draft').length
 
   return (
     <div className="space-y-6 pb-24">
@@ -431,7 +518,7 @@ const LOTodayPage: React.FC = () => {
         </p>
       </div>
 
-      {heroLead && <CallNowHero lead={heroLead} onOpen={() => navTo('/lo-leads')} onCalled={() => undefined} />}
+      {heroLead && <CallNowHero lead={heroLead} onOpen={(id) => navTo(`/lo-leads?lead=${id}`)} onCalled={handleCalled} />}
 
       <PageGuide pageKey="lo-today" />
 
@@ -471,6 +558,9 @@ const LOTodayPage: React.FC = () => {
         </div>
       </div>
 
+      {/* ── What the AI did while you were busy ──────────────────────────────── */}
+      <AiActivityCard data={data} navTo={navTo} />
+
       {/* ── Testimonial ask (once they're getting real leads) ─────────────────── */}
       {stats.totalLeads >= 2 && <LoTestimonialAsk />}
 
@@ -503,41 +593,30 @@ const LOTodayPage: React.FC = () => {
             <ul className="divide-y divide-slate-50">
               {recentLeads.map(lead => {
                 const ctx = contextLabel(lead.context)
+                const subline = lead.intentReason || lead.email || lead.phone || 'No contact info'
                 return (
                   <li
                     key={lead.id}
-                    className="flex items-center gap-3 px-5 py-3.5 hover:bg-slate-50 cursor-pointer transition-colors"
-                    onClick={() => navTo('/lo-leads')}
+                    className="cursor-pointer px-4 py-3.5 transition-colors hover:bg-slate-50 sm:px-5"
+                    onClick={() => navTo(`/lo-leads?lead=${lead.id}`)}
                   >
-                    {/* Intent dot */}
-                    <div className={`w-2 h-2 rounded-full flex-shrink-0 ${intentColor(lead.intentLevel)}`} />
-
-                    {/* Avatar */}
-                    <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-500 flex-shrink-0">
-                      {(lead.name || '?')[0].toUpperCase()}
+                    <div className="flex items-start gap-3">
+                      <div className={`mt-1.5 h-2.5 w-2.5 flex-shrink-0 rounded-full ${intentColor(lead.intentLevel)}`} title={`${toIntentLevel(lead.intentLevel)} lead`} />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                          <p className="truncate text-sm font-semibold text-slate-900">{lead.name}</p>
+                          <span className={`flex-shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-bold ${ctx.color}`}>{ctx.label}</span>
+                          <WaitingBadge lead={{ status: lead.status, created_at: lead.createdAt, intent_level: toIntentLevel(lead.intentLevel) }} />
+                        </div>
+                        <p className="mt-0.5 line-clamp-2 text-xs text-slate-500">{subline}</p>
+                      </div>
+                      <span className="flex-shrink-0 pt-0.5 text-xs text-slate-500">{toRelativeTime(lead.createdAt)}</span>
                     </div>
-
-                    {/* Info */}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-slate-900 truncate">{lead.name}</p>
-                      <p className="text-xs text-slate-400 truncate">{lead.email || lead.phone || 'No contact info'}</p>
-                    </div>
-
-                    {/* Context chip */}
-                    <span className={`flex-shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full border ${ctx.color}`}>
-                      {ctx.label}
-                    </span>
-
-                    {/* Waiting timer + one-tap call/text */}
-                    <WaitingBadge lead={{ status: lead.status, created_at: lead.createdAt, intent_level: toIntentLevel(lead.intentLevel) }} className="hidden sm:inline-flex" />
                     {lead.phone && (
-                      <span className="flex flex-shrink-0 gap-1.5" onClick={(e) => e.stopPropagation()}>
-                        <CallTextButtons phone={lead.phone} />
-                      </span>
+                      <div className="mt-2.5 flex gap-2 pl-[22px]" onClick={(e) => e.stopPropagation()}>
+                        <CallTextButtons phone={lead.phone} onUsed={() => handleCalled(lead.id)} />
+                      </div>
                     )}
-
-                    {/* Time */}
-                    <span className="flex-shrink-0 text-xs text-slate-400">{toRelativeTime(lead.createdAt)}</span>
                   </li>
                 )
               })}

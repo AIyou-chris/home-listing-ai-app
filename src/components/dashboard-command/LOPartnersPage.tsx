@@ -3,20 +3,16 @@ import PageGuide from './PageGuide';
 import { useNavigate } from 'react-router-dom'
 import { useDemoMode, buildDashboardPath } from '../../demo/useDemoMode'
 import { buildApiUrl } from '../../lib/api'
-import { supabase } from '../../services/supabase'
+import { authHeaders } from '../../services/dashboard/utils'
 import { showToast } from '../../utils/toastService'
 import LOROIWidget from '../dashboard-widgets/LOROIWidget'
 
 // ─── Auth helpers ─────────────────────────────────────────────────────────────
 
 const getApiHeaders = async (contentType = false): Promise<HeadersInit> => {
-  const { data: { session } } = await supabase.auth.getSession()
-  const { data } = await supabase.auth.getUser()
-  return {
-    ...(contentType ? { 'Content-Type': 'application/json' } : {}),
-    ...(data.user?.id ? { 'x-user-id': data.user.id } : {}),
-    ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {})
-  }
+  const headers = await authHeaders(null) as Record<string, string>
+  if (!contentType) delete headers['Content-Type']
+  return headers
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -58,7 +54,11 @@ interface PendingInvite {
   sentAt: string
   openedAt: string | null
   ctaClickedAt: string | null
+  wowLink?: string
+  smsText?: string
 }
+
+interface InviteUsage { used: number; limit: number | null }
 
 // ─── Demo Data ────────────────────────────────────────────────────────────────
 
@@ -87,7 +87,7 @@ const DEMO_PARTNERS: Partner[] = [
 ]
 
 const DEMO_PENDING: PendingInvite[] = [
-  { id: 'i1', email: 'mike@realty.com', name: 'Mike Johnson', phone: '(512) 555-0190', sentAt: new Date(Date.now() - 2 * 3600000).toISOString(), openedAt: new Date(Date.now() - 1 * 3600000).toISOString(), ctaClickedAt: null }
+  { id: 'i1', wowLink: 'https://homelistingai.com/partner-invite/demo', smsText: 'Hi Mike, it\'s Alex Rivera. A buyer could text your listing: "Can I get pre-approved before the open house?" I built it to answer that and send the lead to you.\n\nTry it yourself, 30 seconds:\nhttps://homelistingai.com/partner-invite/demo', email: 'mike@realty.com', name: 'Mike Johnson', phone: '(512) 555-0190', sentAt: new Date(Date.now() - 2 * 3600000).toISOString(), openedAt: new Date(Date.now() - 1 * 3600000).toISOString(), ctaClickedAt: null }
 ]
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -122,7 +122,7 @@ const scheduleWithPartner = (partner: { name: string; email: string | null; phon
   const q = new URLSearchParams({ name: partner.name, kind: 'Agent Check-in' })
   if (partner.email) q.set('email', partner.email)
   if (partner.phone) q.set('phone', partner.phone)
-  const base = buildDashboardPath('/appointments', demoMode)
+  const base = buildDashboardPath('/lo-appointments', demoMode)
   return `${base}${base.includes('?') ? '&' : '?'}${q.toString()}`
 }
 
@@ -166,7 +166,7 @@ interface LOListing {
   status: string
 }
 
-const InviteModal: React.FC<{ onClose: () => void; onSent: (wowLink: string) => void }> = ({ onClose, onSent }) => {
+const InviteModal: React.FC<{ onClose: () => void; onSent: () => void; usage: InviteUsage | null }> = ({ onClose, onSent, usage }) => {
   const demoMode = useDemoMode()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -175,8 +175,10 @@ const InviteModal: React.FC<{ onClose: () => void; onSent: (wowLink: string) => 
   const [listings, setListings] = useState<LOListing[]>([])
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
+  const [emailFailed, setEmailFailed] = useState(false)
   const [wowLink, setWowLink] = useState('')
   const [smsText, setSmsText] = useState('')
+  const [limitMessage, setLimitMessage] = useState('')
 
   useEffect(() => {
     if (demoMode) return
@@ -188,16 +190,23 @@ const InviteModal: React.FC<{ onClose: () => void; onSent: (wowLink: string) => 
     })
   }, [demoMode])
 
+  useEffect(() => {
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', esc)
+    return () => document.removeEventListener('keydown', esc)
+  }, [onClose])
+
   const handleSend = async () => {
-    if (!email.trim()) return
+    if (!email.trim() || sending) return
     setSending(true)
+    setLimitMessage('')
     try {
       if (demoMode) {
         await new Promise(r => setTimeout(r, 800))
-        const demoLink = `${window.location.origin}/partner-invite/demo-token`
+        const demoLink = `${window.location.origin}/partner-invite/demo`
         setWowLink(demoLink)
+        setSmsText(`Hi ${name.trim().split(' ')[0] || 'there'}, it's Alex. A buyer could text your listing: "Can I get pre-approved before the open house?" I built it to answer that and send the lead to you.\n\nTry it yourself, 30 seconds:\n${demoLink}`)
         setSent(true)
-        setTimeout(() => { onSent(demoLink); onClose() }, 3000)
         return
       }
       const headers = await getApiHeaders(true)
@@ -206,21 +215,23 @@ const InviteModal: React.FC<{ onClose: () => void; onSent: (wowLink: string) => 
         headers,
         body: JSON.stringify({ email: email.trim(), name: name.trim() || undefined, phone: phone.trim() || undefined, listingId: listingId || undefined })
       })
-      const json = await res.json() as { success?: boolean; wowLink?: string; smsText?: string; error?: string; message?: string }
+      const json = await res.json() as { success?: boolean; wowLink?: string; smsText?: string; emailSent?: boolean; error?: string; message?: string }
       if (!res.ok) {
         if (json.error === 'invite_limit_reached') {
-          showToast.error(json.message || 'Upgrade your plan to send WOW Links.')
+          setLimitMessage(json.message || 'You have used all your WOW Links for now. Upgrade your plan to send more.')
+        } else if (json.error === 'valid_email_required') {
+          showToast.error('That email does not look right. Check it and try again.')
         } else {
           showToast.error('Failed to send invite. Try again.')
         }
         return
       }
-      const link = json.wowLink || ''
-      setWowLink(link)
+      setWowLink(json.wowLink || '')
       setSmsText(json.smsText || '')
+      setEmailFailed(json.emailSent === false)
       setSent(true)
-      showToast.success('WOW Link sent!')
-      setTimeout(() => { onSent(link); onClose() }, 12000)
+      onSent()
+      if (json.emailSent !== false) showToast.success('WOW Link sent!')
     } catch {
       showToast.error('Failed to send invite. Try again.')
     } finally {
@@ -228,89 +239,76 @@ const InviteModal: React.FC<{ onClose: () => void; onSent: (wowLink: string) => 
     }
   }
 
+  const input = 'w-full border border-slate-300 rounded-xl px-4 py-3 text-sm text-slate-900 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500'
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl p-6">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" role="dialog" aria-modal="true" aria-labelledby="invite-title" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
         {sent ? (
-          <div className="text-center py-6">
-            <div className="text-5xl mb-3">🚀</div>
-            <h3 className="text-lg font-bold text-slate-900 mb-1">WOW Link sent!</h3>
-            <p className="text-slate-500 text-sm mb-4">They'll get a live listing demo in their inbox — chatbot already working.</p>
-            {wowLink && (
-              <button
-                onClick={() => { navigator.clipboard.writeText(wowLink); showToast.success('Link copied!') }}
-                className="w-full border border-slate-200 rounded-xl py-2.5 text-xs font-semibold text-primary-600 hover:bg-primary-50 transition-all"
-              >
-                📋 Copy WOW Link
-              </button>
-            )}
+          <div className="py-2 text-center">
+            <div className="mb-3 text-5xl" aria-hidden="true">{emailFailed ? '⚠️' : '🚀'}</div>
+            <h3 id="invite-title" className="mb-1 text-lg font-bold text-slate-900">{emailFailed ? 'Link ready, email did not send' : 'WOW Link sent!'}</h3>
+            <p className="mb-4 text-sm text-slate-600">
+              {emailFailed
+                ? 'Your link is saved. Copy the text below and send it from your own phone.'
+                : 'They get a live listing demo in their inbox, with your financing chat already working. Texting it too gets opened faster.'}
+            </p>
             {smsText && (
               <button
-                onClick={() => { navigator.clipboard.writeText(smsText); showToast.success('Text copied! Paste it in Messages.') }}
-                className="mt-2 w-full rounded-xl bg-primary-600 py-2.5 text-xs font-semibold text-white hover:bg-primary-700 transition-all"
+                onClick={() => { void navigator.clipboard.writeText(smsText); showToast.success('Text copied! Paste it in Messages.') }}
+                className="mb-2 min-h-[44px] w-full rounded-xl bg-primary-600 text-sm font-bold text-white hover:bg-primary-700"
               >
                 💬 Copy the text to send
               </button>
             )}
+            {wowLink && (
+              <button
+                onClick={() => { void navigator.clipboard.writeText(wowLink); showToast.success('Link copied!') }}
+                className="mb-2 min-h-[44px] w-full rounded-xl border border-slate-300 text-sm font-semibold text-primary-700 hover:bg-primary-50"
+              >
+                📋 Copy WOW Link
+              </button>
+            )}
+            <button onClick={onClose} className="min-h-[44px] w-full rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100">Done</button>
           </div>
         ) : (
           <>
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-lg font-bold text-slate-900">Send a WOW Link</h3>
-              <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl">×</button>
+            <div className="mb-2 flex items-center justify-between">
+              <h3 id="invite-title" className="text-lg font-bold text-slate-900">Send a WOW Link</h3>
+              <button onClick={onClose} aria-label="Close" className="flex h-10 w-10 items-center justify-center rounded-full text-2xl text-slate-500 hover:bg-slate-100">×</button>
             </div>
-            <p className="text-sm text-slate-500 mb-5">
-              The agent gets a live listing demo with your financing chatbot already running — before they even sign up.
+            <p className="mb-4 text-sm text-slate-600">
+              The agent gets a live listing demo with your financing chatbot already running, before they even sign up.
             </p>
-            <div className="space-y-3 mb-5">
-              <input
-                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                placeholder="Agent name (optional)"
-                value={name}
-                onChange={e => setName(e.target.value)}
-              />
-              <input
-                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                placeholder="Agent email address"
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleSend()}
-              />
-              <input
-                className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                placeholder="Agent phone (optional) — call/text them from here later"
-                type="tel"
-                value={phone}
-                onChange={e => setPhone(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleSend()}
-              />
-              {/* Listing picker */}
+            {usage && usage.limit != null && (
+              <p className="mb-4 rounded-lg bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700">
+                {usage.used} of {usage.limit} WOW Links used this month
+              </p>
+            )}
+            <div className="mb-5 space-y-3">
+              <input className={input} placeholder="Agent name (optional)" aria-label="Agent name" value={name} onChange={e => setName(e.target.value)} />
+              <input className={input} placeholder="Agent email address" aria-label="Agent email" type="email" value={email} onChange={e => setEmail(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSend()} />
+              <input className={input} placeholder="Agent phone (optional)" aria-label="Agent phone" type="tel" value={phone} onChange={e => setPhone(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSend()} />
               <div>
-                <label className="block text-xs font-semibold text-slate-500 mb-1.5 uppercase tracking-wide">Show them this listing</label>
-                <select
-                  value={listingId}
-                  onChange={e => setListingId(e.target.value)}
-                  className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white"
-                >
-                  <option value="">📸 Use demo listing (default)</option>
-                  {listings.map(l => (
-                    <option key={l.id} value={l.id}>🏠 {l.address}</option>
-                  ))}
+                <label htmlFor="invite-listing" className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-600">Show them this listing</label>
+                <select id="invite-listing" value={listingId} onChange={e => setListingId(e.target.value)} className={`${input} bg-white`}>
+                  <option value="">Use the demo listing (default)</option>
+                  {listings.map(l => (<option key={l.id} value={l.id}>{l.address}</option>))}
                 </select>
-                <p className="text-xs text-slate-400 mt-1.5">
-                  {listings.length === 0
-                    ? 'No published listings yet — we\'ll show a beautiful demo.'
-                    : 'Pick a live listing or use the default demo.'}
+                <p className="mt-1.5 text-xs text-slate-600">
+                  {listings.length === 0 ? 'No live listings yet, so we show a polished demo home.' : 'Pick one of your live listings, or use the demo.'}
                 </p>
               </div>
             </div>
+            {limitMessage && (
+              <p className="mb-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900" role="alert">{limitMessage}</p>
+            )}
             <button
               onClick={handleSend}
               disabled={sending || !email.trim()}
-              className="w-full bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white font-bold rounded-xl py-3 text-sm transition-all"
+              className="min-h-[48px] w-full rounded-xl bg-primary-600 text-sm font-bold text-white transition-all hover:bg-primary-700 disabled:opacity-50"
             >
-              {sending ? 'Sending…' : '🚀 Send WOW Link →'}
+              {sending ? 'Sending…' : '🚀 Send WOW Link'}
             </button>
           </>
         )}
@@ -465,6 +463,8 @@ const PartnerCard: React.FC<{ partner: Partner; onViewListings: (p: Partner) => 
             onClick={() => setExpanded(v => !v)}
             className={`w-7 h-7 rounded-full flex items-center justify-center border text-xs font-bold transition-all ${expanded ? 'bg-primary-600 border-primary-600 text-white' : 'border-slate-200 text-slate-400 hover:border-primary-300 hover:text-primary-600'}`}
             title={expanded ? 'Collapse' : 'Show details'}
+            aria-label={expanded ? 'Hide partner details' : 'Show partner details'}
+            aria-expanded={expanded}
           >
             {expanded ? '▲' : '▼'}
           </button>
@@ -591,8 +591,9 @@ const PartnerCard: React.FC<{ partner: Partner; onViewListings: (p: Partner) => 
           onClick={logFollowUp}
           className="px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-700 text-xs font-semibold transition-all"
           title="Log follow-up"
+          aria-label="Log that you talked to this partner"
         >
-          📞
+          📞 Talked
         </button>
         <button
           onClick={openRecapPreview}
@@ -605,7 +606,8 @@ const PartnerCard: React.FC<{ partner: Partner; onViewListings: (p: Partner) => 
         {partner.email && (
           <a
             href={`mailto:${partner.email}`}
-            className="px-3 py-2.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-white text-xs font-semibold transition-all"
+            className="px-3 py-2.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-white text-xs font-semibold transition-all"
+            aria-label="Email this partner"
           >
             ✉️
           </a>
@@ -641,6 +643,7 @@ const PartnerCard: React.FC<{ partner: Partner; onViewListings: (p: Partner) => 
             onClick={() => setRemoveConfirm(true)}
             className="px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-400 hover:bg-red-50 hover:border-red-200 hover:text-red-600 text-xs font-semibold transition-all"
             title="Remove partner"
+            aria-label="Remove partner"
           >
             ✕
           </button>
@@ -701,13 +704,19 @@ const PartnerDetail: React.FC<{ partner: Partner; onClose: () => void }> = ({ pa
     void patchPartnerMeta(partner.partnershipId, { notes: notesDraft })
   }
 
+  useEffect(() => {
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', esc)
+    return () => document.removeEventListener('keydown', esc)
+  }, [onClose])
+
   return (
-  <div className="fixed inset-0 z-40 flex">
+  <div className="fixed inset-0 z-40 flex" role="dialog" aria-modal="true" aria-label={`${partner.name} details`}>
     <div className="flex-1 bg-black/30" onClick={onClose} />
     <div className="w-full max-w-lg bg-white h-full overflow-y-auto shadow-2xl">
       {/* Header */}
       <div className="sticky top-0 bg-white border-b border-slate-100 pl-6 pr-16 py-4 flex items-center gap-4 z-10">
-        <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-xl font-bold">←</button>
+        <button onClick={onClose} aria-label="Back to partners" className="flex h-10 w-10 items-center justify-center rounded-full text-xl font-bold text-slate-500 hover:bg-slate-100 hover:text-slate-800">←</button>
         <Avatar src={partner.headshotUrl} name={partner.name} size={36} />
         <div className="flex-1">
           <p className="font-bold text-slate-900">{partner.name}</p>
@@ -830,6 +839,7 @@ const LOPartnersPage: React.FC = () => {
   const demoMode = useDemoMode()
   const [partners, setPartners] = useState<Partner[]>([])
   const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([])
+  const [inviteUsage, setInviteUsage] = useState<InviteUsage | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadFailed, setLoadFailed] = useState(false)
   const [showInvite, setShowInvite] = useState(false)
@@ -841,6 +851,7 @@ const LOPartnersPage: React.FC = () => {
     if (demoMode) {
       setPartners(DEMO_PARTNERS)
       setPendingInvites(DEMO_PENDING)
+      setInviteUsage({ used: 3, limit: 10 })
       setLoading(false)
       return
     }
@@ -848,7 +859,7 @@ const LOPartnersPage: React.FC = () => {
       const headers = await getApiHeaders()
       const res = await fetch(buildApiUrl('/api/lo/partners'), { headers })
       if (!res.ok) throw new Error('partners_load_failed')
-      const json = await res.json() as { success: boolean; partners: Partner[]; pendingInvites: PendingInvite[] }
+      const json = await res.json() as { success: boolean; partners: Partner[]; pendingInvites: PendingInvite[]; inviteUsage?: InviteUsage | null }
       if (!mountedRef.current) return
       // Seed localStorage from server — server is authoritative after migration
       const meta = loadMeta()
@@ -863,6 +874,7 @@ const LOPartnersPage: React.FC = () => {
       setLoadFailed(false)
       setPartners(json.partners || [])
       setPendingInvites(json.pendingInvites || [])
+      setInviteUsage(json.inviteUsage || null)
     } catch {
       setLoadFailed(true)
       showToast.error('Could not load your partners. Try again.')
@@ -884,7 +896,7 @@ const LOPartnersPage: React.FC = () => {
   )
 
   return (
-    <div className="space-y-6 pb-12">
+    <div className="space-y-6 pb-28">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-black text-slate-900 tracking-tight">Partner Agents</h1>
@@ -924,126 +936,118 @@ const LOPartnersPage: React.FC = () => {
       {pendingInvites.length > 0 && (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
           <p className="text-xs font-bold text-amber-700 uppercase tracking-wide mb-3">Pending Invites</p>
-          <div className="space-y-3">
-            {pendingInvites.map(invite => (
-              <div key={invite.id} className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-slate-800 truncate">{invite.name || invite.email}</p>
-                  <p className="text-xs text-slate-500 truncate">{invite.email} · sent {toRelativeTime(invite.sentAt)}</p>
-                  <div className="mt-1 flex flex-wrap items-center gap-2">
+          <div className="space-y-4">
+            {pendingInvites.map(invite => {
+              const firstName = invite.name?.split(' ')[0] || 'there'
+              const copy = (text: string, done: string) => {
+                void navigator.clipboard.writeText(text).then(() => showToast.success(done)).catch(() => showToast.error('Could not copy. Try again.'))
+              }
+              const btn = 'inline-flex min-h-[40px] items-center justify-center rounded-lg border bg-white px-3.5 text-xs font-bold transition-all'
+              return (
+                <div key={invite.id} className="rounded-xl border border-amber-200 bg-white p-3.5">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-slate-900">{invite.name || invite.email}</p>
+                      <p className="truncate text-xs text-slate-600">{invite.email} · sent {toRelativeTime(invite.sentAt)}</p>
+                    </div>
                     {invite.ctaClickedAt ? (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-bold text-green-700">
-                        🔥 Clicked through · {toRelativeTime(invite.ctaClickedAt)}
-                      </span>
+                      <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-1 text-xs font-bold text-green-800">🔥 Clicked through · {toRelativeTime(invite.ctaClickedAt)}</span>
                     ) : invite.openedAt ? (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-700">
-                        👀 Opened · {toRelativeTime(invite.openedAt)}
-                      </span>
+                      <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2.5 py-1 text-xs font-bold text-blue-800">👀 Opened · {toRelativeTime(invite.openedAt)}</span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-400">
-                        Not opened yet
-                      </span>
+                      <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-700">Not opened yet</span>
                     )}
                   </div>
-                </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  {/* Text/Call — when we have a phone. Text first: agents answer texts faster than calls. */}
-                  {invite.phone && (
-                    <>
-                      <a
-                        href={`sms:${invite.phone}?body=${encodeURIComponent(`Hi ${invite.name?.split(' ')[0] || 'there'} — just sent you a live listing demo with instant financing answers built in. Did it come through?`)}`}
-                        className="text-xs font-semibold text-green-700 hover:text-green-900 border border-green-300 bg-white rounded-lg px-3 py-1.5 transition-all hover:bg-green-50"
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {invite.smsText && (
+                      <button onClick={() => copy(invite.smsText as string, 'Text copied. Paste it in Messages.')} className={`${btn} border-primary-600 bg-primary-600 text-white hover:bg-primary-700`}>
+                        💬 Copy text
+                      </button>
+                    )}
+                    {invite.wowLink && (
+                      <button onClick={() => copy(invite.wowLink as string, 'Link copied!')} className={`${btn} border-slate-300 text-slate-800 hover:bg-slate-50`}>
+                        🔗 Copy link
+                      </button>
+                    )}
+                    {invite.phone && (
+                      <>
+                        <a href={`sms:${invite.phone}?body=${encodeURIComponent(`Hi ${firstName} — just sent you a live listing demo with instant financing answers built in. Did it come through?`)}`} className={`${btn} border-green-400 text-green-800 hover:bg-green-50`}>
+                          Text
+                        </a>
+                        <a href={`tel:${invite.phone}`} className={`${btn} border-slate-300 text-slate-800 hover:bg-slate-50`}>Call</a>
+                      </>
+                    )}
+                    {/* Nudge: only after 24h and still unopened */}
+                    {!invite.openedAt && (Date.now() - new Date(invite.sentAt).getTime()) > 24 * 3600 * 1000 && (
+                      <button
+                        onClick={async () => {
+                          try {
+                            const headers = await getApiHeaders()
+                            const res = await fetch(buildApiUrl(`/api/lo/partners/invite/${invite.id}/nudge`), { method: 'POST', headers })
+                            const json = await res.json() as { error?: string; message?: string }
+                            if (!res.ok) throw new Error(json.message || 'nudge_failed')
+                            showToast.success('Reminder sent! 👋')
+                          } catch (e: unknown) {
+                            showToast.error(e instanceof Error ? e.message : 'Failed to send reminder')
+                          }
+                        }}
+                        className={`${btn} border-blue-400 text-blue-800 hover:bg-blue-50`}
                       >
-                        Text 💬
-                      </a>
-                      <a
-                        href={`tel:${invite.phone}`}
-                        className="text-xs font-semibold text-slate-700 hover:text-slate-900 border border-slate-300 bg-white rounded-lg px-3 py-1.5 transition-all hover:bg-slate-50"
-                      >
-                        Call 📞
-                      </a>
-                    </>
-                  )}
-                  {/* Nudge — only show if >24hrs old and not yet opened */}
-                  {!invite.openedAt && (Date.now() - new Date(invite.sentAt).getTime()) > 24 * 3600 * 1000 && (
+                        Nudge 👋
+                      </button>
+                    )}
                     <button
                       onClick={async () => {
                         try {
                           const headers = await getApiHeaders()
-                          const res = await fetch(buildApiUrl(`/api/lo/partners/invite/${invite.id}/nudge`), {
-                            method: 'POST', headers
-                          })
-                          const json = await res.json() as { error?: string; message?: string }
-                          if (!res.ok) throw new Error(json.message || 'nudge_failed')
-                          showToast.success('Reminder sent! 👋')
-                        } catch (e: unknown) {
-                          showToast.error(e instanceof Error ? e.message : 'Failed to send reminder')
-                        }
+                          const res = await fetch(buildApiUrl(`/api/lo/partners/invite/${invite.id}/resend`), { method: 'POST', headers })
+                          const json = await res.json().catch(() => ({})) as { message?: string }
+                          if (!res.ok) throw new Error(json.message || 'resend_failed')
+                          showToast.success('Invite resent!')
+                        } catch (e: unknown) { showToast.error(e instanceof Error && e.message !== 'resend_failed' ? e.message : 'Failed to resend') }
                       }}
-                      className="text-xs font-semibold text-blue-700 hover:text-blue-900 border border-blue-300 bg-white rounded-lg px-3 py-1.5 transition-all hover:bg-blue-50"
+                      className={`${btn} border-amber-400 text-amber-900 hover:bg-amber-50`}
                     >
-                      Nudge 👋
+                      Resend email
                     </button>
-                  )}
-                  <button
-                    onClick={async () => {
-                      try {
-                        const headers = await getApiHeaders()
-                        const res = await fetch(buildApiUrl(`/api/lo/partners/invite/${invite.id}/resend`), {
-                          method: 'POST', headers
-                        })
-                        if (!res.ok) throw new Error()
-                        showToast.success('Invite resent!')
-                      } catch { showToast.error('Failed to resend') }
-                    }}
-                    className="text-xs font-semibold text-amber-700 hover:text-amber-900 border border-amber-300 bg-white rounded-lg px-3 py-1.5 transition-all hover:bg-amber-50"
-                  >
-                    Resend
-                  </button>
-                  {revokeConfirmId === invite.id ? (
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        onClick={async () => {
-                          setRevokeConfirmId(null)
-                          try {
-                            const headers = await getApiHeaders()
-                            const res = await fetch(buildApiUrl(`/api/lo/partners/invite/${invite.id}`), {
-                              method: 'DELETE', headers
-                            })
-                            if (!res.ok) throw new Error()
-                            showToast.success('Invite revoked')
-                            load()
-                          } catch { showToast.error('Failed to revoke') }
-                        }}
-                        className="text-xs font-bold text-white bg-red-600 border border-red-600 rounded-lg px-3 py-1.5 hover:bg-red-700 transition-all"
-                      >
-                        Confirm
+                    {revokeConfirmId === invite.id ? (
+                      <>
+                        <button
+                          onClick={async () => {
+                            setRevokeConfirmId(null)
+                            try {
+                              const headers = await getApiHeaders()
+                              const res = await fetch(buildApiUrl(`/api/lo/partners/invite/${invite.id}`), { method: 'DELETE', headers })
+                              if (!res.ok) throw new Error()
+                              showToast.success('Invite revoked')
+                              void load()
+                            } catch { showToast.error('Failed to revoke') }
+                          }}
+                          className={`${btn} border-red-700 bg-red-700 text-white hover:bg-red-800`}
+                        >
+                          Confirm revoke
+                        </button>
+                        <button onClick={() => setRevokeConfirmId(null)} className={`${btn} border-slate-300 text-slate-700 hover:bg-slate-50`}>Keep</button>
+                      </>
+                    ) : (
+                      <button onClick={() => setRevokeConfirmId(invite.id)} className={`${btn} border-slate-300 text-slate-600 hover:border-red-300 hover:bg-red-50 hover:text-red-700`}>
+                        Revoke
                       </button>
-                      <button
-                        onClick={() => setRevokeConfirmId(null)}
-                        className="text-xs font-semibold text-slate-400 border border-slate-200 bg-white rounded-lg px-2 py-1.5 hover:bg-slate-50 transition-all"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => setRevokeConfirmId(invite.id)}
-                      className="text-xs font-semibold text-slate-400 hover:text-red-600 border border-slate-200 bg-white rounded-lg px-3 py-1.5 transition-all hover:border-red-200 hover:bg-red-50"
-                    >
-                      Revoke
-                    </button>
-                  )}
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}
 
       {/* Add partner button — only when there's content (empty state has its own CTA) */}
       {(partners.length > 0 || pendingInvites.length > 0) && (
-        <div className="flex justify-end">
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          {inviteUsage && inviteUsage.limit != null && (
+            <p className="text-xs font-semibold text-slate-600">{inviteUsage.used} of {inviteUsage.limit} WOW Links used this month</p>
+          )}
           <button
             onClick={() => setShowInvite(true)}
             className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-xl px-5 py-2.5 text-sm transition-all shadow-sm"
@@ -1072,8 +1076,9 @@ const LOPartnersPage: React.FC = () => {
       {/* Modals */}
       {showInvite && (
         <InviteModal
+          usage={inviteUsage}
           onClose={() => setShowInvite(false)}
-          onSent={() => { load() }}
+          onSent={() => { void load() }}
         />
       )}
       {selectedPartner && (

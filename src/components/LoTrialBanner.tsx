@@ -32,7 +32,10 @@ const preferredPlan = (): 'lo_lite' | 'lo' | 'lo_pro' => {
   return 'lo_lite';
 };
 
-const dismissKey = () => `hlai_trial_banner_dismissed_${new Date().toISOString().slice(0, 10)}`;
+const dismissKey = () => {
+  const d = new Date(); // local day, so "dismissed for today" really lasts until tonight
+  return `hlai_trial_banner_dismissed_${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+};
 
 export const LoTrialBanner: React.FC = () => {
   const [status, setStatus] = useState<PlanStatus | null>(null);

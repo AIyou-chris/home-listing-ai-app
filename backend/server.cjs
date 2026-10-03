@@ -31737,33 +31737,6 @@ app.patch('/api/lo/profile', requireAuth, async (req, res) => {
   }
 });
 
-// ── LO realtor invite (legacy simple invite) ──────────────────────────────────
-app.post('/api/lo/invite-realtor', requireAuth, async (req, res) => {
-  try {
-    const agentId = req.authUserId;
-    const { realtor_name, realtor_email } = req.body || {};
-    if (!realtor_email) return res.status(400).json({ error: 'realtor_email_required' });
-    const { data: loRows } = await supabaseAdmin.from('agents').select('first_name, last_name, email, nmls_number, company').eq('auth_user_id', agentId).limit(1);
-    const lo = loRows?.[0];
-    const loName = lo ? `${lo.first_name || ''} ${lo.last_name || ''}`.trim() : 'Your LO partner';
-    const loBrand = await resolveBrandForLoAgent(agentId).catch(() => ({ whiteLabel: false, companyName: null }));
-    const platformName = loBrand.companyName || 'HomeListingAI';
-    try {
-      await emailService.sendEmail({
-        to: realtor_email.trim().toLowerCase(),
-        subject: `${loName} wants to co-brand listings with you`,
-        html: `<p>Hi${realtor_name ? ` ${realtor_name}` : ''},</p><p><strong>${loName}</strong> is inviting you to partner on ${platformName}.</p><p>Create your free account at <a href="https://homelistingai.com/signup">homelistingai.com/signup</a>.</p><p>— The ${platformName} Team</p>`
-      });
-    } catch (emailError) {
-      console.warn('[LO Invite] Failed to send invite email (non-fatal):', emailError?.message);
-    }
-    res.json({ success: true, message: 'invite_sent' });
-  } catch (error) {
-    console.error('[LO Invite] Failed:', error);
-    res.status(500).json({ error: 'failed_to_send_invite' });
-  }
-});
-
 // ── LO info for public listing page ──────────────────────────────────────────
 app.get('/api/public/listing/:listingId/lo', async (req, res) => {
   try {
@@ -31772,6 +31745,11 @@ app.get('/api/public/listing/:listingId/lo', async (req, res) => {
     const { data: assignments } = await supabaseAdmin.from('listing_lo_assignments').select('lo_agent_id, branding_enabled').eq('listing_id', listingId).eq('branding_enabled', true).limit(1);
     if (!assignments || assignments.length === 0) return res.json({ success: true, lo: null });
     const loAssignId = assignments[0].lo_agent_id;
+    // The LO can switch their name off the public page (Listings > Branding).
+    const { data: pageToggle } = await bestEffort(
+      supabaseAdmin.from('listing_branding_toggles').select('lo_visible').eq('listing_id', listingId).eq('lo_agent_id', loAssignId).eq('piece_type', 'listing_page').maybeSingle()
+    ) || { data: null };
+    if (pageToggle && pageToggle.lo_visible === false) return res.json({ success: true, lo: null });
     const { data: loRows } = await supabaseAdmin.from('agents').select('id, first_name, last_name, email, phone, headshot_url, nmls_number, company').or(`id.eq.${loAssignId},auth_user_id.eq.${loAssignId}`).limit(1);
     const lo = loRows?.[0];
     if (!lo) return res.json({ success: true, lo: null });
@@ -31793,7 +31771,7 @@ app.get('/api/lo/dashboard/today', requireAuth, async (req, res) => {
     // Leads are stamped with the LO's profile id (agents.id), not the login id.
     const leadOwnerId = (await resolveLoAgentId(req)) || loAgentId;
     const leadCount = (extra) => {
-      let q = supabaseAdmin.from('leads').select('id', { count: 'exact', head: true }).eq('lo_agent_id', leadOwnerId);
+      let q = supabaseAdmin.from('leads').select('id', { count: 'exact', head: true }).eq('lo_agent_id', leadOwnerId).or('source_key.is.null,source_key.neq.lo_onboarding_test');
       return extra ? extra(q) : q;
     };
     const [totalRes, todayRes, weekRes, monthRes, preApprovalRes, showingRes, recentRes, perListingRes, hotRes] = await Promise.all([
@@ -31803,8 +31781,8 @@ app.get('/api/lo/dashboard/today', requireAuth, async (req, res) => {
       leadCount(q => q.gte('created_at', startOf30Days)),
       leadCount(q => q.eq('source_meta->>context', 'pre_approval')),
       leadCount(q => q.eq('source_meta->>context', 'showing_request')),
-      supabaseAdmin.from('leads').select('id, full_name, name, email, email_lower, phone, phone_e164, status, source_type, source_meta, created_at, listing_id, lo_agent_id, intent_level').eq('lo_agent_id', leadOwnerId).order('created_at', { ascending: false }).limit(10),
-      supabaseAdmin.from('leads').select('listing_id').eq('lo_agent_id', leadOwnerId).not('listing_id', 'is', null).limit(5000),
+      supabaseAdmin.from('leads').select('id, full_name, name, email, email_lower, phone, phone_e164, status, source_type, source_meta, created_at, listing_id, lo_agent_id, intent_level').eq('lo_agent_id', leadOwnerId).or('source_key.is.null,source_key.neq.lo_onboarding_test').order('created_at', { ascending: false }).limit(10),
+      supabaseAdmin.from('leads').select('listing_id').eq('lo_agent_id', leadOwnerId).or('source_key.is.null,source_key.neq.lo_onboarding_test').not('listing_id', 'is', null).limit(5000),
       leadCount(q => q.eq('intent_level', 'Hot'))
     ]);
     const leads = perListingRes.data || [];
@@ -31827,7 +31805,20 @@ app.get('/api/lo/dashboard/today', requireAuth, async (req, res) => {
     const { count: partnerInviteCount } = await supabaseAdmin.from('agent_invites').select('id', { count: 'exact', head: true }).eq('lo_agent_id', loAgentId);
     const { count: partnerOpenedCount } = await supabaseAdmin.from('agent_invites').select('id', { count: 'exact', head: true }).eq('lo_agent_id', loAgentId).not('opened_at', 'is', null);
     const partnerInvited = (partnerInviteCount || 0) > 0;
-    res.json({ success: true, stats: { totalLeads, newToday, newThisWeek, newThisMonth, preApprovalLeads, showingLeads, assignedListings: assignedListings.length, partnersReached: partnerInviteCount || 0, partnersOpened: partnerOpenedCount || 0, hotLeads }, recentLeads, assignedListings, loProfileComplete, partnerInvited });
+    // The AI phone line and the Brain, so Today can show what the AI did while the LO was busy.
+    const [callsRes, brainRes] = await Promise.all([
+      bestEffort(supabaseAdmin.from('lo_phone_calls').select('id, from_number, summary, intent_level, caller_details, lead_id, started_at').eq('lo_agent_id', loProfileId || loAgentId).gte('started_at', startOf7Days).order('started_at', { ascending: false }).limit(25)),
+      bestEffort(supabaseAdmin.from('lo_chatbot_configs').select('is_active, knowledge_base').eq('lo_agent_id', loProfileId || loAgentId).maybeSingle())
+    ]);
+    const callRows = (callsRes && callsRes.data) || [];
+    const aiCalls = {
+      today: callRows.filter((c) => c.started_at >= startOfToday).length,
+      week: callRows.length,
+      recent: callRows.slice(0, 3).map((c) => ({ id: c.id, name: c.caller_details?.name || null, from: c.from_number || null, summary: c.summary || null, intent: c.intent_level || null, leadId: c.lead_id || null, startedAt: c.started_at }))
+    };
+    const brainRow = brainRes && brainRes.data;
+    const brain = { active: brainRow ? brainRow.is_active !== false : true, hasKnowledge: Boolean(String(brainRow?.knowledge_base || '').trim()) };
+    res.json({ success: true, aiCalls, brain, stats: { totalLeads, newToday, newThisWeek, newThisMonth, preApprovalLeads, showingLeads, assignedListings: assignedListings.length, partnersReached: partnerInviteCount || 0, partnersOpened: partnerOpenedCount || 0, hotLeads }, recentLeads, assignedListings, loProfileComplete, partnerInvited });
   } catch (err) {
     console.error('[LO Today] Failed:', err);
     res.status(500).json({ error: 'failed_to_load_lo_dashboard' });
@@ -31840,36 +31831,68 @@ app.get('/api/lo/leads', requireAuth, async (req, res) => {
     let loAgentId = req.authUserId;
     try { loAgentId = (await resolveLoAgentId(req)) || loAgentId; } catch { /* fallback */ }
 
-    const { status, search, limit: limitParam = '100', offset: offsetParam = '0' } = req.query;
+    const { status, intent, search, limit: limitParam = '100', offset: offsetParam = '0' } = req.query;
     const limit = Math.min(Number(limitParam) || 100, 500);
-    const offset = Number(offsetParam) || 0;
+    const offset = Math.max(0, Number(offsetParam) || 0);
+    // Strip characters that would break (or extend) the PostgREST filter string.
+    const q = String(search || '').replace(/[%,()*\\]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60);
+    const digits = q.replace(/\D/g, '');
 
-    // ── Pre-qual submissions (financing intent) ──────────────────────────────
-    let pqQuery = supabaseAdmin
-      .from('pre_qual_submissions')
-      .select('id, lead_id, full_name, email, phone, purchase_timeline, credit_range, income_range, down_payment, notes, created_at, listing_id', { count: 'exact' })
-      .eq('lo_agent_id', loAgentId)
-      .order('created_at', { ascending: false })
-      .range(offset, offset + limit - 1);
-    if (search) pqQuery = pqQuery.or(`full_name.ilike.%${search}%,email.ilike.%${search}%`);
-    const { data: preQuals, count: pqCount } = await pqQuery;
-    // Every pre-qual now also creates a row in `leads` (the canonical lead). Only the
-    // legacy pre-quals with no linked lead are listed on their own, so a buyer who
-    // filled in the pre-approval form appears ONCE, not twice.
-    const orphanPreQuals = (preQuals || []).filter((p) => !p.lead_id);
+    // ── Legacy pre-quals that never got a lead row (first page only) ─────────
+    let preQuals = [];
+    if (offset === 0 && !status && !intent) {
+      let pqQuery = supabaseAdmin
+        .from('pre_qual_submissions')
+        .select('id, lead_id, full_name, email, phone, purchase_timeline, credit_range, income_range, down_payment, notes, created_at, listing_id')
+        .eq('lo_agent_id', loAgentId)
+        .is('lead_id', null)
+        .order('created_at', { ascending: false })
+        .limit(200);
+      if (q) {
+        const pqOr = [`full_name.ilike.%${q}%`, `email.ilike.%${q}%`, `phone.ilike.%${q}%`];
+        pqQuery = pqQuery.or(pqOr.join(','));
+      }
+      const { data } = await pqQuery;
+      preQuals = data || [];
+    }
+    const orphanPreQuals = preQuals;
+    // Pre-quals linked to a lead enrich that lead's card with the form answers.
     const linkedPreQualByLeadId = {};
-    (preQuals || []).forEach((p) => { if (p.lead_id) linkedPreQualByLeadId[p.lead_id] = p; });
+    // (fetched after the leads below, once we know their ids)
 
     // ── Chat / general leads ──────────────────────────────────────────────────
     let leadsQuery = supabaseAdmin
       .from('leads')
-      .select('id, full_name, name, email_lower, email, phone, status, intent_level, source_type, source_meta, created_at, listing_id', { count: 'exact' })
+      .select('id, full_name, name, email_lower, email, phone, phone_e164, status, intent_level, source_type, source_key, source_meta, lead_summary, last_message_preview, created_at, listing_id', { count: 'exact' })
       .eq('lo_agent_id', loAgentId)
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
-    if (status) leadsQuery = leadsQuery.eq('status', status);
-    if (search) leadsQuery = leadsQuery.or(`full_name.ilike.%${search}%,name.ilike.%${search}%,email_lower.ilike.%${search}%`);
+    if (status) leadsQuery = leadsQuery.ilike('status', String(status).replace(/[%,()*\\]/g, ''));
+    if (intent && ['Hot', 'Warm', 'Cold'].includes(String(intent))) leadsQuery = leadsQuery.eq('intent_level', String(intent));
+    if (q) {
+      const or = [`full_name.ilike.%${q}%`, `name.ilike.%${q}%`, `email_lower.ilike.%${q}%`, `phone.ilike.%${q}%`];
+      if (digits.length >= 3) or.push(`phone_e164.ilike.%${digits}%`);
+      leadsQuery = leadsQuery.or(or.join(','));
+    }
     const { data: chatLeads, count: chatCount } = await leadsQuery;
+
+    const chatIds = (chatLeads || []).map((l) => l.id);
+    if (chatIds.length > 0) {
+      const { data: linked } = await supabaseAdmin
+        .from('pre_qual_submissions')
+        .select('lead_id, purchase_timeline, credit_range, income_range, down_payment')
+        .eq('lo_agent_id', loAgentId)
+        .in('lead_id', chatIds);
+      (linked || []).forEach((p) => { if (p.lead_id) linkedPreQualByLeadId[p.lead_id] = p; });
+    }
+    // AI phone calls that created a lead, so the LO can open the transcript.
+    const callByLeadId = {};
+    if (chatIds.length > 0) {
+      const { data: callRows } = await bestEffort(
+        supabaseAdmin.from('lo_phone_calls').select('id, lead_id').eq('lo_agent_id', loAgentId).in('lead_id', chatIds)
+      ) || { data: [] };
+      (callRows || []).forEach((c) => { if (c.lead_id) callByLeadId[c.lead_id] = c.id; });
+    }
 
     // ── Resolve listing addresses + agent names ───────────────────────────────
     const allListingIds = [...new Set([
@@ -31926,11 +31949,15 @@ app.get('/api/lo/leads', requireAuth, async (req, res) => {
         type: pq ? 'pre_qual' : 'chat',
         name: l.full_name || l.name || 'Unknown',
         email: l.email_lower || l.email || null,
-        phone: l.phone || null,
+        phone: l.phone_e164 || l.phone || null,
         status: l.status || 'New',
         intentLevel: l.intent_level || 'Warm',
         intentReason: meta.intent_reason || null,
         context: meta.context || null,
+        sourceType: l.source_type || null,
+        isTest: l.source_key === 'lo_onboarding_test',
+        notes: l.lead_summary || l.last_message_preview || null,
+        callId: callByLeadId[l.id] || null,
         // Pre-approval answers travel with the lead so the LO sees them on the card.
         timeline: pq?.purchase_timeline || meta.purchase_timeline || null,
         creditRange: pq?.credit_range || meta.credit_range || null,
@@ -31948,6 +31975,7 @@ app.get('/api/lo/leads', requireAuth, async (req, res) => {
       preQuals: preQualsMapped,
       chatLeads: chatLeadsMapped,
       totals: { preQuals: orphanPreQuals.length, chatLeads: chatCount || 0 },
+      nextOffset: offset + (chatLeads || []).length,
       hasMore: (chatLeads || []).length >= limit,
     });
   } catch (err) {
@@ -31982,7 +32010,28 @@ app.get('/api/lo/leads/:leadId/conversation', requireAuth, async (req, res) => {
     if (convError) throw convError;
 
     const conversation = Array.isArray(conversationRows) && conversationRows.length > 0 ? conversationRows[0] : null;
-    if (!conversation?.id) return res.json({ success: true, conversation: null, messages: [] });
+    if (!conversation?.id) {
+      // A lead created by the AI phone line has a call transcript instead of a web chat.
+      const { data: callRows } = await bestEffort(
+        supabaseAdmin.from('lo_phone_calls').select('id, summary, transcript, started_at')
+          .eq('lead_id', leadId).eq('lo_agent_id', loAgentId).order('started_at', { ascending: false }).limit(1)
+      ) || { data: [] };
+      const call = callRows?.[0];
+      if (call && Array.isArray(call.transcript) && call.transcript.length > 0) {
+        return res.json({
+          success: true,
+          conversation: { id: call.id, channel: 'phone', summary: call.summary || null },
+          messages: call.transcript.map((m, i) => ({
+            id: `${call.id}-${i}`,
+            sender: m.role === 'ai' ? 'assistant' : 'visitor',
+            channel: 'phone',
+            text: String(m.text || ''),
+            created_at: call.started_at
+          }))
+        });
+      }
+      return res.json({ success: true, conversation: null, messages: [] });
+    }
 
     const { data: messageRows, error: msgError } = await supabaseAdmin
       .from('ai_conversation_messages')
@@ -31997,9 +32046,6 @@ app.get('/api/lo/leads/:leadId/conversation', requireAuth, async (req, res) => {
       sender: m.sender,
       channel: m.channel || 'web',
       text: String(m.content || m.metadata?.text || ''),
-      is_capture_event: m.is_capture_event || false,
-      intent_tags: m.intent_tags || [],
-      confidence: m.confidence ?? null,
       created_at: m.created_at,
     }));
 
@@ -32036,7 +32082,7 @@ app.patch('/api/lo/leads/:leadId/status', requireAuth, async (req, res) => {
     if (!found) return res.status(404).json({ error: 'lead_not_found' });
     // Pre-quals have no status of their own; the status lives on the linked lead.
     const targetId = found.table === 'leads' ? found.row.id : found.row.lead_id;
-    if (!targetId) return res.json({ success: true, id: found.row.id, status: newStatus, persisted: false });
+    if (!targetId) return res.status(409).json({ error: 'legacy_pre_qual_no_status' });
     const { error } = await supabaseAdmin
       .from('leads').update({ status: newStatus }).eq('id', targetId);
     if (error) {
@@ -32046,6 +32092,28 @@ app.patch('/api/lo/leads/:leadId/status', requireAuth, async (req, res) => {
     return res.json({ success: true, id: found.row.id, status: newStatus });
   } catch (err) {
     console.error('[LO Lead Status] Failed:', err);
+    return res.status(500).json({ error: 'update_failed' });
+  }
+});
+
+// ── POST /api/lo/leads/:leadId/contacted — the LO tapped Call/Text on a lead ──
+// Stops the "waiting" timer and moves a New lead to Contacted. Never moves a lead backwards.
+app.post('/api/lo/leads/:leadId/contacted', requireAuth, async (req, res) => {
+  try {
+    let loAgentId = req.authUserId;
+    try { loAgentId = (await resolveLoAgentId(req)) || loAgentId; } catch { /* fallback */ }
+    const { data: lead } = await supabaseAdmin
+      .from('leads').select('id, status, contacted_at')
+      .eq('id', req.params.leadId).eq('lo_agent_id', loAgentId).maybeSingle();
+    if (!lead) return res.status(404).json({ error: 'lead_not_found' });
+    const patch = { updated_at: nowIso() };
+    if (!lead.contacted_at) patch.contacted_at = nowIso();
+    if (String(lead.status || 'New').toLowerCase() === 'new') patch.status = 'Contacted';
+    const { error } = await supabaseAdmin.from('leads').update(patch).eq('id', lead.id);
+    if (error) throw error;
+    return res.json({ success: true, status: patch.status || lead.status });
+  } catch (err) {
+    console.error('[LO Lead Contacted] Failed:', err);
     return res.status(500).json({ error: 'update_failed' });
   }
 });
@@ -32108,42 +32176,63 @@ app.get('/api/lo/search', requireAuth, async (req, res) => {
 // ── GET /api/lo/leads/export.csv — download all LO leads as CSV ──────────────
 app.get('/api/lo/leads/export.csv', requireAuth, async (req, res) => {
   try {
-    const loAgentId = req.authUserId;
+    // Leads are stamped with the LO's PROFILE id (agents.id), not the login id.
+    let loAgentId = req.authUserId;
+    try { loAgentId = (await resolveLoAgentId(req)) || loAgentId; } catch { /* fall back */ }
 
     const { data: leads, error } = await supabaseAdmin
       .from('leads')
-      .select('full_name, name, email_lower, email, phone, status, source_type, source_meta, created_at, listing_id')
+      .select('full_name, name, email_lower, email, phone, status, intent_level, source_type, source_meta, created_at, listing_id')
       .eq('lo_agent_id', loAgentId)
+      .or('source_key.is.null,source_key.neq.lo_onboarding_test')
       .order('created_at', { ascending: false })
       .limit(5000);
 
     if (error) throw error;
 
-    const listingIds = [...new Set((leads || []).map(l => l.listing_id).filter(Boolean))];
+    // Legacy pre-quals that never got a lead row are exported too.
+    const { data: orphanPq } = await supabaseAdmin
+      .from('pre_qual_submissions')
+      .select('full_name, email, phone, created_at, listing_id')
+      .eq('lo_agent_id', loAgentId)
+      .is('lead_id', null)
+      .limit(2000);
+
+    const listingIds = [...new Set([...(leads || []), ...(orphanPq || [])].map(l => l.listing_id).filter(Boolean))];
     let addressMap = {};
     if (listingIds.length > 0) {
-      const { data: listingRows } = await supabaseAdmin.from('listings').select('id, address').in('id', listingIds);
+      const { data: listingRows } = await supabaseAdmin.from('properties').select('id, address').in('id', listingIds);
       (listingRows || []).forEach(r => { addressMap[r.id] = r.address; });
     }
 
+    // A cell starting with = + - @ runs as a formula in Excel. Prefix it so a hostile lead name cannot.
     const csvEscape = (v) => {
       if (v === null || v === undefined) return '';
-      const str = String(v);
+      let str = String(v);
+      if (/^[=+\-@\t\r]/.test(str)) str = `'${str}`;
       return (str.includes(',') || str.includes('"') || str.includes('\n'))
         ? `"${str.replace(/"/g, '""')}"` : str;
     };
 
-    const headers = ['Name', 'Email', 'Phone', 'Listing Address', 'Source', 'Context', 'Status', 'Created At'];
-    const rows = (leads || []).map(l => [
-      l.full_name || l.name || '',
-      l.email_lower || l.email || '',
-      l.phone || '',
-      addressMap[l.listing_id] || '',
-      l.source_type || '',
-      l.source_meta?.context || '',
-      l.status || 'new',
-      l.created_at ? new Date(l.created_at).toISOString().split('T')[0] : ''
-    ].map(csvEscape).join(','));
+    const headers = ['Name', 'Email', 'Phone', 'Listing Address', 'Source', 'Context', 'Hot/Warm/Cold', 'Status', 'Created At'];
+    const rows = [
+      ...(leads || []).map(l => [
+        l.full_name || l.name || '',
+        l.email_lower || l.email || '',
+        l.phone || '',
+        addressMap[l.listing_id] || '',
+        l.source_type || '',
+        l.source_meta?.context || '',
+        l.intent_level || '',
+        l.status || 'New',
+        l.created_at ? new Date(l.created_at).toISOString().split('T')[0] : ''
+      ]),
+      ...(orphanPq || []).map(p => [
+        p.full_name || '', p.email || '', p.phone || '', addressMap[p.listing_id] || '',
+        'pre_qual', 'pre_approval', 'Hot', 'New',
+        p.created_at ? new Date(p.created_at).toISOString().split('T')[0] : ''
+      ])
+    ].map(r => r.map(csvEscape).join(','));
 
     const csv = [headers.join(','), ...rows].join('\n');
     res.setHeader('Content-Type', 'text/csv');
@@ -32297,7 +32386,7 @@ app.post('/api/lo/partners/invite', requireAuth, async (req, res) => {
     let loProfileId = loAuthId;
     try { loProfileId = (await resolveLoAgentId(req)) || loAuthId; } catch { /* fall back to auth id */ }
     const { email, name, phone, listingId } = req.body || {};
-    if (!email || !email.includes('@')) return res.status(400).json({ error: 'valid_email_required' });
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email).trim())) return res.status(400).json({ error: 'valid_email_required' });
     const invitedPhone = (phone && String(phone).trim()) || null;
     // Agent profile is used for email personalization only — never block the
     // invite if the profile row is missing (some accounts have no agents row).
@@ -32346,7 +32435,8 @@ app.post('/api/lo/partners/invite', requireAuth, async (req, res) => {
     if (existing && existing.length > 0 && !existing[0].claimed_at) {
       token = existing[0].token;
       // Update listing_id / phone on existing token if provided
-      const existingUpdate = {};
+      // A revoked or expired token must come back to life, or the new email is a dead link.
+      const existingUpdate = { expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() };
       if (resolvedListingId) existingUpdate.listing_id = resolvedListingId;
       if (invitedPhone) existingUpdate.invited_phone = invitedPhone;
       if (Object.keys(existingUpdate).length) await supabaseAdmin.from('agent_invites').update(existingUpdate).eq('id', existing[0].id);
@@ -32368,17 +32458,20 @@ app.post('/api/lo/partners/invite', requireAuth, async (req, res) => {
     }
     const nmls = loAgent?.nmls_number || null;
     const emailHtml = buildWowLinkEmail({ name, loName, loBrand, wowLink, claimLink, address: listingAddress, nmls });
+    let emailSent = true;
     try {
       await emailService.sendEmail({ to: emailLower, subject: `${loName} built a listing demo for you`, html: emailHtml });
-    } catch (emailErr) { console.warn('[LO Invite] Email failed (non-fatal):', emailErr?.message); }
+    } catch (emailErr) { emailSent = false; console.warn('[LO Invite] Email failed (non-fatal):', emailErr?.message); }
     // Text version (concept C). Returned as copy so the LO sends it from their own phone.
     const smsText = buildWowLinkText({ name, loName, wowLink, address: listingAddress });
-    res.json({ success: true, message: 'Invite sent', wowLink, claimLink, smsText });
+    res.json({ success: true, message: emailSent ? 'Invite sent' : 'Invite created, but the email did not send', emailSent, wowLink, claimLink, smsText });
   } catch (err) {
     console.error('[LO Invite] Failed:', err);
     res.status(500).json({ error: 'invite_failed' });
   }
 });
+
+const loInviteResendAt = new Map(); // inviteId -> last resend time
 
 // ── POST /api/lo/partners/invite/:inviteId/resend ─────────────────────────────
 app.post('/api/lo/partners/invite/:inviteId/resend', requireAuth, async (req, res) => {
@@ -32396,6 +32489,14 @@ app.post('/api/lo/partners/invite/:inviteId/resend', requireAuth, async (req, re
     if (!invite) return res.status(404).json({ error: 'invite_not_found' });
     if (invite.claimed_at) return res.status(409).json({ error: 'already_claimed' });
 
+    // One resend per invite every 10 minutes, so the button cannot be used to spam an agent.
+    const lastResend = loInviteResendAt.get(inviteId) || 0;
+    if (Date.now() - lastResend < 10 * 60 * 1000) {
+      return res.status(429).json({ error: 'too_soon', message: 'You just resent this one. Give it a few minutes.' });
+    }
+    if (loInviteResendAt.size > 5000) loInviteResendAt.clear();
+    loInviteResendAt.set(inviteId, Date.now());
+
     // Extend expiry by 30 days from now
     const newExpiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
     await supabaseAdmin.from('agent_invites').update({ expires_at: newExpiry }).eq('id', inviteId);
@@ -32404,7 +32505,7 @@ app.post('/api/lo/partners/invite/:inviteId/resend', requireAuth, async (req, re
     try { loProfileId = (await resolveLoAgentId(req)) || loAuthId; } catch { /* fallback */ }
 
     const { data: loAgent } = await supabaseAdmin.from('agents')
-      .select('id, first_name, last_name, company, headshot_url')
+      .select('id, first_name, last_name, company, headshot_url, nmls_number')
       .eq('id', loProfileId).limit(1).maybeSingle();
 
     const appBase = (process.env.APP_BASE_URL || process.env.DASHBOARD_BASE_URL || 'https://homelistingai.com').replace(/\/$/, '');
@@ -32519,12 +32620,8 @@ app.get('/api/public/partner-invite/:token', async (req, res) => {
 
     // For claimed tokens, verify the partnership is still active
     if (invite.claimed_at) {
-      const { data: claimedInvite } = await supabaseAdmin
-        .from('agent_invites')
-        .select('claimed_agent_id')
-        .eq('id', invite.id)
-        .maybeSingle();
-      if (claimedInvite?.claimed_agent_id) {
+      const claimedInvite = { claimed_agent_id: invite.claimed_agent_id };
+      if (claimedInvite.claimed_agent_id) {
         const { data: partnership } = await supabaseAdmin
           .from('lo_agent_partnerships')
           .select('status')
@@ -32550,15 +32647,33 @@ app.get('/api/public/partner-invite/:token', async (req, res) => {
       .maybeSingle();
     const loName = [lo?.first_name, lo?.last_name].filter(Boolean).join(' ') || 'Your Loan Officer';
 
-    // Get listing data if attached
+    // Get listing data if attached. invite.listing_id is a properties.id (the canonical table);
+    // the old `listings` stub never held these homes, so the WOW page always fell back to the demo.
     let listing = null;
     if (invite.listing_id) {
-      const { data: listingRow } = await supabaseAdmin
-        .from('listings')
-        .select('id, address, price, beds, baths, sqft, description, hero_photos, gallery_photos, share_url, status')
+      const { data: row } = await supabaseAdmin
+        .from('properties')
+        .select('id, address, title, price, bedrooms, bathrooms, sqft, description, hero_photos, gallery_photos, public_slug, status, is_published')
         .eq('id', invite.listing_id)
         .maybeSingle();
-      if (listingRow && listingRow.status === 'published') listing = listingRow;
+      if (row && isListingPublished(row)) {
+        const urls = (list) => (Array.isArray(list) ? list : [])
+          .map((item) => (typeof item === 'string' ? item : item?.url))
+          .filter((u) => typeof u === 'string' && /^https?:\/\//i.test(u));
+        listing = {
+          id: row.id,
+          address: row.address || row.title || 'Listing',
+          price: Number(row.price) || 0,
+          beds: Number(row.bedrooms) || 0,
+          baths: Number(row.bathrooms) || 0,
+          sqft: Number(row.sqft) || 0,
+          description: String(row.description || ''),
+          hero_photos: urls(row.hero_photos),
+          gallery_photos: urls(row.gallery_photos),
+          share_url: row.public_slug ? buildListingShareUrl(row.public_slug) : null,
+          status: row.status
+        };
+      }
     }
 
     // chatbot configs are keyed by the PROFILE id (agents.id), not the auth id
@@ -33644,7 +33759,7 @@ app.get('/api/lo/partners', requireAuth, async (req, res) => {
     try { loProfileId = (await resolveLoAgentId(req)) || loAuthId; } catch { /* fall back */ }
     const { data: partnerships } = await supabaseAdmin.from('lo_agent_partnerships').select('id, status, created_at, notes, rating, last_follow_up, agent:agent_id(id, auth_user_id, first_name, last_name, email, phone, headshot_url, company, website)').eq('lo_agent_id', loProfileId).eq('status', 'active').order('created_at', { ascending: false });
     // agent_invites.lo_agent_id stores the auth id — keep using loAuthId here
-    const { data: pendingInvites } = await supabaseAdmin.from('agent_invites').select('id, token, invited_email, invited_name, invited_phone, created_at, opened_at, cta_clicked_at').eq('lo_agent_id', loAuthId).is('claimed_at', null).gt('expires_at', nowIso());
+    const { data: pendingInvites } = await supabaseAdmin.from('agent_invites').select('id, token, invited_email, invited_name, invited_phone, listing_id, created_at, opened_at, cta_clicked_at').eq('lo_agent_id', loAuthId).is('claimed_at', null).gt('expires_at', nowIso()).order('created_at', { ascending: false });
     // Group the LO's co-branded listings under the partner agent who owns each one.
     // properties.agent_id holds the owner's AUTH id, so map partner auth id -> profile id.
     const assignedRows = await fetchLoAssignedListings(loProfileId);
@@ -33685,7 +33800,29 @@ app.get('/api/lo/partners', requireAuth, async (req, res) => {
       const listings = (listingsByAgent[agentId] || []).map(l => ({ listingId: l.listingId, address: l.address || 'Unknown', price: l.price || null, status: l.status || 'draft', heroPhoto: l.heroPhoto || null, totalLeads: leadsByListing[l.listingId] || 0, totalViews: viewsByListing[l.listingId] || 0 }));
       return { partnershipId: p.id, agentId, name: [agent.first_name, agent.last_name].filter(Boolean).join(' ') || 'Agent', email: agent.email || null, phone: agent.phone || null, website: agent.website || null, headshotUrl: agent.headshot_url || null, company: agent.company || null, totalLeads: leadCountByAgent[agentId] || 0, listings, joinedAt: p.created_at, notes: p.notes || '', rating: p.rating || null, lastFollowUp: p.last_follow_up || null };
     });
-    res.json({ success: true, partners, pendingInvites: (pendingInvites || []).map(i => ({ id: i.id, token: i.token, email: i.invited_email, name: i.invited_name || null, phone: i.invited_phone || null, sentAt: i.created_at, openedAt: i.opened_at || null, ctaClickedAt: i.cta_clicked_at || null })) });
+    // Each pending invite carries its link and the ready-to-send text, so the LO can text it from their own phone.
+    const appBaseUrl = (process.env.APP_BASE_URL || process.env.DASHBOARD_BASE_URL || 'https://homelistingai.com').replace(/\/$/, '');
+    const { data: meRow } = await supabaseAdmin.from('agents').select('first_name, last_name').eq('id', loProfileId).maybeSingle();
+    const meName = [meRow?.first_name, meRow?.last_name].filter(Boolean).join(' ') || 'your loan officer';
+    const inviteListingIds = [...new Set((pendingInvites || []).map((i) => i.listing_id).filter(Boolean))];
+    const inviteAddress = {};
+    if (inviteListingIds.length > 0) {
+      const { data: invProps } = await supabaseAdmin.from('properties').select('id, address').in('id', inviteListingIds);
+      (invProps || []).forEach((r) => { inviteAddress[r.id] = r.address; });
+    }
+    // Month's invite use, for the "7 of 10" meter.
+    let inviteUsage = null;
+    try {
+      const { data: meFull } = await supabaseAdmin.from('agents').select('id, stripe_customer_id, payment_status, created_at').eq('id', loProfileId).maybeSingle();
+      const limit = await resolveLoWowInviteLimit(meFull);
+      const monthStart = new Date(); monthStart.setUTCDate(1); monthStart.setUTCHours(0, 0, 0, 0);
+      const { count: usedThisMonth } = await supabaseAdmin.from('agent_invites').select('id', { count: 'exact', head: true }).eq('lo_agent_id', loAuthId).gte('created_at', monthStart.toISOString());
+      inviteUsage = { used: usedThisMonth || 0, limit: Number.isFinite(limit) ? limit : null };
+    } catch { /* the meter is a bonus */ }
+    res.json({ success: true, partners, inviteUsage, pendingInvites: (pendingInvites || []).map(i => {
+      const wowLink = `${appBaseUrl}/partner-invite/${i.token}`;
+      return { id: i.id, token: i.token, email: i.invited_email, name: i.invited_name || null, phone: i.invited_phone || null, sentAt: i.created_at, openedAt: i.opened_at || null, ctaClickedAt: i.cta_clicked_at || null, wowLink, smsText: buildWowLinkText({ name: i.invited_name, loName: meName, wowLink, address: inviteAddress[i.listing_id] || null }) };
+    }) });
   } catch (err) {
     console.error('[LO Partners] Failed:', err);
     res.status(500).json({ error: 'failed_to_load_partners' });
@@ -33779,6 +33916,8 @@ app.post('/api/lo/test-lead', requireAuth, async (req, res) => {
     try { loProfileId = (await resolveLoAgentId(req)) || loAuthId; } catch { /* fall back */ }
 
     const lo = await supabaseAdmin.from('agents').select('first_name, email, phone').eq('id', loProfileId).maybeSingle();
+    // Only one test lead at a time, so repeated clicks never pile up in the pipeline.
+    await bestEffort(supabaseAdmin.from('leads').delete().eq('lo_agent_id', loProfileId).eq('source_key', 'lo_onboarding_test'));
     const ts = new Date().toISOString();
     const insertPayload = {
       user_id: loProfileId,
@@ -33805,7 +33944,7 @@ app.post('/api/lo/test-lead', requireAuth, async (req, res) => {
       last_contact: ts,
       first_touch_at: ts,
       last_touch_at: ts,
-      notes: 'This is your test lead — it shows you exactly what a real warm buyer looks like. Delete it anytime.',
+      notes: 'This is your test lead — it shows you exactly what a real warm buyer looks like. Tap Delete test lead on this card when you are done.',
       created_at: ts,
       updated_at: ts
     };
@@ -33819,6 +33958,25 @@ app.post('/api/lo/test-lead', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('[LO Test Lead] Failed:', err);
     res.status(500).json({ error: 'test_lead_failed' });
+  }
+});
+
+// ── DELETE /api/lo/leads/:leadId — remove the onboarding TEST lead (real leads are never deleted here) ──
+app.delete('/api/lo/leads/:leadId', requireAuth, async (req, res) => {
+  try {
+    let loAgentId = req.authUserId;
+    try { loAgentId = (await resolveLoAgentId(req)) || loAgentId; } catch { /* fallback */ }
+    const { data: lead } = await supabaseAdmin
+      .from('leads').select('id, source_key')
+      .eq('id', req.params.leadId).eq('lo_agent_id', loAgentId).maybeSingle();
+    if (!lead) return res.status(404).json({ error: 'lead_not_found' });
+    if (lead.source_key !== 'lo_onboarding_test') return res.status(403).json({ error: 'only_test_leads_can_be_deleted' });
+    const { error } = await supabaseAdmin.from('leads').delete().eq('id', lead.id);
+    if (error) throw error;
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('[LO Lead Delete] Failed:', err);
+    return res.status(500).json({ error: 'delete_failed' });
   }
 });
 
@@ -34309,72 +34467,31 @@ app.get('/api/dashboard/listings/:listingId/agent-share-kit', async (req, res) =
   }
 });
 
-// ── Lead Follow-Up Nudge Job ──────────────────────────────────────────────────
-app.post('/api/internal/run-nudge-job', async (req, res) => {
-  try {
-    const secret = req.headers['x-internal-secret'];
-    // No built-in default secret: set INTERNAL_JOB_SECRET in the environment.
-    if (!process.env.INTERNAL_JOB_SECRET || secret !== process.env.INTERNAL_JOB_SECRET) return res.status(403).json({ error: 'forbidden' });
-    const cutoff24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const cutoff48h = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
-    const { data: unworkedLeads } = await supabaseAdmin.from('leads').select('id, agent_id, lo_agent_id, full_name, name, listing_id').lte('created_at', cutoff24h).gte('created_at', cutoff48h).is('contacted_at', null).is('nudge_sent_at', null).limit(100);
-    const nudged = [];
-    for (const lead of (unworkedLeads || [])) {
-      const displayName = lead.full_name || lead.name || 'A lead';
-      const { data: listingRow } = await bestEffort(supabaseAdmin.from('listings').select('address').eq('id', lead.listing_id).single()) || { data: null };
-      const address = listingRow?.address || 'a listing';
-      await bestEffort(supabaseAdmin.from('notifications').insert({ user_id: lead.agent_id, title: '⏰ Lead needs follow-up', content: `${displayName} reached out 24h ago at ${address} — no contact yet.`, type: 'lead', priority: 'high', is_read: false }));
-      if (lead.lo_agent_id && lead.lo_agent_id !== lead.agent_id) {
-        await bestEffort(supabaseAdmin.from('notifications').insert({ user_id: lead.lo_agent_id, title: '⏰ Lead needs follow-up', content: `${displayName} at ${address} hasn't been contacted in 24h.`, type: 'lead', priority: 'high', is_read: false }));
-      }
-      await bestEffort(supabaseAdmin.from('leads').update({ nudge_sent_at: nowIso() }).eq('id', lead.id));
-      nudged.push(lead.id);
-    }
-    res.json({ success: true, nudged: nudged.length });
-  } catch (err) {
-    console.error('[NudgeJob] Failed:', err);
-    res.status(500).json({ error: 'nudge_job_failed' });
-  }
-});
-
-// ── Mark Lead Contacted ───────────────────────────────────────────────────────
-app.patch('/api/leads/:leadId/contacted', requireAuth, async (req, res) => {
-  try {
-    const agentId = req.authUserId;
-    const { leadId } = req.params;
-    const { data: lead } = await supabaseAdmin.from('leads').select('id, agent_id, lo_agent_id').eq('id', leadId).single();
-    if (!lead) return res.status(404).json({ error: 'lead_not_found' });
-    if (lead.agent_id !== agentId && lead.lo_agent_id !== agentId) return res.status(403).json({ error: 'access_denied' });
-    await supabaseAdmin.from('leads').update({ contacted_at: nowIso(), updated_at: nowIso(), status: 'Contacted' }).eq('id', leadId);
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: 'update_failed' });
-  }
-});
-
 // ── LO Listing Limit Check ────────────────────────────────────────────────────
 // Caps must match the marketed plans (PricingSectionNew/LOSignupPage):
 // LO Lite $79 → 5, trial + LO $149 → 20, LO Pro $299 → 50, expired/no plan → 1 (Free tier).
 const LO_PLAN_LISTING_LIMITS = { trial: 20, lo_lite: 5, lo: 20, lo_pro: 50, none: 1 };
+// How many listings this LO may be on, how many they are on, and whether they can add another.
+// Office-managed LOs (and the office / white-label plans) are never capped here.
+async function loListingCapacity(loProfileId) {
+  const { data: agentRow } = await supabaseAdmin.from('agents')
+    .select('plan, office_id, stripe_customer_id, payment_status, created_at').eq('id', loProfileId).maybeSingle();
+  const rows = (await fetchLoAssignedListings(loProfileId)).filter((r) => !['archived', 'sold'].includes(String(r.status || '').toLowerCase()));
+  const used = rows.length;
+  if (!agentRow || agentRow.office_id || agentRow.plan === 'office' || agentRow.plan === 'white_label') {
+    return { tier: 'office', limit: -1, used, unlimited: true, atLimit: false, remaining: null };
+  }
+  const tier = await resolveLoPlanTier(agentRow);
+  const limit = LO_PLAN_LISTING_LIMITS[tier] ?? LO_PLAN_LISTING_LIMITS.none;
+  return { tier, limit, used, unlimited: false, atLimit: used >= limit, remaining: Math.max(0, limit - used) };
+}
+
 app.get('/api/lo/listing-limit', requireAuth, async (req, res) => {
   try {
     const loAgentId = await resolveLoAgentId(req);
     if (!loAgentId) return res.status(401).json({ error: 'unauthorized' });
-    const assignedRows = await fetchLoAssignedListings(loAgentId);
-    const publishedCount = assignedRows.filter(r => r.status === 'published').length;
-    // NOTE: the column is agents.plan — selecting the non-existent plan_id made
-    // this whole query silently fail, so every LO (incl. paying) got the Free
-    // limit of 1. Fixed 2026-07-06.
-    const { data: agentRow } = await supabaseAdmin.from('agents').select('plan, stripe_customer_id, payment_status, created_at').eq('id', loAgentId).single();
-    const plan = agentRow?.plan || 'lo_partner';
-    let limit;
-    if (plan === 'office' || plan === 'white_label') {
-      limit = -1;
-    } else {
-      const tier = await resolveLoPlanTier(agentRow);
-      limit = LO_PLAN_LISTING_LIMITS[tier] ?? LO_PLAN_LISTING_LIMITS.none;
-    }
-    res.json({ success: true, published: publishedCount, limit, unlimited: limit === -1, atLimit: limit !== -1 && publishedCount >= limit, remaining: limit === -1 ? null : Math.max(0, limit - publishedCount) });
+    const cap = await loListingCapacity(loAgentId);
+    res.json({ success: true, published: cap.used, used: cap.used, limit: cap.limit, tier: cap.tier, unlimited: cap.unlimited, atLimit: cap.atLimit, remaining: cap.remaining });
   } catch (err) {
     res.status(500).json({ error: 'limit_check_failed' });
   }
@@ -34614,6 +34731,20 @@ app.post('/api/lo/listings/:listingId/assign', requireAuth, async (req, res) => 
     }
     if (!allowed) return res.status(403).json({ error: 'not_partnered_with_listing_owner' });
 
+    // The plan's listing cap, as marketed (Lite 5, LO 20, Pro 50). Re-adding a listing you are already on is always fine.
+    const { data: already } = await supabaseAdmin.from('listing_lo_assignments').select('listing_id').eq('listing_id', listingId).eq('lo_agent_id', loProfileId).maybeSingle();
+    if (!already) {
+      const cap = await loListingCapacity(loProfileId);
+      if (cap.atLimit) {
+        return res.status(403).json({
+          error: 'listing_limit_reached', tier: cap.tier, limit: cap.limit, used: cap.used,
+          message: cap.tier === 'none'
+            ? 'Your free trial has ended. Choose a plan to add more listings.'
+            : `Your plan includes ${cap.limit} listings. Upgrade to add more.`
+        });
+      }
+    }
+
     const { error: upsertErr } = await supabaseAdmin.from('listing_lo_assignments').upsert({ listing_id: listingId, lo_agent_id: loProfileId, branding_enabled: true, assigned_at: nowIso() }, { onConflict: 'listing_id,lo_agent_id' });
     if (upsertErr) throw upsertErr;
     res.json({ success: true });
@@ -34788,6 +34919,10 @@ app.get('/api/lo/chatbot-config', requireLoAgent, async (req, res) => {
 app.put('/api/lo/chatbot-config', requireLoAgent, async (req, res) => {
   try {
     const agentId = req.loAgentId;
+    // The whole knowledge base rides along on every buyer message, so it is capped. Say so
+    // out loud instead of quietly cutting the end off and reporting "saved".
+    const tooLong = ['knowledge_base', 'compliance_rules'].find((k) => typeof req.body?.[k] === 'string' && req.body[k].length > 60000);
+    if (tooLong) return res.status(413).json({ error: 'brain_text_too_long', field: tooLong, limit: 60000 });
     const patch = pickLoBrainPatch(req.body || {});
     if (typeof patch.bot_name === 'string' && !patch.bot_name.trim()) patch.bot_name = 'Your Loan Officer';
 
@@ -35190,24 +35325,6 @@ app.post('/api/lo/brain/feedback', requireLoAgent, async (req, res) => {
   }
 });
 
-// DELETE /api/lo/chatbot/compliance-doc — clear LO's uploaded compliance rules
-app.delete('/api/lo/chatbot/compliance-doc', requireLoAgent, async (req, res) => {
-  try {
-    const agentId = req.loAgentId;
-
-    const { error } = await supabaseAdmin
-      .from('lo_chatbot_configs')
-      .update({ compliance_rules: '', updated_at: new Date().toISOString() })
-      .eq('lo_agent_id', agentId);
-
-    if (error) throw error;
-    res.json({ success: true });
-  } catch (err) {
-    console.error('[LO Compliance Doc DELETE] Error:', err);
-    res.status(500).json({ error: 'failed_to_clear_compliance_rules' });
-  }
-});
-
 // ─── LO per-listing financing KB docs (rate sheet + payment disclosures) ───────
 // The "Listing Brain" tab reads/writes financing docs scoped to the LO + listing
 // address; the buyer chatbot pulls them at chat time (see getLoListingKbContext).
@@ -35340,6 +35457,8 @@ app.get('/api/public/listing/:listingId/lo-chatbot', async (req, res) => {
       .from('listing_lo_assignments')
       .select('lo_agent_id')
       .eq('listing_id', listingId)
+      .order('assigned_at', { ascending: true })
+      .limit(1)
       .maybeSingle();
 
     if (assignErr) throw assignErr;
@@ -35390,8 +35509,6 @@ app.get('/api/public/listing/:listingId/lo-chatbot', async (req, res) => {
 // POST /api/lo/chatbot/extract-url — scrape a URL and return plain text (auth required)
 app.post('/api/lo/chatbot/extract-url', requireAuth, async (req, res) => {
   try {
-    const agentId = req.authUserId;
-
     const { url } = req.body;
     if (!url || typeof url !== 'string') return res.status(400).json({ error: 'url_required' });
 
@@ -35417,11 +35534,12 @@ app.post('/api/lo/chatbot/extract-url', requireAuth, async (req, res) => {
     // Extract meaningful text
     const title = $('title').text().trim();
     const metaDesc = $('meta[name="description"]').attr('content') || '';
-    const bodyText = $('body').text()
+    const fullBodyText = $('body').text()
       .replace(/\s{2,}/g, ' ')
       .replace(/\n{3,}/g, '\n\n')
-      .trim()
-      .slice(0, 12000); // cap at 12k chars
+      .trim();
+    const urlTruncated = fullBodyText.length > 12000;
+    const bodyText = fullBodyText.slice(0, 12000); // cap at 12k chars
 
     const extracted = [
       title ? `Page: ${title}` : '',
@@ -35429,7 +35547,7 @@ app.post('/api/lo/chatbot/extract-url', requireAuth, async (req, res) => {
       bodyText
     ].filter(Boolean).join('\n\n');
 
-    res.json({ text: extracted, chars: extracted.length, url: fetchUrl });
+    res.json({ text: extracted, chars: extracted.length, url: fetchUrl, truncated: urlTruncated });
   } catch (err) {
     const msg = err?.message || String(err);
     console.error('[LO Chatbot extract-url]', msg);
@@ -35474,8 +35592,6 @@ app.post('/api/lo/chatbot/extract-file', requireAuth, (req, res, next) => {
   });
 }, async (req, res) => {
   try {
-    const agentId = req.authUserId;
-
     if (!req.file) return res.status(400).json({ error: 'no_file' });
 
     const { mimetype, originalname, buffer } = req.file;
@@ -35493,10 +35609,11 @@ app.post('/api/lo/chatbot/extract-file', requireAuth, (req, res, next) => {
     text = text
       .replace(/\r\n/g, '\n')
       .replace(/\n{3,}/g, '\n\n')
-      .trim()
-      .slice(0, 50000); // cap at 50k chars
+      .trim();
+    const truncated = text.length > 50000;
+    if (truncated) text = text.slice(0, 50000); // cap at 50k chars
 
-    res.json({ text, chars: text.length, filename: originalname });
+    res.json({ text, chars: text.length, filename: originalname, truncated });
   } catch (err) {
     console.error('[LO Chatbot extract-file]', err?.message || err);
     res.status(500).json({ error: 'extract_failed', message: 'Could not extract text from that file.' });

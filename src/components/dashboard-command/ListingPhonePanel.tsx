@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { buildApiUrl } from '../../lib/api';
-import { supabase } from '../../services/supabase';
+import { authHeaders } from '../../services/dashboard/utils';
 import { showToast } from '../../utils/toastService';
 
 // A listing's own AI phone number. Calls share the LO's monthly AI minutes.
@@ -17,15 +17,7 @@ export interface ListingPhoneLine {
   transferNumber?: string | null;
 }
 
-const getHeaders = async (): Promise<HeadersInit> => {
-  const { data: { session } } = await supabase.auth.getSession();
-  const { data } = await supabase.auth.getUser();
-  return {
-    'Content-Type': 'application/json',
-    ...(data.user?.id ? { 'x-user-id': data.user.id } : {}),
-    ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {})
-  };
-};
+const getHeaders = async (): Promise<HeadersInit> => authHeaders(null);
 
 const prettyPhone = (e164: string | null) => {
   const d = String(e164 || '').replace(/\D/g, '').slice(-10);

@@ -1,19 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { buildApiUrl } from '../../lib/api';
-import { supabase } from '../../services/supabase';
+import { authHeaders } from '../../services/dashboard/utils';
 import { showToast } from '../../utils/toastService';
 
 // The one on/off switch for an LO's AI (listing chat + phone). Saves the moment it's flipped.
 
-const getHeaders = async (): Promise<HeadersInit> => {
-  const { data: { session } } = await supabase.auth.getSession();
-  const { data } = await supabase.auth.getUser();
-  return {
-    'Content-Type': 'application/json',
-    ...(data.user?.id ? { 'x-user-id': data.user.id } : {}),
-    ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {})
-  };
-};
+const getHeaders = async (): Promise<HeadersInit> => authHeaders(null);
+
+export const AI_POWER_EVENT = 'hlai-ai-power';
 
 const AiPowerSwitch: React.FC<{ demo?: boolean }> = ({ demo = false }) => {
   const [on, setOn] = useState<boolean | null>(demo ? true : null);
@@ -30,7 +24,9 @@ const AiPowerSwitch: React.FC<{ demo?: boolean }> = ({ demo = false }) => {
         if (!cancelled) setOn(data.is_active !== false);
       } catch { /* switch stays hidden if the brain can't be reached */ }
     })();
-    return () => { cancelled = true; };
+    const sync = (e: Event) => setOn(Boolean((e as CustomEvent<{ on: boolean }>).detail?.on));
+    window.addEventListener(AI_POWER_EVENT, sync);
+    return () => { cancelled = true; window.removeEventListener(AI_POWER_EVENT, sync); };
   }, [demo]);
 
   if (on === null) return null;
@@ -44,6 +40,7 @@ const AiPowerSwitch: React.FC<{ demo?: boolean }> = ({ demo = false }) => {
     try {
       const res = await fetch(buildApiUrl('/api/lo/chatbot-config'), { method: 'PUT', headers: await getHeaders(), body: JSON.stringify({ is_active: next }) });
       if (!res.ok) throw new Error('save_failed');
+      window.dispatchEvent(new CustomEvent(AI_POWER_EVENT, { detail: { on: next } }));
     } catch {
       setOn(!next);
       showToast.error('Could not change that. Try again.');
