@@ -1,9 +1,12 @@
+# Target setup as of 2026-10-02 (the live services were created by hand, not from this file).
+# ONE always-on service runs the web server, the 60-second background loop and the job queue.
+# Retire home-listing-ai-worker and home-listing-ai-video-worker in the Render dashboard.
 services:
   - type: web
     name: home-listing-ai-backend
     runtime: node
     region: oregon
-    plan: free
+    plan: starter
     autoDeploy: true
     buildCommand: npm install --include=dev --ignore-scripts && npm run build && cd backend && npm install --omit=dev --ignore-scripts && PUPPETEER_CACHE_DIR=/opt/render/project/src/backend/.cache/puppeteer npx puppeteer browsers install chrome
     startCommand: cd backend && node server.cjs
@@ -14,24 +17,8 @@ services:
       - key: PORT
         value: 10000
       - key: APP_RUNTIME_MODE
-        value: web
-      - key: JOB_WORKER_ENABLED
-        value: false
-      - key: PUPPETEER_CACHE_DIR
-        value: /opt/render/project/src/backend/.cache/puppeteer
-  - type: worker
-    name: home-listing-ai-worker
-    runtime: node
-    region: oregon
-    plan: starter
-    buildCommand: npm install --include=dev --ignore-scripts && npm run build && cd backend && npm install --omit=dev --ignore-scripts
-    startCommand: cd backend && node server.cjs
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - key: APP_RUNTIME_MODE
-        value: worker
+        value: all
       - key: JOB_WORKER_ENABLED
         value: true
-      - key: JOB_WORKER_BATCH_SIZE
-        value: 1
+      - key: PUPPETEER_CACHE_DIR
+        value: /opt/render/project/src/backend/.cache/puppeteer

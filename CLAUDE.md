@@ -63,6 +63,10 @@ It helps agents:
 - Frontend components live in `src/components/`. Page-level route components live in `src/pages/` or `src/components/dashboard-command/`.
 - **API auth pattern**: All dashboard API calls must send `Authorization: Bearer {accessToken}`. Use `authHeaders(agentId)` (async, from `src/services/dashboard/utils.ts`). `defaultJsonHeaders` is now an **alias of `authHeaders`** (as of 2026-10-01) — it is async and must be awaited; there is no token-less builder any more. `resolveRequesterUserId()` in production requires a Bearer token; without it the endpoint returns 401.
 - **Never derive an owner id from the request.** No `req.query.agentId`, `req.headers['x-user-id']` or `DEFAULT_LEAD_USER_ID` fallback — that is a hole, not a pattern. Use the guards/resolvers: `requireAuth` · `requireLoAgent` · `requireOffice` · `verifyAdmin` · `resolveDashboardOwnerId(req)` (async, 401 on null) for `/api/dashboard/*` · `resolveLoAgentId(req)` for FK-enforced LO tables · `resolveBillingAgentId(req)` · `appointmentOwnerIds(req)`.
+- **Every `/api` route needs a guard or an allowlist entry.** `backend/__tests__/routeGuards.test.js` fails the build for any route with no login guard that is not in `backend/__tests__/publicRoutes.allowlist.js`. Money, mail, SMS, calls, deletes and paid-AI routes must NEVER be public. Probe new routes live with an empty POST body: a 400 with no token means it is open.
+- **Never select a column you have not verified.** The `agents` table has NO `full_name` and NO `brokerage` (use `first_name`+`last_name` and `company`); `properties` has no `city/state/zip`. Supabase returns `data: null` and the code swallows it. Run `node backend/scripts/check-db-columns.cjs --sql` and paste the output into the Supabase SQL editor (or set `SUPABASE_DB_URL`), or `npm run check:db`. The server also logs `🚨 [DB SCHEMA ERROR]` for any such query.
+- **User-typed URLs must go through `safeFetch()`** (`backend/services/safeUrl.js`), never a bare `fetch(url)` (SSRF).
+- **The app stylesheet is `src/public.css`** (`main.tsx` → `PublicApp` → `public.css`). Its last block is the dashboard accessibility layer (12px minimum text, AA contrast, 40px touch targets). `styles.css` / `index.tsx` / `App.css` were dead and are deleted.
 - **Never write `.catch()` directly on a Supabase query builder.** A builder is a thenable with `then` but **no `catch`**, so `.catch(() => null)` throws *after* the write already happened. Use the `bestEffort(query)` helper in `server.cjs`.
 
 ---
@@ -132,7 +136,8 @@ It helps agents:
 
 ### ⚠️ Infrastructure Notes
 
-- **Render has two services**: `home-listing-ai-backend` (web, free plan) and `home-listing-ai-worker` (worker, starter plan). The worker needs `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` added to its Render environment — currently missing, causes worker crash. Web service is fine.
+- **Render (as of 2026-10-02): ONE service does everything.** `home-listing-ai-backend` runs `APP_RUNTIME_MODE=all` + `JOB_WORKER_ENABLED=true` (verify at `/healthz`: `run_background_tasks` and `run_job_worker` must be `true`). In `web` mode the 60-second loop (trial warnings, trial expiry, daily digest, follow-up funnel engine) and the job queue (email_send, sms_send, Stripe webhook jobs, lead summaries) did NOT run anywhere. **To do (Chris):** upgrade the web service to the $7 Starter plan (free plan sleeps; a GitHub Action pings it every 10 min), then suspend `home-listing-ai-worker`, delete `home-listing-ai-video-worker`, and downgrade the $25/mo Pro workspace plan. The ai-you-* services on the same account belong to a different business. A payment failure on the Render account (Sep invoice $73.52) was open on 2026-10-02: **pay it first.**
+- **Optional env to set on Render:** `SENTRY_DSN` (Sentry is already wired; free Developer plan), `CRON_SECRET` and `INTERNAL_JOB_SECRET` (the cron/nudge routes now refuse without them; the old hardcoded defaults were removed), `EMAIL_WEBHOOK_SECRET` (generic bounce hook is closed without it).
 - **Netlify proxy**: `/api/*` → Render backend. The old `/api/ai-card/*` → Netlify Functions redirect was dead and has been removed.
 - **Email inbound**: Mailgun receiving domain is `mg.homelistingai.com` (MX records already in Netlify DNS). Route set up to POST to `/api/leads/email-forward`. Agent forwarding address format: `{agent-slug}@mg.homelistingai.com`.
 - **`supabase` and `supabaseAdmin`** in `server.cjs` are guarded against null (won't crash if env vars missing at startup).
@@ -196,7 +201,26 @@ No long explanations. No walls of text. Table in, table out.
 
 ---
 
-## 7. Current State Snapshot (as of 2026-10-01)
+## 7. Current State Snapshot (as of 2026-10-02)
+
+### ✅ Recently completed — Security + dashboard hardening day (2026-10-02, commits dd126dc6 … b93cb43e)
+
+| Area | Notes |
+|---|---|
+| **🔴 Second security lockdown** | ~60 owner-scoped routes locked (listings, conversations, sidekicks, email/security/notification settings, funnels, lead stats, ai-card writes) with new hoisted guards in `server.cjs`: `authOwnsId`, `requireParamOwner`, `requireLeadOwner`, `requireConversationAccess`, `requireNamedUserIsCaller`, `requireSidekickOwner`. Then probing live with empty POSTs found that anyone on the internet could send email (any From), place calls, send SMS, make short links, use paid OpenAI, **delete any agent** (`/api/setup/reset-agent`), open **any account's Stripe portal**, email attacker-chosen addresses (`notify-login`) and mark any lead Bounced. All closed and verified 401. Hardcoded fallback secrets removed. SSRF closed via `safeFetch`. |
+| **Safety nets** | Route-guard test + allowlist (above), `dbErrorWatch` (loud schema errors, Sentry if configured), `check-db-columns` script. `npm run test:backend` = 155 tests. |
+| **🔴 Silent schema bugs found and fixed** | `agents.full_name/brokerage`, `properties.city/state/zip`, `ai_conversations.visitor_id/channel/...`, `listing_sources.text` do not exist. Broke: lead-detail Mortgage Partner card, LO Share Kit flyer (no LO/agent), WOW page agent info, lead "View conversation" (always 500), lead detail listing, weekly agent email. Migration `missing-core-tables-migration.sql` (appointment_reminders, lead_events, lead_conversation_summaries) was RUN in Supabase. Known remaining (tolerated by fallbacks): `agents.user_id/is_admin`, `ai_knowledge_base` missing, two reminder systems (the queue processor `processQueuedAppointmentReminders` and `queueAppointmentInviteEmails` are never called; the 1-minute cron on `appointments` does the real reminders). |
+| **Agent dashboard** | New: Call-now hero (`CallNowHero`), speed-to-lead `WaitingBadge`, Jev reason on every lead (`LeadReason`), "Ask my loan officer to call" (`POST /api/dashboard/leads/:id/ask-lo`, bell + email, once per 30 min), "Your loan officer" card (`GET /api/dashboard/my-loan-officer`), primary Share button, install-to-home-screen prompt, live new-lead toast with Call button. Agent Share Kit now matches the LO kit (shared `ShareKitCards.tsx`) minus co-branding; flyer has a smaller price and a short description. |
+| **LO dashboard** | Call-now hero + timer + one-tap Call/Text on LO Today; LO Today now returns `phone`/`sourceType`/`intentReason` (phone-only leads used to read "No contact info"); heading padding; bell no longer covers the page-guide X. Compliance Brain starts from the LO profile (company, lending states). |
+| **Lead rating at capture** | `services/captureIntent.js`: showing/pre-approval = Hot, report = Warm, contact left = Warm, none = Cold, with reason in `source_meta.intent_reason`; repeat visits only raise it. Jev still rates replies (`TypeSafeLeadQualificationService`, +points in `LeadScoringService`) and pre-approvals. |
+| **Cleanup** | ~10,000 lines of hidden pages/unused helpers removed (AI Conversations, AI Sidekicks, Funnel Analytics, Marketing Reports, Voice Lab, Share Test, old Share Kit panel, `Dashboard.tsx`, dead entry/style files). Admin still uses AICardPage, AIConversationsPage, AISidekicks (so their backend routes stay). ~40 backend routes with no caller remain (all auth-locked; a bulk edit was blocked by the harness). |
+| **Measured design fixes** | Tiny text 17-23/page → 0, low contrast 10-22 → 0-4, touch targets 40 → 0 (Appointments). |
+
+**Open threads / next:** (1) Chris pays Render, then the Render savings above; (2) set `SENTRY_DSN` (he was mid-setup: Sentry project created, DSN not yet saved in Render); (3) **"money test"** — sign up a brand-new LO, trial, Stripe upgrade end to end (never done live); (4) background push alerts (service worker + VAPID + subscriptions table; `public/sw.js` is still the kill-switch); (5) Today/Appointments declutter (one primary action per card, collapse the page-guide); (6) untested for real: "Ask my LO", "Your loan officer" card, "Send hot callers to", real reminder emails, WOW link with a real agent; (7) the earlier AI Brain "Reason:" line never came back; (8) repo clutter (105 root files, ~30 stale `.md`, 6 AI-tool config files).
+
+**Lesson recorded:** a multi-part scripted edit failed halfway twice today (an `import` anchor that did not exist). Re-verify every part with a grep count before committing. And measure in the browser before declaring a visual fix done (the first CSS went into a dead file).
+
+### Earlier snapshot (2026-10-01)
 
 ### ✅ Recently completed — Tab-by-tab dashboard audit + auth lockdown (2026-10-01, PRs #43–#60)
 

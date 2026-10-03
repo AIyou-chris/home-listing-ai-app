@@ -7,6 +7,94 @@
 > **End of every session (or before handing off):** add a new entry at the TOP of the log. Keep it short.
 > **Before editing a file another agent touched in its last entry:** read that entry first. Don't redo or undo their work silently.
 
+## 2026-10-02 23:50 — Claude: end-of-day wrap-up (read this first next session)
+
+- **State:** everything is committed and pushed (`main`). Live checks at the end: `/healthz` shows `app_runtime_mode: all`, `run_background_tasks: true`, `run_job_worker: true`; every route I locked answers 401 with no token. Backend 155 tests, Jest 43, tsc and lint clean.
+- **Docs updated:** `CLAUDE.md` (§3 new rules, infrastructure notes, new §7 snapshot), `BUILD.md` (Stack was wrongly Firebase; status sections rewritten), `render.yaml` (target single-service setup), memory notes.
+- **Chris still has to (in this order):** 1) pay the failed Render invoice (Sep, $73.52) tomorrow; 2) Render savings: upgrade web to Starter $7, suspend `home-listing-ai-worker`, delete `home-listing-ai-video-worker`, downgrade the $25 Pro workspace plan; 3) save `SENTRY_DSN` in Render (Sentry project already created, Express, error monitoring only); 4) set `CRON_SECRET` / `INTERNAL_JOB_SECRET` only if something outside calls the cron/nudge routes.
+- **Next for the agent:** the "money test" (new LO signup, trial, Stripe upgrade; never done live), confirm trial/drip emails fire now the loop runs, Today/Appointments declutter, background push, repo clutter.
+- **Heads-up:** this commit also includes two older Codex notes (Sep 30) that had been sitting uncommitted in this file.
+
+## 2026-10-02 23:00 — Claude: second security sweep + safety nets + accessibility layer
+
+**More open routes found and closed** (all verified by probing): `DELETE /api/setup/reset-agent/:identifier` deleted agents by slug/email with no login (now `verifyAdmin`); `POST /api/vapi/call` placed calls (now `requireAuth`); `POST /api/payments/portal-session` opened any account's Stripe billing portal from a public slug (now `requireAuth`, uses the signed-in user only); `POST /api/security/notify-login` emailed attacker-supplied addresses with unescaped HTML (now auth, emails only the account's own address, escaped); `POST /api/webhooks/email` let anyone mark leads Bounced (now needs `EMAIL_WEBHOOK_SECRET`); `GET /api/leads/stats` was platform-wide (now auth; `all=true` is admin only); `POST /api/leads/score-all` (admin only); hardcoded fallback secrets `hlai-cron-secret` / `hlai-internal` removed — **set `CRON_SECRET` and `INTERNAL_JOB_SECRET` in Render if anything external calls `/api/cron/inactivity-check` or `/api/internal/run-nudge-job`** (they now refuse without them).
+**SSRF:** three places fetched user-typed URLs (blueprint memory, LO `extract-url`, lead webhook test). All now go through `services/safeUrl.js` `safeFetch` (blocks private/loopback/link-local/CGNAT, re-checks redirects). +6 tests.
+**Safety nets (all run in `npm run test:backend`, 155 tests):** `backend/__tests__/routeGuards.test.js` fails if any `/api` route is added with no login guard and not on `backend/__tests__/publicRoutes.allowlist.js` (and if money/mail/call/delete routes ever get allowlisted). `services/dbErrorWatch.js` wraps the Supabase client's fetch so a query naming a missing column/table logs `🚨 [DB SCHEMA ERROR]` (+ Sentry if `SENTRY_DSN` is set). `npm run check:db` / `node backend/scripts/check-db-columns.cjs --sql` finds every select column that does not exist (paste the SQL in the Supabase editor, or set `SUPABASE_DB_URL`).
+**Sentry:** already wired in `server.cjs` but `SENTRY_DSN` is not set on Render (a warning prints at boot). `@sentry/node` was not in `backend/package.json` (worked only because the root install provides it); now listed.
+**Accessibility layer** at the end of `src/public.css` (THE app stylesheet — `main.tsx` → `PublicApp` → `public.css`): 12px minimum text, AA contrast for slate-400/emerald/amber, 40px touch targets on touch screens. Measured on demo pages: tiny text 17-23 → 0, low contrast 10-22 → 0-4, Appointments small targets 40 → 0.
+**Deleted dead entry files:** `src/index.tsx`, `src/styles.css`, `src/App.css` (nothing imported them; the real entry is `main.tsx`).
+- Lesson: I first put the CSS in `styles.css` (dead) and the browser measurement showed no change. Measure before declaring done.
+
+## 2026-10-02 21:00 — Claude: principal-engineer sweep — CRITICAL: unauthenticated send/call/AI routes closed
+
+Probed live with empty POST bodies: these reached their handlers with no token (anyone on the internet could use them on our accounts):
+- `POST /api/email/send` (arbitrary To/Subject/HTML/**From**), `POST /api/sms/send`, `POST /api/voice/{,vapi/,hume/}outbound-call` (places phone calls), `POST /api/shorten` (short links on our domain), `POST /api/ai/generate-listing` + `/api/ai/agent-chat` (paid OpenAI), `POST /api/leads` (anonymous lead injection).
+- Now `requireAuth` (shorten uses a wrapper because it registers before `requireAuth` exists). `/api/email/send` no longer honours a caller-supplied `from`. `/api/sms/send` rate-limits on the authed id, not a body `userId`.
+- Public AI routes that must stay open (`/api/ai/property-chat` on the WOW page, `/api/realtime/offer`, `/api/realtime/handoff`) now share `aiChatLimiter` (+ `aiSpendGuard` for the first two).
+- Frontend callers send the Bearer token via `authedFetch`: ContactLeadModal, AdminMarketingFunnelsPanel, textingService, AICardPage, openaiService; `listingsService` AI describe adds the token.
+- **Lesson (again):** a multi-part Python edit failed halfway (a file with no `import` line). Re-verified every part with a grep count before committing.
+- tsc, lint, backend 143, build OK.
+
+## 2026-10-02 19:00 — Claude: LO dashboard audit started — whole-backend column check found more silent failures
+
+Ran every literal `.from('t').select('cols')` in `server.cjs` + `services/` against `information_schema` (read-only). Fixed selects that named columns that do not exist (Supabase returns an error and `data: null`, which the code mostly swallowed):
+- **Lead "View conversation" was always a 500** (agent `GET /api/dashboard/leads/:id/conversation` and the LO equivalent): `ai_conversations` has no `visitor_id/channel/started_at/last_activity_at`; `ai_conversation_messages` has no `is_capture_event/intent_tags/confidence`.
+- **Lead detail never had its listing** (`properties` has no `city/state/zip`), nor did reminder emails, appointment emails and the listing resolver (5 selects).
+- `listing_sources` has no `text` (AI Summary on the listing page); `ai_conversations.agent_id` (summary job + public chat), export-conversations.
+- Weekly "value" email to listing agents (`schedulerService`): `pre_qual_submissions.name` -> `full_name`, dropped `properties.city/state`, `agents.name`.
+- **3 tables the code uses do not exist in production:** `appointment_reminders`, `lead_events`, `lead_conversation_summaries` (a singular `lead_conversation_summary` exists with a different shape). `missing-core-tables-migration.sql` creates them (idempotent). **Chris must run it in the Supabase SQL editor** (project convention). Until then reminders created through the dashboard routes, the lead activity log and the Summary card stay empty (the code tolerates the missing tables).
+- Not fixed on purpose: `agents.user_id`/`is_admin` selects (they already have fallbacks), `ai_knowledge_base` (table missing, code handles it), legacy `funnel_steps` selects (steps come from `funnels.steps`).
+- All `/api/lo/*` routes require a login (listing-docs routes check inside the handler). Live: 401 with no token.
+- Verified: backend 143 pass.
+
+## 2026-10-02 17:00 — Claude: "make it 100" pass — found 6 live bugs from a schema check
+
+Checked every column my new code (and older code) selects against the real DB (`information_schema`, read-only). **`agents` has no `full_name` and no `brokerage` column.** PostgREST returns an error and `data: null`, so these were silently failing in production:
+- Lead detail "Mortgage Partner" card (`lo_partner` lookup selected `full_name`) never appeared.
+- LO Share Kit: both the LO and the listing agent came back `null` (flyer showed "Loan Officer" with no company, and no listing agent).
+- WOW link public page: claimed agent's company/headshot/phone missing (selected `brokerage`).
+- Agent listing hydration (`brokerage`).
+- My new `my-loan-officer`, `ask-lo`, `agent-share-kit` routes had the same mistake (would have shown nothing).
+All selects now use real columns (`company` is the brokerage). **Rule: never select `agents.full_name` or `agents.brokerage`; names come from `first_name` + `last_name`.**
+- **Compliance Brain** now starts from the LO profile: blank `company_name` / `licensed_states` fall back to `agents.company` / `agents.lending_states` in the prompt (`loBrainService.buildBrainPrompt`) and in `GET /api/lo/chatbot-config`. Chris's config row has `company_name ''` but his profile has company "An AI You" + NMLS. (+2 tests)
+- **Every new lead is rated at capture** (`services/captureIntent.js`, +5 tests): showing/pre-approval = Hot, report = Warm, contact left = Warm, none = Cold, with a reason in `source_meta.intent_reason`. A repeat visit can raise but never lower the level. Jev still rates replies and pre-approvals.
+- Today: the Call-now lead no longer repeats in the list below. Verified the new screens in demo mode on desktop + 375px (no horizontal overflow).
+- tsc, lint, backend 143, Jest 43, build OK.
+- **Not done:** real background push (needs service worker, VAPID keys in Render, a subscriptions table; `public/sw.js` is still the kill-switch). ~40 unused backend routes remain (edit was blocked by the harness; they are all auth-locked).
+
+## 2026-10-02 15:00 — Claude: LO Today + Leads get the same call-now tools
+
+- LO Today: `CallNowHero` for the best new lead, per-row waiting timer + one-tap Call/Text, heading padding fixed (the `/dashboard/lo-today` route had no wrapper, so the heading hugged the top edge). LO Leads rows show the waiting timer.
+- **Bug found:** `GET /api/lo/dashboard/today` never returned `phone` (or `sourceType`) for recentLeads, so phone-only leads read "No contact info". Now returns `phone` (phone_e164 || phone), `sourceType`, `intentReason`.
+- `WaitingBadge` now takes just `status/created_at/intent_level/last_agent_action_at` so any lead shape can use it.
+- tsc, lint, backend 136, Jest 43, build OK.
+
+## 2026-10-02 14:00 — Claude: agent dashboard — 8 upgrades for warm leads + LO partnership
+
+- **Today:** `CallNowHero` (best lead, big Call / Text / Ask-LO), `WaitingBadge` speed-to-lead timer (client clock, red + "call now" after 5 min on Hot), Jev's reason on every lead card (`LeadReason`), `MyLoanOfficerCard`, `InstallAppPrompt` (phones only, once). Shared pieces in `LeadActions.tsx`.
+- **Leads inbox:** reason line, timer, Text button. **Lead page:** "Ask {LO} to call".
+- **Listings:** primary **Share** button (native share sheet, tracked link, copy fallback).
+- **Live alert:** `DashboardRealtimeBootstrap` now toasts a new lead (under 2 min old) with a Call button and buzzes on Hot. This is in-app only. Real background push needs a service worker + VAPID keys + a subscriptions table; `public/sw.js` is still the kill-switch. Not built.
+- **Backend (light):** `GET /api/dashboard/my-loan-officer` (3 small queries, only when Today loads), `POST /api/dashboard/leads/:leadId/ask-lo` (owner-checked, notifies the LO via bell + email, once per 30 min per lead, stores `source_meta.lo_asked_at`), and the leads list now returns `intent_reason` + `can_ask_lo` from rows it already loads (no extra queries).
+- **State:** tsc, lint, backend 136, Jest 43, build OK. Not exercised live yet (needs a real agent login with a linked LO). Plain form leads still have no Hot/Warm/Cold unless pre-approval or a reply rated them.
+
+## 2026-10-02 10:00 — Claude: agent dashboard — second lockdown (about 60 routes)
+
+Re-audited every route with no login guard and tested the live site with no token. These answered 200: `GET /api/listings` (returned real drafts for anyone), `/api/email|notifications/preferences|security/settings/:userId`, `/api/conversations*`, `/api/sidekicks*`, `/api/funnels|analytics/*/:userId`, `/api/leads/:id/{tracking-stats,score}`, `/api/ai-card/*` writes, and `market-analysis`.
+- New hoisted helpers in `server.cjs`: `authOwnsId`, `requireParamOwner`, `requireLeadOwner`, `requireConversationAccess`, `requireNamedUserIsCaller`, `requireSidekickOwner`. A named id must be the caller's login id or agents profile id (403 otherwise, 401 with no token).
+- `GET/POST /api/listings` now use the signed-in user only (body/query owner ignored). `/api/security/{audit,backup,alerts/:id}` are `verifyAdmin`. `PUT /api/ai-card/profile` no longer trusts `x-user-id`.
+- Frontend: new `src/services/authedFetch.ts` (fetch + Bearer). Used by email/security/feedback/chat/sidekicks/aiCard services, `App.tsx` listings load, `UnifiedTrainingStudio`; `getMarketAnalysis` sends Bearer. `GET /api/ai-card/profile` stays public on purpose (public business card).
+- **Known side effect:** admin `LeadDetailDashboard` calls `listConversations()` with no id; it now returns the admin's own (empty) list, not the platform default's.
+- Left open on purpose: `GET /api/listings/:id/lo-assignment` (public LO card data), `/api/listings/:id/marketing` (legacy in-memory), `/api/agents/:slug`.
+- tsc, lint, backend 136/136, build OK. Live re-test after deploy is below if filled in.
+
+## 2026-10-02 08:00 — Claude: Jev now scores inbound lead replies
+
+- **Did:** `LeadScoringService.recalculateLeadScore(..., 'CHAT_REPLY', {message, channel, subject})` asks Jev (intent / readiness / urgency) and adds the points to the rule score as a "JEV Semantic Qualification" breakdown line (scoring_version `v2.1-jev`). Mailgun inbound email and inbound SMS handlers in `server.cjs` pass the message in. New `backend/services/TypeSafeLeadQualificationService.js` (+tests).
+- **Changed from the draft:** it required `@typesafe-ai/sdk` directly. Moved it onto the shared `typesafeClient.js` (one client rule) and dropped the SDK dependency from `package.json`. (The SDK does load under `require`, so it was a rule fix, not a crash fix.)
+- **State:** backend 136/136. Fails open: no key or API error keeps the plain rule score.
+- **Verified:** Chris tested a real inbound reply on 2026-10-02 and the score updated. `AI_HANDOFF.md` also holds two uncommitted Codex entries from Sep 30; left for Codex to commit.
+
 ## 2026-10-01 09:30 — Claude: agent dashboard — 17 unauthenticated routes closed
 
 Audited every `/api/dashboard/*` route (67 of them) plus the agent-owned routes outside that prefix. **17 took their owner id straight from a query param or an `x-user-id` header with `DEFAULT_LEAD_USER_ID` as a fallback, so no token was needed at all.** Verified live before the fix: `GET /api/dashboard/command-center` and `GET /api/dashboard/automation-recipes` both returned **200** for a made-up `x-user-id` with no Authorization header.
@@ -212,6 +300,16 @@ Verification: tsc clean, lint clean, Jest 43/43, backend 129/129, `npm run build
 
 
 ## Log
+
+### 2026-09-30 — Codex — Reviewed AI phone placement on landing and listings
+- **Did:** Audited the LO pitch page, homepage, public listing page, phone line API, and inbound call flow. No application code changed.
+- **State:** AI phone is available in AI Brain but not exposed on public listings. The listing's Call button dials the listing agent. One number belongs to each LO; calls currently have no automatic listing attribution.
+- **Open / next:** Put a clearly labeled AI financing call action on eligible public listings and explain it on the LO pitch page. Add listing attribution before claiming per-listing call tracking; separate numbers per listing remain planned for LO / LO Pro.
+
+### 2026-09-30 — Codex — LO build guide bug audit
+- **Did:** Read `LO_BUILD_GUIDE.md` and created `BUG_REPORT_2026-09-30.md` with 8 source-backed findings covering public LO chat binding, sold/archive and ROI production auth, LO Today identity/counting, pre-qual flow, and quality gates.
+- **State:** Report only; no application code changed. Build passes; backend 106/106 and frontend 43/43 tests pass; typecheck and lint fail. Existing uncommitted lead-scoring work left untouched.
+- **Open / next:** Fix the P1 findings, then add integration coverage with distinct auth/profile IDs and canonical `properties.id`. Live integrations were not exercised.
 
 ### 2026-09-29 09:10 — Claude — Phone costs: mini model + monthly AI-minute caps
 - **Did:** Default realtime model is now `gpt-realtime-2.1-mini` (~1/3 cost; override with `OPENAI_REALTIME_MODEL`). Monthly AI minutes per plan (`LO_PHONE_MINUTES` in server.cjs): trial 30, lo_lite 100, lo 300, lo_pro/office/comp 1000, none 0. Counted from `lo_phone_calls` (AI-answered, this UTC month). Out of minutes → call rings the LO's cell (or polite message). AI Brain page shows a minutes bar under the number. `GET /api/lo/phone-line` returns `minutes {used, limit, left}`.
