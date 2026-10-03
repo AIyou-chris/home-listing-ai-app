@@ -1827,6 +1827,14 @@ const App: React.FC = () => {
                                         previousInteractions: user ? 1 : 0,
                                         userInfo: user ? { name: user.displayName || 'User', email: user.email || '', company: 'Real Estate' } : undefined
                                     }}
+                                    initialMode="help"
+                                    launcher="headshot"
+                                    launcherImage="/professor.png"
+                                    launcherBlend
+                                    launcherBg="bg-gradient-to-br from-cyan-200 via-sky-300 to-indigo-400"
+                                    launcherLabel="The Professor is here to help"
+                                    guideName="The Professor"
+                                    guideTagline="Your HomeListingAI helper · ask me anything"
                                     onLeadGenerated={() => {}}
                                     onSupportTicket={async (ticketInfo) => {
                                         try {

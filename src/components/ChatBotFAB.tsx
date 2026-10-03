@@ -19,6 +19,12 @@ interface ChatBotFABProps {
   launcherImage?: string;
   launcherLabel?: string;
   guideName?: string;
+  /** Tailwind gradient classes for the circle behind the picture. */
+  launcherBg?: string;
+  /** Short line under the name in the chat header. */
+  guideTagline?: string;
+  /** Line art on white: blend it into the colored circle instead of showing a white box. */
+  launcherBlend?: boolean;
 }
 
 export const ChatBotFAB: React.FC<ChatBotFABProps> = ({
@@ -35,10 +41,15 @@ export const ChatBotFAB: React.FC<ChatBotFABProps> = ({
   launcher = 'default',
   launcherImage = '/sales-guide.jpg',
   launcherLabel = 'Welcome, ask me anything',
-  guideName = 'HomeListingAI Assistant'
+  guideName = 'HomeListingAI Assistant',
+  launcherBg = 'bg-gradient-to-b from-slate-100 to-sky-200',
+  guideTagline = 'AI guide · ask me anything',
+  launcherBlend = false
 }) => {
   const isHeadshot = launcher === 'headshot';
   const [labelHidden, setLabelHidden] = useState(false);
+  // Once someone has opened the guide, stop bobbing for the rest of the visit.
+  const [guideSeen, setGuideSeen] = useState(() => { try { return sessionStorage.getItem('hl_guide_seen') === '1'; } catch { return false; } });
   const [internalIsOpen, setInternalIsOpen] = useState(initialOpen);
 
   const isControlled = controlledIsOpen !== undefined;
@@ -89,6 +100,10 @@ export const ChatBotFAB: React.FC<ChatBotFABProps> = ({
   }, [context, showWelcomeMessage]);
 
   const handleToggleChat = () => {
+    if (!isOpen && isHeadshot) {
+      setGuideSeen(true);
+      try { sessionStorage.setItem('hl_guide_seen', '1'); } catch { /* private mode */ }
+    }
     if (isOpen) {
       setIsVoiceView(false);
     }
@@ -139,7 +154,9 @@ export const ChatBotFAB: React.FC<ChatBotFABProps> = ({
               <div className="flex items-center space-x-2">
                 {isHeadshot ? (
                   <div className="relative">
-                    <img src={launcherImage} alt="" className="h-10 w-10 rounded-full border-2 border-cyan-300 object-cover" />
+                    <span className={`block h-10 w-10 overflow-hidden rounded-full border-2 border-cyan-300 ${launcherBg}`}>
+                      <img src={launcherImage} alt="" className={`h-full w-full object-cover ${launcherBlend ? 'mix-blend-multiply' : ''}`} />
+                    </span>
                     <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-slate-900 bg-emerald-400" aria-hidden="true" />
                   </div>
                 ) : (
@@ -151,7 +168,7 @@ export const ChatBotFAB: React.FC<ChatBotFABProps> = ({
                 )}
                 <div>
                   <h3 className="font-semibold text-sm">{isHeadshot ? guideName : 'AI Assistant'}</h3>
-                  <p className="text-xs opacity-90">{isHeadshot ? 'AI guide · ask me anything' : 'Here to help!'}</p>
+                  <p className="text-xs opacity-90">{isHeadshot ? guideTagline : 'Here to help!'}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -248,16 +265,16 @@ export const ChatBotFAB: React.FC<ChatBotFABProps> = ({
             type="button"
             onClick={handleToggleChat}
             aria-label={`Chat with the ${guideName}`}
-            className="hl-guide group relative rounded-full focus:outline-none focus-visible:ring-4 focus-visible:ring-cyan-300"
+            className={`${guideSeen ? '' : 'hl-guide'} group relative rounded-full focus:outline-none focus-visible:ring-4 focus-visible:ring-cyan-300`}
           >
             <span className="hl-guide-ring block rounded-full bg-gradient-to-br from-cyan-300 via-sky-500 to-indigo-600 p-[3px]">
-              <span className="block rounded-full bg-gradient-to-b from-slate-100 to-sky-200 p-[3px]">
+              <span className={`block rounded-full p-[3px] ${launcherBg}`}>
                 <img
                   src={launcherImage}
                   alt=""
                   width={72}
                   height={72}
-                  className="h-[68px] w-[68px] rounded-full object-cover sm:h-[76px] sm:w-[76px]"
+                  className={`h-[68px] w-[68px] rounded-full object-cover sm:h-[76px] sm:w-[76px] ${launcherBlend ? 'mix-blend-multiply' : ''}`}
                 />
               </span>
             </span>

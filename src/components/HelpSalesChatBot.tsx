@@ -76,7 +76,7 @@ export const HelpSalesChatBotComponent: React.FC<HelpSalesChatBotProps> = ({
         text = "Hi! I'm the HomeListingAI assistant. Ask me how it brings you warm buyer leads from your agents' listings, what it costs, or how to start your 7-day free trial.";
         break;
       case 'help':
-        text = "Hello! I'm your support assistant. I'm here to help you with any questions or issues you might have. How can I assist you today?";
+        text = "Hi, I'm the Professor, your HomeListingAI helper. Ask me about your leads, listings, AI Brain, appointments or billing, and I'll point you to the right place. What do you need?";
         break;
       case 'agent':
         text = `Hi! I'm ${ctx.agentProfile?.name || 'the agent'}'s AI assistant. I can help you with listings, market info, or scheduling. How can I help you today?`;
