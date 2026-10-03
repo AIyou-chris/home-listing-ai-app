@@ -7,7 +7,11 @@
 > **End of every session (or before handing off):** add a new entry at the TOP of the log. Keep it short.
 > **Before editing a file another agent touched in its last entry:** read that entry first. Don't redo or undo their work silently.
 
-## 2026-10-03 — Claude: LO → agent invoices (built, NOT deployed; migration NOT run)
+## 2026-10-03 — Claude: two audit suggestions done (committed, not pushed)
+
+- A public showing booking now creates (or raises) the lead as **Hot** with a reason (`rateCaptureIntent('showing_requested')`, server.cjs near "Auto-creating lead"); the how-to PageGuide now starts **collapsed** on first visit (`PageGuide.tsx` `readState`), so the call-now card is first on Today. `lo-invoices-migration.sql` WAS run in Supabase (table verified: 31 columns, RLS on). Still open from the suggestions list: background push for new hot leads (needs VAPID keys + service worker + subscriptions table), weekly "your loan officer got you N leads" email to agents.
+
+## 2026-10-03 — Claude: LO → agent invoices (built, NOT deployed)
 
 - **What:** the loan officer bills a partner agent for a share of marketing (some states require shared cost). We create, email and track the invoice; **we never touch the money** (no Stripe, no pay button, page says HomeListingAI is not a party). Agent pays the LO directly; LO marks it paid.
 - **Run first:** `lo-invoices-migration.sql` in the Supabase SQL editor (table `lo_agent_invoices`, RLS on, no policies, backend only). Until it runs the invoice routes 500.

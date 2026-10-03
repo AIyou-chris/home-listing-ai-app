@@ -31120,8 +31120,20 @@ app.post('/api/appointments', async (req, res) => {
         .eq('email_lower', contactEmail)
         .maybeSingle();
 
+      // A buyer who books a showing is as warm as it gets: rate the lead Hot and say why.
+      const bookingIntent = publicBooking
+        ? rateCaptureIntent({ context: 'showing_requested', hasPhone: Boolean(contactPhone), hasEmail: true })
+        : null;
       if (existingLead) {
         resolvedLeadId = existingLead.id;
+        if (bookingIntent) {
+          // A repeat booking can raise a lead's rating, never lower it.
+          await bestEffort(supabaseAdmin
+            .from('leads')
+            .update({ intent_level: 'Hot', updated_at: new Date().toISOString() })
+            .eq('id', existingLead.id)
+            .neq('intent_level', 'Hot'));
+        }
       } else {
         console.log(`✨ Auto-creating lead for appointment: ${contactName} (${ownerId})`);
         const { data: newLead, error: leadError } = await supabaseAdmin
@@ -31138,6 +31150,9 @@ app.post('/api/appointments', async (req, res) => {
             phone_e164: contactPhone,
             status: 'New',
             source: 'Appointment Scheduler',
+            ...(bookingIntent
+              ? { intent_level: bookingIntent.level, source_meta: { intent_reason: bookingIntent.reason, intent_source: bookingIntent.source } }
+              : {}),
             notes: `Auto-created from ${kind} appointment request.`,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()

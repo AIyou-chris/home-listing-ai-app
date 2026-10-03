@@ -203,9 +203,12 @@ const PAGE_GUIDES: Record<string, GuideContent> = {
 const storageKey = (pageKey: string) => `hlai_pageguide_${pageKey}`
 
 const readState = (pageKey: string): GuideState => {
-  if (typeof window === 'undefined') return 'expanded'
-  const v = localStorage.getItem(storageKey(pageKey))
-  return v === 'collapsed' || v === 'dismissed' ? v : 'expanded'
+  // First visit starts closed so the real work (the call-now card, the lead list) is the first thing
+  // on screen. One tap opens it and the choice is remembered.
+  if (typeof window === 'undefined') return 'collapsed'
+  let v: string | null = null
+  try { v = localStorage.getItem(storageKey(pageKey)) } catch { /* private mode: use the default */ }
+  return v === 'expanded' || v === 'dismissed' ? v : 'collapsed'
 }
 
 const PageGuide: React.FC<{ pageKey: string }> = ({ pageKey }) => {
