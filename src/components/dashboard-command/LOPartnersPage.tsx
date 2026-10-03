@@ -126,6 +126,13 @@ const scheduleWithPartner = (partner: { name: string; email: string | null; phon
   return `${base}${base.includes('?') ? '&' : '?'}${q.toString()}`
 }
 
+// Opens New Invoice with the agent already filled in
+const invoiceWithPartner = (partner: { name: string; email: string | null }) => {
+  const q = new URLSearchParams({ new: '1', name: partner.name })
+  if (partner.email) q.set('email', partner.email)
+  return `/dashboard/lo-invoices?${q.toString()}`
+}
+
 const toFollowUpLabel = (ts: string | null | undefined) => {
   if (!ts) return null
   const days = Math.round((Date.now() - new Date(ts).getTime()) / 86400000)
@@ -532,6 +539,15 @@ const PartnerCard: React.FC<{ partner: Partner; onViewListings: (p: Partner) => 
           >
             📅 Schedule Appointment
           </button>
+          {!demoMode && partner.email && (
+            <button
+              type="button"
+              onClick={() => navigate(invoiceWithPartner(partner))}
+              className="flex items-center justify-center gap-2 w-full border border-slate-200 rounded-xl py-2.5 text-sm font-bold text-slate-700 bg-white hover:bg-slate-50 transition-all"
+            >
+              🧾 Send invoice
+            </button>
+          )}
         </div>
       )}
 
@@ -796,6 +812,15 @@ const PartnerDetail: React.FC<{ partner: Partner; onClose: () => void }> = ({ pa
         >
           📅 Schedule Appointment
         </button>
+        {!demoMode && partner.email && (
+          <button
+            type="button"
+            onClick={() => navigate(invoiceWithPartner(partner))}
+            className="flex items-center justify-center gap-2 w-full border border-slate-200 rounded-xl py-3 text-sm font-bold text-slate-700 bg-white hover:bg-slate-50 transition-all"
+          >
+            🧾 Send invoice
+          </button>
+        )}
 
         {/* Listings */}
         <div>

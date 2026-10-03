@@ -41,6 +41,8 @@ const LOAppointmentsPage = lazy(() => import('./components/dashboard-command/LOA
 const LOTodayPage = lazy(() => import('./components/dashboard-command/LOTodayPage'));
 const AgentClaimPage = lazy(() => import('./pages/AgentClaimPage'))
 const PartnerInvitePage = lazy(() => import('./pages/PartnerInvitePage'))
+const InvoicePage = lazy(() => import('./pages/InvoicePage'))
+const LOInvoicesPage = lazy(() => import('./components/dashboard-command/LOInvoicesPage'))
 const ForLoanOfficersPage = lazy(() => import('./pages/ForLoanOfficersPage'))
 const ListingDashboardPage = lazy(() => import('./pages/ListingDashboardPage'))
 const OfficeDashboardPage = lazy(() => import('./components/dashboard-command/OfficeDashboardPage'))
@@ -294,6 +296,7 @@ const resolveDashboardPageTitle = (pathname: string) => {
     if (/\/office(\/|$)/.test(pathname)) return 'Office';
     if (pathname.includes('/lo-chatbot')) return 'AI Brain';
     if (pathname.includes('/lo-partners')) return 'Partners';
+    if (pathname.includes('/lo-invoices')) return 'Invoices';
     if (pathname.includes('/listings')) return 'Listings';
     if (pathname.includes('/leads')) return 'Leads';
     if (pathname.includes('/appointments')) return 'Appointments';
@@ -1680,6 +1683,13 @@ const App: React.FC = () => {
                         </Suspense>
                     } />
 
+                    {/* Invoice from a loan officer (public, token-gated, no payment taken here) */}
+                    <Route path="/invoice/:token" element={
+                        <Suspense fallback={<LoadingSpinner />}>
+                            <InvoicePage />
+                        </Suspense>
+                    } />
+
                     {/* Per-listing shared live dashboard (public, token-gated) */}
                     <Route path="/listing-dashboard/:token" element={
                         <Suspense fallback={<LoadingSpinner />}>
@@ -1762,6 +1772,7 @@ const App: React.FC = () => {
                         <Route path="/dashboard/lo-chatbot" element={<LOBrainPage />} />
                         <Route path="/dashboard/lo-leads" element={<LOLeadsPage />} />
                         <Route path="/dashboard/lo-appointments" element={<LOAppointmentsPage />} />
+                        <Route path="/dashboard/lo-invoices" element={<LOInvoicesPage />} />
                         <Route path="/dashboard/office" element={<OfficeDashboardPage />} />
                         </Route>
                         <Route path="/dashboard/billing" element={<Navigate to="/dashboard/settings/billing" replace />} />
@@ -1831,7 +1842,7 @@ const App: React.FC = () => {
                                 <AdminLogin onLogin={handleAdminLogin} onBack={handleAdminLoginClose} isLoading={isAdminLoginLoading} error={adminLoginError || undefined} />
                             </Suspense>
                         )}
-                        {view !== 'landing' && view !== 'new-landing' && !view.startsWith('partner-invite') && !view.startsWith('listing-dashboard') && (
+                        {view !== 'landing' && view !== 'new-landing' && !view.startsWith('partner-invite') && !view.startsWith('listing-dashboard') && !view.startsWith('invoice') && (
                             <Suspense fallback={null}>
                                 <ChatBotFAB
                                     context={{

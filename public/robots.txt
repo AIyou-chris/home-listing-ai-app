@@ -2,6 +2,7 @@
 # Default: allow all standard search crawlers
 User-agent: *
 Allow: /
+Disallow: /invoice/
 
 # ── AI answer engines & training crawlers (explicitly allowed) ──
 # Allowing these lets HomeListingAI be cited in AI-generated answers.

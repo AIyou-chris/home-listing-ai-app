@@ -49,6 +49,15 @@ jest.mock('../../services/dashboardBillingService', () => ({
   deleteDashboardAccount: jest.fn()
 }))
 
+jest.mock('../../services/onboardingService', () => ({
+  fetchOnboardingState: jest.fn()
+}))
+
+jest.mock('../../services/loInvoiceService', () => ({
+  fetchMyInvoices: jest.fn(),
+  formatCents: (cents: number) => `$${(cents / 100).toFixed(2)}`
+}))
+
 const defaultAgent: AgentProfile = {
   name: 'Test Agent',
   slug: 'test-agent',
@@ -140,6 +149,8 @@ const mockedBilling = jest.requireMock('../../services/dashboardBillingService')
   fetchDashboardBilling: jest.Mock
   createBillingCheckoutSession: jest.Mock
 }
+const mockedOnboarding = jest.requireMock('../../services/onboardingService') as { fetchOnboardingState: jest.Mock }
+const mockedInvoices = jest.requireMock('../../services/loInvoiceService') as { fetchMyInvoices: jest.Mock }
 const mockedSupabase = supabase as unknown as {
   auth: {
     getUser: jest.Mock
@@ -224,6 +235,8 @@ beforeEach(() => {
     plan: { id: 'free', status: 'active', current_period_end: null }
   })
   mockedBilling.createBillingCheckoutSession.mockResolvedValue({ url: 'https://checkout.stripe.test/session' })
+  mockedOnboarding.fetchOnboardingState.mockResolvedValue({ account_type: 'lo' })
+  mockedInvoices.fetchMyInvoices.mockResolvedValue([])
 })
 
 afterEach(() => {
@@ -292,6 +305,24 @@ describe('SettingsPage billing tab', () => {
 
   afterEach(() => {
     window.open = originalOpen
+  })
+
+  it('shows a free agent no plans to buy, only their loan officer invoices', async () => {
+    mockedOnboarding.fetchOnboardingState.mockResolvedValue({ account_type: 'realtor' })
+    mockedInvoices.fetchMyInvoices.mockResolvedValue([
+      {
+        invoiceNumber: 'INV-0001', totalCents: 12550, status: 'sent', loName: 'Pat Lender', listingAddress: '1 Main St',
+        dueDate: null, link: 'https://homelistingai.com/invoice/abc'
+      }
+    ])
+    renderSettings()
+
+    fireEvent.click((await screen.findAllByRole('button', { name: /billing/i }))[0])
+
+    expect(await screen.findByText(/included with your loan officer/i)).toBeInTheDocument()
+    expect(await screen.findByText(/INV-0001/)).toBeInTheDocument()
+    expect(screen.getByText(/does not take or hold payments/i)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /upgrade to/i })).not.toBeInTheDocument()
   })
 
   it('starts Stripe checkout when upgrading', async () => {

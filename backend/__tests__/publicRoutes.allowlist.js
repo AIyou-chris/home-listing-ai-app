@@ -21,6 +21,7 @@ module.exports = [
   'GET /api/leads/scoring-rules',
   'GET /api/payments/providers',
   'GET /api/public/appointments/:appointmentId/ics',
+  'GET /api/public/invoice/:token',
   'GET /api/public/listing-dashboard/:token',
   'GET /api/public/listing/:listingId/lo',
   'GET /api/public/listing/:listingId/lo-chatbot',

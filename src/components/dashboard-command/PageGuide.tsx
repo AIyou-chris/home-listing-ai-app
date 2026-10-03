@@ -132,6 +132,19 @@ const PAGE_GUIDES: Record<string, GuideContent> = {
       'Warm partnerships convert 10x faster than cold outreach — same rule as leads.'
     ]
   },
+  'lo-invoices': {
+    title: 'How to use Invoices',
+    subtitle: 'Bill an agent for their share of marketing. They pay you directly.',
+    steps: [
+      'Tap New invoice, pick the agent, and add what the cost was for, like a flyer or social ads.',
+      'Tell them how to pay you. We email the invoice and show you when they open it.',
+      'When they pay you, tap Mark paid. Download the CSV any time for your records.'
+    ],
+    proTips: [
+      'HomeListingAI never touches the money. Payment is between you and the agent.',
+      'Some states require shared marketing costs. Ask your compliance team what split is right.'
+    ]
+  },
   'lo-chatbot': {
     title: 'How to set up your AI Brain',
     subtitle: 'Your 24/7 financing assistant on every listing.',

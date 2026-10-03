@@ -9,6 +9,8 @@ import {
   type PlanId
 } from '../../services/dashboardBillingService';
 import { supabase } from '../../services/supabase';
+import { fetchOnboardingState } from '../../services/onboardingService';
+import { fetchMyInvoices, formatCents, type Invoice } from '../../services/loInvoiceService';
 import { FeatureSection } from './SettingsCommon';
 
 interface BillingSettingsProps {
@@ -72,6 +74,20 @@ const BillingSettingsPage: React.FC<BillingSettingsProps> = ({
   const [deleteConfirmation, setDeleteConfirmation] = useState('');
   const [deleteBusy, setDeleteBusy] = useState(false);
   const comparisonRef = useRef<HTMLDivElement | null>(null);
+  const [accountType, setAccountType] = useState<string | null>(null);
+  const [myInvoices, setMyInvoices] = useState<Invoice[]>([]);
+
+  useEffect(() => {
+    if (isBlueprintMode) {
+      setAccountType('lo');
+      return;
+    }
+    let cancelled = false;
+    fetchOnboardingState()
+      .then((state) => { if (!cancelled) setAccountType(state?.account_type || 'realtor'); })
+      .catch(() => { if (!cancelled) setAccountType('lo'); }); // can't tell: show the full page
+    return () => { cancelled = true; };
+  }, [isBlueprintMode]);
 
   const loadSnapshot = useCallback(async () => {
     if (isBlueprintMode) {
@@ -159,6 +175,113 @@ const BillingSettingsPage: React.FC<BillingSettingsProps> = ({
       setDeleteBusy(false);
     }
   };
+
+  const dangerZone = (
+    <FeatureSection title="Danger zone" icon="warning">
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5 shadow-sm">
+          <h3 className="text-base font-semibold text-rose-900">Delete account</h3>
+          <p className="mt-1 text-sm text-rose-700">
+            This permanently deletes your account, listings, leads, and billing profile.
+          </p>
+          <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-rose-700">
+            Type DELETE to confirm
+          </p>
+          <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+            <input
+              type="text"
+              value={deleteConfirmation}
+              onChange={(event) => setDeleteConfirmation(event.target.value)}
+              placeholder="DELETE"
+              className="w-full rounded-lg border border-rose-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-rose-400 focus:outline-none focus:ring-2 focus:ring-rose-200 sm:max-w-xs"
+            />
+            <button
+              type="button"
+              onClick={() => void handleDeleteAccount()}
+              disabled={!deleteEnabled}
+              className="rounded-lg border border-rose-300 bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {deleteBusy ? 'Deleting…' : 'Delete my account'}
+            </button>
+          </div>
+        </div>
+      </FeatureSection>
+  );
+
+  // Realtor agents do not buy a plan. Their loan officer covers the tools, and any cost they share
+  // with the loan officer arrives as an invoice they pay the loan officer directly.
+  const isFreeAgent = accountType !== null && accountType !== 'lo' && accountType !== 'office' && !loadingSnapshot && currentPlanId === 'free';
+
+  useEffect(() => {
+    if (!isFreeAgent) return;
+    let cancelled = false;
+    void fetchMyInvoices().then((rows) => { if (!cancelled) setMyInvoices(rows); });
+    return () => { cancelled = true; };
+  }, [isFreeAgent]);
+
+  if (accountType === null || (loadingSnapshot && !isBlueprintMode)) {
+    return <div className="p-8 text-sm text-slate-500">Loading billing…</div>;
+  }
+
+  if (isFreeAgent) {
+    return (
+      <div className="p-8 space-y-8 animate-fadeIn">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-900">Billing</h2>
+          <p className="text-slate-500 mt-1">There is nothing to buy here.</p>
+        </div>
+
+        {error && (
+          <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>
+        )}
+
+        <FeatureSection title="Your plan" icon="credit_card">
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h3 className="text-xl font-bold text-slate-900">Included with your loan officer</h3>
+            <p className="mt-2 text-sm text-slate-600">
+              Your listings, lead capture and share kit are covered. You do not pay HomeListingAI.
+            </p>
+          </div>
+        </FeatureSection>
+
+        <FeatureSection title="Invoices from your loan officer" icon="receipt_long">
+          <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+            {myInvoices.length === 0 ? (
+              <p className="p-6 text-sm text-slate-500">
+                No invoices. If you and your loan officer split a marketing cost, their invoice will show up here and in your email.
+              </p>
+            ) : (
+              <ul className="divide-y divide-slate-100">
+                {myInvoices.map((inv) => (
+                  <li key={inv.link} className="flex flex-wrap items-center justify-between gap-3 p-4">
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-slate-900">{inv.invoiceNumber} · {formatCents(inv.totalCents)}</p>
+                      <p className="truncate text-xs text-slate-500">
+                        From {inv.loName || 'your loan officer'}{inv.listingAddress ? ` · ${inv.listingAddress}` : ''}
+                        {inv.dueDate ? ` · due ${inv.dueDate}` : ''}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${inv.status === 'paid' ? 'bg-green-100 text-green-800' : inv.status === 'overdue' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'}`}>
+                        {inv.status === 'paid' ? 'Paid' : inv.status === 'overdue' ? 'Overdue' : 'Open'}
+                      </span>
+                      <a href={inv.link} target="_blank" rel="noopener noreferrer" className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50">
+                        View
+                      </a>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p className="border-t border-slate-100 p-4 text-xs text-slate-500">
+              You pay your loan officer directly, the way you agreed. HomeListingAI does not take or hold payments.
+            </p>
+          </div>
+        </FeatureSection>
+
+        {dangerZone}
+      </div>
+    );
+  }
 
   return (
     <div className="p-8 space-y-8 animate-fadeIn">
@@ -368,34 +491,7 @@ const BillingSettingsPage: React.FC<BillingSettingsProps> = ({
         </div>
       </FeatureSection>
 
-      <FeatureSection title="Danger zone" icon="warning">
-        <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5 shadow-sm">
-          <h3 className="text-base font-semibold text-rose-900">Delete account</h3>
-          <p className="mt-1 text-sm text-rose-700">
-            This permanently deletes your account, listings, leads, and billing profile.
-          </p>
-          <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-rose-700">
-            Type DELETE to confirm
-          </p>
-          <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-            <input
-              type="text"
-              value={deleteConfirmation}
-              onChange={(event) => setDeleteConfirmation(event.target.value)}
-              placeholder="DELETE"
-              className="w-full rounded-lg border border-rose-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-rose-400 focus:outline-none focus:ring-2 focus:ring-rose-200 sm:max-w-xs"
-            />
-            <button
-              type="button"
-              onClick={() => void handleDeleteAccount()}
-              disabled={!deleteEnabled}
-              className="rounded-lg border border-rose-300 bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {deleteBusy ? 'Deleting…' : 'Delete my account'}
-            </button>
-          </div>
-        </div>
-      </FeatureSection>
+      {dangerZone}
     </div>
   );
 };

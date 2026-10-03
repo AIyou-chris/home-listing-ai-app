@@ -99,6 +99,7 @@ It helps agents:
 - `/dashboard/lo-listings/:listingId/share-kit` — **LO Share Kit** (link, QR, flyer, social post)
 - `/dashboard/lo-listings` — assigned listings + branding toggles + rate sheet upload + Payment Reference toggle + "📊 Live Dashboard" share
 - `/dashboard/lo-chatbot` — **AI Brain** (LO Brain: train once, every listing uses it; Compliance Brain; Calls & Texts; AI phone number + recent calls)
+- `/dashboard/lo-invoices` + public `/invoice/:token` — **LO → agent invoices** (shared marketing cost). We create/email/track only; never handle the payment. Run `lo-invoices-migration.sql` first. Agents see theirs in Settings → Billing.
 - `/partner-invite/:token` — **WOW Link**: iPhone-style app (listing, agent card, LO card, loan chat, tour booking preview), sent to agents
 - `/listing-dashboard/:token` — public per-listing live lead dashboard (token-gated)
 - `/for-loan-officers` + `/for-loan-officers/:token` — **LO Acquisition Link**: marketing pitch page admin sends to *prospective* LOs (inverse of the WOW Link). Tokened version tracks opens/clicks + personalizes the hero; CTA → `/lo-signup`. Untokened version is shareable but untracked. Admin sends/tracks from Marketing Funnels (`AdminLoOutreachPanel`).

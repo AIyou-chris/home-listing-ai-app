@@ -43,6 +43,7 @@ const LO_NAV_ITEMS = [
   { key: 'lo-chatbot', icon: 'psychology', label: 'AI Brain', path: '/lo-chatbot', testid: 'nav-lo-chatbot' },
   { key: 'lo-leads', icon: 'person_search', label: 'Leads', path: '/lo-leads', testid: 'nav-lo-leads' },
   { key: 'lo-appointments', icon: 'event_available', label: 'Appointments', path: '/lo-appointments', testid: 'nav-lo-appointments' },
+  { key: 'lo-invoices', icon: 'receipt_long', label: 'Invoices', path: '/lo-invoices', testid: 'nav-lo-invoices' },
   { key: 'settings', icon: 'settings', label: 'Settings', path: '/settings', testid: 'nav-settings' }
 ] as const;
 
@@ -169,7 +170,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
 
   // In demo/blueprint mode there's no logged-in account, so accountType defaults
   // to 'realtor'. Detect the LO/office context from the URL so the correct nav shows.
-  const pathIsLO = /\/lo-(today|partners|listings|chatbot|leads|appointments|onboarding)/.test(location.pathname);
+  const pathIsLO = /\/lo-(today|partners|listings|chatbot|leads|appointments|invoices|onboarding)/.test(location.pathname);
   const pathIsOffice = /\/office(\/|$)/.test(location.pathname);
   const isLO = accountType === 'lo' || pathIsLO;
   const isOffice = accountType === 'office' || pathIsOffice;
@@ -188,6 +189,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
     '/lo-chatbot': derivedDemoMode || derivedBlueprintMode ? getPath('/lo-chatbot') : '/dashboard/lo-chatbot',
     '/lo-leads': derivedDemoMode || derivedBlueprintMode ? getPath('/lo-leads') : '/dashboard/lo-leads',
     '/lo-appointments': derivedDemoMode || derivedBlueprintMode ? getPath('/lo-appointments') : '/dashboard/lo-appointments',
+    '/lo-invoices': '/dashboard/lo-invoices',
     '/office': derivedDemoMode || derivedBlueprintMode ? getPath('/office') : '/dashboard/office',
     '/leads': derivedDemoMode || derivedBlueprintMode ? getPath('/leads') : '/dashboard/leads',
     '/appointments': derivedDemoMode || derivedBlueprintMode ? getPath('/appointments') : '/dashboard/appointments',
@@ -198,6 +200,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
   const visibleNavItems = derivedDemoMode && !derivedBlueprintMode
     ? activeNavItems.filter((item) => item.key !== 'settings')
     : activeNavItems;
+  // Invoices need a real account, so the demo and blueprint dashboards do not show the link.
+  const navItems = visibleNavItems.filter((item) => !(item.key === 'lo-invoices' && (derivedDemoMode || derivedBlueprintMode)));
 
   // ── Positioning logic (JS-driven, no Tailwind breakpoint classes) ──────────
   // Desktop: sidebar is part of the normal flex flow, always visible.
@@ -252,7 +256,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
 
         <nav className="flex min-h-0 flex-1 flex-col gap-4">
           <div className="flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-            {visibleNavItems.map((item) => (
+            {navItems.map((item) => (
               <NavItem key={item.key} to={pathMap[item.path]} icon={item.icon} onClose={onClose} testid={item.testid}>
                 {item.label}
               </NavItem>

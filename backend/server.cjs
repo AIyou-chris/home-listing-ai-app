@@ -641,6 +641,7 @@ const postOnly = (...mws) => (req, res, next) => {
   };
   run();
 };
+app.use('/api/public/invoice', leadLimiter);
 app.use('/api/public/lo-chat', postOnly(aiChatLimiter, aiSpendGuard));
 app.use('/api/public/conversations', postOnly(aiChatLimiter, aiSpendGuard));
 app.use('/api/ai/property-chat', postOnly(aiChatLimiter, aiSpendGuard));
@@ -32621,6 +32622,313 @@ app.delete('/api/lo/partners/invite/:inviteId', requireAuth, async (req, res) =>
   } catch (err) {
     console.error('[LO Invite Revoke] Failed:', err);
     res.status(500).json({ error: 'revoke_failed' });
+  }
+});
+
+// ── LO → agent invoices ─────────────────────────────────────────────────────
+// The loan officer bills a partner agent (for example their share of co-marketing). We create,
+// email and track the invoice. We never take, hold or move money: the agent pays the loan officer
+// directly and the loan officer marks it paid. Table: lo_agent_invoices (lo-invoices-migration.sql).
+const loInvoiceService = require('./services/loInvoiceService');
+
+const invoiceLink = (token) =>
+  `${(process.env.APP_BASE_URL || process.env.DASHBOARD_BASE_URL || 'https://homelistingai.com').replace(/\/$/, '')}/invoice/${token}`;
+
+const shapeInvoice = (row, { forOwner = true } = {}) => ({
+  ...(forOwner ? { id: row.id } : {}),
+  invoiceNumber: row.invoice_number,
+  agentName: row.agent_name || null,
+  agentEmail: row.agent_email,
+  listingId: row.listing_id || null,
+  listingAddress: row.listing_address || null,
+  lineItems: (row.line_items || []).map((l) => ({ description: l.description, amountCents: l.amount_cents })),
+  totalCents: row.total_cents,
+  dueDate: row.due_date || null,
+  paymentInstructions: row.payment_instructions || null,
+  note: row.note || null,
+  status: loInvoiceService.effectiveStatus(row),
+  sentAt: row.sent_at,
+  paidAt: row.paid_at || null,
+  loName: row.lo_name || null,
+  loCompany: row.lo_company || null,
+  loNmls: row.lo_nmls || null,
+  loEmail: row.lo_email || null,
+  loPhone: row.lo_phone || null,
+  link: invoiceLink(row.token),
+  ...(forOwner
+    ? {
+        emailSent: Boolean(row.email_sent),
+        firstViewedAt: row.first_viewed_at || null,
+        viewCount: row.view_count || 0,
+        reminderCount: row.reminder_count || 0,
+        lastReminderAt: row.last_reminder_at || null
+      }
+    : {})
+});
+
+async function sendInvoiceEmail(row, { isReminder = false } = {}) {
+  const link = invoiceLink(row.token);
+  const subject = isReminder
+    ? `Reminder: invoice ${row.invoice_number} from ${row.lo_name || 'your loan officer'}`
+    : `Invoice ${row.invoice_number} from ${row.lo_name || 'your loan officer'}`;
+  const result = await emailService.sendEmail({
+    to: row.agent_email,
+    subject,
+    html: loInvoiceService.buildInvoiceEmail({ invoice: row, link, isReminder }),
+    tags: { agent_id: row.lo_agent_id, kind: isReminder ? 'lo_invoice_reminder' : 'lo_invoice' }
+  });
+  return Boolean(result?.sent);
+}
+
+const ownInvoice = async (req, res) => {
+  const { data: row } = await supabaseAdmin
+    .from('lo_agent_invoices')
+    .select('*')
+    .eq('id', req.params.id)
+    .eq('lo_agent_id', req.loAgentId)
+    .maybeSingle();
+  if (!row) { res.status(404).json({ error: 'invoice_not_found' }); return null; }
+  return row;
+};
+
+app.get('/api/lo/invoices', requireLoAgent, async (req, res) => {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('lo_agent_invoices')
+      .select('*')
+      .eq('lo_agent_id', req.loAgentId)
+      .order('created_at', { ascending: false })
+      .limit(500);
+    if (error) throw error;
+    const rows = data || [];
+    res.json({ success: true, invoices: rows.map((r) => shapeInvoice(r)), summary: loInvoiceService.summarize(rows) });
+  } catch (err) {
+    console.error('[LO Invoices] list failed:', err);
+    res.status(500).json({ error: 'invoices_load_failed' });
+  }
+});
+
+app.get('/api/lo/invoices/export.csv', requireLoAgent, async (req, res) => {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('lo_agent_invoices')
+      .select('*')
+      .eq('lo_agent_id', req.loAgentId)
+      .order('created_at', { ascending: false })
+      .limit(5000);
+    if (error) throw error;
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="invoices-${new Date().toISOString().slice(0, 10)}.csv"`);
+    res.send(loInvoiceService.buildInvoicesCsv(data || []));
+  } catch (err) {
+    console.error('[LO Invoices] export failed:', err);
+    res.status(500).json({ error: 'export_failed' });
+  }
+});
+
+app.post('/api/lo/invoices', requireLoAgent, async (req, res) => {
+  try {
+    const parsed = loInvoiceService.normalizeInvoiceInput(req.body || {});
+    if (parsed.error) return res.status(400).json({ error: parsed.error });
+    const input = parsed.value;
+
+    const { data: lo } = await supabaseAdmin
+      .from('agents')
+      .select('id, first_name, last_name, company, nmls_number, email, phone')
+      .eq('id', req.loAgentId)
+      .maybeSingle();
+    if (!lo) return res.status(401).json({ error: 'unauthorized' });
+    if (lo.email && String(lo.email).toLowerCase() === input.agentEmail) {
+      return res.status(400).json({ error: 'cannot_invoice_yourself' });
+    }
+
+    // A loan officer can send 30 invoices a day. Plenty for real use, and it stops the email being used for spam.
+    const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { count: sentToday } = await supabaseAdmin
+      .from('lo_agent_invoices')
+      .select('id', { count: 'exact', head: true })
+      .eq('lo_agent_id', req.loAgentId)
+      .gte('created_at', dayAgo);
+    if ((sentToday || 0) >= 30) return res.status(429).json({ error: 'daily_invoice_limit' });
+
+    let listingAddress = null;
+    if (input.listingId) {
+      const { data: assignment } = await supabaseAdmin
+        .from('listing_lo_assignments')
+        .select('listing_id')
+        .eq('listing_id', input.listingId)
+        .eq('lo_agent_id', req.loAgentId)
+        .limit(1)
+        .maybeSingle();
+      if (!assignment) return res.status(400).json({ error: 'listing_not_assigned' });
+      const { data: prop } = await supabaseAdmin.from('properties').select('address').eq('id', input.listingId).maybeSingle();
+      listingAddress = prop?.address || null;
+    }
+
+    const { data: recipient } = await supabaseAdmin
+      .from('agents')
+      .select('id, first_name, last_name')
+      .eq('email', input.agentEmail)
+      .limit(1)
+      .maybeSingle();
+    const recipientName = input.agentName
+      || [recipient?.first_name, recipient?.last_name].filter(Boolean).join(' ')
+      || null;
+
+    const { count: existing } = await supabaseAdmin
+      .from('lo_agent_invoices')
+      .select('id', { count: 'exact', head: true })
+      .eq('lo_agent_id', req.loAgentId);
+
+    let row = null;
+    for (let attempt = 0; attempt < 3 && !row; attempt += 1) {
+      const { data, error } = await supabaseAdmin
+        .from('lo_agent_invoices')
+        .insert({
+          lo_agent_id: req.loAgentId,
+          agent_id: recipient?.id || null,
+          agent_email: input.agentEmail,
+          agent_name: recipientName,
+          listing_id: input.listingId,
+          listing_address: listingAddress,
+          invoice_number: loInvoiceService.formatInvoiceNumber((existing || 0) + 1 + attempt),
+          line_items: input.lineItems,
+          total_cents: input.totalCents,
+          due_date: input.dueDate,
+          payment_instructions: input.paymentInstructions,
+          note: input.note,
+          token: crypto.randomBytes(24).toString('hex'),
+          lo_name: [lo.first_name, lo.last_name].filter(Boolean).join(' ') || null,
+          lo_company: lo.company || null,
+          lo_nmls: lo.nmls_number || null,
+          lo_email: lo.email || null,
+          lo_phone: lo.phone || null
+        })
+        .select('*')
+        .single();
+      if (!error) { row = data; break; }
+      if (error.code !== '23505') throw error; // 23505 = invoice number taken, try the next one
+    }
+    if (!row) return res.status(409).json({ error: 'invoice_number_conflict' });
+
+    let emailSent = false;
+    try { emailSent = await sendInvoiceEmail(row); } catch (mailErr) { console.warn('[LO Invoices] email failed:', mailErr?.message); }
+    if (emailSent) {
+      await bestEffort(supabaseAdmin.from('lo_agent_invoices').update({ email_sent: true }).eq('id', row.id));
+      row.email_sent = true;
+    }
+    res.json({ success: true, emailSent, invoice: shapeInvoice(row) });
+  } catch (err) {
+    console.error('[LO Invoices] create failed:', err);
+    res.status(500).json({ error: 'invoice_create_failed' });
+  }
+});
+
+// Mark paid (or put it back to open with { paid: false }). The loan officer decides; we never see the money.
+app.post('/api/lo/invoices/:id/paid', requireLoAgent, async (req, res) => {
+  try {
+    const row = await ownInvoice(req, res);
+    if (!row) return;
+    if (row.status === 'void') return res.status(409).json({ error: 'invoice_voided' });
+    const markPaid = req.body?.paid !== false;
+    const patch = markPaid
+      ? { status: 'paid', paid_at: row.paid_at || new Date().toISOString(), updated_at: new Date().toISOString() }
+      : { status: 'sent', paid_at: null, updated_at: new Date().toISOString() };
+    const { data, error } = await supabaseAdmin.from('lo_agent_invoices').update(patch).eq('id', row.id).select('*').single();
+    if (error) throw error;
+    res.json({ success: true, invoice: shapeInvoice(data) });
+  } catch (err) {
+    console.error('[LO Invoices] paid failed:', err);
+    res.status(500).json({ error: 'invoice_update_failed' });
+  }
+});
+
+app.post('/api/lo/invoices/:id/void', requireLoAgent, async (req, res) => {
+  try {
+    const row = await ownInvoice(req, res);
+    if (!row) return;
+    if (row.status === 'paid') return res.status(409).json({ error: 'already_paid' });
+    const { data, error } = await supabaseAdmin
+      .from('lo_agent_invoices')
+      .update({ status: 'void', voided_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+      .eq('id', row.id).select('*').single();
+    if (error) throw error;
+    res.json({ success: true, invoice: shapeInvoice(data) });
+  } catch (err) {
+    console.error('[LO Invoices] void failed:', err);
+    res.status(500).json({ error: 'invoice_update_failed' });
+  }
+});
+
+app.post('/api/lo/invoices/:id/remind', requireLoAgent, async (req, res) => {
+  try {
+    const row = await ownInvoice(req, res);
+    if (!row) return;
+    const gate = loInvoiceService.canSendReminder(row);
+    if (!gate.ok) return res.status(gate.error === 'too_soon' ? 429 : 409).json({ error: gate.error });
+    const emailSent = await sendInvoiceEmail(row, { isReminder: true });
+    if (!emailSent) return res.status(502).json({ error: 'email_not_sent' });
+    const { data, error } = await supabaseAdmin
+      .from('lo_agent_invoices')
+      .update({ last_reminder_at: new Date().toISOString(), reminder_count: (row.reminder_count || 0) + 1, updated_at: new Date().toISOString() })
+      .eq('id', row.id).select('*').single();
+    if (error) throw error;
+    res.json({ success: true, invoice: shapeInvoice(data) });
+  } catch (err) {
+    console.error('[LO Invoices] remind failed:', err);
+    res.status(500).json({ error: 'invoice_remind_failed' });
+  }
+});
+
+// Public, token-gated: the page the agent opens from the email. Counts the view.
+app.get('/api/public/invoice/:token', async (req, res) => {
+  try {
+    const token = String(req.params.token || '');
+    if (!/^[a-f0-9]{48}$/.test(token)) return res.status(404).json({ error: 'invoice_not_found' });
+    const { data: row } = await supabaseAdmin.from('lo_agent_invoices').select('*').eq('token', token).maybeSingle();
+    if (!row) return res.status(404).json({ error: 'invoice_not_found' });
+    if (row.status !== 'void') {
+      const now = new Date().toISOString();
+      await bestEffort(supabaseAdmin.from('lo_agent_invoices').update({
+        view_count: (row.view_count || 0) + 1,
+        first_viewed_at: row.first_viewed_at || now,
+        last_viewed_at: now
+      }).eq('id', row.id));
+    }
+    res.json({ success: true, invoice: shapeInvoice(row, { forOwner: false }), disclaimer: loInvoiceService.DISCLAIMER });
+  } catch (err) {
+    console.error('[LO Invoices] public view failed:', err);
+    res.status(500).json({ error: 'invoice_load_failed' });
+  }
+});
+
+// The agent's side: invoices sent to them (by account or by email address). Read only.
+app.get('/api/dashboard/my-invoices', async (req, res) => {
+  try {
+    const authId = await resolveDashboardOwnerId(req);
+    if (!authId) return res.status(401).json(UNAUTHORIZED_DASHBOARD);
+    const { data: me } = await supabaseAdmin
+      .from('agents')
+      .select('id, email')
+      .or(`id.eq.${authId},auth_user_id.eq.${authId}`)
+      .limit(1)
+      .maybeSingle();
+    if (!me) return res.json({ success: true, invoices: [] });
+    const [byId, byEmail] = await Promise.all([
+      supabaseAdmin.from('lo_agent_invoices').select('*').eq('agent_id', me.id).neq('status', 'void').limit(200),
+      me.email
+        ? supabaseAdmin.from('lo_agent_invoices').select('*').eq('agent_email', String(me.email).toLowerCase()).neq('status', 'void').limit(200)
+        : Promise.resolve({ data: [] })
+    ]);
+    const merged = new Map();
+    [...(byId.data || []), ...(byEmail.data || [])].forEach((r) => merged.set(r.id, r));
+    const invoices = [...merged.values()]
+      .sort((a, b) => String(b.sent_at).localeCompare(String(a.sent_at)))
+      .map((r) => shapeInvoice(r, { forOwner: false }));
+    res.json({ success: true, invoices });
+  } catch (err) {
+    console.error('[LO Invoices] agent list failed:', err);
+    res.status(500).json({ error: 'invoices_load_failed' });
   }
 });
 
