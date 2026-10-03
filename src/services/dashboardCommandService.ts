@@ -3,7 +3,6 @@
 export { resolveAgentId } from './dashboard/utils'
 export * from './dashboard/leads'
 export * from './dashboard/appointments'
-export * from './dashboard/commandCenter'
 export * from './dashboard/roi'
 export * from './dashboard/listingPerformance'
 export * from './dashboard/listingContent'

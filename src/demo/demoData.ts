@@ -3,7 +3,6 @@ import type { Property } from '../types'
 import type {
   AppointmentReminderRow,
   DashboardAppointmentRow,
-  DashboardCommandCenterSnapshot,
   DashboardLeadConversationResponse,
   DashboardLeadDetail,
   DashboardLeadItem,
@@ -982,68 +981,6 @@ export const disableDemoReminders = (appointmentId: string) => {
     appointment_id: appointmentId,
     canceled_count: reminders.length
   }
-}
-
-export const getDemoCommandCenterSnapshot = (): DashboardCommandCenterSnapshot => {
-  const newLeads = demoLeads.filter((lead) => lead.status === 'New')
-  const appointmentsComingUp = getDemoAppointments('today')
-  const needsAttention = appointmentsComingUp.filter((appointment) => {
-    const status = String(appointment.status || '').toLowerCase()
-    const lastOutcome = String(appointment.last_reminder_outcome?.status || '').toLowerCase()
-    return status === 'reschedule_requested' || lastOutcome === 'failed'
-  })
-
-  return clone({
-    stats: {
-      new_leads_today: newLeads.length,
-      unworked_leads: newLeads.length,
-      appointments_today: appointmentsComingUp.length,
-      confirmations_7d: 9
-    },
-    queues: {
-      new_leads_to_work: newLeads.slice(0, 10).map((lead) => ({
-        lead_id: lead.id,
-        listing_id: lead.listing_id,
-        listing_address: lead.listing?.address || null,
-        full_name: lead.name || 'Unknown',
-        intent_level: lead.intent_level,
-        status: lead.status,
-        timeline: lead.timeline,
-        financing: lead.financing,
-        source_type: lead.source_type,
-        last_activity_at: lead.last_activity_at,
-        lead_summary_preview: lead.lead_summary || lead.last_message_preview || null,
-        phone: lead.phone,
-        email: lead.email,
-        created_at: lead.created_at,
-        last_agent_action_at: lead.last_agent_action_at || null
-      })),
-      appointments_coming_up: appointmentsComingUp.map((appointment) => ({
-        appointment_id: appointment.id,
-        lead_id: appointment.lead?.id || null,
-        listing_id: appointment.listing?.id || null,
-        listing_address: appointment.listing?.address || null,
-        starts_at: appointment.startsAt || appointment.startIso || null,
-        status: appointment.status,
-        lead_name: appointment.lead?.name || 'Unknown',
-        lead_phone: appointment.lead?.phone || null,
-        lead_email: appointment.lead?.email || null,
-        last_reminder_outcome: appointment.last_reminder_outcome?.status || null
-      })),
-      needs_attention: needsAttention.map((appointment) => ({
-        appointment_id: appointment.id,
-        lead_id: appointment.lead?.id || null,
-        listing_id: appointment.listing?.id || null,
-        listing_address: appointment.listing?.address || null,
-        starts_at: appointment.startsAt || appointment.startIso || null,
-        status: appointment.status,
-        lead_name: appointment.lead?.name || 'Unknown',
-        lead_phone: appointment.lead?.phone || null,
-        lead_email: appointment.lead?.email || null,
-        last_reminder_outcome: appointment.last_reminder_outcome?.status || null
-      }))
-    }
-  })
 }
 
 export const logDemoAgentAction = (payload: { lead_id: string; action: string }) => {

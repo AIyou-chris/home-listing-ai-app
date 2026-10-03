@@ -1,8 +1,7 @@
 import { create } from 'zustand'
 import type {
   DashboardAppointmentRow,
-  DashboardLeadItem,
-  DashboardCommandCenterSnapshot
+  DashboardLeadItem
 } from '../services/dashboardCommandService'
 
 type RealtimeEventType =
@@ -31,11 +30,9 @@ interface DashboardRealtimeState {
   leadsById: Record<string, DashboardLeadItem>
   appointmentsById: Record<string, DashboardAppointmentRow>
   listingSignalsById: Record<string, string>
-  commandCenter: DashboardCommandCenterSnapshot | null
   lastRealtimeEvent: DashboardRealtimeEventEnvelope | null
   setInitialLeads: (leads: DashboardLeadItem[]) => void
   setInitialAppointments: (appointments: DashboardAppointmentRow[]) => void
-  setCommandCenter: (snapshot: DashboardCommandCenterSnapshot | null) => void
   patchLeadAction: (leadId: string, actionIso: string) => void
   removeLead: (leadId: string) => void
   applyRealtimeEvent: (event: DashboardRealtimeEventEnvelope) => void
@@ -134,7 +131,6 @@ export const useDashboardRealtimeStore = create<DashboardRealtimeState>((set) =>
   leadsById: {},
   appointmentsById: {},
   listingSignalsById: {},
-  commandCenter: null,
   lastRealtimeEvent: null,
   setInitialLeads: (leads) =>
     set(() => ({
@@ -144,7 +140,6 @@ export const useDashboardRealtimeStore = create<DashboardRealtimeState>((set) =>
     set(() => ({
       appointmentsById: Object.fromEntries((appointments || []).map((appointment) => [appointment.id, appointment]))
     })),
-  setCommandCenter: (snapshot) => set(() => ({ commandCenter: snapshot })),
   patchLeadAction: (leadId, actionIso) =>
     set((state) => {
       const existing = state.leadsById[leadId]

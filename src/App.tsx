@@ -140,26 +140,7 @@ type AppRole = 'admin' | 'agent' | 'user' | null;
 //     return ADMIN_VIEWS.includes(value as AdminView);
 // };
 
-interface BackendListing {
-    id: string;
-    title: string;
-    address: string;
-    price: number;
-    bedrooms: number;
-    bathrooms: number;
-    squareFeet: number;
-    propertyType: string;
-    description?: string;
-    heroPhotos?: string[];
-    galleryPhotos?: string[];
-    features?: string[];
-    agent: AgentProfile;
-    ctaListingUrl?: string;
-    ctaMediaUrl?: string;
-}
-
 import { ImpersonationProvider } from './context/ImpersonationContext';
-import { authedFetch } from './services/authedFetch';
 
 // ─── Module-level contexts ───────────────────────────────────────────────────
 // ProtectedDashboardLayout and CheckoutRouteWrapper are defined OUTSIDE App so
@@ -1199,9 +1180,6 @@ const App: React.FC = () => {
             // Load centralized agent profile
             loadAgentProfile();
 
-            // Load listings from backend
-            loadListingsFromBackend();
-
             // Subscribe to profile changes for real-time updates
             const unsubscribe = subscribeToProfileChanges((updatedProfile) => {
                 setUserProfile(prev => ({
@@ -1257,59 +1235,6 @@ const App: React.FC = () => {
             // Keep using SAMPLE_AGENT as fallback
         } finally {
             setIsProfileLoading(false);
-        }
-    };
-
-    // Load listings from backend
-    const loadListingsFromBackend = async () => {
-        try {
-            if (!user?.id) return;
-            const response = await authedFetch(`/api/listings?userId=${user.id}`);
-            if (response.ok) {
-                const data: { listings?: BackendListing[] } = await response.json();
-                // Convert backend format to frontend format
-                const backendListings: BackendListing[] = Array.isArray(data.listings) ? data.listings : [];
-                const frontendProperties = backendListings.map((listing) => ({
-                    id: listing.id,
-                    title: listing.title,
-                    address: listing.address,
-                    price: listing.price,
-                    bedrooms: listing.bedrooms,
-                    bathrooms: listing.bathrooms,
-                    squareFeet: listing.squareFeet,
-                    propertyType: listing.propertyType,
-                    description: listing.description || '',
-                    imageUrl: listing.heroPhotos?.[0] || '/demo/home-1.png',
-                    features: listing.features || [],
-                    heroPhotos: listing.heroPhotos || [],
-                    galleryPhotos: listing.galleryPhotos || [],
-                    agent: listing.agent,
-                    appFeatures: {
-                        gallery: true,
-                        schools: true,
-                        financing: true,
-                        virtualTour: true,
-                        amenities: true,
-                        schedule: true,
-                        map: true,
-                        history: true,
-                        neighborhood: true,
-                        reports: true,
-                        messaging: true
-                    },
-                    ctaListingUrl: listing.ctaListingUrl ?? '',
-                    ctaMediaUrl: listing.ctaMediaUrl ?? ''
-                }));
-                setProperties(frontendProperties);
-            } else {
-                console.warn('Failed to load listings from backend');
-                // IN PRODUCTION: Do NOT show demo data on failure. Show nothing.
-                setProperties([]);
-            }
-        } catch (error) {
-            console.error('Error loading listings from backend:', error);
-            // IN PRODUCTION: Do NOT show demo data on error.
-            setProperties([]);
         }
     };
 
