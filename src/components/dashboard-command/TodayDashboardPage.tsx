@@ -512,7 +512,7 @@ const TodayDashboardPage: React.FC = () => {
                         onClick={() => {
                           void handleOpenLead(lead.id)
                         }}
-                        className="min-h-[36px] rounded-lg px-3 text-xs font-semibold text-slate-600 hover:bg-slate-100"
+                        className="min-h-[40px] min-w-[44px] rounded-lg px-3 text-xs font-semibold text-slate-600 hover:bg-slate-100"
                       >
                         Details
                       </button>

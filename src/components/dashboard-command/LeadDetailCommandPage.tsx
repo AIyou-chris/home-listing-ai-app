@@ -359,14 +359,14 @@ const LeadDetailCommandPage: React.FC = () => {
         {(leadPhone || leadEmail) && (
           <div className="flex flex-wrap items-center gap-3 mt-3">
             {leadPhone && (
-              <a href={`tel:${leadPhone}`} className="flex items-center gap-1.5 text-sm font-semibold text-slate-700 hover:text-slate-900 transition-colors">
+              <a href={`tel:${leadPhone}`} className="flex min-h-[40px] items-center gap-1.5 text-sm font-semibold text-slate-700 hover:text-slate-900 transition-colors">
                 <span className="material-symbols-outlined text-[16px] text-slate-400">call</span>
                 {leadPhone}
               </a>
             )}
             {leadPhone && leadEmail && <span className="w-1 h-1 rounded-full bg-slate-300"></span>}
             {leadEmail && (
-              <a href={`mailto:${leadEmail}`} className="flex items-center gap-1.5 text-sm font-semibold text-slate-700 hover:text-slate-900 transition-colors">
+              <a href={`mailto:${leadEmail}`} className="flex min-h-[40px] items-center gap-1.5 text-sm font-semibold text-slate-700 hover:text-slate-900 transition-colors">
                 <span className="material-symbols-outlined text-[16px] text-slate-400">mail</span>
                 {leadEmail}
               </a>

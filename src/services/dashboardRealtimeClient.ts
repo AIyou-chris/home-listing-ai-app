@@ -1,7 +1,6 @@
 import { toast } from 'react-hot-toast'
 import { getApiBaseUrl } from '../lib/api'
 import { getEnvVar } from '../lib/env'
-import { fetchCommandCenterSnapshot } from './dashboardCommandService'
 import { supabase } from './supabase'
 import { useDashboardRealtimeStore, type DashboardRealtimeEventEnvelope } from '../state/useDashboardRealtimeStore'
 
@@ -10,9 +9,6 @@ let reconnectTimer: number | null = null
 let reconnectAttempt = 0
 let stopped = false
 let connecting = false
-let commandCenterRefreshTimer: number | null = null
-let commandCenterRefreshInFlight = false
-let commandCenterRefreshPending = false
 
 const seenEventKeys = new Map<string, number>()
 const EVENT_KEY_TTL_MS = 2 * 60 * 1000
@@ -61,40 +57,6 @@ const showToast = (title: string, body?: string) => {
   toast(body ? `${title}\n${body}` : title, { duration: 4000 })
 }
 
-const refreshCommandCenterSnapshot = async () => {
-  if (stopped) return
-  if (commandCenterRefreshInFlight) {
-    commandCenterRefreshPending = true
-    return
-  }
-  commandCenterRefreshInFlight = true
-  try {
-    const response = await fetchCommandCenterSnapshot()
-    useDashboardRealtimeStore.getState().setCommandCenter({
-      stats: response.stats,
-      queues: response.queues
-    })
-  } catch (_) {
-    // no-op: command center page can still rely on existing local state
-  } finally {
-    commandCenterRefreshInFlight = false
-    if (commandCenterRefreshPending) {
-      commandCenterRefreshPending = false
-      scheduleCommandCenterRefresh()
-    }
-  }
-}
-
-const scheduleCommandCenterRefresh = () => {
-  if (commandCenterRefreshTimer) {
-    window.clearTimeout(commandCenterRefreshTimer)
-  }
-  commandCenterRefreshTimer = window.setTimeout(() => {
-    commandCenterRefreshTimer = null
-    void refreshCommandCenterSnapshot()
-  }, 750)
-}
-
 const handleRealtimeToast = (event: DashboardRealtimeEventEnvelope) => {
   if (event.type === 'lead.created') {
     showToast('New lead captured')
@@ -125,9 +87,6 @@ const handleRealtimeEvent = (event: DashboardRealtimeEventEnvelope) => {
 
   useDashboardRealtimeStore.getState().applyRealtimeEvent(event)
   handleRealtimeToast(event)
-  if (event.type !== 'system.ready') {
-    scheduleCommandCenterRefresh()
-  }
 }
 
 const scheduleReconnect = () => {
@@ -160,12 +119,13 @@ export const startDashboardRealtime = async () => {
     const token = data.session?.access_token
     if (!token) return
 
-    const wsUrl = `${buildWsBaseUrl()}/ws?token=${encodeURIComponent(token)}`
+    // The token goes in the first message, not the URL, so it never lands in server or proxy logs.
+    const wsUrl = `${buildWsBaseUrl()}/ws`
     socket = new WebSocket(wsUrl)
 
     socket.addEventListener('open', () => {
+      socket?.send(JSON.stringify({ type: 'auth', token }))
       reconnectAttempt = 0
-      scheduleCommandCenterRefresh()
     })
 
     socket.addEventListener('message', (messageEvent) => {
@@ -197,11 +157,6 @@ export const stopDashboardRealtime = () => {
     window.clearTimeout(reconnectTimer)
     reconnectTimer = null
   }
-  if (commandCenterRefreshTimer) {
-    window.clearTimeout(commandCenterRefreshTimer)
-    commandCenterRefreshTimer = null
-  }
-  commandCenterRefreshPending = false
   closeSocket()
 }
 

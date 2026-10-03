@@ -54,6 +54,8 @@ const sharp = require('sharp');
 const { execFile } = require('child_process');
 const multer = require('multer');
 const { WebSocketServer } = require('ws');
+const { createPublicBookingLimiter, validatePublicBookingFields } = require('./services/publicBookingGuard');
+const publicBookingLimiter = createPublicBookingLimiter();
 const upload = multer({
   dest: os.tmpdir(),
   limits: { fileSize: 25 * 1024 * 1024 } // 25MB Limit (OpenAI Max)
@@ -20821,6 +20823,7 @@ app.get('/api/dashboard/onboarding', async (req, res) => {
         },
         plan_id: String(billingSnapshot?.plan?.id || 'free'),
         is_pro: String(billingSnapshot?.plan?.id || 'free') === 'pro',
+        account_type: 'realtor',
         progress: {
           completed_items: 0,
           total_items: ONBOARDING_REQUIRED_KEYS.length
@@ -21118,9 +21121,9 @@ app.post('/api/billing/checkout-session', async (req, res) => {
     if (!agentId) return res.status(401).json({ error: 'unauthorized' });
 
     const rawPlanId = String(req.body?.plan_id || req.body?.planId || '').trim().toLowerCase();
-    const planId = rawPlanId === 'starter' || rawPlanId === 'pro' ? rawPlanId : 'free';
+    const planId = rawPlanId === 'lo_lite' || rawPlanId === 'starter' || rawPlanId === 'pro' ? rawPlanId : 'free';
     const normalizedPromoCode = String(req.body?.promo_code || req.body?.promoCode || '').trim().toUpperCase();
-    if (!['starter', 'pro'].includes(planId)) {
+    if (!['lo_lite', 'starter', 'pro'].includes(planId)) {
       return res.status(400).json({ error: 'invalid_plan_id' });
     }
 
@@ -22172,10 +22175,8 @@ app.get('/api/dashboard/leads', async (req, res) => {
     const sortMode = req.query.sort ? String(req.query.sort) : 'hot_first';
     const agentId = await resolveRequesterUserId(req, { allowDefault: false });
     if (!agentId) return res.status(401).json({ error: 'agent_auth_required' });
-
-    if (!agentId) {
-      return res.status(400).json({ error: 'agent_id_required' });
-    }
+    // Newest N leads only (the database would otherwise silently stop at 1,000 rows).
+    const leadLimit = Math.min(1000, Math.max(1, Number.parseInt(String(req.query.limit || ''), 10) || 500));
 
     let fromDateIso = null;
     if (timeframe === '24h') {
@@ -22190,7 +22191,8 @@ app.get('/api/dashboard/leads', async (req, res) => {
       let scoped = supabaseAdmin
         .from('leads')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(leadLimit);
 
       if (ownerMode === 'agent_or_user') {
         scoped = scoped.or(`agent_id.eq.${agentId},user_id.eq.${agentId}`);
@@ -22234,7 +22236,7 @@ app.get('/api/dashboard/leads', async (req, res) => {
     if (listingIds.length > 0) {
       const { data: listingRows } = await supabaseAdmin
         .from('properties')
-        .select('*')
+        .select('id, address, title, price')
         .in('id', listingIds);
       listingMap = (listingRows || []).reduce((acc, row) => {
         acc[row.id] = row;
@@ -22329,6 +22331,7 @@ app.get('/api/dashboard/leads', async (req, res) => {
         timeframe: timeframe || 'all',
         sort: sortMode
       },
+      truncated: (leads || []).length >= leadLimit,
       leads: sorted
     });
   } catch (error) {
@@ -31010,7 +31013,6 @@ app.post('/api/appointments', async (req, res) => {
       if (!ownerId) return res.status(401).json({ error: 'agent_auth_required' });
       publicBooking = true;
     }
-    void publicBooking;
 
     const requestedLeadId = leadId || lead_id || null;
     const requestedListingId = listingId || listing_id || propertyId || null;
@@ -31061,6 +31063,22 @@ app.post('/api/appointments', async (req, res) => {
     const contactPhone =
       normalizePhoneE164(phone || leadRow?.phone_e164 || leadRow?.phone || '') || null;
 
+    // A public booking sends a confirmation email to whatever address was typed, so it is
+    // rate limited, size limited and can only ever create a normal "scheduled" request.
+    if (publicBooking) {
+      const fieldError = validatePublicBookingFields({ name, email, notes, location, kind });
+      if (fieldError) return res.status(400).json({ error: fieldError });
+      const bookingLimit = publicBookingLimiter.check({
+        ip: req.ip,
+        listingId: requestedListingId,
+        email: contactEmail || null
+      });
+      if (!bookingLimit.allowed) {
+        res.set('Retry-After', String(bookingLimit.retryAfterSeconds));
+        return res.status(429).json({ error: 'rate_limited', retry_after_seconds: bookingLimit.retryAfterSeconds });
+      }
+    }
+
     const explicitStart =
       starts_at ||
       startsAt ||
@@ -31082,7 +31100,7 @@ app.post('/api/appointments', async (req, res) => {
       explicitStart && explicitEnd
         ? { startIso: explicitStart, endIso: explicitEnd }
         : computeAppointmentIsoRange(day, label);
-    const normalizedStatus = normalizeAppointmentStatusValue(status || 'scheduled');
+    const normalizedStatus = normalizeAppointmentStatusValue(publicBooking ? 'scheduled' : (status || 'scheduled'));
     const confirmationStatus =
       normalizedStatus === 'confirmed'
         ? 'confirmed'
@@ -34251,7 +34269,9 @@ app.patch('/api/listings/:listingId/sold', requireAuth, async (req, res) => {
     if (updateError) throw updateError;
     const { data: loAssignment } = await supabaseAdmin.from('listing_lo_assignments').select('lo_agent_id').eq('listing_id', listingId).limit(1);
     if (loAssignment?.[0]?.lo_agent_id) {
-      await bestEffort(supabaseAdmin.from('notifications').insert({ user_id: loAssignment[0].lo_agent_id, title: '🎉 Listing sold!', content: `${listing.address} just sold! ${leadCount || 0} leads, ${viewCount || 0} views.`, type: 'listing', priority: 'high', is_read: false }));
+      // notifications.user_id references auth.users, so use the LO's login id, not the agents.id profile id.
+      const { data: soldLoRow } = await supabaseAdmin.from('agents').select('auth_user_id').eq('id', loAssignment[0].lo_agent_id).maybeSingle();
+      if (soldLoRow?.auth_user_id) await bestEffort(supabaseAdmin.from('notifications').insert({ user_id: soldLoRow.auth_user_id, title: '🎉 Listing sold!', content: `${listing.address} just sold! ${leadCount || 0} leads, ${viewCount || 0} views.`, type: 'listing', priority: 'high', is_read: false }));
     }
     res.json({ success: true, sold_price: soldPrice, total_leads: leadCount || 0, total_views: viewCount || 0 });
   } catch (err) {
@@ -36469,6 +36489,12 @@ app.post('/api/properties', requireAuth, async (req, res) => {
 
     payload.user_id = agentData?.auth_user_id || agentId
     console.info(`[${requestId}] Resolved user_id: ${payload.user_id}`)
+
+    // New listings always start as drafts. Publishing goes through the publish route, which
+    // enforces the plan's active-listing limit and the address/price/photo rules. (A status of
+    // "active" here used to publish a listing without being counted against the plan.)
+    payload.status = 'draft'
+    payload.is_published = false
   } catch (lookupError) {
     console.warn(`[${requestId}] Agent lookup failed:`, lookupError)
   }
@@ -36583,7 +36609,7 @@ app.put('/api/properties/:id', requireAuth, async (req, res) => {
   try {
     const { data: ownedProperty, error: ownedPropertyError } = await supabaseAdmin
       .from('properties')
-      .select('id, price, title, address')
+      .select('id, price, title, address, status, is_published')
       .eq('id', id)
       .or(`agent_id.eq.${agentId},user_id.eq.${agentId}`)
       .maybeSingle()
@@ -36595,6 +36621,11 @@ app.put('/api/properties/:id', requireAuth, async (req, res) => {
 
     if (!ownedProperty?.id) {
       return res.status(404).json({ error: 'Property not found or unauthorized', requestId })
+    }
+
+    // A draft can only become published through the publish route (plan limit + publish rules).
+    if (normalizeDashboardListingStatus(ownedProperty.status, Boolean(ownedProperty.is_published)) !== 'published') {
+      delete payload.status
     }
 
     const { data, error } = await supabaseAdmin
@@ -37895,10 +37926,29 @@ const resolveWsToken = (request) => {
   return null;
 };
 
+// The browser sends its token as the first message ({ type: 'auth', token }) so it never appears
+// in a URL (URLs end up in logs). The ?token= form is still accepted for older cached clients.
+const waitForWsAuthMessage = (socket, timeoutMs = 5000) => new Promise((resolve) => {
+  const timer = setTimeout(() => { socket.off('message', onMessage); resolve(null); }, timeoutMs);
+  function onMessage(raw) {
+    try {
+      const parsed = JSON.parse(raw.toString());
+      if (parsed?.type === 'auth' && typeof parsed.token === 'string' && parsed.token) {
+        clearTimeout(timer);
+        socket.off('message', onMessage);
+        resolve(parsed.token);
+      }
+    } catch (_) {
+      // ignore anything that is not the auth message
+    }
+  }
+  socket.on('message', onMessage);
+});
+
 if (wsServer) {
   wsServer.on('connection', async (socket, request) => {
     try {
-      const token = resolveWsToken(request);
+      const token = resolveWsToken(request) || await waitForWsAuthMessage(socket);
       if (!token) {
         socket.close(1008, 'missing_token');
         return;

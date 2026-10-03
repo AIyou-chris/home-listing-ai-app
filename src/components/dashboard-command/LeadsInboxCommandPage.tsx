@@ -13,6 +13,7 @@ import { buildDashboardPath, useDemoMode } from '../../demo/useDemoMode'
 import { useBlueprintMode } from '../../demo/useBlueprintMode'
 import { WaitingBadge } from './LeadActions'
 import { useDashboardRealtimeStore } from '../../state/useDashboardRealtimeStore'
+import { csvCell } from '../../utils/csvCell'
 
 const sortLeadsForInbox = (rows: DashboardLeadItem[]) => {
   const rank = (lead: DashboardLeadItem) => {
@@ -45,12 +46,12 @@ const timeAgo = (dateStr: string | null | undefined) => {
 
 const exportConversationsCSV = async () => {
   const leads = await fetchLeadConversationsForExport()
-  if (!leads.length) return
-
-  const escape = (val: unknown) => {
-    const s = String(val ?? '').replace(/"/g, '""')
-    return `"${s}"`
+  if (!leads.length) {
+    toast('No conversations to export yet.')
+    return
   }
+
+  const escape = csvCell
 
   const headers = ['Lead Name', 'Phone', 'Email', 'Listing Address', 'Sender', 'Message', 'Timestamp']
   const rows: string[] = []
@@ -98,10 +99,7 @@ const exportLeadsCSV = (leads: DashboardLeadItem[]) => {
     'Financing', 'Source', 'Listing Address', 'Summary', 'Created', 'Last Activity'
   ]
 
-  const escape = (val: unknown) => {
-    const s = String(val ?? '').replace(/"/g, '""')
-    return `"${s}"`
-  }
+  const escape = csvCell
 
   const rows = leads.map((lead) => [
     escape(lead.name),
@@ -213,13 +211,13 @@ const LeadsInboxCommandPage: React.FC = () => {
 
   return (
     <div className="mx-auto max-w-4xl space-y-6 px-4 py-8 md:px-8 font-sans">
-      <div className="mb-8 flex items-start justify-between gap-4">
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Leads</h1>
           <p className="mt-2 text-lg text-slate-500 font-medium text-center sm:text-left">New leads and listing inquiries—organized by what matters most.</p>
         </div>
         {!loading && allCount > 0 && (
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex flex-wrap items-center gap-2 sm:flex-shrink-0">
             <button
               type="button"
               onClick={() => exportLeadsCSV(filteredLeads)}

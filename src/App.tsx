@@ -226,7 +226,8 @@ const RequireOnboarding: React.FC = () => {
 
     if (state === 'checking') return <AuthGateSpinner text="Loading your dashboard..." />;
     if (state === 'lo-onboarding') return <Navigate to="/dashboard/lo-onboarding" replace />;
-    if (state === 'onboarding') return <Navigate to="/dashboard/onboarding" replace />;
+    // Agents are not locked out of Leads / Listings / Appointments while onboarding is unfinished.
+    // New agents still land on the wizard at /dashboard (DashboardRouteGate) and Today shows the checklist.
     return <Outlet />;
 };
 
@@ -300,11 +301,21 @@ const resolveDashboardPageTitle = (pathname: string) => {
     return 'Today';
 };
 
+// Every dashboard page used to show the marketing site's tab title. Name the tab after the page.
+const useDashboardDocumentTitle = (pathname: string) => {
+    useEffect(() => {
+        const previousTitle = document.title;
+        document.title = `${resolveDashboardPageTitle(pathname)} | HomeListingAI`;
+        return () => { document.title = previousTitle; };
+    }, [pathname]);
+};
+
 const DemoDashboardLayout = () => {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [isDesktop, setIsDesktop] = useState(() => window.innerWidth >= 1280);
     const location = useLocation();
     const pageTitle = resolveDashboardPageTitle(location.pathname);
+    useDashboardDocumentTitle(location.pathname);
 
     useEffect(() => {
         const handleResize = () => {
@@ -356,6 +367,7 @@ const BlueprintDashboardLayout = () => {
     const [isDesktop, setIsDesktop] = useState(() => window.innerWidth >= 1280);
     const location = useLocation();
     const pageTitle = resolveDashboardPageTitle(location.pathname);
+    useDashboardDocumentTitle(location.pathname);
 
     useEffect(() => {
         const handleResize = () => {
@@ -402,6 +414,7 @@ const ProtectedDashboardLayout: React.FC = () => {
     const ctx = React.useContext(DashboardLayoutContext)!;
     const { user, isSidebarOpen, setIsSidebarOpen } = ctx;
     const location = useLocation();
+    useDashboardDocumentTitle(location.pathname);
     const [isDesktop, setIsDesktop] = useState(() => window.innerWidth >= 1280);
 
     useEffect(() => {
