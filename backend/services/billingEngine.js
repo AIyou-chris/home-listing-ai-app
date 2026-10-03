@@ -926,7 +926,18 @@ const createBillingEngine = ({ supabaseAdmin, stripe, enqueueJob, appBaseUrl }) 
     if (metadata?.agent_id) return String(metadata.agent_id);
     if (metadata?.agentId) return String(metadata.agentId);
     if (metadata?.userId) return String(metadata.userId);
-    if (fallbackAgentId) return String(fallbackAgentId);
+    if (fallbackAgentId) {
+      const fallback = String(fallbackAgentId);
+      if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(fallback)) return fallback;
+      // Older checkout sessions carry the agent's slug here. Turn it into the real account id.
+      const { data: bySlug } = await supabaseAdmin
+        .from('agents')
+        .select('id, auth_user_id')
+        .eq('slug', fallback)
+        .limit(1)
+        .maybeSingle();
+      if (bySlug?.auth_user_id || bySlug?.id) return bySlug.auth_user_id || bySlug.id;
+    }
 
     if (subscriptionId) {
       const { data, error } = await supabaseAdmin

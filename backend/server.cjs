@@ -21124,7 +21124,7 @@ app.post('/api/billing/checkout-session', async (req, res) => {
       return res.status(400).json({ error: 'invalid_plan_id' });
     }
 
-    if (normalizedPromoCode === 'LIFETIME' || normalizedPromoCode === 'FRIENDS30') {
+    if (isFreeAccessCode(normalizedPromoCode)) {
       const existingSubscription = await billingEngine.getOrCreateSubscription(agentId);
       const now = new Date().toISOString();
 
@@ -34650,6 +34650,8 @@ app.delete('/api/lo/listings/:listingId/assign', requireAuth, async (req, res) =
 const { createLoBrainService, DEFAULT_RULEBOOKS: LO_BRAIN_DEFAULT_RULEBOOKS } = require('./services/loBrainService');
 const { rateCaptureIntent, higherLevel } = require('./services/captureIntent');
 const { safeFetch } = require('./services/safeUrl');
+const { isFreeAccessCode } = require('./services/promoCodes');
+const { checkoutTrialDays } = require('./services/checkoutTrial');
 const { createTypeSafeClient: createLoBrainJevClient } = require('./services/typesafeClient');
 
 async function openAiChatReply(messages) {
@@ -38069,7 +38071,7 @@ app.post('/api/payments/checkout-session', async (req, res) => {
 
     const { data: agent, error: agentError } = await supabaseAdmin
       .from('agents')
-      .select('email, slug, status, payment_status, stripe_customer_id')
+      .select('id, auth_user_id, created_at, email, slug, status, payment_status, stripe_customer_id')
       .eq('slug', slug)
       .maybeSingle()
 
@@ -38085,7 +38087,7 @@ app.post('/api/payments/checkout-session', async (req, res) => {
     const normalizedPromoCode = (promoCode || '').toString().trim().toUpperCase();
 
     // 1. FREE LIFETIME / FRIENDS & FAMILY
-    if (normalizedPromoCode === 'FRIENDS30' || normalizedPromoCode === 'LIFETIME') {
+    if (isFreeAccessCode(normalizedPromoCode)) {
       const paymentStatus = 'awaiting_payment';
 
       try {
@@ -38128,7 +38130,8 @@ app.post('/api/payments/checkout-session', async (req, res) => {
     // 2. 3-DAY OFFER ($10 Immediate / No Trial)
     // We expect the promo code to match a Coupon in Stripe or our DB that reduces first price to $10.
     // If it's a specific "PAY NOW" code, we remove the trial.
-    let trialDays = 7;
+    // The no-card trial already used part of the first week; Stripe only adds the days left.
+    let trialDays = checkoutTrialDays({ createdAt: agent.created_at });
     let explicitDiscounts = [];
 
     // Check custom "Pay Now" codes here
@@ -38142,7 +38145,7 @@ app.post('/api/payments/checkout-session', async (req, res) => {
     }
 
     // 3. Generic Coupon Logic (Database Check for validity before sending to Stripe)
-    if (promoCode && !PAY_NOW_CODES.includes(normalizedPromoCode) && normalizedPromoCode !== 'FRIENDS30' && normalizedPromoCode !== 'LIFETIME') {
+    if (promoCode && !PAY_NOW_CODES.includes(normalizedPromoCode) && !isFreeAccessCode(normalizedPromoCode)) {
       try {
         const { data: coupon } = await supabaseAdmin.from('coupons').select('*').eq('code', promoCode).single();
         if (coupon) {
@@ -38187,6 +38190,8 @@ app.post('/api/payments/checkout-session', async (req, res) => {
       priceId: resolvedPriceId,
       amountCents: plan === 'lo_pro' ? 29900 : (plan === 'lo_lite' ? 7900 : 14900),
       trialPeriodDays: trialDays,
+      // The payment webhook needs the real account id; a slug is not an id.
+      agentId: agent.auth_user_id || agent.id,
       discounts: explicitDiscounts
     })
 

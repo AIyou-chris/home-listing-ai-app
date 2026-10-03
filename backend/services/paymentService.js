@@ -14,7 +14,7 @@ module.exports = ({
 
   const listProviders = () => isConfigured() ? ['stripe'] : [];
 
-  const createCheckoutSession = async ({ priceId, slug, email, successUrl, cancelUrl, trialPeriodDays = 7, discounts = [] }) => {
+  const createCheckoutSession = async ({ priceId, slug, email, successUrl, cancelUrl, trialPeriodDays = 7, discounts = [], agentId = null, planId = null }) => {
     if (!isConfigured()) throw new Error('Stripe is not configured');
 
     // Default to the provided Plan Price ID from env if none specified
@@ -33,7 +33,9 @@ module.exports = ({
         line_items: [{ price: finalPriceId, quantity: 1 }],
         mode: 'subscription',
         subscription_data: {
-          trial_period_days: trialPeriodDays,
+          // Stripe rejects 0; no trial means leave the field out.
+          ...(trialPeriodDays > 0 ? { trial_period_days: trialPeriodDays } : {}),
+          metadata: { slug, ...(agentId ? { agent_id: String(agentId) } : {}), ...(planId ? { plan_id: String(planId) } : {}) },
         },
         success_url: sUrl,
         cancel_url: cUrl,
@@ -41,7 +43,9 @@ module.exports = ({
         client_reference_id: slug,
         metadata: {
           slug,
-          source: 'homelistingai_app'
+          source: 'homelistingai_app',
+          ...(agentId ? { agent_id: String(agentId) } : {}),
+          ...(planId ? { plan_id: String(planId) } : {})
         },
         allow_promotion_codes: true, // Allow promo codes in Stripe UI
       };
