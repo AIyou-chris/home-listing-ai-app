@@ -1712,22 +1712,26 @@ const CRM_DEFAULT_FUNNELS = [
 async function ensureDefaultFunnels() {
   console.log('🛡️ [SEED] Checking default funnels...');
   for (const template of CRM_DEFAULT_FUNNELS) {
+    // Existing funnels are keyed by `funnel_key` (their `type` column is empty), so look up by either.
     const { data } = await supabaseAdmin
       .from('funnels')
       .select('id')
-      .eq('type', template.type)
-      .single();
+      .or(`funnel_key.eq.${template.type},type.eq.${template.type}`)
+      .limit(1)
+      .maybeSingle();
 
     if (!data) {
       console.log(`✨ [SEED] Creating missing funnel: ${template.title}`);
-      await supabaseAdmin.from('funnels').insert({
-        type: template.type,
-        title: template.title,
+      // Real columns only (funnels has name/funnel_key/is_default, no title/is_active).
+      const { error: seedError } = await supabaseAdmin.from('funnels').insert({
+        funnel_key: template.type,
+        name: template.title,
         description: template.description,
         steps: template.steps,
-        is_active: true,
+        is_default: true,
         created_at: new Date().toISOString()
       });
+      if (seedError) console.error(`❌ [SEED] Could not create funnel ${template.type}:`, seedError.message);
     } else {
       // Optional: Update steps if you want to force sync
       // await supabaseAdmin.from('funnels').update({ steps: template.steps }).eq('id', data.id);

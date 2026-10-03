@@ -7,6 +7,16 @@
 > **End of every session (or before handing off):** add a new entry at the TOP of the log. Keep it short.
 > **Before editing a file another agent touched in its last entry:** read that entry first. Don't redo or undo their work silently.
 
+## 2026-10-03 06:50 — Claude (Cowork): design system artifact synced from this repo
+
+- Read-only pass, **no code changed**. Built the "HomeListingAI" Design System artifact on claude.ai from `tailwind.config.js`, `src/public.css`, `src/components/DesignSystemPage.tsx` and `public/newlogo.png` at `1b064ba0`: colors (slate, primary + the Tailwind default shades the app actually uses), type scale, spacing, radii, shadows, logo, and static Button/Card/Input/Badge recipes.
+- Found: `tailwind.config.js` names **Inter** but nothing loads it (no font file, no Google Fonts link), so users see system sans. `index.html` loads **Caveat** but nothing in `src/` uses it. The design-system page's Success button (`green-600` + white) is 3.3:1.
+
+## 2026-10-03 — Claude: Sentry's first alert was a real bug — fixed
+
+- Sentry (now live, `SENTRY_DSN` saved) reported `DB schema error PGRST204 on funnels: Could not find the 'is_active' column`. Cause: `ensureDefaultFunnels()` (runs at every boot) looked funnels up by `type` (empty on the 3 existing rows, which use `funnel_key`), so it always tried to insert a new one with columns that do not exist (`title`, `is_active`) — harmless only because the insert failed; it would have created duplicate default funnels otherwise. Now looks up by `funnel_key` or `type`, and inserts with real columns (`funnel_key`, `name`, `is_default`).
+- First proof that `dbErrorWatch` + Sentry works. Expect this one issue to stop appearing after the next deploy; mark it Resolved in Sentry.
+
 ## 2026-10-02 23:50 — Claude: end-of-day wrap-up (read this first next session)
 
 - **State:** everything is committed and pushed (`main`). Live checks at the end: `/healthz` shows `app_runtime_mode: all`, `run_background_tasks: true`, `run_job_worker: true`; every route I locked answers 401 with no token. Backend 155 tests, Jest 43, tsc and lint clean.
