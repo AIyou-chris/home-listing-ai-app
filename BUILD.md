@@ -1,6 +1,6 @@
 # BUILD.md — HomeListingAI
 
-*Last updated: October 2, 2026 (evening)*
+*Last updated: October 3, 2026*
 
 > **Every AI (Claude, Codex, anything else) reads this first and updates it last.**
 > When you finish work, update "What We've Done", "Right Now" and "Next Up".
@@ -79,15 +79,18 @@ The voice client already used in An AI You was ported from HomeListingAI.
 - Silent database bugs found by checking every selected column against the real DB; `npm run check:db`.
 - About 10,000 lines of hidden pages and dead code removed; dashboard accessibility pass.
 - Render: one service now runs the web server, the 60-second background loop and the job queue.
+- Sentry error alerts are live (`SENTRY_DSN` saved). Its first alert was a real bug (default-funnel seed), already fixed.
+- Money path audited. Fixed: hardcoded free-for-life promo codes (`LIFETIME`/`FRIENDS30`), paying LOs never being unlocked (slug used as account id in the Stripe webhook), and a second free trial week at checkout.
 
 ## Right Now 🔨
 
 - Chris pays the failed Render invoice, then cuts Render costs (Pro plan, video worker, old worker).
-- Sentry error alerts: project created, `SENTRY_DSN` still to be saved in Render.
+- **Money test (live):** new LO signup, "Choose my plan", Stripe checkout, confirm the account unlocks, then cancel inside the 7-day trial. Nobody has ever paid yet.
+- If friends get free access: set `FREE_ACCESS_PROMO_CODES` on Render (comma separated, non-guessable). No free codes exist by default.
 
 ## Next Up ⏭️
 
-1. **Money test:** sign up a new LO, start the trial, upgrade through Stripe checkout (never tested live).
+1. **Money test** (above), then watch Sentry for the first real-world errors.
 2. Verify the trial and follow-up emails now fire (the loop was off before today).
 3. Stronger first line and button on the LO pitch email (84 opens, 0 clicks).
 4. Background push alerts for hot leads (service worker, VAPID keys, subscriptions table).
