@@ -7,7 +7,19 @@
 > **End of every session (or before handing off):** add a new entry at the TOP of the log. Keep it short.
 > **Before editing a file another agent touched in its last entry:** read that entry first. Don't redo or undo their work silently.
 
-## 2026-10-04 — Claude: admin tab 1 yellows fixed + 3 additions (committed, push pending)
+
+## 2026-10-04 — Codex: Dots guidance for Chris
+
+- Checked official ChatGPT Dots documentation and project context. Explained using a dot for ongoing HomeListingAI coordination, issue follow-up, and draft preparation across connected tools. No app code, connections, or automations changed.
+- Suggested starting with GitHub and a narrow responsibility; local computer access is separate from Codex access and requires ChatGPT open while used.
+
+## 2026-10-04 — Claude: admin tab 2 "AI Conversations" — buyer listing chat was not saving anything (committed, push pending)
+
+- **Root cause (verified against the live DB):** `ai_conversation_messages` has NO `is_capture_event`, `intent_tags`, `confidence` columns, and `ai_conversations` has NO `agent_id`, `visitor_id`, `channel`, `last_activity_at`, `started_at`. The public listing chat (`POST /api/public/conversations/:id/message`) inserted those columns with no fallback, so every buyer message threw, the browser silently switched to canned answers ("Live assistant failed to respond"), and nothing was stored: DB has 1 conversation and 0 messages. The lead-capture hook that links a lead to its conversation (`lead_id`, `agent_id`, `visitor_id`...) failed the same way (error ignored), so the "View conversation" link on a lead was always empty.
+- **Fix:** `backend/services/columnFallback.js` (`writeWithColumnFallback`, +4 tests) retries a write without any column the DB lacks; `insertRowTolerant/updateRowTolerant` in `server.cjs` now wrap the 2 public-chat message inserts, the conversation counter update, and the lead-attach update+insert. No migration needed. (Optional later: add the columns for intent tags.) The admin list hides archived conversations by default (Archive used to change nothing), search text is sanitized, and the admin "Export" button now exports the conversations on screen as CSV (was a disabled "Not Ready" button).
+- **Not verified live:** a real buyer chat end to end (needs a deploy + a real chat).
+
+## 2026-10-04 — Claude: admin tab 1 yellows fixed + 3 additions (pushed)
 
 - **Added to the admin Leads tab:** (1) "Call these first" card (untouched hot/warm leads, longest wait first, Call/Text/Email buttons), (2) owner chip on every lead + "All owners" filter (`GET /api/admin/leads` now adds `ownerId/ownerName/ownerType/loName/intentLevel` from `agents`), (3) "waiting over 24h" card grouped by owner with a Show-them button. Pure logic in `src/admin-dashboard/leadInsights.ts` (+tests), UI in `AdminLeadInsights.tsx` (+render test).
 - **Yellows fixed:** fake "Assigned agent" picker hidden (`agentOptions` is now empty in `AdminDashboard.tsx`); search text no longer injects filter syntax; the unused `phone-logs` GET/POST routes removed; the CSV import (it lives in the Marketing Funnels tab, `AdminMarketingFunnelsPanel.tsx`) now asks "Did these people agree to get emails?" and the server (`/api/admin/leads/import`) only enrolls into an email funnel when `assignment.consentConfirmed === true`.

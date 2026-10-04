@@ -56,6 +56,10 @@ const multer = require('multer');
 const { WebSocketServer } = require('ws');
 const { createPublicBookingLimiter, validatePublicBookingFields } = require('./services/publicBookingGuard');
 const { checkAdminSetupToken } = require('./services/adminSetupGuard');
+const { writeWithColumnFallback } = require('./services/columnFallback');
+// Writes that keep working when the database is missing a column the code names (see services/columnFallback.js).
+const insertRowTolerant = (table, payload) => writeWithColumnFallback((p) => supabaseAdmin.from(table).insert(p), payload);
+const updateRowTolerant = (table, id, payload) => writeWithColumnFallback((p) => supabaseAdmin.from(table).update(p).eq('id', id), payload);
 const publicBookingLimiter = createPublicBookingLimiter();
 const upload = multer({
   dest: os.tmpdir(),
@@ -9703,24 +9707,19 @@ const attachLeadToConversation = async ({
       source_meta: sourceMeta || null
     };
 
-    await supabaseAdmin
-      .from('ai_conversations')
-      .update({
-        lead_id: leadId,
-        user_id: agentId,
-        agent_id: agentId,
-        listing_id: listingId || null,
-        visitor_id: visitorId || null,
-        channel: 'web',
-        last_activity_at: nowIso(),
-        metadata: nextMetadata,
-        updated_at: nowIso()
-      })
-      .eq('id', conversationId);
+    await updateRowTolerant('ai_conversations', conversationId, {
+      lead_id: leadId,
+      user_id: agentId,
+      agent_id: agentId,
+      listing_id: listingId || null,
+      visitor_id: visitorId || null,
+      channel: 'web',
+      last_activity_at: nowIso(),
+      metadata: nextMetadata,
+      updated_at: nowIso()
+    });
 
-    await supabaseAdmin
-      .from('ai_conversation_messages')
-      .insert({
+    await insertRowTolerant('ai_conversation_messages', {
         conversation_id: conversationId,
         user_id: agentId || null,
         sender: 'system',
@@ -9735,7 +9734,7 @@ const attachLeadToConversation = async ({
         intent_tags: ['contact_capture'],
         confidence: 1,
         created_at: nowIso()
-      });
+    });
 
     return true;
   } catch (error) {
@@ -20241,9 +20240,7 @@ app.post('/api/public/conversations/:conversationId/message', async (req, res) =
       priorVisitorTurns: Number(conversationRow.message_count || 0)
     });
 
-    const { error: visitorInsertError } = await supabaseAdmin
-      .from('ai_conversation_messages')
-      .insert({
+    const { error: visitorInsertError } = await insertRowTolerant('ai_conversation_messages', {
         conversation_id: conversationId,
         user_id: conversationRow.agent_id || conversationRow.user_id || null,
         sender: 'visitor',
@@ -20254,7 +20251,7 @@ app.post('/api/public/conversations/:conversationId/message', async (req, res) =
         intent_tags: visitorIntentTags,
         confidence: visitorIntentTags.length ? 0.72 : null,
         created_at: timestamp
-      });
+    });
     if (visitorInsertError) throw visitorInsertError;
 
     const listingContext = await buildListingContext(conversationRow.listing_id);
@@ -20276,9 +20273,7 @@ app.post('/api/public/conversations/:conversationId/message', async (req, res) =
       question: text
     });
 
-    const { error: aiInsertError } = await supabaseAdmin
-      .from('ai_conversation_messages')
-      .insert({
+    const { error: aiInsertError } = await insertRowTolerant('ai_conversation_messages', {
         conversation_id: conversationId,
         user_id: conversationRow.agent_id || conversationRow.user_id || null,
         sender: 'ai',
@@ -20291,7 +20286,7 @@ app.post('/api/public/conversations/:conversationId/message', async (req, res) =
         intent_tags: visitorIntentTags,
         confidence: 0.7,
         created_at: nowIso()
-      });
+    });
     if (aiInsertError) throw aiInsertError;
 
     const nextMessageCount = Number(conversationRow.message_count || 0) + 2;
@@ -20302,17 +20297,14 @@ app.post('/api/public/conversations/:conversationId/message', async (req, res) =
       channel: 'web'
     };
 
-    await supabaseAdmin
-      .from('ai_conversations')
-      .update({
-        message_count: nextMessageCount,
-        last_message: aiText,
-        last_message_at: nowIso(),
-        last_activity_at: nowIso(),
-        metadata: nextMetadata,
-        updated_at: nowIso()
-      })
-      .eq('id', conversationId);
+    await updateRowTolerant('ai_conversations', conversationId, {
+      message_count: nextMessageCount,
+      last_message: aiText,
+      last_message_at: nowIso(),
+      last_activity_at: nowIso(),
+      metadata: nextMetadata,
+      updated_at: nowIso()
+    });
 
     if (conversationRow.lead_id && nextMessageCount % PUBLIC_CHAT_SUMMARY_BUCKET_SIZE === 0) {
       await enqueueLeadConversationSummaryJob({
@@ -29798,9 +29790,11 @@ app.get('/api/admin/conversations', verifyAdmin, async (req, res) => {
         .limit(parsedLimit);
 
       if (scope) query = query.eq('scope', scope);
+      // Archived conversations stay hidden unless the admin asks for them (Archive used to change nothing visible).
       if (status) query = query.eq('status', status);
+      else query = query.or('status.is.null,status.neq.archived');
       if (search) {
-        const term = `%${String(search).trim()}%`;
+        const term = `%${String(search).replace(/[,()%*\\]/g, ' ').trim()}%`;
         query = query.or(`contact_name.ilike.${term},contact_email.ilike.${term},contact_phone.ilike.${term},title.ilike.${term},last_message.ilike.${term},property.ilike.${term}`);
       }
 

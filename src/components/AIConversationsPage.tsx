@@ -1,3 +1,4 @@
+import { csvCell } from '../utils/csvCell';
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import {
   Search,
@@ -432,7 +433,18 @@ const AIConversationsPage: React.FC<{ isDemoMode?: boolean; adminMode?: boolean 
   const handleExportConversations = async () => {
     try {
       if (adminMode) {
-        setError('Admin CSV export is not wired yet. This screen is live, but export still needs a real admin endpoint.');
+        // Admin export: the conversations on screen, one row each.
+        const header = ['Contact', 'Email', 'Phone', 'Type', 'Status', 'Messages', 'Property', 'Last message', 'When'];
+        const rows = conversations.map((c) => [
+          c.contactName, c.contactEmail, c.contactPhone, c.type, c.status, c.messageCount, c.property ?? '', c.lastMessage, c.timestamp
+        ]);
+        const csv = [header, ...rows].map((r) => r.map(csvCell).join(',')).join('\n');
+        const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `conversations-${new Date().toISOString().slice(0, 10)}.csv`;
+        link.click();
+        URL.revokeObjectURL(url);
         return;
       }
       setIsExporting(true);
@@ -532,7 +544,7 @@ const AIConversationsPage: React.FC<{ isDemoMode?: boolean; adminMode?: boolean 
                 disabled={isExporting}
               >
                 <Download className="w-4 h-4" />
-                <span>{adminMode ? 'Admin Export Not Ready' : isExporting ? 'Exporting…' : 'Export Conversation CSV'}</span>
+                <span>{isExporting ? 'Exporting…' : 'Export Conversation CSV'}</span>
               </button>
             </div>
           </div>
