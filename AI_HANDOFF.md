@@ -7,6 +7,13 @@
 > **End of every session (or before handing off):** add a new entry at the TOP of the log. Keep it short.
 > **Before editing a file another agent touched in its last entry:** read that entry first. Don't redo or undo their work silently.
 
+## 2026-10-04 — Claude: admin dashboard audit fixes (committed, push pending; Chris said hold the push)
+
+- **Admin Settings (system settings save, send reminder, cancel alert, coupons create/delete) and Training Studio (5 calls) sent NO Bearer token**, so every one was a 401 in production (errors swallowed; coupon delete even removed the row from the screen when the server refused). Now use `AuthService.makeAuthenticatedRequest`; coupon delete only updates the list on success. Scan of all admin screens: only `AdminSetup` (intentionally open) has an un-authed fetch.
+- **Admin Broadcast page was broken:** it inserted `notifications` for every user from the browser; RLS only allows `user_id = auth.uid()`, so the batch always failed. New `POST /api/admin/notifications/broadcast` (service role, audience all/active resolved server-side, skips demo, chunks of 500); page now calls it. (The email route `POST /api/admin/broadcast` is NOT used by any screen; its `constaudienceType` typo is fixed anyway.)
+- `PUT /api/admin/users/:userId` only edited an in-memory array (never the DB, no caller): removed. `POST /api/admin/users` temp password was `Welcome` + 4 digits: now random. `DELETE /api/admin/users/:userId` now refuses admin accounts (403 `cannot_delete_admin`). Known gap: admin delete does not cancel the user's Stripe subscription or clean leads/listings (self-service `/api/account/delete` does).
+- 30 admin routes have no caller in `src`/`scripts` (list in the audit): left in place, need Chris's call.
+
 ## 2026-10-04 — Claude: CRITICAL admin hole closed (committed, push pending)
 
 - `POST /api/admin/setup` has no login (needed to create the first admin) and only refused when `admin_users` had rows. That table does NOT exist in production, so the check never fired: anyone could create a super-admin (`app_metadata.admin=true`). Verified in code + DB (table missing). Checked `auth.users`: only admin is cdipotter@me.com (June), so it was NOT exploited. Not probed live (would create an account). Fix: `backend/services/adminSetupGuard.js` fails closed: needs `ADMIN_SETUP_TOKEN` set on Render AND sent as `x-setup-token`; unset = route off (+3 tests). `/admin-setup` page (`AdminSetup.tsx`) no longer works without a token, fine because the admin exists. Admin audit still in progress.

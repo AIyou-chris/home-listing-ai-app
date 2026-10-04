@@ -16907,7 +16907,8 @@ app.post('/api/admin/users', verifyAdmin, async (req, res) => {
 
     // 1. Create User in Supabase Auth
     // We set a default temp password. In production, we'd trigger a password reset email.
-    const tempPassword = `Welcome${Math.floor(Math.random() * 10000)}!`;
+    // Random and never shown: the user signs in through a password reset (it used to be Welcome + 4 digits, guessable).
+    const tempPassword = `${crypto.randomBytes(18).toString('base64url')}aA1!`;
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password: tempPassword,
@@ -16976,34 +16977,32 @@ app.post('/api/admin/users', verifyAdmin, async (req, res) => {
   }
 });
 
-// Update user endpoint
-app.put('/api/admin/users/:userId', verifyAdmin, async (req, res) => {
-  try {
-    const { userId } = req.params;
-    const updates = req.body;
-
-    const userIndex = users.findIndex(u => u.id === userId);
-    if (userIndex === -1) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    users[userIndex] = { ...users[userIndex], ...updates };
-
-    res.json(users[userIndex]);
-  } catch (error) {
-    console.error('Update user error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
 
 // Delete user endpoint
 app.delete('/api/admin/users/:userId', verifyAdmin, async (req, res) => {
   const { userId } = req.params;
-  // Also remove from in-memory array (for demo/mock users)
-  users = users.filter(u => u.id !== userId && u.auth_user_id !== userId);
   const adminEmail = req.user?.email || 'Unknown Admin';
 
   try {
+    // Never delete an admin account (including your own) from this screen: it would lock you out.
+    const { data: agentToDelete } = await supabaseAdmin
+      .from('agents')
+      .select('auth_user_id')
+      .or(`auth_user_id.eq.${userId},id.eq.${userId}`)
+      .limit(1)
+      .maybeSingle();
+    const targetAuthId = String(agentToDelete?.auth_user_id || userId);
+    let targetIsAdmin = targetAuthId === String(req.user?.id);
+    if (!targetIsAdmin) {
+      const { data: targetUser } = await supabaseAdmin.auth.admin.getUserById(targetAuthId).catch(() => ({ data: null }));
+      const meta = targetUser?.user?.app_metadata || {};
+      targetIsAdmin = Boolean(meta.admin || meta.claims_admin || meta.role === 'admin');
+    }
+    if (targetIsAdmin) return res.status(403).json({ error: 'cannot_delete_admin' });
+
+    // Also remove from in-memory array (for demo/mock users)
+    users = users.filter(u => u.id !== userId && u.auth_user_id !== userId);
+
     console.log(`[Admin] Deletion request for user ${userId} initiated by ${adminEmail}`);
 
     // 1. Delete from Supabase Auth
@@ -17350,6 +17349,38 @@ app.post('/api/admin/broadcast', verifyAdmin, async (req, res) => {
   } catch (error) {
     console.error('Broadcast error:', error);
     res.status(500).json({ error: error.message });
+  }
+});
+
+// In-app (bell) broadcast. Written here with admin rights because the browser is only allowed
+// to create notifications for its own user (row level security), so the old browser-side insert
+// for every user always failed.
+app.post('/api/admin/notifications/broadcast', verifyAdmin, async (req, res) => {
+  try {
+    const title = String(req.body?.title || '').trim().slice(0, 120);
+    const content = String(req.body?.content || '').trim().slice(0, 2000);
+    if (!title || !content) return res.status(400).json({ error: 'Title and content are required' });
+    const priority = ['low', 'medium', 'high', 'urgent'].includes(req.body?.priority) ? req.body.priority : 'medium';
+    const audience = req.body?.audience === 'active' ? 'active' : 'all';
+
+    let query = supabaseAdmin.from('agents').select('auth_user_id').not('auth_user_id', 'is', null).neq('is_demo', true);
+    if (audience === 'active') query = query.eq('status', 'active');
+    const { data: agents, error } = await query;
+    if (error) throw error;
+    const userIds = [...new Set((agents || []).map((a) => a.auth_user_id).filter(Boolean))];
+    if (userIds.length === 0) return res.status(400).json({ error: 'No users found to send to' });
+
+    for (let i = 0; i < userIds.length; i += 500) {
+      const rows = userIds.slice(i, i + 500).map((userId) => ({
+        user_id: userId, title, content, type: 'broadcast', priority, is_read: false
+      }));
+      const { error: insertError } = await supabaseAdmin.from('notifications').insert(rows);
+      if (insertError) throw insertError;
+    }
+    res.json({ success: true, sent: userIds.length });
+  } catch (err) {
+    console.error('[Admin Notification Broadcast] failed:', err);
+    res.status(500).json({ error: 'broadcast_failed' });
   }
 });
 

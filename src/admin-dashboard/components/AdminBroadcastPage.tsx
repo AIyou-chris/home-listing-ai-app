@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import NotificationService from '../../services/notificationService';
 import { AuthService } from '../../services/authService';
 import { BroadcastMessage } from '../../types';
 
@@ -43,31 +42,18 @@ const AdminBroadcastPage: React.FC = () => {
         setSuccessMessage(null);
 
         try {
-            // 1. Determine Target Audience
-            let targetUserIds: string[] = [];
-
-            if (audience === 'all') {
-                targetUserIds = users.map(u => u.auth_user_id || u.id);
-            } else {
-                targetUserIds = users
-                    .filter(u => String((u as { status?: string }).status || '').toLowerCase() === 'active')
-                    .map(u => u.auth_user_id || u.id);
+            // The server picks the recipients and writes the notifications (the browser is not
+            // allowed to create notifications for other users).
+            const response = await AuthService.getInstance().makeAuthenticatedRequest('/api/admin/notifications/broadcast', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title, content, priority, audience })
+            });
+            const result = (await response.json().catch(() => ({}))) as { sent?: number; error?: string };
+            if (!response.ok) {
+                throw new Error(result.error === 'No users found to send to' ? 'No users found to send broadcast to.' : 'Failed to send broadcast');
             }
-
-            if (targetUserIds.length === 0) {
-                throw new Error("No users found to send broadcast to.");
-            }
-
-            // 2. Send Broadcast via Service
-            // We use 'system' as the sender ID for now
-            await NotificationService.sendBroadcastMessage(
-                title,
-                content,
-                type,
-                priority,
-                targetUserIds,
-                'admin-system'
-            );
+            const targetUserIds = { length: result.sent ?? 0 };
 
             // 3. Reset Form & Success State
             setSuccessMessage(`Broadcast sent successfully to ${targetUserIds.length} users!`);

@@ -1,3 +1,4 @@
+import { AuthService } from '../../services/authService';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
     ChatMessage,
@@ -49,7 +50,7 @@ const AdminTrainingStudio: React.FC<AdminTrainingStudioProps> = ({ demoMode = fa
         const loadPrompt = async () => {
             if (demoMode) return;
             try {
-                const res = await fetch(`/api/admin/ai-sidekicks/${selectedSidekick}`);
+                const res = await AuthService.getInstance().makeAuthenticatedRequest(`/api/admin/ai-sidekicks/${selectedSidekick}`);
                 if (!res.ok) return;
                 const data = await res.json();
                 if (typeof data?.systemPrompt === 'string') {
@@ -124,7 +125,7 @@ const AdminTrainingStudio: React.FC<AdminTrainingStudioProps> = ({ demoMode = fa
                 text: msg.content
             }));
 
-            const res = await fetch('/api/admin/ai-chat', {
+            const res = await AuthService.getInstance().makeAuthenticatedRequest('/api/admin/ai-chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -185,7 +186,7 @@ const AdminTrainingStudio: React.FC<AdminTrainingStudioProps> = ({ demoMode = fa
             const message = messages.find(m => m.id === messageId);
             const userMessage = messages[messages.findIndex(m => m.id === messageId) - 1];
 
-            await fetch(`/api/admin/ai-sidekicks/${selectedSidekick}/feedback`, {
+            await AuthService.getInstance().makeAuthenticatedRequest(`/api/admin/ai-sidekicks/${selectedSidekick}/feedback`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -225,7 +226,7 @@ const AdminTrainingStudio: React.FC<AdminTrainingStudioProps> = ({ demoMode = fa
             const message = messages.find(m => m.id === messageId);
             const userMessage = messages[messages.findIndex(m => m.id === messageId) - 1];
 
-            await fetch(`/api/admin/ai-sidekicks/${selectedSidekick}/feedback`, {
+            await AuthService.getInstance().makeAuthenticatedRequest(`/api/admin/ai-sidekicks/${selectedSidekick}/feedback`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -255,7 +256,7 @@ const AdminTrainingStudio: React.FC<AdminTrainingStudioProps> = ({ demoMode = fa
         setTrainingError(null);
         try {
             if (!demoMode) {
-                await fetch(`/api/admin/ai-sidekicks/${selectedSidekick}/system-prompt`, {
+                await AuthService.getInstance().makeAuthenticatedRequest(`/api/admin/ai-sidekicks/${selectedSidekick}/system-prompt`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ systemPrompt: systemPrompts[selectedSidekick] || '' })

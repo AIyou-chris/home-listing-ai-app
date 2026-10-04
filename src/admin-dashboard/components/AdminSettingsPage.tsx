@@ -192,7 +192,7 @@ const AdminSettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
 
   const handleSaveSystem = async () => {
     try {
-      await fetch(`${apiBase}/api/admin/system-settings`, {
+      await auth.makeAuthenticatedRequest(`${apiBase}/api/admin/system-settings`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(systemSettings)
@@ -205,7 +205,7 @@ const AdminSettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
 
   const handleSendReminder = async () => {
     if (!reminderEmail.trim()) return
-    await fetch(`${apiBase}/api/admin/billing/send-reminder`, {
+    await auth.makeAuthenticatedRequest(`${apiBase}/api/admin/billing/send-reminder`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: reminderEmail })
@@ -215,7 +215,7 @@ const AdminSettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
 
   const handleCancelAlert = async () => {
     if (!cancellingEmail.trim()) return
-    await fetch(`${apiBase}/api/admin/billing/cancel-alert`, {
+    await auth.makeAuthenticatedRequest(`${apiBase}/api/admin/billing/cancel-alert`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: cancellingEmail })
@@ -226,7 +226,7 @@ const AdminSettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   const handleCreateCoupon = async () => {
     if (!newCoupon.code || !newCoupon.amount) return
     try {
-      const res = await fetch(`${apiBase}/api/admin/coupons`, {
+      const res = await auth.makeAuthenticatedRequest(`${apiBase}/api/admin/coupons`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -247,7 +247,9 @@ const AdminSettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
 
   const handleDeleteCoupon = async (id: string) => {
     try {
-      await fetch(`${apiBase}/api/admin/coupons/${id}`, { method: 'DELETE' })
+      const res = await auth.makeAuthenticatedRequest(`${apiBase}/api/admin/coupons/${id}`, { method: 'DELETE' })
+      // Only drop it from the list if the server really deleted it.
+      if (!res.ok) throw new Error(`Delete failed (${res.status})`)
       setCoupons(prev => prev.filter(c => c.id !== id))
     } catch (error) {
       console.error('Failed to delete coupon', error)
