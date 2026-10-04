@@ -8,6 +8,12 @@
 > **Before editing a file another agent touched in its last entry:** read that entry first. Don't redo or undo their work silently.
 
 
+## 2026-10-04 — Claude: admin tab 4 "AI Sidekicks" replaced by "Business Brain" (NOT pushed, waiting for "push")
+
+- **Chris asked to drop the old sidekicks and build the "Business Brain" from his AI You picture.** Admin sidebar item `knowledge-base` is now **Business Brain** (`AdminBusinessBrainPage.tsx`): readiness card, test chat, knowledge library (paste text / upload file / scan website via the existing `/api/lo/chatbot/extract-*`), voice + personality, Marketing / Sales / Customer Service boxes, sticky Save. Backend: `GET/PUT /api/admin/business-brain`, `POST /api/admin/business-brain/test` (`verifyAdmin`), logic in `services/businessBrain.js` (+4 tests), table `platform_brain` (**`platform-brain-migration.sql` must be run**; until then the page says so and the bot is unchanged). Once saved with at least one source, the brain is appended to the system prompt of the public `/api/continue-conversation` landing chat (cached 60 s).
+- **Found while auditing:** 4 `/api/blueprint/ai-sidekicks/*` routes and `POST /api/training/feedback` were open to the internet (body `userId`, paid OpenAI, profile read); the admin sidekick routes plus `/api/voice/transcribe` were registered INSIDE the `/api/continue-conversation` handler (re-registered on every chat). All deleted, with the admin sidekick screen, Training Studio, `AIInteractiveTraining`, `AISidekicks.tsx` (~3,800 lines) and fake demo "training" rows that fed live prompts. Agent-side `/api/sidekicks/*` and `aiSidekicksService` (VoiceBubble) kept.
+- Verified: tsc, lint, Jest 106, backend 187, build. Not verified on screen (admin login) or live.
+
 ## 2026-10-04 — Claude: SESSION SUMMARY (everything below this line from Oct 3-4 is pushed to main; BUILD.md updated)
 
 - **Done and live:** agent dashboard launch audit fixes; LO to agent invoices (we never touch the money; migration `lo-invoices-migration.sql` run); realtor agents free in the app; critical `/api/admin/setup` hole closed (needs `ADMIN_SETUP_TOKEN`; only admin is cdipotter@me.com, not exploited); buyer listing chat saves again (`columnFallback.js`); admin tabs **Leads & Appointments**, **AI Conversations**, **Inbox** audited and fixed; dead code removed; `noUndefinedNames` guard test.

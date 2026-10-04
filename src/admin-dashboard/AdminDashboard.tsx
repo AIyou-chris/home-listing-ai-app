@@ -4,7 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import AICardPage from '../components/AICardPage';
 import AIConversationsPage from '../components/AIConversationsPage';
 import AdminCommandCenter from './components/AdminCommandCenter';
-import AdminAISidekicksPage from './components/AdminAISidekicksPage';
+import AdminBusinessBrainPage from './components/AdminBusinessBrainPage';
 import AdminMarketingFunnelsPanel from '../components/admin/AdminMarketingFunnelsPanel';
 import InteractionHubPage, { type InteractionThreadMessage } from '../components/InteractionHubPage';
 import AdminSettingsPage from './components/AdminSettingsPage';
@@ -374,7 +374,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'dashboard
       case 'property':
         return <AdminListingsPage />;
       case 'knowledge-base':
-        return <AdminAISidekicksPage initialTab="overview" />;
+        return <AdminBusinessBrainPage />;
 
       case 'marketing-funnels':
         return (

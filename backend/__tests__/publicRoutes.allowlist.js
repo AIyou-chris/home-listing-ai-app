@@ -62,10 +62,6 @@ module.exports = [
   'POST /api/ai/property-chat',
   'POST /api/analytics/view',
   'POST /api/auth/forgot-password',
-  'POST /api/blueprint/ai-sidekicks/:id/chat',
-  'POST /api/blueprint/ai-sidekicks/:id/feedback',
-  'POST /api/blueprint/ai-sidekicks/:id/memory',
-  'POST /api/blueprint/ai-sidekicks/:id/prompt',
   'POST /api/chat/handoff',
   'POST /api/continue-conversation',
   'POST /api/fair-housing-scan',
@@ -113,7 +109,6 @@ module.exports = [
   'POST /api/followup',
   'POST /api/payments/checkout-session',
   'POST /api/subscription/checkout',
-  'POST /api/training/feedback',
   'POST /api/video-credits/free-test',
 
 ];

@@ -75,7 +75,7 @@ const AdminDashboardSidebar: React.FC<AdminDashboardSidebarProps> = ({ activeVie
     { view: 'leads', icon: 'groups', label: 'Leads & Appointments' },
     { view: 'ai-conversations', icon: 'chat_bubble', label: 'AI Conversations' },
     { view: 'inbox', icon: 'inbox', label: 'Inbox' },
-    { view: 'knowledge-base', icon: 'smart_toy', label: 'AI Sidekicks' },
+    { view: 'knowledge-base', icon: 'psychology', label: 'Business Brain' },
     { view: 'marketing-funnels', icon: 'campaign', label: 'Marketing Funnels' },
     { view: 'broadcast', icon: 'podium', label: 'Broadcasts' },
     { view: 'listings', icon: 'home_work', label: 'Listings' },
