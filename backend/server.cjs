@@ -55,6 +55,7 @@ const { execFile } = require('child_process');
 const multer = require('multer');
 const { WebSocketServer } = require('ws');
 const { createPublicBookingLimiter, validatePublicBookingFields } = require('./services/publicBookingGuard');
+const { checkAdminSetupToken } = require('./services/adminSetupGuard');
 const publicBookingLimiter = createPublicBookingLimiter();
 const upload = multer({
   dest: os.tmpdir(),
@@ -37058,13 +37059,15 @@ app.post('/api/admin/setup', async (req, res) => {
       return res.status(503).json({ error: 'Server not configured for admin operations (missing key)' });
     }
 
-    // Guard: only allow if no admin users exist yet, or ADMIN_SETUP_TOKEN matches
-    const setupToken = process.env.ADMIN_SETUP_TOKEN;
-    const providedToken = req.headers['x-setup-token'] || req.body.setupToken;
-    const { count } = await supabaseAdmin.from('admin_users').select('*', { count: 'exact', head: true });
-    const hasExistingAdmin = count && count > 0;
-    if (hasExistingAdmin && (!setupToken || providedToken !== setupToken)) {
-      return res.status(403).json({ error: 'Admin already configured. Provide setup token to add another.' });
+    // Guard: this route has no login, so it needs the secret ADMIN_SETUP_TOKEN. With no token
+    // configured it is off. (It used to open for anyone whenever the admin_users table was
+    // missing or empty, and that table does not exist in production.)
+    const gate = checkAdminSetupToken({
+      configuredToken: process.env.ADMIN_SETUP_TOKEN,
+      providedToken: req.headers['x-setup-token'] || req.body.setupToken
+    });
+    if (!gate.allowed) {
+      return res.status(403).json({ error: gate.reason === 'setup_disabled' ? 'Admin setup is disabled.' : 'Invalid setup token.' });
     }
 
     // 1. Create the user in Supabase Auth

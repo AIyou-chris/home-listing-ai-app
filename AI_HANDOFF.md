@@ -7,6 +7,10 @@
 > **End of every session (or before handing off):** add a new entry at the TOP of the log. Keep it short.
 > **Before editing a file another agent touched in its last entry:** read that entry first. Don't redo or undo their work silently.
 
+## 2026-10-04 — Claude: CRITICAL admin hole closed (committed, push pending)
+
+- `POST /api/admin/setup` has no login (needed to create the first admin) and only refused when `admin_users` had rows. That table does NOT exist in production, so the check never fired: anyone could create a super-admin (`app_metadata.admin=true`). Verified in code + DB (table missing). Checked `auth.users`: only admin is cdipotter@me.com (June), so it was NOT exploited. Not probed live (would create an account). Fix: `backend/services/adminSetupGuard.js` fails closed: needs `ADMIN_SETUP_TOKEN` set on Render AND sent as `x-setup-token`; unset = route off (+3 tests). `/admin-setup` page (`AdminSetup.tsx`) no longer works without a token, fine because the admin exists. Admin audit still in progress.
+
 ## 2026-10-03 — Claude: dashboard header/tab title said "Today" on LO Listings/Leads/Appointments
 
 - `resolveDashboardPageTitle` matched `/listings`, `/leads`, `/appointments`, but LO routes are `/lo-listings`, `/lo-leads`, `/lo-appointments`, so those pages showed "Today" in the header (pre-existing) and in the new tab title. Moved to `src/utils/dashboardPageTitle.ts` (matches the optional `lo-` prefix) with a 17-case test. Found from a screenshot of the live LO Share Kit page.
