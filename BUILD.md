@@ -72,6 +72,7 @@ The voice client already used in An AI You was ported from HomeListingAI.
 
 ## What We've Done ✅
 
+- **Marketing Studio stage one (Oct 4):** replaced the Social Auto-Posting box on Marketing Funnels with the approved six-tab studio. Campaign/video briefs save per account in this browser; editing, copying, removal, planning calendar, photo preview and downloadable QR codes work. AI generation, shared storage, account connections and publishing are later stages. Existing lead finder, outreach and funnels remain below it.
 - LO Brain (train once, Compliance Brain, calls and texts), AI phone number that answers, per-listing numbers.
 - WOW Link (agent-facing mini app), LO Share Kit, agent Share Kit (same cards, no co-branding).
 - Lead flow: capture, rating (rules at capture, Jev on replies and pre-approvals), speed-to-lead timer, one-tap call/text, "Ask my loan officer to call".
@@ -88,6 +89,7 @@ The voice client already used in An AI You was ported from HomeListingAI.
 
 ## Right Now 🔨
 
+- **Marketing Studio:** stage one is built and checked locally; GitHub push authorized, live deployment not verified. Briefs are browser-only, photos are preview-only, and calendar dates do not schedule posts. No paid service or new dependency added.
 - **Chris:** hard-refresh and click through the admin tabs we fixed (Leads & Appointments, AI Conversations, Inbox, Business Brain: add pricing + FAQs and Save, then ask the site chat a pricing question); open a live listing as a buyer and chat to confirm real AI answers and the chat shows in Admin.
 - **Chris:** pays the failed Render invoice, then cuts Render costs (Pro plan, video worker, old worker).
 - **Money test (still open):** new LO signup, Stripe checkout, account unlocks, cancel inside the trial. The $79 checkout opens correctly (seen live) but nobody has paid yet.
@@ -96,6 +98,7 @@ The voice client already used in An AI You was ported from HomeListingAI.
 
 ## Next Up ⏭️
 
+0. **Marketing Studio stage two:** connect campaign generation to the admin Business Brain and persist campaigns on the server; then add FFmpeg video creation and manual/daily publishing with connected social accounts. The old Buffer backend remains in place; stage one only removes its panel.
 1. **Admin audit, remaining tabs (one at a time):** Marketing Funnels (also re-check the CSV import consent prompt), Broadcasts, Listings, LO Platform, Users, Blog, White Label, Settings.
 2. **Money test** (above), then watch Sentry for real-world errors.
 3. Background push alerts for hot leads (service worker, VAPID keys, subscriptions table).

@@ -7,7 +7,7 @@ import { EmailEditor } from '../EmailEditor';
 import SequenceFeedbackPanel from '../SequenceFeedbackPanel';
 import AdminLoOutreachPanel from './AdminLoOutreachPanel';
 import AdminLoLeadFinderPanel from './AdminLoLeadFinderPanel';
-import AdminSocialPostPanel from './AdminSocialPostPanel';
+import AdminMarketingStudio from './AdminMarketingStudio';
 import { funnelService } from '../../services/funnelService';
 import { supabase } from '../../services/supabase';
 import PageTipBanner from '../PageTipBanner';
@@ -1830,7 +1830,7 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
 
                 {!isAnalyticsOpen && (
                     <div className="mb-8 space-y-8">
-                        <AdminSocialPostPanel />
+                        <AdminMarketingStudio key={userId} ownerId={userId} />
                         <AdminLoLeadFinderPanel />
                         <AdminLoOutreachPanel />
                     </div>
