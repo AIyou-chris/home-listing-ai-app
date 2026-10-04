@@ -8,6 +8,8 @@ import ScheduleAppointmentModal, { type ScheduleAppointmentFormData } from '../c
 import type { Lead, Appointment, LeadStatus } from '../types';
 import { type LeadNote } from '../services/adminLeadsService';
 import type { AppointmentKind } from '../services/schedulerService';
+import AdminLeadInsights from './AdminLeadInsights';
+import { ownerKeyOf, ownerLabelOf } from './leadInsights';
 
 type LeadsTab = 'leads' | 'appointments';
 
@@ -78,6 +80,7 @@ const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<LeadsTab>('leads');
   const [searchTerm, setSearchTerm] = useState('');
+  const [ownerFilter, setOwnerFilter] = useState('all');
   const [isAddLeadModalOpen, setIsAddLeadModalOpen] = useState(false);
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
@@ -110,17 +113,24 @@ const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({
     onRefreshLeads().catch((err) => console.error('Failed to refresh admin leads', err));
   }, [onRefreshLeads]);
 
+  const ownerOptions = useMemo(() => {
+    const seen = new Map<string, string>();
+    leads.forEach((lead) => { if (!seen.has(ownerKeyOf(lead))) seen.set(ownerKeyOf(lead), ownerLabelOf(lead)); });
+    return [...seen.entries()].map(([key, label]) => ({ key, label })).sort((x, y) => x.label.localeCompare(y.label));
+  }, [leads]);
+
   const filteredLeads = useMemo(() => {
-    if (!searchTerm.trim()) return leads;
+    const byOwner = ownerFilter === 'all' ? leads : leads.filter((lead) => ownerKeyOf(lead) === ownerFilter);
+    if (!searchTerm.trim()) return byOwner;
     const q = searchTerm.toLowerCase();
-    return leads.filter(
+    return byOwner.filter(
       (lead) =>
         lead.name.toLowerCase().includes(q) ||
         lead.email.toLowerCase().includes(q) ||
         (lead.phone ?? '').toLowerCase().includes(q) ||
         (lead.source ?? '').toLowerCase().includes(q)
     );
-  }, [leads, searchTerm]);
+  }, [leads, searchTerm, ownerFilter]);
 
   const stats = useMemo(() => {
     const totalLeads = leads.length;
@@ -260,6 +270,17 @@ const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({
               />
             </div>
             <div className="flex items-center gap-2">
+              {activeTab === 'leads' && ownerOptions.length > 1 && (
+                <select
+                  aria-label="Filter by owner"
+                  value={ownerFilter}
+                  onChange={(e) => setOwnerFilter(e.target.value)}
+                  className="min-h-[40px] rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700"
+                >
+                  <option value="all">All owners</option>
+                  {ownerOptions.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
+                </select>
+              )}
               <button
                 className="flex items-center gap-2 text-sm font-semibold text-slate-600 border border-slate-300 rounded-lg px-4 py-2 hover:bg-slate-100 transition"
                 onClick={() => onRefreshLeads().catch(() => undefined)}
@@ -274,6 +295,7 @@ const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({
         <main className="space-y-6">
           {activeTab === 'leads' && (
             <div className="space-y-6">
+              {!isLoading && <AdminLeadInsights leads={leads} onPickOwner={setOwnerFilter} />}
               {isLoading && <div className="py-6 text-slate-500 text-sm">Loading leads…</div>}
               {!isLoading && filteredLeads.length === 0 && (
                 <div className="bg-white rounded-xl shadow-md border border-slate-200/80 p-12 text-center">
@@ -310,6 +332,11 @@ const AdminLeadsPage: React.FC<AdminLeadsPageProps> = ({
                         <div className="flex items-center gap-3">
                           <h3 className="text-xl font-bold text-slate-800 truncate">{lead.name}</h3>
                           <span className={`px-2.5 py-0.5 text-xs font-semibold rounded-full ${statusStyles[lead.status]}`}>{lead.status}</span>
+                          {lead.ownerName && (
+                            <span className="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-slate-100 text-slate-600">
+                              {lead.ownerType === 'lo' ? 'LO' : 'Agent'}: {lead.ownerName}
+                            </span>
+                          )}
                           {lead.score && (
                             <span className={`px-2.5 py-0.5 text-xs font-bold rounded-full flex items-center gap-1 ${lead.score.totalScore >= 90 ? 'bg-orange-100 text-orange-700' :
                               lead.score.totalScore >= 70 ? 'bg-green-100 text-green-700' :

@@ -17783,7 +17783,8 @@ app.get('/api/admin/leads', verifyAdmin, async (req, res) => {
 
     // Apply Filter: Search (Supabase ILIKE)
     if (search) {
-      const term = `%${search}%`;
+      // Commas and brackets are filter syntax, so strip them from what the person typed.
+      const term = `%${String(search).replace(/[,()%*\\]/g, ' ').trim()}%`;
       query = query.or(`name.ilike.${term},email.ilike.${term},phone.ilike.${term}`);
     }
 
@@ -17792,7 +17793,34 @@ app.get('/api/admin/leads', verifyAdmin, async (req, res) => {
     if (error) throw error;
 
     // Use the fetched data
-    let filteredLeads = (data || []).map(mapLeadFromRow);
+    // Say who each lead belongs to (agent or loan officer) so the admin can filter and coach by owner.
+    const leadRows = data || [];
+    const personIds = new Set();
+    leadRows.forEach((r) => [r.agent_id, r.user_id, r.lo_agent_id].forEach((v) => { if (v) personIds.add(String(v)); }));
+    const people = {};
+    if (personIds.size > 0) {
+      const idList = [...personIds].filter((v) => /^[0-9a-f-]{36}$/i.test(v)).join(',');
+      if (idList) {
+        const { data: peopleRows } = await supabaseAdmin
+          .from('agents')
+          .select('id, auth_user_id, first_name, last_name, company, account_type, email')
+          .or(`id.in.(${idList}),auth_user_id.in.(${idList})`);
+        (peopleRows || []).forEach((a) => { people[a.id] = a; if (a.auth_user_id) people[a.auth_user_id] = a; });
+      }
+    }
+    const personName = (a) => (a ? ([a.first_name, a.last_name].filter(Boolean).join(' ') || a.company || a.email || null) : null);
+    let filteredLeads = leadRows.map((row) => {
+      const owner = people[String(row.agent_id || row.user_id || '')] || null;
+      const lo = row.lo_agent_id ? people[String(row.lo_agent_id)] : null;
+      return {
+        ...mapLeadFromRow(row),
+        ownerId: owner?.id || null,
+        ownerName: personName(owner),
+        ownerType: owner ? (owner.account_type === 'lo' ? 'lo' : owner.account_type === 'office' ? 'office' : 'agent') : null,
+        loName: personName(lo),
+        intentLevel: row.intent_level || null
+      };
+    });
 
     res.json({
       leads: filteredLeads,
@@ -18728,64 +18756,7 @@ app.get('/api/admin/leads/stats', verifyAdmin, async (req, res) => {
   }
 });
 
-// Lead phone logs
-app.get('/api/admin/leads/:leadId/phone-logs', verifyAdmin, async (req, res) => {
-  try {
-    const { leadId } = req.params;
-    if (!leadId) {
-      return res.status(400).json({ error: 'Lead ID is required' });
-    }
 
-    const { data, error } = await supabaseAdmin
-      .from('lead_phone_logs')
-      .select('*')
-      .eq('lead_id', leadId)
-      .order('call_started_at', { ascending: false });
-    if (error) {
-      throw error;
-    }
-
-    const logs = (data || []).map(mapPhoneLogFromRow).filter(Boolean);
-    res.json({ logs });
-  } catch (error) {
-    console.error('Get phone logs error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.post('/api/admin/leads/:leadId/phone-logs', verifyAdmin, async (req, res) => {
-  try {
-    const { leadId } = req.params;
-    if (!leadId) {
-      return res.status(400).json({ error: 'Lead ID is required' });
-    }
-
-    const { callStartedAt, callOutcome, callNotes } = req.body || {};
-    const payload = {
-      lead_id: leadId,
-      call_started_at: callStartedAt ? new Date(callStartedAt).toISOString() : new Date().toISOString(),
-      call_outcome: callOutcome || 'connected',
-      call_notes: callNotes || null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
-
-    const { data, error } = await supabaseAdmin
-      .from('lead_phone_logs')
-      .insert(payload)
-      .select('*')
-      .single();
-    if (error) {
-      throw error;
-    }
-
-    const log = mapPhoneLogFromRow(data);
-    res.status(201).json({ success: true, log });
-  } catch (error) {
-    console.error('Create phone log error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
 
 // ===== BULK IMPORT ENDPOINT =====
 // [STRIPPED DOWN] Emergency Import Endpoint
@@ -18921,7 +18892,8 @@ app.post('/api/admin/leads/import', verifyAdmin, async (req, res) => {
         // We do this PER CHUNK.
 
         // CHECK: Use strict enrollment check, NOT DB constraint check
-        if (intendedFunnel && isEnrollable(intendedFunnel)) {
+        // Automatic emails only start when the admin confirms these people agreed to get them.
+        if (intendedFunnel && isEnrollable(intendedFunnel) && assignment?.consentConfirmed === true) {
           try {
             // 1. Get Funnel ID (once per batch ideally, but safe here)
             // 1. Try to find Agent-Specific Funnel

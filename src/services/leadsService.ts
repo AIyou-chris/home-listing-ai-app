@@ -154,7 +154,7 @@ export const leadsService = {
     return mapLeadRow(data)
   },
 
-  async bulkImport(leads: Partial<LeadPayload>[], assignment: { assignee: string; funnel?: LeadFunnelType; tag?: string }, onProgress?: (count: number) => void) {
+  async bulkImport(leads: Partial<LeadPayload>[], assignment: { assignee: string; funnel?: LeadFunnelType; tag?: string; consentConfirmed?: boolean }, onProgress?: (count: number) => void) {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) throw new Error('Not authenticated');
 

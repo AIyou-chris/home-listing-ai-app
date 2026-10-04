@@ -885,12 +885,18 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
 
             setToast({ message: 'Importing leads...', type: 'info' });
 
+            // Emails only start automatically if the admin says these people agreed to get them.
+            const consentConfirmed = window.confirm(
+                'Did these people agree to get emails from you?\n\nOK = import them AND start the email sequence.\nCancel = import them only, no emails.'
+            );
+
             const result = await leadsService.bulkImport(
                 leads,
                 {
                     assignee: userId || 'unknown',
                     tag: 'Agent Outreach Import',
-                    funnel: (selectedFunnelId || 'realtor_funnel')
+                    funnel: (selectedFunnelId || 'realtor_funnel'),
+                    consentConfirmed
                 }
             );
 

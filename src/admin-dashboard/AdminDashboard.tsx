@@ -82,7 +82,8 @@ interface AdminDashboardProps {
 }
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'dashboard' }) => {
-  const agentOptions = [{ id: 'admin-agent', name: 'Admin Team' }, { id: 'system-admin', name: 'System Admin' }];
+  // The appointment form's "assigned agent" picker used to offer two made-up people and the server ignored it, so it is empty (hidden).
+  const agentOptions: Array<{ id: string; name: string }> = [];
   const { tab } = useParams<{ tab: string }>();
   const navigate = useNavigate();
 

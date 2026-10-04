@@ -7,6 +7,12 @@
 > **End of every session (or before handing off):** add a new entry at the TOP of the log. Keep it short.
 > **Before editing a file another agent touched in its last entry:** read that entry first. Don't redo or undo their work silently.
 
+## 2026-10-04 — Claude: admin tab 1 yellows fixed + 3 additions (committed, push pending)
+
+- **Added to the admin Leads tab:** (1) "Call these first" card (untouched hot/warm leads, longest wait first, Call/Text/Email buttons), (2) owner chip on every lead + "All owners" filter (`GET /api/admin/leads` now adds `ownerId/ownerName/ownerType/loName/intentLevel` from `agents`), (3) "waiting over 24h" card grouped by owner with a Show-them button. Pure logic in `src/admin-dashboard/leadInsights.ts` (+tests), UI in `AdminLeadInsights.tsx` (+render test).
+- **Yellows fixed:** fake "Assigned agent" picker hidden (`agentOptions` is now empty in `AdminDashboard.tsx`); search text no longer injects filter syntax; the unused `phone-logs` GET/POST routes removed; the CSV import (it lives in the Marketing Funnels tab, `AdminMarketingFunnelsPanel.tsx`) now asks "Did these people agree to get emails?" and the server (`/api/admin/leads/import`) only enrolls into an email funnel when `assignment.consentConfirmed === true`.
+- Verified: tsc, lint, Jest 80, backend 179, build, owner lookup run read-only against the real DB (4 leads, owners found). NOT verified on screen (needs admin login).
+
 ## 2026-10-04 — Claude: admin tab 1 "Leads & Appointments" (committed, push pending)
 
 - Lead **notes** list/add called `/api/admin/leads/:leadId/notes`, which did not exist (404): added GET/POST, stored as `lead_events` type `admin_note` (no `lead_notes` table). Admin edit/delete of someone else's appointment failed (the wrapper re-routes to the agent handler, which only lets the owner act): `ownedAppointment` now lets a verified admin act as the owner via `req.adminActingOnAny` (set only in the admin PUT/DELETE wrappers). Admin-created appointments still belong to the admin. Removed a debug `fs.appendFileSync('debug_leads_request.log')` in `POST /api/admin/leads` that wrote request data to disk.

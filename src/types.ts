@@ -230,6 +230,13 @@ export interface Lead {
     }>;
     activeSequences?: string[];
     funnelType?: LeadFunnelType;
+    // Admin view: who the lead belongs to, and how hot it is
+    ownerId?: string | null;
+    ownerName?: string | null;
+    ownerType?: 'agent' | 'lo' | 'office' | null;
+    loName?: string | null;
+    intentLevel?: string | null;
+    lastContactAt?: string | null;
 }
 
 export interface LeadBehavior {
