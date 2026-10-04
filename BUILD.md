@@ -1,6 +1,6 @@
 # BUILD.md — HomeListingAI
 
-*Last updated: October 3, 2026*
+*Last updated: October 4, 2026*
 
 > **Every AI (Claude, Codex, anything else) reads this first and updates it last.**
 > When you finish work, update "What We've Done", "Right Now" and "Next Up".
@@ -81,27 +81,35 @@ The voice client already used in An AI You was ported from HomeListingAI.
 - Render: one service now runs the web server, the 60-second background loop and the job queue.
 - Sentry error alerts are live (`SENTRY_DSN` saved). Its first alert was a real bug (default-funnel seed), already fixed.
 - Money path audited. Fixed: hardcoded free-for-life promo codes (`LIFETIME`/`FRIENDS30`), paying LOs never being unlocked (slug used as account id in the Stripe webhook), and a second free trial week at checkout.
+- **Agent dashboard launch audit (Oct 3-4), all fixed and live:** public booking can no longer be used to email strangers (rate limited); the $79 LO Lite upgrade button works (Stripe checkout verified live); new listings start as drafts so the plan limit can't be skipped; agents are no longer locked behind the 6-step wizard; CSV exports are safe in Excel; hot lead from a showing booking; page guides start collapsed; header and tab titles are right on LO pages; about 1,700 lines of dead code removed; a test now fails the build on any undefined variable in `server.cjs`.
+- **LO to agent invoices (live):** the loan officer bills an agent for their share of marketing (some states require shared cost). We create, email and track the invoice and **never touch the money**. Realtor agents are free in the app: their Billing page no longer sells the LO plans and just lists their invoices. Table `lo_agent_invoices` (migration run).
+- **Admin dashboard audit, tab by tab (Oct 4):** closed a **critical hole** (anyone could create a super-admin at `/api/admin/setup`; now needs `ADMIN_SETUP_TOKEN`; nobody had used it). Admin Settings, Training Studio and coupons were sending no login token (every call failed): fixed. Admin Broadcast, lead notes, edit/delete of other agents' appointments all fixed. **Buyer listing chat was saving nothing** (3 columns missing in the real DB): now saves, and conversations link to leads. Admin Leads has "Call these first", owner chip and filter, and a "waiting over 24h" card. Admin AI Conversations shows real names, paging, financing and lead badges. Admin Inbox rebuilt (working archive, search, thread, reply links, quick replies, menu unread count). Tabs done: Leads & Appointments, AI Conversations, Inbox.
 
 ## Right Now 🔨
 
-- Chris pays the failed Render invoice, then cuts Render costs (Pro plan, video worker, old worker).
-- **Money test (live):** new LO signup, "Choose my plan", Stripe checkout, confirm the account unlocks, then cancel inside the 7-day trial. Nobody has ever paid yet.
-- If friends get free access: set `FREE_ACCESS_PROMO_CODES` on Render (comma separated, non-guessable). No free codes exist by default.
+- **Chris:** hard-refresh and click through the admin tabs we fixed (Leads & Appointments, AI Conversations, Inbox); open a live listing as a buyer and chat to confirm real AI answers and the chat shows in Admin.
+- **Chris:** pays the failed Render invoice, then cuts Render costs (Pro plan, video worker, old worker).
+- **Money test (still open):** new LO signup, Stripe checkout, account unlocks, cancel inside the trial. The $79 checkout opens correctly (seen live) but nobody has paid yet.
+- Stripe account public name still says "AN AI You" (Chris said it's fine for now).
+- Optional: run `ai-chat-columns-migration.sql` (adds the 8 missing chat columns; the app works without it).
 
 ## Next Up ⏭️
 
-1. **Money test** (above), then watch Sentry for the first real-world errors.
-2. Verify the trial and follow-up emails now fire (the loop was off before today).
-3. Stronger first line and button on the LO pitch email (84 opens, 0 clicks).
-4. Background push alerts for hot leads (service worker, VAPID keys, subscriptions table).
-5. Simplify Today and Appointments (one primary action per card).
+1. **Admin audit, remaining tabs (one at a time):** AI Sidekicks, Marketing Funnels (also re-check the CSV import consent prompt), Broadcasts, Listings, LO Platform, Users, Blog, White Label, Settings.
+2. **Money test** (above), then watch Sentry for real-world errors.
+3. Background push alerts for hot leads (service worker, VAPID keys, subscriptions table).
+4. Weekly "your loan officer got you N leads" email to agents.
+5. Stronger first line and button on the LO pitch email (84 opens, 0 clicks).
 6. Repo clutter: about 30 stale `.md` files, 30 SQL files in the root, 6 AI-tool config files.
 
 ## Known Problems ⚠️
 
 - Email From is forced onto `mg.homelistingai.com` (fixed DMARC failures); Mailgun DNS verified.
-- Never select `agents.full_name` or `agents.brokerage` (columns do not exist).
-- About 40 backend routes have no caller; they are all login-locked.
+- Never select `agents.full_name` or `agents.brokerage` (columns do not exist). `ai_conversation_messages` has no `intent_tags`/`is_capture_event`/`confidence`; `ai_conversations` has no `agent_id`/`visitor_id`/`channel`/`last_activity_at`/`started_at`. Use `insertRowTolerant`/`updateRowTolerant` for chat writes.
+- Admin "delete user" does not cancel their Stripe subscription or clean their leads/listings (self-service account delete does).
+- About 28 admin routes and a few service exports have no caller (all login-locked). Not deleted: needs Chris's call per tab.
+- 20 undefined-name hits in `server.cjs` are known harmless (see `backend/__tests__/noUndefinedNames.test.js`).
+- Admin screens were verified by code, tests and live probes, not by clicking through (needs an admin login).
 
 ## Decisions Log
 
@@ -113,3 +121,6 @@ The voice client already used in An AI You was ported from HomeListingAI.
 | Sep 2026 | Claude and Codex both work on this repo — this file keeps them in sync |
 | Oct 2026 | One Render service in `all` mode instead of web + worker |
 | Oct 2026 | Every `/api` route needs a login guard or a reviewed allowlist entry (tested in CI) |
+| Oct 2026 | Realtor agents are free in the app; loan officers pay. Cost sharing between an LO and an agent is an invoice the LO sends; we never handle that payment |
+| Oct 2026 | Admin dashboard audited and fixed one tab at a time, each reported as verdict + red/yellow/green/suggestions |
+| Oct 2026 | `/api/admin/setup` is off unless `ADMIN_SETUP_TOKEN` is set and sent |

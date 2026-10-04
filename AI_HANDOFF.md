@@ -8,16 +8,24 @@
 > **Before editing a file another agent touched in its last entry:** read that entry first. Don't redo or undo their work silently.
 
 
+## 2026-10-04 — Claude: SESSION SUMMARY (everything below this line from Oct 3-4 is pushed to main; BUILD.md updated)
+
+- **Done and live:** agent dashboard launch audit fixes; LO to agent invoices (we never touch the money; migration `lo-invoices-migration.sql` run); realtor agents free in the app; critical `/api/admin/setup` hole closed (needs `ADMIN_SETUP_TOKEN`; only admin is cdipotter@me.com, not exploited); buyer listing chat saves again (`columnFallback.js`); admin tabs **Leads & Appointments**, **AI Conversations**, **Inbox** audited and fixed; dead code removed; `noUndefinedNames` guard test.
+- **Admin tabs still to audit (Chris wants one at a time, each as verdict + red/yellow/green/suggestions + a 10-year-old checklist, answers kept short, anything he must do in bold):** AI Sidekicks, Marketing Funnels (re-check the CSV import consent prompt), Broadcasts, Listings, LO Platform, Users, Blog, White Label, Settings.
+- **Not verified by clicking** (needs an admin login): all admin screens; a real buyer chat end to end; the invoice reminder from the app. Verified live: probes (401s), the $79 Stripe checkout, an invoice email arriving and opening, Mark paid.
+- **Open for Chris:** money test (full signup through payment and cancel), Render invoice, optional `ai-chat-columns-migration.sql`. Open for me: background push alerts, weekly LO-to-agent email.
+- **Test counts at this point:** Jest 103, backend 183, tsc/lint/build clean.
+
 ## 2026-10-04 — Codex: Dots guidance for Chris
 
 - Checked official ChatGPT Dots documentation and project context. Explained using a dot for ongoing HomeListingAI coordination, issue follow-up, and draft preparation across connected tools. No app code, connections, or automations changed.
 - Suggested starting with GitHub and a narrow responsibility; local computer access is separate from Codex access and requires ChatGPT open while used.
 
-## 2026-10-04 — Claude: admin Inbox suggestions added (committed, push pending)
+## 2026-10-04 — Claude: admin Inbox suggestions added (pushed)
 
 - **Unread number on the Inbox menu item** (`AdminDashboardSidebar` `badgeCounts`; `AdminDashboard` loads the conversations once at start and counts needs-you chats not yet opened; read marks live in localStorage and fire a `hlai-inbox-read-changed` event so the number updates). **Quick replies** (Offer a showing / Offer loan help / Check in) fill the email or text body with the buyer's first name and the home. **Old idle chats** (no contact details, not a lead, quiet 14+ days) are tucked away on the All tab with a "Show N old idle chats" toggle. Inbox and AI Conversations stay separate by decision; the Inbox defaults to "Needs you". Logic in `inboxHelpers.ts`.
 
-## 2026-10-04 — Claude: admin tab 3 "Inbox" (committed, push pending)
+## 2026-10-04 — Claude: admin tab 3 "Inbox" (pushed)
 
 - The Inbox is the same data as AI Conversations (`adminConversationsService.list`) shown as a two-pane inbox, and **half its controls were fake**: `InteractionHubPage` ignored 4 of its props, so (1) load errors and loading showed "Inbox is empty", (2) Archive only hid the row on screen (the server never heard; it came back on refresh), (3) the detail showed only the last message, not the thread, (4) the search box did nothing, (5) "Reply" was an `alert("coming soon")`, (6) unread dots reset on every reload (`isRead` was derived from `archived`), (7) the layout had no phone mode. Rewritten: "Needs you / All" tabs (needs you = lead captured, follow-up, or showing/offer/financing/timeline tags), working search, full thread, Reply by email/text link from the contact details (none = a plain note), Archive calls the server and shows an error if it fails, read marks kept in localStorage `hlai_admin_inbox_read`, loading + error + Try again, phone mode with a Back button. Logic in `src/admin-dashboard/inboxHelpers.ts` (+5 tests), screen test (+7). `AdminDashboard.tsx` now passes contact email/phone, lead id and tags into each interaction.
 - Verified: tsc, lint, Jest 96, backend 183, build. NOT verified on screen (admin login).
@@ -38,18 +46,18 @@
 - **Yellows fixed:** fake "Assigned agent" picker hidden (`agentOptions` is now empty in `AdminDashboard.tsx`); search text no longer injects filter syntax; the unused `phone-logs` GET/POST routes removed; the CSV import (it lives in the Marketing Funnels tab, `AdminMarketingFunnelsPanel.tsx`) now asks "Did these people agree to get emails?" and the server (`/api/admin/leads/import`) only enrolls into an email funnel when `assignment.consentConfirmed === true`.
 - Verified: tsc, lint, Jest 80, backend 179, build, owner lookup run read-only against the real DB (4 leads, owners found). NOT verified on screen (needs admin login).
 
-## 2026-10-04 — Claude: admin tab 1 "Leads & Appointments" (committed, push pending)
+## 2026-10-04 — Claude: admin tab 1 "Leads & Appointments" (pushed)
 
 - Lead **notes** list/add called `/api/admin/leads/:leadId/notes`, which did not exist (404): added GET/POST, stored as `lead_events` type `admin_note` (no `lead_notes` table). Admin edit/delete of someone else's appointment failed (the wrapper re-routes to the agent handler, which only lets the owner act): `ownedAppointment` now lets a verified admin act as the owner via `req.adminActingOnAny` (set only in the admin PUT/DELETE wrappers). Admin-created appointments still belong to the admin. Removed a debug `fs.appendFileSync('debug_leads_request.log')` in `POST /api/admin/leads` that wrote request data to disk.
 
-## 2026-10-04 — Claude: admin dashboard audit fixes (committed, push pending; Chris said hold the push)
+## 2026-10-04 — Claude: admin dashboard audit fixes (pushed)
 
 - **Admin Settings (system settings save, send reminder, cancel alert, coupons create/delete) and Training Studio (5 calls) sent NO Bearer token**, so every one was a 401 in production (errors swallowed; coupon delete even removed the row from the screen when the server refused). Now use `AuthService.makeAuthenticatedRequest`; coupon delete only updates the list on success. Scan of all admin screens: only `AdminSetup` (intentionally open) has an un-authed fetch.
 - **Admin Broadcast page was broken:** it inserted `notifications` for every user from the browser; RLS only allows `user_id = auth.uid()`, so the batch always failed. New `POST /api/admin/notifications/broadcast` (service role, audience all/active resolved server-side, skips demo, chunks of 500); page now calls it. (The email route `POST /api/admin/broadcast` is NOT used by any screen; its `constaudienceType` typo is fixed anyway.)
 - `PUT /api/admin/users/:userId` only edited an in-memory array (never the DB, no caller): removed. `POST /api/admin/users` temp password was `Welcome` + 4 digits: now random. `DELETE /api/admin/users/:userId` now refuses admin accounts (403 `cannot_delete_admin`). Known gap: admin delete does not cancel the user's Stripe subscription or clean leads/listings (self-service `/api/account/delete` does).
 - 30 admin routes have no caller in `src`/`scripts` (list in the audit): left in place, need Chris's call.
 
-## 2026-10-04 — Claude: CRITICAL admin hole closed (committed, push pending)
+## 2026-10-04 — Claude: CRITICAL admin hole closed (pushed)
 
 - `POST /api/admin/setup` has no login (needed to create the first admin) and only refused when `admin_users` had rows. That table does NOT exist in production, so the check never fired: anyone could create a super-admin (`app_metadata.admin=true`). Verified in code + DB (table missing). Checked `auth.users`: only admin is cdipotter@me.com (June), so it was NOT exploited. Not probed live (would create an account). Fix: `backend/services/adminSetupGuard.js` fails closed: needs `ADMIN_SETUP_TOKEN` set on Render AND sent as `x-setup-token`; unset = route off (+3 tests). `/admin-setup` page (`AdminSetup.tsx`) no longer works without a token, fine because the admin exists. Admin audit still in progress.
 
@@ -67,11 +75,11 @@
 - **Kept on purpose:** video credits routes (probably a planned feature), `videos/:id/signed-url` and `fair-housing-review.pdf` (called by `scripts/verify_phase513_live.cjs` and `backend/scripts/sharekit_smoke_test.sh`). `calculateRoiMetrics` in `leadIntelligenceService.js` and `listRecipes`/`setRecipeEnabled` in `automationRulesService.js` are now unused service exports; left alone.
 - **New finding, NOT fixed:** an undefined-name scan of `server.cjs` (`eslint --no-eslintrc --env node,es2022 --rule no-undef:error backend/server.cjs`) still shows 24 hits that would throw ReferenceError if reached: `ensureLocalConversations`/`ensureLocalMessages`/`respondWithLocalConversations` (~29265-29395), `localAiCardStore`, `brandName`, `audienceType`, `PORT` (~25807), and `document` (8, inside a string/template). Worth checking which are live routes.
 
-## 2026-10-03 — Claude: two audit suggestions done (committed, not pushed)
+## 2026-10-03 — Claude: two audit suggestions done (pushed)
 
 - A public showing booking now creates (or raises) the lead as **Hot** with a reason (`rateCaptureIntent('showing_requested')`, server.cjs near "Auto-creating lead"); the how-to PageGuide now starts **collapsed** on first visit (`PageGuide.tsx` `readState`), so the call-now card is first on Today. `lo-invoices-migration.sql` WAS run in Supabase (table verified: 31 columns, RLS on). Still open from the suggestions list: background push for new hot leads (needs VAPID keys + service worker + subscriptions table), weekly "your loan officer got you N leads" email to agents.
 
-## 2026-10-03 — Claude: LO → agent invoices (built, NOT deployed)
+## 2026-10-03 — Claude: LO → agent invoices (pushed, live)
 
 - **What:** the loan officer bills a partner agent for a share of marketing (some states require shared cost). We create, email and track the invoice; **we never touch the money** (no Stripe, no pay button, page says HomeListingAI is not a party). Agent pays the LO directly; LO marks it paid.
 - **Run first:** `lo-invoices-migration.sql` in the Supabase SQL editor (table `lo_agent_invoices`, RLS on, no policies, backend only). Until it runs the invoice routes 500.
@@ -81,7 +89,7 @@
 - **Compliance:** invoice wording is a draft, have an attorney read it. The app makes no "RESPA compliant" claim and suggests no amounts.
 - **Verified:** tsc, lint, backend 175, Jest 52 (+`LOInvoicesPage` render test, agent billing test), build; public invoice page checked at 375px with a stubbed API (no overflow, HTML in text shown escaped, single noindex tag). **Not verified:** the migration, a real send/open/mark-paid against Supabase, the real email.
 
-## 2026-10-03 — Claude: agent dashboard launch audit + fixes (NOT committed/deployed)
+## 2026-10-03 — Claude: agent dashboard launch audit + fixes (pushed)
 
 - **Audit verdict was READY AFTER FIXES.** Fixed in the working tree: (1) public `POST /api/appointments` now rate limited (`backend/services/publicBookingGuard.js`, +5 tests: 5/hour per IP, 2/day per email, 40/day per listing), field size/email checks, public bookings can only be `scheduled`; (2) `/api/billing/checkout-session` accepts `lo_lite` (the $79 Settings button used to 400); (3) `POST /api/properties` always creates a draft and `PUT /api/properties/:id` cannot publish a draft, so the publish route (plan cap + rules) is the only way to publish; (4) agents are no longer redirected out of Leads/Listings/Appointments while onboarding is unfinished (Today shows the checklist; `/dashboard` still sends new agents to the wizard); (5) onboarding no-row reply includes `account_type: 'realtor'`; (6) Leads header stacks on phones; (7) agent CSV exports defuse formulas (`src/utils/csvCell.ts`, +4 tests); (8) "Listing sold" notification uses the LO's auth id; (9) `/api/dashboard/leads` limited to newest 500 (`?limit=`, max 1000, returns `truncated`) and loads only needed property columns; (10) realtime WebSocket sends the token as a first `{type:'auth'}` message, not in the URL (`?token=` still accepted for old cached clients); (11) removed the client refresh of `/api/dashboard/command-center` on every realtime event (nobody read it); (13) 40px tap targets on lead detail links and Today "Details", dashboard tab titles named per page.
 - **Left for Chris's decision:** #12 agent Billing page sells the LO plans ($79/$149/$299) to realtors; #14 unused backend routes (`resend-welcome-email`, `check-entitlement`, `track-generation`, `allow-overages`, `sources/upload-file`, `automation-recipes`, `roi-metrics`, `video-credits`, `signed-url`, `fair-housing-review.pdf`), the now-unused `/api/dashboard/command-center` route + `commandCenter` store field, and 8 unused landing components. None deleted.

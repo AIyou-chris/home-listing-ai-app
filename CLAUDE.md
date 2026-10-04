@@ -204,6 +204,17 @@ No long explanations. No walls of text. Table in, table out.
 
 ## 7. Current State Snapshot (as of 2026-10-02)
 
+### ✅ Recently completed — Agent + admin launch audits (2026-10-03/04)
+
+| Area | Notes |
+|---|---|
+| **Agent dashboard audit** | Public `POST /api/appointments` is rate limited (`services/publicBookingGuard.js`) and books Hot leads; `POST /api/properties` always creates drafts (publish route enforces plan cap); `/api/billing/checkout-session` accepts `lo_lite`; agents no longer blocked by onboarding; lead list capped at 500; WebSocket sends its token as a first message; ~1,700 lines of dead code removed. |
+| **LO to agent invoices** | `lo_agent_invoices` + `/dashboard/lo-invoices` + public `/invoice/:token`. We create/email/track only; **never handle payment**. Realtor agents are free: their Settings → Billing lists invoices, no plans. |
+| **🔴 Admin setup hole** | `POST /api/admin/setup` had no login and only refused if `admin_users` had rows (that table does not exist), so anyone could create a super-admin. Now needs `ADMIN_SETUP_TOKEN` (`services/adminSetupGuard.js`). Only admin is cdipotter@me.com. |
+| **Buyer chat was not saving** | Real DB lacks `ai_conversation_messages.intent_tags/is_capture_event/confidence` and `ai_conversations.agent_id/visitor_id/channel/last_activity_at/started_at`. Use `insertRowTolerant`/`updateRowTolerant` (`services/columnFallback.js`). Optional `ai-chat-columns-migration.sql` adds them. |
+| **Admin tabs done** | Leads & Appointments (call-first, owner filter, notes, appointment edit), AI Conversations (field-name adapter, paging, badges), Inbox (rebuilt). Admin Settings/Training Studio now send the login token. Remaining: AI Sidekicks, Marketing Funnels, Broadcasts, Listings, LO Platform, Users, Blog, White Label, Settings. |
+| **Guards** | `noUndefinedNames.test.js` fails the build on undefined variables in `server.cjs`. Never put `.catch()` on a Supabase builder (still true). |
+
 ### ✅ Recently completed — Security + dashboard hardening day (2026-10-02, commits dd126dc6 … b93cb43e)
 
 | Area | Notes |
