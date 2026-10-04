@@ -20195,7 +20195,7 @@ app.post('/api/public/conversations/:conversationId/message', async (req, res) =
 
     const { data: conversationRow, error: conversationError } = await supabaseAdmin
       .from('ai_conversations')
-      .select('id, listing_id, lead_id, user_id, metadata, message_count')
+      .select('id, listing_id, lead_id, user_id, metadata, message_count, tags')
       .eq('id', conversationId)
       .maybeSingle();
     if (conversationError) throw conversationError;
@@ -20297,7 +20297,10 @@ app.post('/api/public/conversations/:conversationId/message', async (req, res) =
       channel: 'web'
     };
 
+    // Remember what the buyer asked about (financing, showing, offer...) so the admin list can show it.
+    const mergedTags = [...new Set([...(Array.isArray(conversationRow.tags) ? conversationRow.tags : []), ...visitorIntentTags])].slice(0, 12);
     await updateRowTolerant('ai_conversations', conversationId, {
+      tags: mergedTags,
       message_count: nextMessageCount,
       last_message: aiText,
       last_message_at: nowIso(),
@@ -29780,6 +29783,7 @@ app.get('/api/admin/conversations', verifyAdmin, async (req, res) => {
   try {
     const { scope, status, search, limit = '100' } = req.query;
     const parsedLimit = Math.max(1, Math.min(200, Number.parseInt(String(limit), 10) || 100));
+    const parsedOffset = Math.max(0, Number.parseInt(String(req.query.offset || '0'), 10) || 0);
 
     const runQuery = async (selectFields) => {
       let query = supabaseAdmin
@@ -29787,7 +29791,7 @@ app.get('/api/admin/conversations', verifyAdmin, async (req, res) => {
         .select(selectFields)
         .order('last_message_at', { ascending: false, nulls: 'last' })
         .order('created_at', { ascending: false, nulls: 'last' })
-        .limit(parsedLimit);
+        .range(parsedOffset, parsedOffset + parsedLimit - 1);
 
       if (scope) query = query.eq('scope', scope);
       // Archived conversations stay hidden unless the admin asks for them (Archive used to change nothing visible).

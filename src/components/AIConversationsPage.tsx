@@ -49,6 +49,7 @@ interface ConversationSummary {
   voiceTranscript?: string;
   followUpTask?: string;
   recordingUrl?: string;
+  leadId?: string | null;
 }
 
 interface ConversationMessage {
@@ -149,7 +150,8 @@ const mapConversationRowToSummary = (row: ConversationRow): ConversationSummary 
     language: row.language || undefined,
     voiceTranscript: row.voice_transcript || undefined,
     followUpTask: row.follow_up_task || undefined,
-    recordingUrl: metadata.recordingUrl || undefined
+    recordingUrl: metadata.recordingUrl || undefined,
+    leadId: row.lead_id || null
   };
 };
 
@@ -186,11 +188,15 @@ const parseDurationToMinutes = (duration?: string | null) => {
   return 0;
 };
 
+const ADMIN_PAGE_SIZE = 50;
+
 const AIConversationsPage: React.FC<{ isDemoMode?: boolean; adminMode?: boolean }> = ({
   isDemoMode = false,
   adminMode = false
 }) => {
   const effectiveDemoMode = isDemoMode && !adminMode;
+  const [hasMoreAdmin, setHasMoreAdmin] = useState(false);
+  const [loadingMoreAdmin, setLoadingMoreAdmin] = useState(false);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [messagesByConversation, setMessagesByConversation] = useState<Record<string, ConversationMessage[]>>({});
   const [loadingConversations, setLoadingConversations] = useState(true);
@@ -224,13 +230,14 @@ const AIConversationsPage: React.FC<{ isDemoMode?: boolean; adminMode?: boolean 
       setError(null);
 
       const rows = adminMode
-        ? await adminConversationsService.list({ limit: 100 })
+        ? await adminConversationsService.list({ limit: ADMIN_PAGE_SIZE })
         : await listConversations({
             userId: currentUserId ?? undefined,
             scope: 'agent'
           });
       const mapped = rows.map(mapConversationRowToSummary);
       setConversations(mapped);
+      setHasMoreAdmin(adminMode && rows.length >= ADMIN_PAGE_SIZE);
       if (mapped.length && !selectedConversationId) {
         setSelectedConversationId(mapped[0].id);
       }
@@ -429,6 +436,24 @@ const AIConversationsPage: React.FC<{ isDemoMode?: boolean; adminMode?: boolean 
       multilingual
     };
   }, [conversations]);
+
+  const handleLoadMoreAdmin = async () => {
+    setLoadingMoreAdmin(true);
+    try {
+      const rows = await adminConversationsService.list({ limit: ADMIN_PAGE_SIZE, offset: conversations.length });
+      const mapped = rows.map(mapConversationRowToSummary);
+      setConversations((prev) => {
+        const seen = new Set(prev.map((c) => c.id));
+        return [...prev, ...mapped.filter((c) => !seen.has(c.id))];
+      });
+      setHasMoreAdmin(rows.length >= ADMIN_PAGE_SIZE);
+    } catch (err) {
+      console.error('Failed to load more conversations:', err);
+      setError('Failed to load more conversations.');
+    } finally {
+      setLoadingMoreAdmin(false);
+    }
+  };
 
   const handleExportConversations = async () => {
     try {
@@ -700,6 +725,12 @@ const AIConversationsPage: React.FC<{ isDemoMode?: boolean; adminMode?: boolean 
                         <span className={`text-xs font-semibold px-2 py-1 rounded-full ${statusBadgeStyles[conversation.status]}`}>
                           {conversation.status === 'follow-up' ? 'Follow-up' : conversation.status.charAt(0).toUpperCase() + conversation.status.slice(1)}
                         </span>
+                        {conversation.tags.includes('financing') && (
+                          <span className="text-xs font-semibold px-2 py-1 rounded-full bg-green-100 text-green-700">💰 Asked about financing</span>
+                        )}
+                        {conversation.leadId && (
+                          <span className="text-xs font-semibold px-2 py-1 rounded-full bg-blue-100 text-blue-700">✓ Lead captured</span>
+                        )}
                       </div>
                       <h3 className="font-semibold text-slate-900 mt-2 truncate">{conversation.contactName}</h3>
                       <p className="text-xs text-slate-500 truncate">{conversation.contactEmail}</p>
@@ -739,6 +770,16 @@ const AIConversationsPage: React.FC<{ isDemoMode?: boolean; adminMode?: boolean 
                   </div>
                 </button>
               ))
+            )}
+            {adminMode && hasMoreAdmin && (
+              <button
+                type="button"
+                onClick={() => void handleLoadMoreAdmin()}
+                disabled={loadingMoreAdmin}
+                className="w-full rounded-xl border border-slate-300 bg-white py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              >
+                {loadingMoreAdmin ? 'Loading…' : 'Load more'}
+              </button>
             )}
           </div>
 
