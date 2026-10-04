@@ -83,11 +83,12 @@ The voice client already used in An AI You was ported from HomeListingAI.
 - Money path audited. Fixed: hardcoded free-for-life promo codes (`LIFETIME`/`FRIENDS30`), paying LOs never being unlocked (slug used as account id in the Stripe webhook), and a second free trial week at checkout.
 - **Agent dashboard launch audit (Oct 3-4), all fixed and live:** public booking can no longer be used to email strangers (rate limited); the $79 LO Lite upgrade button works (Stripe checkout verified live); new listings start as drafts so the plan limit can't be skipped; agents are no longer locked behind the 6-step wizard; CSV exports are safe in Excel; hot lead from a showing booking; page guides start collapsed; header and tab titles are right on LO pages; about 1,700 lines of dead code removed; a test now fails the build on any undefined variable in `server.cjs`.
 - **LO to agent invoices (live):** the loan officer bills an agent for their share of marketing (some states require shared cost). We create, email and track the invoice and **never touch the money**. Realtor agents are free in the app: their Billing page no longer sells the LO plans and just lists their invoices. Table `lo_agent_invoices` (migration run).
-- **Admin dashboard audit, tab by tab (Oct 4):** closed a **critical hole** (anyone could create a super-admin at `/api/admin/setup`; now needs `ADMIN_SETUP_TOKEN`; nobody had used it). Admin Settings, Training Studio and coupons were sending no login token (every call failed): fixed. Admin Broadcast, lead notes, edit/delete of other agents' appointments all fixed. **Buyer listing chat was saving nothing** (3 columns missing in the real DB): now saves, and conversations link to leads. Admin Leads has "Call these first", owner chip and filter, and a "waiting over 24h" card. Admin AI Conversations shows real names, paging, financing and lead badges. Admin Inbox rebuilt (working archive, search, thread, reply links, quick replies, menu unread count). Tabs done: Leads & Appointments, AI Conversations, Inbox.
+- **Admin dashboard audit, tab by tab (Oct 4):** closed a **critical hole** (anyone could create a super-admin at `/api/admin/setup`; now needs `ADMIN_SETUP_TOKEN`; nobody had used it). Admin Settings, Training Studio and coupons were sending no login token (every call failed): fixed. Admin Broadcast, lead notes, edit/delete of other agents' appointments all fixed. **Buyer listing chat was saving nothing** (3 columns missing in the real DB): now saves, and conversations link to leads. Admin Leads has "Call these first", owner chip and filter, and a "waiting over 24h" card. Admin AI Conversations shows real names, paging, financing and lead badges. Admin Inbox rebuilt (working archive, search, thread, reply links, quick replies, menu unread count). Tabs done: Leads & Appointments, AI Conversations, Inbox, **AI Sidekicks (replaced by Business Brain)**.
+- **Admin Business Brain (Oct 4):** the old AI Sidekicks / Training Studio tab is gone. The admin sidebar item is now **Business Brain** (same look as the AI You page): test chat, knowledge library (paste text, upload file, scan website), voice and personality, Marketing / Sales / Customer Service boxes. It is stored in the new `platform_brain` table (migration run) and, once saved with at least one source, is added to the public landing-page chat. Also closed: 4 open `/api/blueprint/ai-sidekicks/*` routes and `/api/training/*` (anyone could call them), and admin routes that were registered inside the chat handler on every message. ~3,800 lines of old sidekick code deleted.
 
 ## Right Now 🔨
 
-- **Chris:** hard-refresh and click through the admin tabs we fixed (Leads & Appointments, AI Conversations, Inbox); open a live listing as a buyer and chat to confirm real AI answers and the chat shows in Admin.
+- **Chris:** hard-refresh and click through the admin tabs we fixed (Leads & Appointments, AI Conversations, Inbox, Business Brain: add pricing + FAQs and Save, then ask the site chat a pricing question); open a live listing as a buyer and chat to confirm real AI answers and the chat shows in Admin.
 - **Chris:** pays the failed Render invoice, then cuts Render costs (Pro plan, video worker, old worker).
 - **Money test (still open):** new LO signup, Stripe checkout, account unlocks, cancel inside the trial. The $79 checkout opens correctly (seen live) but nobody has paid yet.
 - Stripe account public name still says "AN AI You" (Chris said it's fine for now).
@@ -95,7 +96,7 @@ The voice client already used in An AI You was ported from HomeListingAI.
 
 ## Next Up ⏭️
 
-1. **Admin audit, remaining tabs (one at a time):** AI Sidekicks, Marketing Funnels (also re-check the CSV import consent prompt), Broadcasts, Listings, LO Platform, Users, Blog, White Label, Settings.
+1. **Admin audit, remaining tabs (one at a time):** Marketing Funnels (also re-check the CSV import consent prompt), Broadcasts, Listings, LO Platform, Users, Blog, White Label, Settings.
 2. **Money test** (above), then watch Sentry for real-world errors.
 3. Background push alerts for hot leads (service worker, VAPID keys, subscriptions table).
 4. Weekly "your loan officer got you N leads" email to agents.
@@ -123,4 +124,5 @@ The voice client already used in An AI You was ported from HomeListingAI.
 | Oct 2026 | Every `/api` route needs a login guard or a reviewed allowlist entry (tested in CI) |
 | Oct 2026 | Realtor agents are free in the app; loan officers pay. Cost sharing between an LO and an agent is an invoice the LO sends; we never handle that payment |
 | Oct 2026 | Admin dashboard audited and fixed one tab at a time, each reported as verdict + red/yellow/green/suggestions |
+| Oct 2026 | Admin AI Sidekicks replaced by one platform Business Brain (`platform_brain`), feeding the landing chat |
 | Oct 2026 | `/api/admin/setup` is off unless `ADMIN_SETUP_TOKEN` is set and sent |
