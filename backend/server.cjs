@@ -110,6 +110,11 @@ const ownedAppointment = async (req, appointmentId) => {
     .eq('id', appointmentId)
     .maybeSingle();
   if (!data) return { status: 404 };
+  // An admin (set only by the verified /api/admin/appointments wrappers) acts as the appointment's owner.
+  if (req.adminActingOnAny === true) {
+    const ids = new Set([data.user_id, data.agent_id].filter(Boolean));
+    return { status: 200, appointment: data, owner: { authId: data.user_id || data.agent_id, ids } };
+  }
   if (!owner.ids.has(data.user_id) && !owner.ids.has(data.agent_id)) return { status: 403 };
   return { status: 200, appointment: data, owner };
 };
@@ -18276,16 +18281,6 @@ app.post('/api/admin/leads', verifyAdmin, async (req, res) => {
     const { name, email, phone, status, source, notes, lastMessage, propertyInterest, budget, timeline } =
       req.body || {};
 
-    const fs = require('fs');
-    const debugLog = `\n[${new Date().toISOString()}] POST /leads
-      Body UserId: ${req.body.userId} (${typeof req.body.userId})
-      Body User_Id: ${req.body.user_id} (${typeof req.body.user_id})
-      Header x-user-id: ${req.headers['x-user-id']} (${typeof req.headers['x-user-id']})
-      Resolved AssignedID: ${req.body.user_id || req.body.userId || req.headers['x-user-id'] || 'FALLBACK'}
-    `;
-    try { fs.appendFileSync('debug_leads_request.log', debugLog); } catch (e) { }
-    console.error(debugLog);
-
     if (!name || !email) {
       return res.status(400).json({ error: 'Name and email are required' });
     }
@@ -18511,6 +18506,53 @@ app.post('/api/admin/leads', verifyAdmin, async (req, res) => {
 });
 
 // Update lead
+// Admin notes on a lead. Stored as lead_events of type 'admin_note' (there is no lead_notes table).
+app.get('/api/admin/leads/:leadId/notes', verifyAdmin, async (req, res) => {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('lead_events')
+      .select('id, lead_id, payload, created_at')
+      .eq('lead_id', req.params.leadId)
+      .eq('type', 'admin_note')
+      .order('created_at', { ascending: false })
+      .limit(200);
+    if (error) throw error;
+    res.json({
+      notes: (data || []).map((row) => ({
+        id: row.id,
+        leadId: row.lead_id,
+        content: String(row.payload?.content || ''),
+        createdAt: row.created_at,
+        createdBy: row.payload?.created_by || undefined
+      }))
+    });
+  } catch (err) {
+    console.error('[Admin Lead Notes] list failed:', err);
+    res.status(500).json({ error: 'failed_to_load_notes' });
+  }
+});
+
+app.post('/api/admin/leads/:leadId/notes', verifyAdmin, async (req, res) => {
+  try {
+    const content = String(req.body?.content || '').trim().slice(0, 2000);
+    if (!content) return res.status(400).json({ error: 'Note text is required' });
+    const { data: lead } = await supabaseAdmin.from('leads').select('id').eq('id', req.params.leadId).maybeSingle();
+    if (!lead) return res.status(404).json({ error: 'lead_not_found' });
+    const { data, error } = await supabaseAdmin
+      .from('lead_events')
+      .insert({ lead_id: lead.id, type: 'admin_note', payload: { content, created_by: req.user?.email || 'admin' } })
+      .select('id, lead_id, payload, created_at')
+      .single();
+    if (error) throw error;
+    res.json({
+      note: { id: data.id, leadId: data.lead_id, content, createdAt: data.created_at, createdBy: data.payload?.created_by }
+    });
+  } catch (err) {
+    console.error('[Admin Lead Notes] add failed:', err);
+    res.status(500).json({ error: 'failed_to_add_note' });
+  }
+});
+
 app.put('/api/admin/leads/:leadId', verifyAdmin, async (req, res) => {
   try {
     const { leadId } = req.params;
@@ -31230,12 +31272,14 @@ app.post('/api/admin/appointments', verifyAdmin, (req, res) => {
 app.put('/api/admin/appointments/:appointmentId', verifyAdmin, (req, res) => {
   const { appointmentId } = req.params;
   console.log(`🔄 Routing Admin Update Appointment ${appointmentId} to Main Handler`);
+  req.adminActingOnAny = true;
   return app._router.handle(Object.assign(req, { url: `/api/appointments/${appointmentId}` }), res, () => { });
 });
 
 app.delete('/api/admin/appointments/:appointmentId', verifyAdmin, (req, res) => {
   const { appointmentId } = req.params;
   console.log(`🔄 Routing Admin Delete Appointment ${appointmentId} to Main Handler`);
+  req.adminActingOnAny = true;
   return app._router.handle(Object.assign(req, { url: `/api/appointments/${appointmentId}` }), res, () => { });
 });
 

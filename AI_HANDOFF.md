@@ -7,6 +7,10 @@
 > **End of every session (or before handing off):** add a new entry at the TOP of the log. Keep it short.
 > **Before editing a file another agent touched in its last entry:** read that entry first. Don't redo or undo their work silently.
 
+## 2026-10-04 — Claude: admin tab 1 "Leads & Appointments" (committed, push pending)
+
+- Lead **notes** list/add called `/api/admin/leads/:leadId/notes`, which did not exist (404): added GET/POST, stored as `lead_events` type `admin_note` (no `lead_notes` table). Admin edit/delete of someone else's appointment failed (the wrapper re-routes to the agent handler, which only lets the owner act): `ownedAppointment` now lets a verified admin act as the owner via `req.adminActingOnAny` (set only in the admin PUT/DELETE wrappers). Admin-created appointments still belong to the admin. Removed a debug `fs.appendFileSync('debug_leads_request.log')` in `POST /api/admin/leads` that wrote request data to disk.
+
 ## 2026-10-04 — Claude: admin dashboard audit fixes (committed, push pending; Chris said hold the push)
 
 - **Admin Settings (system settings save, send reminder, cancel alert, coupons create/delete) and Training Studio (5 calls) sent NO Bearer token**, so every one was a 401 in production (errors swallowed; coupon delete even removed the row from the screen when the server refused). Now use `AuthService.makeAuthenticatedRequest`; coupon delete only updates the list on success. Scan of all admin screens: only `AdminSetup` (intentionally open) has an un-authed fetch.
