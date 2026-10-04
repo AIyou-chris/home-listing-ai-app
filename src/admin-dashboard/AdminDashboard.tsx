@@ -210,6 +210,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'dashboard
     property?: string | null;
     status?: string | null;
     metadata?: Record<string, unknown> | null;
+    contact_email?: string | null;
+    contact_phone?: string | null;
+    lead_id?: string | null;
+    tags?: string[] | null;
   }): Interaction => {
     const sourceType =
       conversation.scope === 'listing'
@@ -222,17 +226,23 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'dashboard
       id: conversation.id,
       sourceType,
       sourceName: conversation.property || conversation.title || conversation.contactName || conversation.contact_name || 'Conversation',
-      contact: { name: conversation.contactName || conversation.contact_name || 'Unknown Contact' },
+      contact: {
+        name: conversation.contactName || conversation.contact_name || 'Unknown Contact',
+        email: conversation.contact_email || undefined,
+        phone: conversation.contact_phone || undefined
+      },
       message: conversation.lastMessage || conversation.last_message || 'No messages yet.',
       timestamp: formatInteractionTimestamp(conversation.lastMessageAt || conversation.last_message_at),
-      isRead: conversation.status === 'archived',
+      isRead: false,
       relatedPropertyId: conversation.listingId || conversation.listing_id || undefined,
       metadata: {
         conversationId: conversation.id,
         property: conversation.property || undefined,
         propertyAddress: conversation.property || undefined,
+        ...(conversation.metadata || {}),
         status: conversation.status || 'active',
-        ...(conversation.metadata || {})
+        leadId: conversation.lead_id || undefined,
+        tags: conversation.tags || []
       }
     };
   }, []);
@@ -375,6 +385,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'dashboard
             onBackToDashboard={resetToDashboard}
             isLoading={interactionsLoading}
             errorMessage={interactionsError}
+            onRetry={() => void loadInteractions()}
             onLoadInteractionMessages={loadInteractionMessages}
             onArchiveInteraction={handleArchiveInteraction}
           />

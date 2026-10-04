@@ -300,7 +300,7 @@ export interface Interaction {
     id: string;
     sourceType: InteractionSourceType;
     sourceName: string;
-    contact: { name: string; avatarUrl?: string };
+    contact: { name: string; avatarUrl?: string; email?: string; phone?: string };
     message: string;
     timestamp: string;
     isRead: boolean;
