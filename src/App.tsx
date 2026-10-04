@@ -141,6 +141,7 @@ type AppRole = 'admin' | 'agent' | 'user' | null;
 // };
 
 import { ImpersonationProvider } from './context/ImpersonationContext';
+import { resolveDashboardPageTitle } from './utils/dashboardPageTitle';
 
 // ─── Module-level contexts ───────────────────────────────────────────────────
 // ProtectedDashboardLayout and CheckoutRouteWrapper are defined OUTSIDE App so
@@ -270,19 +271,6 @@ const DashboardRouteGate = () => {
     }
 
     return <Navigate to="/dashboard/today" replace />;
-};
-
-const resolveDashboardPageTitle = (pathname: string) => {
-    if (pathname.includes('/command-center')) return 'Command Center';
-    if (/\/office(\/|$)/.test(pathname)) return 'Office';
-    if (pathname.includes('/lo-chatbot')) return 'AI Brain';
-    if (pathname.includes('/lo-partners')) return 'Partners';
-    if (pathname.includes('/lo-invoices')) return 'Invoices';
-    if (pathname.includes('/listings')) return 'Listings';
-    if (pathname.includes('/leads')) return 'Leads';
-    if (pathname.includes('/appointments')) return 'Appointments';
-    if (pathname.includes('/settings')) return 'Settings';
-    return 'Today';
 };
 
 // Every dashboard page used to show the marketing site's tab title. Name the tab after the page.

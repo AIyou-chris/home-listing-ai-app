@@ -7,9 +7,13 @@
 > **End of every session (or before handing off):** add a new entry at the TOP of the log. Keep it short.
 > **Before editing a file another agent touched in its last entry:** read that entry first. Don't redo or undo their work silently.
 
+## 2026-10-03 — Claude: dashboard header/tab title said "Today" on LO Listings/Leads/Appointments
+
+- `resolveDashboardPageTitle` matched `/listings`, `/leads`, `/appointments`, but LO routes are `/lo-listings`, `/lo-leads`, `/lo-appointments`, so those pages showed "Today" in the header (pre-existing) and in the new tab title. Moved to `src/utils/dashboardPageTitle.ts` (matches the optional `lo-` prefix) with a 17-case test. Found from a screenshot of the live LO Share Kit page.
+
 ## 2026-10-03 — Claude: two real ReferenceError bugs fixed + guard test
 
-- `buildSocialAssetHtml` used `brandName` but never received it, so the Share Kit **social image PNG** (`/api/dashboard/listings/:id/social-asset.png`) threw on every call; it now takes `brandName` (default `HomeListingAI`) and the live route passes `resolveListingBrandName(listing.id)` (the LO's white-label name when set). `POST /api/admin/broadcast` had `constaudienceType` (missing space), so the admin broadcast crashed; fixed. New `backend/__tests__/noUndefinedNames.test.js` runs ESLint `no-undef` on `server.cjs` and fails on any undefined name outside a short documented harmless list (`document` inside Puppeteer, `PORT` laptop fallback, the no-database `ensureLocal*`/`localAiCardStore` dev branches). Proven: it fails on the old code and passes on the new. **Not verified live** (needs a login): the social image and the broadcast.
+- `buildSocialAssetHtml` used `brandName` but never received it, so the **social image PNG** routes threw on every call (real routes in `social-asset.png` are only used by `DemoAssetGalleryPage` and `backend/scripts/sharekit_smoke_test.sh`; the real agent/LO Share Kits use a TEXT social post, so customer impact was small, mostly the demo gallery); it now takes `brandName` (default `HomeListingAI`) and the live route passes `resolveListingBrandName(listing.id)` (the LO's white-label name when set). `POST /api/admin/broadcast` had `constaudienceType` (missing space), so the admin broadcast crashed; fixed. New `backend/__tests__/noUndefinedNames.test.js` runs ESLint `no-undef` on `server.cjs` and fails on any undefined name outside a short documented harmless list (`document` inside Puppeteer, `PORT` laptop fallback, the no-database `ensureLocal*`/`localAiCardStore` dev branches). Proven: it fails on the old code and passes on the new. **Not verified live** (needs a login): the social image and the broadcast.
 
 ## 2026-10-03 — Claude: audit #14 dead code removed (pushed)
 
