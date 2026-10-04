@@ -5629,7 +5629,8 @@ const buildSocialAssetHtml = ({
   agentTitle,
   agentCompany,
   agentHeadshotDataUrl,
-  brandColor
+  brandColor,
+  brandName = 'HomeListingAI'
 }) => {
   const safeBrandColor = String(brandColor || '#f97316').trim() || '#f97316';
   const width = format === 'ig_post' ? 1080 : 1080;
@@ -17257,7 +17258,7 @@ app.post('/api/admin/broadcast', verifyAdmin, async (req, res) => {
 
     // 1. Determine Target Audience
     let recipients = [];
-    constaudienceType = (Array.isArray(targetAudience) ? targetAudience[0] : targetAudience) || 'all';
+    const audienceType = (Array.isArray(targetAudience) ? targetAudience[0] : targetAudience) || 'all';
 
     if (audienceType === 'demo') {
       // Demo Mode
@@ -23925,7 +23926,8 @@ app.get('/api/dashboard/listings/:listingId/social-asset.png', async (req, res) 
       agentTitle: toTrimmedOrNull(aiCardProfile.professionalTitle) || 'Listing Specialist',
       agentCompany: toTrimmedOrNull(aiCardProfile.company) || 'HomeListingAI',
       agentHeadshotDataUrl,
-      brandColor: toTrimmedOrNull(aiCardProfile.brandColor) || DEFAULT_AI_CARD_PROFILE.brandColor
+      brandColor: toTrimmedOrNull(aiCardProfile.brandColor) || DEFAULT_AI_CARD_PROFILE.brandColor,
+      brandName: await resolveListingBrandName(listing.id).catch(() => 'HomeListingAI')
     });
 
     browser = await launchPdfBrowser();
