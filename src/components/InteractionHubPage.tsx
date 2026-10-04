@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Interaction, Property, InteractionSourceType } from '../types';
 import AddLeadModal, { type NewLeadPayload } from './AddLeadModal';
-import { filterInteractions, loadReadIds, replyLinkFor, saveReadIds, type InboxTab } from '../admin-dashboard/inboxHelpers';
+import { REPLY_TEMPLATES, countOldIdle, filterInteractions, loadReadIds, replyLinkFor, saveReadIds, type InboxTab } from '../admin-dashboard/inboxHelpers';
 
 export interface InteractionThreadMessage {
     id: string;
@@ -81,7 +81,8 @@ const InteractionDetail: React.FC<{
     onBack: () => void;
 }> = ({ interaction, property, thread, isArchiving, archiveError, onArchive, onCreateLead, onBack }) => {
     const colors = sourceColors[interaction.sourceType];
-    const reply = replyLinkFor(interaction);
+    const [templateId, setTemplateId] = useState('');
+    const reply = replyLinkFor(interaction, templateId || undefined);
     const alreadyLead = Boolean(interaction.metadata?.leadId);
     const address = (interaction.metadata?.propertyAddress as string | undefined) || undefined;
     const btn = 'min-h-[40px] px-4 py-2 text-sm font-semibold rounded-lg';
@@ -140,10 +141,21 @@ const InteractionDetail: React.FC<{
                 {archiveError && <p role="alert" className="mb-2 text-sm text-red-600">{archiveError}</p>}
                 <div className="flex flex-wrap items-center justify-between gap-2">
                     {reply ? (
-                        <a href={reply.href} className={`${btn} inline-flex items-center gap-2 text-white bg-primary-600`}>
-                            <span className="material-symbols-outlined w-4 h-4">send</span>
-                            <span>{reply.label}</span>
-                        </a>
+                        <div className="flex flex-wrap items-center gap-2">
+                            <select
+                                aria-label="Quick reply"
+                                value={templateId}
+                                onChange={(e) => setTemplateId(e.target.value)}
+                                className="min-h-[40px] rounded-lg border border-slate-300 bg-white px-2 text-sm text-slate-700"
+                            >
+                                <option value="">Write my own</option>
+                                {REPLY_TEMPLATES.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+                            </select>
+                            <a href={reply.href} className={`${btn} inline-flex items-center gap-2 text-white bg-primary-600`}>
+                                <span className="material-symbols-outlined w-4 h-4">send</span>
+                                <span>{reply.label}</span>
+                            </a>
+                        </div>
                     ) : (
                         <span className="text-sm text-slate-500">No email or phone yet. They have not left contact details.</span>
                     )}
@@ -183,13 +195,15 @@ const InteractionHubPage: React.FC<InteractionHubPageProps> = ({
     const [isAddLeadModalOpen, setIsAddLeadModalOpen] = useState(false);
     const [leadInitialData, setLeadInitialData] = useState<{ name: string; message: string } | undefined>(undefined);
     const [tab, setTab] = useState<InboxTab>('attention');
+    const [showOld, setShowOld] = useState(false);
     const [search, setSearch] = useState('');
     const [readIds, setReadIds] = useState<Set<string>>(() => loadReadIds());
     const [threads, setThreads] = useState<Record<string, { loading: boolean; error: boolean; messages: InteractionThreadMessage[] }>>({});
     const [archivingId, setArchivingId] = useState<string | null>(null);
     const [archiveError, setArchiveError] = useState<string | null>(null);
 
-    const visible = useMemo(() => filterInteractions(interactions, { tab, search }), [interactions, tab, search]);
+    const visible = useMemo(() => filterInteractions(interactions, { tab, search, showOld }), [interactions, tab, search, showOld]);
+    const oldIdleCount = useMemo(() => countOldIdle(interactions), [interactions]);
 
     useEffect(() => {
         // Keep a valid selection: first visible item, unless the current one is still in the list.
@@ -302,6 +316,11 @@ const InteractionHubPage: React.FC<InteractionHubPageProps> = ({
                             </div>
                         ) : visible.length > 0 ? (
                             <div className="divide-y divide-slate-200">
+                                {tab === 'all' && oldIdleCount > 0 && !search.trim() && (
+                                    <button onClick={() => setShowOld((v) => !v)} className="w-full min-h-[40px] bg-slate-50 px-4 text-left text-xs font-semibold text-slate-500">
+                                        {showOld ? 'Hide' : 'Show'} {oldIdleCount} old idle chat{oldIdleCount === 1 ? '' : 's'} (no contact details, quiet 14+ days)
+                                    </button>
+                                )}
                                 {visible.map((interaction) => (
                                     <div key={interaction.id} className="relative">
                                         <InteractionListItem

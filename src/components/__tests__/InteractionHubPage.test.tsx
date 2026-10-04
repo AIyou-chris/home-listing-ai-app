@@ -84,4 +84,21 @@ describe('InteractionHubPage', () => {
     expect(screen.queryByRole('link', { name: /reply/i })).not.toBeInTheDocument()
     expect(screen.getByText(/They have not left contact details/)).toBeInTheDocument()
   })
+
+  it('fills in a quick reply with their first name and the home', async () => {
+    setup()
+    await screen.findByText('Yes, Friday has openings.')
+    fireEvent.change(screen.getByLabelText('Quick reply'), { target: { value: 'showing' } })
+    const href = screen.getByRole('link', { name: /reply by email/i }).getAttribute('href') || ''
+    expect(decodeURIComponent(href)).toContain('Hi Maya, thanks for your interest in 1 Main St.')
+  })
+
+  it('tucks old idle chats away and lets you bring them back', () => {
+    const oldIdle = make({ id: 'old', contact: { name: 'Old Visitor' }, metadata: { lastMessageAt: new Date(Date.now() - 30 * 86400000).toISOString() } })
+    setup({ interactions: [hot, idle, oldIdle] })
+    fireEvent.click(screen.getByRole('tab', { name: 'All' }))
+    expect(screen.queryByText('Old Visitor')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /show 1 old idle chat/i }))
+    expect(screen.getAllByText('Old Visitor').length).toBeGreaterThan(0)
+  })
 })

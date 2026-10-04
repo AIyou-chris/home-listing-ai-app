@@ -1,5 +1,5 @@
 import type { Interaction } from '../../types'
-import { filterInteractions, loadReadIds, needsAttention, replyLinkFor, saveReadIds } from '../inboxHelpers'
+import { countOldIdle, countUnreadNeedsAttention, filterInteractions, firstNameOf, isStaleIdle, loadReadIds, needsAttention, replyLinkFor, saveReadIds, templateText } from '../inboxHelpers'
 
 const item = (over: Partial<Interaction> & { metadata?: Record<string, unknown> } = {}): Interaction => ({
   id: 'i', sourceType: 'listing-inquiry', sourceName: '1 Main St', contact: { name: 'Maya' }, message: 'hello', timestamp: 't', isRead: false, ...over
@@ -44,5 +44,51 @@ describe('read marks', () => {
     localStorage.clear()
     saveReadIds(new Set(['a', 'b']))
     expect([...loadReadIds()].sort()).toEqual(['a', 'b'])
+  })
+})
+
+const NOW = Date.parse('2026-10-20T12:00:00Z')
+const iso = (daysAgo: number) => new Date(NOW - daysAgo * 86400000).toISOString()
+
+describe('old idle chats', () => {
+  const old = item({ id: 'old', metadata: { lastMessageAt: iso(20) } })
+  const recent = item({ id: 'recent', metadata: { lastMessageAt: iso(3) } })
+  const oldWithPhone = item({ id: 'old-phone', contact: { name: 'P', phone: '+1555' }, metadata: { lastMessageAt: iso(30) } })
+  const oldLead = item({ id: 'old-lead', metadata: { lastMessageAt: iso(30), leadId: 'l' } })
+
+  it('only counts quiet, contact-less, non-lead chats older than 14 days', () => {
+    expect([old, recent, oldWithPhone, oldLead].map((i) => isStaleIdle(i, NOW))).toEqual([true, false, false, false])
+    expect(countOldIdle([old, recent, oldWithPhone, oldLead], NOW)).toBe(1)
+  })
+
+  it('hides them on All unless you search or ask to see them', () => {
+    const all = [old, recent]
+    expect(filterInteractions(all, { tab: 'all', search: '', now: NOW }).map((i) => i.id)).toEqual(['recent'])
+    expect(filterInteractions(all, { tab: 'all', search: '', showOld: true, now: NOW }).map((i) => i.id)).toEqual(['old', 'recent'])
+    expect(filterInteractions(all, { tab: 'all', search: 'hello', now: NOW }).map((i) => i.id)).toEqual(['old', 'recent'])
+  })
+})
+
+describe('menu count', () => {
+  it('counts needs-you chats that have not been opened', () => {
+    const a = item({ id: 'a', metadata: { leadId: 'l' } })
+    const b = item({ id: 'b', metadata: { tags: ['showing'] } })
+    const c = item({ id: 'c' })
+    expect(countUnreadNeedsAttention([a, b, c], new Set())).toBe(2)
+    expect(countUnreadNeedsAttention([a, b, c], new Set(['a']))).toBe(1)
+  })
+})
+
+describe('quick replies', () => {
+  const maya = item({ contact: { name: 'Maya Reynolds', email: 'maya@example.com' }, metadata: { propertyAddress: '124 Oak St' } })
+  it('uses the first name, and "there" when we do not know it', () => {
+    expect(firstNameOf(maya)).toBe('Maya')
+    expect(firstNameOf(item({ contact: { name: 'Unknown Contact' } }))).toBe('there')
+  })
+  it('fills in the home and puts the message in the link', () => {
+    expect(templateText(maya, 'showing')).toContain('Hi Maya, thanks for your interest in 124 Oak St.')
+    expect(replyLinkFor(maya, 'showing')?.href).toContain('&body=Hi%20Maya')
+    expect(replyLinkFor(item({ contact: { name: 'P', phone: '+1555' } }), 'checkin')?.href).toMatch(/^sms:\+1555\?&body=Hi%20P/)
+    expect(replyLinkFor(maya)?.href).not.toContain('body=')
   })
 })

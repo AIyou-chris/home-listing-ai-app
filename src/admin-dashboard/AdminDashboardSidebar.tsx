@@ -27,6 +27,7 @@ interface AdminDashboardSidebarProps {
   isOpen: boolean;
   onClose: () => void;
   isDesktop: boolean;
+  badgeCounts?: Partial<Record<DashboardView, number>>;
 }
 
 const Icon: React.FC<{ name: string; className?: string }> = ({ name, className }) => (
@@ -40,7 +41,8 @@ const NavItem: React.FC<{
   icon: string;
   children: React.ReactNode;
   onClose: () => void;
-}> = ({ viewName, activeView, setView, icon, children, onClose }) => {
+  badge?: number;
+}> = ({ viewName, activeView, setView, icon, children, onClose, badge }) => {
   const isListingsActive = viewName === 'listings' && (activeView === 'listings' || activeView === 'property' || activeView === 'add-listing');
   const isLeadsActive = viewName === 'leads' && activeView === 'leads';
   const isAiCardActive = viewName === 'ai-card' && activeView === 'ai-card';
@@ -58,11 +60,16 @@ const NavItem: React.FC<{
     >
       <Icon name={icon} className={`transition-colors ${isActive ? 'text-white' : 'text-slate-500'}`} />
       <span>{children}</span>
+      {badge ? (
+        <span aria-label={`${badge} waiting`} className={`ml-auto rounded-full px-2 py-0.5 text-xs font-bold ${isActive ? 'bg-white text-primary-700' : 'bg-red-500 text-white'}`}>
+          {badge > 99 ? '99+' : badge}
+        </span>
+      ) : null}
     </button>
   );
 };
 
-const AdminDashboardSidebar: React.FC<AdminDashboardSidebarProps> = ({ activeView, setView, isOpen, onClose, isDesktop }) => {
+const AdminDashboardSidebar: React.FC<AdminDashboardSidebarProps> = ({ activeView, setView, isOpen, onClose, isDesktop, badgeCounts }) => {
   const navItems = [
     { view: 'dashboard', icon: 'home', label: 'Admin Overview' },
     { view: 'leads', icon: 'groups', label: 'Leads & Appointments' },
@@ -126,6 +133,7 @@ const AdminDashboardSidebar: React.FC<AdminDashboardSidebarProps> = ({ activeVie
                 setView={setView}
                 icon={item.icon}
                 onClose={onClose}
+                badge={badgeCounts?.[item.view as DashboardView]}
               >
                 {item.label}
               </NavItem>

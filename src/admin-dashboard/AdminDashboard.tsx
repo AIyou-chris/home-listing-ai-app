@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import AICardPage from '../components/AICardPage';
@@ -13,6 +13,7 @@ import AdminUsersPage from '../components/AdminUsersPage';
 import { LogoWithName } from '../components/LogoWithName';
 import AdminListingsPage from './AdminListingsPage';
 import AdminDashboardSidebar from './AdminDashboardSidebar';
+import { READ_EVENT, countUnreadNeedsAttention, loadReadIds } from './inboxHelpers';
 import {
   Appointment,
   Interaction
@@ -240,6 +241,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'dashboard
         property: conversation.property || undefined,
         propertyAddress: conversation.property || undefined,
         ...(conversation.metadata || {}),
+        lastMessageAt: conversation.lastMessageAt || conversation.last_message_at || undefined,
         status: conversation.status || 'active',
         leadId: conversation.lead_id || undefined,
         tags: conversation.tags || []
@@ -262,11 +264,24 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'dashboard
     }
   }, [mapConversationToInteraction]);
 
+  // Load once at start (for the number on the Inbox menu item), and again whenever the Inbox is opened.
+  useEffect(() => {
+    void loadInteractions();
+  }, [loadInteractions]);
+
   useEffect(() => {
     if (activeView === 'inbox') {
       void loadInteractions();
     }
   }, [activeView, loadInteractions]);
+
+  const [inboxReadIds, setInboxReadIds] = useState<Set<string>>(() => loadReadIds());
+  useEffect(() => {
+    const refresh = () => setInboxReadIds(loadReadIds());
+    window.addEventListener(READ_EVENT, refresh);
+    return () => window.removeEventListener(READ_EVENT, refresh);
+  }, []);
+  const inboxUnread = useMemo(() => countUnreadNeedsAttention(interactions, inboxReadIds), [interactions, inboxReadIds]);
 
   const loadInteractionMessages = useCallback(async (interactionId: string): Promise<InteractionThreadMessage[]> => {
     const rows = await adminConversationsService.listMessages(interactionId, 100);
@@ -415,7 +430,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'dashboard
   return (
     <Admin2FAGate>
     <div className="flex h-screen bg-slate-50">
-      <AdminDashboardSidebar activeView={activeView} setView={handleSetView} isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} isDesktop={isDesktop} />
+      <AdminDashboardSidebar activeView={activeView} setView={handleSetView} isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} isDesktop={isDesktop} badgeCounts={{ inbox: inboxUnread }} />
       <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
         <header className="xl:hidden flex items-center justify-between p-3 sm:p-4 bg-white border-b border-slate-200 shadow-sm">
           <button onClick={() => setIsSidebarOpen(true)} className="p-2 -ml-1 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors" aria-label="Open menu">
