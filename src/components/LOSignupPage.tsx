@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { agentOnboardingService } from '../services/agentOnboardingService';
 import { supabase } from '../services/supabase';
+import { buildApiUrl } from '../lib/api';
 import { PublicHeader } from './layout/PublicHeader';
 import { PublicFooter } from './layout/PublicFooter';
 import { BackgroundTechIcons } from './BackgroundTechIcons';
@@ -118,6 +119,12 @@ const LOSignupPage: React.FC = () => {
 
             // Update to their chosen password
             await supabase.auth.updateUser({ password });
+
+            const blogSlug = sessionStorage.getItem('blog_trial_slug');
+            if (blogSlug) {
+                void fetch(buildApiUrl('/api/public/blog/events'), { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({slug: blogSlug, event: 'trial_start'}) }).catch(() => {});
+                sessionStorage.removeItem('blog_trial_slug');
+            }
 
             // 3. No-card trial: skip Stripe checkout entirely. The backend grants
             // 'trial' tier for 7 days from signup (payment_status 'awaiting_payment'

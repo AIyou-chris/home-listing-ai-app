@@ -15,11 +15,14 @@ const GUARD_CALL = /(requireAuth|requireLoAgent|requireOffice|verifyAdmin)\(/;
 const SAFE_INSIDE = /resolveDashboardOwnerId|resolveRequesterUserId|resolveLoAgentId|resolveBillingAgentId|appointmentOwnerIds|resolveOfficeContext|ownedAppointment|ownsNotificationSettings|resolveAgentIdForRequesterUser|auth\.getUser|authorization/i;
 
 function findUnguardedRoutes() {
-  const src = fs.readFileSync(path.join(__dirname, '..', 'server.cjs'), 'utf8');
+  const src = ['server.cjs','blog/routes.cjs','routes/coldEmailRoutes.js'].map(file => '{\n'+fs.readFileSync(path.join(__dirname, '..', file), 'utf8')+'\n}').join('\n');
   const ast = acorn.parse(src, { ecmaVersion: 'latest', allowHashBang: true, allowReturnOutsideFunction: true });
   const found = new Set();
   const all = new Set();
-  for (const node of ast.body) {
+  const nodes=[];
+  const walk=node=>{if(!node || typeof node!=='object')return;if(node.type==='ExpressionStatement')nodes.push(node);for(const value of Object.values(node)){if(Array.isArray(value))value.forEach(walk);else if(value && typeof value==='object')walk(value);}};
+  walk(ast);
+  for (const node of nodes) {
     if (node.type !== 'ExpressionStatement' || node.expression.type !== 'CallExpression') continue;
     const call = node.expression;
     if (call.callee.type !== 'MemberExpression' || call.callee.object.name !== 'app') continue;

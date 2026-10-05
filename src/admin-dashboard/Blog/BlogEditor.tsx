@@ -9,9 +9,13 @@ const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002';
 
 interface BlogPost {
   id: string; title: string; slug: string; content: string; excerpt: string;
-  featured_image: string; featured_image_alt?: string; status: 'draft' | 'published';
+  featured_image: string; featured_image_alt?: string; status: 'brief' | 'draft' | 'scheduled' | 'published' | 'archived';
   published_at: string | null; seo_title: string; seo_description: string;
-  seo_keywords: string[]; author_id?: string;
+  seo_keywords: string[]; author_id?: string; updated_at?: string;
+  short_answer?: string; faq?: {question: string; answer: string}[]; pillar?: string;
+  role?: 'hub' | 'spoke' | 'tool'; target_keyword?: string; search_intent?: string;
+  hub_slug?: string; related_slugs?: string[]; compliance_note?: boolean;
+  scheduled_at?: string; review_errors?: string[]; lead_magnet?: string;
 }
 
 type SocialPlatform = 'linkedin' | 'instagram' | 'facebook' | 'facebook_group' | 'twitter' | 'notion';
@@ -49,6 +53,15 @@ const BlogEditor: React.FC = () => {
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [currentPost, setCurrentPost] = useState<Partial<BlogPost>>({});
   const [isLoading, setIsLoading] = useState(false);
+  const [reviewErrors,setReviewErrors]=useState<string[]>([]);
+  const [previewHtml,setPreviewHtml]=useState('');
+  const [scheduleAt,setScheduleAt]=useState('');
+  const [topicFilter,setTopicFilter]=useState('');
+  const topics=[{slug:'realtor-referrals',title:'Agent referrals'},{slug:'mortgage-leads',title:'Mortgage leads'},{slug:'lo-marketing',title:'LO marketing'},{slug:'ai-for-loan-officers',title:'AI for loan officers'},{slug:'agent-partners',title:'For agent partners'}];
+  const seedLibrary=async()=>{setIsLoading(true);try{const r=await fetch(`${API}/api/admin/blog/seed`,{method:'POST',headers:await authHeader()});const d=await r.json();if(!r.ok)throw Error(d.error);toast.success(`${d.added} starter records added`);await fetchPosts();}catch(e){toast.error(e instanceof Error?e.message:'Could not load the library');}finally{setIsLoading(false);}};
+  const writeBrief=async(post:BlogPost)=>{setIsGenerating(true);try{const r=await fetch(`${API}/api/admin/blog/posts/${post.id}/write`,{method:'POST',headers:await authHeader()});const d=await r.json();if(!r.ok)throw Error(d.error);setCurrentPost(d.post);setReviewErrors(d.review?.errors || []);setView('edit');toast.success('Draft saved for review');}catch(e){toast.error(e instanceof Error?e.message:'Writing did not finish');}finally{setIsGenerating(false);}};
+  const showPreview=async()=>{try{const r=await fetch(`${API}/api/admin/blog/posts/${currentPost.id}/preview`,{headers:await authHeader()});if(!r.ok)throw Error('Save and reload the draft first.');setPreviewHtml(await r.text());}catch(e){toast.error(e instanceof Error?e.message:'Preview unavailable');}};
+
 
   // AI writer
   const [idea, setIdea] = useState('');
@@ -84,63 +97,9 @@ const BlogEditor: React.FC = () => {
       const r = await fetch(`${API}/api/admin/blog/posts/${post.id}`, { headers: await authHeader() });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || 'failed');
-      setCurrentPost(d.post); setRepurposed(null); setView('edit');
+      setCurrentPost(d.post); setReviewErrors(d.post.review_errors || []); setScheduleAt(d.post.scheduled_at ? new Date(Date.parse(d.post.scheduled_at)-new Date(d.post.scheduled_at).getTimezoneOffset()*60000).toISOString().slice(0,16) : ''); setPreviewHtml(''); setRepurposed(null); setView('edit');
     } catch { toast.error('Failed to load post'); }
     setIsLoading(false);
-  };
-
-  // Mirror of the auto-share setting from Marketing Funnels → Social
-  // Auto-Posting. Same DB row (social_config) — toggling here updates there.
-  const [autoShare, setAutoShare] = useState<boolean | null>(null);
-  const [autoShareChannels, setAutoShareChannels] = useState<number>(0);
-  useEffect(() => {
-    (async () => {
-      try {
-        const r = await fetch(`${API}/api/admin/social/status`, { headers: await authHeader() });
-        const d = await r.json();
-        if (r.ok) {
-          setAutoShare(d?.config?.auto_post_blog !== false);
-          setAutoShareChannels(Array.isArray(d?.config?.auto_post_channel_ids) ? d.config.auto_post_channel_ids.length : 0);
-        }
-      } catch { /* leave hidden */ }
-    })();
-  }, []);
-  const toggleAutoShare = async () => {
-    const next = !autoShare;
-    setAutoShare(next);
-    try {
-      await fetch(`${API}/api/admin/social/config`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
-        body: JSON.stringify({ autoPostBlog: next }),
-      });
-      toast.success(next ? '📣 New posts will auto-share to social' : 'Auto-share turned off');
-    } catch { toast.error('Could not save — try again'); setAutoShare(!next); }
-  };
-
-  // Manual (re-)share of a published post to the social channels selected in
-  // Marketing Funnels → Social Auto-Posting. Posts immediately via Buffer.
-  const [sharingId, setSharingId] = useState<string | null>(null);
-  const handleShareSocial = async (post: BlogPost) => {
-    if (!confirm(`Post "${post.title}" to your social channels right now?`)) return;
-    setSharingId(post.id);
-    try {
-      const r = await fetch(`${API}/api/admin/blog/posts/${post.id}/share-social`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
-      });
-      const d = await r.json();
-      const results: Array<{ ok: boolean; channelName?: string | null; error?: string }> = d?.results || [];
-      const okCount = results.filter(x => x.ok).length;
-      if (!r.ok || !okCount) {
-        const why = results.filter(x => !x.ok).map(x => `${x.channelName || 'channel'}: ${x.error || 'failed'}`).join(' · ');
-        throw new Error(why || d?.error || 'share failed');
-      }
-      toast.success(`📣 Shared to ${okCount} channel${okCount === 1 ? '' : 's'}`);
-      results.filter(x => !x.ok).forEach(x => toast.error(`${x.channelName || 'channel'}: ${x.error || 'failed'}`, { duration: 8000 }));
-    } catch (e) {
-      toast.error(`Share failed: ${e instanceof Error ? e.message : 'unknown'}`);
-    } finally {
-      setSharingId(null);
-    }
   };
 
   const handleDelete = async (id: string) => {
@@ -152,14 +111,16 @@ const BlogEditor: React.FC = () => {
     } catch { toast.error('Error deleting post'); }
   };
 
-  const handleSave = async (status: 'draft' | 'published') => {
+  const handleSave = async (status: 'draft' | 'scheduled' | 'published') => {
     if (!currentPost.title) { toast.error('Title is required'); return; }
+    if (status === 'scheduled' && !scheduleAt) { toast.error('Choose a date and time first'); return; }
+    setReviewErrors([]);
     setIsLoading(true);
     const slug = currentPost.slug || currentPost.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
     // Drop AI-generated helper fields that aren't real blog_posts columns (e.g. image_search_query),
     // otherwise Supabase rejects the whole insert/update with a "column not found" error.
     // Backend whitelists real columns, so stray AI helper fields (e.g. image_search_query) are ignored.
-    const postData = { ...currentPost, slug, status, published_at: status === 'published' ? (currentPost.published_at || new Date().toISOString()) : null };
+    const postData = { ...currentPost, slug, status, ...(status === 'scheduled' ? {scheduled_at: new Date(scheduleAt).toISOString()} : {}), published_at: status === 'published' ? (currentPost.published_at || new Date().toISOString()) : null };
 
     try {
       const r = await fetch(`${API}/api/admin/blog/posts`, {
@@ -168,21 +129,16 @@ const BlogEditor: React.FC = () => {
         body: JSON.stringify(postData),
       });
       const d = await r.json();
-      if (!r.ok) throw new Error(d.detail || d.error || 'save failed');
-      toast.success(status === 'published' ? '🚀 Published!' : '💾 Draft saved');
+      if (!r.ok) { setReviewErrors(d.errors || []); throw new Error(d.detail || d.error || 'save failed'); }
+      toast.success(status === 'published' ? 'Published. Sharing drafts are in Marketing Studio.' : status === 'scheduled' ? 'Publication scheduled' : 'Draft saved');
       setCurrentPost(d.post);
-      if (status === 'published') pingSearch(d.post.slug);
+      if (d.distribution?.sharing === 'retry_needed' || d.distribution?.links === 'retry_needed') toast.error('Article published. Save it again to retry sharing drafts and links.');
+      if (d.distribution?.indexNow === 'missing_key') toast('Article published. Search notifications need the IndexNow key.');
+      if (d.review?.errors) setReviewErrors(d.review.errors);
     } catch (e) {
       toast.error(`Error: ${e instanceof Error ? e.message : 'save failed'}`);
     }
     setIsLoading(false);
-  };
-
-  const pingSearch = async (slug: string) => {
-    try {
-      await fetch(`${API}/api/admin/blog/ping`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeader()) }, body: JSON.stringify({ slug }) });
-      toast.success('📡 Pinged Google & Bing indexing', { duration: 3000 });
-    } catch { /* non-fatal */ }
   };
 
   const handleGenerate = async () => {
@@ -191,17 +147,17 @@ const BlogEditor: React.FC = () => {
     try {
       const r = await fetch(`${API}/api/admin/blog/generate`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeader()) }, body: JSON.stringify({ idea }) });
       const data = await r.json();
-      if (data.post) {
+      if (r.ok && data.post) {
         setCurrentPost({ status: 'draft', seo_keywords: [], ...data.post });
         setIdea('');
         setView('edit');
-        toast.success('✨ Blog generated!');
+        toast.success('Draft ready for review');
         if (data.post.image_search_query) {
           setImageQuery(data.post.image_search_query);
           fetchImages(data.post.image_search_query);
           setShowImagePicker(true);
         }
-      } else toast.error('Generation failed');
+      } else toast.error(data.error || 'Generation failed');
     } catch { toast.error('Failed to generate'); }
     setIsGenerating(false);
   };
@@ -282,18 +238,7 @@ const BlogEditor: React.FC = () => {
         <div>
           <h1 className="text-2xl font-black text-slate-900">Blog Control Center</h1>
           <p className="text-slate-500 text-sm mt-1">Write, publish, and repurpose your content.</p>
-          {autoShare !== null && (
-            <button
-              onClick={toggleAutoShare}
-              title="Publishing a post auto-shares it to the channels picked in Marketing Funnels → Social Auto-Posting"
-              className={`mt-2 inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-bold transition-all ${autoShare ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
-            >
-              <span className={`inline-block h-2 w-2 rounded-full ${autoShare ? 'bg-emerald-500' : 'bg-slate-400'}`} />
-              {autoShare
-                ? `📣 Auto-share on publish: ON${autoShareChannels ? ` → ${autoShareChannels} channel${autoShareChannels === 1 ? '' : 's'}` : ' (no channels picked!)'}`
-                : '📣 Auto-share on publish: OFF'}
-            </button>
-          )}
+          <p className="text-sm text-slate-600 mt-3">Publishing creates sharing drafts. Social accounts come last.</p>
         </div>
         <button onClick={() => { setCurrentPost({ status: 'draft', content: '', title: '', slug: '', seo_keywords: [] }); setRepurposed(null); setView('edit'); }}
           className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-xl hover:bg-primary-700 font-bold text-sm transition-all">
@@ -306,7 +251,7 @@ const BlogEditor: React.FC = () => {
         <div className="flex items-center gap-2 mb-3">
           <Sparkles size={18} className="text-indigo-600" />
           <h3 className="font-bold text-indigo-900">AI Blog Writer</h3>
-          <span className="text-[10px] bg-indigo-200 text-indigo-700 px-2 py-0.5 rounded-full font-bold uppercase">GPT-4o</span>
+          <span className="text-[10px] bg-indigo-200 text-indigo-700 px-2 py-0.5 rounded-full font-bold uppercase">Draft writer</span>
         </div>
         <div className="flex gap-3">
           <input value={idea} onChange={e => setIdea(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleGenerate()}
@@ -321,7 +266,13 @@ const BlogEditor: React.FC = () => {
       </div>
 
       {/* Post list */}
-      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+      <section className="rounded-2xl border border-blue-200 bg-blue-50 p-5 space-y-3">
+        <h2 className="font-bold text-slate-900">Your publishing plan</h2>
+        <p className="text-sm text-slate-700">First month: 2–3 articles each week. Months 2–3: two each week, with one in five for agents. Refresh your two oldest articles each month. Check Search Console each quarter.</p>
+        <p className="text-sm text-slate-700">Social plan: two posts a day. Publishing an article prepares drafts for you to review in Marketing Studio.</p>
+        <div className="flex flex-wrap gap-3"><button onClick={seedLibrary} disabled={isLoading} className="px-4 py-2 rounded-lg bg-blue-700 text-white font-bold text-sm">Load starter library</button><label className="text-sm">Filter topic<select className="ml-2 border rounded-lg p-2" value={topicFilter} onChange={e=>setTopicFilter(e.target.value)}><option value="">All topics</option>{topics.map(topic=><option key={topic.slug} value={topic.slug}>{topic.title}</option>)}</select></label></div>
+      </section>
+      <div className="bg-white rounded-2xl border border-slate-200 overflow-x-auto">
         {isLoading ? <div className="p-12 text-center text-slate-400">Loading…</div> : (
           <table className="w-full text-sm">
             <thead className="bg-slate-50 border-b border-slate-100">
@@ -332,7 +283,7 @@ const BlogEditor: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {posts.map(post => (
+              {posts.filter(post => !topicFilter || post.pillar === topicFilter).map(post => (
                 <tr key={post.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-5 py-3">
                     <p className="font-semibold text-slate-900">{post.title}</p>
@@ -345,18 +296,9 @@ const BlogEditor: React.FC = () => {
                   </td>
                   <td className="px-5 py-3 text-slate-400 text-xs">{post.published_at ? new Date(post.published_at).toLocaleDateString() : '—'}</td>
                   <td className="px-5 py-3 text-right flex items-center justify-end gap-2">
-                    {post.status === 'published' && (
-                      <button
-                        onClick={() => handleShareSocial(post)}
-                        disabled={sharingId === post.id}
-                        title="Post to LinkedIn/Facebook/Instagram now"
-                        className="px-3 py-1.5 text-xs font-bold text-sky-600 hover:bg-sky-50 rounded-lg transition-all disabled:opacity-50"
-                      >
-                        {sharingId === post.id ? 'Sharing…' : '📣 Share'}
-                      </button>
-                    )}
+                    {post.status === 'brief' && post.role !== 'tool' && <button disabled={isGenerating} onClick={() => writeBrief(post)} className="px-3 py-2 text-sm font-bold text-blue-700">Write article from brief</button>}
                     <button onClick={() => handleEdit(post)} className="px-3 py-1.5 text-xs font-bold text-primary-600 hover:bg-primary-50 rounded-lg transition-all">Edit</button>
-                    <button onClick={() => handleDelete(post.id)} className="p-1.5 text-rose-400 hover:bg-rose-50 rounded-lg transition-all"><Trash2 size={14} /></button>
+                    <button aria-label={`Delete ${post.title}`} onClick={() => handleDelete(post.id)} className="p-1.5 text-rose-400 hover:bg-rose-50 rounded-lg transition-all"><Trash2 size={14} /></button>
                   </td>
                 </tr>
               ))}
@@ -413,13 +355,16 @@ const BlogEditor: React.FC = () => {
   // ── Edit View ─────────────────────────────────────────────────────────────
   return (
     <div className="space-y-0 -mx-6 -mt-6">
+      {reviewErrors.length > 0 && <div role="alert" className="m-6 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950"><strong>Before publishing</strong><ul className="list-disc pl-5">{reviewErrors.map(error => <li key={error}>{error}</li>)}</ul></div>}
+      {previewHtml && <section className="m-6"><div className="flex justify-between mb-3"><h2 className="font-bold">Private article preview</h2><button onClick={() => setPreviewHtml('')}>Close preview</button></div><iframe title="Private article preview" sandbox="" srcDoc={previewHtml} className="w-full h-[760px] rounded-xl border border-slate-300 bg-white" /></section>}
       {/* Toolbar */}
-      <div className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between sticky top-0 z-10">
+      <div className="bg-white border-b border-slate-200 px-6 py-4 flex flex-wrap gap-3 items-center justify-between sticky top-0 z-10">
         <div className="flex items-center gap-3">
-          <button onClick={() => setView('list')} className="p-2 hover:bg-slate-100 rounded-full text-slate-500"><ArrowLeft size={20} /></button>
+          <button aria-label="Back to article list" onClick={() => setView('list')} className="p-2 hover:bg-slate-100 rounded-full text-slate-500"><ArrowLeft size={20} /></button>
           <h1 className="text-lg font-black text-slate-800">{currentPost.id ? 'Edit Post' : 'New Post'}</h1>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button disabled={!currentPost.id || isLoading} onClick={showPreview} className="px-3 py-2 border rounded-xl text-sm font-bold">Preview saved draft</button>
           <button onClick={handleRepurpose} disabled={isRepurposing || !currentPost.id}
             className="flex items-center gap-2 px-4 py-2 border border-indigo-300 text-indigo-600 rounded-xl font-bold text-sm hover:bg-indigo-50 disabled:opacity-40 transition-all">
             {isRepurposing ? <RefreshCw size={15} className="animate-spin" /> : '🔁'} Repurpose
@@ -441,7 +386,7 @@ const BlogEditor: React.FC = () => {
           <div className="bg-white p-5 rounded-2xl border border-slate-200">
             <input type="text" value={currentPost.title || ''} onChange={e => setCurrentPost({ ...currentPost, title: e.target.value })}
               className="w-full text-2xl font-black border-0 border-b-2 border-slate-100 focus:border-primary-400 focus:ring-0 pb-3 placeholder-slate-300 outline-none"
-              placeholder="Post title…" />
+              aria-label="Article title" placeholder="Post title…" />
           </div>
 
           <div className="bg-white p-5 rounded-2xl border border-slate-200">
@@ -519,6 +464,22 @@ const BlogEditor: React.FC = () => {
               className="w-full mt-2 px-3 py-1.5 border border-slate-200 rounded-xl text-xs focus:outline-none" placeholder="Image alt text (accessibility &amp; SEO)…" />
           </div>
 
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 space-y-3">
+            <h2 className="font-bold">Article plan</h2>
+            <label className="block text-sm">Topic<select aria-label="Article topic" className="w-full border rounded-lg p-2" value={currentPost.pillar || 'lo-marketing'} onChange={e => setCurrentPost({...currentPost,pillar:e.target.value})}>{topics.map(topic => <option key={topic.slug} value={topic.slug}>{topic.title}</option>)}</select></label>
+            <label className="block text-sm">Article type<select aria-label="Article type" className="w-full border rounded-lg p-2" value={currentPost.role || 'spoke'} onChange={e => setCurrentPost({...currentPost,role:e.target.value as BlogPost['role']})}><option value="hub">Complete guide</option><option value="spoke">Focused article</option><option value="tool">Tool brief</option></select></label>
+            <label className="block text-sm">Target search<input aria-label="Target search" className="w-full border rounded-lg p-2" value={currentPost.target_keyword || ''} onChange={e => setCurrentPost({...currentPost,target_keyword:e.target.value})} /></label>
+            <label className="block text-sm">The short answer<textarea aria-label="The short answer" className="w-full border rounded-lg p-2" rows={4} value={currentPost.short_answer || ''} onChange={e => setCurrentPost({...currentPost,short_answer:e.target.value})} /></label>
+            <label className="block text-sm">Hub slug<input aria-label="Hub slug" className="w-full border rounded-lg p-2" value={currentPost.hub_slug || ''} onChange={e => setCurrentPost({...currentPost,hub_slug:e.target.value})} /></label>
+            <label className="block text-sm">Related article slugs<textarea aria-label="Related article slugs" className="w-full border rounded-lg p-2" value={(currentPost.related_slugs || []).join(', ')} onChange={e => setCurrentPost({...currentPost,related_slugs:e.target.value.split(',').map(s=>s.trim()).filter(Boolean)})} /></label>
+            <label className="block text-sm"><input type="checkbox" checked={Boolean(currentPost.compliance_note)} onChange={e=>setCurrentPost({...currentPost,compliance_note:e.target.checked})} /> Requires compliance note</label>
+            <h3 className="font-bold">Reader questions</h3>
+            {(currentPost.faq || []).map((faq,i)=><div key={i} className="space-y-2"><input aria-label={`Question ${i+1}`} className="w-full border rounded-lg p-2" value={faq.question} onChange={e=>setCurrentPost({...currentPost,faq:currentPost.faq?.map((f,j)=>j===i?{...f,question:e.target.value}:f)})} /><textarea aria-label={`Answer ${i+1}`} className="w-full border rounded-lg p-2" value={faq.answer} onChange={e=>setCurrentPost({...currentPost,faq:currentPost.faq?.map((f,j)=>j===i?{...f,answer:e.target.value}:f)})} /><button className="text-sm text-rose-700" onClick={()=>setCurrentPost({...currentPost,faq:currentPost.faq?.filter((_,j)=>i!==j)})}>Remove question</button></div>)}
+            <button className="text-sm font-bold text-blue-700" disabled={(currentPost.faq?.length || 0)>=5} onClick={()=>setCurrentPost({...currentPost,faq:[...(currentPost.faq || []),{question:'',answer:''}]})}>Add a question</button>
+            <label className="block text-sm">Worksheet<select className="w-full border rounded-lg p-2" value={currentPost.lead_magnet || 'agent-partner-pitch'} onChange={e=>setCurrentPost({...currentPost,lead_magnet:e.target.value})}><option value="agent-partner-pitch">Agent pitch script</option><option value="respa-checklist">Co-marketing checklist</option><option value="cost-per-closed-loan">Loan cost calculator</option></select></label>
+            <label className="block text-sm">Publish later (your local time)<input aria-label="Scheduled publication" type="datetime-local" className="w-full border rounded-lg p-2" value={scheduleAt} onChange={e=>setScheduleAt(e.target.value)} /></label>
+            <button disabled={isLoading} className="w-full border rounded-lg p-2 font-bold text-blue-700" onClick={()=>handleSave('scheduled')}>Review & schedule publication</button>
+          </div>
           {/* SEO */}
           <div className="bg-white p-5 rounded-2xl border border-slate-200 space-y-3">
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide">SEO</label>

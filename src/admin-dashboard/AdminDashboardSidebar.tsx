@@ -81,8 +81,6 @@ const AdminDashboardSidebar: React.FC<AdminDashboardSidebarProps> = ({ activeVie
     { view: 'listings', icon: 'home_work', label: 'Listings' },
     { view: 'lo-platform', icon: 'account_balance', label: 'LO Platform' },
     { view: 'users', icon: 'people', label: 'Users' },
-    { view: 'blog', icon: 'article', label: 'Blog' },
-    { view: 'white-label', icon: 'language', label: 'White Label' },
     { view: 'settings', icon: 'settings', label: 'Settings' }
   ];
 

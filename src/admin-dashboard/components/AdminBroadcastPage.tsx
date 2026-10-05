@@ -5,7 +5,6 @@ import { BroadcastMessage } from '../../types';
 const AdminBroadcastPage: React.FC = () => {
     const [title, setTitle] = useState('');
     const [content, setContent] = useState('');
-    const [type, setType] = useState<BroadcastMessage['messageType']>('Feature');
     const [priority, setPriority] = useState<BroadcastMessage['priority']>('medium');
     const [audience, setAudience] = useState<'all' | 'active'>('all');
 
@@ -37,6 +36,10 @@ const AdminBroadcastPage: React.FC = () => {
 
     const handleSendBroadcast = async (e: React.FormEvent) => {
         e.preventDefault();
+        const reach = audience === 'active'
+            ? users.filter(u => String((u as { status?: string }).status || '').toLowerCase() === 'active').length
+            : userCount;
+        if (!window.confirm(`Send this to about ${reach} users? It shows in their bell right away and cannot be taken back.`)) return;
         setIsSending(true);
         setError(null);
         setSuccessMessage(null);
@@ -116,20 +119,6 @@ const AdminBroadcastPage: React.FC = () => {
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Type</label>
-                                    <select
-                                        value={type}
-                                        onChange={(e) => setType(e.target.value as BroadcastMessage['messageType'])}
-                                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                                    >
-                                        <option value="Feature">Feature Announcement</option>
-                                        <option value="System">System Update</option>
-                                        <option value="Maintenance">Maintenance</option>
-                                        <option value="General">General/Tips</option>
-                                        <option value="Emergency">Emergency</option>
-                                    </select>
-                                </div>
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700 mb-1">Priority</label>
                                     <select
@@ -221,11 +210,7 @@ const AdminBroadcastPage: React.FC = () => {
                                     priority === 'high' ? 'bg-orange-100 text-orange-600' :
                                         'bg-blue-100 text-blue-600'
                                     }`}>
-                                    <span className="material-symbols-outlined text-xl">
-                                        {type === 'Feature' ? 'new_releases' :
-                                            type === 'Maintenance' ? 'build' :
-                                                type === 'System' ? 'dns' : 'notifications'}
-                                    </span>
+                                    <span className="material-symbols-outlined text-xl">notifications</span>
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <div className="flex justify-between items-start">
@@ -242,11 +227,11 @@ const AdminBroadcastPage: React.FC = () => {
                         </div>
 
                         <div className="mt-6 p-4 bg-slate-50 rounded-lg border border-slate-200">
-                            <h3 className="text-xs font-bold text-slate-500 uppercase mb-2">Tips</h3>
+                            <h3 className="text-xs font-bold text-slate-500 uppercase mb-2">Good to know</h3>
                             <ul className="text-sm text-slate-600 space-y-2 list-disc pl-4">
-                                <li>Use <strong>Feature</strong> for new updates.</li>
-                                <li>Use <strong>General</strong> for weekly tips.</li>
-                                <li><strong>High Priority</strong> notifications usually vibrate the bell more intensely (if configured).</li>
+                                <li>It appears in each user's bell. It is not an email or a text.</li>
+                                <li>Demo accounts are skipped.</li>
+                                <li>Keep the title short. One idea per message.</li>
                             </ul>
                         </div>
                     </div>

@@ -575,6 +575,8 @@ const LARGE_JSON_PATHS = [
 const largeJsonParser = express.json({ limit: '30mb', verify: captureRawBody });
 LARGE_JSON_PATHS.forEach((p) => app.use(p, largeJsonParser));
 
+app.use(/^\/api\/admin\/marketing-studio\/campaigns\/[0-9a-f-]+\/(picture|audio)$/, express.json({ limit: '12mb', verify: captureRawBody }));
+
 app.use(express.json({
   limit: '2mb',
   verify: captureRawBody
@@ -1290,9 +1292,8 @@ app.post('/api/funnels/:userId/:funnelType', requireParamOwner, async (req, res)
         delay_minutes: constDelayMinutes % 1440
       }));
 
-      const { error: stepsInsertError } = await supabaseAdmin
-        .from('funnel_steps')
-        .insert(normalizedPayload);
+      // funnel_steps has no step_key / delay_minutes column in production; the full steps live in funnels.steps.
+      const { error: stepsInsertError } = await insertRowTolerant('funnel_steps', normalizedPayload);
 
       if (stepsInsertError) {
         // If description column missing error, retry without description?
@@ -1749,32 +1750,6 @@ async function ensureDefaultFunnels() {
 if (APP_RUNTIME_MODE !== 'worker') {
   ensureDefaultFunnels().catch(err => console.error('❌ [SEED ERROR]', err));
 }
-
-// ENROLL LEAD IN FUNNEL
-app.post('/api/funnels/assign', async (req, res) => {
-  try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader) return res.status(401).json({ error: 'No authorization header' });
-
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error } = await supabase.auth.getUser(token);
-
-    if (error || !user) return res.status(401).json({ error: 'Invalid token' });
-
-    const { leadId, funnelType } = req.body;
-    if (!leadId || !funnelType) return res.status(400).json({ error: 'Missing leadId or funnelType' });
-
-    const enrollment = await enrollLeadWithFunnelKey({
-      agentId: user.id,
-      leadId,
-      funnelKey: funnelType
-    });
-    res.json(enrollment);
-  } catch (error) {
-    console.error('Enrollment Error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
 
 if (APP_RUNTIME_MODE !== 'worker') {
   console.log('⚡ [Funnel Engine] Registered on shared scheduler loop.');
@@ -2348,6 +2323,19 @@ app.post('/api/webhooks/mailgun', async (req, res) => {
 
     if (!eventData) {
       return res.status(400).json({ error: 'No event data' });
+    }
+
+    // Cold email to loan officers: hard bounces and spam complaints suppress the address for good.
+    if (eventData.user_variables?.cold_send_id || (eventData.tags || []).includes('cold-email')) {
+      try {
+        const coldEngine = require('./services/coldEmail/engine');
+        if (eventData.event === 'complained') await coldEngine.handleBounce(supabaseAdmin, { email: eventData.recipient, kind: 'complaint' });
+        else if (eventData.event === 'failed' && eventData.severity === 'permanent') await coldEngine.handleBounce(supabaseAdmin, { email: eventData.recipient, kind: 'bounce' });
+        else if (eventData.event === 'unsubscribed') await coldEngine.handleBounce(supabaseAdmin, { email: eventData.recipient, kind: 'bounce' });
+      } catch (coldErr) {
+        console.error('[ColdEmail] event hook failed:', coldErr.message);
+      }
+      return res.status(200).json({ ok: true });
     }
 
     const { event, message, recipient, timestamp, user_variables } = eventData;
@@ -14176,23 +14164,6 @@ function generateActiveFollowUps() {
     }));
 }
 
-let qrCodes = [
-  {
-    id: '1',
-    name: '742 Ocean Drive - Flyer',
-    destinationUrl: 'https://homelistingai.app/p/prop-demo-1',
-    scanCount: 152,
-    createdAt: '2024-08-01'
-  },
-  {
-    id: '2',
-    name: 'Agent Website - Business Card',
-    destinationUrl: 'https://prestigeproperties.com',
-    scanCount: 89,
-    createdAt: '2024-07-28'
-  }
-];
-
 let systemAlerts = [];
 let systemHealth = {
   database: 'healthy',
@@ -15844,6 +15815,66 @@ const mapStoredAdminFunnelSteps = (steps = []) => {
   });
 };
 
+// Enroll one lead in a SAVED admin funnel (real funnel engine). Used by the lead pop-up.
+app.post('/api/admin/leads/:leadId/enroll', verifyAdmin, async (req, res) => {
+  try {
+    const funnelKey = ['realtor_funnel', 'broker_funnel'].includes(req.body?.funnelKey) ? req.body.funnelKey : null;
+    if (!funnelKey) return res.status(400).json({ error: 'funnel_required' });
+
+    const { data: lead } = await supabaseAdmin.from('leads').select('id, email').eq('id', req.params.leadId).maybeSingle();
+    if (!lead) return res.status(404).json({ error: 'lead_not_found' });
+    if (!lead.email) return res.status(400).json({ error: 'lead_has_no_email' });
+
+    const { data: agent } = await supabaseAdmin.from('agents').select('id').eq('email', req.user?.email).maybeSingle();
+    const { data: saved } = agent?.id
+      ? await supabaseAdmin.from('funnels').select('id').eq('agent_id', agent.id).eq('funnel_key', funnelKey).limit(1)
+      : { data: [] };
+    if (!saved || saved.length === 0) {
+      return res.status(409).json({ error: 'funnel_not_saved', message: 'Open Marketing Funnels, edit the funnel and press Save first.' });
+    }
+
+    const result = await enrollLeadWithFunnelKey({ agentId: agent.id, leadId: lead.id, funnelKey });
+    res.json({ success: true, alreadyEnrolled: Boolean(result?.reused) });
+  } catch (error) {
+    console.error('Admin lead enroll failed:', error);
+    res.status(500).json({ error: 'enroll_failed' });
+  }
+});
+
+// Starter funnels shown when the admin has not saved one yet. They are NOT active until the admin
+// presses Save (enrollment needs a saved funnel). Plain wording, no hype, easy to edit.
+const ADMIN_STARTER_FUNNELS = {
+  realtor_funnel: [
+    {
+      id: 'realtor-1', title: 'Free AI for your listings', type: 'email', delay_minutes: 0,
+      subject: 'A free AI that answers buyers for your listings',
+      content: 'Hi {{lead.first_name}},\n\nI built HomeListingAI so each listing can answer buyer questions by itself, any hour of the day, and hand you the warm ones with a name and phone number.\n\nIt is free for agents. Here is a live demo you can tap through on your phone:\nhttps://homelistingai.com/partner-invite/demo\n\n{{agent.signature}}'
+    },
+    {
+      id: 'realtor-2', title: 'See it on your listing', type: 'email', delay_minutes: 2880,
+      subject: 'Want this on one of your listings?',
+      content: 'Hi {{lead.first_name}},\n\nQuick follow up. If you send me one address, I will show you what the buyer chat and the share link look like for that home. Takes about two minutes.\n\nJust reply with the address.\n\n{{agent.signature}}'
+    },
+    {
+      id: 'realtor-3', title: 'Last note', type: 'email', delay_minutes: 7200,
+      subject: 'Should I close your file?',
+      content: 'Hi {{lead.first_name}},\n\nI will stop emailing after this one. If getting buyer questions answered at night and on weekends sounds useful, the demo is here:\nhttps://homelistingai.com/partner-invite/demo\n\nEither way, thanks for reading.\n\n{{agent.signature}}'
+    }
+  ],
+  broker_funnel: [
+    {
+      id: 'broker-1', title: 'For your whole office', type: 'email', delay_minutes: 0,
+      subject: 'One AI for every listing in your office',
+      content: 'Hi {{lead.first_name}},\n\nHomeListingAI gives every agent in your office a listing page that answers buyers on its own and sends the warm leads straight to the agent. It is free for agents.\n\nTap through the demo:\nhttps://homelistingai.com/partner-invite/demo\n\n{{agent.signature}}'
+    },
+    {
+      id: 'broker-2', title: 'Quick follow up', type: 'email', delay_minutes: 4320,
+      subject: 'Worth a 10 minute look?',
+      content: 'Hi {{lead.first_name}},\n\nIf you are open to it, I can walk you through how it works for a team. Reply with a day that suits you.\n\n{{agent.signature}}'
+    }
+  ]
+};
+
 const loadAdminFunnelSteps = async (funnel) => {
   const storedSteps = Array.isArray(funnel?.steps) ? funnel.steps : [];
   if (storedSteps.length > 0) {
@@ -15939,28 +15970,34 @@ app.get('/api/admin/marketing/funnels', verifyAdmin, async (req, res) => {
       .eq('email', userEmail)
       .maybeSingle();
 
-    if (!agent?.id) {
-      return res.json({ success: true, funnels: {} });
-    }
-
-    const { data: funnels, error } = await supabaseAdmin
-      .from('funnels')
-      .select('funnel_key, steps')
-      .eq('agent_id', agent.id)
-      .in('funnel_key', ['realtor_funnel', 'broker_funnel'])
-      .order('updated_at', { ascending: false });
-
-    if (error) {
-      throw error;
+    let funnels = [];
+    if (agent?.id) {
+      const { data, error } = await supabaseAdmin
+        .from('funnels')
+        .select('funnel_key, steps')
+        .eq('agent_id', agent.id)
+        .in('funnel_key', ['realtor_funnel', 'broker_funnel'])
+        .order('updated_at', { ascending: false });
+      if (error) {
+        throw error;
+      }
+      funnels = data || [];
     }
 
     const payload = {};
-    for (const funnel of funnels || []) {
+    const savedKeys = [];
+    for (const funnel of funnels) {
       const key = funnel.funnel_key || 'universal_sales';
+      if (payload[key]) continue; // newest row wins
       payload[key] = await loadAdminFunnelSteps(funnel);
+      savedKeys.push(key);
+    }
+    // Anything not saved yet is offered as an editable starter (inactive until saved).
+    for (const [key, steps] of Object.entries(ADMIN_STARTER_FUNNELS)) {
+      if (!payload[key]) payload[key] = mapStoredAdminFunnelSteps(steps);
     }
 
-    res.json({ success: true, funnels: payload });
+    res.json({ success: true, funnels: payload, savedKeys });
   } catch (e) {
     console.error('Get Admin Funnels Error:', e);
     res.status(500).json({ error: e.message });
@@ -16044,9 +16081,8 @@ app.post('/api/admin/marketing/funnels/:funnelKey', verifyAdmin, async (req, res
         delay_minutes: constDelayMinutes % 1440
       }));
 
-      const { error: stepsInsertError } = await supabaseAdmin
-        .from('funnel_steps')
-        .insert(normalizedRows);
+      // funnel_steps has no step_key / delay_minutes column in production; the full steps live in funnels.steps.
+      const { error: stepsInsertError } = await insertRowTolerant('funnel_steps', normalizedRows);
 
       if (stepsInsertError) {
         throw stepsInsertError;
@@ -16069,148 +16105,6 @@ app.post('/api/admin/marketing/funnels/:funnelKey', verifyAdmin, async (req, res
     res.json({ success: true });
   } catch (e) {
     console.error('Save Admin Funnel Error:', e);
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// SAVE UNIVERSAL FUNNEL (Legacy Admin Support)
-app.post('/api/admin/marketing/funnel/save', verifyAdmin, async (req, res) => {
-  try {
-    const userEmail = req.user?.email;
-    const { steps } = req.body || {};
-
-    if (!userEmail) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
-    const agent = await resolveOrCreateAdminAgentForFunnels(userEmail);
-    const normalizedSteps = buildFunnelJsonSteps(Array.isArray(steps) ? steps : []);
-
-    let { data: funnel, error: fetchError } = await supabaseAdmin
-      .from('funnels')
-      .select('id')
-      .eq('agent_id', agent.id)
-      .eq('funnel_key', 'universal_sales')
-      .maybeSingle();
-
-    if (fetchError) {
-      throw fetchError;
-    }
-
-    if (!funnel) {
-      const { data: newFunnel, error: insertError } = await supabaseAdmin
-        .from('funnels')
-        .insert({
-          agent_id: agent.id,
-          funnel_key: 'universal_sales',
-          name: ADMIN_FUNNEL_NAMES.universal_sales,
-          description: 'Customized admin funnel',
-          steps: normalizedSteps,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
-        .select('id')
-        .single();
-
-      if (insertError) {
-        throw insertError;
-      }
-      funnel = newFunnel;
-    }
-
-    const { error: deleteError } = await supabaseAdmin
-      .from('funnel_steps')
-      .delete()
-      .eq('funnel_id', funnel.id);
-
-    if (deleteError) {
-      throw deleteError;
-    }
-
-    if (normalizedSteps.length > 0) {
-      const stepRows = normalizedSteps.map((step, index) => ({
-        constDelayMinutes: Math.max(Number(step.delay_minutes || 0), 0),
-        normalizedType: String(step.type || 'email').toLowerCase(),
-        funnel_id: funnel.id,
-        step_index: index + 1,
-        step_name: step.title || `Step ${index + 1}`,
-        step_key: step.step_key || step.id || `step-${index + 1}`,
-        action_type: String(step.type || 'email').toLowerCase(),
-        subject: step.subject || '',
-        content: step.content || '',
-        description: step.description || '',
-        preview_text: step.previewText || '',
-        created_at: new Date().toISOString()
-      }));
-
-      const normalizedRows = stepRows.map(({ constDelayMinutes, normalizedType, ...row }) => ({
-        ...row,
-        action_type: normalizedType === 'call' ? 'call' : normalizedType,
-        delay_days: Math.floor(constDelayMinutes / 1440),
-        delay_minutes: constDelayMinutes % 1440
-      }));
-
-      const { error: stepsInsertError } = await supabaseAdmin
-        .from('funnel_steps')
-        .insert(normalizedRows);
-
-      if (stepsInsertError) {
-        throw stepsInsertError;
-      }
-    }
-
-    const { error: updateError } = await supabaseAdmin
-      .from('funnels')
-      .update({
-        steps: normalizedSteps,
-        name: ADMIN_FUNNEL_NAMES.universal_sales,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', funnel.id);
-
-    if (updateError) {
-      throw updateError;
-    }
-
-    return res.json({ success: true });
-  } catch (e) {
-    console.error('Save Funnel Error:', e);
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// GET UNIVERSAL FUNNEL (Legacy Admin Support)
-app.get('/api/admin/marketing/funnel/get', verifyAdmin, async (req, res) => {
-  try {
-    const userEmail = req.user?.email;
-    if (!userEmail) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
-    const { data: agent } = await supabaseAdmin
-      .from('agents')
-      .select('id')
-      .eq('email', userEmail)
-      .maybeSingle();
-
-    if (!agent?.id) {
-      return res.status(404).json({ error: 'Agent not found' });
-    }
-
-    const { data: funnel } = await supabaseAdmin
-      .from('funnels')
-      .select('steps')
-      .eq('agent_id', agent.id)
-      .eq('funnel_key', 'universal_sales')
-      .maybeSingle();
-
-    if (!funnel) {
-      return res.status(404).json({ error: 'Funnel not found' });
-    }
-
-    res.json({ steps: await loadAdminFunnelSteps(funnel) });
-  } catch (e) {
-    console.error('Get Funnel Error:', e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -16380,7 +16274,8 @@ app.get('/api/admin/users', verifyAdmin, async (req, res) => {
     if (search) {
       // Simple search on email or names
       // Note: Supabase 'or' syntax: .or(`email.ilike.%${search}%,first_name.ilike.%${search}%`)
-      query = query.or(`email.ilike.%${search}%,first_name.ilike.%${search}%,last_name.ilike.%${search}%`);
+      const safeSearch = String(search).replace(/[^\p{L}\p{N}@._+\- ]/gu, '').slice(0, 80);
+      if (safeSearch) query = query.or(`email.ilike.%${safeSearch}%,first_name.ilike.%${safeSearch}%,last_name.ilike.%${safeSearch}%`);
     }
 
     const { data, error } = await query;
@@ -16625,6 +16520,34 @@ app.delete('/api/admin/users/:userId', verifyAdmin, async (req, res) => {
     // Also remove from in-memory array (for demo/mock users)
     users = users.filter(u => u.id !== userId && u.auth_user_id !== userId);
 
+    // Stop billing first: a deleted account must never be charged again. Best effort per subscription.
+    let stripeCancelled = 0;
+    if (stripe) {
+      try {
+        const { data: billingRow } = await supabaseAdmin
+          .from('agents')
+          .select('id, auth_user_id, stripe_customer_id')
+          .or(`auth_user_id.eq.${userId},id.eq.${userId}`)
+          .limit(1)
+          .maybeSingle();
+        const ids = [...new Set([userId, billingRow?.id, billingRow?.auth_user_id].filter(Boolean).map(String))];
+        const subscriptionIds = new Set();
+        const { data: subRows } = await supabaseAdmin.from('subscriptions').select('stripe_subscription_id').in('agent_id', ids);
+        for (const row of subRows || []) if (row?.stripe_subscription_id) subscriptionIds.add(String(row.stripe_subscription_id));
+        if (billingRow?.stripe_customer_id) {
+          const live = await stripe.subscriptions.list({ customer: billingRow.stripe_customer_id, status: 'all', limit: 20 });
+          for (const sub of live.data || []) if (['active', 'trialing', 'past_due', 'unpaid'].includes(sub.status)) subscriptionIds.add(sub.id);
+        }
+        for (const subscriptionId of subscriptionIds) {
+          try { await stripe.subscriptions.cancel(subscriptionId); stripeCancelled += 1; } catch (stripeError) {
+            console.warn('[Admin] Stripe cancel failed for', subscriptionId, stripeError?.message || stripeError);
+          }
+        }
+      } catch (billingErr) {
+        console.warn('[Admin] Stripe cleanup lookup failed:', billingErr?.message || billingErr);
+      }
+    }
+
     console.log(`[Admin] Deletion request for user ${userId} initiated by ${adminEmail}`);
 
     // 1. Delete from Supabase Auth
@@ -16660,6 +16583,7 @@ app.delete('/api/admin/users/:userId', verifyAdmin, async (req, res) => {
 
     return res.json({
       success: true,
+      stripeCancelled,
       message: 'User deleted successfully. Their email is now available for new registration.'
     });
 
@@ -16803,7 +16727,14 @@ app.put('/api/admin/white-label/offices/:officeId/domain', verifyAdmin, async (r
   try {
     const { officeId } = req.params;
     const { customDomain } = req.body || {};
-    const domain = customDomain ? String(customDomain).trim().toLowerCase().replace(/^https?:\/\//, '') : null;
+    const domain = customDomain ? String(customDomain).trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '') : null;
+    if (domain && !/^(?=.{4,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/.test(domain)) {
+      return res.status(400).json({ error: 'invalid_domain' });
+    }
+    if (domain) {
+      const { data: taken } = await supabaseAdmin.from('agents').select('id').eq('custom_domain', domain).neq('id', officeId).limit(1);
+      if (taken && taken.length) return res.status(409).json({ error: 'domain_in_use' });
+    }
     const { error } = await supabaseAdmin
       .from('agents')
       .update({ custom_domain: domain || null, updated_at: nowIso() })
@@ -26024,25 +25955,6 @@ app.get('/api/dashboard/appointments', async (req, res) => {
 
 // Marketing API endpoints
 
-// Get all follow-up sequences
-app.get('/api/admin/marketing/sequences', verifyAdmin, async (req, res) => {
-  try {
-    const ownerId = resolveMarketingOwnerId(req);
-    const storedSequences = await marketingStore.loadSequences(ownerId);
-    if (Array.isArray(storedSequences)) {
-      followUpSequences = storedSequences;
-    }
-
-    res.json({
-      success: true,
-      sequences: followUpSequences
-    });
-  } catch (error) {
-    console.error('Get sequences error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
 // Admin analytics: funnel summary/performance/calendar (admin-only mock)
 app.get('/api/admin/analytics/funnel-summary', verifyAdmin, (_req, res) => {
   res.json(adminFunnelAnalytics.summary);
@@ -27219,30 +27131,24 @@ app.post('/api/admin/business-brain/test', verifyAdmin, async (req, res) => {
   }
 });
 
-// Create new follow-up sequence
-app.post('/api/admin/marketing/sequences', verifyAdmin, async (req, res) => {
-  try {
-    const ownerId = resolveMarketingOwnerId(req);
-    const newSequence = {
-      id: Date.now().toString(),
-      ...req.body,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-
-    followUpSequences.push(newSequence);
-    await marketingStore.saveSequences(ownerId, followUpSequences);
-
-    res.json({
-      success: true,
-      sequence: newSequence,
-      message: 'Sequence created successfully'
-    });
-  } catch (error) {
-    console.error('Create sequence error:', error);
-    res.status(500).json({ error: error.message });
-  }
+// Marketing Studio: drafts only; all ownership comes from the verified admin.
+const marketingMediaService = require('./services/adminMarketingMedia').createMediaService({ db: supabaseAdmin, openai });
+const marketingMediaHandlers = require('./services/adminMarketingMedia').createMediaHandlers(marketingMediaService);
+const marketingStudioHandlers = require('./services/adminMarketingStudio').createStudioHandlers({
+  db: supabaseAdmin, openai, loadBrain: loadBusinessBrain, media: marketingMediaService
 });
+app.get('/api/admin/marketing-studio/campaigns', verifyAdmin, marketingStudioHandlers.list);
+app.put('/api/admin/marketing-studio/campaigns/:id', verifyAdmin, marketingStudioHandlers.save);
+app.delete('/api/admin/marketing-studio/campaigns/:id', verifyAdmin, marketingStudioHandlers.remove);
+app.post('/api/admin/marketing-studio/campaigns/:id/generate', verifyAdmin, marketingStudioHandlers.generate);
+app.patch('/api/admin/marketing-studio/campaigns/:id/content', verifyAdmin, marketingStudioHandlers.edit);
+app.patch('/api/admin/marketing-studio/campaigns/:id/settings', verifyAdmin, marketingStudioHandlers.settings);
+app.post('/api/admin/marketing-studio/campaigns/:id/approve', verifyAdmin, marketingStudioHandlers.approve);
+app.get('/api/admin/marketing-studio/media-capabilities', verifyAdmin, marketingMediaHandlers.capabilities);
+app.get('/api/admin/marketing-studio/campaigns/:id/media', verifyAdmin, marketingMediaHandlers.list);
+app.post('/api/admin/marketing-studio/campaigns/:id/picture', verifyAdmin, express.json({ limit: '12mb' }), marketingMediaHandlers.picture);
+app.post('/api/admin/marketing-studio/campaigns/:id/audio', verifyAdmin, marketingMediaHandlers.audio);
+app.post('/api/admin/marketing-studio/campaigns/:id/video', verifyAdmin, marketingMediaHandlers.render);
 
 // Email sending (Mailgun)
 // Email sending (Unified Service)
@@ -27521,460 +27427,6 @@ app.patch('/api/notifications/preferences/:userId', requireParamOwner, async (re
     res.status(500).json({ success: false, error: 'Failed to update preferences' })
   }
 })
-
-// Get single follow-up sequence
-// Get single follow-up sequence
-app.get('/api/admin/marketing/sequences/:sequenceId', verifyAdmin, async (req, res) => {
-  try {
-    const ownerId = resolveMarketingOwnerId(req);
-    const { sequenceId } = req.params;
-
-    console.log(`[Marketing-GET] Fetching sequence ${sequenceId} for owner: ${ownerId}`);
-
-    // Prevent Caching
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
-    res.setHeader('Surrogate-Control', 'no-store');
-
-    // LOAD DB STATE ONLY - Do not touch global variables
-    const sequences = await marketingStore.loadSequences(ownerId);
-
-    // Safety check: ensure sequences is an array before searching
-    if (!sequences || !Array.isArray(sequences)) {
-      console.warn(`[Marketing-GET] No sequences found for owner ${ownerId} (DB returned null/invalid)`);
-      // Return 404 so frontend knows to use defaults
-      return res.status(404).json({ error: 'User has no marketing sequences saved' });
-    }
-
-    const sequence = sequences.find(seq => seq.id === sequenceId);
-
-    if (!sequence) {
-      console.warn(`[Marketing-GET] Sequence ${sequenceId} not found in user's list`);
-      return res.status(404).json({ error: 'Sequence not found' });
-    }
-
-    // --- INJECT STATS ---
-    try {
-      if (sequence.steps && Array.isArray(sequence.steps) && process.env.SUPABASE_SERVICE_ROLE_KEY) {
-        const stepIds = sequence.steps.map(s => s.id).filter(Boolean);
-
-        if (stepIds.length > 0) {
-          // Fetch tracking events for these steps (and this sequence)
-          const { data: statsData, error: statsError } = await supabaseAdmin
-            .from('email_tracking_events')
-            .select('step_id, open_count, click_count, opened_at, clicked_at')
-            .in('step_id', stepIds);
-
-          if (!statsError && statsData) {
-            const statsMap = {};
-
-            statsData.forEach(row => {
-              if (!row.step_id) return;
-
-              if (!statsMap[row.step_id]) {
-                statsMap[row.step_id] = { sent: 0, opened: 0, clicked: 0 };
-              }
-
-              statsMap[row.step_id].sent += 1;
-
-              // Count as opened if open_count > 0 OR opened_at is set
-              if (row.open_count > 0 || row.opened_at) {
-                statsMap[row.step_id].opened += 1;
-              }
-
-              // Count as clicked if click_count > 0 OR clicked_at is set
-              if (row.click_count > 0 || row.clicked_at) {
-                statsMap[row.step_id].clicked += 1;
-              }
-            });
-
-            // Merge stats into steps
-            sequence.steps = sequence.steps.map(step => ({
-              ...step,
-              stats: statsMap[step.id] || { sent: 0, opened: 0, clicked: 0 }
-            }));
-
-            console.log(`[Marketing-GET] Injected stats for ${Object.keys(statsMap).length} steps`);
-          } else if (statsError) {
-            console.warn('[Marketing-GET] Failed to fetch stats:', statsError);
-          }
-        }
-      }
-    } catch (statsErr) {
-      console.error('[Marketing-GET] Stats injection error:', statsErr);
-    }
-
-    console.log(`[Marketing-GET] Success. Returning sequence: ${sequence.name}`);
-    res.json(sequence);
-  } catch (error) {
-    console.error('[Marketing-GET] Error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Update follow-up sequence
-app.put('/api/admin/marketing/sequences/:sequenceId', verifyAdmin, async (req, res) => {
-  try {
-    const ownerId = resolveMarketingOwnerId(req);
-    console.log(`[Marketing-PUT] Owner: ${ownerId}, Sequence: ${req.params.sequenceId}`);
-
-    // STRICT VALIDATION: Request must have a valid owner to save
-    if (!ownerId) {
-      console.warn('[Warning] PUT Sequence request missing ownerId!');
-      return res.status(400).json({
-        success: false,
-        error: 'Missing User Identity (x-user-id header or valid auth token required)'
-      });
-    }
-    // LOAD DB STATE
-    let userSequences = await marketingStore.loadSequences(ownerId);
-    if (!userSequences || !Array.isArray(userSequences)) {
-      userSequences = JSON.parse(JSON.stringify(followUpSequences));
-    }
-    const { sequenceId } = req.params;
-    const updates = req.body;
-
-    const sequenceIndex = userSequences.findIndex(seq => seq.id === sequenceId);
-    if (sequenceIndex === -1) {
-      // Logic for UPSERT: If not found, create it!
-      const newSequence = {
-        id: sequenceId,
-        name: updates.name || sequenceId.replace(/[_-]/g, ' '),
-        description: updates.description || 'Auto-created sequence',
-        triggerType: updates.triggerType || 'Lead Created',
-        steps: updates.steps || [],
-        isActive: updates.isActive !== undefined ? updates.isActive : true,
-        signature: updates.signature || '',
-        ...updates,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-
-      userSequences.push(newSequence);
-
-      // CRITICAL: Await and Catch failures
-      let saveSuccess = false;
-      if (ownerId) {
-        saveSuccess = await marketingStore.saveSequences(ownerId, userSequences);
-      }
-
-      if (!saveSuccess) {
-        console.error('[Marketing-PUT] Failed to save NEW sequence to DB.');
-        return res.status(500).json({
-          success: false,
-          error: 'Database Write Failed. Please check console logs.',
-          debug_owner_id: String(ownerId || 'Unresolved')
-        });
-      }
-
-      return res.json({
-        success: true,
-        sequence: newSequence,
-        debug_owner_id: String(ownerId),
-        message: 'Sequence created successfully (Upsert)'
-      });
-    }
-
-    // -------------------------------------------------------------------------
-    // FIX: Update the DB-loaded array, NOT the global default implementation
-    // -------------------------------------------------------------------------
-    userSequences[sequenceIndex] = {
-      ...userSequences[sequenceIndex],
-      ...updates,
-      updatedAt: new Date().toISOString()
-    };
-
-    // DEBUG: Inspect payload
-    if (updates.steps) {
-      console.log(`[Marketing-PUT] Received ${updates.steps.length} steps. Sample Type: ${updates.steps[0]?.type}`);
-    }
-
-    let saveSuccess = false;
-    if (ownerId) {
-      saveSuccess = await marketingStore.saveSequences(ownerId, userSequences);
-    }
-
-    if (!saveSuccess) {
-      console.error('[Marketing-PUT] Failed to save UPDATED sequence to DB.');
-      return res.status(500).json({
-        success: false,
-        error: 'Database Write Failed. Please check console logs.',
-        debug_owner_id: String(ownerId || 'Unresolved')
-      });
-    }
-
-    res.setHeader('X-Backend-Version', 'v6-Debug-ID');
-    res.setHeader('X-Debug-Owner', String(ownerId)); // Expose ID for frontend check
-    res.json({
-      success: true,
-      sequence: userSequences[sequenceIndex], // RETURN THE UPDATED SEQUENCE!
-      debug_owner_id: String(ownerId), // CORS-Proof Debug ID
-      message: 'Sequence updated successfully'
-    });
-  } catch (error) {
-    console.error('Update sequence error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Delete follow-up sequence
-app.delete('/api/admin/marketing/sequences/:sequenceId', verifyAdmin, async (req, res) => {
-  try {
-    const ownerId = resolveMarketingOwnerId(req);
-    const { sequenceId } = req.params;
-
-    // LOAD DB STATE
-    let userSequences = await marketingStore.loadSequences(ownerId);
-    if (!userSequences || !Array.isArray(userSequences)) {
-      return res.status(404).json({ error: 'No sequences found to delete' });
-    }
-
-    const sequenceIndex = userSequences.findIndex(seq => seq.id === sequenceId);
-    if (sequenceIndex === -1) {
-      return res.status(404).json({ error: 'Sequence not found' });
-    }
-
-    const deletedSequence = userSequences.splice(sequenceIndex, 1)[0];
-    await marketingStore.saveSequences(ownerId, userSequences);
-
-    res.json({
-      success: true,
-      message: 'Sequence deleted successfully',
-      deletedSequence
-    });
-  } catch (error) {
-    console.error('Delete sequence error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Get active follow-ups
-app.get('/api/admin/marketing/active-followups', verifyAdmin, async (req, res) => {
-  try {
-    const ownerId = resolveMarketingOwnerId(req);
-    const storedFollowUps = await marketingStore.loadActiveFollowUps(ownerId);
-
-    if (Array.isArray(storedFollowUps)) {
-      activeFollowUps = storedFollowUps;
-    } else if (leads.length > 0 && activeFollowUps.length === 0) {
-      generateActiveFollowUps();
-      await marketingStore.saveActiveFollowUps(ownerId, activeFollowUps);
-    }
-
-    const enrichedFollowUps = activeFollowUps.map(followUp => {
-      const lead = leads.find(l => l.id === followUp.leadId);
-      const sequence = followUpSequences.find(s => s.id === followUp.sequenceId);
-
-      return {
-        ...followUp,
-        leadName: lead?.name || 'Unknown Lead',
-        leadEmail: lead?.email || '',
-        sequenceName: sequence?.name || 'Unknown Sequence',
-        totalSteps: sequence?.steps?.length || 0
-      };
-    });
-
-    res.json({
-      success: true,
-      activeFollowUps: enrichedFollowUps,
-      total: enrichedFollowUps.length,
-      stats: {
-        active: enrichedFollowUps.filter(f => f.status === 'active').length,
-        paused: enrichedFollowUps.filter(f => f.status === 'paused').length,
-        completed: enrichedFollowUps.filter(f => f.status === 'completed').length,
-        cancelled: enrichedFollowUps.filter(f => f.status === 'cancelled').length
-      }
-    });
-  } catch (error) {
-    console.error('Get active follow-ups error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Update follow-up status
-app.put('/api/admin/marketing/active-followups/:followUpId', verifyAdmin, async (req, res) => {
-  try {
-    const ownerId = resolveMarketingOwnerId(req);
-    const { followUpId } = req.params;
-    const { status, currentStepIndex } = req.body;
-
-    const followUpIndex = activeFollowUps.findIndex(f => f.id === followUpId);
-    if (followUpIndex === -1) {
-      return res.status(404).json({ error: 'Follow-up not found' });
-    }
-
-    // Create history event
-    const historyEvent = {
-      id: `h-${Date.now()}`,
-      type: status === 'active' ? 'resume' : status === 'paused' ? 'pause' : 'cancel',
-      description: `Sequence ${status}`,
-      date: new Date().toISOString()
-    };
-
-    // Update follow-up
-    activeFollowUps[followUpIndex] = {
-      ...activeFollowUps[followUpIndex],
-      status: status || activeFollowUps[followUpIndex].status,
-      currentStepIndex: currentStepIndex !== undefined ? currentStepIndex : activeFollowUps[followUpIndex].currentStepIndex,
-      history: [historyEvent, ...activeFollowUps[followUpIndex].history]
-    };
-
-    console.log(`📋 Follow-up updated: ${followUpId} -> ${status}`);
-    await marketingStore.saveActiveFollowUps(ownerId, activeFollowUps);
-
-    res.json({
-      success: true,
-      followUp: activeFollowUps[followUpIndex],
-      message: 'Follow-up updated successfully'
-    });
-  } catch (error) {
-    console.error('Update follow-up error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Create new follow-up (enroll lead in sequence)
-app.post('/api/admin/marketing/active-followups', verifyAdmin, async (req, res) => {
-  try {
-    const ownerId = resolveMarketingOwnerId(req);
-    const { leadId, sequenceId } = req.body;
-
-    if (!leadId || !sequenceId) {
-      return res.status(400).json({ error: 'Lead ID and Sequence ID are required' });
-    }
-
-    const lead = leads.find(l => l.id === leadId);
-    const sequence = followUpSequences.find(s => s.id === sequenceId);
-
-    if (!lead || !sequence) {
-      return res.status(404).json({ error: 'Lead or sequence not found' });
-    }
-
-    // Check if lead is already in this sequence
-    const existingFollowUp = activeFollowUps.find(f => f.leadId === leadId && f.sequenceId === sequenceId);
-    if (existingFollowUp) {
-      return res.status(400).json({ error: 'Lead is already enrolled in this sequence' });
-    }
-
-    const newFollowUp = {
-      id: `followup-${Date.now()}`,
-      leadId,
-      sequenceId,
-      status: 'active',
-      currentStepIndex: 0,
-      nextStepDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // Tomorrow
-      history: [
-        {
-          id: `h-${Date.now()}`,
-          type: 'enroll',
-          description: `Enrolled in ${sequence.name}`,
-          date: new Date().toISOString()
-        }
-      ]
-    };
-
-    activeFollowUps.push(newFollowUp);
-
-    console.log(`📋 New follow-up created: ${lead.name} enrolled in ${sequence.name}`);
-    await marketingStore.saveActiveFollowUps(ownerId, activeFollowUps);
-
-    res.status(201).json({
-      success: true,
-      followUp: newFollowUp,
-      message: 'Lead enrolled in sequence successfully'
-    });
-  } catch (error) {
-    console.error('Create follow-up error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Get QR codes
-app.get('/api/admin/marketing/qr-codes', verifyAdmin, (req, res) => {
-  try {
-    res.json({
-      success: true,
-      qrCodes
-    });
-  } catch (error) {
-    console.error('Get QR codes error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Create new QR code
-app.post('/api/admin/marketing/qr-codes', verifyAdmin, (req, res) => {
-  try {
-    const newQRCode = {
-      id: Date.now().toString(),
-      ...req.body,
-      scanCount: 0,
-      createdAt: new Date().toISOString().split('T')[0]
-    };
-
-    qrCodes.push(newQRCode);
-
-    res.json({
-      success: true,
-      qrCode: newQRCode,
-      message: 'QR code created successfully'
-    });
-  } catch (error) {
-    console.error('Create QR code error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Update QR code
-app.put('/api/admin/marketing/qr-codes/:qrCodeId', verifyAdmin, (req, res) => {
-  try {
-    const { qrCodeId } = req.params;
-    const updates = req.body;
-
-    const qrCodeIndex = qrCodes.findIndex(qr => qr.id === qrCodeId);
-    if (qrCodeIndex === -1) {
-      return res.status(404).json({ error: 'QR code not found' });
-    }
-
-    qrCodes[qrCodeIndex] = {
-      ...qrCodes[qrCodeIndex],
-      ...updates
-    };
-
-    res.json({
-      success: true,
-      qrCode: qrCodes[qrCodeIndex],
-      message: 'QR code updated successfully'
-    });
-  } catch (error) {
-    console.error('Update QR code error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Delete QR code
-app.delete('/api/admin/marketing/qr-codes/:qrCodeId', verifyAdmin, (req, res) => {
-  try {
-    const { qrCodeId } = req.params;
-
-    const qrCodeIndex = qrCodes.findIndex(qr => qr.id === qrCodeId);
-    if (qrCodeIndex === -1) {
-      return res.status(404).json({ error: 'QR code not found' });
-    }
-
-    const deletedQRCode = qrCodes.splice(qrCodeIndex, 1)[0];
-
-    res.json({
-      success: true,
-      message: 'QR code deleted successfully',
-      deletedQRCode
-    });
-  } catch (error) {
-    console.error('Delete QR code error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
 
 
 
@@ -31946,6 +31398,27 @@ if (APP_RUNTIME_MODE !== 'worker') {
   setTimeout(() => { processLoZillowFollowups().catch(() => {}); }, 30 * 1000);
 }
 
+// Cold email sweep: sends approved, due emails inside the Tue-Thu morning windows. Does nothing until
+// COLD_EMAIL_ENABLED=true and a separate sending domain + mailboxes are configured.
+let coldEmailSweepBusy = false;
+async function runColdEmailSweep() {
+  if (coldEmailSweepBusy) return;
+  coldEmailSweepBusy = true;
+  try {
+    const coldEngine = require('./services/coldEmail/engine');
+    const coldSender = require('./services/coldEmail/sender');
+    const result = await coldEngine.sweep(supabaseAdmin, { cfg: coldSender.readConfig() });
+    if (result.sent || result.paused) console.log('[ColdEmail] sweep', JSON.stringify({ sent: result.sent, failed: result.failed, paused: result.paused }));
+  } catch (err) {
+    if (!/does not exist|schema cache/i.test(err?.message || '')) console.warn('[ColdEmail] sweep failed:', err?.message);
+  } finally {
+    coldEmailSweepBusy = false;
+  }
+}
+if (APP_RUNTIME_MODE !== 'worker') {
+  setInterval(() => { runColdEmailSweep().catch(() => {}); }, 5 * 60 * 1000);
+}
+
 // ── POST /api/admin/lo-outreach/invite — admin sends an LO acquisition link ────
 app.post('/api/admin/lo-outreach/invite', verifyAdmin, async (req, res) => {
   try {
@@ -32155,6 +31628,21 @@ app.post('/api/admin/lo-leads/:id/skip', verifyAdmin, async (req, res) => {
   }
 });
 
+// ── Cold email to loan officers (own sending domain, checker, 5-touch sequence) ──
+const coldEmailRoutes = require('./routes/coldEmailRoutes');
+coldEmailRoutes.register(app, {
+  verifyAdmin,
+  supabaseAdmin,
+  openai,
+  emailService,
+  verifyMailgunSignature,
+  signingKey: MAILGUN_WEBHOOK_SIGNING_KEY,
+  signingKeyIsSet: Boolean(MAILGUN_WEBHOOK_SIGNING_KEY) && MAILGUN_WEBHOOK_SIGNING_KEY !== MAILGUN_API_KEY,
+  defaultLeadUserId: DEFAULT_LEAD_USER_ID,
+  upload,
+  ownerAlertEmail: process.env.OWNER_ALERT_EMAIL || 'homelistingai@gmail.com'
+});
+
 // ── GET /api/public/lo-unsubscribe/:token — CAN-SPAM opt-out (public) ──────────
 // Resolves the recipient via their invite token, adds them to the suppression
 // list (never scraped or emailed again), and shows a plain confirmation page.
@@ -32191,7 +31679,11 @@ app.get('/api/public/lo-invite/:token', async (req, res) => {
       .select('id, lo_name, opened_at')
       .eq('token', token)
       .maybeSingle();
-    if (!invite) return res.json({ success: false });
+    if (!invite) {
+      // A cold-email prospect: personalize the greeting from their record.
+      const { data: prospect } = await supabaseAdmin.from('lo_prospects').select('first_name').eq('unsub_token', token).maybeSingle();
+      return res.json(prospect ? { success: true, name: prospect.first_name || null } : { success: false });
+    }
     if (!invite.opened_at) {
       await supabaseAdmin
         .from('lo_outreach_invites')
@@ -32214,6 +31706,7 @@ app.post('/api/public/lo-invite/:token/event', async (req, res) => {
     return res.status(400).json({ error: 'invalid_event' });
   }
   try {
+    require('./services/coldEmail/engine').recordClick(supabaseAdmin, token).catch(() => {});
     await supabaseAdmin
       .from('lo_outreach_invites')
       .update({ clicked_at: nowIso(), status: 'clicked' })
@@ -35662,43 +35155,10 @@ app.put('/api/properties/:id', requireAuth, async (req, res) => {
 // ── Blog Control Center ───────────────────────────────────────────────────────
 
 // POST /api/admin/blog/generate — AI writes a full blog post from an idea
+const blogService = require('./blog/routes.cjs').mountBlog(app, { db: supabaseAdmin, openai, verifyAdmin, leadLimiter });
 app.post('/api/admin/blog/generate', verifyAdmin, async (req, res) => {
-  try {
-    const { idea, tone = 'professional', wordCount = 800 } = req.body;
-    if (!idea) return res.status(400).json({ error: 'idea_required' });
-
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o',
-      messages: [{
-        role: 'system',
-        content: `You are an expert real estate and mortgage content writer for HomeListingAI. Write SEO-optimized blog posts targeting loan officers, real estate agents, and home buyers. Tone: ${tone}. Always return valid JSON only — no markdown fences.`
-      }, {
-        role: 'user',
-        content: `Write a complete blog post (~${wordCount} words) about: "${idea}".
-
-Return this exact JSON:
-{
-  "title": "Blog post title",
-  "slug": "url-friendly-slug",
-  "content": "<p>Full HTML content with h2/h3 headings, paragraphs, bullet lists...</p>",
-  "excerpt": "2-3 sentence summary for preview cards",
-  "seo_title": "SEO title (60 chars max)",
-  "seo_description": "Meta description (155 chars max)",
-  "seo_keywords": ["keyword1", "keyword2", "keyword3", "keyword4", "keyword5"],
-  "image_search_query": "3-4 word Unsplash search query for hero image"
-}`
-      }],
-      temperature: 0.7,
-      max_tokens: 3000,
-    });
-
-    const raw = completion.choices[0]?.message?.content || '{}';
-    const parsed = JSON.parse(raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim());
-    res.json({ post: parsed });
-  } catch (err) {
-    console.error('[Blog Generate]', err);
-    res.status(500).json({ error: 'generation_failed' });
-  }
+  try { res.json(await blogService.generate(req.user.id, req.body || {})); }
+  catch (e) { res.status(e.status || 502).json({ error: e.message, errors: e.errors || [] }); }
 });
 
 // POST /api/admin/blog/repurpose — rewrite a blog for social platforms
@@ -35811,58 +35271,11 @@ const getGoogleIndexingToken = async () => {
 // POST /api/admin/blog/ping — ping Google Indexing API + IndexNow + Bing after publish
 app.post('/api/admin/blog/ping', verifyAdmin, async (req, res) => {
   try {
-    const { slug } = req.body;
-    const siteUrl = process.env.APP_BASE_URL || 'https://homelistingai.com';
-    const postUrl = `${siteUrl}/blog/${slug}`;
-    const sitemapUrl = `${siteUrl}/sitemap.xml`;
-    const results = {};
-
-    // Google Indexing API
-    try {
-      const token = await getGoogleIndexingToken();
-      if (token) {
-        const gRes = await fetch('https://indexing.googleapis.com/v3/urlNotifications:publish', {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: postUrl, type: 'URL_UPDATED' }),
-        });
-        results.google = gRes.status < 300 ? 'ok' : `status ${gRes.status}`;
-      } else {
-        results.google = 'no_credentials';
-      }
-    } catch (e) {
-      results.google = 'failed';
-    }
-
-    // IndexNow — hits Bing, Yandex, and others simultaneously
-    try {
-      const indexNowRes = await fetch('https://api.indexnow.org/indexnow', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          host: new URL(siteUrl).hostname,
-          key: process.env.INDEXNOW_KEY || 'homelistingai',
-          urlList: [postUrl, sitemapUrl],
-        }),
-      });
-      results.indexNow = indexNowRes.status < 300 ? 'ok' : `status ${indexNowRes.status}`;
-    } catch (e) {
-      results.indexNow = 'failed';
-    }
-
-    // Bing sitemap ping (direct)
-    try {
-      const bingRes = await fetch(`https://www.bing.com/ping?sitemap=${encodeURIComponent(sitemapUrl)}`);
-      results.bing = bingRes.status < 300 ? 'ok' : `status ${bingRes.status}`;
-    } catch (e) {
-      results.bing = 'failed';
-    }
-
-    res.json({ pinged: true, url: postUrl, results });
-  } catch (err) {
-    console.error('[Blog Ping]', err);
-    res.status(500).json({ error: 'ping_failed' });
-  }
+    const posts = await blogService.publicPosts();
+    const post = posts.find(p => p.slug === req.body?.slug);
+    if (!post) return res.status(404).json({ error: 'Published article not found.' });
+    res.json(await blogService.ping(post));
+  } catch (e) { res.status(e.status || 503).json({ error: e.message }); }
 });
 
 // ── Blog CRUD (admin) ───────────────────────────────────────────────────────
@@ -35872,24 +35285,12 @@ app.post('/api/admin/blog/ping', verifyAdmin, async (req, res) => {
 // the service role (RLS bypassed), matching the rest of the admin app.
 
 // Only real, writable columns — drops any AI helper/stray fields (e.g. image_search_query).
-const BLOG_WRITABLE_COLUMNS = [
-  'title', 'slug', 'content', 'excerpt', 'featured_image', 'featured_image_alt',
-  'status', 'published_at', 'seo_title', 'seo_description', 'seo_keywords', 'author_id'
-];
-const pickBlogColumns = (body) => {
-  const out = {};
-  for (const k of BLOG_WRITABLE_COLUMNS) {
-    if (body[k] !== undefined) out[k] = body[k];
-  }
-  return out;
-};
-
 // GET /api/admin/blog/posts — list all posts (drafts included)
 app.get('/api/admin/blog/posts', verifyAdmin, async (req, res) => {
   try {
     const { data, error } = await supabaseAdmin
       .from('blog_posts')
-      .select('id, title, slug, status, published_at, created_at')
+      .select('id,title,slug,status,published_at,created_at,updated_at,pillar,role,target_keyword,scheduled_at,review_errors')
       .order('created_at', { ascending: false });
     if (error) throw error;
     res.json({ posts: data || [] });
@@ -35914,40 +35315,8 @@ app.get('/api/admin/blog/posts/:id', verifyAdmin, async (req, res) => {
 
 // POST /api/admin/blog/posts — create or update (id in body => update)
 app.post('/api/admin/blog/posts', verifyAdmin, async (req, res) => {
-  try {
-    const body = req.body || {};
-    if (!body.title) return res.status(400).json({ error: 'title_required' });
-    const payload = pickBlogColumns(body);
-    payload.updated_at = new Date().toISOString();
-
-    // Capture prior publish state so we only auto-share on a real
-    // draft → published transition (never on edits to a live post).
-    let wasPublished = false;
-    if (body.id) {
-      const { data: prev } = await supabaseAdmin
-        .from('blog_posts').select('status').eq('id', body.id).maybeSingle();
-      wasPublished = prev?.status === 'published';
-    }
-
-    let result;
-    if (body.id) {
-      result = await supabaseAdmin.from('blog_posts')
-        .update(payload).eq('id', body.id).select().single();
-    } else {
-      result = await supabaseAdmin.from('blog_posts')
-        .insert([payload]).select().single();
-    }
-    if (result.error) throw result.error;
-    res.json({ post: result.data });
-
-    // Fire-and-forget social share on first publish (after the response).
-    if (!wasPublished && result.data?.status === 'published') {
-      maybeAutoPostBlogToSocial(result.data);
-    }
-  } catch (err) {
-    console.error('[Blog Save]', err);
-    res.status(500).json({ error: 'blog_save_failed', detail: err?.message });
-  }
+  try { res.json(await blogService.save(req.user.id, req.body || {})); }
+  catch (e) { res.status(e.status || 503).json({ error: e.message, errors: e.errors || [] }); }
 });
 
 // DELETE /api/admin/blog/posts/:id
@@ -35967,7 +35336,7 @@ app.delete('/api/admin/blog/posts/:id', verifyAdmin, async (req, res) => {
 
 // Read the single-row social_config (target channel ids + auto-post toggle).
 async function getSocialConfig() {
-  const fallback = { id: 1, auto_post_channel_ids: [], auto_post_blog: true };
+  const fallback = { id: 1, auto_post_channel_ids: [], auto_post_blog: false };
   try {
     const { data } = await supabaseAdmin
       .from('social_config').select('*').eq('id', 1).maybeSingle();
@@ -36045,6 +35414,7 @@ async function shareBlogPostToSocial(post) {
 // Fire-and-forget: share a freshly-published blog post once, to all selected channels.
 async function maybeAutoPostBlogToSocial(post) {
   try {
+    if (String(process.env.BLOG_AUTO_POST || '').toLowerCase() !== 'true') return; // auto-posting is OFF unless this is set
     if (!post || post.status !== 'published' || !post.slug) return;
     if (post.social_posted_at) return; // already shared
     if (!bufferService.isConfigured()) return;
@@ -36633,8 +36003,8 @@ const handleVoiceOutboundCall = async (req, res) => {
 };
 
 // Primary voice endpoints
-app.post('/api/voice/outbound-call', requireAuth, handleVoiceOutboundCall);
-app.post('/api/voice/vapi/outbound-call', requireAuth, handleVoiceOutboundCall);
+app.post('/api/voice/outbound-call', verifyAdmin, handleVoiceOutboundCall);
+app.post('/api/voice/vapi/outbound-call', verifyAdmin, handleVoiceOutboundCall);
 
 // Backward compatibility alias so existing clients do not break during cutover.
 app.post('/api/voice/hume/outbound-call', requireAuth, handleVoiceOutboundCall);

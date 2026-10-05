@@ -1,0 +1,909 @@
+{
+  "pillars": [
+    {
+      "slug": "realtor-referrals",
+      "title": "Get More Realtor Referrals"
+    },
+    {
+      "slug": "mortgage-leads",
+      "title": "Mortgage Leads That Actually Close"
+    },
+    {
+      "slug": "lo-marketing",
+      "title": "Loan Officer Marketing That Works"
+    },
+    {
+      "slug": "ai-for-loan-officers",
+      "title": "AI for Loan Officers"
+    },
+    {
+      "slug": "agent-partners",
+      "title": "For Your Agent Partners"
+    }
+  ],
+  "posts": [
+    {
+      "title": "How Loan Officers Get Realtor Referrals in 2026: The Complete Playbook",
+      "slug": "how-loan-officers-get-realtor-referrals-the-complete-playbook",
+      "pillar": "realtor-referrals",
+      "role": "hub",
+      "target_keyword": "how loan officers get realtor referrals in 2026",
+      "search_intent": "Practical how-to for mortgage loan officers",
+      "hub_slug": null,
+      "related_slugs": [
+        "how-to-approach-a-real-estate-agent-as-a-loan-officer",
+        "what-real-estate-agents-actually-want-from-a-lender",
+        "12-things-to-bring-an-agent-that-are-not-a-rate-sheet",
+        "how-to-win-back-an-agent-who-stopped-sending-you-deals",
+        "how-many-agent-partners-does-a-loan-officer-really-need",
+        "the-30-day-agent-partnership-plan-for-new-loan-officers",
+        "open-house-strategies-for-loan-officers-that-agents-will-say-yes-to"
+      ],
+      "planned_links": [
+        "how-to-approach-a-real-estate-agent-as-a-loan-officer",
+        "what-real-estate-agents-actually-want-from-a-lender",
+        "12-things-to-bring-an-agent-that-are-not-a-rate-sheet",
+        "how-to-win-back-an-agent-who-stopped-sending-you-deals",
+        "how-many-agent-partners-does-a-loan-officer-really-need",
+        "the-30-day-agent-partnership-plan-for-new-loan-officers",
+        "open-house-strategies-for-loan-officers-that-agents-will-say-yes-to"
+      ],
+      "compliance_note": true,
+      "author": "Chris Potter",
+      "status": "brief",
+      "lead_magnet": "agent-partner-pitch"
+    },
+    {
+      "title": "How to approach a real estate agent as a loan officer",
+      "slug": "how-to-approach-a-real-estate-agent-as-a-loan-officer",
+      "pillar": "realtor-referrals",
+      "role": "spoke",
+      "target_keyword": "how to approach a real estate agent as a loan officer",
+      "search_intent": "Practical how-to for mortgage loan officers",
+      "hub_slug": "how-loan-officers-get-realtor-referrals-the-complete-playbook",
+      "related_slugs": [
+        "how-loan-officers-get-realtor-referrals-the-complete-playbook",
+        "what-real-estate-agents-actually-want-from-a-lender",
+        "12-things-to-bring-an-agent-that-are-not-a-rate-sheet",
+        "how-to-win-back-an-agent-who-stopped-sending-you-deals"
+      ],
+      "planned_links": [
+        "how-loan-officers-get-realtor-referrals-the-complete-playbook",
+        "what-real-estate-agents-actually-want-from-a-lender",
+        "12-things-to-bring-an-agent-that-are-not-a-rate-sheet",
+        "how-to-win-back-an-agent-who-stopped-sending-you-deals"
+      ],
+      "compliance_note": true,
+      "author": "Chris Potter",
+      "status": "brief",
+      "lead_magnet": "agent-partner-pitch"
+    },
+    {
+      "title": "What real estate agents actually want from a lender",
+      "slug": "what-real-estate-agents-actually-want-from-a-lender",
+      "pillar": "realtor-referrals",
+      "role": "spoke",
+      "target_keyword": "what real estate agents actually want from a lender",
+      "search_intent": "Practical how-to for mortgage loan officers",
+      "hub_slug": "how-loan-officers-get-realtor-referrals-the-complete-playbook",
+      "related_slugs": [
+        "how-loan-officers-get-realtor-referrals-the-complete-playbook",
+        "how-to-approach-a-real-estate-agent-as-a-loan-officer",
+        "12-things-to-bring-an-agent-that-are-not-a-rate-sheet",
+        "how-to-win-back-an-agent-who-stopped-sending-you-deals"
+      ],
+      "planned_links": [
+        "how-loan-officers-get-realtor-referrals-the-complete-playbook",
+        "how-to-approach-a-real-estate-agent-as-a-loan-officer",
+        "12-things-to-bring-an-agent-that-are-not-a-rate-sheet",
+        "how-to-win-back-an-agent-who-stopped-sending-you-deals"
+      ],
+      "compliance_note": true,
+      "author": "Chris Potter",
+      "status": "brief",
+      "lead_magnet": "agent-partner-pitch"
+    },
+    {
+      "title": "12 things to bring an agent that are not a rate sheet",
+      "slug": "12-things-to-bring-an-agent-that-are-not-a-rate-sheet",
+      "pillar": "realtor-referrals",
+      "role": "spoke",
+      "target_keyword": "12 things to bring an agent that are not a rate sheet",
+      "search_intent": "Practical how-to for mortgage loan officers",
+      "hub_slug": "how-loan-officers-get-realtor-referrals-the-complete-playbook",
+      "related_slugs": [
+        "how-loan-officers-get-realtor-referrals-the-complete-playbook",
+        "how-to-approach-a-real-estate-agent-as-a-loan-officer",
+        "what-real-estate-agents-actually-want-from-a-lender",
+        "how-to-win-back-an-agent-who-stopped-sending-you-deals"
+      ],
+      "planned_links": [
+        "how-loan-officers-get-realtor-referrals-the-complete-playbook",
+        "how-to-approach-a-real-estate-agent-as-a-loan-officer",
+        "what-real-estate-agents-actually-want-from-a-lender",
+        "how-to-win-back-an-agent-who-stopped-sending-you-deals"
+      ],
+      "compliance_note": true,
+      "author": "Chris Potter",
+      "status": "brief",
+      "lead_magnet": "agent-partner-pitch"
+    },
+    {
+      "title": "How to win back an agent who stopped sending you deals",
+      "slug": "how-to-win-back-an-agent-who-stopped-sending-you-deals",
+      "pillar": "realtor-referrals",
+      "role": "spoke",
+      "target_keyword": "how to win back an agent who stopped sending you deals",
+      "search_intent": "Practical how-to for mortgage loan officers",
+      "hub_slug": "how-loan-officers-get-realtor-referrals-the-complete-playbook",
+      "related_slugs": [
+        "how-loan-officers-get-realtor-referrals-the-complete-playbook",
+        "how-to-approach-a-real-estate-agent-as-a-loan-officer",
+        "what-real-estate-agents-actually-want-from-a-lender",
+        "12-things-to-bring-an-agent-that-are-not-a-rate-sheet"
+      ],
+      "planned_links": [
+        "how-loan-officers-get-realtor-referrals-the-complete-playbook",
+        "how-to-approach-a-real-estate-agent-as-a-loan-officer",
+        "what-real-estate-agents-actually-want-from-a-lender",
+        "12-things-to-bring-an-agent-that-are-not-a-rate-sheet"
+      ],
+      "compliance_note": true,
+      "author": "Chris Potter",
+      "status": "brief",
+      "lead_magnet": "agent-partner-pitch"
+    },
+    {
+      "title": "How many agent partners does a loan officer really need?",
+      "slug": "how-many-agent-partners-does-a-loan-officer-really-need",
+      "pillar": "realtor-referrals",
+      "role": "spoke",
+      "target_keyword": "how many agent partners does a loan officer really need?",
+      "search_intent": "Practical how-to for mortgage loan officers",
+      "hub_slug": "how-loan-officers-get-realtor-referrals-the-complete-playbook",
+      "related_slugs": [
+        "how-loan-officers-get-realtor-referrals-the-complete-playbook",
+        "how-to-approach-a-real-estate-agent-as-a-loan-officer",
+        "what-real-estate-agents-actually-want-from-a-lender",
+        "12-things-to-bring-an-agent-that-are-not-a-rate-sheet"
+      ],
+      "planned_links": [
+        "how-loan-officers-get-realtor-referrals-the-complete-playbook",
+        "how-to-approach-a-real-estate-agent-as-a-loan-officer",
+        "what-real-estate-agents-actually-want-from-a-lender",
+        "12-things-to-bring-an-agent-that-are-not-a-rate-sheet"
+      ],
+      "compliance_note": true,
+      "author": "Chris Potter",
+      "status": "brief",
+      "lead_magnet": "agent-partner-pitch"
+    },
+    {
+      "title": "The 30-day agent partnership plan for new loan officers",
+      "slug": "the-30-day-agent-partnership-plan-for-new-loan-officers",
+      "pillar": "realtor-referrals",
+      "role": "spoke",
+      "target_keyword": "the 30-day agent partnership plan for new loan officers",
+      "search_intent": "Practical how-to for mortgage loan officers",
+      "hub_slug": "how-loan-officers-get-realtor-referrals-the-complete-playbook",
+      "related_slugs": [
+        "how-loan-officers-get-realtor-referrals-the-complete-playbook",
+        "how-to-approach-a-real-estate-agent-as-a-loan-officer",
+        "what-real-estate-agents-actually-want-from-a-lender",
+        "12-things-to-bring-an-agent-that-are-not-a-rate-sheet"
+      ],
+      "planned_links": [
+        "how-loan-officers-get-realtor-referrals-the-complete-playbook",
+        "how-to-approach-a-real-estate-agent-as-a-loan-officer",
+        "what-real-estate-agents-actually-want-from-a-lender",
+        "12-things-to-bring-an-agent-that-are-not-a-rate-sheet"
+      ],
+      "compliance_note": true,
+      "author": "Chris Potter",
+      "status": "brief",
+      "lead_magnet": "agent-partner-pitch"
+    },
+    {
+      "title": "Open house strategies for loan officers that agents will say yes to",
+      "slug": "open-house-strategies-for-loan-officers-that-agents-will-say-yes-to",
+      "pillar": "realtor-referrals",
+      "role": "spoke",
+      "target_keyword": "open house strategies for loan officers that agents will say yes to",
+      "search_intent": "Practical how-to for mortgage loan officers",
+      "hub_slug": "how-loan-officers-get-realtor-referrals-the-complete-playbook",
+      "related_slugs": [
+        "how-loan-officers-get-realtor-referrals-the-complete-playbook",
+        "how-to-approach-a-real-estate-agent-as-a-loan-officer",
+        "what-real-estate-agents-actually-want-from-a-lender",
+        "12-things-to-bring-an-agent-that-are-not-a-rate-sheet"
+      ],
+      "planned_links": [
+        "how-loan-officers-get-realtor-referrals-the-complete-playbook",
+        "how-to-approach-a-real-estate-agent-as-a-loan-officer",
+        "what-real-estate-agents-actually-want-from-a-lender",
+        "12-things-to-bring-an-agent-that-are-not-a-rate-sheet"
+      ],
+      "compliance_note": true,
+      "author": "Chris Potter",
+      "status": "brief",
+      "lead_magnet": "agent-partner-pitch"
+    },
+    {
+      "title": "Warm Leads vs. Cold Leads: The Loan Officer’s Guide to Leads That Close",
+      "slug": "warm-leads-vs-cold-leads-the-loan-officers-guide-to-leads-that-close",
+      "pillar": "mortgage-leads",
+      "role": "hub",
+      "target_keyword": "warm leads vs. cold leads",
+      "search_intent": "Practical how-to for mortgage loan officers",
+      "hub_slug": null,
+      "related_slugs": [
+        "why-internet-mortgage-leads-close-so-poorly",
+        "how-to-calculate-your-real-cost-per-closed-loan",
+        "speed-to-lead-for-loan-officers-how-fast-is-fast-enough",
+        "what-to-text-a-buyer-who-asked-about-a-listing-at-9pm",
+        "purchase-leads-vs-refi-leads-in-a-high-rate-market",
+        "how-to-follow-up-with-a-pre-approval-that-went-quiet"
+      ],
+      "planned_links": [
+        "why-internet-mortgage-leads-close-so-poorly",
+        "how-to-calculate-your-real-cost-per-closed-loan",
+        "speed-to-lead-for-loan-officers-how-fast-is-fast-enough",
+        "what-to-text-a-buyer-who-asked-about-a-listing-at-9pm",
+        "purchase-leads-vs-refi-leads-in-a-high-rate-market",
+        "how-to-follow-up-with-a-pre-approval-that-went-quiet"
+      ],
+      "compliance_note": false,
+      "author": "Chris Potter",
+      "status": "brief",
+      "lead_magnet": "cost-per-closed-loan"
+    },
+    {
+      "title": "Why internet mortgage leads close so poorly",
+      "slug": "why-internet-mortgage-leads-close-so-poorly",
+      "pillar": "mortgage-leads",
+      "role": "spoke",
+      "target_keyword": "why internet mortgage leads close so poorly",
+      "search_intent": "Practical how-to for mortgage loan officers",
+      "hub_slug": "warm-leads-vs-cold-leads-the-loan-officers-guide-to-leads-that-close",
+      "related_slugs": [
+        "warm-leads-vs-cold-leads-the-loan-officers-guide-to-leads-that-close",
+        "how-to-calculate-your-real-cost-per-closed-loan",
+        "speed-to-lead-for-loan-officers-how-fast-is-fast-enough",
+        "what-to-text-a-buyer-who-asked-about-a-listing-at-9pm"
+      ],
+      "planned_links": [
+        "warm-leads-vs-cold-leads-the-loan-officers-guide-to-leads-that-close",
+        "how-to-calculate-your-real-cost-per-closed-loan",
+        "speed-to-lead-for-loan-officers-how-fast-is-fast-enough",
+        "what-to-text-a-buyer-who-asked-about-a-listing-at-9pm"
+      ],
+      "compliance_note": false,
+      "author": "Chris Potter",
+      "status": "brief",
+      "lead_magnet": "cost-per-closed-loan"
+    },
+    {
+      "title": "How to calculate your real cost per closed loan",
+      "slug": "how-to-calculate-your-real-cost-per-closed-loan",
+      "pillar": "mortgage-leads",
+      "role": "spoke",
+      "target_keyword": "how to calculate your real cost per closed loan",
+      "search_intent": "Practical how-to for mortgage loan officers",
+      "hub_slug": "warm-leads-vs-cold-leads-the-loan-officers-guide-to-leads-that-close",
+      "related_slugs": [
+        "warm-leads-vs-cold-leads-the-loan-officers-guide-to-leads-that-close",
+        "why-internet-mortgage-leads-close-so-poorly",
+        "speed-to-lead-for-loan-officers-how-fast-is-fast-enough",
+        "what-to-text-a-buyer-who-asked-about-a-listing-at-9pm"
+      ],
+      "planned_links": [
+        "warm-leads-vs-cold-leads-the-loan-officers-guide-to-leads-that-close",
+        "why-internet-mortgage-leads-close-so-poorly",
+        "speed-to-lead-for-loan-officers-how-fast-is-fast-enough",
+        "what-to-text-a-buyer-who-asked-about-a-listing-at-9pm"
+      ],
+      "compliance_note": false,
+      "author": "Chris Potter",
+      "status": "brief",
+      "lead_magnet": "cost-per-closed-loan"
+    },
+    {
+      "title": "Speed to lead for loan officers: how fast is fast enough",
+      "slug": "speed-to-lead-for-loan-officers-how-fast-is-fast-enough",
+      "pillar": "mortgage-leads",
+      "role": "spoke",
+      "target_keyword": "speed to lead for loan officers",
+      "search_intent": "Practical how-to for mortgage loan officers",
+      "hub_slug": "warm-leads-vs-cold-leads-the-loan-officers-guide-to-leads-that-close",
+      "related_slugs": [
+        "warm-leads-vs-cold-leads-the-loan-officers-guide-to-leads-that-close",
+        "why-internet-mortgage-leads-close-so-poorly",
+        "how-to-calculate-your-real-cost-per-closed-loan",
+        "what-to-text-a-buyer-who-asked-about-a-listing-at-9pm"
+      ],
+      "planned_links": [
+        "warm-leads-vs-cold-leads-the-loan-officers-guide-to-leads-that-close",
+        "why-internet-mortgage-leads-close-so-poorly",
+        "how-to-calculate-your-real-cost-per-closed-loan",
+        "what-to-text-a-buyer-who-asked-about-a-listing-at-9pm"
+      ],
+      "compliance_note": false,
+      "author": "Chris Potter",
+      "status": "brief",
+      "lead_magnet": "cost-per-closed-loan"
+    },
+    {
+      "title": "What to text a buyer who asked about a listing at 9pm",
+      "slug": "what-to-text-a-buyer-who-asked-about-a-listing-at-9pm",
+      "pillar": "mortgage-leads",
+      "role": "spoke",
+      "target_keyword": "what to text a buyer who asked about a listing at 9pm",
+      "search_intent": "Practical how-to for mortgage loan officers",
+      "hub_slug": "warm-leads-vs-cold-leads-the-loan-officers-guide-to-leads-that-close",
+      "related_slugs": [
+        "warm-leads-vs-cold-leads-the-loan-officers-guide-to-leads-that-close",
+        "why-internet-mortgage-leads-close-so-poorly",
+        "how-to-calculate-your-real-cost-per-closed-loan",
+        "speed-to-lead-for-loan-officers-how-fast-is-fast-enough"
+      ],
+      "planned_links": [
+        "warm-leads-vs-cold-leads-the-loan-officers-guide-to-leads-that-close",
+        "why-internet-mortgage-leads-close-so-poorly",
+        "how-to-calculate-your-real-cost-per-closed-loan",
+        "speed-to-lead-for-loan-officers-how-fast-is-fast-enough"
+      ],
+      "compliance_note": false,
+      "author": "Chris Potter",
+      "status": "brief",
+      "lead_magnet": "cost-per-closed-loan"
+    },
+    {
+      "title": "Purchase leads vs. refi leads in a high-rate market",
+      "slug": "purchase-leads-vs-refi-leads-in-a-high-rate-market",
+      "pillar": "mortgage-leads",
+      "role": "spoke",
+      "target_keyword": "purchase leads vs. refi leads in a high-rate market",
+      "search_intent": "Practical how-to for mortgage loan officers",
+      "hub_slug": "warm-leads-vs-cold-leads-the-loan-officers-guide-to-leads-that-close",
+      "related_slugs": [
+        "warm-leads-vs-cold-leads-the-loan-officers-guide-to-leads-that-close",
+        "why-internet-mortgage-leads-close-so-poorly",
+        "how-to-calculate-your-real-cost-per-closed-loan",
+        "speed-to-lead-for-loan-officers-how-fast-is-fast-enough"
+      ],
+      "planned_links": [
+        "warm-leads-vs-cold-leads-the-loan-officers-guide-to-leads-that-close",
+        "why-internet-mortgage-leads-close-so-poorly",
+        "how-to-calculate-your-real-cost-per-closed-loan",
+        "speed-to-lead-for-loan-officers-how-fast-is-fast-enough"
+      ],
+      "compliance_note": false,
+      "author": "Chris Potter",
+      "status": "brief",
+      "lead_magnet": "cost-per-closed-loan"
+    },
+    {
+      "title": "How to follow up with a pre-approval that went quiet",
+      "slug": "how-to-follow-up-with-a-pre-approval-that-went-quiet",
+      "pillar": "mortgage-leads",
+      "role": "spoke",
+      "target_keyword": "how to follow up with a pre-approval that went quiet",
+      "search_intent": "Practical how-to for mortgage loan officers",
+      "hub_slug": "warm-leads-vs-cold-leads-the-loan-officers-guide-to-leads-that-close",
+      "related_slugs": [
+        "warm-leads-vs-cold-leads-the-loan-officers-guide-to-leads-that-close",
+        "why-internet-mortgage-leads-close-so-poorly",
+        "how-to-calculate-your-real-cost-per-closed-loan",
+        "speed-to-lead-for-loan-officers-how-fast-is-fast-enough"
+      ],
+      "planned_links": [
+        "warm-leads-vs-cold-leads-the-loan-officers-guide-to-leads-that-close",
+        "why-internet-mortgage-leads-close-so-poorly",
+        "how-to-calculate-your-real-cost-per-closed-loan",
+        "speed-to-lead-for-loan-officers-how-fast-is-fast-enough"
+      ],
+      "compliance_note": false,
+      "author": "Chris Potter",
+      "status": "brief",
+      "lead_magnet": "cost-per-closed-loan"
+    },
+    {
+      "title": "Loan Officer Marketing Ideas That Work When Rates Are High",
+      "slug": "loan-officer-marketing-ideas-that-work-when-rates-are-high",
+      "pillar": "lo-marketing",
+      "role": "hub",
+      "target_keyword": "loan officer marketing ideas that work when rates are high",
+      "search_intent": "Practical how-to for mortgage loan officers",
+      "hub_slug": null,
+      "related_slugs": [
+        "loan-officer-social-media-what-to-post-on-linkedin-instagram-and-facebook",
+        "co-marketing-with-real-estate-agents-what-is-allowed-and-what-is-not",
+        "loan-officer-branding-how-to-be-the-name-agents-remember",
+        "email-newsletters-for-loan-officers-what-to-send-agents-every-month",
+        "video-for-loan-officers-simple-videos-agents-actually-share",
+        "how-to-run-a-loan-officer-business-when-volume-is-down"
+      ],
+      "planned_links": [
+        "loan-officer-social-media-what-to-post-on-linkedin-instagram-and-facebook",
+        "co-marketing-with-real-estate-agents-what-is-allowed-and-what-is-not",
+        "loan-officer-branding-how-to-be-the-name-agents-remember",
+        "email-newsletters-for-loan-officers-what-to-send-agents-every-month",
+        "video-for-loan-officers-simple-videos-agents-actually-share",
+        "how-to-run-a-loan-officer-business-when-volume-is-down"
+      ],
+      "compliance_note": true,
+      "author": "Chris Potter",
+      "status": "brief",
+      "lead_magnet": "respa-checklist"
+    },
+    {
+      "title": "Loan officer social media: what to post on LinkedIn, Instagram and Facebook",
+      "slug": "loan-officer-social-media-what-to-post-on-linkedin-instagram-and-facebook",
+      "pillar": "lo-marketing",
+      "role": "spoke",
+      "target_keyword": "loan officer social media",
+      "search_intent": "Practical how-to for mortgage loan officers",
+      "hub_slug": "loan-officer-marketing-ideas-that-work-when-rates-are-high",
+      "related_slugs": [
+        "loan-officer-marketing-ideas-that-work-when-rates-are-high",
+        "co-marketing-with-real-estate-agents-what-is-allowed-and-what-is-not",
+        "loan-officer-branding-how-to-be-the-name-agents-remember",
+        "email-newsletters-for-loan-officers-what-to-send-agents-every-month"
+      ],
+      "planned_links": [
+        "loan-officer-marketing-ideas-that-work-when-rates-are-high",
+        "co-marketing-with-real-estate-agents-what-is-allowed-and-what-is-not",
+        "loan-officer-branding-how-to-be-the-name-agents-remember",
+        "email-newsletters-for-loan-officers-what-to-send-agents-every-month"
+      ],
+      "compliance_note": true,
+      "author": "Chris Potter",
+      "status": "brief",
+      "lead_magnet": "respa-checklist"
+    },
+    {
+      "title": "Co-marketing with real estate agents: what is allowed and what is not",
+      "slug": "co-marketing-with-real-estate-agents-what-is-allowed-and-what-is-not",
+      "pillar": "lo-marketing",
+      "role": "spoke",
+      "target_keyword": "co-marketing with real estate agents",
+      "search_intent": "Practical how-to for mortgage loan officers",
+      "hub_slug": "loan-officer-marketing-ideas-that-work-when-rates-are-high",
+      "related_slugs": [
+        "loan-officer-marketing-ideas-that-work-when-rates-are-high",
+        "loan-officer-social-media-what-to-post-on-linkedin-instagram-and-facebook",
+        "loan-officer-branding-how-to-be-the-name-agents-remember",
+        "email-newsletters-for-loan-officers-what-to-send-agents-every-month"
+      ],
+      "planned_links": [
+        "loan-officer-marketing-ideas-that-work-when-rates-are-high",
+        "loan-officer-social-media-what-to-post-on-linkedin-instagram-and-facebook",
+        "loan-officer-branding-how-to-be-the-name-agents-remember",
+        "email-newsletters-for-loan-officers-what-to-send-agents-every-month"
+      ],
+      "compliance_note": true,
+      "author": "Chris Potter",
+      "status": "brief",
+      "lead_magnet": "respa-checklist"
+    },
+    {
+      "title": "Loan officer branding: how to be the name agents remember",
+      "slug": "loan-officer-branding-how-to-be-the-name-agents-remember",
+      "pillar": "lo-marketing",
+      "role": "spoke",
+      "target_keyword": "loan officer branding",
+      "search_intent": "Practical how-to for mortgage loan officers",
+      "hub_slug": "loan-officer-marketing-ideas-that-work-when-rates-are-high",
+      "related_slugs": [
+        "loan-officer-marketing-ideas-that-work-when-rates-are-high",
+        "loan-officer-social-media-what-to-post-on-linkedin-instagram-and-facebook",
+        "co-marketing-with-real-estate-agents-what-is-allowed-and-what-is-not",
+        "email-newsletters-for-loan-officers-what-to-send-agents-every-month"
+      ],
+      "planned_links": [
+        "loan-officer-marketing-ideas-that-work-when-rates-are-high",
+        "loan-officer-social-media-what-to-post-on-linkedin-instagram-and-facebook",
+        "co-marketing-with-real-estate-agents-what-is-allowed-and-what-is-not",
+        "email-newsletters-for-loan-officers-what-to-send-agents-every-month"
+      ],
+      "compliance_note": true,
+      "author": "Chris Potter",
+      "status": "brief",
+      "lead_magnet": "respa-checklist"
+    },
+    {
+      "title": "Email newsletters for loan officers: what to send agents every month",
+      "slug": "email-newsletters-for-loan-officers-what-to-send-agents-every-month",
+      "pillar": "lo-marketing",
+      "role": "spoke",
+      "target_keyword": "email newsletters for loan officers",
+      "search_intent": "Practical how-to for mortgage loan officers",
+      "hub_slug": "loan-officer-marketing-ideas-that-work-when-rates-are-high",
+      "related_slugs": [
+        "loan-officer-marketing-ideas-that-work-when-rates-are-high",
+        "loan-officer-social-media-what-to-post-on-linkedin-instagram-and-facebook",
+        "co-marketing-with-real-estate-agents-what-is-allowed-and-what-is-not",
+        "loan-officer-branding-how-to-be-the-name-agents-remember"
+      ],
+      "planned_links": [
+        "loan-officer-marketing-ideas-that-work-when-rates-are-high",
+        "loan-officer-social-media-what-to-post-on-linkedin-instagram-and-facebook",
+        "co-marketing-with-real-estate-agents-what-is-allowed-and-what-is-not",
+        "loan-officer-branding-how-to-be-the-name-agents-remember"
+      ],
+      "compliance_note": true,
+      "author": "Chris Potter",
+      "status": "brief",
+      "lead_magnet": "respa-checklist"
+    },
+    {
+      "title": "Video for loan officers: simple videos agents actually share",
+      "slug": "video-for-loan-officers-simple-videos-agents-actually-share",
+      "pillar": "lo-marketing",
+      "role": "spoke",
+      "target_keyword": "video for loan officers",
+      "search_intent": "Practical how-to for mortgage loan officers",
+      "hub_slug": "loan-officer-marketing-ideas-that-work-when-rates-are-high",
+      "related_slugs": [
+        "loan-officer-marketing-ideas-that-work-when-rates-are-high",
+        "loan-officer-social-media-what-to-post-on-linkedin-instagram-and-facebook",
+        "co-marketing-with-real-estate-agents-what-is-allowed-and-what-is-not",
+        "loan-officer-branding-how-to-be-the-name-agents-remember"
+      ],
+      "planned_links": [
+        "loan-officer-marketing-ideas-that-work-when-rates-are-high",
+        "loan-officer-social-media-what-to-post-on-linkedin-instagram-and-facebook",
+        "co-marketing-with-real-estate-agents-what-is-allowed-and-what-is-not",
+        "loan-officer-branding-how-to-be-the-name-agents-remember"
+      ],
+      "compliance_note": true,
+      "author": "Chris Potter",
+      "status": "brief",
+      "lead_magnet": "respa-checklist"
+    },
+    {
+      "title": "How to run a loan officer business when volume is down",
+      "slug": "how-to-run-a-loan-officer-business-when-volume-is-down",
+      "pillar": "lo-marketing",
+      "role": "spoke",
+      "target_keyword": "how to run a loan officer business when volume is down",
+      "search_intent": "Practical how-to for mortgage loan officers",
+      "hub_slug": "loan-officer-marketing-ideas-that-work-when-rates-are-high",
+      "related_slugs": [
+        "loan-officer-marketing-ideas-that-work-when-rates-are-high",
+        "loan-officer-social-media-what-to-post-on-linkedin-instagram-and-facebook",
+        "co-marketing-with-real-estate-agents-what-is-allowed-and-what-is-not",
+        "loan-officer-branding-how-to-be-the-name-agents-remember"
+      ],
+      "planned_links": [
+        "loan-officer-marketing-ideas-that-work-when-rates-are-high",
+        "loan-officer-social-media-what-to-post-on-linkedin-instagram-and-facebook",
+        "co-marketing-with-real-estate-agents-what-is-allowed-and-what-is-not",
+        "loan-officer-branding-how-to-be-the-name-agents-remember"
+      ],
+      "compliance_note": true,
+      "author": "Chris Potter",
+      "status": "brief",
+      "lead_magnet": "respa-checklist"
+    },
+    {
+      "title": "AI for Loan Officers: What It Really Does, What It Doesn’t, and Where It Pays",
+      "slug": "ai-for-loan-officers-what-it-really-does-what-it-doesnt-and-where-it-pays",
+      "pillar": "ai-for-loan-officers",
+      "role": "hub",
+      "target_keyword": "ai for loan officers",
+      "search_intent": "Practical how-to for mortgage loan officers",
+      "hub_slug": null,
+      "related_slugs": [
+        "how-ai-chat-on-a-listing-page-turns-browsers-into-pre-approval-conversations",
+        "ai-tools-for-mortgage-loan-officers-a-plain-english-buyers-guide",
+        "ai-and-compliance-for-loan-officers-what-to-check-before-you-turn-it-on",
+        "will-ai-replace-loan-officers-here-is-what-it-does-replace",
+        "how-to-use-ai-to-follow-up-with-every-lead-without-sounding-like-a-robot"
+      ],
+      "planned_links": [
+        "how-ai-chat-on-a-listing-page-turns-browsers-into-pre-approval-conversations",
+        "ai-tools-for-mortgage-loan-officers-a-plain-english-buyers-guide",
+        "ai-and-compliance-for-loan-officers-what-to-check-before-you-turn-it-on",
+        "will-ai-replace-loan-officers-here-is-what-it-does-replace",
+        "how-to-use-ai-to-follow-up-with-every-lead-without-sounding-like-a-robot"
+      ],
+      "compliance_note": false,
+      "author": "Chris Potter",
+      "status": "brief",
+      "lead_magnet": "agent-partner-pitch"
+    },
+    {
+      "title": "How AI chat on a listing page turns browsers into pre-approval conversations",
+      "slug": "how-ai-chat-on-a-listing-page-turns-browsers-into-pre-approval-conversations",
+      "pillar": "ai-for-loan-officers",
+      "role": "spoke",
+      "target_keyword": "how ai chat on a listing page turns browsers into pre-approval conversations",
+      "search_intent": "Practical how-to for mortgage loan officers",
+      "hub_slug": "ai-for-loan-officers-what-it-really-does-what-it-doesnt-and-where-it-pays",
+      "related_slugs": [
+        "ai-for-loan-officers-what-it-really-does-what-it-doesnt-and-where-it-pays",
+        "ai-tools-for-mortgage-loan-officers-a-plain-english-buyers-guide",
+        "ai-and-compliance-for-loan-officers-what-to-check-before-you-turn-it-on",
+        "will-ai-replace-loan-officers-here-is-what-it-does-replace"
+      ],
+      "planned_links": [
+        "ai-for-loan-officers-what-it-really-does-what-it-doesnt-and-where-it-pays",
+        "ai-tools-for-mortgage-loan-officers-a-plain-english-buyers-guide",
+        "ai-and-compliance-for-loan-officers-what-to-check-before-you-turn-it-on",
+        "will-ai-replace-loan-officers-here-is-what-it-does-replace"
+      ],
+      "compliance_note": false,
+      "author": "Chris Potter",
+      "status": "brief",
+      "lead_magnet": "agent-partner-pitch"
+    },
+    {
+      "title": "AI tools for mortgage loan officers: a plain-English buyer’s guide",
+      "slug": "ai-tools-for-mortgage-loan-officers-a-plain-english-buyers-guide",
+      "pillar": "ai-for-loan-officers",
+      "role": "spoke",
+      "target_keyword": "ai tools for mortgage loan officers",
+      "search_intent": "Practical how-to for mortgage loan officers",
+      "hub_slug": "ai-for-loan-officers-what-it-really-does-what-it-doesnt-and-where-it-pays",
+      "related_slugs": [
+        "ai-for-loan-officers-what-it-really-does-what-it-doesnt-and-where-it-pays",
+        "how-ai-chat-on-a-listing-page-turns-browsers-into-pre-approval-conversations",
+        "ai-and-compliance-for-loan-officers-what-to-check-before-you-turn-it-on",
+        "will-ai-replace-loan-officers-here-is-what-it-does-replace"
+      ],
+      "planned_links": [
+        "ai-for-loan-officers-what-it-really-does-what-it-doesnt-and-where-it-pays",
+        "how-ai-chat-on-a-listing-page-turns-browsers-into-pre-approval-conversations",
+        "ai-and-compliance-for-loan-officers-what-to-check-before-you-turn-it-on",
+        "will-ai-replace-loan-officers-here-is-what-it-does-replace"
+      ],
+      "compliance_note": false,
+      "author": "Chris Potter",
+      "status": "brief",
+      "lead_magnet": "agent-partner-pitch"
+    },
+    {
+      "title": "AI and compliance for loan officers: what to check before you turn it on",
+      "slug": "ai-and-compliance-for-loan-officers-what-to-check-before-you-turn-it-on",
+      "pillar": "ai-for-loan-officers",
+      "role": "spoke",
+      "target_keyword": "ai and compliance for loan officers",
+      "search_intent": "Practical how-to for mortgage loan officers",
+      "hub_slug": "ai-for-loan-officers-what-it-really-does-what-it-doesnt-and-where-it-pays",
+      "related_slugs": [
+        "ai-for-loan-officers-what-it-really-does-what-it-doesnt-and-where-it-pays",
+        "how-ai-chat-on-a-listing-page-turns-browsers-into-pre-approval-conversations",
+        "ai-tools-for-mortgage-loan-officers-a-plain-english-buyers-guide",
+        "will-ai-replace-loan-officers-here-is-what-it-does-replace"
+      ],
+      "planned_links": [
+        "ai-for-loan-officers-what-it-really-does-what-it-doesnt-and-where-it-pays",
+        "how-ai-chat-on-a-listing-page-turns-browsers-into-pre-approval-conversations",
+        "ai-tools-for-mortgage-loan-officers-a-plain-english-buyers-guide",
+        "will-ai-replace-loan-officers-here-is-what-it-does-replace"
+      ],
+      "compliance_note": false,
+      "author": "Chris Potter",
+      "status": "brief",
+      "lead_magnet": "agent-partner-pitch"
+    },
+    {
+      "title": "Will AI replace loan officers? Here is what it does replace",
+      "slug": "will-ai-replace-loan-officers-here-is-what-it-does-replace",
+      "pillar": "ai-for-loan-officers",
+      "role": "spoke",
+      "target_keyword": "will ai replace loan officers? here is what it does replace",
+      "search_intent": "Practical how-to for mortgage loan officers",
+      "hub_slug": "ai-for-loan-officers-what-it-really-does-what-it-doesnt-and-where-it-pays",
+      "related_slugs": [
+        "ai-for-loan-officers-what-it-really-does-what-it-doesnt-and-where-it-pays",
+        "how-ai-chat-on-a-listing-page-turns-browsers-into-pre-approval-conversations",
+        "ai-tools-for-mortgage-loan-officers-a-plain-english-buyers-guide",
+        "ai-and-compliance-for-loan-officers-what-to-check-before-you-turn-it-on"
+      ],
+      "planned_links": [
+        "ai-for-loan-officers-what-it-really-does-what-it-doesnt-and-where-it-pays",
+        "how-ai-chat-on-a-listing-page-turns-browsers-into-pre-approval-conversations",
+        "ai-tools-for-mortgage-loan-officers-a-plain-english-buyers-guide",
+        "ai-and-compliance-for-loan-officers-what-to-check-before-you-turn-it-on"
+      ],
+      "compliance_note": false,
+      "author": "Chris Potter",
+      "status": "brief",
+      "lead_magnet": "agent-partner-pitch"
+    },
+    {
+      "title": "How to use AI to follow up with every lead without sounding like a robot",
+      "slug": "how-to-use-ai-to-follow-up-with-every-lead-without-sounding-like-a-robot",
+      "pillar": "ai-for-loan-officers",
+      "role": "spoke",
+      "target_keyword": "how to use ai to follow up with every lead without sounding like a robot",
+      "search_intent": "Practical how-to for mortgage loan officers",
+      "hub_slug": "ai-for-loan-officers-what-it-really-does-what-it-doesnt-and-where-it-pays",
+      "related_slugs": [
+        "ai-for-loan-officers-what-it-really-does-what-it-doesnt-and-where-it-pays",
+        "how-ai-chat-on-a-listing-page-turns-browsers-into-pre-approval-conversations",
+        "ai-tools-for-mortgage-loan-officers-a-plain-english-buyers-guide",
+        "ai-and-compliance-for-loan-officers-what-to-check-before-you-turn-it-on"
+      ],
+      "planned_links": [
+        "ai-for-loan-officers-what-it-really-does-what-it-doesnt-and-where-it-pays",
+        "how-ai-chat-on-a-listing-page-turns-browsers-into-pre-approval-conversations",
+        "ai-tools-for-mortgage-loan-officers-a-plain-english-buyers-guide",
+        "ai-and-compliance-for-loan-officers-what-to-check-before-you-turn-it-on"
+      ],
+      "compliance_note": false,
+      "author": "Chris Potter",
+      "status": "brief",
+      "lead_magnet": "agent-partner-pitch"
+    },
+    {
+      "title": "Listing Marketing in a Slow Market: How Agents Get Buyers to Raise Their Hand",
+      "slug": "listing-marketing-in-a-slow-market-how-agents-get-buyers-to-raise-their-hand",
+      "pillar": "agent-partners",
+      "role": "hub",
+      "target_keyword": "listing marketing in a slow market",
+      "search_intent": "Practical guide for agents an LO would share",
+      "hub_slug": null,
+      "related_slugs": [
+        "what-to-do-when-a-listing-gets-showings-but-no-offers",
+        "how-to-capture-buyer-leads-from-a-listing-without-a-sign-in-sheet",
+        "why-buyers-ask-about-payments-before-they-ask-about-the-house",
+        "how-agents-and-lenders-team-up-to-sell-listings-faster"
+      ],
+      "planned_links": [
+        "what-to-do-when-a-listing-gets-showings-but-no-offers",
+        "how-to-capture-buyer-leads-from-a-listing-without-a-sign-in-sheet",
+        "why-buyers-ask-about-payments-before-they-ask-about-the-house",
+        "how-agents-and-lenders-team-up-to-sell-listings-faster"
+      ],
+      "compliance_note": true,
+      "author": "Chris Potter",
+      "status": "brief",
+      "lead_magnet": "agent-partner-pitch"
+    },
+    {
+      "title": "What to do when a listing gets showings but no offers",
+      "slug": "what-to-do-when-a-listing-gets-showings-but-no-offers",
+      "pillar": "agent-partners",
+      "role": "spoke",
+      "target_keyword": "what to do when a listing gets showings but no offers",
+      "search_intent": "Practical guide for agents an LO would share",
+      "hub_slug": "listing-marketing-in-a-slow-market-how-agents-get-buyers-to-raise-their-hand",
+      "related_slugs": [
+        "listing-marketing-in-a-slow-market-how-agents-get-buyers-to-raise-their-hand",
+        "how-to-capture-buyer-leads-from-a-listing-without-a-sign-in-sheet",
+        "why-buyers-ask-about-payments-before-they-ask-about-the-house",
+        "how-agents-and-lenders-team-up-to-sell-listings-faster"
+      ],
+      "planned_links": [
+        "listing-marketing-in-a-slow-market-how-agents-get-buyers-to-raise-their-hand",
+        "how-to-capture-buyer-leads-from-a-listing-without-a-sign-in-sheet",
+        "why-buyers-ask-about-payments-before-they-ask-about-the-house",
+        "how-agents-and-lenders-team-up-to-sell-listings-faster"
+      ],
+      "compliance_note": true,
+      "author": "Chris Potter",
+      "status": "brief",
+      "lead_magnet": "agent-partner-pitch"
+    },
+    {
+      "title": "How to capture buyer leads from a listing without a sign-in sheet",
+      "slug": "how-to-capture-buyer-leads-from-a-listing-without-a-sign-in-sheet",
+      "pillar": "agent-partners",
+      "role": "spoke",
+      "target_keyword": "how to capture buyer leads from a listing without a sign-in sheet",
+      "search_intent": "Practical guide for agents an LO would share",
+      "hub_slug": "listing-marketing-in-a-slow-market-how-agents-get-buyers-to-raise-their-hand",
+      "related_slugs": [
+        "listing-marketing-in-a-slow-market-how-agents-get-buyers-to-raise-their-hand",
+        "what-to-do-when-a-listing-gets-showings-but-no-offers",
+        "why-buyers-ask-about-payments-before-they-ask-about-the-house",
+        "how-agents-and-lenders-team-up-to-sell-listings-faster"
+      ],
+      "planned_links": [
+        "listing-marketing-in-a-slow-market-how-agents-get-buyers-to-raise-their-hand",
+        "what-to-do-when-a-listing-gets-showings-but-no-offers",
+        "why-buyers-ask-about-payments-before-they-ask-about-the-house",
+        "how-agents-and-lenders-team-up-to-sell-listings-faster"
+      ],
+      "compliance_note": true,
+      "author": "Chris Potter",
+      "status": "brief",
+      "lead_magnet": "agent-partner-pitch"
+    },
+    {
+      "title": "Why buyers ask about payments before they ask about the house",
+      "slug": "why-buyers-ask-about-payments-before-they-ask-about-the-house",
+      "pillar": "agent-partners",
+      "role": "spoke",
+      "target_keyword": "why buyers ask about payments before they ask about the house",
+      "search_intent": "Practical guide for agents an LO would share",
+      "hub_slug": "listing-marketing-in-a-slow-market-how-agents-get-buyers-to-raise-their-hand",
+      "related_slugs": [
+        "listing-marketing-in-a-slow-market-how-agents-get-buyers-to-raise-their-hand",
+        "what-to-do-when-a-listing-gets-showings-but-no-offers",
+        "how-to-capture-buyer-leads-from-a-listing-without-a-sign-in-sheet",
+        "how-agents-and-lenders-team-up-to-sell-listings-faster"
+      ],
+      "planned_links": [
+        "listing-marketing-in-a-slow-market-how-agents-get-buyers-to-raise-their-hand",
+        "what-to-do-when-a-listing-gets-showings-but-no-offers",
+        "how-to-capture-buyer-leads-from-a-listing-without-a-sign-in-sheet",
+        "how-agents-and-lenders-team-up-to-sell-listings-faster"
+      ],
+      "compliance_note": true,
+      "author": "Chris Potter",
+      "status": "brief",
+      "lead_magnet": "agent-partner-pitch"
+    },
+    {
+      "title": "How agents and lenders team up to sell listings faster",
+      "slug": "how-agents-and-lenders-team-up-to-sell-listings-faster",
+      "pillar": "agent-partners",
+      "role": "spoke",
+      "target_keyword": "how agents and lenders team up to sell listings faster",
+      "search_intent": "Practical guide for agents an LO would share",
+      "hub_slug": "listing-marketing-in-a-slow-market-how-agents-get-buyers-to-raise-their-hand",
+      "related_slugs": [
+        "listing-marketing-in-a-slow-market-how-agents-get-buyers-to-raise-their-hand",
+        "what-to-do-when-a-listing-gets-showings-but-no-offers",
+        "how-to-capture-buyer-leads-from-a-listing-without-a-sign-in-sheet",
+        "why-buyers-ask-about-payments-before-they-ask-about-the-house"
+      ],
+      "planned_links": [
+        "listing-marketing-in-a-slow-market-how-agents-get-buyers-to-raise-their-hand",
+        "what-to-do-when-a-listing-gets-showings-but-no-offers",
+        "how-to-capture-buyer-leads-from-a-listing-without-a-sign-in-sheet",
+        "why-buyers-ask-about-payments-before-they-ask-about-the-house"
+      ],
+      "compliance_note": true,
+      "author": "Chris Potter",
+      "status": "brief",
+      "lead_magnet": "agent-partner-pitch"
+    },
+    {
+      "title": "Agent Partner Pitch Script",
+      "slug": "agent-partner-pitch",
+      "pillar": "lo-marketing",
+      "role": "tool",
+      "target_keyword": "agent partner pitch script",
+      "search_intent": "Free worksheet",
+      "related_slugs": [],
+      "planned_links": [],
+      "compliance_note": true,
+      "author": "Chris Potter",
+      "status": "brief",
+      "lead_magnet": "agent-partner-pitch"
+    },
+    {
+      "title": "Cost-per-Closed-Loan Calculator",
+      "slug": "cost-per-closed-loan",
+      "pillar": "lo-marketing",
+      "role": "tool",
+      "target_keyword": "cost-per-closed-loan calculator",
+      "search_intent": "Free worksheet",
+      "related_slugs": [],
+      "planned_links": [],
+      "compliance_note": false,
+      "author": "Chris Potter",
+      "status": "brief",
+      "lead_magnet": "cost-per-closed-loan"
+    },
+    {
+      "title": "RESPA-Friendly Co-Marketing Checklist",
+      "slug": "respa-checklist",
+      "pillar": "lo-marketing",
+      "role": "tool",
+      "target_keyword": "respa-friendly co-marketing checklist",
+      "search_intent": "Free worksheet",
+      "related_slugs": [],
+      "planned_links": [],
+      "compliance_note": true,
+      "author": "Chris Potter",
+      "status": "brief",
+      "lead_magnet": "respa-checklist"
+    }
+  ]
+}

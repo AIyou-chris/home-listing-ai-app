@@ -1,6 +1,8 @@
+> **READ FIRST: `HOW_TO_TALK_TO_CHRIS.md`.** Keep it simple. 1 to 3 short lines on what you did. No "why". Anything Chris must do goes in **bold**, one step at a time.
+
 # BUILD.md — HomeListingAI
 
-*Last updated: October 4, 2026*
+*Last updated: October 5, 2026*
 
 > **Every AI (Claude, Codex, anything else) reads this first and updates it last.**
 > When you finish work, update "What We've Done", "Right Now" and "Next Up".
@@ -72,6 +74,14 @@ The voice client already used in An AI You was ported from HomeListingAI.
 
 ## What We've Done ✅
 
+- **Loan-officer blog (Oct 5):** full article pages, five topic groups, author bio, search, calculator, signed PDF downloads and lead capture. Existing blog editor now checks drafts, previews, schedules and prepares sharing drafts in Marketing Studio. All ten starter articles remain drafts; the database also holds 26 briefs. No social posting.
+
+- **Marketing video polish (Oct 4):** gentle picture zoom with steady captions, soft fades, voice-pause-aware estimated caption timing and a three-second logo/See a WOW Link ending. Still/cut/no-ending switches work. Reuses saved media, no extra AI spend. Real vertical/landscape exports checked.
+
+- **Marketing Studio stage four (Oct 4):** optional AI narration (Nova/Alloy/Onyx) or free recorded-voice uploads; free built-in calm/upbeat music or your own uploaded music. Private audio previews, volume/speed/caption-size/colour controls and real H.264/AAC exports. Reuses saved narration through speed/music edits; changed scripts require refreshed voice. AI narration has a visible disclosure; three paid voice attempts per campaign, no automatic paid retries. Real AI + storage + narrated/music video workflow passed.
+
+- **Marketing Studio stage three (Oct 4):** private saved photos, free branded pictures, optional AI pictures and finished silent MP4 videos. Preview/download, editable script/direction, 15/30/60-second vertical or landscape settings, stale-preview warnings and approval reset on media replacement. Real AI picture + Supabase + FFmpeg workflow verified. Chris explicitly wants social account connections LAST.
+- **Marketing Studio stage two (Oct 4):** campaign drafts now use the saved admin Business Brain and existing OpenAI account. Blog, email, social text (including Bluesky), video script and picture prompt save to the admin account. Editing, review and approval work; approval does not publish. Database migration applied and real AI/database workflow checked.
 - **Marketing Studio stage one (Oct 4):** replaced the Social Auto-Posting box on Marketing Funnels with the approved six-tab studio. Campaign/video briefs save per account in this browser; editing, copying, removal, planning calendar, photo preview and downloadable QR codes work. AI generation, shared storage, account connections and publishing are later stages. Existing lead finder, outreach and funnels remain below it.
 - LO Brain (train once, Compliance Brain, calls and texts), AI phone number that answers, per-listing numbers.
 - WOW Link (agent-facing mini app), LO Share Kit, agent Share Kit (same cards, no co-branding).
@@ -89,7 +99,11 @@ The voice client already used in An AI You was ported from HomeListingAI.
 
 ## Right Now 🔨
 
-- **Marketing Studio:** stage one is built and checked locally; GitHub push authorized, live deployment not verified. Briefs are browser-only, photos are preview-only, and calendar dates do not schedule posts. No paid service or new dependency added.
+- **Cold email to loan officers (built locally, not pushed):** Admin > Marketing Funnels > "Cold email to loan officers". 5-touch sequence, a checker that blocks bad emails, own sending domain, warm-up, auto-pause, reply handling, results by angle/opener/touch. Nothing sends until the migration is run, a separate sending domain is set up (`docs/COLD_EMAIL_DNS.md`), `COLD_EMAIL_ENABLED=true` is set and an admin approves a batch (first batch capped at 20). How to use: `docs/COLD_EMAIL.md`.
+
+- **Blog:** built/tested locally, database migration and 36-record library saved. Preview http://127.0.0.1:5181/blog and admin preview http://127.0.0.1:5177/tmp/blog-studio/index.html. Needs deployment plus backend IndexNow key, Chris's real photo and verified LinkedIn URL. Ten articles need human review before publication. Details: `docs/BLOG.md`.
+
+- **Marketing Studio:** stages two, three and four are built and tested locally, not pushed/deployed. All three database migrations are live. Private media saves to account storage; videos use FFmpeg on the existing server, without a new subscription/dependency. Optional AI pictures use the existing OpenAI API balance (three attempts per campaign). Videos have on-screen captions plus optional saved narration/music. Uploaded voice and built-in music use no AI credits. Optional AI voices use the existing OpenAI API balance, up to three attempts per campaign. Narration plus optional ending extends video length up to 90 seconds; caption timing follows nearby voice pauses but remains estimated. Gentle zoom/fades and branded ending can be switched off. Calendar remains planning-only. Social connections and posting come last, per Chris. Pricing/offer facts still need authoritative saved Brain sources.
 - **Chris:** hard-refresh and click through the admin tabs we fixed (Leads & Appointments, AI Conversations, Inbox, Business Brain: add pricing + FAQs and Save, then ask the site chat a pricing question); open a live listing as a buyer and chat to confirm real AI answers and the chat shows in Admin.
 - **Chris:** pays the failed Render invoice, then cuts Render costs (Pro plan, video worker, old worker).
 - **Money test (still open):** new LO signup, Stripe checkout, account unlocks, cancel inside the trial. The $79 checkout opens correctly (seen live) but nobody has paid yet.
@@ -98,7 +112,9 @@ The voice client already used in An AI You was ported from HomeListingAI.
 
 ## Next Up ⏭️
 
-0. **Marketing Studio stage two:** connect campaign generation to the admin Business Brain and persist campaigns on the server; then add FFmpeg video creation and manual/daily publishing with connected social accounts. The old Buffer backend remains in place; stage one only removes its panel.
+- **Blog:** review the starter articles and preview, deploy when requested, then publish two to three articles weekly. Social drafts remain a separate two-per-day plan, with account connections last.
+
+0. **Marketing Studio:** review/tweak pictures and finished videos with Chris; voice/music refinements and additional visual styles if wanted. Only after media is right, connect native social accounts and add manual/daily posting. Existing Buffer backend remains unchanged.
 1. **Admin audit, remaining tabs (one at a time):** Marketing Funnels (also re-check the CSV import consent prompt), Broadcasts, Listings, LO Platform, Users, Blog, White Label, Settings.
 2. **Money test** (above), then watch Sentry for real-world errors.
 3. Background push alerts for hot leads (service worker, VAPID keys, subscriptions table).
@@ -129,3 +145,8 @@ The voice client already used in An AI You was ported from HomeListingAI.
 | Oct 2026 | Admin dashboard audited and fixed one tab at a time, each reported as verdict + red/yellow/green/suggestions |
 | Oct 2026 | Admin AI Sidekicks replaced by one platform Business Brain (`platform_brain`), feeding the landing chat |
 | Oct 2026 | `/api/admin/setup` is off unless `ADMIN_SETUP_TOKEN` is set and sent |
+
+### Video preview repair — 2026-10-04
+Inline player now preloads data with a campaign-picture poster and an unclipped black wrapper. Separate Watch video link opens native playback. Verified actual captioned frames in the local studio after reload; no encoding change or AI charges.
+
+Video ending logo enlarged to 188px within a 220px white tile; landscape positioning adjusted to prevent cropping.

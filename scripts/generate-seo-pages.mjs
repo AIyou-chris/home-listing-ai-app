@@ -1,6 +1,10 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
+const blogRender = require('../backend/blog/render.cjs');
+const blogPillars = require('../backend/blog/plan.json').pillars;
 
 import dotenv from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
@@ -367,8 +371,9 @@ const fetchBlogPosts = async () => {
   try {
     const { data, error } = await supabase
       .from('blog_posts')
-      .select('slug,title,excerpt,content,featured_image,featured_image_alt,seo_title,seo_description,published_at,updated_at,status')
+      .select('*')
       .eq('status', 'published')
+      .lte('published_at', new Date().toISOString())
       .order('published_at', { ascending: false });
     if (error) throw error;
     return Array.isArray(data) ? data.filter((post) => post.slug) : [];
@@ -548,7 +553,7 @@ const main = async () => {
 
   for (const post of blogPosts) {
     const page = buildBlogPage(post);
-    const html = renderHtml(baseTemplate, page);
+    const html = blogRender.article(post, blogPosts);
     await writeRouteFile(page.route, html);
   }
 
@@ -562,7 +567,13 @@ const main = async () => {
     await copyPolicyPage(page.route, page.source);
   }
 
-  await fs.writeFile(path.join(DIST_DIR, 'sitemap.xml'), buildSitemap(generatedPages), 'utf8');
+  await writeRouteFile('/blog', blogRender.index(blogPosts));
+  await writeRouteFile('/blog/author/chris-potter', blogRender.author());
+  await writeRouteFile('/tools/cost-per-closed-loan', blogRender.calculator());
+  for (const pillar of blogPillars) await writeRouteFile('/blog/topic/'+pillar.slug, blogRender.index(blogPosts,pillar.slug));
+  await fs.cp(path.join(ROOT_DIR,'backend/blog/assets'),path.join(DIST_DIR,'blog/assets'),{recursive:true});
+  await fs.writeFile(path.join(DIST_DIR,'blog/rss.xml'),blogRender.rss(blogPosts),'utf8');
+  await fs.writeFile(path.join(DIST_DIR, 'sitemap.xml'), blogRender.sitemap(blogPosts,buildSitemap(generatedPages)), 'utf8');
   console.log(
     `[seo] Generated ${STATIC_ROUTES.length} static pages, ${blogPosts.length} blog pages, ${listings.length} listing pages, and sitemap.xml`
   );

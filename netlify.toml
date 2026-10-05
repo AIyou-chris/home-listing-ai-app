@@ -20,6 +20,31 @@
   [headers.values]
     Cache-Control = "no-cache, no-store, must-revalidate"
 
+# Blog HTML is rendered on the backend so new published articles need no frontend rebuild.
+[[redirects]]
+  from = "/blog"
+  to = "https://home-listing-ai-backend.onrender.com/blog"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/blog/*"
+  to = "https://home-listing-ai-backend.onrender.com/blog/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/tools/cost-per-closed-loan"
+  to = "https://home-listing-ai-backend.onrender.com/tools/cost-per-closed-loan"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/sitemap.xml"
+  to = "https://home-listing-ai-backend.onrender.com/sitemap.xml"
+  status = 200
+  force = true
+
 [[redirects]]
   from = "/api/*"
   to = "https://home-listing-ai-backend.onrender.com/api/:splat"

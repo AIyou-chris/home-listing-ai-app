@@ -7,6 +7,7 @@ import { EmailEditor } from '../EmailEditor';
 import SequenceFeedbackPanel from '../SequenceFeedbackPanel';
 import AdminLoOutreachPanel from './AdminLoOutreachPanel';
 import AdminLoLeadFinderPanel from './AdminLoLeadFinderPanel';
+import AdminColdEmailPanel from './AdminColdEmailPanel';
 import AdminMarketingStudio from './AdminMarketingStudio';
 import { funnelService } from '../../services/funnelService';
 import { supabase } from '../../services/supabase';
@@ -368,6 +369,7 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
     const [funnelSteps, setFunnelSteps] = useState<EditableStep[]>([]);
     const [availableFunnels, setAvailableFunnels] = useState<Record<string, EditableStep[]>>({});
     const [selectedFunnelId, setSelectedFunnelId] = useState<string>('');
+    const [savedFunnelKeys, setSavedFunnelKeys] = useState<string[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
     // UI States
@@ -653,11 +655,12 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                 }
                 setUserId(currentUserId);
 
-                const [funnelData, botData] = await Promise.all([
-                    funnelService.fetchAdminFunnels(currentUserId),
+                const [{ funnels: funnelData, savedKeys }, botData] = await Promise.all([
+                    funnelService.fetchAdminFunnelsWithMeta(currentUserId),
                     callBotsService.fetchCallBots(currentUserId, true)
                 ]);
                 setCallBots(botData);
+                setSavedFunnelKeys(savedKeys);
                 const botOptions = botData.filter((bot) => bot.isActive).length
                     ? botData.filter((bot) => bot.isActive)
                     : botData;
@@ -861,6 +864,7 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
             const result = await funnelService.saveAdminFunnelStep(currentUserId, selectedFunnelId, stepsWithMinutes);
             if (result) {
                 setSaveStatus('success');
+                setSavedFunnelKeys(prev => (prev.includes(selectedFunnelId) ? prev : [...prev, selectedFunnelId]));
                 // Update local availableFunnels state
                 setAvailableFunnels(prev => ({
                     ...prev,
@@ -889,6 +893,11 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
             const consentConfirmed = window.confirm(
                 'Did these people agree to get emails from you?\n\nOK = import them AND start the email sequence.\nCancel = import them only, no emails.'
             );
+
+            if (consentConfirmed && !savedFunnelKeys.includes(selectedFunnelId || 'realtor_funnel')) {
+                setToast({ message: 'Save the funnel first, then import. No emails can start from an unsaved starter.', type: 'error' });
+                return;
+            }
 
             const result = await leadsService.bulkImport(
                 leads,
@@ -1786,6 +1795,11 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                         <p className="text-sm text-slate-500 sm:text-base">
                             {subtitle}
                         </p>
+                        {selectedFunnelId && !savedFunnelKeys.includes(selectedFunnelId) && (
+                            <p role="status" className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                                This is a starter you have not saved. Read it, change anything you like, then press Save. Nothing is sent until you do.
+                            </p>
+                        )}
                     </div>
                     {activeSection === 'funnels' && !isAnalyticsOpen && (
                         <div className="flex flex-wrap gap-2">
@@ -1833,6 +1847,7 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                         <AdminMarketingStudio key={userId} ownerId={userId} />
                         <AdminLoLeadFinderPanel />
                         <AdminLoOutreachPanel />
+                        <AdminColdEmailPanel />
                     </div>
                 )}
 

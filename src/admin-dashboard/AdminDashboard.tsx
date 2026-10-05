@@ -45,7 +45,6 @@ export type DashboardView =
 
 import AdminBroadcastPage from './components/AdminBroadcastPage';
 import BlogEditor from './Blog/BlogEditor';
-import AdminWhiteLabelPage from './components/AdminWhiteLabelPage';
 import { AdminLOPage } from './components/AdminLOPage';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -413,8 +412,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'dashboard
         return <AdminBroadcastPage />;
       case 'blog':
         return <BlogEditor />;
-      case 'white-label':
-        return <AdminWhiteLabelPage />;
       default:
         return (
           <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-8">

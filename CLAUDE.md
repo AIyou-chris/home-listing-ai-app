@@ -1,4 +1,6 @@
 <!-- AI-HANDOFF-POINTER -->
+> **READ FIRST: `HOW_TO_TALK_TO_CHRIS.md`.** Keep it simple. 1 to 3 short lines on what you did. No "why". Anything Chris must do goes in **bold**, one step at a time.
+
 > **🤝 Claude + Codex both work in this repo.** At the start of every session read `AI_HANDOFF.md` (latest entries). At the end, add an entry at the top of its log. Use **Jev (TypeSafe)** for yes/no, category and scoring judgments. Rules are in `AI_HANDOFF.md`.
 
 # HomeListingAI — Claude Project Context

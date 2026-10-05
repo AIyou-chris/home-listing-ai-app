@@ -85,21 +85,28 @@ export const funnelService = {
     },
 
     async fetchAdminFunnels(userId: string): Promise<Record<string, EditableStep[]>> {
+        return (await this.fetchAdminFunnelsWithMeta(userId)).funnels;
+    },
+
+    // savedKeys = funnels the admin has actually saved. Others are editable starters that
+    // do nothing until saved (the server cannot enroll leads in a funnel that does not exist).
+    async fetchAdminFunnelsWithMeta(userId: string): Promise<{ funnels: Record<string, EditableStep[]>; savedKeys: string[] }> {
         if (isDemoUser(userId)) {
-            return this.fetchFunnels(userId);
+            const funnels = await this.fetchFunnels(userId);
+            return { funnels, savedKeys: Object.keys(funnels) };
         }
 
         try {
             const response = await authService.makeAuthenticatedRequest(ADMIN_API_BASE);
             if (!response.ok) {
-                if (response.status === 404) return {};
+                if (response.status === 404) return { funnels: {}, savedKeys: [] };
                 throw new Error('Failed to fetch admin funnels');
             }
             const data = await response.json();
-            return data.funnels || {};
+            return { funnels: data.funnels || {}, savedKeys: Array.isArray(data.savedKeys) ? data.savedKeys : [] };
         } catch (error) {
             console.error('Error fetching admin funnels:', error);
-            return {};
+            return { funnels: {}, savedKeys: [] };
         }
     },
 

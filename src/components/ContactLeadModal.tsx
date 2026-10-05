@@ -15,17 +15,14 @@ type FollowUpSequenceSummary = {
 
 type CallOutcome = 'connected' | 'voicemail' | 'no_answer' | 'busy' | 'other';
 
-type MarketingSequencesResponse = {
-    sequences?: FollowUpSequenceSummary[];
+type AdminFunnelsResponse = {
+    funnels?: Record<string, unknown[]>;
+    savedKeys?: string[];
 };
 
-type ActiveFollowUpSummary = {
-    leadId: string;
-    sequenceId: string;
-};
-
-type ActiveFollowUpsResponse = {
-    activeFollowUps?: ActiveFollowUpSummary[];
+const FUNNEL_LABELS: Record<string, { name: string; description: string }> = {
+    realtor_funnel: { name: 'Realtor Funnel', description: 'Emails for agents' },
+    broker_funnel: { name: 'Broker Funnel', description: 'Emails for brokers and team leaders' }
 };
 
 const TabButton: React.FC<{
@@ -153,39 +150,25 @@ Best regards,`
         const loadSequences = async () => {
             try {
                 setIsLoadingSequences(true);
-                const res = await fetch('/api/admin/marketing/sequences');
+                const res = await authedFetch('/api/admin/marketing/funnels');
                 if (res.ok) {
-                    const data: MarketingSequencesResponse = await res.json();
-                    if (isMounted && Array.isArray(data?.sequences)) {
-                        setAvailableSequences(data.sequences.map(seq => ({ id: seq.id, name: seq.name, description: seq.description })));
+                    const data: AdminFunnelsResponse = await res.json();
+                    if (isMounted && Array.isArray(data?.savedKeys)) {
+                        setAvailableSequences(
+                            data.savedKeys
+                                .filter((key) => FUNNEL_LABELS[key])
+                                .map((key) => ({ id: key, name: FUNNEL_LABELS[key].name, description: FUNNEL_LABELS[key].description }))
+                        );
                     }
                 }
             } catch (error) {
-                console.error('Failed to load sequences', error);
+                console.error('Failed to load funnels', error);
             } finally {
                 if (isMounted) setIsLoadingSequences(false);
             }
         };
 
-        const loadExistingEnrollments = async () => {
-            try {
-                const res = await fetch('/api/admin/marketing/active-followups');
-                if (res.ok) {
-                    const data: ActiveFollowUpsResponse = await res.json();
-                    if (isMounted && Array.isArray(data?.activeFollowUps)) {
-                        const ids = data.activeFollowUps
-                            .filter((followUp) => followUp.leadId === lead.id)
-                            .map((followUp) => followUp.sequenceId);
-                        setEnrolledSequenceIds(ids);
-                    }
-                }
-            } catch (error) {
-                console.error('Failed to load active follow-ups', error);
-            }
-        };
-
         loadSequences();
-        loadExistingEnrollments();
 
         return () => {
             isMounted = false;
@@ -204,17 +187,21 @@ Best regards,`
         setIsEnrolling(true);
         setEnrollMessage(null);
         try {
-            const res = await fetch('/api/admin/marketing/active-followups', {
+            const res = await authedFetch(`/api/admin/leads/${encodeURIComponent(lead.id)}/enroll`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ leadId: lead.id, sequenceId: selectedSequenceId })
+                body: JSON.stringify({ funnelKey: selectedSequenceId })
             });
+            const result = (await res.json().catch(() => null)) as { error?: string; message?: string; alreadyEnrolled?: boolean } | null;
             if (!res.ok) {
-                const data = (await res.json().catch(() => null)) as { error?: string } | null;
-                throw new Error(data?.error || 'Could not enroll lead in sequence');
+                const reason: Record<string, string> = {
+                    lead_has_no_email: 'This lead has no email address.',
+                    lead_not_found: 'Could not find this lead.'
+                };
+                throw new Error(result?.message || reason[result?.error || ''] || 'Could not enroll lead in the funnel');
             }
             setEnrolledSequenceIds(prev => [...prev, selectedSequenceId]);
-            setEnrollMessage('Lead enrolled in the selected sequence successfully.');
+            setEnrollMessage(result?.alreadyEnrolled ? 'This lead was already in that funnel.' : 'Lead added. The first email goes out on the funnel schedule.');
         } catch (error) {
             console.error('Failed to enroll in sequence', error);
             const message = error instanceof Error ? error.message : 'Could not enroll lead in sequence.';
@@ -379,14 +366,14 @@ Best regards,`
 
             <div className="p-6">
                 <FormRow>
-                    <Label htmlFor="sequence-select">Enroll in follow-up sequence</Label>
+                    <Label htmlFor="sequence-select">Add to an email funnel</Label>
                     {isLoadingSequences ? (
                         <div className="flex items-center gap-2 text-sm text-slate-500">
                             <span className="material-symbols-outlined animate-spin">progress_activity</span>
                             Loading sequences...
                         </div>
                     ) : availableSequenceOptions.length === 0 ? (
-                        <p className="text-sm text-slate-500">No sequences available yet. Build your first follow-up flow from the Sequence Feedback tab inside Leads Funnel.</p>
+                        <p className="text-sm text-slate-500">No saved funnels yet. Open Marketing Funnels, check the starter emails and press Save.</p>
                     ) : (
                         <div className="flex flex-col gap-2">
                             <div className="flex flex-col sm:flex-row gap-2">

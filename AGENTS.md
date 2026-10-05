@@ -1,4 +1,6 @@
 <!-- AI-HANDOFF-POINTER -->
+> **READ FIRST: `HOW_TO_TALK_TO_CHRIS.md`.** Keep it simple. 1 to 3 short lines on what you did. No "why". Anything Chris must do goes in **bold**, one step at a time.
+
 # Codex — read these first
 1. **`AI_HANDOFF.md`**: the shared log between Claude Code and Codex. Read the latest entries at the start of every session. Add an entry at the top when you finish.
 2. **`CLAUDE.md`**: the full project context (Golden Rules, stack, conventions, architecture gotchas, how to work with Chris). It applies to you too. Ignore only the Claude-specific tool notes.

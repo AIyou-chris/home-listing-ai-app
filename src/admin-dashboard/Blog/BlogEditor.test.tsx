@@ -1,0 +1,13 @@
+import React from 'react';
+import {fireEvent,render,screen,waitFor} from '@testing-library/react';
+import BlogEditor from './BlogEditor';
+import {toast} from 'react-hot-toast';
+jest.mock('react-quill/dist/quill.snow.css',()=>({}));
+jest.mock('react-quill',()=>({__esModule:true,default:({value,onChange}:{value:string;onChange:(v:string)=>void})=><textarea aria-label="Article content" value={value} onChange={e=>onChange(e.target.value)} />}));
+jest.mock('../../services/supabase',()=>({supabase:{auth:{getSession:jest.fn().mockResolvedValue({data:{session:{access_token:'test-token'}}})}}}));
+jest.mock('react-hot-toast',()=>({toast:Object.assign(jest.fn(),{success:jest.fn(),error:jest.fn()})}));
+const post={id:'11111111-1111-4111-8111-111111111111',title:'My article',slug:'my-article',content:'<p>Still writing.</p>',status:'draft',updated_at:'2026-10-05T12:00:00Z',faq:[],seo_keywords:[]};
+let sent:Record<string,unknown>;
+beforeEach(()=>{jest.clearAllMocks();global.fetch=jest.fn(async(_url,options)=>{if(options?.method==='POST'){sent=JSON.parse(String(options.body));return {ok:false,json:async()=>({error:'Fix these items before publishing.',errors:['Article needs more words.']})} as Response;}return {ok:true,json:async()=>String(_url).endsWith('/posts')?{posts:[post]}:{post}} as Response;});});
+test('failed publication shows server checks and preserves the draft and its version',async()=>{render(<BlogEditor/>);fireEvent.click(await screen.findByRole('button',{name:'Edit',exact:true}));await screen.findByLabelText('Article content');fireEvent.click(screen.getByRole('button',{name:'Publish',exact:true}));await screen.findByText('Article needs more words.');expect(sent.status).toBe('published');expect(sent.updated_at).toBe(post.updated_at);expect(screen.getByLabelText('Article content')).toHaveValue(post.content);expect(toast.success).not.toHaveBeenCalled();});
+test('scheduling sends a UTC time and the saved version',async()=>{render(<BlogEditor/>);fireEvent.click(await screen.findByRole('button',{name:'Edit',exact:true}));await screen.findByLabelText('Article content');fireEvent.change(screen.getByLabelText('Scheduled publication'),{target:{value:'2026-12-01T09:00'}});fireEvent.click(screen.getByRole('button',{name:'Review & schedule publication'}));await waitFor(()=>expect(sent.status).toBe('scheduled'));expect(sent.scheduled_at).toBe('2026-12-01T17:00:00.000Z');expect(sent.updated_at).toBe(post.updated_at);});

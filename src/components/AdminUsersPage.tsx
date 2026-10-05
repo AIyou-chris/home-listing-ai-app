@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { useImpersonation } from '../context/ImpersonationContext';
 import { AuthService } from '../services/authService';
 
 interface AgentUser {
@@ -13,7 +12,14 @@ interface AgentUser {
     voice_minutes_used?: number;
     voice_allowance_monthly?: number;
     sms_sent_monthly?: number;
+    account_type?: string;
+    payment_status?: string;
+    custom_domain?: string | null;
+    company?: string | null;
 }
+
+const typeLabel = (t?: string) => ({ lo: 'Loan officer', office: 'Office', realtor: 'Agent (free)', agent: 'Agent' } as Record<string, string>)[t || ''] || '—';
+const planLabel = (p?: string) => ({ comp: 'Comped', awaiting_payment: 'Trial / not paid', active: 'Paid', paid: 'Paid', trialing: 'Trial' } as Record<string, string>)[p || ''] || (p || '—');
 
 const AdminUsersPage: React.FC = () => {
     const [users, setUsers] = useState<AgentUser[]>([]);
@@ -21,7 +27,6 @@ const AdminUsersPage: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [deletingId, setDeletingId] = useState<string | null>(null);
     const isInitialMount = React.useRef(true);
-    const { impersonate } = useImpersonation();
 
     const fetchUsers = React.useCallback(async (showLoading = true) => {
         try {
@@ -52,16 +57,32 @@ const AdminUsersPage: React.FC = () => {
         }
     }, [fetchUsers]);
 
-    const handleImpersonate = (userId: string) => {
-        if (confirm('Are you sure you want to impersonate this user?')) {
-            impersonate(userId);
-            window.location.href = '/dashboard-blueprint';
+    // White-label offices get their own web address. Set or clear it here (was a separate tab).
+    const handleDomain = async (user: AgentUser) => {
+        const entered = window.prompt(`Custom domain for ${user.company || user.email}\n(for example homes.theiroffice.com). Leave blank to remove it.`, user.custom_domain || '');
+        if (entered === null) return;
+        try {
+            const response = await AuthService.getInstance().makeAuthenticatedRequest(`/api/admin/white-label/offices/${user.id}/domain`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ customDomain: entered.trim() || null })
+            });
+            const result = await response.json().catch(() => ({} as { success?: boolean; customDomain?: string | null }));
+            if (!response.ok || !result.success) throw new Error('Could not save the domain');
+            setUsers(prev => prev.map(u => (u.id === user.id ? { ...u, custom_domain: result.customDomain ?? null } : u)));
+            setError('✅ Domain saved.');
+            setTimeout(() => setError(null), 3000);
+        } catch (err) {
+            setError(`❌ ${err instanceof Error ? err.message : 'Could not save the domain'}`);
+            setTimeout(() => setError(null), 5000);
         }
     };
 
     const handleDelete = async (userId: string) => {
         if (deletingId) return;
-        if (!confirm('Delete this user? Email becomes immediately available for reuse.')) return;
+        const target = users.find(u => (u.auth_user_id || u.id) === userId);
+        const who = target ? `${target.first_name || ''} ${target.last_name || ''}`.trim() || target.email : 'this user';
+        if (!confirm(`Delete ${who}${target?.email ? ` (${target.email})` : ''}?\n\nTheir login and profile are removed and any paid plan is cancelled. This cannot be undone.`)) return;
 
         console.log(`[Admin] Deleting user: ${userId}`);
 
@@ -85,7 +106,7 @@ const AdminUsersPage: React.FC = () => {
             }
 
             console.log('✅ User deleted successfully');
-            setError('✅ Deleted! Email is now free.');
+            setError('✅ Deleted. Login removed and any paid plan cancelled.');
             setTimeout(() => setError(null), 3000);
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -136,6 +157,8 @@ const AdminUsersPage: React.FC = () => {
                             <tr>
                                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Agent</th>
                                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Email</th>
+                                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Type</th>
+                                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Plan</th>
                                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
                                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Stats</th>
                                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider text-right">Actions</th>
@@ -151,6 +174,8 @@ const AdminUsersPage: React.FC = () => {
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 font-medium">
                                         {user.email}
                                     </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{typeLabel(user.account_type)}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{planLabel(user.payment_status)}</td>
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <span className={`inline-flex px-3 py-1 text-xs font-bold rounded-full ${user.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
                                             {user.status?.toUpperCase()}
@@ -170,12 +195,14 @@ const AdminUsersPage: React.FC = () => {
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                         <div className="flex justify-end gap-3">
-                                            <button
-                                                onClick={() => handleImpersonate(user.auth_user_id)}
-                                                className="px-4 py-2 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition-colors"
-                                            >
-                                                Impersonate
-                                            </button>
+                                            {user.account_type === 'office' && (
+                                                <button
+                                                    onClick={() => handleDomain(user)}
+                                                    className="px-4 py-2 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition-colors"
+                                                >
+                                                    {user.custom_domain ? `Domain: ${user.custom_domain}` : 'Set domain'}
+                                                </button>
+                                            )}
                                             <button
                                                 onClick={() => handleDelete(user.auth_user_id || user.id)}
                                                 disabled={deletingId !== null}
@@ -191,7 +218,7 @@ const AdminUsersPage: React.FC = () => {
                             ))}
                             {users.length === 0 && !loading && (
                                 <tr>
-                                    <td colSpan={5} className="px-6 py-12 text-center text-gray-500 italic">
+                                    <td colSpan={7} className="px-6 py-12 text-center text-gray-500 italic">
                                         No agents found.
                                     </td>
                                 </tr>

@@ -7,6 +7,11 @@
 //   2. Is it genuinely public (a webhook with its own signature, a visitor form)? Add it below, with a reason.
 
 module.exports = [
+  // Blog visitor analytics and consented worksheet requests: no AI calls, mail or private reads.
+  'POST /api/public/blog/events',
+  'POST /api/public/blog/lead',
+  'GET /api/public/blog/download/:token',
+
   // Public pages and public listing data (no login by design)
   'GET /api/agents/:slug',
   'GET /api/ai-card/profile',
@@ -91,6 +96,10 @@ module.exports = [
   'POST /api/webhooks/incoming-lead',
   'POST /api/webhooks/mailgun',
   'POST /api/webhooks/mailgun/inbound',
+  // Cold email: Mailgun-signed reply webhook, and the unsubscribe link/one-click POST (token-based, no login by design)
+  'POST /api/webhooks/mailgun/cold-reply',
+  'GET /api/public/cold-unsubscribe/:token',
+  'POST /api/public/cold-unsubscribe/:token',
   'POST /api/webhooks/openai/realtime',
   'POST /api/webhooks/stripe',
   'POST /api/webhooks/telnyx/inbound',
