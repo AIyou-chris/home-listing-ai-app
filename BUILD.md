@@ -74,6 +74,8 @@ The voice client already used in An AI You was ported from HomeListingAI.
 
 ## What We've Done ✅
 
+- **Marketing pictures (Oct 5, local):** 40 editorial scenes, three choices, plain-word tweaks, free resizing/headlines, checked private library and reusable blog covers. Six sample ideas have three choices each; all 18 passed automatic checks. No publication. See `docs/MARKETING_IMAGES.md`.
+
 - **Loan-officer blog (Oct 5):** full article pages, five topic groups, author bio, search, calculator, signed PDF downloads and lead capture. Existing blog editor now checks drafts, previews, schedules and prepares sharing drafts in Marketing Studio. All ten starter articles remain drafts; the database also holds 26 briefs. No social posting.
 
 - **Marketing video polish (Oct 4):** gentle picture zoom with steady captions, soft fades, voice-pause-aware estimated caption timing and a three-second logo/See a WOW Link ending. Still/cut/no-ending switches work. Reuses saved media, no extra AI spend. Real vertical/landscape exports checked.
@@ -99,11 +101,13 @@ The voice client already used in An AI You was ported from HomeListingAI.
 
 ## Right Now 🔨
 
-- **Cold email to loan officers (built locally, not pushed):** Admin > Marketing Funnels > "Cold email to loan officers". 5-touch sequence, a checker that blocks bad emails, own sending domain, warm-up, auto-pause, reply handling, results by angle/opener/touch. Nothing sends until the migration is run, a separate sending domain is set up (`docs/COLD_EMAIL_DNS.md`), `COLD_EMAIL_ENABLED=true` is set and an admin approves a batch (first batch capped at 20). How to use: `docs/COLD_EMAIL.md`.
+- **Marketing pictures:** built locally; private image-library migration applied with Chris’s OK; live saving/privacy checks passed. Samples are saved privately in the project and visible at http://127.0.0.1:5177/tmp/marketing-images/index.html. Not pushed. Blog auto-publishing and auto-sharing stay OFF. Lending ads need official badge/NMLS inputs; accounts remain LAST.
 
-- **Blog:** built/tested locally, database migration and 36-record library saved. Preview http://127.0.0.1:5181/blog and admin preview http://127.0.0.1:5177/tmp/blog-studio/index.html. Needs deployment plus backend IndexNow key, Chris's real photo and verified LinkedIn URL. Ten articles need human review before publication. Details: `docs/BLOG.md`.
+- **Cold email to loan officers (pushed in c6172c47; setup pending):** Admin > Marketing Funnels > "Cold email to loan officers". 5-touch sequence, a checker that blocks bad emails, own sending domain, warm-up, auto-pause, reply handling, results by angle/opener/touch. Nothing sends until the migration is run, a separate sending domain is set up (`docs/COLD_EMAIL_DNS.md`), `COLD_EMAIL_ENABLED=true` is set and an admin approves a batch (first batch capped at 20). How to use: `docs/COLD_EMAIL.md`.
 
-- **Marketing Studio:** stages two, three and four are built and tested locally, not pushed/deployed. All three database migrations are live. Private media saves to account storage; videos use FFmpeg on the existing server, without a new subscription/dependency. Optional AI pictures use the existing OpenAI API balance (three attempts per campaign). Videos have on-screen captions plus optional saved narration/music. Uploaded voice and built-in music use no AI credits. Optional AI voices use the existing OpenAI API balance, up to three attempts per campaign. Narration plus optional ending extends video length up to 90 seconds; caption timing follows nearby voice pauses but remains estimated. Gentle zoom/fades and branded ending can be switched off. Calendar remains planning-only. Social connections and posting come last, per Chris. Pricing/offer facts still need authoritative saved Brain sources.
+- **Blog:** pushed in c6172c47; database migration and 36-record library saved. Auto-publishing OFF; Blog sidebar tab hidden per Chris. Preview http://127.0.0.1:5181/blog and admin preview http://127.0.0.1:5177/tmp/blog-studio/index.html. Frontend deployment still needs verification, plus backend IndexNow key, Chris's real photo and verified LinkedIn URL. Ten articles need human review before publication. Details: `docs/BLOG.md`.
+
+- **Marketing Studio:** stages one through four were pushed in c6172c47. Claude reported the backend running the combined code; the frontend deploy was not verified. All three database migrations are live. Private media saves to account storage; videos use FFmpeg on the existing server, without a new subscription/dependency. Optional AI pictures use the existing OpenAI API balance (three attempts per campaign). Videos have on-screen captions plus optional saved narration/music. Uploaded voice and built-in music use no AI credits. Optional AI voices use the existing OpenAI API balance, up to three attempts per campaign. Narration plus optional ending extends video length up to 90 seconds; caption timing follows nearby voice pauses but remains estimated. Gentle zoom/fades and branded ending can be switched off. Calendar remains planning-only. Social connections and posting come last, per Chris. Pricing/offer facts still need authoritative saved Brain sources.
 - **Chris:** hard-refresh and click through the admin tabs we fixed (Leads & Appointments, AI Conversations, Inbox, Business Brain: add pricing + FAQs and Save, then ask the site chat a pricing question); open a live listing as a buyer and chat to confirm real AI answers and the chat shows in Admin.
 - **Chris:** pays the failed Render invoice, then cuts Render costs (Pro plan, video worker, old worker).
 - **Money test (still open):** new LO signup, Stripe checkout, account unlocks, cancel inside the trial. The $79 checkout opens correctly (seen live) but nobody has paid yet.
@@ -112,7 +116,9 @@ The voice client already used in An AI You was ported from HomeListingAI.
 
 ## Next Up ⏭️
 
-- **Blog:** review the starter articles and preview, deploy when requested, then publish two to three articles weekly. Social drafts remain a separate two-per-day plan, with account connections last.
+- **Marketing pictures:** Database update is applied and checked. Chris reviews the private sample page, then requests a push. Use sample loading and manual review; do not turn on blog publishing or connect social accounts.
+
+- **Blog:** review the starter articles and preview, deploy when requested, then manually publish reviewed articles when Chris requests it. Auto-publishing stays off. Social drafts remain a separate two-per-day plan, with account connections last.
 
 0. **Marketing Studio:** review/tweak pictures and finished videos with Chris; voice/music refinements and additional visual styles if wanted. Only after media is right, connect native social accounts and add manual/daily posting. Existing Buffer backend remains unchanged.
 1. **Admin audit, remaining tabs (one at a time):** Marketing Funnels (also re-check the CSV import consent prompt), Broadcasts, Listings, LO Platform, Users, Blog, White Label, Settings.

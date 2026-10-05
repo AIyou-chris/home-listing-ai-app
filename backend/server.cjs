@@ -27132,7 +27132,7 @@ app.post('/api/admin/business-brain/test', verifyAdmin, async (req, res) => {
 });
 
 // Marketing Studio: drafts only; all ownership comes from the verified admin.
-const marketingMediaService = require('./services/adminMarketingMedia').createMediaService({ db: supabaseAdmin, openai });
+const marketingMediaService = require('./services/adminMarketingMedia').createMediaService({ db: supabaseAdmin, openai, jev: createJevClient({ apiKey: process.env.TYPESAFE_API_KEY }) });
 const marketingMediaHandlers = require('./services/adminMarketingMedia').createMediaHandlers(marketingMediaService);
 const marketingStudioHandlers = require('./services/adminMarketingStudio').createStudioHandlers({
   db: supabaseAdmin, openai, loadBrain: loadBusinessBrain, media: marketingMediaService
@@ -27145,6 +27145,18 @@ app.patch('/api/admin/marketing-studio/campaigns/:id/content', verifyAdmin, mark
 app.patch('/api/admin/marketing-studio/campaigns/:id/settings', verifyAdmin, marketingStudioHandlers.settings);
 app.post('/api/admin/marketing-studio/campaigns/:id/approve', verifyAdmin, marketingStudioHandlers.approve);
 app.get('/api/admin/marketing-studio/media-capabilities', verifyAdmin, marketingMediaHandlers.capabilities);
+const imageAction = action => async (req,res) => {try {res.json(await action(req));}catch(error){res.status(error.status||400).json({error:error.status?error.message:'This picture could not be made. Your campaign is safe.'});}};
+app.get('/api/admin/marketing-studio/image-catalog', verifyAdmin, imageAction(req=>marketingMediaService.images.catalog(req.user.id)));
+app.get('/api/admin/marketing-studio/image-library', verifyAdmin, imageAction(async req=>({images:await marketingMediaService.images.library(req.user.id)})));
+app.get('/api/admin/marketing-studio/image-results', verifyAdmin, imageAction(async req=>({scenes:await marketingMediaService.images.performance(req.user.id)})));
+app.post('/api/admin/marketing-studio/image-library/:imageId/review', verifyAdmin, imageAction(req=>marketingMediaService.images.review(req.user.id,req.params.imageId,req.body)));
+app.post('/api/admin/marketing-studio/image-samples', verifyAdmin, imageAction(req=>marketingMediaService.images.samples(req.user.id)));
+app.get('/api/public/marketing-images/:id', async(req,res)=>{
+  try{const image=await require('./services/marketingImages/blog.cjs').publishedImage(supabaseAdmin,req.params.id);if(!image)return res.sendStatus(404);res.setHeader('Cache-Control','public, max-age=300');res.type(image.type).send(image.buffer);}catch{res.sendStatus(404);}
+});
+app.post('/api/admin/marketing-studio/campaigns/:id/image-options', verifyAdmin, imageAction(req=>marketingMediaService.images.options(req.user.id,req.params.id,req.body)));
+app.post('/api/admin/marketing-studio/campaigns/:id/image-choice', verifyAdmin, imageAction(req=>marketingMediaService.images.choose(req.user.id,req.params.id,req.body)));
+app.post('/api/admin/marketing-studio/campaigns/:id/image-layout', verifyAdmin, imageAction(req=>marketingMediaService.images.layout(req.user.id,req.params.id,req.body)));
 app.get('/api/admin/marketing-studio/campaigns/:id/media', verifyAdmin, marketingMediaHandlers.list);
 app.post('/api/admin/marketing-studio/campaigns/:id/picture', verifyAdmin, express.json({ limit: '12mb' }), marketingMediaHandlers.picture);
 app.post('/api/admin/marketing-studio/campaigns/:id/audio', verifyAdmin, marketingMediaHandlers.audio);

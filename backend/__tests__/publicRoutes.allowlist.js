@@ -11,6 +11,9 @@ module.exports = [
   'POST /api/public/blog/events',
   'POST /api/public/blog/lead',
   'GET /api/public/blog/download/:token',
+  // Read-only checked hero bytes, ONLY when referenced by a published, due
+  // article. Guessed draft/sample IDs return 404; no signed private URL leaks.
+  'GET /api/public/marketing-images/:id',
 
   // Public pages and public listing data (no login by design)
   'GET /api/agents/:slug',

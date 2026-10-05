@@ -5,12 +5,13 @@ import { briefAsText, loadStudioBriefs, type StudioBrief, type PictureMode } fro
 
 import { adminMarketingStudioService, type StudioCampaign } from '../../services/adminMarketingStudioService';
 import MarketingCampaignReview from './MarketingCampaignReview';
+import MarketingImageLibrary from './MarketingImageLibrary';
 
-type Tab = 'create' | 'campaigns' | 'video' | 'calendar' | 'qr' | 'accounts';
+type Tab = 'create' | 'campaigns' | 'video' | 'calendar' | 'qr' | 'accounts' | 'images';
 const TABS: { id: Tab; label: string }[] = [
   { id: 'create', label: 'Create' }, { id: 'campaigns', label: 'My campaigns' },
   { id: 'video', label: 'Make a Video' }, { id: 'calendar', label: 'Calendar' },
-  { id: 'qr', label: 'QR Codes' }, { id: 'accounts', label: 'Connected accounts' },
+  { id: 'qr', label: 'QR Codes' }, { id: 'images', label: 'Picture library' }, { id: 'accounts', label: 'Connected accounts' },
 ];
 const OUTPUTS = ['Blog article', 'Campaign picture', 'Sales email', 'LinkedIn', 'Facebook Page', 'Instagram Reel', 'Bluesky'];
 const GOALS = ['Build agent partnerships', 'Get warm leads', 'Get more calls', 'Drive website visits', 'Promote an offer'];
@@ -246,6 +247,7 @@ export default function AdminMarketingStudio({ ownerId }: { ownerId: string }) {
     {error && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-800">{error}</p>}
     {message && <p role="status" className="mt-4 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">{message}</p>}
     <div role="tabpanel" id={`studio-panel-${tab}`} aria-labelledby={`studio-tab-${tab}`} className="mt-4 focus:outline-none" tabIndex={0}>
+      {tab === 'images' && <MarketingImageLibrary />}
       {(tab === 'create' || tab === 'video') && <div className="grid items-start gap-4 xl:grid-cols-2">
         {form(tab === 'video' ? 'video' : 'campaign')}
         <div className={cardClass}>

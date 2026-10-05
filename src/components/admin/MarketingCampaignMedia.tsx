@@ -3,6 +3,7 @@ import { Download, Film, Image as Picture, RefreshCw } from 'lucide-react';
 import { adminMarketingMediaService, type StudioMedia } from '../../services/adminMarketingMediaService';
 import { adminMarketingStudioService, type StudioCampaign } from '../../services/adminMarketingStudioService';
 import MarketingVideoControls from './MarketingVideoControls';
+import MarketingImageLibrary from './MarketingImageLibrary';
 import { videoOptions } from '../../services/studioVideoOptions';
 const button = 'inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-primary-500';
 const primary = 'inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-primary-500';
@@ -80,9 +81,10 @@ export default function MarketingCampaignMedia({ campaign, dirty, onChange }: { 
         <div className="mt-3 flex min-h-48 items-center justify-center border border-slate-200 bg-black">{picture?.url ? <img src={picture.url} alt="Your saved campaign picture" className="max-h-80 w-full object-contain" /> : <p className="p-5 text-center text-sm text-slate-500">Your picture preview will appear here.</p>}</div>
         {picture?.stale && <p className="mt-2 text-sm text-amber-800">Your draft changed. Make a new picture to match it.</p>}
         {picture?.error && <p className="mt-2 text-sm text-red-700">{picture.error}</p>}
-        <div className="mt-3 flex flex-wrap gap-2"><button type="button" className={button} disabled={disabled} onClick={() => make('template')}>Make free branded picture</button><button type="button" className={button} disabled={disabled || !capabilities.aiPicture} onClick={() => make('ai')}>Generate AI picture</button></div>
+        <div className="mt-3 flex flex-wrap gap-2"><button type="button" className={button} disabled={disabled} onClick={() => make('template')}>Make free branded picture</button></div>
         <label className="mt-3 block text-sm font-semibold text-slate-700">Or upload your own photo<input type="file" accept="image/jpeg,image/png,image/webp" disabled={disabled} onChange={event => { upload(event.target.files?.[0]); event.target.value = ''; }} className="mt-2 block w-full text-sm file:mr-2 file:rounded-lg file:border-0 file:bg-primary-50 file:px-3 file:py-2 file:text-primary-700" /></label>
-        <p className="mt-2 text-xs text-slate-500">Branded pictures and uploads use no AI credits. AI pictures use your OpenAI API balance, with up to three attempts per campaign.</p>
+        <p className="mt-2 text-xs text-slate-500">Branded pictures and uploads use no AI credits.</p>
+        <MarketingImageLibrary campaign={campaign} onChange={row => { onChange(row); setReload(value => value + 1); }} disabled={disabled} photoUploaded={picture?.source === 'upload'} />
         {picture?.url && <a href={picture.url} target="_blank" rel="noreferrer" download="campaign-picture" className={`${button} mt-3`}><Download size={15} />Open / download picture</a>}
       </div>
       <div><h5 className="flex items-center gap-2 font-semibold text-slate-900"><Film size={18} />Video preview</h5>

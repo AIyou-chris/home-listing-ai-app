@@ -4,6 +4,7 @@ import 'react-quill/dist/quill.snow.css';
 import { supabase } from '../../services/supabase';
 import { toast } from 'react-hot-toast';
 import { Trash2, ArrowLeft, Sparkles, Globe, Copy, Check, RefreshCw, Search, X } from 'lucide-react';
+import ApprovedMarketingImagePicker from '../../components/admin/ApprovedMarketingImagePicker';
 
 const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002';
 
@@ -72,6 +73,7 @@ const BlogEditor: React.FC = () => {
   const [images, setImages] = useState<{ id: string; url: string; thumb: string; credit: string }[]>([]);
   const [isLoadingImages, setIsLoadingImages] = useState(false);
   const [showImagePicker, setShowImagePicker] = useState(false);
+  const [libraryPreview,setLibraryPreview]=useState('');
 
   // Social repurpose
   const [repurposed, setRepurposed] = useState<Record<SocialPlatform, string> | null>(null);
@@ -92,6 +94,7 @@ const BlogEditor: React.FC = () => {
   };
 
   const handleEdit = async (post: BlogPost) => {
+    setLibraryPreview('');
     setIsLoading(true);
     try {
       const r = await fetch(`${API}/api/admin/blog/posts/${post.id}`, { headers: await authHeader() });
@@ -428,7 +431,7 @@ const BlogEditor: React.FC = () => {
 
             {currentPost.featured_image && (
               <div className="relative mb-3">
-                <img src={currentPost.featured_image} alt="" className="w-full h-36 object-cover rounded-xl" />
+                <img src={libraryPreview || currentPost.featured_image} alt={currentPost.featured_image_alt || ""} className="w-full h-36 object-cover rounded-xl" />
                 <button onClick={() => setCurrentPost({ ...currentPost, featured_image: '' })}
                   className="absolute top-2 right-2 bg-white text-slate-500 hover:text-red-500 rounded-full p-1 shadow border border-slate-200">
                   <X size={14} />
@@ -458,7 +461,8 @@ const BlogEditor: React.FC = () => {
               </div>
             )}
 
-            <input type="text" value={currentPost.featured_image || ''} onChange={e => setCurrentPost({ ...currentPost, featured_image: e.target.value })}
+            <ApprovedMarketingImagePicker onPick={image => { setCurrentPost(prev => ({...prev,featured_image:`https://homelistingai.com/api/public/marketing-images/${image.id}`,featured_image_alt:image.alt_text}));setLibraryPreview(image.url); }} />
+            <input type="text" value={currentPost.featured_image || ''} onChange={e => { setCurrentPost({ ...currentPost, featured_image: e.target.value }); setLibraryPreview(''); }}
               className="w-full mt-2 px-3 py-1.5 border border-slate-200 rounded-xl text-xs focus:outline-none" placeholder="Or paste image URL…" />
             <input type="text" value={currentPost.featured_image_alt || ''} onChange={e => setCurrentPost({ ...currentPost, featured_image_alt: e.target.value })}
               className="w-full mt-2 px-3 py-1.5 border border-slate-200 rounded-xl text-xs focus:outline-none" placeholder="Image alt text (accessibility &amp; SEO)…" />

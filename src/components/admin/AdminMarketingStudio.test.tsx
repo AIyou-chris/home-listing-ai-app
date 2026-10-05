@@ -4,7 +4,7 @@ import AdminMarketingStudio from './AdminMarketingStudio';
 import { adminMarketingStudioService as api, type StudioCampaign } from '../../services/adminMarketingStudioService';
 import { loadStudioBriefs, saveStudioBriefs, type StudioBrief } from './marketingStudioDrafts';
 
-jest.mock('../../services/adminMarketingMediaService', () => ({ adminMarketingMediaService: { list: jest.fn().mockResolvedValue([]), capabilities: jest.fn().mockResolvedValue({ video: true, picture: true, aiPicture: true }), picture: jest.fn().mockResolvedValue([]), video: jest.fn().mockResolvedValue([]) } }));
+jest.mock('../../services/adminMarketingMediaService', () => ({ adminMarketingMediaService: { imageCatalog: jest.fn().mockResolvedValue({ recipes: [], formats: { blog: {label: 'Blog hero',width:1536,height:1024} }, costs: { blog: {set:0.045,one:0.015,final:0.052} } }), imageResults: jest.fn().mockResolvedValue([]), imageLibrary: jest.fn().mockResolvedValue([]), imageOptions: jest.fn(), imageLayout: jest.fn(), chooseImage: jest.fn(), list: jest.fn().mockResolvedValue([]), capabilities: jest.fn().mockResolvedValue({ video: true, picture: true, aiPicture: true }), picture: jest.fn().mockResolvedValue([]), video: jest.fn().mockResolvedValue([]) } }));
 jest.mock('qrcode', () => ({ __esModule: true, default: { toDataURL: jest.fn() } }));
 jest.mock('../../services/adminMarketingStudioService', () => ({ adminMarketingStudioService: { list: jest.fn(), save: jest.fn(), generate: jest.fn(), remove: jest.fn(), edit: jest.fn(), approve: jest.fn() } }));
 const mocked = api as jest.Mocked<typeof api>;

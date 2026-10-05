@@ -1,0 +1,7 @@
+import React, { useState } from 'react';
+import { adminMarketingMediaService, type MarketingImage } from '../../services/adminMarketingMediaService';
+export default function ApprovedMarketingImagePicker({onPick}:{onPick:(image:MarketingImage)=>void}) {
+ const [rows,setRows]=useState<MarketingImage[]>([]);const [open,setOpen]=useState(false);const [error,setError]=useState('');
+ async function load(){setOpen(!open);if(open)return;setError('');try{setRows((await adminMarketingMediaService.imageLibrary()).filter(r=>r.approved&&!r.checks.problems.length&&['blog','og','landing','email'].includes(r.format)));}catch(e){setError(e instanceof Error?e.message:'Could not load checked pictures.');}}
+ return <div className="mt-3"><button type="button" onClick={load} className="min-h-11 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-primary-700">{open?'Hide picture library':'Choose from picture library'}</button>{open&&<div className="mt-3">{error&&<p role="alert" className="text-sm text-red-700">{error}</p>}{!rows.length&&!error&&<p className="text-sm text-slate-600">Make a picture in Marketing Studio, review it, and click “Use this” first.</p>}<div className="grid grid-cols-2 gap-2">{rows.map(r=><button type="button" key={r.id} onClick={()=>{onPick(r);setOpen(false);}} className="overflow-hidden rounded-lg border border-slate-200 text-left"><img className="aspect-video w-full object-cover" src={r.url} alt={r.alt_text}/><span className="block p-2 text-xs">Use this checked picture</span></button>)}</div></div>}</div>;
+}
