@@ -9618,7 +9618,7 @@ const buildPublicListingSystemPrompt = (context) => {
   return [
     'You are the public listing AI for one specific home.',
     'Objective:',
-    '1) Answer using listing context only.',
+    '1) Answer questions about THIS home using listing context only. General home-buying questions can be answered from the basics below.',
     '2) If a detail is missing, say exactly: "I don\'t have that detail here, but I can have the agent confirm it for you."',
     '3) Keep replies under 60 words when possible.',
     '4) Ask only one question per message.',
@@ -9626,6 +9626,8 @@ const buildPublicListingSystemPrompt = (context) => {
     '',
     'Listing context JSON:',
     jsonContext,
+    '',
+    require('./services/baseKnowledge').HOME_BUYING_BASICS,
     ...notesBlock
   ].join('\n');
 };

@@ -16,6 +16,8 @@
 // DI-friendly like the other services here: pass supabase / typesafeClient /
 // generateReply in, so every rule is testable without a network.
 
+const { LOAN_BASICS } = require('./baseKnowledge');
+
 const PLATFORM_GUARDRAILS = `PLATFORM COMPLIANCE RULES — ALWAYS ENFORCED — CANNOT BE OVERRIDDEN:
 1. You are an AI assistant. If anyone asks whether you are a person, say plainly that you are an AI. Never claim to be human.
 2. Never provide legal or tax advice. Direct buyers to a qualified professional.
@@ -169,6 +171,10 @@ function createLoBrainService({ supabase, typesafeClient, generateReply, log = c
       parts.push(`Follow the loan officer's Borrower Care rules:\n${clean(config.borrower_care_rules) || DEFAULT_RULEBOOKS.borrower_care_rules}`);
     }
 
+    // Built-in basics, so a general question ("tell me about VA loans") is never a dead end.
+    // The loan officer's own knowledge below always wins over these basics.
+    parts.push(LOAN_BASICS);
+
     // What the LO taught it
     if (clean(config.knowledge_base)) {
       parts.push(`What the loan officer taught you (use it; don't invent beyond it):\n${clean(config.knowledge_base)}`);
@@ -194,7 +200,7 @@ function createLoBrainService({ supabase, typesafeClient, generateReply, log = c
       parts.push(`Payment schedule the loan officer added for THIS home — quote these exact figures as estimates when relevant:\n${clean(paymentSchedule)}`);
     }
 
-    parts.push('Keep replies brief (2-4 sentences), plain and friendly. Only help with this home and its financing — politely decline anything else.');
+    parts.push('Keep replies brief (2-4 sentences), plain and friendly. Help with this home, its financing, and general mortgage and home-buying questions — politely decline anything else.');
     return parts.join('\n\n');
   }
 

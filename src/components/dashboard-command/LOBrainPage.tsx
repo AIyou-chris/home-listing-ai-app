@@ -899,7 +899,7 @@ const LOBrainPage: React.FC = () => {
         </section>
 
         {/* 1. What it knows */}
-        <Section id="knows" icon="library_books" title="What it knows" subtitle="Your loan programs, rates, FAQs and bio."
+        <Section id="knows" icon="library_books" title="What it knows" subtitle="Basics on loan types are built in. Add your rates, FAQs and bio so it sounds like you."
           badge={<span className={`lb-pill ${libraryMissing ? 'lb-missing' : 'lb-ready'}`}>{libraryMissing ? `${libraryMissing} missing` : 'All ready'}</span>}>
           <div className="flex flex-col gap-5">
             <ul>
