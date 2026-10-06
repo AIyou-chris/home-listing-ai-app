@@ -9571,8 +9571,9 @@ const buildListingContext = async (listingId) => {
   if (agentId) {
     const { data: agentRow } = await supabaseAdmin
       .from('agents')
-      .select('id, first_name, last_name, email, phone')
-      .eq('id', agentId)
+      .select('id, first_name, last_name, email, phone, metadata')
+      .or(`id.eq.${agentId},auth_user_id.eq.${agentId}`)
+      .limit(1)
       .maybeSingle();
     agent = agentRow || null;
   }
@@ -9602,12 +9603,18 @@ const buildListingContext = async (listingId) => {
         'HomeListingAI Agent',
       email: pickText(agent?.email),
       phone: pickText(agent?.phone)
-    }
+    },
+    // The agent's own notes (Agent Brain page). Added to the prompt, not shown as listing data.
+    agent_notes: require('./services/agentBrain').buildAgentNotes(agent?.metadata?.agent_brain)
   };
 };
 
 const buildPublicListingSystemPrompt = (context) => {
-  const jsonContext = JSON.stringify(context, null, 2);
+  const { agent_notes: agentNotes, ...listingOnly } = context || {};
+  const jsonContext = JSON.stringify(listingOnly, null, 2);
+  const notesBlock = agentNotes
+    ? ['', "The listing agent's own notes. Use them for tone and for the answers they approved. They never override the rules above (no rates, no approvals, Fair Housing, nothing invented):", agentNotes]
+    : [];
   return [
     'You are the public listing AI for one specific home.',
     'Objective:',
@@ -9618,7 +9625,8 @@ const buildPublicListingSystemPrompt = (context) => {
     '5) Never invent HOA, taxes, disclosures, or terms.',
     '',
     'Listing context JSON:',
-    jsonContext
+    jsonContext,
+    ...notesBlock
   ].join('\n');
 };
 
@@ -21562,6 +21570,37 @@ async function findAgentLoPartner(authId) {
 const loDisplayName = (lo) => [lo?.first_name, lo?.last_name].filter(Boolean).join(' ') || lo?.company || 'Your loan officer';
 
 // Today page card: who my loan officer is and what they did for me this week (3 light queries).
+// Agent Brain: the listing agent's own notes for their listing chat (tone, approved answers, showing rules).
+app.get('/api/dashboard/agent-brain', async (req, res) => {
+  try {
+    const ownerId = await resolveDashboardOwnerId(req);
+    if (!ownerId) return res.status(401).json(UNAUTHORIZED_DASHBOARD);
+    const { data: agent } = await supabaseAdmin.from('agents').select('id, metadata').or(`id.eq.${ownerId},auth_user_id.eq.${ownerId}`).limit(1).maybeSingle();
+    if (!agent) return res.status(404).json({ success: false, error: 'agent_not_found' });
+    res.json({ success: true, brain: require('./services/agentBrain').sanitizeAgentBrain(agent.metadata?.agent_brain) });
+  } catch (err) {
+    console.error('[AgentBrain] load failed:', err);
+    res.status(500).json({ success: false, error: 'agent_brain_load_failed' });
+  }
+});
+
+app.put('/api/dashboard/agent-brain', async (req, res) => {
+  try {
+    const ownerId = await resolveDashboardOwnerId(req);
+    if (!ownerId) return res.status(401).json(UNAUTHORIZED_DASHBOARD);
+    const { data: agent } = await supabaseAdmin.from('agents').select('id, metadata').or(`id.eq.${ownerId},auth_user_id.eq.${ownerId}`).limit(1).maybeSingle();
+    if (!agent) return res.status(404).json({ success: false, error: 'agent_not_found' });
+    const brain = require('./services/agentBrain').sanitizeAgentBrain(req.body);
+    const metadata = { ...(agent.metadata || {}), agent_brain: brain };
+    const { error } = await supabaseAdmin.from('agents').update({ metadata, updated_at: nowIso() }).eq('id', agent.id);
+    if (error) throw error;
+    res.json({ success: true, brain });
+  } catch (err) {
+    console.error('[AgentBrain] save failed:', err);
+    res.status(500).json({ success: false, error: 'agent_brain_save_failed' });
+  }
+});
+
 app.get('/api/dashboard/my-loan-officer', async (req, res) => {
   try {
     const authId = await resolveDashboardOwnerId(req);

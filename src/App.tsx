@@ -36,6 +36,7 @@ const LOListingsPage = lazy(() => import('./components/dashboard-command/LOListi
 const LOShareKitPage = lazy(() => import('./components/dashboard-command/LOShareKitPage'));
 const LOPartnersPage = lazy(() => import('./components/dashboard-command/LOPartnersPage'));
 const LOBrainPage = lazy(() => import('./components/dashboard-command/LOBrainPage'));
+const AgentBrainPage = lazy(() => import('./components/dashboard-command/AgentBrainPage'));
 const LOLeadsPage = lazy(() => import('./components/dashboard-command/LOLeadsPage'));
 const LOAppointmentsPage = lazy(() => import('./components/dashboard-command/LOAppointmentsPage'));
 const LOTodayPage = lazy(() => import('./components/dashboard-command/LOTodayPage'));
@@ -1683,6 +1684,7 @@ const App: React.FC = () => {
                         <Route path="/dashboard/lo-listings/:listingId/share-kit" element={<LOShareKitPage />} />
                         <Route path="/dashboard/lo-partners" element={<LOPartnersPage />} />
                         <Route path="/dashboard/lo-chatbot" element={<LOBrainPage />} />
+                        <Route path="/dashboard/agent-brain" element={<AgentBrainPage />} />
                         <Route path="/dashboard/lo-leads" element={<LOLeadsPage />} />
                         <Route path="/dashboard/lo-appointments" element={<LOAppointmentsPage />} />
                         <Route path="/dashboard/lo-invoices" element={<LOInvoicesPage />} />

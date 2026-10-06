@@ -32,6 +32,7 @@ const REALTOR_NAV_ITEMS = [
   { key: 'today', icon: 'today', label: 'Today', path: '/today', testid: 'nav-today' },
   { key: 'listings', icon: 'storefront', label: 'Listings', path: '/listings', testid: 'nav-listings' },
   { key: 'leads', icon: 'groups', label: 'Leads', path: '/leads', testid: 'nav-leads' },
+  { key: 'agent-brain', icon: 'psychology', label: 'AI Brain', path: '/agent-brain', testid: 'nav-agent-brain' },
   { key: 'appointments', icon: 'event_available', label: 'Appointments', path: '/appointments', testid: 'nav-appointments' },
   { key: 'settings', icon: 'settings', label: 'Settings', path: '/settings', testid: 'nav-settings' }
 ] as const;
@@ -190,6 +191,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
     '/lo-leads': derivedDemoMode || derivedBlueprintMode ? getPath('/lo-leads') : '/dashboard/lo-leads',
     '/lo-appointments': derivedDemoMode || derivedBlueprintMode ? getPath('/lo-appointments') : '/dashboard/lo-appointments',
     '/lo-invoices': '/dashboard/lo-invoices',
+    '/agent-brain': '/dashboard/agent-brain',
     '/office': derivedDemoMode || derivedBlueprintMode ? getPath('/office') : '/dashboard/office',
     '/leads': derivedDemoMode || derivedBlueprintMode ? getPath('/leads') : '/dashboard/leads',
     '/appointments': derivedDemoMode || derivedBlueprintMode ? getPath('/appointments') : '/dashboard/appointments',
@@ -200,8 +202,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
   const visibleNavItems = derivedDemoMode && !derivedBlueprintMode
     ? activeNavItems.filter((item) => item.key !== 'settings')
     : activeNavItems;
-  // Invoices need a real account, so the demo and blueprint dashboards do not show the link.
-  const navItems = visibleNavItems.filter((item) => !(item.key === 'lo-invoices' && (derivedDemoMode || derivedBlueprintMode)));
+  // Invoices and the Agent Brain need a real account, so the demo and blueprint dashboards do not show the links.
+  const navItems = visibleNavItems.filter((item) => !((item.key === 'lo-invoices' || item.key === 'agent-brain') && (derivedDemoMode || derivedBlueprintMode)));
 
   // ── Positioning logic (JS-driven, no Tailwind breakpoint classes) ──────────
   // Desktop: sidebar is part of the normal flex flow, always visible.
