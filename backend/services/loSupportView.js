@@ -25,7 +25,8 @@ const trialDaysLeft = (agent, now = Date.now()) => {
 const buildSupportReport = ({ agent, brain, phoneLine, listingCount = 0, invites = [], leadCount = 0, lastLeadAt = null, now = Date.now() }) => {
   const days = trialDaysLeft(agent, now);
   const claimed = invites.filter((i) => i.claimed_at).length;
-  const viewed = invites.filter((i) => Number(i.view_count) > 0).length;
+  // A claimed link was obviously opened, even if its view counter was never bumped.
+  const viewed = invites.filter((i) => i.claimed_at || Number(i.view_count) > 0).length;
   const lastSeen = agent.last_seen_at ? new Date(agent.last_seen_at).getTime() : null;
 
   const checklist = [

@@ -47,3 +47,9 @@ test('late payment, canceled, phone error and long silence are reported', () => 
   assert.strictEqual(planLabel({ subscription_status: 'canceled' }), 'Canceled');
   assert.strictEqual(planLabel({ payment_status: 'comp' }), 'Comped (free LO Pro)');
 });
+
+test('a claimed invite counts as opened even when its view counter is zero', () => {
+  const r = buildSupportReport({ ...full, invites: [{ claimed_at: '2026-10-09T00:00:00Z', view_count: 0 }] });
+  assert.ok(!r.problems.some((p) => /no agent has opened/.test(p)));
+  assert.strictEqual(r.stats.invitesViewed, 1);
+});

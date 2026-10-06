@@ -2,7 +2,7 @@
 
 # BUILD.md — HomeListingAI
 
-*Last updated: October 5, 2026*
+*Last updated: October 6, 2026*
 
 > **Every AI (Claude, Codex, anything else) reads this first and updates it last.**
 > When you finish work, update "What We've Done", "Right Now" and "Next Up".
@@ -99,16 +99,21 @@ The voice client already used in An AI You was ported from HomeListingAI.
 - **Admin dashboard audit, tab by tab (Oct 4):** closed a **critical hole** (anyone could create a super-admin at `/api/admin/setup`; now needs `ADMIN_SETUP_TOKEN`; nobody had used it). Admin Settings, Training Studio and coupons were sending no login token (every call failed): fixed. Admin Broadcast, lead notes, edit/delete of other agents' appointments all fixed. **Buyer listing chat was saving nothing** (3 columns missing in the real DB): now saves, and conversations link to leads. Admin Leads has "Call these first", owner chip and filter, and a "waiting over 24h" card. Admin AI Conversations shows real names, paging, financing and lead badges. Admin Inbox rebuilt (working archive, search, thread, reply links, quick replies, menu unread count). Tabs done: Leads & Appointments, AI Conversations, Inbox, **AI Sidekicks (replaced by Business Brain)**.
 - **Admin Business Brain (Oct 4):** the old AI Sidekicks / Training Studio tab is gone. The admin sidebar item is now **Business Brain** (same look as the AI You page): test chat, knowledge library (paste text, upload file, scan website), voice and personality, Marketing / Sales / Customer Service boxes. It is stored in the new `platform_brain` table (migration run) and, once saved with at least one source, is added to the public landing-page chat. Also closed: 4 open `/api/blueprint/ai-sidekicks/*` routes and `/api/training/*` (anyone could call them), and admin routes that were registered inside the chat handler on every message. ~3,800 lines of old sidekick code deleted.
 
+- **All nine admin tabs audited (Oct 5-6) and pushed:** Leads & Appointments, AI Conversations, Inbox, Business Brain (replaced AI Sidekicks), Marketing Funnels, Broadcasts, Listings, LO Platform, Users, Settings. White Label merged into Users ("Set domain" on office accounts). Blog tab hidden (auto-publishing and auto-sharing OFF). Fake parts removed (Impersonate, Deliverability, System Config, Update Card, fake API keys). Delete user now cancels their Stripe plans. LO Platform has **Check account**: a read-only "what looks wrong" report per loan officer (every look is logged). I clicked through the live admin on Oct 6: all screens load, Studio saves and removes campaigns.
+- **Brains (Oct 5-6):** Business Brain (website chat) is loaded from `HLAI_BUSINESS_BRAIN.md` (pricing, trial, refunds, compliance, objections, voice). Agents now have their own **AI Brain** page (notes, approved answers, showing rules). Every brain ships with starter knowledge so nobody dead-ends: loan basics for the loan officer brain and phone line, home-buying basics for the listing chat (`backend/services/baseKnowledge.js`).
+- **/blog outage fixed (Oct 6):** the blog and calculator pages looped on redirects after the Codex push; fixed in 75d796a2 (`express.static` with `redirect:false` + a test). If `/blog` still loops, clear the Netlify cache and redeploy.
+- **Cold email to loan officers** and **Marketing Studio / blog library / picture library** (Codex) are pushed. See Right Now for what is still pending.
+
 ## Right Now 🔨
 
-- **Marketing pictures:** built locally; private image-library migration applied with Chris’s OK; live saving/privacy checks passed. Samples are saved privately in the project and visible at http://127.0.0.1:5177/tmp/marketing-images/index.html. Not pushed. Blog auto-publishing and auto-sharing stay OFF. Lending ads need official badge/NMLS inputs; accounts remain LAST.
+- **Marketing pictures:** pushed in c85d1385; the private picture-library migration is live. Samples are in the Picture library tab ("Load sample ideas · free"). Lending ads still need the official Equal Housing artwork and a verified NMLS. Blog auto-publishing and auto-sharing stay OFF.
 
 - **Cold email to loan officers (pushed in c6172c47; setup pending):** Admin > Marketing Funnels > "Cold email to loan officers". 5-touch sequence, a checker that blocks bad emails, own sending domain, warm-up, auto-pause, reply handling, results by angle/opener/touch. Nothing sends until the migration is run, a separate sending domain is set up (`docs/COLD_EMAIL_DNS.md`), `COLD_EMAIL_ENABLED=true` is set and an admin approves a batch (first batch capped at 20). How to use: `docs/COLD_EMAIL.md`.
 
-- **Blog:** pushed in c6172c47; database migration and 36-record library saved. Auto-publishing OFF; Blog sidebar tab hidden per Chris. Preview http://127.0.0.1:5181/blog and admin preview http://127.0.0.1:5177/tmp/blog-studio/index.html. Frontend deployment still needs verification, plus backend IndexNow key, Chris's real photo and verified LinkedIn URL. Ten articles need human review before publication. Details: `docs/BLOG.md`.
+- **Blog:** pushed in c6172c47; database migration and 36-record library saved. Auto-publishing OFF; Blog sidebar tab hidden per Chris. Preview http://127.0.0.1:5181/blog and admin preview http://127.0.0.1:5177/tmp/blog-studio/index.html. Needs: backend IndexNow key, Chris's real photo and verified LinkedIn URL. Ten articles need human review before publication. Details: `docs/BLOG.md`.
 
-- **Marketing Studio:** stages one through four were pushed in c6172c47. Claude reported the backend running the combined code; the frontend deploy was not verified. All three database migrations are live. Private media saves to account storage; videos use FFmpeg on the existing server, without a new subscription/dependency. Optional AI pictures use the existing OpenAI API balance (three attempts per campaign). Videos have on-screen captions plus optional saved narration/music. Uploaded voice and built-in music use no AI credits. Optional AI voices use the existing OpenAI API balance, up to three attempts per campaign. Narration plus optional ending extends video length up to 90 seconds; caption timing follows nearby voice pauses but remains estimated. Gentle zoom/fades and branded ending can be switched off. Calendar remains planning-only. Social connections and posting come last, per Chris. Pricing/offer facts still need authoritative saved Brain sources.
-- **Chris:** hard-refresh and click through the admin tabs we fixed (Leads & Appointments, AI Conversations, Inbox, Business Brain: add pricing + FAQs and Save, then ask the site chat a pricing question); open a live listing as a buyer and chat to confirm real AI answers and the chat shows in Admin.
+- **Marketing Studio:** stages one to four are live. One AI campaign draft was tested live on Oct 6 and works (about a cent). Not yet tested live: AI pictures, AI voice, video render (they cost money), and whether FFmpeg is installed on Render. Social connections come last.
+- **Chris:** open the loan officer AI Brain, press Test it and ask about VA loans; open a live listing as a buyer and chat to confirm real answers and that the chat shows in Admin.
 - **Chris:** pays the failed Render invoice, then cuts Render costs (Pro plan, video worker, old worker).
 - **Money test (still open):** new LO signup, Stripe checkout, account unlocks, cancel inside the trial. The $79 checkout opens correctly (seen live) but nobody has paid yet.
 - Stripe account public name still says "AN AI You" (Chris said it's fine for now).
@@ -121,21 +126,23 @@ The voice client already used in An AI You was ported from HomeListingAI.
 - **Blog:** review the starter articles and preview, deploy when requested, then manually publish reviewed articles when Chris requests it. Auto-publishing stays off. Social drafts remain a separate two-per-day plan, with account connections last.
 
 0. **Marketing Studio:** review/tweak pictures and finished videos with Chris; voice/music refinements and additional visual styles if wanted. Only after media is right, connect native social accounts and add manual/daily posting. Existing Buffer backend remains unchanged.
-1. **Admin audit, remaining tabs (one at a time):** Marketing Funnels (also re-check the CSV import consent prompt), Broadcasts, Listings, LO Platform, Users, Blog, White Label, Settings.
+1. Cold email: set the separate sending domain (`gethomelistingai.com` bought, DNS passes), set the Render settings, connect the Mailgun reply route, then switch on (`docs/COLD_EMAIL_DNS.md`). Chris pauses this until Mailgun's MX shows green.
 2. **Money test** (above), then watch Sentry for real-world errors.
 3. Background push alerts for hot leads (service worker, VAPID keys, subscriptions table).
 4. Weekly "your loan officer got you N leads" email to agents.
-5. Stronger first line and button on the LO pitch email (84 opens, 0 clicks).
+5. The LO pitch page, not the email, is the weak spot: about 99 of 441 invitees visited it and none pressed the button.
 6. Repo clutter: about 30 stale `.md` files, 30 SQL files in the root, 6 AI-tool config files.
 
 ## Known Problems ⚠️
 
 - Email From is forced onto `mg.homelistingai.com` (fixed DMARC failures); Mailgun DNS verified.
 - Never select `agents.full_name` or `agents.brokerage` (columns do not exist). `ai_conversation_messages` has no `intent_tags`/`is_capture_event`/`confidence`; `ai_conversations` has no `agent_id`/`visitor_id`/`channel`/`last_activity_at`/`started_at`. Use `insertRowTolerant`/`updateRowTolerant` for chat writes.
-- Admin "delete user" does not cancel their Stripe subscription or clean their leads/listings (self-service account delete does).
-- About 28 admin routes and a few service exports have no caller (all login-locked). Not deleted: needs Chris's call per tab.
+- Admin "delete user" cancels their Stripe plans but does not clean their leads/listings (self-service account delete does).
+- Some admin routes and service exports still have no caller (all login-locked). Not deleted.
 - 20 undefined-name hits in `server.cjs` are known harmless (see `backend/__tests__/noUndefinedNames.test.js`).
-- Admin screens were verified by code, tests and live probes, not by clicking through (needs an admin login).
+- Admin screens were clicked through live on Oct 6. Not yet clicked because they cost money: AI pictures, AI voice, video render.
+- The Lead Finder pool holds non-loan-officers and a test row ("Test RealLO"); cold email only imports mortgage/loan/lending titles.
+- Every admin page logs one harmless 403 (`rpc/is_user_admin`).
 
 ## Decisions Log
 
@@ -156,3 +163,6 @@ The voice client already used in An AI You was ported from HomeListingAI.
 Inline player now preloads data with a campaign-picture poster and an unclipped black wrapper. Separate Watch video link opens native playback. Verified actual captioned frames in the local studio after reload; no encoding change or AI charges.
 
 Video ending logo enlarged to 188px within a 220px white tile; landscape positioning adjusted to prevent cropping.
+| Oct 2026 | Admin White Label tab merged into Users; Blog tab hidden; auto-blogging OFF until Chris says so |
+| Oct 2026 | Every brain ships with starter knowledge; a person's own notes always sit on top of it |
+| Oct 2026 | Loan officer customer service uses a read-only "Check account" report, not "log in as them" |

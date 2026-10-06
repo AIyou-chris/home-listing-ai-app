@@ -168,3 +168,16 @@ test('warm-up counts from the very first send, even one older than 30 days', asy
   const { r } = await run(db, { now: new Date('2026-10-06T13:00:00Z') });
   assert.ok(r.sent > 20, `expected more than the day-one cap of 20, got ${r.sent}`);
 });
+
+test('from the finder: only mortgage people come over, not tax advisors or test rows', async () => {
+  const db = createFakeDb({ lo_suppression_list: [], lo_prospects: [], lo_lead_pool: [
+    { email: 'ann@madison.com', name: 'Ann Lee', employer: 'Madison Mortgage Services', job_title: 'Mortgage Loan Officer', is_role: false, status: 'new' },
+    { email: 'tax@ethics.com', name: 'Shawn Webb', employer: 'EthicsPro Tax', job_title: 'Tax Advisor', is_role: false, status: 'new' },
+    { email: 'founder@curb.com', name: 'Paul', employer: 'Curb Appeal Concepts', job_title: 'Founder', is_role: false, status: 'new' },
+    { email: 'jev.test.real@hlai-test-verify.com', name: 'Test RealLO', employer: 'Acme Mortgage', job_title: 'Loan Officer', is_role: false, status: 'new' }
+  ] });
+  const out = await engine.promoteFromFinder(db, 50);
+  assert.strictEqual(out.added, 1);
+  assert.strictEqual(out.skippedNotLo, 3);
+  assert.strictEqual(db.tables.lo_prospects[0].email, 'ann@madison.com');
+});

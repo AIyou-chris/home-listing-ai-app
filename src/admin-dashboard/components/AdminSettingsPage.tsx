@@ -59,6 +59,7 @@ const AdminSettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   const [activeTab, setActiveTab] = useState<'billing' | 'security' | 'analytics'>('billing')
   const [billingSummary, setBillingSummary] = useState<BillingSummary | null>(null)
   const [billingUsers, setBillingUsers] = useState<BillingUser[]>([])
+  const [loaded, setLoaded] = useState(false)
   const [security, setSecurity] = useState<SecurityState>({ twoFactorEnabled: false, activityLogs: [] })
   const [analytics, setAnalytics] = useState<AnalyticsSummary>({ totalLeads: 0, activeFunnels: 0, appointments: 0, messagesSent: 0, voiceMinutesUsed: 0 })
   const [analyticsRange, setAnalyticsRange] = useState<'7' | '30' | '90'>('30')
@@ -135,6 +136,8 @@ const AdminSettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         if (couponsRes) setCoupons(couponsRes)
       } catch (error) {
         console.warn('Failed to load admin settings', error)
+      } finally {
+        setLoaded(true)
       }
     }
     void load()
@@ -250,7 +253,7 @@ const AdminSettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                   ))}
                 </div>
               ) : (
-                <p className='text-sm text-slate-500'>Could not load the customer counts.</p>
+                <p className='text-sm text-slate-500'>{loaded ? 'Could not load the customer counts.' : 'Loading…'}</p>
               )}
             </Section>
 
@@ -282,7 +285,7 @@ const AdminSettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                     ))}
                   </tbody>
                 </table>
-                {billingUsers.length === 0 && <p className='text-sm text-slate-500 mt-2'>No customers yet.</p>}
+                {billingUsers.length === 0 && <p className='text-sm text-slate-500 mt-2'>{loaded ? 'No customers yet.' : 'Loading…'}</p>}
               </div>
             </Section>
 

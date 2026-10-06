@@ -84,8 +84,15 @@ const importProspects = async (db, rows) => {
 const promoteFromFinder = async (db, limit = 200) => {
   const { data, error } = await db.from('lo_lead_pool').select('email,name,employer,job_title,phone,linkedin,city,source_url,is_role,status').eq('status', 'new').eq('is_role', false).limit(limit);
   if (error) throw error;
-  const rows = (data || []).map((r) => ({ email: r.email, name: r.name, company: r.employer, city: r.city, source: 'lead-finder' }));
-  return importProspects(db, rows);
+  // The finder pool also holds non-loan-officers (tax advisors, "founders") and test rows. Only people whose
+  // title really says mortgage / loan / lending go into the cold-email list.
+  const looksLikeLo = (r) => /mortgage|loan|lend|originat|nmls/i.test(`${r.job_title || ''} ${r.employer || ''}`);
+  const isTestRow = (r) => /hlai-test|@example\.|test\s*real/i.test(`${r.email || ''} ${r.name || ''}`);
+  const rows = (data || [])
+    .filter((r) => looksLikeLo(r) && !isTestRow(r))
+    .map((r) => ({ email: r.email, name: r.name, company: r.employer, city: r.city, source: 'lead-finder' }));
+  const out = await importProspects(db, rows);
+  return { ...out, skippedNotLo: (data || []).length - rows.length };
 };
 
 const verifyProspects = async (db, { limit = 200 } = {}) => {
