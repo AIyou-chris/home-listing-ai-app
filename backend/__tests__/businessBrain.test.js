@@ -32,7 +32,7 @@ test('prompt includes knowledge and respects the size cap', () => {
 
 test('brand voice and sales playbook are in the website brain prompt', () => {
   const p = buildBrainPrompt({});
-  assert.ok(p.includes('BRAND VOICE'));
+  assert.ok(p.includes('CHRIS POTTER VOICE'));
   assert.ok(p.includes('HOW YOU SELL'));
 });
 
