@@ -200,6 +200,7 @@ function createLoBrainService({ supabase, typesafeClient, generateReply, log = c
       parts.push(`Payment schedule the loan officer added for THIS home — quote these exact figures as estimates when relevant:\n${clean(paymentSchedule)}`);
     }
 
+    parts.push(require('./brandVoice').VOICE_RULES);
     parts.push('Keep replies brief (2-4 sentences), plain and friendly. Help with this home, its financing, and general mortgage and home-buying questions — politely decline anything else.');
     return parts.join('\n\n');
   }

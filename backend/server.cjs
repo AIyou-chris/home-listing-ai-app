@@ -9628,6 +9628,8 @@ const buildPublicListingSystemPrompt = (context) => {
     jsonContext,
     '',
     require('./services/baseKnowledge').HOME_BUYING_BASICS,
+    '',
+    require('./services/brandVoice').VOICE_RULES,
     ...notesBlock
   ].join('\n');
 };

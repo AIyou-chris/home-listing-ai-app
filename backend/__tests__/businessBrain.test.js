@@ -27,5 +27,20 @@ test('prompt includes knowledge and respects the size cap', () => {
   const p = buildBrainPrompt({ sources: [{ title: 'Pricing', content: 'LO Lite is $79' }, { title: 'Big', content: big }, { title: 'Late', content: big }] });
   assert.ok(p.includes('[Pricing]'));
   assert.ok(p.includes('LO Lite is $79'));
-  assert.ok(p.length < 14000 + 3000);
+  assert.ok(p.length < 14000 + 7000);
+});
+
+test('brand voice and sales playbook are in the website brain prompt', () => {
+  const p = buildBrainPrompt({});
+  assert.ok(p.includes('BRAND VOICE'));
+  assert.ok(p.includes('HOW YOU SELL'));
+});
+
+test('voice checker flags banned words, many exclamation marks and "Attention"', () => {
+  const { findVoiceViolations } = require('../services/brandVoice');
+  assert.deepStrictEqual(findVoiceViolations('Buyers ask at night. This answers them.'), []);
+  const hits = findVoiceViolations('Attention! Our powerful tool effortlessly wins! Wow!');
+  assert.ok(hits.includes('powerful'));
+  assert.ok(hits.includes('more than one exclamation mark'));
+  assert.ok(hits.includes('opens with "Attention"'));
 });
