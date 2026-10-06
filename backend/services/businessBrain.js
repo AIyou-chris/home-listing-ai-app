@@ -2,6 +2,7 @@
 // Feeds the public landing-page chat and the admin "talk to your brain" test.
 
 const { VOICE_RULES } = require('./brandVoice');
+const { GOLDEN_RULES_PROMPT } = require('./goldenRules');
 
 const MAX_SOURCES = 100;
 const MAX_SOURCE_CHARS = 20000;
@@ -87,6 +88,7 @@ const buildBrainPrompt = (config) => {
     knowledge.push(`[${s.title}]\n${piece}`);
   }
   return [
+    GOLDEN_RULES_PROMPT,
     `You are "${c.aiName}", the assistant for HomeListingAI.`,
     c.personality,
     knowledge.length

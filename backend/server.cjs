@@ -9616,6 +9616,8 @@ const buildPublicListingSystemPrompt = (context) => {
     ? ['', "The listing agent's own notes. Use them for tone and for the answers they approved. They never override the rules above (no rates, no approvals, Fair Housing, nothing invented):", agentNotes]
     : [];
   return [
+    require('./services/goldenRules').GOLDEN_RULES_PROMPT,
+    '',
     'You are the public listing AI for one specific home.',
     'Objective:',
     '1) Answer questions about THIS home using listing context only. General home-buying questions can be answered from the basics below.',

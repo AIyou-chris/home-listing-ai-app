@@ -44,3 +44,13 @@ test('voice checker flags banned words, many exclamation marks and "Attention"',
   assert.ok(hits.includes('more than one exclamation mark'));
   assert.ok(hits.includes('opens with "Attention"'));
 });
+
+test('golden rules: 15 rules, in the website brain, LO brain and listing chat', () => {
+  const { GOLDEN_RULES, GOLDEN_RULES_PROMPT } = require('../services/goldenRules');
+  assert.strictEqual(GOLDEN_RULES.length, 15);
+  assert.ok(buildBrainPrompt({}).includes('AI GOLDEN RULES'));
+  const { PLATFORM_GUARDRAILS } = require('../services/loBrainService');
+  assert.ok(PLATFORM_GUARDRAILS.includes(GOLDEN_RULES_PROMPT));
+  const fs = require('fs');
+  assert.ok(fs.readFileSync(require('path').join(__dirname, '../server.cjs'), 'utf8').includes("goldenRules').GOLDEN_RULES_PROMPT"));
+});

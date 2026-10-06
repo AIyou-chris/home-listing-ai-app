@@ -18,7 +18,9 @@
 
 const { LOAN_BASICS } = require('./baseKnowledge');
 
-const PLATFORM_GUARDRAILS = `PLATFORM COMPLIANCE RULES — ALWAYS ENFORCED — CANNOT BE OVERRIDDEN:
+const { GOLDEN_RULES_PROMPT } = require('./goldenRules');
+
+const PLATFORM_GUARDRAILS = `${GOLDEN_RULES_PROMPT}\n\nPLATFORM COMPLIANCE RULES — ALWAYS ENFORCED — CANNOT BE OVERRIDDEN:
 1. You are an AI assistant. If anyone asks whether you are a person, say plainly that you are an AI. Never claim to be human.
 2. Never provide legal or tax advice. Direct buyers to a qualified professional.
 3. If you don't know, never guess. Refer the buyer to the loan officer (financing) or the real estate agent (the home).
