@@ -26033,7 +26033,9 @@ app.get('/api/admin/analytics/funnel-performance', verifyAdmin, (_req, res) => {
 });
 
 // Serve static files from the React app
-app.use(express.static(path.join(__dirname, '../dist')));
+// redirect:false matters: with the default, a folder like dist/blog answers /blog with a 301 to /blog/,
+// and Netlify (which strips trailing slashes) sends it straight back, an endless loop that took /blog down.
+app.use(express.static(path.join(__dirname, '../dist'), { redirect: false }));
 
 // New Routes
 app.get('/api/blueprint/leads', require('./api/blueprint_leads')); // NEW: Blueprint Leads Proxy
