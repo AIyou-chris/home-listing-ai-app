@@ -8,70 +8,29 @@ import { SAMPLE_AGENT } from '../constants';
 // --- PropertyCard Component (Copied from Blueprint) ---
 interface PropertyCardProps {
   property: Property;
-  onSelect: () => void;
+  ownerLabel: string;
+  publicPath: string | null;
   onDelete: () => void;
-  onOpenMarketing?: () => void;
-  onOpenBuilder?: () => void;
 }
 
-const PropertyCard: React.FC<PropertyCardProps> = ({
-  property,
-  onSelect,
-  onDelete,
-  onOpenMarketing,
-  onOpenBuilder
-}) => {
-  const handleCardClick = () => {
-    onSelect();
-  };
-
-  const handleCardKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      onSelect();
-    }
-  };
-
-  const _handleEditClick = (event: React.MouseEvent<HTMLButtonElement>) => {
-    event.stopPropagation();
-    if (onOpenBuilder) {
-      onOpenBuilder();
-      return;
-    }
-    onSelect();
-  };
-
-  const _handleSidekickClick = (event: React.MouseEvent<HTMLButtonElement>) => {
-    event.stopPropagation();
-    if (onOpenMarketing) {
-      onOpenMarketing();
-      return;
-    }
-    alert('Listing Sidekick setup coming soon.');
-  };
-
+const PropertyCard: React.FC<PropertyCardProps> = ({ property, ownerLabel, publicPath, onDelete }) => {
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle');
-  const shareUrl =
-    typeof window !== 'undefined'
-      ? `${window.location.origin}/demo/listings/${encodeURIComponent(property.id)}`
-      : `https://demo.homelistingai.com/listings/${property.id}`;
+  const shareUrl = publicPath && typeof window !== 'undefined' ? `${window.location.origin}${publicPath}` : null;
 
   const descriptionText = isAIDescription(property.description)
     ? property.description.title
     : (property.description || 'View details to learn more.');
 
   return (
-    <div
-      className="bg-slate-800 rounded-2xl shadow-lg overflow-hidden flex flex-col text-white cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
-      onClick={handleCardClick}
-      onKeyDown={handleCardKeyDown}
-      role="button"
-      tabIndex={0}
-    >
+    <div className="bg-slate-800 rounded-2xl shadow-lg overflow-hidden flex flex-col text-white">
       <div className="relative">
-        <img className="h-56 w-full object-cover" src={property.imageUrl} alt={property.address} />
-        <div className="absolute top-4 right-4 bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-full shadow-md">
-          {property.status || 'Active'}
+        {property.imageUrl ? (
+          <img className="h-56 w-full object-cover" src={property.imageUrl} alt={property.address} />
+        ) : (
+          <div className="h-56 w-full bg-slate-700 flex items-center justify-center text-slate-400 text-sm">No photo yet</div>
+        )}
+        <div className={`absolute top-4 right-4 text-white text-xs font-bold px-3 py-1 rounded-full shadow-md ${publicPath ? 'bg-green-500' : 'bg-amber-500'}`}>
+          {publicPath ? 'Published' : 'Draft'}
         </div>
       </div>
       <div className="p-6 flex flex-col flex-grow">
@@ -81,6 +40,7 @@ const PropertyCard: React.FC<PropertyCardProps> = ({
             <span className="material-symbols-outlined text-base">location_on</span>
             {property.address}
           </p>
+          <p className="mt-1 text-xs text-slate-400">Owner: {ownerLabel}</p>
 
           <div className="mt-4 flex justify-between items-center">
             <div className="flex items-center gap-2 text-2xl font-bold text-white">
@@ -112,67 +72,33 @@ const PropertyCard: React.FC<PropertyCardProps> = ({
         </div>
 
         <div className="mt-6 pt-6 border-t border-slate-700">
-          {/* Buttons hidden for go-live readiness as they are currently non-functional */}
-          {/* <div className="grid grid-cols-2 gap-3 mb-3">
-            <button
-              type="button"
-              onClick={handleEditClick}
-              className="w-full flex justify-center items-center gap-2 px-3 py-2.5 text-sm font-semibold text-white bg-sky-600 rounded-lg shadow-sm hover:bg-sky-700 transition"
-            >
-              <span className="material-symbols-outlined w-4 h-4">edit</span>
-              <span>Edit</span>
-            </button>
-            <button
-              type="button"
-              onClick={handleSidekickClick}
-              className="w-full flex justify-center items-center gap-2 px-3 py-2.5 text-sm font-semibold text-white bg-slate-600 rounded-lg shadow-sm hover:bg-slate-700 transition"
-            >
-              <span className="material-symbols-outlined w-4 h-4">smart_toy</span>
-              <span>Listing Sidekick</span>
-            </button>
-          </div> */}
           <div className="mb-3">
-            <div className="flex items-center gap-2 bg-slate-900/60 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200">
-              <span className="text-xs text-slate-400">Link shortening disabled; share the listing URL below:</span>
-              <span className="truncate text-slate-100">{shareUrl}</span>
-              <button
-                onClick={async () => {
-                  try {
-                    await navigator.clipboard.writeText(shareUrl);
-                    setCopyState('copied');
-                    setTimeout(() => setCopyState('idle'), 2000);
-                  } catch (error) {
-                    console.error('Copy failed', error);
-                    setCopyState('error');
-                    setTimeout(() => setCopyState('idle'), 2000);
-                  }
-                }}
-                className="ml-auto inline-flex items-center gap-1 px-2 py-1 text-sky-300 hover:text-sky-200 transition"
-              >
-                {copyState === 'copied' ? (
-                  <>
-                    <Check className="w-3 h-3" />
-                    Copied
-                  </>
-                ) : copyState === 'error' ? (
-                  <>
-                    <Copy className="w-3 h-3" />
-                    Retry
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-3 h-3" />
-                    Copy
-                  </>
-                )}
-              </button>
-            </div>
+            {shareUrl ? (
+              <div className="flex items-center gap-2 bg-slate-900/60 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200">
+                <span className="truncate text-slate-100">{shareUrl}</span>
+                <button
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(shareUrl);
+                      setCopyState('copied');
+                      setTimeout(() => setCopyState('idle'), 2000);
+                    } catch (error) {
+                      console.error('Copy failed', error);
+                      setCopyState('error');
+                      setTimeout(() => setCopyState('idle'), 2000);
+                    }
+                  }}
+                  className="ml-auto inline-flex items-center gap-1 px-2 py-1 text-sky-300 hover:text-sky-200 transition"
+                >
+                  {copyState === 'copied' ? (<><Check className="w-3 h-3" />Copied</>) : copyState === 'error' ? (<><Copy className="w-3 h-3" />Retry</>) : (<><Copy className="w-3 h-3" />Copy</>)}
+                </button>
+              </div>
+            ) : (
+              <p className="text-xs text-slate-400">Not public yet. The owner publishes it from their dashboard.</p>
+            )}
           </div>
           <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete();
-            }}
+            onClick={() => onDelete()}
             className="w-full flex justify-center items-center gap-2 px-3 py-2.5 text-sm font-semibold text-white bg-rose-900 rounded-lg shadow-sm hover:bg-rose-800 transition"
           >
             <span className="material-symbols-outlined w-4 h-4">delete</span>
@@ -184,6 +110,15 @@ const PropertyCard: React.FC<PropertyCardProps> = ({
   );
 };
 
+const ownerLabelFor = (l?: AdminListingModel) => {
+  if (!l?.agent) return 'unknown';
+  const name = [l.agent.first_name, l.agent.last_name].filter(Boolean).join(' ');
+  return name || l.agent.email || 'unknown';
+};
+
+// A listing is only reachable by the public once the owner published it.
+const publicPathFor = (l?: AdminListingModel) => (l?.published && l.public_slug ? `/l/${encodeURIComponent(l.public_slug)}` : null);
+
 // --- Main AdminListingsPage Component ---
 
 const AdminListingsPage: React.FC = () => {
@@ -191,13 +126,11 @@ const AdminListingsPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [isHelpPanelOpen, setIsHelpPanelOpen] = useState(false);
   const [search, setSearch] = useState('');
 
-  const [createForm, setCreateForm] = useState<{ address: string; price: string; status: string; property_type: string }>({
+  const [createForm, setCreateForm] = useState<{ address: string; price: string; property_type: string }>({
     address: '',
     price: '',
-    status: 'Active',
     property_type: ''
   });
 
@@ -221,23 +154,25 @@ const AdminListingsPage: React.FC = () => {
 
   const handleCreate = async () => {
     setError(null);
+    if (!createForm.address.trim()) { setError('Type an address first.'); return; }
     try {
       const created = await adminListingsService.create({
-        address: createForm.address,
+        address: createForm.address.trim(),
         price: Number(createForm.price) || undefined,
-        status: createForm.status,
         property_type: createForm.property_type
       });
       setListings((prev) => [created, ...prev]);
       setIsCreateOpen(false);
-      setCreateForm({ address: '', price: '', status: 'Active', property_type: '' });
+      setCreateForm({ address: '', price: '', property_type: '' });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create listing');
     }
   };
 
   const handleDelete = async (listingId: string) => {
-    const confirmed = window.confirm('Delete this listing from admin inventory?');
+    const target = listings.find((l) => l.listing_id === listingId);
+    const owner = target?.agent ? [target.agent.first_name, target.agent.last_name].filter(Boolean).join(' ') || target.agent.email : 'its owner';
+    const confirmed = window.confirm(`Delete "${target?.address || 'this listing'}"?\n\nThis removes it for ${owner} too. It cannot be undone.`);
     if (!confirmed) return;
     try {
       await adminListingsService.remove(listingId);
@@ -248,6 +183,8 @@ const AdminListingsPage: React.FC = () => {
   };
 
   // Map AdminListingModel to Property for UI
+  const listingsById = useMemo(() => new Map(listings.map((l) => [l.listing_id, l])), [listings]);
+
   const mappedProperties: Property[] = useMemo(() => {
     return listings.map(l => ({
       id: l.listing_id,
@@ -288,7 +225,7 @@ const AdminListingsPage: React.FC = () => {
       <header className="flex flex-wrap items-center justify-between gap-4 mb-8">
         <div>
           <h1 className="text-3xl font-bold text-slate-900">AI Listings</h1>
-          <p className="text-slate-500 mt-1">Manage your listings and their Listing Sidekick brains.</p>
+          <p className="text-slate-500 mt-1">Every listing on the platform, who owns it, and whether it is public.</p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -309,45 +246,6 @@ const AdminListingsPage: React.FC = () => {
       </header>
 
       {error && <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
-
-      <div className="mb-8">
-        <button
-          type="button"
-          onClick={() => setIsHelpPanelOpen(prev => !prev)}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary-50 text-primary-700 font-semibold border border-primary-100 hover:bg-primary-100 transition-colors"
-          aria-expanded={isHelpPanelOpen}
-        >
-          <span className="material-symbols-outlined text-xl">{isHelpPanelOpen ? 'psychiatry' : 'help'}</span>
-          {isHelpPanelOpen ? 'Hide AI Listings Tips' : 'Show AI Listings Tips'}
-          <span className="material-symbols-outlined text-base ml-auto">{isHelpPanelOpen ? 'expand_less' : 'expand_more'}</span>
-        </button>
-        {isHelpPanelOpen && (
-          <div className="mt-4 bg-white border border-primary-100 rounded-xl shadow-sm p-5 text-sm text-slate-600 space-y-4">
-            <div>
-              <h2 className="text-base font-semibold text-primary-700 flex items-center gap-2 mb-2">
-                <span className="material-symbols-outlined text-lg">home_work</span>
-                Listing Playbook
-              </h2>
-              <ul className="space-y-1.5 list-disc list-inside">
-                <li><strong>Keep data synced:</strong> Update price, status, and hero photos here—your AI site and AI Card stay in lockstep.</li>
-                <li><strong>Listing Sidekick:</strong> Launch the Sidekick from each tile to train property-specific talking points and FAQs.</li>
-                <li><strong>Media assets:</strong> Use the edit view to upload flyers, 3D tours, and feature sheets for instant sharing.</li>
-              </ul>
-            </div>
-            <div>
-              <h2 className="text-base font-semibold text-primary-700 flex items-center gap-2 mb-2">
-                <span className="material-symbols-outlined text-lg">qr_code</span>
-                QR & Marketing Assets
-              </h2>
-              <ul className="space-y-1.5 list-disc list-inside">
-                <li><strong>Generate QR codes:</strong> Each listing gets a unique QR link for yard signs, open houses, and print materials.</li>
-                <li><strong>Campaign tracking:</strong> Clone the listing and adjust tracking tags to compare performance by channel.</li>
-                <li><strong>Pro tip:</strong> Drop the listing QR into the AI Conversations hub so follow-ups automatically reference the right property.</li>
-              </ul>
-            </div>
-          </div>
-        )}
-      </div>
 
       <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200/60 mb-8">
         <div className="relative flex-grow">
@@ -371,10 +269,9 @@ const AdminListingsPage: React.FC = () => {
               <PropertyCard
                 key={prop.id}
                 property={prop}
-                onSelect={() => { }}
+                ownerLabel={ownerLabelFor(listingsById.get(prop.id))}
+                publicPath={publicPathFor(listingsById.get(prop.id))}
                 onDelete={() => handleDelete(prop.id)}
-                onOpenMarketing={() => { }}
-                onOpenBuilder={() => { }}
               />
             ))}
           </div>
@@ -390,7 +287,7 @@ const AdminListingsPage: React.FC = () => {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-lg w-full max-w-md p-5 space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-slate-900">New Admin Listing</h2>
+              <h2 className="text-lg font-semibold text-slate-900">New draft listing</h2>
               <button
                 onClick={() => setIsCreateOpen(false)}
                 className="text-slate-500 hover:text-slate-700"
@@ -407,7 +304,7 @@ const AdminListingsPage: React.FC = () => {
                   onChange={(e) => setCreateForm((prev) => ({ ...prev, address: e.target.value }))}
                 />
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3">
                 <div>
                   <label className="text-xs font-semibold text-slate-600">Price</label>
                   <input
@@ -416,18 +313,6 @@ const AdminListingsPage: React.FC = () => {
                     onChange={(e) => setCreateForm((prev) => ({ ...prev, price: e.target.value }))}
                     placeholder="e.g. 750000"
                   />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-slate-600">Status</label>
-                  <select
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                    value={createForm.status}
-                    onChange={(e) => setCreateForm((prev) => ({ ...prev, status: e.target.value }))}
-                  >
-                    <option value="Active">Active</option>
-                    <option value="Pending">Pending</option>
-                    <option value="Sold">Sold</option>
-                  </select>
                 </div>
               </div>
               <div>

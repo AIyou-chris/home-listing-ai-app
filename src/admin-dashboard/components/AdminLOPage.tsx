@@ -9,7 +9,7 @@ type LOUser = {
 };
 type Invite = {
   id: string; invited_email: string; invited_name: string; status: string;
-  created_at: string; claimed_at: string | null;
+  created_at: string; claimed_at: string | null; view_count?: number | null;
   lo: { first_name: string; last_name: string; email: string } | null;
 };
 type PreQual = {
@@ -23,6 +23,18 @@ type Office = {
   company: string; created_at: string; loCount: number;
 };
 
+type SupportReport = {
+  lo: { id: string; name: string; email: string; phone: string | null; company: string | null; nmls: string | null; joined: string; lastSeen: string | null; slug: string | null }
+  plan: string
+  trialDaysLeft: number | null
+  stats: { listings: number; invitesSent: number; invitesViewed: number; invitesClaimed: number; leads: number; lastLeadAt: string | null }
+  checklist: Array<{ key: string; label: string; ok: boolean }>
+  problems: string[]
+  recentLeads: Array<{ id: string; name: string; status: string | null; intent: string | null; source: string | null; at: string }>
+  invites: Array<{ id: string; name: string; claimed: boolean; views: number; at: string }>
+  calls: Array<{ id: string; from: string | null; status: string | null; intent: string | null; error: string | null; at: string | null }>
+}
+
 const badge = (label: string, color: string) => (
   <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide ${color}`}>{label}</span>
 );
@@ -31,10 +43,104 @@ const planBadge = (status: string) => {
   if (status === 'trialing') return badge('Trial', 'bg-blue-100 text-blue-700');
   if (status === 'active') return badge('Active', 'bg-emerald-100 text-emerald-700');
   if (status === 'past_due') return badge('Past Due', 'bg-red-100 text-red-700');
+  if (status === 'comp') return badge('Comped', 'bg-violet-100 text-violet-700');
+  if (status === 'awaiting_payment') return badge('Trial / not paid', 'bg-amber-100 text-amber-700');
   return badge(status || 'No Plan', 'bg-slate-100 text-slate-500');
 };
 
 const fmt = (d: string) => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+const SupportPanel: React.FC<{ loId: string; onClose: () => void }> = ({ loId, onClose }) => {
+  const [report, setReport] = useState<SupportReport | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let alive = true
+    const load = async () => {
+      try {
+        const res = await AuthService.getInstance().makeAuthenticatedRequest(`/api/admin/lo/users/${loId}/support`)
+        if (!res.ok) throw new Error(String(res.status))
+        const data = (await res.json()) as SupportReport
+        if (alive) setReport(data)
+      } catch (e) {
+        if (alive) setError('Could not load this account. Try again.')
+        console.error('LO support view failed', e)
+      }
+    }
+    void load()
+    return () => { alive = false }
+  }, [loId])
+
+  const when = (d?: string | null) => (d ? fmt(d) : '—')
+
+  return (
+    <div className="fixed inset-0 z-[200] flex items-start justify-center overflow-y-auto bg-slate-900/50 p-4" role="dialog" aria-modal="true" aria-label="Account check">
+      <div className="my-8 w-full max-w-3xl rounded-2xl bg-white p-6 shadow-xl">
+        <div className="mb-4 flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-black text-slate-900">{report ? report.lo.name : 'Loading…'}</h2>
+            {report && <p className="text-sm text-slate-500">{report.lo.email}{report.lo.phone ? ` · ${report.lo.phone}` : ''}{report.lo.company ? ` · ${report.lo.company}` : ''}</p>}
+          </div>
+          <button type="button" onClick={onClose} aria-label="Close" className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-600 hover:bg-slate-50">Close</button>
+        </div>
+        {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+        {report && (
+          <div className="space-y-5">
+            <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+              <div className="rounded-xl bg-slate-50 p-3"><p className="text-xs uppercase text-slate-500">Plan</p><p className="font-bold text-slate-900">{report.plan}</p>{report.trialDaysLeft !== null && <p className="text-xs text-slate-500">{report.trialDaysLeft > 0 ? `${report.trialDaysLeft} trial days left` : 'Trial over'}</p>}</div>
+              <div className="rounded-xl bg-slate-50 p-3"><p className="text-xs uppercase text-slate-500">Last seen</p><p className="font-bold text-slate-900">{when(report.lo.lastSeen)}</p></div>
+              <div className="rounded-xl bg-slate-50 p-3"><p className="text-xs uppercase text-slate-500">Listings</p><p className="font-bold text-slate-900">{report.stats.listings}</p></div>
+              <div className="rounded-xl bg-slate-50 p-3"><p className="text-xs uppercase text-slate-500">Leads</p><p className="font-bold text-slate-900">{report.stats.leads}</p></div>
+            </div>
+
+            <div>
+              <h3 className="mb-2 text-sm font-bold text-slate-900">What looks wrong</h3>
+              {report.problems.length === 0 ? (
+                <p className="text-sm text-emerald-700">Nothing looks wrong.</p>
+              ) : (
+                <ul className="space-y-1 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                  {report.problems.map((p) => <li key={p}>• {p}</li>)}
+                </ul>
+              )}
+            </div>
+
+            <div>
+              <h3 className="mb-2 text-sm font-bold text-slate-900">Setup</h3>
+              <ul className="grid gap-1 text-sm sm:grid-cols-2">
+                {report.checklist.map((c) => (
+                  <li key={c.key} className="flex items-center gap-2"><span aria-hidden="true">{c.ok ? '✅' : '⬜'}</span><span className={c.ok ? 'text-slate-700' : 'font-semibold text-slate-900'}>{c.label}</span></li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <h3 className="mb-2 text-sm font-bold text-slate-900">Recent leads</h3>
+                {report.recentLeads.length === 0 ? <p className="text-sm text-slate-500">None yet.</p> : (
+                  <ul className="space-y-1 text-sm">{report.recentLeads.map((l) => <li key={l.id} className="flex justify-between gap-2"><span className="truncate">{l.name}{l.intent ? ` · ${l.intent}` : ''}</span><span className="text-xs text-slate-400">{when(l.at)}</span></li>)}</ul>
+                )}
+              </div>
+              <div>
+                <h3 className="mb-2 text-sm font-bold text-slate-900">WOW Links sent</h3>
+                {report.invites.length === 0 ? <p className="text-sm text-slate-500">None yet.</p> : (
+                  <ul className="space-y-1 text-sm">{report.invites.map((i) => <li key={i.id} className="flex justify-between gap-2"><span className="truncate">{i.name}</span><span className="text-xs text-slate-500">{i.claimed ? 'Claimed' : i.views ? `${i.views} view${i.views === 1 ? '' : 's'}` : 'Not opened'}</span></li>)}</ul>
+                )}
+              </div>
+            </div>
+
+            {report.calls.length > 0 && (
+              <div>
+                <h3 className="mb-2 text-sm font-bold text-slate-900">Recent AI phone calls</h3>
+                <ul className="space-y-1 text-sm">{report.calls.map((c) => <li key={c.id} className="flex justify-between gap-2"><span>{c.from || 'Unknown'} · {c.status || '—'}{c.error ? ` · ${c.error.slice(0, 60)}` : ''}</span><span className="text-xs text-slate-400">{when(c.at)}</span></li>)}</ul>
+              </div>
+            )}
+            <p className="text-xs text-slate-400">Read only. Looking at an account is recorded in the audit log.</p>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
 
 export const AdminLOPage: React.FC = () => {
   const [tab, setTab] = useState<'users' | 'invites' | 'prequals' | 'offices'>('users');
@@ -44,28 +150,39 @@ export const AdminLOPage: React.FC = () => {
   const [offices, setOffices] = useState<Office[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
+  const [viewingId, setViewingId] = useState<string | null>(null);
+
+  const [errors, setErrors] = useState<string[]>([]);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     const fetchAll = async () => {
       setLoading(true);
       const auth = AuthService.getInstance();
-      try {
-        const [r1, r2, r3, r4] = await Promise.all([
-          auth.makeAuthenticatedRequest('/api/admin/lo/users'),
-          auth.makeAuthenticatedRequest('/api/admin/lo/invites'),
-          auth.makeAuthenticatedRequest('/api/admin/lo/pre-quals'),
-          auth.makeAuthenticatedRequest('/api/admin/lo/offices'),
-        ]);
-        const [d1, d2, d3, d4] = await Promise.all([r1.json(), r2.json(), r3.json(), r4.json()]);
-        setLos(d1.los || []);
-        setInvites(d2.invites || []);
-        setPreQuals(d3.preQuals || []);
-        setOffices(d4.offices || []);
-      } catch (e) { console.error(e); }
+      const failed: string[] = [];
+      // Each list loads on its own: one broken list must not hide the others or look like "no data".
+      const load = async <T,>(label: string, path: string, key: string, set: (rows: T[]) => void) => {
+        try {
+          const res = await auth.makeAuthenticatedRequest(path);
+          if (!res.ok) throw new Error(String(res.status));
+          const data = await res.json();
+          set((data[key] as T[]) || []);
+        } catch (e) {
+          console.error(`LO Platform: ${label} failed`, e);
+          failed.push(label);
+        }
+      };
+      await Promise.all([
+        load<LOUser>('LO users', '/api/admin/lo/users', 'los', setLos),
+        load<Invite>('WOW invites', '/api/admin/lo/invites', 'invites', setInvites),
+        load<PreQual>('pre-quals', '/api/admin/lo/pre-quals', 'preQuals', setPreQuals),
+        load<Office>('offices', '/api/admin/lo/offices', 'offices', setOffices)
+      ]);
+      setErrors(failed);
       setLoading(false);
     };
-    fetchAll();
-  }, []);
+    void fetchAll();
+  }, [reloadKey]);
 
   const tabs = [
     { id: 'users', label: '🏦 LO Users', count: los.length },
@@ -106,6 +223,12 @@ export const AdminLOPage: React.FC = () => {
       />
 
       {loading && <p className="text-slate-400 text-sm">Loading…</p>}
+      {!loading && errors.length > 0 && (
+        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          Could not load: {errors.join(', ')}. What is shown may be missing rows.{' '}
+          <button type="button" className="underline font-semibold" onClick={() => setReloadKey((k) => k + 1)}>Try again</button>
+        </div>
+      )}
 
       {/* LO Users */}
       {tab === 'users' && !loading && (
@@ -113,7 +236,7 @@ export const AdminLOPage: React.FC = () => {
           <table className="w-full text-sm">
             <thead className="bg-slate-50 border-b border-slate-100">
               <tr>
-                {['Name', 'Email', 'NMLS', 'Plan', 'Partners', 'Listings', 'Pre-Quals', 'Joined'].map(h => (
+                {['Name', 'Email', 'NMLS', 'Plan', 'Partners', 'Listings', 'Pre-Quals', 'Joined', ''].map(h => (
                   <th key={h} className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wide">{h}</th>
                 ))}
               </tr>
@@ -129,10 +252,13 @@ export const AdminLOPage: React.FC = () => {
                   <td className="px-4 py-3 font-bold text-slate-700">{lo.listingCount}</td>
                   <td className="px-4 py-3 font-bold text-emerald-600">{lo.preQualCount}</td>
                   <td className="px-4 py-3 text-slate-400 text-xs">{fmt(lo.created_at)}</td>
+                  <td className="px-4 py-3 text-right">
+                    <button type="button" onClick={() => setViewingId(lo.id)} className="rounded-lg bg-primary-50 px-3 py-1.5 text-xs font-bold text-primary-700 hover:bg-primary-100">Check account</button>
+                  </td>
                 </tr>
               ))}
               {los.length === 0 && (
-                <tr><td colSpan={8} className="px-4 py-8 text-center text-slate-400">No LO accounts yet.</td></tr>
+                <tr><td colSpan={9} className="px-4 py-8 text-center text-slate-400">No LO accounts yet.</td></tr>
               )}
             </tbody>
           </table>
@@ -145,7 +271,7 @@ export const AdminLOPage: React.FC = () => {
           <table className="w-full text-sm">
             <thead className="bg-slate-50 border-b border-slate-100">
               <tr>
-                {['Invited To', 'Sent By (LO)', 'Status', 'Sent', 'Claimed'].map(h => (
+                {['Invited To', 'Sent By (LO)', 'Status', 'Opened', 'Sent', 'Claimed'].map(h => (
                   <th key={h} className="text-left px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wide">{h}</th>
                 ))}
               </tr>
@@ -163,12 +289,13 @@ export const AdminLOPage: React.FC = () => {
                     {inv.status === 'pending' && badge('Pending', 'bg-amber-100 text-amber-700')}
                     {inv.status === 'expired' && badge('Expired', 'bg-slate-100 text-slate-400')}
                   </td>
+                  <td className="px-4 py-3 text-slate-500 text-xs">{inv.view_count ? `${inv.view_count} view${inv.view_count === 1 ? '' : 's'}` : 'Not yet'}</td>
                   <td className="px-4 py-3 text-slate-400 text-xs">{fmt(inv.created_at)}</td>
                   <td className="px-4 py-3 text-slate-400 text-xs">{inv.claimed_at ? fmt(inv.claimed_at) : '—'}</td>
                 </tr>
               ))}
               {invites.length === 0 && (
-                <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-400">No invites sent yet.</td></tr>
+                <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400">No invites sent yet.</td></tr>
               )}
             </tbody>
           </table>
@@ -238,6 +365,7 @@ export const AdminLOPage: React.FC = () => {
           </table>
         </div>
       )}
+      {viewingId && <SupportPanel loId={viewingId} onClose={() => setViewingId(null)} />}
     </div>
   );
 };

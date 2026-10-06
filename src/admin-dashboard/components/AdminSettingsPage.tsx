@@ -1,35 +1,27 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { getEnvVar } from '../../lib/env'
-import { AdminDeliverabilitySettings } from './AdminDeliverabilitySettings'
 import { AuthService } from '../../services/authService'
 import Admin2FASetup from './Admin2FASetup'
 import AdminChangePassword from './AdminChangePassword'
+import { showToast } from '../../utils/toastService'
 
 type BillingSummary = {
-  plan: string
-  status: 'active' | 'trial' | 'past_due' | 'canceled'
-  nextBillingDate?: string
+  total: number
+  paying: number
+  trial: number
+  comped: number
+  late: number
 }
 
 type BillingUser = {
   email: string
-  plan: string
-  paymentStatus: 'paid' | 'late' | 'failed' | 'trial'
-  lastInvoice?: string
+  type: string
+  paymentStatus: string
   isLate?: boolean
-}
-
-type Invoice = {
-  id: string
-  date: string
-  amount: string
-  status: string
-  url?: string
 }
 
 type SecurityState = {
   twoFactorEnabled: boolean
-  apiKeys: Array<{ id: string; label: string; scope: string; lastUsed?: string }>
   activityLogs: Array<{ id: string; event: string; ip: string; at: string }>
 }
 
@@ -39,16 +31,6 @@ type AnalyticsSummary = {
   appointments: number
   messagesSent: number
   voiceMinutesUsed: number
-}
-
-type SystemSettings = {
-  appName: string
-  brandingColor: string
-  onboardingEnabled: boolean
-  aiLoggingEnabled: boolean
-  betaFeaturesEnabled: boolean
-  notificationEmail: string
-  notificationPhone: string
 }
 
 type Coupon = {
@@ -72,43 +54,15 @@ const Section: React.FC<{ title: string; subtitle?: string; children: React.Reac
   </section>
 )
 
-const Row: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
-  <div className='flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 py-2'>
-    <span className='text-sm font-medium text-slate-700'>{label}</span>
-    <div className='text-sm text-slate-800'>{children}</div>
-  </div>
-)
-
-const Toggle: React.FC<{ value: boolean; onChange: (val: boolean) => void }> = ({ value, onChange }) => (
-  <button
-    type='button'
-    onClick={() => onChange(!value)}
-    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${value ? 'bg-blue-600' : 'bg-slate-300'}`}
-  >
-    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${value ? 'translate-x-6' : 'translate-x-1'}`} />
-  </button>
-)
-
 const AdminSettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   const auth = useMemo(() => AuthService.getInstance(), [])
-  const [activeTab, setActiveTab] = useState<'billing' | 'security' | 'analytics' | 'system' | 'deliverability'>('billing')
-  const [billingSummary, setBillingSummary] = useState<BillingSummary>({ plan: 'Pro', status: 'active', nextBillingDate: '' })
+  const [activeTab, setActiveTab] = useState<'billing' | 'security' | 'analytics'>('billing')
+  const [billingSummary, setBillingSummary] = useState<BillingSummary | null>(null)
   const [billingUsers, setBillingUsers] = useState<BillingUser[]>([])
-  const [invoices, setInvoices] = useState<Invoice[]>([])
-  const [security, setSecurity] = useState<SecurityState>({ twoFactorEnabled: false, apiKeys: [], activityLogs: [] })
+  const [security, setSecurity] = useState<SecurityState>({ twoFactorEnabled: false, activityLogs: [] })
   const [analytics, setAnalytics] = useState<AnalyticsSummary>({ totalLeads: 0, activeFunnels: 0, appointments: 0, messagesSent: 0, voiceMinutesUsed: 0 })
   const [analyticsRange, setAnalyticsRange] = useState<'7' | '30' | '90'>('30')
   const [webTraffic, setWebTraffic] = useState<{ configured: boolean; reason: string; activeUsers: number; newUsers: number; sessions: number; screenPageViews: number }>({ configured: false, reason: '', activeUsers: 0, newUsers: 0, sessions: 0, screenPageViews: 0 })
-  const [systemSettings, setSystemSettings] = useState<SystemSettings>({
-    appName: 'HomeListingAI (Admin)',
-    brandingColor: '#0ea5e9',
-    onboardingEnabled: true,
-    aiLoggingEnabled: true,
-    betaFeaturesEnabled: false,
-    notificationEmail: 'admin@homelistingai.app',
-    notificationPhone: ''
-  })
-  const [cancellingEmail, setCancellingEmail] = useState('')
   const [reminderEmail, setReminderEmail] = useState('')
   const [coupons, setCoupons] = useState<Coupon[]>([])
   const [newCoupon, setNewCoupon] = useState<{
@@ -132,13 +86,11 @@ const AdminSettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         return response.json()
       }
       try {
-        const [billingRes, usersRes, invoicesRes, securityRes, analyticsRes, systemRes] = await Promise.all([
+        const [billingRes, usersRes, securityRes, analyticsRes] = await Promise.all([
           fetchJson(`${apiBase}/api/admin/billing`).catch(() => null),
           fetchJson(`${apiBase}/api/admin/users/billing`).catch(() => null),
-          fetchJson(`${apiBase}/api/admin/billing/invoices`).catch(() => null),
           fetchJson(`${apiBase}/api/admin/security`).catch(() => null),
-          fetchJson(`${apiBase}/api/admin/analytics/overview?range=${analyticsRange}`).catch(() => null),
-          fetchJson(`${apiBase}/api/admin/system-settings`).catch(() => null)
+          fetchJson(`${apiBase}/api/admin/analytics/overview?range=${analyticsRange}`).catch(() => null)
         ])
 
         // Google Analytics: read the body even on non-200 so we can surface the real reason.
@@ -167,7 +119,6 @@ const AdminSettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
 
         if (billingRes) setBillingSummary(billingRes)
         if (usersRes) setBillingUsers(usersRes)
-        if (invoicesRes) setInvoices(invoicesRes)
         if (securityRes) setSecurity(securityRes)
         if (analyticsRes) {
           // Map backend keys to frontend state
@@ -179,7 +130,6 @@ const AdminSettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             voiceMinutesUsed: analyticsRes.voiceMinutesUsed || 0
           })
         }
-        if (systemRes) setSystemSettings(systemRes)
 
         const couponsRes = await fetchJson(`${apiBase}/api/admin/coupons`).catch(() => null)
         if (couponsRes) setCoupons(couponsRes)
@@ -190,37 +140,23 @@ const AdminSettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     void load()
   }, [apiBase, analyticsRange, auth])
 
-  const handleSaveSystem = async () => {
-    try {
-      await auth.makeAuthenticatedRequest(`${apiBase}/api/admin/system-settings`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(systemSettings)
-      })
-    } catch (error) {
-      console.warn('Failed to save system settings', error)
-    }
-  }
-
-
   const handleSendReminder = async () => {
-    if (!reminderEmail.trim()) return
-    await auth.makeAuthenticatedRequest(`${apiBase}/api/admin/billing/send-reminder`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: reminderEmail })
-    }).catch(() => undefined)
-    setReminderEmail('')
-  }
-
-  const handleCancelAlert = async () => {
-    if (!cancellingEmail.trim()) return
-    await auth.makeAuthenticatedRequest(`${apiBase}/api/admin/billing/cancel-alert`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: cancellingEmail })
-    }).catch(() => undefined)
-    setCancellingEmail('')
+    const email = reminderEmail.trim()
+    if (!email) return
+    if (!window.confirm(`Email ${email} a "your payment is late" reminder?`)) return
+    try {
+      const res = await auth.makeAuthenticatedRequest(`${apiBase}/api/admin/billing/send-reminder`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      })
+      const body = await res.json().catch(() => ({} as { error?: string }))
+      if (!res.ok) throw new Error(body.error === 'not_a_user' ? 'That email is not one of your users.' : 'Could not send the reminder.')
+      showToast.success(`Reminder sent to ${email}`)
+      setReminderEmail('')
+    } catch (error) {
+      showToast.error(error instanceof Error ? error.message : 'Could not send the reminder.')
+    }
   }
 
   const handleCreateCoupon = async () => {
@@ -235,24 +171,31 @@ const AdminSettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
           usage_limit: newCoupon.usage_limit ? Number(newCoupon.usage_limit) : null
         })
       })
-      if (res.ok) {
-        const created = await res.json()
-        setCoupons(prev => [created, ...prev])
-        setNewCoupon({ code: '', discount_type: 'percent', amount: '', duration: 'once', usage_limit: '' })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({} as { error?: string }))
+        throw new Error(body.error === 'invalid_coupon' ? 'Check the code and amount. Percent must be 1 to 100.' : body.error === 'coupon_exists' ? 'That code already exists.' : 'Could not create the coupon.')
       }
+      const created = await res.json()
+      setCoupons(prev => [created, ...prev])
+      setNewCoupon({ code: '', discount_type: 'percent', amount: '', duration: 'once', usage_limit: '' })
+      showToast.success('Coupon created')
     } catch (error) {
       console.error('Failed to create coupon', error)
+      showToast.error(error instanceof Error ? error.message : 'Could not create the coupon.')
     }
   }
 
   const handleDeleteCoupon = async (id: string) => {
+    if (!window.confirm('Delete this coupon?')) return
     try {
       const res = await auth.makeAuthenticatedRequest(`${apiBase}/api/admin/coupons/${id}`, { method: 'DELETE' })
       // Only drop it from the list if the server really deleted it.
       if (!res.ok) throw new Error(`Delete failed (${res.status})`)
       setCoupons(prev => prev.filter(c => c.id !== id))
+      showToast.success('Coupon deleted')
     } catch (error) {
       console.error('Failed to delete coupon', error)
+      showToast.error('Could not delete the coupon.')
     }
   }
 
@@ -278,9 +221,7 @@ const AdminSettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
           {[
             { id: 'billing', label: 'Billing', icon: 'credit_card' },
             { id: 'security', label: 'Security', icon: 'shield_lock' },
-            { id: 'analytics', label: 'Analytics', icon: 'insights' },
-            { id: 'deliverability', label: 'Deliverability', icon: 'mark_email_read' },
-            { id: 'system', label: 'System Config', icon: 'tune' }
+            { id: 'analytics', label: 'Analytics', icon: 'insights' }
           ].map((tab) => (
             <button
               key={tab.id}
@@ -298,32 +239,29 @@ const AdminSettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
 
         {activeTab === 'billing' && (
           <div className='space-y-5'>
-            <Section title='Billing Overview' subtitle='Plan, status, and next renewal'>
-              <div className='grid grid-cols-1 sm:grid-cols-3 gap-4'>
-                <Row label='Plan'>{billingSummary.plan}</Row>
-                <Row label='Status'>
-                  <span className={`px-2 py-1 rounded-full text-xs font-semibold ${billingSummary.status === 'active'
-                    ? 'bg-emerald-100 text-emerald-700'
-                    : billingSummary.status === 'past_due'
-                      ? 'bg-rose-100 text-rose-700'
-                      : 'bg-amber-100 text-amber-700'
-                    }`}>
-                    {billingSummary.status}
-                  </span>
-                </Row>
-                <Row label='Next Billing'>{billingSummary.nextBillingDate || '—'}</Row>
-              </div>
+            <Section title='Customers at a glance' subtitle='Everyone on the platform (demo accounts left out)'>
+              {billingSummary ? (
+                <div className='grid grid-cols-2 sm:grid-cols-4 gap-3'>
+                  {([['Paying', billingSummary.paying], ['On free trial', billingSummary.trial], ['Comped', billingSummary.comped], ['Late', billingSummary.late]] as const).map(([label, value]) => (
+                    <div key={label} className='rounded-xl border border-slate-200 bg-slate-50 p-4'>
+                      <div className='text-xs text-slate-500 uppercase'>{label}</div>
+                      <div className='text-2xl font-semibold text-slate-900 mt-1'>{value}</div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className='text-sm text-slate-500'>Could not load the customer counts.</p>
+              )}
             </Section>
 
-            <Section title='Subscribers' subtitle='User-level billing state and dunning flags'>
+            <Section title='Customers' subtitle='Who is on which plan, and who is late'>
               <div className='overflow-auto'>
                 <table className='min-w-full text-sm'>
                   <thead className='text-left text-slate-500'>
                     <tr>
                       <th className='py-2 pr-4'>Email</th>
+                      <th className='py-2 pr-4'>Type</th>
                       <th className='py-2 pr-4'>Plan</th>
-                      <th className='py-2 pr-4'>Payment</th>
-                      <th className='py-2 pr-4'>Last Invoice</th>
                       <th className='py-2'>Late?</th>
                     </tr>
                   </thead>
@@ -331,9 +269,8 @@ const AdminSettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                     {billingUsers.map((u) => (
                       <tr key={u.email} className='border-t border-slate-100'>
                         <td className='py-2 pr-4 font-medium text-slate-800'>{u.email}</td>
-                        <td className='py-2 pr-4'>{u.plan}</td>
+                        <td className='py-2 pr-4'>{u.type}</td>
                         <td className='py-2 pr-4'>{u.paymentStatus}</td>
-                        <td className='py-2 pr-4'>{u.lastInvoice || '—'}</td>
                         <td className='py-2'>
                           {u.isLate ? (
                             <span className='px-2 py-1 text-xs font-semibold rounded-full bg-rose-100 text-rose-700'>Late</span>
@@ -345,78 +282,27 @@ const AdminSettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                     ))}
                   </tbody>
                 </table>
-                {billingUsers.length === 0 && <p className='text-sm text-slate-500 mt-2'>No billing users loaded.</p>}
+                {billingUsers.length === 0 && <p className='text-sm text-slate-500 mt-2'>No customers yet.</p>}
               </div>
             </Section>
 
-            <Section title='Dunning & Cancellation'>
-              <div className='grid sm:grid-cols-2 gap-4'>
-                <div className='p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-2'>
-                  <h4 className='font-semibold text-slate-900'>Reminder to pay</h4>
-                  <p className='text-sm text-slate-600'>Send automated email/SMS when user is late.</p>
-                  <div className='flex items-center gap-2'>
-                    <input
-                      value={reminderEmail}
-                      onChange={(e) => setReminderEmail(e.target.value)}
-                      placeholder='user@email.com'
-                      className='flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm'
-                    />
-                    <button
-                      onClick={handleSendReminder}
-                      className='inline-flex items-center gap-2 rounded-lg bg-amber-600 text-white px-3 py-2 text-sm hover:bg-amber-700'
-                    >
-                      <span className='material-symbols-outlined text-sm'>send</span>
-                      Trigger Reminder
-                    </button>
-                  </div>
-                </div>
-                <div className='p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-2'>
-                  <h4 className='font-semibold text-slate-900'>Cancellation interception</h4>
-                  <p className='text-sm text-slate-600'>Show retention alert and notify admin.</p>
-                  <div className='flex items-center gap-2'>
-                    <input
-                      value={cancellingEmail}
-                      onChange={(e) => setCancellingEmail(e.target.value)}
-                      placeholder='user@email.com'
-                      className='flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm'
-                    />
-                    <button
-                      onClick={handleCancelAlert}
-                      className='inline-flex items-center gap-2 rounded-lg bg-rose-600 text-white px-3 py-2 text-sm hover:bg-rose-700'
-                    >
-                      <span className='material-symbols-outlined text-sm'>report</span>
-                      Send Retention Alert
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </Section>
-
-            <Section title='Payment Methods & Invoices'>
-              <div className='flex flex-wrap gap-3'>
-                <button className='inline-flex items-center gap-2 rounded-lg bg-blue-600 text-white px-4 py-2 text-sm hover:bg-blue-700'>
-                  <span className='material-symbols-outlined text-sm'>credit_card</span>
-                  Update Card
+            <Section title='Late payment reminder' subtitle='Emails one of your users a "please update your card" note. Payments themselves are handled by Stripe.'>
+              <div className='flex items-center gap-2'>
+                <input
+                  value={reminderEmail}
+                  onChange={(e) => setReminderEmail(e.target.value)}
+                  placeholder='user@email.com'
+                  aria-label='User email for the reminder'
+                  className='flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm'
+                />
+                <button
+                  onClick={handleSendReminder}
+                  disabled={!reminderEmail.trim()}
+                  className='inline-flex items-center gap-2 rounded-lg bg-amber-600 text-white px-3 py-2 text-sm hover:bg-amber-700 disabled:opacity-50'
+                >
+                  <span className='material-symbols-outlined text-sm'>send</span>
+                  Send reminder
                 </button>
-                <button className='inline-flex items-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50'>
-                  <span className='material-symbols-outlined text-sm'>receipt_long</span>
-                  Download Invoices
-                </button>
-              </div>
-              <div className='mt-4 space-y-2'>
-                {invoices.map((inv) => (
-                  <div key={inv.id} className='flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2'>
-                    <div className='text-sm text-slate-700'>
-                      <div className='font-semibold'>{inv.amount}</div>
-                      <div className='text-xs text-slate-500'>{inv.date}</div>
-                    </div>
-                    <div className='flex items-center gap-3 text-xs text-slate-600'>
-                      <span>{inv.status}</span>
-                      {inv.url && <a className='text-blue-600 hover:underline' href={inv.url} target='_blank' rel='noreferrer'>View</a>}
-                    </div>
-                  </div>
-                ))}
-                {invoices.length === 0 && <p className='text-sm text-slate-500'>No invoices found.</p>}
               </div>
             </Section>
 
@@ -559,7 +445,7 @@ const AdminSettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                   {security.activityLogs.map((log) => (
                     <div key={log.id} className='rounded-lg border border-slate-200 px-3 py-2 text-sm flex items-center justify-between'>
                       <div className='text-slate-700'>{log.event}</div>
-                      <div className='text-xs text-slate-500'>{log.ip} — {log.at}</div>
+                      <div className='text-xs text-slate-500'>{log.ip} · {new Date(log.at).toLocaleString()}</div>
                     </div>
                   ))}
                   {security.activityLogs.length === 0 && <p className='text-sm text-slate-500'>No activity recorded.</p>}
@@ -641,73 +527,6 @@ const AdminSettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
           </div>
         )}
 
-        {activeTab === 'deliverability' && (
-          <AdminDeliverabilitySettings />
-        )}
-
-        {activeTab === 'system' && (
-          <div className='space-y-5'>
-            <Section title='Branding & Identity'>
-              <div className='grid gap-4 sm:grid-cols-2'>
-                <div>
-                  <label className='text-sm font-medium text-slate-700'>App Name</label>
-                  <input
-                    value={systemSettings.appName}
-                    onChange={(e) => setSystemSettings((prev) => ({ ...prev, appName: e.target.value }))}
-                    className='mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm'
-                  />
-                </div>
-                <div>
-                  <label className='text-sm font-medium text-slate-700'>Brand Color</label>
-                  <input
-                    type='color'
-                    value={systemSettings.brandingColor}
-                    onChange={(e) => setSystemSettings((prev) => ({ ...prev, brandingColor: e.target.value }))}
-                    className='mt-1 h-10 w-full rounded-lg border border-slate-300'
-                  />
-                </div>
-              </div>
-            </Section>
-
-            <Section title='Feature Toggles & Notifications'>
-              <div className='space-y-3'>
-                <Row label='Enable Onboarding Flows'>
-                  <Toggle value={systemSettings.onboardingEnabled} onChange={(val) => setSystemSettings((prev) => ({ ...prev, onboardingEnabled: val }))} />
-                </Row>
-                <Row label='Enable AI Response Logging'>
-                  <Toggle value={systemSettings.aiLoggingEnabled} onChange={(val) => setSystemSettings((prev) => ({ ...prev, aiLoggingEnabled: val }))} />
-                </Row>
-                <Row label='Enable Beta Features'>
-                  <Toggle value={systemSettings.betaFeaturesEnabled} onChange={(val) => setSystemSettings((prev) => ({ ...prev, betaFeaturesEnabled: val }))} />
-                </Row>
-                <div className='grid gap-3 sm:grid-cols-2'>
-                  <div>
-                    <label className='text-sm font-medium text-slate-700'>Notification Email</label>
-                    <input
-                      value={systemSettings.notificationEmail}
-                      onChange={(e) => setSystemSettings((prev) => ({ ...prev, notificationEmail: e.target.value }))}
-                      className='mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm'
-                    />
-                  </div>
-                  <div>
-                    <label className='text-sm font-medium text-slate-700'>Notification Phone</label>
-                    <input
-                      value={systemSettings.notificationPhone}
-                      onChange={(e) => setSystemSettings((prev) => ({ ...prev, notificationPhone: e.target.value }))}
-                      className='mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm'
-                    />
-                  </div>
-                </div>
-                <div className='flex justify-end'>
-                  <button onClick={handleSaveSystem} className='inline-flex items-center gap-2 rounded-lg bg-blue-600 text-white px-4 py-2 text-sm hover:bg-blue-700'>
-                    <span className='material-symbols-outlined text-sm'>save</span>
-                    Save Settings
-                  </button>
-                </div>
-              </div>
-            </Section>
-          </div>
-        )}
       </div>
     </div>
   )

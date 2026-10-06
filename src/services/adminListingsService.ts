@@ -11,6 +11,10 @@ export type AdminListing = {
   ai_summary?: string;
   ai_recommendation_score?: number;
   hero_image?: string | null;
+  public_slug?: string | null;
+  published?: boolean;
+  owner_id?: string | null;
+  agent?: { first_name?: string | null; last_name?: string | null; email?: string | null } | null;
   bedrooms?: number | null;
   bathrooms?: number | null;
   square_feet?: number | null;
@@ -45,18 +49,6 @@ export const adminListingsService = {
     }
     const data = await response.json();
     return (data?.listing as AdminListing) ?? (data as AdminListing);
-  },
-
-  async generateAiSummary(listingId: string): Promise<string | null> {
-    const response = await auth.makeAuthenticatedRequest('/api/admin/ai/listing-descriptions', {
-      method: 'POST',
-      body: JSON.stringify({ listingId })
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to generate AI summary (${response.status})`);
-    }
-    const data = await response.json();
-    return (data?.summary as string) ?? null;
   }
 };
 

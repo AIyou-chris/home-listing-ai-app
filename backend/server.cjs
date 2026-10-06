@@ -16621,20 +16621,88 @@ app.get('/api/admin/lo/users', verifyAdmin, async (req, res) => {
   }
 });
 
+// GET /api/admin/lo/users/:loId/support — read-only "what is wrong on their dashboard" report for customer service.
+// loId is the LO's agents.id. Nothing here lets the admin act as the LO; it only reads.
+app.get('/api/admin/lo/users/:loId/support', verifyAdmin, async (req, res) => {
+  try {
+    const { buildSupportReport } = require('./services/loSupportView');
+    const loId = String(req.params.loId || '');
+    if (!isUuid(loId)) return res.status(400).json({ error: 'bad_id' });
+
+    const { data: agent } = await supabaseAdmin
+      .from('agents')
+      .select('id, auth_user_id, first_name, last_name, email, phone, company, slug, nmls_number, account_type, payment_status, subscription_status, created_at, last_seen_at')
+      .eq('id', loId)
+      .maybeSingle();
+    if (!agent || !['lo', 'office'].includes(agent.account_type)) return res.status(404).json({ error: 'not_found' });
+
+    const authId = agent.auth_user_id || agent.id;
+    const [brain, phone, listings, invites, leadsCount, recentLeads, calls] = await Promise.all([
+      bestEffort(supabaseAdmin.from('lo_chatbot_configs').select('knowledge_base, company_name, company_nmls, licensed_states, is_active, bot_name').eq('lo_agent_id', agent.id).maybeSingle()),
+      bestEffort(supabaseAdmin.from('lo_phone_lines').select('status, phone_number, provisioning_error').eq('lo_agent_id', agent.id).order('created_at', { ascending: false }).limit(1)),
+      bestEffort(supabaseAdmin.from('listing_lo_assignments').select('id', { count: 'exact', head: true }).eq('lo_agent_id', agent.id)),
+      // agent_invites.lo_agent_id holds the LOGIN id
+      bestEffort(supabaseAdmin.from('agent_invites').select('id, invited_name, invited_email, claimed_at, view_count, created_at, expires_at').eq('lo_agent_id', authId).order('created_at', { ascending: false }).limit(25)),
+      bestEffort(supabaseAdmin.from('leads').select('id', { count: 'exact', head: true }).eq('lo_agent_id', agent.id)),
+      bestEffort(supabaseAdmin.from('leads').select('id, name, full_name, status, intent_level, source_type, created_at').eq('lo_agent_id', agent.id).order('created_at', { ascending: false }).limit(8)),
+      bestEffort(supabaseAdmin.from('lo_phone_calls').select('id, from_number, status, intent_level, error, started_at').eq('lo_agent_id', agent.id).order('started_at', { ascending: false }).limit(5))
+    ]);
+
+    const inviteRows = invites?.data || [];
+    const leadRows = recentLeads?.data || [];
+    const report = buildSupportReport({
+      agent,
+      brain: brain?.data || null,
+      phoneLine: phone?.data?.[0] || null,
+      listingCount: listings?.count || 0,
+      invites: inviteRows,
+      leadCount: leadsCount?.count || 0,
+      lastLeadAt: leadRows[0]?.created_at || null
+    });
+
+    // Leave a trail: who looked at whose account, and when.
+    bestEffort(supabaseAdmin.from('audit_logs').insert({
+      user_id: String(req.user?.id || ''), action: 'admin_viewed_lo_support', resource_type: 'agent', severity: 'info',
+      details: { lo_id: agent.id, lo_email: agent.email }, created_at: new Date().toISOString()
+    }));
+
+    res.json({
+      lo: { id: agent.id, name: [agent.first_name, agent.last_name].filter(Boolean).join(' ') || agent.email, email: agent.email, phone: agent.phone || null, company: agent.company || null, nmls: agent.nmls_number || null, joined: agent.created_at, lastSeen: agent.last_seen_at || null, slug: agent.slug || null },
+      ...report,
+      recentLeads: leadRows.map((l) => ({ id: l.id, name: l.full_name || l.name || 'Unknown', status: l.status, intent: l.intent_level, source: l.source_type, at: l.created_at })),
+      invites: inviteRows.slice(0, 8).map((i) => ({ id: i.id, name: i.invited_name || i.invited_email, claimed: Boolean(i.claimed_at), views: i.view_count || 0, at: i.created_at })),
+      calls: (calls?.data || []).map((c) => ({ id: c.id, from: c.from_number, status: c.status, intent: c.intent_level, error: c.error || null, at: c.started_at }))
+    });
+  } catch (err) {
+    console.error('[Admin LO Support]', err);
+    res.status(500).json({ error: 'failed' });
+  }
+});
+
 // GET /api/admin/lo/invites — all WOW link partner invites across all LOs
 app.get('/api/admin/lo/invites', verifyAdmin, async (req, res) => {
   try {
     const { data, error } = await supabaseAdmin
       .from('agent_invites')
-      .select('id, token, invited_email, invited_name, claimed_at, expires_at, created_at, lo_agent_id, listing_id')
+      .select('id, token, invited_email, invited_name, claimed_at, expires_at, created_at, lo_agent_id, listing_id, view_count, opened_at')
       .order('created_at', { ascending: false })
       .limit(500);
     if (error) throw error;
 
-    // Enrich with LO name
+    // Enrich with LO name. agent_invites.lo_agent_id holds the LOGIN (auth) id, not agents.id, so
+    // look the LO up by auth_user_id and fall back to agents.id.
     const loIds = [...new Set((data || []).map(r => r.lo_agent_id).filter(Boolean))];
-    const { data: loAgents } = await supabaseAdmin.from('agents').select('id, first_name, last_name, email').in('id', loIds);
-    const loMap = Object.fromEntries((loAgents || []).map(a => [a.id, a]));
+    const loMap = {};
+    if (loIds.length) {
+      const [{ data: byAuth }, { data: byId }] = await Promise.all([
+        supabaseAdmin.from('agents').select('id, auth_user_id, first_name, last_name, email').in('auth_user_id', loIds),
+        supabaseAdmin.from('agents').select('id, auth_user_id, first_name, last_name, email').in('id', loIds)
+      ]);
+      for (const a of [...(byId || []), ...(byAuth || [])]) {
+        if (a.id) loMap[a.id] = a;
+        if (a.auth_user_id) loMap[a.auth_user_id] = a;
+      }
+    }
 
     const enriched = (data || []).map(inv => ({
       ...inv,
@@ -17181,7 +17249,9 @@ app.get('/api/admin/listings', verifyAdmin, async (req, res) => {
       bedrooms: l.bedrooms,
       bathrooms: l.bathrooms,
       square_feet: l.square_feet || l.sqft,
-      hero_image: l.image_url || l.hero_image,
+      hero_image: (Array.isArray(l.hero_photos) && l.hero_photos[0]) || null,
+      public_slug: l.public_slug || null,
+      published: l.status === 'published' && Boolean(l.public_slug),
       ai_summary: l.description && typeof l.description === 'string' ? l.description : (l.description?.paragraphs?.[0] || ''),
       created_at: l.created_at,
       owner_id: l.user_id || l.agent_id || null,
@@ -17197,14 +17267,18 @@ app.get('/api/admin/listings', verifyAdmin, async (req, res) => {
 
 app.post('/api/admin/listings', verifyAdmin, async (req, res) => {
   try {
-    const { address, price, status, property_type } = req.body;
-    const ownerId = req.user?.id || req.body?.user_id || req.body?.userId || DEFAULT_LEAD_USER_ID;
+    const address = String(req.body?.address || '').trim().slice(0, 200);
+    if (!address) return res.status(400).json({ error: 'address_required' });
+    const price = Number(req.body?.price) > 0 ? Number(req.body.price) : null;
+    const property_type = String(req.body?.property_type || '').trim().slice(0, 60) || null;
+    const ownerId = req.user?.id || DEFAULT_LEAD_USER_ID;
 
+    // Always a draft: publishing goes through the normal publish route (photos + price rules).
     const newListing = {
       title: address, // Using address as title for now
       address,
       price,
-      status,
+      status: 'draft',
       property_type,
       user_id: ownerId,
       created_at: new Date().toISOString(),
@@ -17253,53 +17327,6 @@ app.delete('/api/admin/listings/:id', verifyAdmin, async (req, res) => {
   } catch (error) {
     console.error('Error deleting admin listing:', error);
     res.status(500).json({ error: 'Failed to delete listing' });
-  }
-});
-
-app.post('/api/admin/listings/:id/generate-summary', verifyAdmin, async (req, res) => {
-  try {
-    const { id } = req.params;
-    // Mock AI generation for now to save tokens/complexity, or hook up to OpenAI if requested
-    // For this task, a mock response is sufficient to unblock the UI
-
-    const summary = "This property offers a unique blend of luxury and comfort. Featuring spacious living areas, modern amenities, and a prime location, it represents an exceptional opportunity for discerning buyers.";
-
-    // Update DB if not demo
-    if (!id.startsWith('demo-')) {
-      await supabaseAdmin
-        .from('properties')
-        .update({ description: summary }) // Assuming description field stores summary
-        .eq('id', id);
-    }
-
-    res.json({ summary });
-  } catch (error) {
-    console.error('Error generating summary:', error);
-    res.status(500).json({ error: 'Failed to generate summary' });
-  }
-});
-
-// Update AI Model endpoint
-app.post('/api/admin/ai-model', verifyAdmin, async (req, res) => {
-  try {
-    const { model } = req.body;
-    console.log('Updating AI model to:', model);
-
-    // Validate model
-    const validModels = ['gpt-5', 'gpt-5-mini', 'gpt-4o', 'gpt-4', 'gpt-3.5-turbo'];
-    if (!validModels.includes(model)) {
-      return res.status(400).json({ error: 'Invalid model specified' });
-    }
-
-    res.json({
-      success: true,
-      model: model,
-      message: `AI model updated to ${model}`,
-      updatedAt: new Date().toISOString()
-    });
-  } catch (error) {
-    console.error('AI model update error:', error);
-    res.status(500).json({ error: error.message });
   }
 });
 
@@ -26603,150 +26630,77 @@ app.post('/api/ai/generate-listing', requireAuth, async (req, res) => {
 // Admin settings: billing
 app.get('/api/admin/billing', verifyAdmin, async (req, res) => {
   try {
-    const userId = req.headers['x-user-id'] || req.user?.id;
-    // Fallback: If no user ID, try to get the first admin or default?? 
-    // For now, if no ID, return empty or error.
-    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
-
-    const { data: agent, error } = await supabaseAdmin
+    const { data, error } = await supabaseAdmin
       .from('agents')
-      .select('plan, subscription_status, current_period_end, stripe_customer_id')
-      .or(`id.eq.${userId},auth_user_id.eq.${userId}`)
-      .single();
-
-    if (error || !agent) {
-      // If not found, maybe return default Free
-      return res.json({ plan: 'Free', status: 'inactive' });
-    }
-
+      .select('payment_status, subscription_status, is_demo')
+      .neq('is_demo', true)
+      .limit(5000);
+    if (error) throw error;
+    const rows = data || [];
+    const isPaying = (r) => ['active', 'trialing'].includes(String(r.subscription_status || '').toLowerCase()) && r.payment_status !== 'comp';
     res.json({
-      plan: agent.plan || 'Free',
-      status: agent.subscription_status || 'inactive',
-      nextBillingDate: agent.current_period_end ? new Date(agent.current_period_end).toLocaleDateString() : 'N/A'
+      total: rows.length,
+      paying: rows.filter((r) => String(r.subscription_status || '').toLowerCase() === 'active' && r.payment_status !== 'comp').length,
+      trial: rows.filter((r) => r.payment_status === 'awaiting_payment' && !isPaying(r)).length,
+      comped: rows.filter((r) => r.payment_status === 'comp').length,
+      late: rows.filter((r) => ['past_due', 'unpaid'].includes(String(r.subscription_status || '').toLowerCase())).length
     });
   } catch (err) {
-    console.error('Billing fetch error:', err);
+    console.error('Billing summary error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
 app.get('/api/admin/users/billing', verifyAdmin, async (req, res) => {
   try {
-    // List all agents who have a subscription
     const { data: agents, error } = await supabaseAdmin
       .from('agents')
-      .select('email, plan, subscription_status, stripe_customer_id')
-      .neq('plan', 'free') // Only show paid/pro? Or show all. Let's show all for now or limit.
-      .limit(50);
-
+      .select('email, account_type, payment_status, subscription_status, is_demo')
+      .neq('is_demo', true)
+      .order('created_at', { ascending: false })
+      .limit(200);
     if (error) throw error;
 
-    const mapped = agents.map(a => ({
+    const typeLabel = { lo: 'Loan officer', office: 'Office', realtor: 'Agent (free)', agent: 'Agent' };
+    const planLabel = (a) => {
+      if (a.payment_status === 'comp') return 'Comped';
+      const sub = String(a.subscription_status || '').toLowerCase();
+      if (sub === 'active') return 'Paid';
+      if (sub === 'past_due' || sub === 'unpaid') return 'Late';
+      if (sub === 'canceled') return 'Canceled';
+      return a.payment_status === 'awaiting_payment' ? 'Free trial' : (a.payment_status || '—');
+    };
+    res.json((agents || []).map((a) => ({
       email: a.email,
-      plan: a.plan,
-      paymentStatus: a.subscription_status === 'active' ? 'paid' : a.subscription_status,
-      lastInvoice: '—', // We'd need to query stripe or a local invoices table
-      isLate: a.subscription_status === 'past_due'
-    }));
-
-    res.json(mapped);
+      type: typeLabel[a.account_type] || a.account_type || '—',
+      paymentStatus: planLabel(a),
+      isLate: ['past_due', 'unpaid'].includes(String(a.subscription_status || '').toLowerCase())
+    })));
   } catch (err) {
     console.error('Billing users error:', err);
-    res.json([]);
+    res.status(500).json({ error: 'Server error' });
   }
-});
-
-app.get('/api/admin/billing/invoices', verifyAdmin, async (req, res) => {
-  try {
-    const userId = req.headers['x-user-id'] || req.user?.id;
-    if (!userId) return res.json([]);
-
-    const { data: agent } = await supabaseAdmin.from('agents').select('stripe_customer_id').or(`id.eq.${userId},auth_user_id.eq.${userId}`).single();
-    if (!agent?.stripe_customer_id) return res.json([]);
-
-    const invoices = await stripe.invoices.list({
-      customer: agent.stripe_customer_id,
-      limit: 5,
-    });
-
-    const mapped = invoices.data.map(inv => ({
-      id: inv.id,
-      amount: `$${(inv.amount_due / 100).toFixed(2)}`,
-      date: new Date(inv.created * 1000).toLocaleDateString(),
-      status: inv.status,
-      url: inv.hosted_invoice_url
-    }));
-
-    res.json(mapped);
-  } catch (err) {
-    console.error('Invoices list error:', err);
-    res.json([]);
-  }
-});
-
-app.post('/api/admin/billing/cancel-alert', verifyAdmin, async (req, res) => {
-  const { email } = req.body || {};
-
-  // Real Notification to Admin
-  const adminEmail = process.env.NOTIFICATION_EMAIL || process.env.MAILGUN_FROM_EMAIL || 'admin@homelistingai.app';
-  if (email && adminEmail) {
-    const emailService = createEmailService();
-    await emailService.sendEmail({
-      to: adminEmail,
-      subject: `🚨 Retention Alert: ${email} is trying to cancel`,
-      text: `User ${email} triggered a cancellation interception flow. Please reach out to them.`
-    });
-  }
-
-  res.json({ success: true });
 });
 
 app.post('/api/admin/billing/send-reminder', verifyAdmin, async (req, res) => {
-  const { email } = req.body || {};
-
-  if (email) {
+  const email = String(req.body?.email || '').trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return res.status(400).json({ error: 'invalid_email' });
+  try {
+    // Only people who really have an account: this must never be a way to email strangers.
+    const { data: user } = await supabaseAdmin.from('agents').select('id').ilike('email', email).limit(1).maybeSingle();
+    if (!user) return res.status(404).json({ error: 'not_a_user' });
     const emailService = createEmailService();
-    await emailService.sendEmail({
+    const result = await emailService.sendEmail({
       to: email,
-      subject: 'Action Required: Update your payment method',
-      text: 'Your payment is past due. Please update your card in the dashboard to avoid service interruption.'
+      subject: 'Action needed: update your payment method',
+      html: '<p>Your last payment did not go through. Please update your card in your HomeListingAI dashboard (Settings, then Billing) so your service is not interrupted.</p><p>If you already did, thank you, and you can ignore this note.</p>',
+      tags: { template: 'admin-payment-reminder' }
     });
-  }
-
-  res.json({ success: true, email, sentAt: new Date().toISOString() });
-});
-
-app.post('/api/admin/billing/update-card', verifyAdmin, async (req, res) => {
-  try {
-    const userId = req.headers['x-user-id'] || req.user?.id;
-    const returnUrl = req.body.returnUrl || `${process.env.APP_BASE_URL}/admin/settings`;
-
-    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
-
-    const { data: agent } = await supabaseAdmin.from('agents').select('stripe_customer_id').or(`id.eq.${userId},auth_user_id.eq.${userId}`).single();
-    if (!agent?.stripe_customer_id) return res.status(400).json({ error: 'No billing account found' });
-
-    const session = await stripe.billingPortal.sessions.create({
-      customer: agent.stripe_customer_id,
-      return_url: returnUrl,
-    });
-
-    res.json({ success: true, url: session.url });
+    if (result && result.sent === false) return res.status(502).json({ error: 'send_failed' });
+    res.json({ success: true, email, sentAt: new Date().toISOString() });
   } catch (err) {
-    console.error('Update card error:', err);
-    res.status(500).json({ error: 'Failed to create portal session' });
-  }
-});
-
-app.post('/api/admin/billing/download-invoice', verifyAdmin, async (req, res) => {
-  // This is redundant if we use the invoice list URLs, but kept for compat
-  // If they ask for a specific ID, we can retrieve it
-  try {
-    const { invoiceId } = req.body;
-    const invoice = await stripe.invoices.retrieve(invoiceId);
-    res.json({ success: true, url: invoice.hosted_invoice_url });
-  } catch (err) {
-    res.status(404).json({ error: 'Invoice not found' });
+    console.error('Reminder send failed:', err);
+    res.status(500).json({ error: 'send_failed' });
   }
 });
 
@@ -26768,7 +26722,16 @@ app.get('/api/admin/coupons', verifyAdmin, async (_req, res) => {
 
 app.post('/api/admin/coupons', verifyAdmin, async (req, res) => {
   try {
-    const { code, discount_type, amount, duration, usage_limit, expires_at } = req.body;
+    const code = String(req.body?.code || '').trim().toUpperCase();
+    const discount_type = req.body?.discount_type === 'fixed' ? 'fixed' : 'percent';
+    const amount = Number(req.body?.amount);
+    const duration = ['once', 'repeating', 'forever'].includes(req.body?.duration) ? req.body.duration : 'once';
+    const usage_limit = Number(req.body?.usage_limit) > 0 ? Math.floor(Number(req.body.usage_limit)) : null;
+    const expires_at = req.body?.expires_at || null;
+    const validAmount = Number.isFinite(amount) && amount > 0 && (discount_type === 'fixed' || amount <= 100);
+    if (!/^[A-Z0-9_-]{3,40}$/.test(code) || !validAmount) return res.status(400).json({ error: 'invalid_coupon' });
+    const { data: dupe } = await supabaseAdmin.from('coupons').select('id').eq('code', code).limit(1);
+    if (dupe && dupe.length) return res.status(409).json({ error: 'coupon_exists' });
 
     // 1. Create in Stripe
     // Stripe duration: 'once', 'repeating', 'forever' matches our frontend
@@ -26811,11 +26774,15 @@ app.post('/api/admin/coupons', verifyAdmin, async (req, res) => {
 
     // Check if exists first to avoid error? Or catch error.
     try {
+      if (!stripe) throw new Error('stripe_not_configured');
       await stripe.coupons.create(stripePayload);
     } catch (stripeErr) {
-      // Ignore "already exists" if we want to allow sycning, but usually we shouldn't.
-      // If it exists, we proceed to save to DB (maybe it was created in dashboard).
-      console.warn('Stripe coupon creation warning (might exist):', stripeErr.message);
+      // Already in Stripe (made in their dashboard) is fine. Any other Stripe error means the code
+      // would fail at checkout, so do not save it.
+      if (stripeErr?.code !== 'resource_already_exists') {
+        console.error('Stripe coupon creation failed:', stripeErr?.message || stripeErr);
+        return res.status(502).json({ error: 'stripe_failed' });
+      }
     }
 
     // 2. Save to Supabase
@@ -26853,105 +26820,30 @@ app.get('/api/admin/security', verifyAdmin, async (req, res) => {
     const userId = req.headers['x-user-id'] || req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-    const { data: agent } = await supabaseAdmin.from('agents').select('metadata').or(`id.eq.${userId},auth_user_id.eq.${userId}`).single();
-    const metadata = agent?.metadata || {};
-    const activityLogs = Array.isArray(metadata.activity_logs) ? metadata.activity_logs : [];
-    const latestLogin = activityLogs
-      .filter((entry) => /login/i.test(String(entry?.event || entry?.action || '')))
-      .sort((a, b) => new Date(b?.at || 0).getTime() - new Date(a?.at || 0).getTime())[0] || null;
+    // Admin sign-ins are recorded in audit_logs (an admin usually has no agents row).
+    const { data: logRows } = await supabaseAdmin
+      .from('audit_logs')
+      .select('id, action, details, created_at')
+      .eq('action', 'admin_login')
+      .order('created_at', { ascending: false })
+      .limit(20);
+    const activityLogs = (logRows || []).map((row) => ({
+      id: row.id,
+      event: 'Admin login',
+      ip: row.details?.ip || 'Unknown',
+      device: row.details?.device || 'Unknown',
+      at: row.created_at
+    }));
+    const latestLogin = activityLogs[0] || null;
 
     res.json({
-      twoFactorEnabled: metadata.two_factor_enabled || false,
-      apiKeys: metadata.api_keys || [],
-      openRisks: [], // You could calculate risks here
-      lastLogin: latestLogin ? {
-        ip: latestLogin.ip || 'Unknown',
-        device: latestLogin.device || latestLogin.event || 'Unknown',
-        at: latestLogin.at || new Date().toISOString()
-      } : null,
+      openRisks: [],
+      lastLogin: latestLogin ? { ip: latestLogin.ip, device: latestLogin.device, at: latestLogin.at } : null,
       activityLogs
     });
   } catch (err) {
     console.error('Security fetch error:', err);
     res.status(500).json({ error: 'Server error' });
-  }
-});
-
-app.post('/api/admin/security/password', verifyAdmin, (_req, res) => {
-  // Passwords handled by Supabase Auth (client SDK updates it)
-  // This endpoint is just a placeholder if the UI calls it directly, 
-  // but usually UI uses supabase.auth.updateUser()
-  res.json({ success: true, message: 'Please change password via Profile settings.' });
-});
-
-app.post('/api/admin/security/2fa', verifyAdmin, async (req, res) => {
-  try {
-    const userId = req.headers['x-user-id'] || req.user?.id;
-    const { enabled } = req.body || {};
-    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
-
-    // 1. Get current metadata
-    const { data: agent } = await supabaseAdmin.from('agents').select('id, metadata').or(`id.eq.${userId},auth_user_id.eq.${userId}`).single();
-    const metadata = agent?.metadata || {};
-
-    // 2. Update
-    metadata.two_factor_enabled = Boolean(enabled);
-
-    const { error } = await supabaseAdmin.from('agents').update({ metadata }).eq('id', agent?.id || userId);
-    if (error) throw error;
-
-    res.json({ success: true, twoFactorEnabled: metadata.two_factor_enabled });
-  } catch (err) {
-    console.error('2FA update error:', err);
-    res.status(500).json({ error: 'Failed to update 2FA' });
-  }
-});
-
-app.get('/api/admin/security/api-keys', verifyAdmin, async (req, res) => {
-  try {
-    const userId = req.headers['x-user-id'] || req.user?.id;
-    if (!userId) return res.json({ keys: [] });
-
-    const { data: agent } = await supabaseAdmin.from('agents').select('metadata').or(`id.eq.${userId},auth_user_id.eq.${userId}`).single();
-    res.json({ keys: agent?.metadata?.api_keys || [] });
-  } catch (err) {
-    res.json({ keys: [] });
-  }
-});
-
-app.post('/api/admin/security/api-keys', verifyAdmin, async (req, res) => {
-  try {
-    const userId = req.headers['x-user-id'] || req.user?.id;
-    const { scope } = req.body || {};
-    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
-
-    const { data: agent } = await supabaseAdmin.from('agents').select('id, metadata').or(`id.eq.${userId},auth_user_id.eq.${userId}`).single();
-    const metadata = agent?.metadata || {};
-    const keys = metadata.api_keys || [];
-
-    const newKey = {
-      id: `key-${Date.now()}`,
-      label: `${scope || 'api'} key`,
-      scope: scope || 'all',
-      token: `sk_${Math.random().toString(36).substr(2)}`, // Generate fake token for display
-      lastUsed: 'new',
-      created_at: new Date().toISOString()
-    };
-
-    const newKeys = [newKey, ...keys].slice(0, 10);
-    metadata.api_keys = newKeys;
-
-    // Log intent (optional)
-    const logs = metadata.activity_logs || [];
-    logs.unshift({ id: `log-${Date.now()}`, event: `Generated API Key (${scope})`, ip: 'N/A', at: new Date().toISOString() });
-    metadata.activity_logs = logs.slice(0, 20);
-
-    await supabaseAdmin.from('agents').update({ metadata }).eq('id', agent?.id || userId);
-
-    res.json({ success: true, keys: newKeys });
-  } catch (err) {
-    console.error('API Key gen error:', err);
-    res.status(500).json({ error: 'Failed to generate key' });
   }
 });
 
@@ -26989,51 +26881,6 @@ app.post('/api/admin/activity/record-login', verifyAdmin, async (req, res) => {
   } catch (err) {
     console.warn('[activity] record-login failed (non-fatal):', err?.message);
     res.json({ success: true });
-  }
-});
-
-// Admin settings: system config
-app.get('/api/admin/system-settings', verifyAdmin, async (req, res) => {
-  try {
-    const userId = req.headers['x-user-id'] || req.user?.id;
-    const { data: agent } = await supabaseAdmin.from('agents').select('metadata').or(`id.eq.${userId},auth_user_id.eq.${userId}`).single();
-    // Default config if not present
-    const defaultConfig = {
-      appName: 'HomeListingAI (Admin)',
-      brandingColor: '#0ea5e9',
-      onboardingEnabled: true,
-      aiLoggingEnabled: true,
-      betaFeaturesEnabled: false,
-      notificationEmail: process.env.NOTIFICATION_EMAIL || 'admin@homelistingai.app',
-      notificationPhone: ''
-    };
-
-    // Merge remote config
-    const settings = { ...defaultConfig, ...(agent?.metadata?.system_config || {}) };
-    res.json(settings);
-  } catch (err) {
-    res.json(adminConfig); // Fallback to memory
-  }
-});
-
-app.put('/api/admin/system-settings', verifyAdmin, async (req, res) => {
-  try {
-    const userId = req.headers['x-user-id'] || req.user?.id;
-    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
-
-    const { data: agent } = await supabaseAdmin.from('agents').select('id, metadata').or(`id.eq.${userId},auth_user_id.eq.${userId}`).single();
-    const metadata = agent?.metadata || {};
-
-    // Update config
-    metadata.system_config = { ...(metadata.system_config || {}), ...(req.body || {}) };
-
-    const { error } = await supabaseAdmin.from('agents').update({ metadata }).eq('id', agent?.id || userId);
-    if (error) throw error;
-
-    res.json({ success: true, settings: metadata.system_config });
-  } catch (err) {
-    console.error('System config save error:', err);
-    res.status(500).json({ error: 'Failed to save settings' });
   }
 });
 
