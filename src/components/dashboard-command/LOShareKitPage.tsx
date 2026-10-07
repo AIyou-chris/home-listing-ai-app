@@ -4,6 +4,7 @@ import { buildApiUrl } from '../../lib/api';
 import { authHeaders } from '../../services/dashboard/utils';
 import { showToast } from '../../utils/toastService';
 import { buildDashboardPath, useDemoMode } from '../../demo/useDemoMode';
+import ListingReelCard from './ListingReelCard';
 import ShareKitCards, { type KitListing, type KitLo, type KitRealtor, type Toggles } from './ShareKitCards';
 
 // The LO's co-branded kit for a listing they're on: link, QR, flyer, social caption.
@@ -82,6 +83,8 @@ const LOShareKitPage: React.FC = () => {
       </div>
 
       <ShareKitCards listing={listing} lo={lo} realtor={realtor} toggles={toggles} onToggle={(piece, v) => void setToggle(piece, v)} utmSource="lo_share_kit" />
+
+      <ListingReelCard listingId={listingId} photoCount={listing.photos.length} demo={demo} />
 
       <p className="text-xs text-slate-400">Your name, photo, logo and NMLS come from your profile in Settings.</p>
     </div>

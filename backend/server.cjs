@@ -32901,6 +32901,95 @@ app.get('/api/lo/listings/:listingId/share-kit', requireLoAgent, async (req, res
   }
 });
 
+// ---- Listing reel: a 9:16 video from the listing's own photos (LO co-branded). ----
+let listingReelServiceInstance = null;
+const getListingReelService = () => {
+  if (!listingReelServiceInstance && supabaseAdmin) {
+    const { createListingReelService } = require('./services/listingReelService');
+    listingReelServiceInstance = createListingReelService({
+      supabaseAdmin,
+      safeFetch: require('./services/safeUrl').safeFetch,
+      openaiApiKey: process.env.OPENAI_API_KEY,
+      logoPath: path.join(__dirname, '../public/newlogo.png'),
+      musicDir: path.join(__dirname, '../public/reel-music')
+    });
+  }
+  return listingReelServiceInstance;
+};
+const reelStartLog = new Map(); // loAgentId -> [timestamps] (5 reels per hour)
+
+app.post('/api/lo/listings/:listingId/reel', requireLoAgent, async (req, res) => {
+  try {
+    const loAgentId = req.loAgentId;
+    const { listingId } = req.params;
+    const reels = getListingReelService();
+    if (!reels) return res.status(503).json({ error: 'reel_unavailable' });
+    if (!process.env.OPENAI_API_KEY) return res.status(503).json({ error: 'reel_unavailable' });
+
+    const { data: assignment } = await supabaseAdmin
+      .from('listing_lo_assignments').select('listing_id').eq('listing_id', listingId).eq('lo_agent_id', loAgentId).limit(1).maybeSingle();
+    if (!assignment) return res.status(403).json({ error: 'listing_access_denied' });
+
+    const now = Date.now();
+    const recent = (reelStartLog.get(loAgentId) || []).filter((t) => now - t < 3600000);
+    if (recent.length >= 5) return res.status(429).json({ error: 'reel_rate_limited' });
+
+    const { data: listing } = await supabaseAdmin
+      .from('properties')
+      .select('id, address, title, price, bedrooms, bathrooms, status, is_published, hero_photos, gallery_photos, public_slug, agent_id, user_id')
+      .eq('id', listingId).maybeSingle();
+    if (!listing) return res.status(404).json({ error: 'listing_not_found' });
+    if (!isListingPublished(listing)) return res.status(409).json({ error: 'NOT_PUBLISHED' });
+    if (!toTrimmedOrNull(listing.public_slug)) return res.status(409).json({ error: 'NO_SHARE_LINK' });
+
+    const photos = [
+      ...(Array.isArray(listing.hero_photos) ? listing.hero_photos : []),
+      ...(Array.isArray(listing.gallery_photos) ? listing.gallery_photos : [])
+    ].map((item) => (typeof item === 'string' ? item : item?.url)).filter((u) => typeof u === 'string' && /^https?:\/\//i.test(u));
+    if (photos.length < 2) return res.status(409).json({ error: 'NEED_PHOTOS' });
+
+    const ownerAuthId = listing.user_id || listing.agent_id || null;
+    const { data: realtor } = ownerAuthId
+      ? await supabaseAdmin.from('agents').select('first_name, last_name, company').eq('auth_user_id', ownerAuthId).maybeSingle()
+      : { data: null };
+    const { data: lo } = await supabaseAdmin
+      .from('agents').select('first_name, last_name, company, nmls_number, brand_logo_url').eq('id', loAgentId).maybeSingle();
+    if (!lo?.nmls_number) return res.status(409).json({ error: 'NEED_NMLS' });
+
+    const jobId = reels.start({
+      ownerId: loAgentId,
+      listing: {
+        id: listing.id,
+        address: listing.address || listing.title || '',
+        price: Number(listing.price) || 0,
+        bedrooms: Number(listing.bedrooms) || 0,
+        bathrooms: Number(listing.bathrooms) || 0,
+        photos: photos.slice(0, 6),
+        share_url: `${buildListingShareUrl(listing.public_slug)}?utm_source=lo_reel`
+      },
+      lo: {
+        name: `${lo?.first_name || ''} ${lo?.last_name || ''}`.trim() || 'Loan Officer',
+        company: lo?.company || null,
+        nmls_number: lo?.nmls_number || null,
+        logo_url: lo?.brand_logo_url || null
+      },
+      realtor: realtor ? { name: `${realtor.first_name || ''} ${realtor.last_name || ''}`.trim() || null, brokerage: realtor.company || null } : null
+    });
+    reelStartLog.set(loAgentId, [...recent, now]);
+    res.status(202).json({ success: true, jobId });
+  } catch (err) {
+    console.error('[LO Reel] start failed:', err?.message || err);
+    res.status(500).json({ error: 'reel_start_failed' });
+  }
+});
+
+app.get('/api/lo/listings/:listingId/reel/:jobId', requireLoAgent, (req, res) => {
+  const reels = getListingReelService();
+  const job = reels ? reels.get(req.params.jobId, req.loAgentId) : null;
+  if (!job) return res.status(404).json({ error: 'reel_not_found' });
+  res.json({ success: true, ...job });
+});
+
 // The agent's own share kit data (same pieces as the LO kit, minus the co-branding).
 app.get('/api/dashboard/listings/:listingId/agent-share-kit', async (req, res) => {
   try {
