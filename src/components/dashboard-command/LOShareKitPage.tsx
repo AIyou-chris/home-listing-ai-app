@@ -4,6 +4,7 @@ import { buildApiUrl } from '../../lib/api';
 import { authHeaders } from '../../services/dashboard/utils';
 import { showToast } from '../../utils/toastService';
 import { buildDashboardPath, useDemoMode } from '../../demo/useDemoMode';
+import HoaDocsCard from './HoaDocsCard';
 import ListingReelCard from './ListingReelCard';
 import ShareKitCards, { type KitListing, type KitLo, type KitRealtor, type Toggles } from './ShareKitCards';
 
@@ -85,6 +86,8 @@ const LOShareKitPage: React.FC = () => {
       <ShareKitCards listing={listing} lo={lo} realtor={realtor} toggles={toggles} onToggle={(piece, v) => void setToggle(piece, v)} utmSource="lo_share_kit" />
 
       <ListingReelCard listingId={listingId} photoCount={listing.photos.length} demo={demo} />
+
+      <HoaDocsCard listingId={listingId} address={listing.address} demo={demo} />
 
       <p className="text-xs text-slate-400">Your name, photo, logo and NMLS come from your profile in Settings.</p>
     </div>

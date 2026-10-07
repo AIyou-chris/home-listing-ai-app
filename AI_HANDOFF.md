@@ -1,3 +1,19 @@
+## 2026-10-07 — Claude: Condo Check on the LO Share Kit (local, NOT committed)
+
+- Fannie facts verified from the letter itself (LL-2026-03, saved in `tmp/hoa-samples/`, untracked): Limited Review gone Aug 3 2026, reserves 10% to 15% for applications dated Jan 4 2027+, baseline funding banned, waiver for 10 or fewer units, master deductible max $50k/unit. Memory notes: `fannie-condo-ll-2026-03`, `hoa-doc-reader`.
+- New: `backend/services/condoRules.js` (all Fannie numbers in one file, flags are "questions for the lender"), `POST /api/lo/listings/:listingId/hoa-read` (requireLoAgent + assignment check, PDF only, 15 MB, 10/hour, scanned PDF returns 422 SCANNED_PDF), `HoaDocsCard.tsx` on the LO Share Kit page. LO uploads, checks each fact against its quote and page, ticks "I checked", then the facts save into the existing `lo_listing_kb_docs` (so the buyer chat reads them, no new table). Saved text tells the AI never to say a loan is or is not approved.
+- Tested: backend 300 pass, tsc + eslint clean, reader checked on the sample reserve study. NOT tested: the route with a real login, the upload screen in a browser, the buyer chat actually using the saved facts.
+- Known: the sample study has no dues income, so reserve % of budget shows "could not be worked out" (correct; a reserve study is not a budget). A budget or questionnaire PDF is needed to test that path.
+- Not done: OCR for scanned PDFs, the public "Condo Readiness" card on the WOW Link, the agent-facing "Condo Check" invite and marketing, reserve study "within 3 years" rule (unverified, left out).
+- The listing reel commit (96540a7f) is still not pushed: GitHub returned 500 on push on 2026-10-07.
+
+## 2026-10-07 — Claude: HOA document reader, first version (local, NOT committed, no route or UI yet)
+
+- Why: Fannie's 2026 condo changes (Limited Review gone, reserve minimum rising, Full Review on every established project). Idea: a "Condo Check" card per listing. **Dates and percentages are from blogs, not Fannie's Lender Letter. Get the letter before using any number publicly.**
+- `backend/services/hoaDocReaderService.js`: PDF to text (rebuilds lines by position so table labels stay with numbers), AI copies 13 facts with a page and a word-for-word quote, code checks the quote is on that page, flags a bare number, flags the same number used twice. Reserve % of budget is computed in code only. Tested on a real sample reserve study (`tmp/hoa-samples/`, untracked): units, balance, monthly reserve, percent funded, no special assessment, guardrail repair all matched the PDF. Costs about 6 cents per 55-page study (gpt-4o).
+- Lesson: quote checking proves a number exists, not what it means (first run put the reserve balance in the dues field). The LO must confirm every fact before it is used.
+- Not done: scanned PDFs (needs OCR), upload route, review screen, brain wiring, Condo Readiness card, Fannie Lender Letter facts, a real association budget and minutes (only samples so far).
+
 ## 2026-10-07 — Claude: Listing Reel (LO Share Kit "Make my reel"), local, NOT committed
 
 - New `backend/services/listingReelService.js`: 9:16 video from the listing's own photos. Script from real facts only (brand-voice checked), OpenAI voice, captions timed by sentence length, Ken Burns + crossfades, end card with LO name, NMLS, agent, tracked link, Equal Housing + "AI-generated voice". FFmpeg via new dep `ffmpeg-static` (Render has no ffmpeg). 720x1280 by default (`REEL_WIDTH`), one render at a time, ~11s locally.

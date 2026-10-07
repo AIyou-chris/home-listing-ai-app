@@ -32990,6 +32990,50 @@ app.get('/api/lo/listings/:listingId/reel/:jobId', requireLoAgent, (req, res) =>
   res.json({ success: true, ...job });
 });
 
+// ---- HOA document reader: LO uploads a reserve study / budget / questionnaire, reviews the facts. ----
+let hoaDocReaderInstance = null;
+const getHoaDocReader = () => {
+  if (!hoaDocReaderInstance && process.env.OPENAI_API_KEY) {
+    hoaDocReaderInstance = require('./services/hoaDocReaderService').createHoaDocReader({ openaiApiKey: process.env.OPENAI_API_KEY });
+  }
+  return hoaDocReaderInstance;
+};
+const hoaReadLog = new Map(); // loAgentId -> [timestamps] (10 reads per hour)
+
+app.post('/api/lo/listings/:listingId/hoa-read', requireLoAgent, (req, res, next) => {
+  chatbotFileUpload.single('file')(req, res, (err) => {
+    if (err) return res.status(400).json({ error: err.code === 'LIMIT_FILE_SIZE' ? 'FILE_TOO_BIG' : 'upload_failed' });
+    next();
+  });
+}, async (req, res) => {
+  try {
+    const loAgentId = req.loAgentId;
+    const { listingId } = req.params;
+    const reader = getHoaDocReader();
+    if (!reader) return res.status(503).json({ error: 'reader_unavailable' });
+    if (!req.file || !/\.pdf$/i.test(req.file.originalname || '')) return res.status(400).json({ error: 'PDF_ONLY' });
+    if (req.file.buffer.length > 15 * 1024 * 1024) return res.status(400).json({ error: 'FILE_TOO_BIG' });
+
+    const { data: assignment } = await supabaseAdmin
+      .from('listing_lo_assignments').select('listing_id').eq('listing_id', listingId).eq('lo_agent_id', loAgentId).limit(1).maybeSingle();
+    if (!assignment) return res.status(403).json({ error: 'listing_access_denied' });
+
+    const now = Date.now();
+    const recent = (hoaReadLog.get(loAgentId) || []).filter((t) => now - t < 3600000);
+    if (recent.length >= 10) return res.status(429).json({ error: 'hoa_rate_limited' });
+    hoaReadLog.set(loAgentId, [...recent, now]);
+
+    const out = await reader.readPdf(req.file.buffer);
+    const { readinessFlags } = require('./services/condoRules');
+    res.json({ success: true, fileName: req.file.originalname, pageCount: out.pageCount, facts: out.facts, derived: out.derived, flags: readinessFlags(out.facts, out.derived) });
+  } catch (err) {
+    const msg = String(err?.message || err);
+    if (msg === 'no_text_in_pdf') return res.status(422).json({ error: 'SCANNED_PDF' });
+    console.error('[LO HOA read] failed:', msg);
+    res.status(500).json({ error: 'hoa_read_failed' });
+  }
+});
+
 // The agent's own share kit data (same pieces as the LO kit, minus the co-branding).
 app.get('/api/dashboard/listings/:listingId/agent-share-kit', async (req, res) => {
   try {
