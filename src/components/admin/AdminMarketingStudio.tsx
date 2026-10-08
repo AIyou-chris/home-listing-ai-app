@@ -7,12 +7,13 @@ import { adminMarketingStudioService, type StudioCampaign } from '../../services
 import MarketingCampaignReview from './MarketingCampaignReview';
 import MarketingImageLibrary from './MarketingImageLibrary';
 import ConnectedAccountsPanel from './ConnectedAccountsPanel';
+import FbGroupsPanel from './FbGroupsPanel';
 
-type Tab = 'create' | 'campaigns' | 'video' | 'calendar' | 'qr' | 'accounts' | 'images';
+type Tab = 'create' | 'campaigns' | 'video' | 'calendar' | 'qr' | 'accounts' | 'images' | 'groups';
 const TABS: { id: Tab; label: string }[] = [
   { id: 'create', label: 'Create' }, { id: 'campaigns', label: 'My campaigns' },
   { id: 'video', label: 'Make a Video' }, { id: 'calendar', label: 'Calendar' },
-  { id: 'qr', label: 'QR Codes' }, { id: 'images', label: 'Picture library' }, { id: 'accounts', label: 'Connected accounts' },
+  { id: 'qr', label: 'QR Codes' }, { id: 'images', label: 'Picture library' }, { id: 'groups', label: 'Facebook Groups' }, { id: 'accounts', label: 'Connected accounts' },
 ];
 const OUTPUTS = ['Blog article', 'Campaign picture', 'Sales email', 'LinkedIn', 'Facebook Page', 'Instagram Reel', 'Bluesky'];
 const GOALS = ['Build agent partnerships', 'Get warm leads', 'Get more calls', 'Drive website visits', 'Promote an offer'];
@@ -274,6 +275,7 @@ export default function AdminMarketingStudio({ ownerId }: { ownerId: string }) {
       </>}
       {tab === 'qr' && <div className="grid gap-5 lg:grid-cols-2"><form onSubmit={createQr} className={cardClass}><h3 className="flex items-center gap-2 text-lg font-bold text-slate-900"><QrCode size={20} className="text-primary-600" />Turn a link into a QR code</h3><p className="mt-2 text-sm text-slate-500">Use it on flyers, social images, or an open-house sign.</p><label className="mt-5 block text-sm font-semibold text-slate-800">Destination link<input type="url" value={qrUrl} onChange={event => changeQrUrl(event.target.value)} required maxLength={2000} className={`${inputClass} mt-2`} /></label><button type="submit" className={`${primaryClass} mt-4`} disabled={qrBusy}>{qrBusy ? 'Making QR code…' : 'Create QR code'}</button></form><div className={`${cardClass} flex min-h-64 flex-col items-center justify-center`}>{qrImage ? <><img src={qrImage} alt={`QR code linking to ${qrUrl}`} className="h-52 w-52" /><a className={`${buttonClass} mt-3`} href={qrImage} download="homelistingai-qr.png"><Download size={16} />Download PNG</a><p className="mt-3 max-w-full break-all text-center text-xs text-slate-500">{qrUrl}</p></> : <p className="text-sm text-slate-500">Your QR code will appear here.</p>}</div></div>}
       {tab === 'accounts' && <ConnectedAccountsPanel />}
+      {tab === 'groups' && <FbGroupsPanel />}
     </div>
   </section>;
 }

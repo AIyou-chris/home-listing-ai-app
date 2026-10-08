@@ -35718,6 +35718,93 @@ app.get('/api/marketing/oauth/:platform/callback', async (req, res) => {
   }
 });
 
+// ---- Facebook groups (hand-posting kit): group library, post writer, posted log. Facebook allows no auto-posting into groups. ----
+const fbGroupWriteLog = new Map(); // admin id -> [timestamps] (20 per hour)
+
+app.get('/api/admin/fb-groups', verifyAdmin, async (req, res) => {
+  try {
+    const [{ data: groups, error }, { data: posts, error: postError }] = await Promise.all([
+      supabaseAdmin.from('house_fb_groups').select('*').order('name'),
+      supabaseAdmin.from('house_fb_group_posts').select('id, group_id, group_name, variant, notes, posted_at').order('posted_at', { ascending: false }).limit(100)
+    ]);
+    if (error || postError) throw error || postError;
+    res.json({ groups: groups || [], posts: posts || [] });
+  } catch (err) {
+    console.error('[FB groups] list failed:', err?.message || err);
+    res.status(500).json({ error: 'Could not load your Facebook groups' });
+  }
+});
+
+app.post('/api/admin/fb-groups', verifyAdmin, async (req, res) => {
+  const { cleanGroup } = require('./services/fbGroupService');
+  const cleaned = cleanGroup(req.body);
+  if (cleaned.error) return res.status(400).json({ error: cleaned.error });
+  const { data, error } = await supabaseAdmin.from('house_fb_groups').insert(cleaned.value).select().single();
+  if (error) return res.status(error.code === '23505' ? 409 : 500).json({ error: error.code === '23505' ? 'That group is already in your list' : 'Could not save that group' });
+  res.json({ group: data });
+});
+
+app.patch('/api/admin/fb-groups/:id', verifyAdmin, async (req, res) => {
+  const { cleanGroup } = require('./services/fbGroupService');
+  const cleaned = cleanGroup(req.body);
+  if (cleaned.error) return res.status(400).json({ error: cleaned.error });
+  const { data, error } = await supabaseAdmin.from('house_fb_groups').update(cleaned.value).eq('id', req.params.id).select().maybeSingle();
+  if (error) return res.status(error.code === '23505' ? 409 : 500).json({ error: 'Could not save that group' });
+  if (!data) return res.status(404).json({ error: 'Group not found' });
+  res.json({ group: data });
+});
+
+app.delete('/api/admin/fb-groups/:id', verifyAdmin, async (req, res) => {
+  const { error } = await supabaseAdmin.from('house_fb_groups').delete().eq('id', req.params.id);
+  if (error) return res.status(500).json({ error: 'Could not remove that group' });
+  res.json({ ok: true });
+});
+
+// Write three versions of a post for one group, following that group's rules.
+app.post('/api/admin/fb-groups/:id/write', verifyAdmin, async (req, res) => {
+  try {
+    if (!process.env.OPENAI_API_KEY) return res.status(503).json({ error: 'The writer is not available right now' });
+    const adminKey = String(req.user?.id || 'admin');
+    const now = Date.now();
+    const recent = (fbGroupWriteLog.get(adminKey) || []).filter((t) => now - t < 3600000);
+    if (recent.length >= 20) return res.status(429).json({ error: 'That is 20 posts this hour. Try again soon.' });
+    const { data: group } = await supabaseAdmin.from('house_fb_groups').select('*').eq('id', req.params.id).maybeSingle();
+    if (!group) return res.status(404).json({ error: 'Group not found' });
+    fbGroupWriteLog.set(adminKey, [...recent, now]);
+    const { createFbGroupWriter } = require('./services/fbGroupService');
+    const variants = await createFbGroupWriter({ openaiApiKey: process.env.OPENAI_API_KEY }).write({
+      group,
+      topic: String(req.body?.topic || '').trim().slice(0, 500),
+      link: 'https://homelistingai.com/for-loan-officers'
+    });
+    res.json({ variants });
+  } catch (err) {
+    console.error('[FB groups] write failed:', err?.message || err);
+    res.status(500).json({ error: 'Could not write that post. Try again.' });
+  }
+});
+
+// Log that a person posted it by hand.
+app.post('/api/admin/fb-groups/:id/posted', verifyAdmin, async (req, res) => {
+  try {
+    const { data: group } = await supabaseAdmin.from('house_fb_groups').select('id, name').eq('id', req.params.id).maybeSingle();
+    if (!group) return res.status(404).json({ error: 'Group not found' });
+    const now = new Date().toISOString();
+    const { error } = await supabaseAdmin.from('house_fb_group_posts').insert({
+      group_id: group.id, group_name: group.name,
+      variant: String(req.body?.variant || '').slice(0, 40),
+      post_text: String(req.body?.text || '').slice(0, 5000),
+      notes: String(req.body?.notes || '').slice(0, 1000), posted_at: now
+    });
+    if (error) throw error;
+    await supabaseAdmin.from('house_fb_groups').update({ last_posted_at: now, updated_at: now }).eq('id', group.id);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[FB groups] posted log failed:', err?.message || err);
+    res.status(500).json({ error: 'Could not save that' });
+  }
+});
+
 // GET /api/admin/social/status — connection state, channels, saved config.
 app.get('/api/admin/social/status', verifyAdmin, async (req, res) => {
   try {

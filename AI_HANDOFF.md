@@ -1,3 +1,10 @@
+## 2026-10-08 — Claude: Facebook Groups tab in the admin (local, NOT pushed)
+
+- Facebook allows no auto-posting into groups, so this is a hand-posting kit copied in spirit from An AI You (`FacebookGroupKitPage`): library of groups with their rules (links yes/no/not checked, promo days), "Write a post" gives 3 versions (value first, no link, promotional) that follow the group's rules (no link unless links are allowed, links also stripped in code), brand-voice check, Copy, and "I posted this" log. Tab "Facebook Groups" in Marketing Funnels -> Marketing Studio.
+- Files: `backend/services/fbGroupService.js`, routes `/api/admin/fb-groups*` (verifyAdmin, 20 writes/hour), `FbGroupsPanel.tsx`, `house-fb-groups-migration.sql` (tables `house_fb_groups`, `house_fb_group_posts` ALREADY CREATED in Supabase via the migration tool, Chris OK'd DB work for this feature).
+- Not ported: Reddit/post radar and "opportunity" triage from An AI You, tying posts to campaigns.
+- Social connect (earlier today, pushed): Chris added all env keys on Render and the redirect addresses for LinkedIn, YouTube and Meta. Not yet confirmed a real connection works.
+
 ## 2026-10-08 — Claude: social accounts in the admin, copied from An AI You (local, NOT committed)
 
 - Chris wanted the same Connected accounts cards as anaiyou.com, not Buffer. The An AI You code is in `/Volumes/GFY/EatADick/AI-You-Site` (repo AIyou-chris/ai-landing-template). Copied its direct connection flow (Facebook, Instagram, YouTube, LinkedIn): `backend/services/houseSocialOauth.js`, `tokenCrypto.js`, `houseSocialStore.js`, routes `/api/admin/house-social/connections*` and the public return trip `GET /api/marketing/oauth/:platform/callback` (allowlisted, one-time state), `ConnectedAccountsPanel.tsx` in Marketing Funnels, migration `house-social-connections-migration.sql` (NOT run yet).
