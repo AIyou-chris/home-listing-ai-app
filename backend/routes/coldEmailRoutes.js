@@ -9,12 +9,16 @@ const templates = require('../services/coldEmail/templates');
 const writer = require('../services/coldEmail/writer');
 const seq = require('../services/coldEmail/sequence');
 const { appendFooter, listUnsubscribeHeaders, postalAddress } = require('../services/coldEmail/compliance');
+const switches = require('../services/adminSwitches');
 
 const page = (title, message) => `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><body style="font-family:-apple-system,Segoe UI,sans-serif;max-width:420px;margin:15vh auto;padding:0 20px;color:#0f172a"><h2>${title}</h2><p style="line-height:1.6;color:#334155">${message}</p></body>`;
 
 const register = (app, deps) => {
   const { verifyAdmin, supabaseAdmin: db, openai, emailService, verifyMailgunSignature, signingKey, signingKeyIsSet, defaultLeadUserId, upload, ownerAlertEmail } = deps;
-  const cfg = () => sender.readConfig();
+  // Sending is governed by the admin's switch (default OFF), not by an env setting.
+  let sendOn = false;
+  const refreshSwitch = async () => { sendOn = await switches.getSwitch(db, 'cold_email_send'); return sendOn; };
+  const cfg = () => ({ ...sender.readConfig(), enabled: sendOn });
   const fail = (res, err, code = 'cold_email_failed') => {
     console.error(`[ColdEmail] ${code}:`, err?.message || err);
     const missing = engine.TABLE_MISSING.test(err?.message || '');
@@ -32,6 +36,7 @@ const register = (app, deps) => {
   // ---- status / checklist ----
   app.get('/api/admin/cold-email/overview', verifyAdmin, async (req, res) => {
     try {
+      await refreshSwitch();
       const c = cfg();
       const ready = await engine.tablesReady(db);
       const out = {
@@ -115,7 +120,15 @@ const register = (app, deps) => {
 
   // ---- batches ----
   app.post('/api/admin/cold-email/batches', verifyAdmin, async (req, res) => {
-    try { res.json(await engine.createBatch(db, req.body || {})); } catch (err) { if (/required|pick/.test(err.message)) return res.status(400).json({ error: err.message }); fail(res, err); }
+    try {
+      const body = { ...(req.body || {}) };
+      if (body.marketingCampaignId) {
+        const { data: camp } = await db.from('admin_marketing_campaigns').select('id, status, brief').eq('id', body.marketingCampaignId).maybeSingle();
+        if (!camp || camp.status !== 'approved') return res.status(400).json({ error: 'pick_approved_campaign' });
+        body.theme = [camp.brief?.idea, camp.brief?.goal].filter(Boolean).join(' | ').slice(0, 400);
+      } else { delete body.marketingCampaignId; delete body.theme; }
+      res.json(await engine.createBatch(db, body));
+    } catch (err) { if (/required|pick/.test(err.message)) return res.status(400).json({ error: err.message }); fail(res, err); }
   });
   app.get('/api/admin/cold-email/batches/:id', verifyAdmin, async (req, res) => {
     try {
@@ -134,6 +147,7 @@ const register = (app, deps) => {
   app.post('/api/admin/cold-email/batches/:id/approve', verifyAdmin, async (req, res) => {
     try {
       if (req.body?.confirm !== true) return res.status(400).json({ error: 'confirm_required' });
+      await refreshSwitch();
       res.json(await engine.approveBatch(db, req.params.id, { approvedBy: req.user?.email || null, cfg: cfg() }));
     } catch (err) { if (err.message === 'batch_not_draft') return res.status(409).json({ error: err.message }); fail(res, err); }
   });
@@ -146,7 +160,31 @@ const register = (app, deps) => {
   app.post('/api/admin/cold-email/batches/:id/pause', verifyAdmin, setBatchPaused(true));
   app.post('/api/admin/cold-email/batches/:id/resume', verifyAdmin, setBatchPaused(false));
   app.post('/api/admin/cold-email/run', verifyAdmin, async (req, res) => {
-    try { res.json(await engine.sweep(db, { cfg: cfg() })); } catch (err) { fail(res, err, 'sweep_failed'); }
+    try { await refreshSwitch(); res.json(await engine.sweep(db, { cfg: cfg() })); } catch (err) { fail(res, err, 'sweep_failed'); }
+  });
+
+  // The master switch. OFF = nothing is sent, ever. Turning it ON needs the sending setup to be complete.
+  app.get('/api/admin/cold-email/switch', verifyAdmin, async (req, res) => {
+    try {
+      const enabled = await refreshSwitch();
+      const setup = sender.blockers({ ...sender.readConfig(), enabled: true });
+      let waiting = 0;
+      try { const { count } = await db.from('cold_email_sends').select('id', { count: 'exact', head: true }).eq('status', 'approved'); waiting = count || 0; } catch { /* tables may not exist yet */ }
+      res.json({ enabled, setupBlockers: setup, waiting });
+    } catch (err) { fail(res, err); }
+  });
+  app.post('/api/admin/cold-email/switch', verifyAdmin, async (req, res) => {
+    try {
+      const want = req.body?.enabled === true;
+      if (want) {
+        const setup = sender.blockers({ ...sender.readConfig(), enabled: true });
+        if (setup.length) return res.status(409).json({ error: 'not_configured', message: setup[0], blockers: setup });
+      }
+      await switches.setSwitch(db, 'cold_email_send', want, req.user?.email);
+      sendOn = want;
+      console.log(`[ColdEmail] sending switched ${want ? 'ON' : 'OFF'} by ${req.user?.email || 'admin'}`);
+      res.json({ enabled: want });
+    } catch (err) { fail(res, err); }
   });
 
   // Test send goes to the admin's own mailbox so the headers can be inspected. Never to a prospect.

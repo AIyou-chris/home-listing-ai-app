@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import MarketingCampaignMedia from './MarketingCampaignMedia';
+import MarketingCampaignPosting from './MarketingCampaignPosting';
 import { Copy } from 'lucide-react';
 import { adminMarketingStudioService, type CampaignOutputs, type StudioCampaign } from '../../services/adminMarketingStudioService';
 
@@ -35,6 +36,7 @@ export default function MarketingCampaignReview({ campaign, onChange }: { campai
     {message && <p role="status" className="text-sm text-emerald-700">{message}</p>}
     {!!campaign.quoteCards?.length && <section className="rounded-xl border border-slate-200 bg-white p-4"><h3 className="font-semibold text-slate-900">Quote card lines</h3><p className="mt-1 text-sm text-slate-600">Three lines from your article, ready for a picture.</p>{campaign.quoteCards.slice(0, 3).map((quote, index) => <div key={index} className="mt-3 flex items-start justify-between gap-3"><p className="text-sm leading-6 text-slate-800">{quote}</p><button type="button" className={button} aria-label={`Copy quote ${index + 1}`} onClick={async () => { try { await navigator.clipboard.writeText(quote); setMessage('Quote copied.'); } catch { setError('Select the quote to copy it.'); } }}>Copy</button></div>)}</section>}
     <MarketingCampaignMedia campaign={campaign} dirty={dirty} onChange={onChange} />
+    {campaign.status === 'approved' && !dirty && <MarketingCampaignPosting campaignId={campaign.id} plannedAt={campaign.plannedAt} hasBlogPost={Boolean(campaign.blogPostId)} />}
     {FIELDS.map(({ key, label, max }) => <div key={key}>
       <label htmlFor={`studio-output-${key}`} className="block text-sm font-semibold text-slate-800">{label}</label>
       <textarea id={`studio-output-${key}`} value={outputs[key] || ''} disabled={busy} rows={key === 'blog' ? 9 : key === 'title' || key === 'emailSubject' ? 2 : 4} onChange={event => setOutputs({ ...outputs, [key]: event.target.value })} className="mt-2 w-full rounded-xl border border-slate-300 p-3 text-sm leading-6 text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary-500" />

@@ -27,6 +27,38 @@ const authHeader = async (): Promise<Record<string, string>> => {
   return token ? { Authorization: `Bearer ${token}` } : {};
 };
 
+const AutoPostSwitch: React.FC = () => {
+  const [on, setOn] = useState<boolean | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    void (async () => {
+      try { const res = await fetch(buildApiUrl('/api/admin/house-social/auto-post'), { headers: await authHeader() }); const j = await res.json(); setOn(j.enabled === true); } catch { setOn(null); }
+    })();
+  }, []);
+  if (on === null) return null;
+  const flip = async () => {
+    const next = !on;
+    if (next && !window.confirm('Turn auto-posting ON? Campaigns you scheduled will post to your accounts at their time.')) return;
+    setBusy(true);
+    try {
+      const res = await fetch(buildApiUrl('/api/admin/house-social/auto-post'), { method: 'POST', headers: { ...(await authHeader()), 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: next }) });
+      if (!res.ok) throw new Error('failed');
+      setOn(next); toast.success(next ? 'Auto-posting is ON' : 'Auto-posting is OFF');
+    } catch { toast.error('Could not change that'); } finally { setBusy(false); }
+  };
+  return (
+    <div className={`mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border p-4 ${on ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 bg-slate-50'}`}>
+      <div>
+        <p className="text-base font-bold text-slate-900">Auto-posting is {on ? 'ON' : 'OFF'}</p>
+        <p className="text-sm text-slate-600">{on ? 'Scheduled campaigns post at their time. Turn it off to stop them. "Post now" always works.' : 'Scheduled campaigns wait. Nothing posts by itself. "Post now" still works.'}</p>
+      </div>
+      <button type="button" role="switch" aria-checked={on} aria-label="Auto-posting" disabled={busy} onClick={() => void flip()} className={`relative h-8 w-14 shrink-0 rounded-full transition disabled:opacity-50 ${on ? 'bg-emerald-600' : 'bg-slate-400'}`}>
+        <span className={`absolute top-1 h-6 w-6 rounded-full bg-white transition-all ${on ? 'left-7' : 'left-1'}`} />
+      </button>
+    </div>
+  );
+};
+
 const ConnectedAccountsPanel: React.FC = () => {
   const [connections, setConnections] = useState<Connection[] | null>(null);
   const [busy, setBusy] = useState<Platform | null>(null);
@@ -88,6 +120,8 @@ const ConnectedAccountsPanel: React.FC = () => {
     <section>
       <h3 className="text-xl font-bold text-slate-900">Connected accounts</h3>
       <p className="mt-1 max-w-2xl text-sm text-slate-600">Connect HomeListingAI's own accounts. Everyone on the team shares these. Connect once for the company.</p>
+
+      <AutoPostSwitch />
 
       {loadError && (
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-800" role="alert">

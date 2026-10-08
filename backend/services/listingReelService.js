@@ -181,7 +181,8 @@ function createListingReelService({ supabaseAdmin, safeFetch, openaiApiKey, buck
         <text x="${W / 2}" y="${s(1220)}" text-anchor="middle" fill="#bfdbfe" font-family="sans-serif" font-size="${s(32)}">${esc(link)}</text>
         ${agentLine ? `<text x="${W / 2}" y="${s(1560)}" text-anchor="middle" fill="#dbeafe" font-family="sans-serif" font-size="${s(30)}">${esc(agentLine)}</text>` : ''}
         ${loLine ? `<text x="${W / 2}" y="${s(1620)}" text-anchor="middle" fill="#bfdbfe" font-family="sans-serif" font-size="${s(30)}">${esc(loLine)}</text>` : ''}
-        <text x="${W / 2}" y="${s(1700)}" text-anchor="middle" fill="#93c5fd" font-family="sans-serif" font-size="${s(24)}">Equal Housing Opportunity · Not a commitment to lend · AI-generated voice</text></svg>`;
+        <text x="${W / 2}" y="${s(1700)}" text-anchor="middle" fill="#93c5fd" font-family="sans-serif" font-size="${s(24)}">Equal Housing Opportunity · Not a commitment to lend · AI-generated voice</text>
+        <text x="${W / 2}" y="${s(1760)}" text-anchor="middle" fill="#bfdbfe" font-family="sans-serif" font-size="${s(26)}">Made with HomeListingAI</text></svg>`;
       let endCard = sharp(Buffer.from(endSvg));
       const logoSrc = lo?.logo_url ? await loadPhoto(lo.logo_url).catch(() => null) : (logoPath ? await fs.readFile(logoPath).catch(() => null) : null);
       if (logoSrc) {

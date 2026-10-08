@@ -31313,7 +31313,9 @@ async function runColdEmailSweep() {
   try {
     const coldEngine = require('./services/coldEmail/engine');
     const coldSender = require('./services/coldEmail/sender');
-    const result = await coldEngine.sweep(supabaseAdmin, { cfg: coldSender.readConfig() });
+    const sendOn = await require('./services/adminSwitches').getSwitch(supabaseAdmin, 'cold_email_send');
+    if (!sendOn) return; // the admin's master switch is OFF: nothing is sent
+    const result = await coldEngine.sweep(supabaseAdmin, { cfg: { ...coldSender.readConfig(), enabled: true } });
     if (result.sent || result.paused) console.log('[ColdEmail] sweep', JSON.stringify({ sent: result.sent, failed: result.failed, paused: result.paused }));
   } catch (err) {
     if (!/does not exist|schema cache/i.test(err?.message || '')) console.warn('[ColdEmail] sweep failed:', err?.message);
@@ -32151,7 +32153,7 @@ const buildWowLinkEmail = ({ name, loName, loBrand, wowLink, claimLink, agentCom
   <a href="${esc(claimLink)}" style="font:700 14px/1.4 ${font};color:${BLUE};text-decoration:none;">Ready? Claim your free account &rarr;</a>
 </td></tr>
 <tr><td align="center" style="padding:0 28px 28px;">
-  <div style="font:400 12px/1.5 ${font};color:#6c6c70;">Sent by ${loFull}${nmls ? ` &middot; NMLS #${esc(nmls)}` : ''} via ${esc(companyName)}. You received this because a loan officer built this demo for you.</div>
+  <div style="font:400 12px/1.5 ${font};color:#6c6c70;">Sent by ${loFull}${nmls ? ` &middot; NMLS #${esc(nmls)}` : ''} via ${loBrand?.whiteLabel ? esc(companyName) : `<a href="${siteBase}/for-loan-officers?ref=powered-by" style="color:#6c6c70;">${esc(companyName)}</a>`}. You received this because a loan officer built this demo for you.</div>
 </td></tr>
 </table>
 </td></tr>
@@ -35802,6 +35804,93 @@ app.post('/api/admin/fb-groups/:id/posted', verifyAdmin, async (req, res) => {
   } catch (err) {
     console.error('[FB groups] posted log failed:', err?.message || err);
     res.status(500).json({ error: 'Could not save that' });
+  }
+});
+
+// ---- Marketing Studio: send an APPROVED campaign to the connected accounts, on a date, with tracking tags. ----
+let marketingPosterInstance = null;
+const getMarketingPoster = () => {
+  if (!marketingPosterInstance && supabaseAdmin) {
+    marketingPosterInstance = require('./services/marketingPoster').createMarketingPoster({ db: supabaseAdmin });
+  }
+  return marketingPosterInstance;
+};
+const posterAction = (fn) => async (req, res) => {
+  try {
+    const poster = getMarketingPoster();
+    if (!poster) return res.status(503).json({ error: 'Posting is not available right now' });
+    if (!/^[0-9a-f-]{36}$/i.test(String(req.params.id || ''))) return res.status(400).json({ error: 'Invalid campaign ID' });
+    res.json({ posts: await fn(poster, req) });
+  } catch (err) {
+    if (err?.status) return res.status(err.status).json({ error: err.message, ...(err.needsConnection ? { needsConnection: err.needsConnection } : {}) });
+    console.error('[Marketing post] failed:', err?.message || err);
+    res.status(500).json({ error: 'Could not do that. Try again.' });
+  }
+};
+app.get('/api/admin/marketing-studio/campaigns/:id/posts', verifyAdmin, posterAction((poster, req) => poster.list(req.params.id)));
+app.put('/api/admin/marketing-studio/campaigns/:id/posts', verifyAdmin, posterAction((poster, req) =>
+  poster.schedule({ campaignId: req.params.id, channels: req.body?.channels, at: req.body?.at || null, by: req.user?.email })));
+app.delete('/api/admin/marketing-studio/campaigns/:id/posts/:channel', verifyAdmin, posterAction((poster, req) => poster.cancel(req.params.id, req.params.channel)));
+app.post('/api/admin/marketing-studio/campaigns/:id/posts/:channel/post-now', verifyAdmin, posterAction((poster, req) => poster.postNow(req.params.id, req.params.channel)));
+
+// Auto-posting master switch (default OFF). "Post now" always works; the 5-minute sweep only runs while this is ON.
+app.get('/api/admin/house-social/auto-post', verifyAdmin, async (req, res) => {
+  res.json({ enabled: await require('./services/adminSwitches').getSwitch(supabaseAdmin, 'social_auto_post') });
+});
+app.post('/api/admin/house-social/auto-post', verifyAdmin, async (req, res) => {
+  try {
+    const enabled = await require('./services/adminSwitches').setSwitch(supabaseAdmin, 'social_auto_post', req.body?.enabled === true, req.user?.email);
+    console.log(`[Marketing post] auto-posting switched ${enabled ? 'ON' : 'OFF'} by ${req.user?.email || 'admin'}`);
+    res.json({ enabled });
+  } catch (err) {
+    console.error('[Marketing post] switch failed:', err?.message || err);
+    res.status(500).json({ error: 'Could not change that' });
+  }
+});
+
+let marketingPostSweepBusy = false;
+async function runMarketingPostSweep() {
+  if (marketingPostSweepBusy || !supabaseAdmin) return;
+  marketingPostSweepBusy = true;
+  try {
+    if (!(await require('./services/adminSwitches').getSwitch(supabaseAdmin, 'social_auto_post'))) return;
+    const poster = getMarketingPoster();
+    const result = poster ? await poster.sweep() : null;
+    if (result?.posted) console.log('[Marketing post] sweep posted', result.posted);
+  } catch (err) {
+    if (!/does not exist|schema cache/i.test(err?.message || '')) console.warn('[Marketing post] sweep failed:', err?.message);
+  } finally {
+    marketingPostSweepBusy = false;
+  }
+}
+if (APP_RUNTIME_MODE !== 'worker') {
+  setInterval(() => { runMarketingPostSweep().catch(() => {}); }, 5 * 60 * 1000);
+}
+
+// Save a campaign's article as a blog DRAFT (never published from here). Safe to press twice.
+app.post('/api/admin/marketing-studio/campaigns/:id/save-blog', verifyAdmin, async (req, res) => {
+  try {
+    if (!/^[0-9a-f-]{36}$/i.test(String(req.params.id || ''))) return res.status(400).json({ error: 'Invalid campaign ID' });
+    const { data: camp } = await supabaseAdmin.from('admin_marketing_campaigns').select('id, owner_id, status, outputs, blog_post_id').eq('id', req.params.id).maybeSingle();
+    if (!camp) return res.status(404).json({ error: 'Campaign not found' });
+    if (camp.blog_post_id) return res.json({ postId: camp.blog_post_id, already: true });
+    const title = String(camp.outputs?.title || '').trim();
+    const body = String(camp.outputs?.blog || '').trim();
+    if (!title || !body) return res.status(400).json({ error: 'This campaign has no article yet.' });
+    const esc = (v) => v.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const content = body.split(/\n{2,}/).map((p) => `<p>${esc(p.trim()).replace(/\n/g, '<br>')}</p>`).join('');
+    let saved;
+    try { saved = await blogService.save(req.user.id, { title, content, status: 'draft' }); }
+    catch (err) {
+      if (err?.status !== 409) throw err;
+      saved = await blogService.save(req.user.id, { title, slug: `${title}-${String(camp.id).slice(0, 6)}`, content, status: 'draft' });
+    }
+    await supabaseAdmin.from('admin_marketing_campaigns').update({ blog_post_id: saved.post.id }).eq('id', camp.id);
+    res.json({ postId: saved.post.id });
+  } catch (err) {
+    if (err?.status) return res.status(err.status).json({ error: err.message });
+    console.error('[Marketing blog] save failed:', err?.message || err);
+    res.status(500).json({ error: 'Could not save the article. Try again.' });
   }
 });
 

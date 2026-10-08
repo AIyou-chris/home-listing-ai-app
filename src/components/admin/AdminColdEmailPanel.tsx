@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
+import { adminMarketingStudioService, type StudioCampaign } from '../../services/adminMarketingStudioService';
 import {
   adminColdEmailService as api, parseProspectCsv,
-  type ColdBatch, type ColdDraft, type ColdExamples, type ColdOverview, type ColdProspect, type ColdReply, type ColdResults, type ColdSend
+  type SendSwitch, type ColdBatch, type ColdDraft, type ColdExamples, type ColdOverview, type ColdProspect, type ColdReply, type ColdResults, type ColdSend
 } from '../../services/adminColdEmailService';
 
 // Cold email to loan officers. Plain steps: Setup, Prospects, Write and send, Replies, Results, Examples.
@@ -31,6 +32,35 @@ const Problems: React.FC<{ items: string[] }> = ({ items }) => items.length === 
 
 const msg = (e: unknown) => (e instanceof Error ? e.message : 'Something went wrong');
 
+// The master switch. Off means nothing is sent, no matter what is approved.
+const SendSwitchCard: React.FC = () => {
+  const [state, setState] = useState<SendSwitch | null>(null);
+  const [busy, setBusy] = useState(false);
+  const load = useCallback(async () => { try { setState(await api.sendSwitch()); } catch { setState(null); } }, []);
+  useEffect(() => { void load(); }, [load]);
+  if (!state) return null;
+  const blocked = !state.enabled && state.setupBlockers.length > 0;
+  const flip = async () => {
+    const next = !state.enabled;
+    if (next && !window.confirm(`Turn email sending ON? ${state.waiting} approved email${state.waiting === 1 ? '' : 's'} will start going out in the next send window (Tuesday to Thursday mornings).`)) return;
+    setBusy(true);
+    try { await api.setSendSwitch(next); toast.success(next ? 'Sending is ON' : 'Sending is OFF'); await load(); } catch (e) { toast.error(msg(e)); } finally { setBusy(false); }
+  };
+  return (
+    <div className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl border p-4 ${state.enabled ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 bg-slate-50'}`}>
+      <div>
+        <p className="text-base font-bold text-slate-900">Email sending is {state.enabled ? 'ON' : 'OFF'}</p>
+        <p className="text-sm text-slate-600">{state.enabled ? `${state.waiting} approved email${state.waiting === 1 ? '' : 's'} waiting to go out. Turn it off any time to stop everything.` : 'Nothing will be sent, even if emails are approved.'}</p>
+        {blocked && <p className="mt-1 text-sm text-amber-800">Not ready to turn on: {state.setupBlockers[0]}</p>}
+      </div>
+      <button type="button" role="switch" aria-checked={state.enabled} aria-label="Email sending" disabled={busy || blocked} onClick={() => void flip()}
+        className={`relative h-8 w-14 shrink-0 rounded-full transition disabled:opacity-50 ${state.enabled ? 'bg-emerald-600' : 'bg-slate-400'}`}>
+        <span className={`absolute top-1 h-6 w-6 rounded-full bg-white transition-all ${state.enabled ? 'left-7' : 'left-1'}`} />
+      </button>
+    </div>
+  );
+};
+
 const AdminColdEmailPanel: React.FC = () => {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<Tab>('setup');
@@ -44,6 +74,7 @@ const AdminColdEmailPanel: React.FC = () => {
 
   return (
     <section className="rounded-2xl border border-slate-200 bg-white shadow-sm" aria-labelledby="cold-email-title">
+      <div className="p-5 pb-0"><SendSwitchCard /></div>
       <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex w-full items-center justify-between gap-3 p-5 text-left">
         <span>
           <span id="cold-email-title" className="block text-lg font-bold text-slate-900">Cold email to loan officers</span>
@@ -88,7 +119,7 @@ const SetupTab: React.FC<{ overview: ColdOverview | null; onRefresh: () => Promi
     ['Mailboxes', c.mailboxes > 0, 'Set COLD_EMAIL_MAILBOXES on Render.'],
     ['Postal address in every footer', Boolean(c.postalAddress), 'Set LO_MAILING_ADDRESS on Render.'],
     ['Replies and bounces connected', c.replyWebhook, 'Set MAILGUN_WEBHOOK_SIGNING_KEY and add the Mailgun route (docs/COLD_EMAIL_DNS.md).'],
-    ['Sending switched on', c.enabled, 'Set COLD_EMAIL_ENABLED=true only after the DNS check passes.']
+    ['Sending switched on', c.enabled, 'Use the switch at the top of this section when you are ready.']
   ];
   const testSend = async () => {
     setBusy(true);
@@ -180,6 +211,8 @@ const SendTab: React.FC<{ overview: ColdOverview | null; onChange: () => Promise
   const [replyOnly, setReplyOnly] = useState(true);
   const [variant, setVariant] = useState('A');
   const [windowKind, setWindowKind] = useState('morning');
+  const [campaigns, setCampaigns] = useState<StudioCampaign[]>([]);
+  const [campaignId, setCampaignId] = useState('');
   const [draft, setDraft] = useState<ColdDraft | null>(null);
   const [busy, setBusy] = useState(false);
   const [verified, setVerified] = useState<ColdProspect[]>([]);
@@ -187,6 +220,7 @@ const SendTab: React.FC<{ overview: ColdOverview | null; onChange: () => Promise
   const [batchId, setBatchId] = useState<string | null>(null);
   const [batch, setBatch] = useState<{ batch: ColdBatch; sends: ColdSend[] } | null>(null);
 
+  useEffect(() => { void adminMarketingStudioService.list().then((all) => setCampaigns(all.filter((c) => c.status === 'approved'))).catch(() => undefined); }, []);
   useEffect(() => { void api.prospects('verified').then((r) => setVerified(r.prospects)).catch(() => undefined); }, [overview]);
   const loadBatch = useCallback(async (id: string) => { try { setBatch(await api.batch(id)); } catch (e) { toast.error(msg(e)); } }, []);
   useEffect(() => { if (batchId) void loadBatch(batchId); }, [batchId, loadBatch]);
@@ -195,7 +229,7 @@ const SendTab: React.FC<{ overview: ColdOverview | null; onChange: () => Promise
   const togglePick = (id: string) => setPicked((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
   const createBatch = () => wrap(async () => {
-    const r = await api.createBatch({ name: `${ANGLE_LABEL[angle]} · ${new Date().toLocaleDateString()}`, angle, opener, variantId: variant, window: windowKind, replyOnly, prospectIds: [...picked] });
+    const r = await api.createBatch({ name: `${ANGLE_LABEL[angle]} · ${new Date().toLocaleDateString()}`, angle, opener, variantId: variant, window: windowKind, replyOnly, prospectIds: [...picked], ...(campaignId ? { marketingCampaignId: campaignId } : {}) });
     setBatchId(r.batch.id); setPicked(new Set());
     toast.success(`${r.queued} queued${r.skipped ? `, ${r.skipped} skipped (emailed in the last 30 days or not verified)` : ''}.`);
     await onChange();
@@ -233,6 +267,13 @@ const SendTab: React.FC<{ overview: ColdOverview | null; onChange: () => Promise
         </label>
         <label className="text-sm font-semibold text-slate-800">Test name (one thing changes per batch)
           <input className={`${input} mt-1 font-normal`} value={variant} onChange={(e) => setVariant(e.target.value.slice(0, 20))} />
+        </label>
+        <label className="text-sm font-semibold text-slate-800 sm:col-span-2">Tie to a marketing campaign (optional)
+          <select className={`${input} mt-1 font-normal`} value={campaignId} onChange={(e) => setCampaignId(e.target.value)}>
+            <option value="">No campaign</option>
+            {campaigns.map((c) => <option key={c.id} value={c.id}>{(c.outputs.title || c.idea || 'Campaign').slice(0, 80)}</option>)}
+          </select>
+          <span className="mt-1 block text-xs font-normal text-slate-500">The campaign's idea shapes what each email leads with. Only approved campaigns show up.</span>
         </label>
         <label className="text-sm font-semibold text-slate-800">Send time
           <select className={`${input} mt-1 font-normal`} value={windowKind} onChange={(e) => setWindowKind(e.target.value)}>

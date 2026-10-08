@@ -10,10 +10,11 @@ export type StudioCampaign = StudioBrief & Partial<StudioVideoOptions> & {
   version: string;
   generationError?: string;
   articleSlug?: string;
+  blogPostId?: string | null;
   quoteCards?: string[];
 };
-type CampaignRow = { id: string; brief: Omit<StudioBrief, 'id' | 'createdAt'>; status: StudioCampaign['status']; outputs: Partial<CampaignOutputs>; created_at: string; updated_at: string; generation_error?: string };
-const fromRow = (row: CampaignRow): StudioCampaign => ({ ...row.brief, id: row.id, createdAt: row.created_at, status: row.status, outputs: row.outputs, version: row.updated_at, generationError: row.generation_error });
+type CampaignRow = { blog_post_id?: string | null; id: string; brief: Omit<StudioBrief, 'id' | 'createdAt'>; status: StudioCampaign['status']; outputs: Partial<CampaignOutputs>; created_at: string; updated_at: string; generation_error?: string };
+const fromRow = (row: CampaignRow): StudioCampaign => ({ ...row.brief, blogPostId: row.blog_post_id ?? null, id: row.id, createdAt: row.created_at, status: row.status, outputs: row.outputs, version: row.updated_at, generationError: row.generation_error });
 async function request(path = '', method = 'GET', body?: unknown) {
   const response = await authedFetch(buildApiUrl(`/api/admin/marketing-studio/campaigns${path}`), { method, headers: { 'Content-Type': 'application/json' }, ...(body ? { body: JSON.stringify(body) } : {}) });
   const data = await response.json().catch(() => ({}));

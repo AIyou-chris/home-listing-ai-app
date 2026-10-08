@@ -1,3 +1,25 @@
+## 2026-10-08 — Claude: approved campaigns now post to the connected accounts (local, NOT pushed)
+
+- Fixes the Marketing Studio gaps. After a campaign is approved, a "Send it out" card (`MarketingCampaignPosting.tsx`) lets Chris pick Facebook / Instagram / LinkedIn / YouTube Short, "as soon as I say" or a date (prefilled from the campaign's planned date), Post now, Remove, Try again. Also "Save article to my blog (draft)" (`POST .../save-blog`, never published, safe to press twice, links `blog_post_id`).
+- Backend: `socialPublish.js` (copied from An AI You), `marketingPoster.js` (claim-before-post, failed posts wait for a person, reconnect marks the account, Instagram pending retries in 2 min, only approved campaigns, approval pulled = not posted), routes under `/api/admin/marketing-studio/campaigns/:id/posts*`, 5-minute sweep that only runs while the admin switch `social_auto_post` is ON (default OFF; switch is on the Connected accounts tab). Tracking tags `utm_source=<channel>&utm_medium=social&utm_campaign=<8 chars of campaign id>` are added to our own links at send time.
+- Tables: `admin_marketing_posts` + switch row (migration `admin-marketing-posts-migration.sql`, ALREADY APPLIED, additive).
+- Buffer: its panel is not in the UI and its auto-share only runs with `BLOG_AUTO_POST=true`, so it is dormant; code left in place. Not removed.
+- Tests: backend 323, Jest 156, tsc + eslint clean. NOT tested: a real post to any network (no account connected through the new flow yet), the card on screen.
+- Known limits: Bluesky has no connection; YouTube needs the video made first; Instagram needs a picture or video.
+
+## 2026-10-08 — Claude: email master switch + campaign link for cold email (local, NOT pushed)
+
+- Chris's email list is LOs he has not talked to, so this uses the existing cold-email engine (separate sending domain, unsubscribe, do-not-send list, windows, first batch capped at 20). Found it had 0 prospects and 0 batches ever.
+- New: admin switch `cold_email_send` in table `admin_switches` (default OFF; missing or unreadable also means OFF). `COLD_EMAIL_ENABLED` env no longer controls sending. The 5-minute sweep and the manual Run both check the switch. Turning ON needs the domain/mailboxes/key setup done, and asks for confirmation. UI: big switch at the top of "Cold email to loan officers" (Marketing Funnels), visible even when the panel is closed.
+- New: a cold batch can be tied to an approved Marketing Studio campaign (`cold_email_batches.marketing_campaign_id`, `theme`); the campaign idea + goal go into the writer prompt. Migration `admin-switches-migration.sql` ALREADY APPLIED to Supabase (additive only).
+- Audit of Marketing Studio (read the code, not clicked): approving a campaign sends/posts nothing; blog from a campaign is not saved to the blog (the reverse exists: publishing a blog creates a share campaign); no tracking tags on campaign links; the calendar date triggers nothing; Buffer and the new direct social connections both exist.
+- Verified: backend 315, Jest 156, tsc + eslint clean. Not verified: real sending (no domain/mailboxes/prospects set up yet).
+
+## 2026-10-08 — Claude: "Powered by HomeListingAI" backlinks on everything that goes out (local, NOT pushed)
+
+- Link `https://homelistingai.com/for-loan-officers?ref=powered-by` now sits on: the public listing page footer (real link, was plain text), the flyer fine print (print shows homelistingai.com), the Share Kit social post (last line), the reel end card ("Made with HomeListingAI", text only), and the WOW invite email footer (skipped for white-label LOs). Not touched: WOW page itself, invoices.
+- Why: each shared page becomes a backlink for the blog and site. Blog drafts (10, old) were backed up to `tmp/blog-drafts-backup-2026-10-08.json`; Chris deletes them himself in /admin/blog.
+
 ## 2026-10-08 — Claude: Facebook Groups tab in the admin (local, NOT pushed)
 
 - Facebook allows no auto-posting into groups, so this is a hand-posting kit copied in spirit from An AI You (`FacebookGroupKitPage`): library of groups with their rules (links yes/no/not checked, promo days), "Write a post" gives 3 versions (value first, no link, promotional) that follow the group's rules (no link unless links are allowed, links also stripped in code), brand-voice check, Copy, and "I posted this" log. Tab "Facebook Groups" in Marketing Funnels -> Marketing Studio.

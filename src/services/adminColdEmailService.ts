@@ -8,6 +8,7 @@ export interface ColdOverview {
   counts: Record<string, number>;
   batches?: ColdBatch[];
 }
+export interface SendSwitch { enabled: boolean; setupBlockers: string[]; waiting: number }
 export interface ColdBatch { id: string; name: string; angle: string; opener: string; variant_id: string; status: string; paused_reason?: string | null; created_at: string }
 export interface ColdProspect { id: string; email: string; first_name: string | null; company: string | null; status: string; city: string | null }
 export interface ColdSend {
@@ -44,6 +45,8 @@ const post = <T,>(path: string, body: unknown = {}) => call<T>(path, { method: '
 export const adminColdEmailService = {
   overview: () => call<ColdOverview>('/overview'),
   examples: () => call<ColdExamples>('/examples'),
+  sendSwitch: () => call<SendSwitch>('/switch'),
+  setSendSwitch: (enabled: boolean) => post<{ enabled: boolean }>('/switch', { enabled }),
   importProspects: (rows: Array<Record<string, string>>) => post<{ added: number; duplicates: number; rejected: Array<{ email: string; reason: string }> }>('/prospects/import', { rows }),
   fromFinder: () => post<{ added: number; duplicates: number; rejected: unknown[] }>('/prospects/from-finder', {}),
   verify: () => post<{ verified: number; bad: number }>('/prospects/verify', {}),

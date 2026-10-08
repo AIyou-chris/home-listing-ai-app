@@ -111,10 +111,10 @@ const verifyProspects = async (db, { limit = 200 } = {}) => {
 };
 
 // ---- batches ---------------------------------------------------------------
-const createBatch = async (db, { name, angle, opener = 'A', variantId = 'A', window = 'morning', replyOnly = true, prospectIds = [] }) => {
+const createBatch = async (db, { name, angle, opener = 'A', variantId = 'A', window = 'morning', replyOnly = true, prospectIds = [], marketingCampaignId = null, theme = null }) => {
   if (!name || !angle) throw new Error('name_and_angle_required');
   if (!prospectIds.length) throw new Error('pick_prospects');
-  const { data: batch, error } = await db.from('cold_email_batches').insert({ name, angle, opener, variant_id: variantId, send_window: window, reply_only: replyOnly }).select('*').single();
+  const { data: batch, error } = await db.from('cold_email_batches').insert({ name, angle, opener, variant_id: variantId, send_window: window, reply_only: replyOnly, marketing_campaign_id: marketingCampaignId, theme }).select('*').single();
   if (error) throw error;
   const { data: prospects } = await db.from('lo_prospects').select('id,status,last_contacted_at').in('id', prospectIds.slice(0, 500));
   const recent = Date.now() - rules.RECENT_DAYS * 86400000;
@@ -136,7 +136,7 @@ const generateDrafts = async (db, batchId, { complete, limit = 8, winner = '' })
     const { data: p } = await db.from('lo_prospects').select('*').eq('id', s.prospect_id).single();
     const draft = await draftFirstTouch({
       complete,
-      params: { angle: batch.angle, opener: batch.opener, firstName: p.first_name, company: p.company, market: p.city, personalizationFact: p.personalization_fact, replyOnly: batch.reply_only, winner }
+      params: { angle: batch.angle, opener: batch.opener, firstName: p.first_name, company: p.company, market: p.city, personalizationFact: p.personalization_fact, replyOnly: batch.reply_only, winner, theme: batch.theme }
     });
     await db.from('cold_email_sends').update({ subject: draft.subject, body_text: draft.body_text, opener: draft.opener_used, check_failures: draft.flags, status: 'draft' }).eq('id', s.id);
     done += 1; if (!draft.ok) flagged += 1;

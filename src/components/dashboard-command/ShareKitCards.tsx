@@ -91,6 +91,7 @@ const ShareKitCards: React.FC<ShareKitCardsProps> = ({ listing, lo = null, realt
     if (lo && toggles.social !== false) {
       lines.push('', `Financing questions? ${lo.name}${lo.company ? ` at ${lo.company}` : ''}${lo.nmls_number ? ` (NMLS #${lo.nmls_number})` : ''} can help.`);
     }
+    lines.push('', 'Made with HomeListingAI: https://homelistingai.com/for-loan-officers?ref=powered-by');
     return lines.filter((l, i, a) => !(l === '' && a[i - 1] === '')).join('\n').trim();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [listing, lo, facts, toggles.social, utmSource]);
@@ -155,7 +156,7 @@ const ShareKitCards: React.FC<ShareKitCardsProps> = ({ listing, lo = null, realt
             <div class="people">${people}</div>
             <div class="qrbox"><img class="qr" src="${qr}" /><div class="scan">Scan to see it &amp; ask our AI</div>${branded && lo?.logo_url ? `<img class="logo" src="${esc(lo.logo_url)}" />` : ''}</div>
           </div>
-          <div class="fine">Equal Housing Opportunity.${branded && lo?.nmls_number ? ` NMLS #${esc(lo.nmls_number)}.` : ''}${lo ? ' Not a commitment to lend.' : ''}</div>
+          <div class="fine">Equal Housing Opportunity.${branded && lo?.nmls_number ? ` NMLS #${esc(lo.nmls_number)}.` : ''}${lo ? ' Not a commitment to lend.' : ''} Powered by HomeListingAI, homelistingai.com</div>
         </div>
       </div>
       </body></html>`;

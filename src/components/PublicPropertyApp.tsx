@@ -464,7 +464,7 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({
                         </div>
                     )}
 
-                    <p className="mb-2 mt-4 text-center text-[10px] text-slate-400 dark:text-slate-600">Powered by HomeListingAI</p>
+                    <p className="mb-2 mt-4 text-center text-[10px] text-slate-400 dark:text-slate-600">Powered by <a href="https://homelistingai.com/for-loan-officers?ref=powered-by" target="_blank" rel="noopener" className="underline underline-offset-2">HomeListingAI</a></p>
                 </div>
 
                 {/* ── Bottom action menu — unchanged ── */}

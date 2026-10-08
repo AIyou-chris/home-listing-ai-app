@@ -34,7 +34,7 @@ const pickOpener = ({ requested, personalizationFact, company, founderVoice, buy
   return 'A';
 };
 
-const buildWriterPrompt = ({ touch = 1, angle = 'agent_referrals', opener = 'A', firstName, company, market, personalizationFact, replyOnly = true, winner = '' }) => {
+const buildWriterPrompt = ({ touch = 1, angle = 'agent_referrals', opener = 'A', firstName, company, market, personalizationFact, replyOnly = true, winner = '', theme = '' }) => {
   const example = FIRST_TOUCHES.find((x) => x.angle === angle) || FIRST_TOUCHES[0];
   return [
     'You write one cold email from Chris Potter, founder of HomeListingAI, to a loan officer. Output JSON only.',
@@ -50,6 +50,7 @@ const buildWriterPrompt = ({ touch = 1, angle = 'agent_referrals', opener = 'A',
     `Recipient first name: ${firstName || 'there'}. Company: ${company || 'unknown'}. Market: ${market || 'unknown'}.`,
     personalizationFact ? `Real fact about them (use as the opener, exactly as true): ${personalizationFact}` : 'No personal fact is available. Do NOT pretend to know anything about them.',
     winner ? `Recent winner to lean toward (tone only): ${winner}` : '',
+    theme ? `This email goes with a marketing campaign about: ${theme}. Let it shape the one idea you lead with, only where it fits the angle. Never invent a fact from it.` : '',
     '',
     'HARD RULES:',
     '- 55 to 110 words and 4 to 6 short sentences after the greeting.',
