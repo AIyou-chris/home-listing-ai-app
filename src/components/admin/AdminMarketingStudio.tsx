@@ -6,6 +6,7 @@ import { briefAsText, loadStudioBriefs, type StudioBrief, type PictureMode } fro
 import { adminMarketingStudioService, type StudioCampaign } from '../../services/adminMarketingStudioService';
 import MarketingCampaignReview from './MarketingCampaignReview';
 import MarketingImageLibrary from './MarketingImageLibrary';
+import ConnectedAccountsPanel from './ConnectedAccountsPanel';
 
 type Tab = 'create' | 'campaigns' | 'video' | 'calendar' | 'qr' | 'accounts' | 'images';
 const TABS: { id: Tab; label: string }[] = [
@@ -25,7 +26,7 @@ function dateKey(date: Date) {
 }
 
 export default function AdminMarketingStudio({ ownerId }: { ownerId: string }) {
-  const [tab, setTab] = useState<Tab>('create');
+  const [tab, setTab] = useState<Tab>(() => (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('social') ? 'accounts' : 'create'));
   const [briefs, setBriefs] = useState<StudioCampaign[]>([]);
   const [localBriefs, setLocalBriefs] = useState<StudioBrief[]>([]);
   const [busy, setBusy] = useState(false);
@@ -272,7 +273,7 @@ export default function AdminMarketingStudio({ ownerId }: { ownerId: string }) {
         <div className="mt-5 sm:hidden"><h4 className="font-semibold text-slate-900">Planned this month</h4>{briefs.filter(brief => brief.plannedAt.startsWith(dateKey(month).slice(0, 7))).map(brief => <button type="button" key={brief.id} className={`${buttonClass} mt-2 w-full justify-start text-left`} onClick={() => { setSelectedId(brief.id); changeTab('campaigns'); }}><CalendarDays size={16} /><span className="min-w-0"><span className="block text-xs">{brief.plannedAt.replace('T', ' ')}</span><span className="block break-words">{brief.idea}</span></span></button>)}</div>
       </>}
       {tab === 'qr' && <div className="grid gap-5 lg:grid-cols-2"><form onSubmit={createQr} className={cardClass}><h3 className="flex items-center gap-2 text-lg font-bold text-slate-900"><QrCode size={20} className="text-primary-600" />Turn a link into a QR code</h3><p className="mt-2 text-sm text-slate-500">Use it on flyers, social images, or an open-house sign.</p><label className="mt-5 block text-sm font-semibold text-slate-800">Destination link<input type="url" value={qrUrl} onChange={event => changeQrUrl(event.target.value)} required maxLength={2000} className={`${inputClass} mt-2`} /></label><button type="submit" className={`${primaryClass} mt-4`} disabled={qrBusy}>{qrBusy ? 'Making QR code…' : 'Create QR code'}</button></form><div className={`${cardClass} flex min-h-64 flex-col items-center justify-center`}>{qrImage ? <><img src={qrImage} alt={`QR code linking to ${qrUrl}`} className="h-52 w-52" /><a className={`${buttonClass} mt-3`} href={qrImage} download="homelistingai-qr.png"><Download size={16} />Download PNG</a><p className="mt-3 max-w-full break-all text-center text-xs text-slate-500">{qrUrl}</p></> : <p className="text-sm text-slate-500">Your QR code will appear here.</p>}</div></div>}
-      {tab === 'accounts' && <><h3 className="font-bold text-slate-900">Social accounts come last</h3><p className="mt-2 text-sm text-slate-600">First, get your pictures, scripts and videos looking right. We will connect your HomeListingAI social accounts when you are ready.</p><p className="mt-4 rounded-xl bg-primary-50 p-3 text-sm text-primary-800">No accounts are connected through this studio. Nothing will post while you are creating and reviewing.</p></>}
+      {tab === 'accounts' && <ConnectedAccountsPanel />}
     </div>
   </section>;
 }

@@ -7,6 +7,8 @@
 //   2. Is it genuinely public (a webhook with its own signature, a visitor form)? Add it below, with a reason.
 
 module.exports = [
+  // Social connect return trip: the provider redirects the admin's browser here. A one-time saved state (15 min, single use) proves who started it; no data is read or returned.
+  'GET /api/marketing/oauth/:platform/callback',
   // Blog visitor analytics and consented worksheet requests: no AI calls, mail or private reads.
   'POST /api/public/blog/events',
   'POST /api/public/blog/lead',

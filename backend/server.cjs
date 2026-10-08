@@ -35619,6 +35619,105 @@ app.post('/api/admin/social/hashtags', verifyAdmin, async (req, res) => {
   }
 });
 
+// ---- HomeListingAI's own social accounts: direct connections (Facebook, Instagram, YouTube, LinkedIn). ----
+// Same connection flow as the An AI You admin. Tokens are encrypted; browsers only see status and labels.
+let houseSocialStoreInstance = null;
+const getHouseSocialStore = () => {
+  if (!houseSocialStoreInstance && supabaseAdmin) {
+    houseSocialStoreInstance = require('./services/houseSocialStore').createHouseSocialStore({ supabaseAdmin });
+  }
+  return houseSocialStoreInstance;
+};
+
+app.get('/api/admin/house-social/connections', verifyAdmin, async (req, res) => {
+  try {
+    const { PLATFORMS, providerStatus } = require('./services/houseSocialOauth');
+    const store = getHouseSocialStore();
+    if (!store) return res.status(503).json({ error: 'unavailable' });
+    const byPlatform = new Map((await store.list()).map((row) => [row.platform, row]));
+    res.json({
+      connections: PLATFORMS.map((platform) => {
+        const row = byPlatform.get(platform);
+        const setup = providerStatus(platform);
+        return {
+          platform,
+          configured: setup.configured,
+          setupNeeded: setup.missing || null,
+          connected: Boolean(row) && row.status === 'connected',
+          status: row?.status || 'not_connected',
+          accountLabel: row?.account_label || null,
+          lastError: row?.last_error || null,
+          connectedAt: row?.connected_at || null
+        };
+      })
+    });
+  } catch (err) {
+    console.error('[House social] list failed:', err?.message || err);
+    res.status(500).json({ error: 'Could not load connected accounts' });
+  }
+});
+
+app.post('/api/admin/house-social/connections/:platform/connect', verifyAdmin, async (req, res) => {
+  try {
+    const { PLATFORMS, providerStatus, newVerifier, authorizeUrl } = require('./services/houseSocialOauth');
+    const platform = String(req.params.platform || '').toLowerCase();
+    if (!PLATFORMS.includes(platform)) return res.status(404).json({ error: 'Unknown social platform' });
+    const setup = providerStatus(platform);
+    if (!setup.configured) return res.status(503).json({ error: `${setup.missing} must be added before ${platform} can connect.` });
+    const store = getHouseSocialStore();
+    if (!store) return res.status(503).json({ error: 'unavailable' });
+    const verifier = newVerifier();
+    const state = await store.rememberState(req.user.id, platform, verifier);
+    res.json({ url: authorizeUrl(platform, { state, codeVerifier: verifier }) });
+  } catch (err) {
+    console.error('[House social] connect failed:', err?.message || err);
+    res.status(500).json({ error: 'Could not start that connection' });
+  }
+});
+
+app.delete('/api/admin/house-social/connections/:platform', verifyAdmin, async (req, res) => {
+  try {
+    const { PLATFORMS } = require('./services/houseSocialOauth');
+    const platform = String(req.params.platform || '').toLowerCase();
+    if (!PLATFORMS.includes(platform)) return res.status(404).json({ error: 'Unknown social platform' });
+    const store = getHouseSocialStore();
+    if (!store) return res.status(503).json({ error: 'unavailable' });
+    await store.remove(platform);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[House social] disconnect failed:', err?.message || err);
+    res.status(500).json({ error: 'Could not disconnect that account' });
+  }
+});
+
+// The provider sends the admin back here. The one-time "state" saved when they clicked Connect proves who started it.
+app.get('/api/marketing/oauth/:platform/callback', async (req, res) => {
+  const { studioReturn } = require('./services/houseSocialStore');
+  const { PLATFORMS, exchangeCode, accountFor } = require('./services/houseSocialOauth');
+  const platform = String(req.params.platform || '').toLowerCase();
+  if (!PLATFORMS.includes(platform)) return res.redirect(studioReturn(platform, 'error', 'Unknown platform'));
+  const store = getHouseSocialStore();
+  if (!store) return res.redirect(studioReturn(platform, 'error', 'Not available right now'));
+  try {
+    if (req.query.error) {
+      if (typeof req.query.state === 'string') await store.claimState(req.query.state, platform).catch(() => null);
+      return res.redirect(studioReturn(platform, 'cancelled'));
+    }
+    if (typeof req.query.state !== 'string' || typeof req.query.code !== 'string') {
+      return res.redirect(studioReturn(platform, 'error', 'The connection link was incomplete. Please try again.'));
+    }
+    const attempt = await store.claimState(req.query.state, platform);
+    if (!attempt) return res.redirect(studioReturn(platform, 'error', 'That connection link expired. Please try again.'));
+    const tokens = await exchangeCode(platform, { code: req.query.code, codeVerifier: attempt.code_verifier });
+    const account = await accountFor(platform, tokens);
+    await store.saveConnection(platform, { account, tokens, connectedBy: attempt.started_by });
+    return res.redirect(studioReturn(platform, 'connected'));
+  } catch (err) {
+    console.error('[House social] callback failed:', platform, err?.message || err);
+    return res.redirect(studioReturn(platform, 'error', 'Connection failed. Please try again.'));
+  }
+});
+
 // GET /api/admin/social/status — connection state, channels, saved config.
 app.get('/api/admin/social/status', verifyAdmin, async (req, res) => {
   try {

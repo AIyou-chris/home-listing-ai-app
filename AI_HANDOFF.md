@@ -1,3 +1,10 @@
+## 2026-10-08 — Claude: social accounts in the admin, copied from An AI You (local, NOT committed)
+
+- Chris wanted the same Connected accounts cards as anaiyou.com, not Buffer. The An AI You code is in `/Volumes/GFY/EatADick/AI-You-Site` (repo AIyou-chris/ai-landing-template). Copied its direct connection flow (Facebook, Instagram, YouTube, LinkedIn): `backend/services/houseSocialOauth.js`, `tokenCrypto.js`, `houseSocialStore.js`, routes `/api/admin/house-social/connections*` and the public return trip `GET /api/marketing/oauth/:platform/callback` (allowlisted, one-time state), `ConnectedAccountsPanel.tsx` in Marketing Funnels, migration `house-social-connections-migration.sql` (NOT run yet).
+- Needs on Render before it can connect: `PUBLIC_SITE_ORIGIN=https://homelistingai.com`, `MARKETING_TOKEN_ENCRYPTION_KEY`, `META_APP_ID`, `META_APP_SECRET`, `META_GRAPH_VERSION`, `SOCIAL_GOOGLE_CLIENT_ID/SECRET`, `LINKEDIN_CLIENT_ID/SECRET` (same values as the An AI You service). Each developer console needs `https://homelistingai.com/api/marketing/oauth/<platform>/callback` added as a redirect address.
+- Connecting only. Posting from the admin to these accounts is not ported yet (An AI You has it in `server/lib/marketing/house-post.cjs` + `social-publish.cjs`). Buffer panel is untouched and still works.
+- Tests: backend 306 pass, tsc + eslint clean. Not tested: a real connection.
+
 ## 2026-10-07 — Claude: Condo Check on the LO Share Kit (local, NOT committed)
 
 - Fannie facts verified from the letter itself (LL-2026-03, saved in `tmp/hoa-samples/`, untracked): Limited Review gone Aug 3 2026, reserves 10% to 15% for applications dated Jan 4 2027+, baseline funding banned, waiver for 10 or fewer units, master deductible max $50k/unit. Memory notes: `fannie-condo-ll-2026-03`, `hoa-doc-reader`.
