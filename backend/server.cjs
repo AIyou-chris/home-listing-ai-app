@@ -25197,6 +25197,35 @@ app.get('/api/dev/videos/:videoId', async (req, res) => {
   }
 });
 
+// Live (published) listings a loan officer already has across their partner network, not counting one listing.
+async function loLiveListingCount(loProfileId, excludeListingId) {
+  const { data: assigned } = await supabaseAdmin.from('listing_lo_assignments').select('listing_id').eq('lo_agent_id', loProfileId);
+  const ids = (assigned || []).map((a) => a.listing_id).filter((id) => id && id !== excludeListingId);
+  if (ids.length === 0) return 0;
+  const { count } = await supabaseAdmin.from('properties').select('id', { count: 'exact', head: true }).in('id', ids).eq('status', 'published');
+  return count || 0;
+}
+
+// null = this agent is not a partner agent (use their own plan). Otherwise { allowed, ... }.
+async function partnerNetworkPublishDecision(ownerId, listingId) {
+  try {
+    const { data: agentRow } = await supabaseAdmin.from('agents').select('id').or(`id.eq.${ownerId},auth_user_id.eq.${ownerId}`).limit(1).maybeSingle();
+    if (!agentRow?.id) return null;
+    const { data: partnerships } = await supabaseAdmin.from('lo_agent_partnerships').select('lo_agent_id').eq('agent_id', agentRow.id).eq('status', 'active');
+    const loIds = Array.from(new Set((partnerships || []).map((p) => p.lo_agent_id).filter(Boolean)));
+    if (loIds.length === 0) return null;
+    const partners = [];
+    for (const loId of loIds) {
+      const cap = await loListingCapacity(loId);
+      partners.push({ limit: cap.limit, used: await loLiveListingCount(loId, listingId) });
+    }
+    return require('./services/partnerNetworkLimit').canPublishUnderPartners(partners);
+  } catch (err) {
+    console.warn('[Publish] partner network check failed, using the agent plan:', err?.message || err);
+    return null;
+  }
+}
+
 app.patch('/api/dashboard/listings/:listingId/publish', async (req, res) => {
   try {
     const { listingId } = req.params;
@@ -25227,19 +25256,32 @@ app.patch('/api/dashboard/listings/:listingId/publish', async (req, res) => {
     const unpublishTransition = !nextPublished && currentStatus === 'published';
 
     if (publishTransition) {
-      const entitlement = await billingEngine.checkEntitlement({
-        agentId: ownerId,
-        feature: 'active_listings',
-        requestedUnits: 1,
-        context: {
-          listing_id: listing.id,
-          action: 'publish_listing',
-          reference_id: listing.id
-        }
-      });
+      // A partner agent (free account invited by a loan officer) is covered by the loan officer's plan:
+      // "N live listings across your partner network". Everyone else is checked against their own plan.
+      const partnerDecision = await partnerNetworkPublishDecision(ownerId, listing.id);
+      if (partnerDecision && !partnerDecision.allowed) {
+        return res.status(403).json({
+          error: 'partner_network_limit_reached',
+          limit: partnerDecision.limit,
+          used: partnerDecision.used,
+          message: partnerDecision.message
+        });
+      }
+      if (!partnerDecision) {
+        const entitlement = await billingEngine.checkEntitlement({
+          agentId: ownerId,
+          feature: 'active_listings',
+          requestedUnits: 1,
+          context: {
+            listing_id: listing.id,
+            action: 'publish_listing',
+            reference_id: listing.id
+          }
+        });
 
-      if (!entitlement.allowed) {
-        return res.status(403).json(buildLimitReachedPayload(entitlement, 'active_listings'));
+        if (!entitlement.allowed) {
+          return res.status(403).json(buildLimitReachedPayload(entitlement, 'active_listings'));
+        }
       }
     }
 

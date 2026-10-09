@@ -66,3 +66,10 @@ test('the buyer chat is given the listing description and what the agent taught 
   assert.ok(block.includes('agent_provided_facts'));
   assert.ok(/description:\s*pickText/.test(block));
 });
+
+test('publishing checks the partner loan officer plan before the agent own Free plan', () => {
+  const at = src.indexOf("app.patch('/api/dashboard/listings/:listingId/publish'");
+  const block = src.slice(at, at + 3200);
+  assert.ok(block.includes('partnerNetworkPublishDecision'));
+  assert.ok(block.indexOf('partnerNetworkPublishDecision') < block.indexOf("feature: 'active_listings'"));
+});

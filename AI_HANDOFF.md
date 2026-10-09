@@ -1,3 +1,20 @@
+## 2026-10-09 — Claude: partner agents now covered by their loan officer's plan (local, NOT pushed)
+
+- Chris picked #3. Before: a partner agent (free account from a WOW Link) was checked against their own Free plan, so a second listing was blocked at publish ("1 listing") even though LO plans are sold as "5/20/50 live listings across your partner network". Lead cap for them was already lifted earlier (buyers are never turned away).
+- Now: publish for an agent with an active partnership checks every partner LO's plan limit against that LO's live (published) listings, not counting the one being published. Allowed if at least one partner LO has room; otherwise 403 `partner_network_limit_reached` with a plain message telling them to ask their loan officer to upgrade. Agents with no partner LO still use their own plan. New `services/partnerNetworkLimit.js` (+4 tests), glue `partnerNetworkPublishDecision` in `server.cjs`, order test. Backend 356.
+- Edge left as is: with two partner LOs and only one having room, the listing stays assigned to both. Drafts do not count toward the LO's cap; only published ones.
+- Not tested live (needs a partner agent with 2+ listings and a Lite LO at its 5 cap).
+
+## 2026-10-09 — Codex: ArtCraft generation retry confirmed blocker
+
+- Chris left Chrome alone for retry. Entered complete non-sensitive house-at-sunset sample prompt and clicked generation in signed-in ArtCraft (Nano Banana 2, square 1K, one image, 8-credit estimate). UI returned "Not enough credits. Choose a plan to start creating." Account balance 0. No image generated, no purchase, quality untested. Saved proof tmp/artcraft-test/artcraft-credit-block.png, dismissed upsell with Maybe later. No app code or publishing changes.
+
+## 2026-10-09 — Codex: ArtCraft web smoke test
+
+- Chris asked to test the ArtCraft studio shown in his screenshot. Signed-in Chrome UI confirmed balance 0 and Nano Banana 2 square 1K estimate 8 credits. Generation was not completed: native Chrome repeatedly reported user control changes and switched to YouTube during attempted interaction. No purchases made; do not claim generation quality tested.
+- Separate IAB session: Edit Image opened without login, created 1024-square blank canvas, drew visible brush stroke. Undo click did not visibly remove stroke in this smoke test; needs investigation. Screenshot tmp/artcraft-test/artcraft-web-editor.png. Browser canvas/drawing tested only; uploads, export, AI editing, video, mobile and dashboard integration unverified. Main ArtCraft studio differs from previously tested native PhotoCraft.
+- No application code or publishing settings changed. Blog auto-publishing remains off.
+
 ## 2026-10-09 — Claude: test data cleaned up (Chris said "clean up")
 
 - Deleted from production, in one safety-checked block: test agent anaiyou+agent1@pm.me (agent row + login), listing 482 Maple Court, Test Buyer lead, its conversation + messages, the WOW invite, partnership row, bells/alerts and related rows. Counts are back to before the test (agents 3, leads 4, invites 1). Chris's LO account, Fred's partnership and the test1234 listing were not touched.
