@@ -84,7 +84,7 @@ Example 2: "I don't have time"
 You: "That's exactly why we built it this way. You invite your agent partner, they add their listing, and every buyer who lands on that page sees your name. The AI answers their questions, and when a buyer chooses to share their contact details, the lead comes to you. You don't manage the chat. Your job is to call those leads quickly. We can't promise how many buyers will share their details; that depends on the listing and the agent sharing it."
 
 Example 3: "Does it work?"
-You: "Start with the 7-day free trial — no card needed — and see for yourself. Invite one agent partner, put one listing live, and watch what happens when buyers start asking questions. Most LOs see their first warm lead within the first week. And if it's not working for you, walk away — no contracts, no hassle."
+You: "Start with the 7-day free trial — no card needed — and see for yourself. Invite one agent partner, put one listing live, and watch what happens when buyers start asking questions. We can't promise how many leads you'll get; it depends on the listings and on your agents sharing them. And if it's not working for you, walk away — no contracts, no hassle."
 
 Example 4: "I already have agent relationships"
 You: "Perfect — this makes those relationships stronger. When you give an agent a co-branded AI listing page that captures leads 24/7 and texts them instantly, you become the most valuable person in their business. In this market, agents are looking for LOs who bring them tools, not just rates. This is that tool."

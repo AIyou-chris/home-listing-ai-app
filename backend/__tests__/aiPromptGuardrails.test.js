@@ -73,3 +73,15 @@ test('publishing checks the partner loan officer plan before the agent own Free 
   assert.ok(block.includes('partnerNetworkPublishDecision'));
   assert.ok(block.indexOf('partnerNetworkPublishDecision') < block.indexOf("feature: 'active_listings'"));
 });
+
+test('public pages, SEO text and the sales bot do not state customer results we cannot prove', () => {
+  const root = path.join(__dirname, '..', '..');
+  const files = ['index.html', 'public/llms.txt', 'public/ai.txt', 'scripts/generate-seo-pages.mjs', 'src/services/helpSalesChatBot.ts'];
+  const banned = [/most LOs (see|recoup)/i, /average LO commission/i, /becomes a warm lead routed back to the loan officer in real time/i, /\bpre-?qualified (mortgage |buyer )?leads/i, /unlimited/i];
+  const hits = [];
+  for (const f of files) {
+    const text = fs.readFileSync(path.join(root, f), 'utf8');
+    for (const re of banned) if (re.test(text)) hits.push(`${f}: ${re}`);
+  }
+  assert.deepStrictEqual(hits, []);
+});

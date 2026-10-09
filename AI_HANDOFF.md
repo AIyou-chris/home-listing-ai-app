@@ -1,3 +1,8 @@
+## 2026-10-09 — Claude: lawyer brief written + invented customer stats removed (brief committed; copy fix local, NOT pushed)
+
+- `docs/legal/LAWYER_BRIEF_2026-10-09.docx` (and .md): plain-words brief for a mortgage compliance attorney: what the product does, how value and money move, what buyers see, 18 questions (RESPA s.8, Reg Z/SAFE, TCPA, AI/recording/privacy, our own risk), links to the pages to review. Facts checked against the code and the live test. No lawyer chosen yet; outreach campaign and invoice-tool promotion stay paused until answered.
+- While checking pages I found invented results in the hidden SEO text and the sales bot ("Most LOs see their first warm lead within the first week", "Most LOs recoup the cost in their first month", an "average LO commission" figure, "every buyer who engages becomes a warm lead ... in real time"). Zero customers exist, so these were made up. Reworded in `index.html`, `scripts/generate-seo-pages.mjs`, `helpSalesChatBot.ts`; new test blocks them. Needs push.
+
 ## 2026-10-09 — Claude: partner agents now covered by their loan officer's plan (local, NOT pushed)
 
 - Chris picked #3. Before: a partner agent (free account from a WOW Link) was checked against their own Free plan, so a second listing was blocked at publish ("1 listing") even though LO plans are sold as "5/20/50 live listings across your partner network". Lead cap for them was already lifted earlier (buyers are never turned away).
