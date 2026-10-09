@@ -1,3 +1,9 @@
+## 2026-10-09 — Claude: privacy policy draft for the attorney (docs only, nothing live)
+
+- `docs/legal/PRIVACY_POLICY_DRAFT_2026-10-09.docx` (+ .md): full rewrite to match today's product (AI chat and phone line, transcripts, pre-approval answers, buyer details going to BOTH agent and LO, all vendors incl. OpenAI, TypeSafe, Mailgun, Textbelt, Telnyx, Sentry, Google, cookies/analytics, children, state rights). Notes for the attorney at the top list open choices (cookie banner, GLBA/DPA with LOs, California table, OpenAI training setting). Appendix lists matching changes for Terms, consent boxes (no privacy/terms link next to them today), pre-approval form, AI phone greeting.
+- NOT published: live page `src/components/PrivacyPolicyPage.tsx` still the May 2026 text. Replace only after the attorney approves.
+- Known gap it admits: "Delete my account" leaves chat messages, phone-line settings and invoices; deletion is finished on request by email until the code is fixed (open task).
+
 ## 2026-10-09 — Claude: lawyer brief written + invented customer stats removed (brief committed; copy fix local, NOT pushed)
 
 - `docs/legal/LAWYER_BRIEF_2026-10-09.docx` (and .md): plain-words brief for a mortgage compliance attorney: what the product does, how value and money move, what buyers see, 18 questions (RESPA s.8, Reg Z/SAFE, TCPA, AI/recording/privacy, our own risk), links to the pages to review. Facts checked against the code and the live test. No lawyer chosen yet; outreach campaign and invoice-tool promotion stay paused until answered.
