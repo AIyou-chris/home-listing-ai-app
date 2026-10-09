@@ -33,3 +33,13 @@ test('a full lead cap never turns a buyer away at lead capture', () => {
   const block = src.slice(at, at + 1400);
   assert.ok(!/status\(403\)\.json\(buildLimitReachedPayload\(leadCapEntitlement/.test(block), 'lead capture must not 403 on the cap');
 });
+
+test('no agents lookup asks for the column agents.user_id (it does not exist; the query fails and returns nothing)', () => {
+  const lines = src.split('\n');
+  const bad = [];
+  lines.forEach((line, i) => {
+    if (/select\('(user_id,auth_user_id|id, auth_user_id, user_id, first_name)/.test(line)) bad.push(i + 1);
+  });
+  assert.deepStrictEqual(bad, []);
+  assert.ok(!src.includes('auth_user_id.eq.${agentId},user_id.eq.${agentId}'));
+});

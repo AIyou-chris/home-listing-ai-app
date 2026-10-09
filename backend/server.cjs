@@ -4570,7 +4570,7 @@ const buildOpenHouseFlyerPdfBundle = async ({ listingRow, fallbackUserId = null,
   if (!aiCardUserId && listing.agent_id) {
     const { data: agentOwnerRow } = await supabaseAdmin
       .from('agents')
-      .select('user_id,auth_user_id')
+      .select('auth_user_id')
       .eq('id', listing.agent_id)
       .maybeSingle();
     aiCardUserId = toTrimmedOrNull(agentOwnerRow?.user_id || agentOwnerRow?.auth_user_id);
@@ -9389,8 +9389,9 @@ const mapPublicListingPayload = async (listingRow) => {
     try {
       const { data } = await supabaseAdmin
         .from('agents')
-        .select('id, auth_user_id, user_id, first_name, last_name, email, phone, headshot_url, nmls_number')
-        .or(`id.eq.${agentId},auth_user_id.eq.${agentId},user_id.eq.${agentId}`)
+        .select('id, auth_user_id, first_name, last_name, email, phone, headshot_url, nmls_number')
+        .or(`id.eq.${agentId},auth_user_id.eq.${agentId}`)
+        .limit(1)
         .maybeSingle();
       agentProfile = data || null;
     } catch (_error) {
@@ -23367,7 +23368,7 @@ app.post('/api/dashboard/listings/:listingId/open-house-flyer/preview', async (r
     if (!aiCardUserId && listing.agent_id) {
       const { data: agentOwnerRow } = await supabaseAdmin
         .from('agents')
-        .select('user_id,auth_user_id')
+        .select('auth_user_id')
         .eq('id', listing.agent_id)
         .maybeSingle();
       aiCardUserId = toTrimmedOrNull(agentOwnerRow?.user_id || agentOwnerRow?.auth_user_id);
@@ -23488,7 +23489,7 @@ app.get('/api/dashboard/listings/:listingId/sign-rider.pdf', async (req, res) =>
     if (!aiCardUserId && listing.agent_id) {
       const { data: agentOwnerRow } = await supabaseAdmin
         .from('agents')
-        .select('user_id,auth_user_id')
+        .select('auth_user_id')
         .eq('id', listing.agent_id)
         .maybeSingle();
       aiCardUserId = toTrimmedOrNull(agentOwnerRow?.user_id || agentOwnerRow?.auth_user_id);
@@ -23602,7 +23603,7 @@ app.get('/api/dashboard/listings/:listingId/social-asset.png', async (req, res) 
     if (!aiCardUserId && listing.agent_id) {
       const { data: agentOwnerRow } = await supabaseAdmin
         .from('agents')
-        .select('user_id,auth_user_id')
+        .select('auth_user_id')
         .eq('id', listing.agent_id)
         .maybeSingle();
       aiCardUserId = toTrimmedOrNull(agentOwnerRow?.user_id || agentOwnerRow?.auth_user_id);
@@ -23728,7 +23729,7 @@ app.get('/api/dashboard/listings/:listingId/property-report.pdf', async (req, re
     if (!aiCardUserId && listing.agent_id) {
       const { data: agentOwnerRow } = await supabaseAdmin
         .from('agents')
-        .select('user_id,auth_user_id')
+        .select('auth_user_id')
         .eq('id', listing.agent_id)
         .maybeSingle();
       aiCardUserId = toTrimmedOrNull(agentOwnerRow?.user_id || agentOwnerRow?.auth_user_id);
@@ -23909,7 +23910,7 @@ app.post('/api/dashboard/listings/:listingId/property-report/preview', async (re
     if (!aiCardUserId && listing.agent_id) {
       const { data: agentOwnerRow } = await supabaseAdmin
         .from('agents')
-        .select('user_id,auth_user_id')
+        .select('auth_user_id')
         .eq('id', listing.agent_id)
         .maybeSingle();
       aiCardUserId = toTrimmedOrNull(agentOwnerRow?.user_id || agentOwnerRow?.auth_user_id);
@@ -23958,7 +23959,7 @@ app.get('/api/dashboard/listings/:listingId/fair-housing-review.pdf', async (req
     if (!aiCardUserId && listing.agent_id) {
       const { data: agentOwnerRow } = await supabaseAdmin
         .from('agents')
-        .select('user_id,auth_user_id')
+        .select('auth_user_id')
         .eq('id', listing.agent_id)
         .maybeSingle();
       aiCardUserId = toTrimmedOrNull(agentOwnerRow?.user_id || agentOwnerRow?.auth_user_id);
@@ -24097,7 +24098,7 @@ app.post('/api/dashboard/listings/:listingId/light-cma/preview', async (req, res
     if (!aiCardUserId && listing.agent_id) {
       const { data: agentOwnerRow } = await supabaseAdmin
         .from('agents')
-        .select('user_id,auth_user_id')
+        .select('auth_user_id')
         .eq('id', listing.agent_id)
         .maybeSingle();
       aiCardUserId = toTrimmedOrNull(agentOwnerRow?.user_id || agentOwnerRow?.auth_user_id);
@@ -24165,7 +24166,7 @@ app.get('/api/dashboard/listings/:listingId/light-cma.pdf', async (req, res) => 
     if (!aiCardUserId && listing.agent_id) {
       const { data: agentOwnerRow } = await supabaseAdmin
         .from('agents')
-        .select('user_id,auth_user_id')
+        .select('auth_user_id')
         .eq('id', listing.agent_id)
         .maybeSingle();
       aiCardUserId = toTrimmedOrNull(agentOwnerRow?.user_id || agentOwnerRow?.auth_user_id);
