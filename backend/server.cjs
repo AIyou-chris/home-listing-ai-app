@@ -18861,11 +18861,13 @@ app.post('/api/leads/score-all', (req, res, next) => verifyAdmin(req, res, next)
 
 // Get scoring rules
 // Get scoring rules
+let scoringRulesTableMissing = false;
 app.get('/api/leads/scoring-rules', async (req, res) => {
   try {
     // Try to fetch from DB
-    if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    if (process.env.SUPABASE_SERVICE_ROLE_KEY && !scoringRulesTableMissing) {
       const { data, error } = await supabaseAdmin.from('scoring_rules').select('*');
+      if (error && /scoring_rules|schema cache/i.test(error.message || '')) scoringRulesTableMissing = true; // table does not exist: use the built-in rules and stop asking
       if (!error && data && data.length > 0) {
         return res.json({
           success: true,
@@ -28413,6 +28415,7 @@ app.get('/api/conversations/export/csv', requireNamedUserIsCaller, async (req, r
   }
 });
 
+let aiConversationsLegacyOnly = false;
 app.get('/api/admin/conversations', verifyAdmin, async (req, res) => {
   try {
     const { scope, status, search, limit = '100' } = req.query;
@@ -28439,10 +28442,19 @@ app.get('/api/admin/conversations', verifyAdmin, async (req, res) => {
       return await query;
     };
 
-    let { data, error } = await runQuery(AI_CONVERSATION_SELECT_FIELDS);
-    if (error && isMissingSupabaseColumnError(error)) {
-      console.warn('[Admin] Falling back to legacy ai_conversations select:', error.message);
+    // The live table lacks some newer columns. Once we have seen that, go straight to the legacy list
+    // (asking for missing columns every time just fills the error log). Restart or run ai-chat-columns-migration.sql to retry.
+    let data;
+    let error;
+    if (aiConversationsLegacyOnly) {
       ({ data, error } = await runQuery(AI_CONVERSATION_SELECT_FIELDS_LEGACY));
+    } else {
+      ({ data, error } = await runQuery(AI_CONVERSATION_SELECT_FIELDS));
+      if (error && isMissingSupabaseColumnError(error)) {
+        aiConversationsLegacyOnly = true;
+        console.warn('[Admin] Falling back to legacy ai_conversations select:', error.message);
+        ({ data, error } = await runQuery(AI_CONVERSATION_SELECT_FIELDS_LEGACY));
+      }
     }
 
     if (error) throw error;
