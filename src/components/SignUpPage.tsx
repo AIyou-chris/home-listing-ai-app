@@ -150,7 +150,7 @@ const SignUpPage = ({ onNavigateToSignIn, onNavigateToLanding: _onNavigateToLand
 
                             <div className="grid sm:grid-cols-2 gap-5">
                                 <FeatureHighlight icon="group" title="Generate Real Leads">See actual prospects contact you within days</FeatureHighlight>
-                                <FeatureHighlight icon="schedule" title="24/7 Lead Capture">AI works while you sleep - never miss a lead</FeatureHighlight>
+                                <FeatureHighlight icon="schedule" title="24/7 Lead Capture">The AI answers buyers while you sleep and passes you their details when they share them</FeatureHighlight>
                                 <FeatureHighlight icon="trending_up" title="Higher Conversion">Turn 3x more visitors into qualified leads</FeatureHighlight>
                                 <FeatureHighlight icon="payments" title="Instant ROI">One sale pays for years of service</FeatureHighlight>
                             </div>
@@ -171,7 +171,7 @@ const SignUpPage = ({ onNavigateToSignIn, onNavigateToLanding: _onNavigateToLand
                                     <span className="flex items-center gap-1">Secure via <StripeLogo className="h-4 opacity-70 mb-0.5 ml-1" /></span>
                                 </div>
                                 <div className="flex items-center gap-2"><span className="material-symbols-outlined w-4 h-4 text-cyan-500">check</span> Cancel anytime</div>
-                                <div className="flex items-center gap-2"><span className="material-symbols-outlined w-4 h-4 text-cyan-500">check</span> 30-Day Money-Back Guarantee</div>
+                                <div className="flex items-center gap-2"><span className="material-symbols-outlined w-4 h-4 text-cyan-500">check</span> 7-Day Free Trial, No Card Needed</div>
                             </div>
                         </div>
 

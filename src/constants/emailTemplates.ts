@@ -58,24 +58,17 @@ Listen to a live demo call here: [Link]
         id: 'admin_case_study',
         name: 'The Case Study',
         category: 'recruitment',
-        subject: 'How Sarah doubled her GCI in 90 days',
+        subject: 'How [real customer name] [real result]',
         content: `Hi {{lead.firstName}},
 
-Sarah was stuck at 8 deals a year. She was burning out.
+[Fill in a REAL customer story: who they are, what they did before, what changed, and the real numbers.]
 
-Then she turned on HomeListingAI.
+[Do not send this with made-up names or results. If you have no real story yet, skip this email.]
 
-90 days later:
-• 15 new listings taken
-• 0 manual follow-up calls made
-• 100% of leads contacted within 1 minute
-
-She didn't get better at sales. She just got a better system.
-
-Read her full breakdown here: [Case Study Link]
+Read the full story here: [Case Study Link]
 
 {{agent.signature}}`,
-        description: 'Social proof with metrics',
+        description: 'Social proof. Use only a real, approved customer story.',
         tags: ['recruitment', 'case-study', 'proof'],
         useCase: 'Third touch to provide evidence'
     },

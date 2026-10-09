@@ -4,7 +4,7 @@
 HomeListingAI is an AI-powered platform that helps mortgage loan officers build agent partnerships and capture warm buyer leads — without cold calling.
 
 ## Primary Users
-Mortgage loan officers who want a steady pipeline of pre-qualified buyer leads through real estate agent partnerships.
+Mortgage loan officers who want a steady pipeline of warm buyer conversations through real estate agent partnerships.
 
 ## Core Problem Solved
 Loan officers struggle with two things: getting warm leads and staying top-of-mind with real estate agents. HomeListingAI solves both. The loan officer sends one link to an agent; the agent gets a live AI listing tool with the LO's branding; every buyer lead from that listing routes back to the LO automatically.

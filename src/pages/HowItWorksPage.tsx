@@ -18,7 +18,7 @@ const HOW_IT_WORKS_SCHEMA = {
     {
       '@type': 'HowTo',
       'name': 'How Loan Officers Get Warm Leads With HomeListingAI',
-      'description': 'A 4-step system that turns agent partnerships into a steady stream of pre-qualified mortgage leads — no cold calls required.',
+      'description': 'A 4-step system that turns agent partnerships into warm mortgage conversations — buyers who asked about a real home and chose to share their details.',
       'totalTime': 'PT2M',
       'estimatedCost': { '@type': 'MonetaryAmount', 'currency': 'USD', 'value': '0' },
       'step': [
@@ -47,7 +47,7 @@ const HOW_IT_WORKS_SCHEMA = {
           '@type': 'HowToStep',
           'position': 4,
           'name': 'Loan officer receives warm leads and closes loans',
-          'text': 'Every lead from the agent\'s listing routes directly to the loan officer — pre-qualified, with real financing intent. The agent sees the loan officer as their competitive advantage, creating a lasting partnership that generates consistent mortgage pipeline.',
+          'text': 'When a buyer on the agent\'s listing shares their details, the lead goes to the loan officer with what they asked. The agent sees the loan officer as their competitive advantage, creating a lasting partnership that generates consistent mortgage pipeline.',
           'url': 'https://homelistingai.com/how-it-works#step-4'
         }
       ]
@@ -139,7 +139,7 @@ const steps = [
     icon: '🔥',
     heading: 'AI listing share kit goes live — buyer leads start flowing',
     subheading: 'Every listing becomes a mortgage lead machine.',
-    body: 'Agent publishes their listing. Instantly they have a tracked QR code, social asset, and open house flyer. Every buyer who scans or asks a question is captured. Your AI pre-qualifies them automatically.',
+    body: 'Agent publishes their listing. Instantly they have a tracked QR code, social asset, and open house flyer. When a buyer scans or asks a question and chooses to share their contact details, you get the lead. Your AI answers their questions and notes how serious they seem. You decide who is qualified.',
     pill: 'Sign QR · Social post · Open house flyer — all tracked',
     phone: {
       topBar: 'Share Kit Live',
@@ -173,7 +173,7 @@ const steps = [
     icon: '💰',
     heading: 'Loan officer gets pre-qualified mortgage leads and closes loans',
     subheading: 'Warm leads. No cold calls.',
-    body: 'Every lead from that agent\'s listing routes straight to you. Pre-qualified, with real financing intent. Not cold leads — warm conversations from buyers already curious about the property.',
+    body: 'When a buyer on that agent\'s listing shares their details, the lead comes straight to you with what they asked. Not a cold list — people who were already looking at a real home.',
     pill: 'Agent sees you as their unfair advantage',
     phone: {
       topBar: 'LO Dashboard',
@@ -181,7 +181,7 @@ const steps = [
         <div className="p-3 space-y-2">
           <div className="rounded-xl bg-orange-50 border border-orange-100 p-2.5">
             <p className="text-orange-800 text-[9px] font-bold mb-0.5">🔔 New warm lead</p>
-            <p className="text-orange-600 text-[8px]">Sarah M. pre-qualified on 247 Oak St</p>
+            <p className="text-orange-600 text-[8px]">Sarah M. asked about financing on 247 Oak St</p>
           </div>
           <div className="grid grid-cols-2 gap-1.5">
             {[['14', 'leads / month'], ['3', 'agents linked'], ['7', 'listings live'], ['4', 'in pipeline']].map(([val, lbl], i) => (
@@ -234,7 +234,7 @@ const HowItWorksPage: React.FC = () => {
         </h1>
         <p className="text-slate-400 text-lg md:text-xl max-w-2xl mx-auto leading-relaxed">
           One WOW link. The agent gets a live AI listing demo with your name on it.
-          Every buyer they attract becomes your lead. Here's exactly how it works.
+          Buyers who share their details on those listings come to you. Here's exactly how it works.
         </p>
 
         {/* Quick stat strip */}
@@ -243,7 +243,7 @@ const HowItWorksPage: React.FC = () => {
             ['10 sec', 'to send a WOW link'],
             ['24 / 72hr', 'auto-reminders'],
             ['instant', 'LO notification on signup'],
-            ['100%', 'leads route to you'],
+            ['same day', 'lead alert to you'],
           ].map(([val, lbl]) => (
             <div key={val} className="text-center">
               <p className="text-2xl font-extrabold text-white">{val}</p>

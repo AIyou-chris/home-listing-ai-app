@@ -91,9 +91,16 @@ const AgentClaimPage: React.FC = () => {
       }
       setSuccess(true)
       // Sign out any existing session so the LO (or anyone) isn't auto-redirected
-      // back to their own dashboard — the new agent must sign in fresh.
+      // back to their own dashboard — then sign the new agent straight in with the
+      // password they just chose, so they land in their account without retyping.
       await supabase.auth.signOut().catch(() => {})
-      setTimeout(() => navigate('/signin'), 3000)
+      const inviteEmail = invite?.email
+      let signedIn = false
+      if (inviteEmail) {
+        const { error: signInError } = await supabase.auth.signInWithPassword({ email: inviteEmail, password })
+        signedIn = !signInError
+      }
+      setTimeout(() => navigate(signedIn ? '/dashboard/today' : '/signin'), signedIn ? 1500 : 3000)
     } catch {
       setFormError('Network error. Please try again.')
     } finally {
@@ -124,8 +131,8 @@ const AgentClaimPage: React.FC = () => {
         <div className="text-6xl mb-4">🎉</div>
         <h1 className="text-white font-bold text-2xl mb-2">You're in!</h1>
         <p className="text-slate-300 text-sm mb-2">Your account is ready.</p>
-        <p className="text-slate-400 text-sm">Sign in with <strong className="text-white">{invite?.email}</strong></p>
-        <p className="text-slate-500 text-xs mt-3">Redirecting to sign in…</p>
+        <p className="text-slate-400 text-sm">Signing you in as <strong className="text-white">{invite?.email}</strong></p>
+        <p className="text-slate-500 text-xs mt-3">Taking you to your account…</p>
       </div>
     </div>
   )

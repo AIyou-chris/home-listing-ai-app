@@ -370,6 +370,7 @@ const PublicListingPage: React.FC = () => {
                 open={talkToHomeOpen}
                 hideLauncher
                 onOpenChange={setTalkToHomeOpen}
+                loName={loBot?.enabled ? (loBot.name || null) : null}
             />
             <PreApprovalSheet
                 open={preApprovalOpen}

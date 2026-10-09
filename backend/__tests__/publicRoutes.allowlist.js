@@ -60,7 +60,6 @@ module.exports = [
   'GET /api/agent/claim/:token',
   'GET /api/analytics/link-stats/:slug',
   'GET /api/analytics/view-stats/:propertyId',
-  'GET /api/blueprint/leads',
   'GET /api/leads/unsubscribe/:leadId',
   'GET /api/listings/:listingId/lo-assignment',
   'GET /api/listings/:listingId/marketing',

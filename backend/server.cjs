@@ -654,6 +654,9 @@ app.use('/api/ai/property-chat', postOnly(aiChatLimiter, aiSpendGuard));
 app.use('/api/continue-conversation', postOnly(aiChatLimiter, aiSpendGuard));
 app.use('/api/realtime/offer', postOnly(aiChatLimiter, aiSpendGuard));
 app.use('/api/realtime/handoff', postOnly(aiChatLimiter));
+// Open endpoints that email the owner or call a paid translation API: throttle so they cannot be used to spam or run up a bill
+app.use('/api/chat/handoff', leadLimiter);
+app.use('/api/language/detect', leadLimiter);
 // Public lead capture / opt-ins
 app.use('/api/leads/capture', leadLimiter);
 app.use('/api/leads/public', leadLimiter);
@@ -9451,7 +9454,7 @@ const PUBLIC_CHAT_SUGGESTED_QUESTIONS = [
   'Any HOA or monthly cost?'
 ];
 
-const PUBLIC_CHAT_CAPTURE_PROMPT = "Want the 1-page report + showing options? What's the best email or phone?";
+const PUBLIC_CHAT_CAPTURE_PROMPT = "Want showing options and a quick follow-up? What's the best email or phone?";
 
 const normalizeWordLimitedText = (value, maxWords = 60) => {
   const text = String(value || '').replace(/\s+/g, ' ').trim();
@@ -12172,7 +12175,7 @@ const processVoiceReminderCallJob = async (job) => {
           updated_at: nowIso()
         })
         .eq('id', appointment.id)
-        .catch(() => undefined);
+        .then(() => undefined, () => undefined);
       await emitAppointmentRealtimeEvent({
         appointmentId: appointment.id,
         type: 'appointment.updated'
@@ -17563,12 +17566,16 @@ app.post('/api/webhooks/incoming-lead', async (req, res) => {
 
 // Helper: Generate AI SMS Reply
 const generateAiSmsReply = async ({ history, leadName, agentName }) => {
-  const systemPrompt = `You are ${agentName || 'the AI assistant'}. 
+  const systemPrompt = `${require('./services/goldenRules').GOLDEN_RULES_PROMPT}
+
+You are ${agentName || 'the AI assistant'}, an AI assistant (say so if asked). 
 You are texting with a real estate lead named ${leadName || 'Friend'}.
 Your goal is to be helpful, professional, and friendly.
 Keep responses concise (SMS format). Max 2-3 sentences.
 Do not use markdown. Do not be pushy.
-If you don't know the answer, ask for clarification or offer to have the agent call them.`;
+If you don't know the answer, ask for clarification or offer to have the agent call them.
+
+${require('./services/brandVoice').VOICE_RULES}`;
 
   const messages = [
     { role: 'system', content: systemPrompt },
@@ -20063,7 +20070,11 @@ app.post('/api/leads/capture', async (req, res) => {
       });
 
       if (!leadCapEntitlement.allowed) {
-        return res.status(403).json(buildLimitReachedPayload(leadCapEntitlement, 'stored_leads_cap'));
+        // A buyer who just handed over contact details must never be turned away because the
+        // owner's plan is full: that lead is the whole point (Golden Rule 1). Keep it, and log it
+        // so the owner can be nudged to upgrade. (Found in the 2026-10-08 audit: free partner
+        // agents have a 25-lead cap, so lead 26 used to fail with a 403.)
+        console.warn('[LeadCapture] stored_leads_cap reached for agent', agentId, '- saving the lead anyway');
       }
     }
 
@@ -20269,14 +20280,29 @@ app.post('/api/leads/capture', async (req, res) => {
     // Notify LO partner — they need to know immediately so they can reach out about financing
     if (!isDeduped && loAgentIdForLead) {
       const displayName = fullName || (phoneE164 ? 'A buyer' : 'Someone');
-      await supabaseAdmin.from('notifications').insert({
-        user_id: loAgentIdForLead,
-        title: '🔥 New lead on your listing',
-        content: `${displayName} just engaged at ${listing.address || 'a listing'}. They may need financing — reach out now.`,
-        type: 'lead',
-        priority: 'high',
-        is_read: false
-      }).catch(() => null);
+      // notifications.user_id points at the login id, not the agents profile id; and a Supabase builder has no .catch()
+      const { data: loBellRow } = await bestEffort(supabaseAdmin.from('agents').select('auth_user_id, email').eq('id', loAgentIdForLead).maybeSingle()) || {};
+      if (loBellRow?.auth_user_id) {
+        await bestEffort(supabaseAdmin.from('notifications').insert({
+          user_id: loBellRow.auth_user_id,
+          title: '🔥 New lead on your listing',
+          content: `${displayName} just engaged at ${listing.address || 'a listing'}. They may need financing — reach out now.`,
+          type: 'lead',
+          priority: 'high',
+          is_read: false
+        }));
+      }
+      // The bell only helps if the LO has the app open. Also email the contact the buyer chose to share,
+      // so the loan officer can call while the buyer is still looking at the home.
+      if (loBellRow?.email) {
+        const safe = (v) => String(v || '').replace(/[<>&]/g, '');
+        const appBaseLo = (process.env.APP_BASE_URL || process.env.DASHBOARD_BASE_URL || 'https://homelistingai.com').replace(/\/$/, '');
+        emailService.sendEmail({
+          to: loBellRow.email,
+          subject: `New buyer on ${safe(listing.address) || 'your listing'}: ${safe(displayName)}`,
+          html: `<div style="font-family:Arial,sans-serif;line-height:1.5"><p><strong>${safe(displayName)}</strong> shared their contact details on ${safe(listing.address) || 'one of your listings'} and agreed to be contacted.</p><p>Phone: ${safe(phoneE164) || 'not given'}<br>Email: ${safe(emailLower) || 'not given'}</p><p><a href="${appBaseLo}/dashboard/lo-leads">Open the lead</a></p></div>`
+        }).catch((err) => console.warn('[LeadCapture] LO email failed:', err?.message || err));
+      }
     }
 
     const unworkedNudgeResult = await enqueueUnworkedLeadNudge({
@@ -22858,7 +22884,7 @@ app.post('/api/dashboard/listings/:id/generate-description', async (req, res) =>
 
     const completion = await openai.chat.completions.create({
       model: OPENAI_CHAT_MODEL,
-      messages: [{ role: 'user', content: prompt }],
+      messages: [{ role: 'system', content: require('./services/goldenRules').GOLDEN_RULES_PROMPT }, { role: 'user', content: prompt }],
       max_completion_tokens: 500
     });
 
@@ -26042,7 +26068,6 @@ app.get('/api/admin/analytics/funnel-performance', verifyAdmin, (_req, res) => {
 app.use(express.static(path.join(__dirname, '../dist'), { redirect: false }));
 
 // New Routes
-app.get('/api/blueprint/leads', require('./api/blueprint_leads')); // NEW: Blueprint Leads Proxy
 
 // React routing handler moved to end of file to prevent masking API routes
 
@@ -26528,7 +26553,9 @@ app.post('/api/ai/property-chat', async (req, res) => {
     }
 
     // 2. Build System Prompt
-    const systemPrompt = `You are an expert real estate assistant helping a potential buyer or agent with questions about a specific property.
+    const systemPrompt = `${require('./services/goldenRules').GOLDEN_RULES_PROMPT}
+
+You are an expert real estate assistant helping a potential buyer or agent with questions about a specific property.
     
 PROPERTY DETAILS:
 Address: ${property.address}
@@ -26581,7 +26608,9 @@ app.post('/api/ai/agent-chat', requireAuth, async (req, res) => {
 
   try {
     // 1. Build System Prompt
-    const systemPrompt = `You are the AI Assistant for ${agentProfile.fullName}, a real estate professional.
+    const systemPrompt = `${require('./services/goldenRules').GOLDEN_RULES_PROMPT}
+
+You are the AI Assistant for ${agentProfile.fullName}, a real estate professional.
     
 AGENT DETAILS:
 Name: ${agentProfile.fullName}
@@ -26655,7 +26684,7 @@ app.post('/api/ai/generate-listing', requireAuth, async (req, res) => {
     const completion = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: [
-        { role: "system", content: "You are an expert real estate copywriter." },
+        { role: "system", content: require('./services/goldenRules').GOLDEN_RULES_PROMPT + "\n\nYou are an expert real estate copywriter." },
         { role: "user", content: prompt }
       ],
       response_format: { type: "json_object" },

@@ -75,6 +75,8 @@ interface PublicListingChatModuleProps {
   hideLauncher?: boolean;
   onOpenChange?: (open: boolean) => void;
   demoMode?: boolean;
+  /** Loan officer attached to this listing. Shown to the buyer so they know who receives their details. */
+  loName?: string | null;
 }
 
 type ListingSessionBootstrapResponse = {
@@ -169,7 +171,8 @@ const PublicListingChatModule: React.FC<PublicListingChatModuleProps> = ({
   open,
   hideLauncher = false,
   onOpenChange,
-  demoMode = false
+  demoMode = false,
+  loName = null
 }) => {
   const isControlled = typeof open === 'boolean';
   const [localOpen, setLocalOpen] = useState(false);
@@ -189,10 +192,11 @@ const PublicListingChatModule: React.FC<PublicListingChatModuleProps> = ({
   const [inputValue, setInputValue] = useState('');
   const [captureRequired, setCaptureRequired] = useState(false);
   const [capturePrompt, setCapturePrompt] = useState(
-    "Want the 1-page report + showing options? What's the best email or phone for follow-up?"
+    "Want showing options and a quick follow-up? What's the best email or phone?"
   );
   const [captureName, setCaptureName] = useState('');
   const [captureContact, setCaptureContact] = useState('');
+  const [captureConsent, setCaptureConsent] = useState(false);
   const [captureSubmitting, setCaptureSubmitting] = useState(false);
   const [leadCaptured, setLeadCaptured] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -517,6 +521,10 @@ const PublicListingChatModule: React.FC<PublicListingChatModuleProps> = ({
       setError('Enter an email or phone.');
       return;
     }
+    if (!captureConsent) {
+      setError('Please check the box so we know it is OK to share your details.');
+      return;
+    }
 
     const isEmail = EMAIL_REGEX.test(contact);
     const isPhone = looksLikePhone(contact);
@@ -540,7 +548,7 @@ const PublicListingChatModule: React.FC<PublicListingChatModuleProps> = ({
           full_name: captureName || undefined,
           phone: normalizedPhone || undefined,
           email: isEmail ? contact.toLowerCase() : undefined,
-          consent_sms: false,
+          consent_sms: Boolean(normalizedPhone) && captureConsent,
           source_type: attribution.source_type || 'link',
           source_key: attribution.source_key || null,
           source_meta: {
@@ -561,7 +569,7 @@ const PublicListingChatModule: React.FC<PublicListingChatModuleProps> = ({
       setCaptureRequired(false);
       setCaptureName('');
       setCaptureContact('');
-      pushMessage('ai', 'Got it. I sent your details to the listing agent. Want to request a showing window?');
+      pushMessage('ai', loName ? `Got it. I sent your details to the listing agent and ${loName}, the loan officer on this home. Want to request a showing window?` : 'Got it. I sent your details to the listing agent. Want to request a showing window?');
     } catch (_captureError) {
       setError('Failed to capture contact right now.');
     } finally {
@@ -775,9 +783,17 @@ const PublicListingChatModule: React.FC<PublicListingChatModuleProps> = ({
                       placeholder="Email or phone"
                       className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-slate-500"
                     />
-                    <p className="text-xs text-slate-600">
-                      Use your phone if you want agent follow-up and reminder calls about this home.
-                    </p>
+                    <label className="flex items-start gap-2 text-xs leading-snug text-slate-600">
+                      <input
+                        type="checkbox"
+                        checked={captureConsent}
+                        onChange={(event) => setCaptureConsent(event.target.checked)}
+                        className="mt-0.5 h-4 w-4 flex-shrink-0"
+                      />
+                      <span>
+                        I agree that the listing agent{loName ? ` and ${loName}, the loan officer` : ''} may contact me about this home by call, text or email. Msg &amp; data rates may apply. Reply STOP to opt out. No obligation.
+                      </span>
+                    </label>
                     <button
                       onClick={() => void submitCapture()}
                       disabled={captureSubmitting}

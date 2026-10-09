@@ -458,10 +458,17 @@ const PublicPropertyApp: React.FC<PublicPropertyAppProps> = ({
                             )}
                             <div className="min-w-0 flex-1">
                                 <p className="truncate text-[13px] font-bold text-slate-600 dark:text-slate-300">{loBot.name}</p>
-                                {loBot.company && <p className="truncate text-[11px] text-slate-400">{loBot.company}</p>}
+                                {(loBot.company || loBot.nmls) && (
+                                    <p className="truncate text-[11px] text-slate-400">{[loBot.company, loBot.nmls ? `NMLS #${loBot.nmls}` : null].filter(Boolean).join(' · ')}</p>
+                                )}
                             </div>
-                            <span className="flex-shrink-0 text-[11px] text-slate-400">Powers the AI →</span>
                         </div>
+                    )}
+
+                    {financingEnabled && loBot?.name && (
+                        <p className="mx-3.5 mt-1 text-center text-[10px] leading-snug text-slate-400">
+                            Equal Housing Opportunity. Payment figures are estimates, not a loan offer or commitment to lend. Rates, terms and approval depend on your situation. AI answers are general information; your loan officer confirms the details.
+                        </p>
                     )}
 
                     <p className="mb-2 mt-4 text-center text-[10px] text-slate-400 dark:text-slate-600">Powered by <a href="https://homelistingai.com/for-loan-officers?ref=powered-by" target="_blank" rel="noopener" className="underline underline-offset-2">HomeListingAI</a></p>

@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>HomeListingAI — Dead Zillow Lead Reel</title>
+<style>
+  :root{
+    --dur: 5.5s;
+    --ink: #ffffff;
+    --bg-top: #000000;
+    --bg-bottom: #0b0b09;
+    --orange: #d64327;
+    --orange-hi: #ff7a4d;
+    --brown: #241209;
+    --olive: #32302a;
+    --muted: #8d8d88;
+  }
+  html,body{margin:0;height:100%;background:#000;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;overflow:hidden;}
+
+  /* ---- 9:16 stage, auto-scaled to fit the window ---- */
+  #stage{
+    position:absolute;top:50%;left:50%;
+    width:1080px;height:1920px;
+    transform:translate(-50%,-50%) scale(var(--fit,0.4));
+    transform-origin:center center;
+    background:var(--bg-bottom);
+    overflow:hidden;
+  }
+
+  /* ---- diagonal slash motif (full stage, shows in bottom zone) ---- */
+  .slash{position:absolute;top:-15%;height:130%;transform:rotate(19deg);transform-origin:center;}
+  .slash-olive{right:-14%;width:16%;background:var(--olive);}
+  .slash-brown{right:2%;width:15%;background:var(--brown);}
+  .slash-orange{right:16%;width:24%;background:var(--orange);}
+
+  /* slashes sweep up from bottom on each loop */
+  .slash{animation:sweep var(--dur) cubic-bezier(.22,.9,.3,1) infinite;}
+  .slash-brown{animation-delay:.06s;}
+  .slash-olive{animation-delay:.12s;}
+  @keyframes sweep{
+    0%   {transform:rotate(19deg) translateY(120%);}
+    14%  {transform:rotate(19deg) translateY(0);}
+    90%  {transform:rotate(19deg) translateY(0);}
+    100% {transform:rotate(19deg) translateY(-130%);}
+  }
+
+  /* ---- top headline zone (solid black, covers the slashes) ---- */
+  .top{
+    position:absolute;top:0;left:0;right:0;height:44%;
+    background:var(--bg-top);
+    display:flex;flex-direction:column;justify-content:flex-end;
+    padding:0 78px 64px;box-sizing:border-box;
+    z-index:2;
+  }
+  .hl{
+    color:var(--ink);
+    font-weight:900;letter-spacing:-2px;line-height:.95;
+    text-transform:uppercase;
+    opacity:0;
+    animation:punch var(--dur) cubic-bezier(.2,1.2,.35,1) infinite;
+  }
+  .hl-1{font-size:118px;animation-delay:.25s;}
+  .hl-2{font-size:250px;color:var(--orange);letter-spacing:-6px;animation-delay:.45s;}
+  .hl-3{font-size:118px;animation-delay:.65s;}
+  .hl-3 .struck{position:relative;display:inline-block;}
+  .hl-3 .struck::after{
+    content:"";position:absolute;left:-4%;right:-4%;top:52%;height:14px;
+    background:var(--orange);transform:rotate(-6deg);border-radius:7px;
+    animation:strike var(--dur) ease-out infinite;
+    transform-origin:left center;
+  }
+  @keyframes punch{
+    0%,4%  {opacity:0;transform:translateY(60px) scale(.92);}
+    16%    {opacity:1;transform:translateY(0) scale(1);}
+    90%    {opacity:1;transform:translateY(0) scale(1);}
+    97%,100%{opacity:0;transform:translateY(0) scale(1);}
+  }
+  @keyframes strike{
+    0%,16% {transform:rotate(-6deg) scaleX(0);}
+    24%    {transform:rotate(-6deg) scaleX(1);}
+    90%    {transform:rotate(-6deg) scaleX(1);}
+    97%,100%{transform:rotate(-6deg) scaleX(1);}
+  }
+
+  /* ---- bottom content zone ---- */
+  .bottom{
+    position:absolute;top:44%;left:0;right:0;bottom:0;
+    padding:26px 78px 58px;box-sizing:border-box;
+    display:flex;flex-direction:column;
+    z-index:2;
+  }
+  .fade-up{
+    opacity:0;
+    animation:fadeUp var(--dur) ease-out infinite;
+  }
+  @keyframes fadeUp{
+    0%,14% {opacity:0;transform:translateY(36px);}
+    26%    {opacity:1;transform:translateY(0);}
+    90%    {opacity:1;transform:translateY(0);}
+    97%,100%{opacity:0;transform:translateY(0);}
+  }
+
+  .subhead{
+    color:var(--ink);font-size:32px;font-weight:600;line-height:1.5;
+    max-width:800px;
+    animation-delay:.85s;
+  }
+  .subhead .hi{color:var(--orange-hi);font-weight:800;}
+
+  .spacer{flex:1;}
+
+  .cta{
+    display:inline-block;align-self:flex-start;
+    background:#ffffff;color:#101623;
+    font-size:34px;font-weight:800;letter-spacing:.5px;
+    white-space:nowrap;
+    padding:30px 56px;border-radius:999px;
+    text-decoration:none;
+    animation-name:pop;
+    animation-delay:1.15s;
+  }
+  @keyframes pop{
+    0%,20% {opacity:0;transform:scale(.8);}
+    28%    {opacity:1;transform:scale(1.05);}
+    32%    {opacity:1;transform:scale(1);}
+    90%    {opacity:1;transform:scale(1);}
+    97%,100%{opacity:0;transform:scale(1);}
+  }
+  .cta{opacity:0;animation-duration:var(--dur);animation-timing-function:cubic-bezier(.2,1.2,.35,1);animation-iteration-count:infinite;}
+
+  .proof{
+    margin-top:44px;
+    color:var(--ink);font-size:34px;font-weight:700;line-height:1.45;
+    max-width:920px;
+    animation-delay:1.35s;
+  }
+
+  .disclaimer{
+    margin-top:30px;
+    color:var(--muted);font-size:19px;font-weight:400;line-height:1.55;
+    animation-delay:1.5s;
+  }
+  .disclaimer .cost{color:var(--orange-hi);font-weight:700;}
+
+  /* ---- recording hint (hidden while recording via H key) ---- */
+  #hint{
+    position:fixed;left:50%;bottom:14px;transform:translateX(-50%);
+    color:#64748b;font-size:13px;z-index:9;white-space:nowrap;
+    font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;
+    background:rgba(0,0,0,.65);padding:6px 14px;border-radius:8px;
+    transition:opacity .6s;
+  }
+  body.clean #hint{opacity:0;pointer-events:none;}
+
+  /* ?still — freeze everything at the held state (poster frame / thumbnails) */
+  body.still #stage *, body.still #stage *::after{animation:none !important;}
+  body.still .hl, body.still .fade-up, body.still .cta{opacity:1;}
+
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="slash slash-olive"></div>
+  <div class="slash slash-brown"></div>
+  <div class="slash slash-orange"></div>
+
+  <div class="top">
+    <div class="hl hl-1">Stop Buying</div>
+    <div class="hl hl-2">Dead</div>
+    <div class="hl hl-3"><span class="struck">Zillow</span>&nbsp;Leads.</div>
+  </div>
+
+  <div class="bottom">
+    <div class="subhead fade-up">
+      AI-powered. Agent-partnered. Warm leads — <span class="hi">yours
+      first</span>. 24/7. Never shared. Never recycled.
+    </div>
+
+    <div class="spacer"></div>
+
+    <a class="cta" href="https://homelistingai.com/lo-signup">TRY IT FREE — NO CARD NEEDED</a>
+
+    <div class="proof fade-up">
+      One closed loan covers 20+ months. Less than one of their leads. Every
+      single month.
+    </div>
+
+    <div class="disclaimer fade-up">
+      Zillow lead costs vary by market. Based on <span class="cost">average
+      reported costs of $75–$150</span> per shared lead.<br/>
+      HomeListingAI is not affiliated with or endorsed by Zillow.
+    </div>
+  </div>
+</div>
+
+<div id="hint">5.5s loop · 9:16 · press <b>H</b> to hide this hint, <b>Space</b> to pause — screen-record the stage for Reels/TikTok</div>
+
+<script>
+  // Scale the fixed 1080x1920 stage to fit the window.
+  function fit(){
+    var s = Math.min(window.innerWidth/1080, window.innerHeight/1920);
+    document.getElementById('stage').style.setProperty('--fit', s);
+  }
+  window.addEventListener('resize', fit); fit();
+
+  var paused = false;
+  document.addEventListener('keydown', function(e){
+    if (e.code === 'Space'){
+      e.preventDefault();
+      paused = !paused;
+      document.querySelectorAll('#stage *').forEach(function(el){
+        el.style.animationPlayState = paused ? 'paused' : 'running';
+      });
+    }
+    if (e.key === 'h' || e.key === 'H'){
+      document.body.classList.toggle('clean');
+    }
+  });
+
+  // Auto-hide the hint so screen recordings stay clean.
+  setTimeout(function(){ document.body.classList.add('clean'); }, 6000);
+
+  // ?still freezes the loop at its held state — for poster frames/thumbnails.
+  if (/[?&]still\b/.test(location.search)){
+    document.body.classList.add('still', 'clean');
+  }
+</script>
+</body>
+</html>

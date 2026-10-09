@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>HomeListingAI — Warm-Lead Loop</title>
+<style>
+  html,body{margin:0;background:#e2e8f0;font-family:'Helvetica Neue',Arial,sans-serif;}
+  .wrap{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;box-sizing:border-box;}
+  .frame{width:100%;max-width:1100px;border-radius:18px;overflow:hidden;box-shadow:0 20px 50px rgba(15,23,42,.18);}
+  .frame svg{display:block;width:100%;height:auto;}
+  .btn{appearance:none;border:0;background:#2563eb;color:#fff;font-weight:700;font-size:15px;padding:12px 22px;border-radius:10px;cursor:pointer;box-shadow:0 6px 16px rgba(37,99,235,.35);}
+  .btn:hover{background:#1d4ed8;}
+  .hint{color:#475569;font-size:13px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="frame">
+    <svg id="diagram" viewBox="0 0 1280 720" xmlns="http://www.w3.org/2000/svg" font-family="'Helvetica Neue', Arial, sans-serif">
+      <defs>
+        <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#ffffff"/>
+          <stop offset="1" stop-color="#f1f5f9"/>
+        </linearGradient>
+        <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+          <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#0f172a" flood-opacity="0.10"/>
+        </filter>
+        <marker id="arrow" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto">
+          <path d="M0,0 L7,3 L0,6 Z" fill="#2563eb"/>
+        </marker>
+        <marker id="arrowOrange" markerWidth="12" markerHeight="12" refX="8" refY="3.5" orient="auto">
+          <path d="M0,0 L8,3.5 L0,7 Z" fill="#f97316"/>
+        </marker>
+      </defs>
+      <rect x="0" y="0" width="1280" height="720" fill="url(#bg)"/>
+      <text x="640" y="62" text-anchor="middle" font-size="38" font-weight="800" fill="#0f172a">How HomeListingAI Works</text>
+      <text x="640" y="98" text-anchor="middle" font-size="18" font-weight="600" fill="#2563eb">The Warm-Lead Loop — turn agent partners into a 24/7 buyer machine</text>
+      <g stroke="#2563eb" stroke-width="3" fill="none">
+        <line x1="248" y1="330" x2="292" y2="330" marker-end="url(#arrow)"/>
+        <line x1="494" y1="330" x2="538" y2="330" marker-end="url(#arrow)"/>
+        <line x1="740" y1="330" x2="784" y2="330" marker-end="url(#arrow)"/>
+        <line x1="986" y1="330" x2="1030" y2="330" marker-end="url(#arrow)"/>
+      </g>
+      <g transform="translate(50,230)">
+        <rect width="196" height="200" rx="16" fill="#ffffff" filter="url(#shadow)"/>
+        <rect width="196" height="6" rx="3" fill="#f97316"/>
+        <circle cx="30" cy="34" r="16" fill="#2563eb"/>
+        <text x="30" y="40" text-anchor="middle" font-size="17" font-weight="800" fill="#ffffff">1</text>
+        <text x="98" y="105" text-anchor="middle" font-size="40">🎁</text>
+        <text x="98" y="145" text-anchor="middle" font-size="17" font-weight="800" fill="#0f172a">Send the WOW Link</text>
+        <text x="98" y="174" text-anchor="middle" font-size="12.5" fill="#64748b">A live demo, not a pitch</text>
+      </g>
+      <g transform="translate(296,230)">
+        <rect width="196" height="200" rx="16" fill="#ffffff" filter="url(#shadow)"/>
+        <rect width="196" height="6" rx="3" fill="#f97316"/>
+        <circle cx="30" cy="34" r="16" fill="#2563eb"/>
+        <text x="30" y="40" text-anchor="middle" font-size="17" font-weight="800" fill="#ffffff">2</text>
+        <text x="98" y="105" text-anchor="middle" font-size="40">🤝</text>
+        <text x="98" y="145" text-anchor="middle" font-size="17" font-weight="800" fill="#0f172a">Agent Says Yes</text>
+        <text x="98" y="174" text-anchor="middle" font-size="12.5" fill="#64748b">Partnership formed</text>
+      </g>
+      <g transform="translate(542,230)">
+        <rect width="196" height="200" rx="16" fill="#ffffff" filter="url(#shadow)"/>
+        <rect width="196" height="6" rx="3" fill="#f97316"/>
+        <circle cx="30" cy="34" r="16" fill="#2563eb"/>
+        <text x="30" y="40" text-anchor="middle" font-size="17" font-weight="800" fill="#ffffff">3</text>
+        <text x="98" y="105" text-anchor="middle" font-size="40">💬</text>
+        <text x="98" y="145" text-anchor="middle" font-size="17" font-weight="800" fill="#0f172a">Buyers Chat 24/7</text>
+        <text x="98" y="174" text-anchor="middle" font-size="12.5" fill="#64748b">AI answers &amp; captures</text>
+      </g>
+      <g transform="translate(788,230)">
+        <rect width="196" height="200" rx="16" fill="#ffffff" filter="url(#shadow)"/>
+        <rect width="196" height="6" rx="3" fill="#f97316"/>
+        <circle cx="30" cy="34" r="16" fill="#2563eb"/>
+        <text x="30" y="40" text-anchor="middle" font-size="17" font-weight="800" fill="#ffffff">4</text>
+        <text x="98" y="105" text-anchor="middle" font-size="40">🔔</text>
+        <text x="98" y="145" text-anchor="middle" font-size="17" font-weight="800" fill="#0f172a">Warm Lead Alert</text>
+        <text x="98" y="174" text-anchor="middle" font-size="12.5" fill="#64748b">Instant: bell + email</text>
+      </g>
+      <g transform="translate(1034,230)">
+        <rect width="196" height="200" rx="16" fill="#ffffff" filter="url(#shadow)"/>
+        <rect width="196" height="6" rx="3" fill="#f97316"/>
+        <circle cx="30" cy="34" r="16" fill="#2563eb"/>
+        <text x="30" y="40" text-anchor="middle" font-size="17" font-weight="800" fill="#ffffff">5</text>
+        <text x="98" y="105" text-anchor="middle" font-size="40">📞</text>
+        <text x="98" y="145" text-anchor="middle" font-size="17" font-weight="800" fill="#0f172a">Close &amp; Recap</text>
+        <text x="98" y="174" text-anchor="middle" font-size="12.5" fill="#64748b">Work it, prove it</text>
+      </g>
+      <path d="M 1132 442 C 1132 560, 1132 580, 980 580 L 300 580 C 148 580, 148 560, 148 442"
+            fill="none" stroke="#f97316" stroke-width="3.5" marker-end="url(#arrowOrange)"/>
+      <rect x="470" y="558" width="340" height="44" rx="22" fill="#fff7ed" stroke="#fed7aa" stroke-width="1.5"/>
+      <text x="640" y="586" text-anchor="middle" font-size="16" font-weight="700" fill="#ea580c">🔁 Every loop = a stronger partnership</text>
+      <text x="640" y="675" text-anchor="middle" font-size="15" font-weight="700" fill="#0f172a">🏠 HomeListingAI</text>
+      <text x="640" y="698" text-anchor="middle" font-size="12.5" fill="#94a3b8">Warm leads + agent partnerships — built by a 15-year mortgage veteran</text>
+    </svg>
+  </div>
+  <button class="btn" id="dl">⬇ Download PNG</button>
+  <div class="hint">Tip: PNG is sized 2× for crisp slides &amp; print.</div>
+</div>
+<script>
+  document.getElementById('dl').addEventListener('click', function(){
+    var svg = document.getElementById('diagram');
+    var xml = new XMLSerializer().serializeToString(svg);
+    var svg64 = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(xml)));
+    var img = new Image();
+    img.onload = function(){
+      var scale = 2;
+      var canvas = document.createElement('canvas');
+      canvas.width = 1280 * scale; canvas.height = 720 * scale;
+      var ctx = canvas.getContext('2d');
+      ctx.scale(scale, scale);
+      ctx.drawImage(img, 0, 0);
+      var a = document.createElement('a');
+      a.download = 'homelistingai-warm-lead-loop.png';
+      a.href = canvas.toDataURL('image/png');
+      a.click();
+    };
+    img.src = svg64;
+  });
+</script>
+</body>
+</html>

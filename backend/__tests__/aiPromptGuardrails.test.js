@@ -1,0 +1,35 @@
+'use strict';
+// Every AI that talks to a buyer, a lead or the public, or writes listing copy, must carry the Golden Rules
+// (no rate promises, Fair Housing, no guessing). This was missing on the SMS auto-reply, the agent page chat,
+// the WOW page property chat and both listing-description writers (found in the 2026-10-08 launch audit).
+const test = require('node:test');
+const assert = require('node:assert');
+const fs = require('fs');
+const path = require('path');
+
+const src = fs.readFileSync(path.join(__dirname, '..', 'server.cjs'), 'utf8');
+
+const mustCarryRules = [
+  ['SMS auto-reply', 'const systemPrompt = `${require(\'./services/goldenRules\').GOLDEN_RULES_PROMPT}\n\nYou are ${agentName'],
+  ['WOW page property chat', 'const systemPrompt = `${require(\'./services/goldenRules\').GOLDEN_RULES_PROMPT}\n\nYou are an expert real estate assistant'],
+  ['agent page chat', 'const systemPrompt = `${require(\'./services/goldenRules\').GOLDEN_RULES_PROMPT}\n\nYou are the AI Assistant for'],
+  ['listing description writer', "role: 'system', content: require('./services/goldenRules').GOLDEN_RULES_PROMPT }, { role: 'user', content: prompt }"],
+  ['generate-listing writer', "content: require('./services/goldenRules').GOLDEN_RULES_PROMPT + \"\\n\\nYou are an expert real estate copywriter.\""]
+];
+
+for (const [name, marker] of mustCarryRules) {
+  test(`${name} carries the Golden Rules`, () => {
+    assert.ok(src.includes(marker), `${name} lost its Golden Rules prompt`);
+  });
+}
+
+test('the open blueprint leads dump is gone', () => {
+  assert.ok(!src.includes('/api/blueprint/leads'));
+});
+
+test('a full lead cap never turns a buyer away at lead capture', () => {
+  const at = src.indexOf("feature: 'stored_leads_cap'");
+  assert.ok(at > 0);
+  const block = src.slice(at, at + 1400);
+  assert.ok(!/status\(403\)\.json\(buildLimitReachedPayload\(leadCapEntitlement/.test(block), 'lead capture must not 403 on the cap');
+});

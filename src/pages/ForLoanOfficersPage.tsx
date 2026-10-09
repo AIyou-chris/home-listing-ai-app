@@ -86,7 +86,7 @@ const ForLoanOfficersPage: React.FC = () => {
             </div>
             <div className="flex-1 rounded-2xl border border-[#d64327]/40 bg-[#d64327]/10 p-4">
               <div className="text-[24px] font-black text-[#ff7a4d]">$79<span className="text-[14px] text-white">/mo</span></div>
-              <div className="mt-1 text-[11px] font-bold leading-snug text-slate-300">Unlimited warm leads — yours alone</div>
+              <div className="mt-1 text-[11px] font-bold leading-snug text-slate-300">Leads from your agents' listings, not a shared list</div>
             </div>
           </div>
           <p className="mx-auto mt-4 max-w-[320px] text-[13px] font-bold leading-relaxed text-white">One closed loan covers 20+ months. Less than one of their leads. Every single month.</p>

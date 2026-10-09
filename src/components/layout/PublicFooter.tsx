@@ -29,7 +29,7 @@ export const PublicFooter: React.FC<PublicFooterProps> = ({ onNavigateToAdmin })
                             />
                             <span className="text-white font-semibold text-lg">HomeListingAI</span>
                         </div>
-                        <p className="text-sm text-slate-300">Transform your real estate business with AI-powered lead generation.</p>
+                        <p className="text-sm text-slate-300">Warm leads and agent partnerships for loan officers. Your name, your NMLS, your leads.</p>
                     </div>
 
                     {/* Product Section */}

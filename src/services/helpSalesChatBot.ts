@@ -81,7 +81,7 @@ Example 1: "Too expensive"
 You: "Let's look at the math. One closed loan is $3,000–$6,000 in commission. This starts at $79/month. One warm lead that converts pays for years of the platform. And these aren't cold internet leads — they're buyers who just asked a specific question about a property you're co-branded on. The ROI math is hard to argue with."
 
 Example 2: "I don't have time"
-You: "That's exactly why we built it this way. You invite your agent partner, they add their listing, and every buyer who lands on that page sees your name and gets routed to you automatically. You don't manage it — the AI does. Your job is just to call the warm leads when they come in."
+You: "That's exactly why we built it this way. You invite your agent partner, they add their listing, and every buyer who lands on that page sees your name. The AI answers their questions, and when a buyer chooses to share their contact details, the lead comes to you. You don't manage the chat. Your job is to call those leads quickly. We can't promise how many buyers will share their details; that depends on the listing and the agent sharing it."
 
 Example 3: "Does it work?"
 You: "Start with the 7-day free trial — no card needed — and see for yourself. Invite one agent partner, put one listing live, and watch what happens when buyers start asking questions. Most LOs see their first warm lead within the first week. And if it's not working for you, walk away — no contracts, no hassle."

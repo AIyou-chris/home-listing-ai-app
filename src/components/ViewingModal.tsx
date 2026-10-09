@@ -242,7 +242,7 @@ const ViewingModal: React.FC<ViewingModalProps> = ({
                     onChange={e => setSmsConsent(e.target.checked)}
                     className='mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500'
                   />
-                  <span>I agree to receive follow-up texts and reminder messages about this showing. Message and data rates may apply.</span>
+                  <span>I agree that the listing agent, and the loan officer partner if one is shown on this home, may text, call or email me about this showing. Message and data rates may apply. Reply STOP to opt out.</span>
                 </label>
               )}
             </div>

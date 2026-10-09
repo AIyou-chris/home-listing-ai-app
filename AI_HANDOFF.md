@@ -1,3 +1,17 @@
+## 2026-10-08 — Claude: investor-view review, core journey traced (local, NOT pushed)
+
+- Plan and evidence: `docs/audits/INVESTOR_REVIEW_PLAN_2026-10-08.md`. Same local branch as the launch audit; nothing pushed or deployed.
+- Found + fixed locally on the buyer path: phone leads were rejected (no consent flag, proved live with a probe), form had no consent line and hid that the LO also gets the details, LO new-lead bell crashed the request (`.catch` on a Supabase builder) and used the wrong id, LO got no email for ordinary leads, full lead cap turned buyers away (free partner agents: 25 leads, 1 listing). Agent claim now signs the agent straight in. 14 overclaims reworded (pre-qualified, 100%, never miss, fake case-study email). New tests: `noCatchOnSupabaseBuilder`, cap test. Backend 332, Jest 156, tsc/lint/build pass.
+- Still open: whose plan covers partner agents (listing cap), 30-day money-back promise vs 7-day trial, SMS "unlimited" not enforced, site-wide 5,000/day chat cap, lawyer review of free-tool/referral setup, live journey run (needs Chris OK), no closed-loan tracking.
+
+## 2026-10-08 — Claude: final launch audit (verdict DO NOT LAUNCH yet), fixes local, NOT pushed
+
+- Full report: `docs/audits/LAUNCH_AUDIT_2026-10-08.md`. Live frontend = `2d5a8bef`; Render does not report its commit (not verified).
+- Found live: `GET /api/blueprint/leads?userId=` dumped any user's leads with no login. Route deleted locally; **still open in production until pushed**.
+- Fixed locally: Golden Rules added to SMS auto-reply (now says it is AI), WOW-page chat, agent chat, both listing-description writers; NMLS + Equal Housing + "not a commitment to lend" on the public listing page; limiters on `/api/chat/handoff` and `/api/language/detect`; footer/signup wording. New test `backend/__tests__/aiPromptGuardrails.test.js`. Backend 330, Jest 156, tsc + lint clean.
+- Not done: money test (checkout), real WOW send + claim, live buyer-chat/prompt-injection test (paid calls, needs OK), lawyer review of privacy/terms for AI calls, account-delete leaves phone number billing, listing share title/image.
+- DB reality: 3 accounts, 0 paying, 4 test leads, 1 test listing. All send/post switches OFF (kept).
+
 ## 2026-10-08 — Claude: approved campaigns now post to the connected accounts (local, NOT pushed)
 
 - Fixes the Marketing Studio gaps. After a campaign is approved, a "Send it out" card (`MarketingCampaignPosting.tsx`) lets Chris pick Facebook / Instagram / LinkedIn / YouTube Short, "as soon as I say" or a date (prefilled from the campaign's planned date), Post now, Remove, Try again. Also "Save article to my blog (draft)" (`POST .../save-blog`, never published, safe to press twice, links `blog_post_id`).

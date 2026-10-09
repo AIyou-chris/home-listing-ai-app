@@ -380,7 +380,7 @@ const LOSignupPage: React.FC = () => {
 
                     {/* Trust badges */}
                     <div className="mt-6 flex flex-wrap items-center justify-center gap-4">
-                        {['NMLS # on All Assets', 'TCPA Compliant SMS', 'Data Encrypted at Rest'].map(badge => (
+                        {['NMLS # on All Assets', 'STOP replies honored', 'Data Encrypted at Rest'].map(badge => (
                             <div key={badge} className="flex items-center gap-1.5 text-xs text-slate-500">
                                 <span className="material-symbols-outlined text-sm text-slate-600">verified_user</span>
                                 {badge}

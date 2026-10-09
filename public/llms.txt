@@ -7,7 +7,7 @@ Primary users: Mortgage loan officers who want warm leads and stronger agent par
 Secondary users: Real estate agents who need AI-powered listing pages, lead capture, and share kits.
 
 ## Core Value Proposition
-Loan officers send a "WOW link" to real estate agents. The agent sees a live demo of their listing with the LO's AI mortgage chatbot built in. When the agent signs up and publishes a listing, every buyer lead from that listing routes back to the loan officer — pre-qualified, with financing intent.
+Loan officers send a "WOW link" to real estate agents. The agent sees a live demo of their listing with the LO's AI mortgage chatbot built in. When the agent signs up and publishes a listing, buyers who share their details on that listing are routed to the loan officer, with what they asked.
 
 Result: Loan officers build a pipeline of warm mortgage leads through agent partnerships, without cold calling.
 
@@ -15,7 +15,7 @@ Result: Loan officers build a pipeline of warm mortgage leads through agent part
 1. Loan officer sends a WOW link to a real estate agent (10 seconds, via email)
 2. Agent clicks the link, sees the live demo, claims their account in one tap
 3. Agent publishes their listing — share kit goes live with tracked QR code, social asset, open house flyer
-4. Loan officer receives warm, pre-qualified buyer leads from every listing the agent runs
+4. Loan officer receives warm buyer leads (people who asked about a real home and chose to share their details) from the listings the agent runs
 
 ## Automated Reminders
 - If the agent doesn't open the WOW link within 24 hours, an automated follow-up email is sent
@@ -26,7 +26,7 @@ Result: Loan officers build a pipeline of warm mortgage leads through agent part
 - WOW Link: personalized agent invite with live AI listing demo
 - Share Kit: QR code, social post asset, open house flyer, sign rider PDF — all tracked by source
 - AI Buyer Chatbot: answers financing questions 24/7 on every listing page
-- Lead Capture: every buyer who scans, clicks, or asks a question is captured
+- Lead Capture: buyers who scan, click or ask a question can share their contact details, and those details go to the agent and the loan officer
 - Lead Inbox: leads scored by intent (hot/warm/cold) and routed to the LO
 - LO Dashboard: agent partnerships, listing performance, lead pipeline
 - Agent Dashboard: listing builder, share kit, performance analytics
