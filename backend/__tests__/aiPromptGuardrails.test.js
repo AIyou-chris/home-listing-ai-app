@@ -91,3 +91,8 @@ test('the Textbelt reply webhook checks its signature and only acts on a STOP wh
   assert.ok(src.includes("reason: 'unverified_sender'"));
   assert.ok(src.includes('isStopMessage(textBody)'));
 });
+
+test('a STOP reply marks the lead with the status word the database accepts', () => {
+  assert.ok(src.includes("{ status: 'Unsubscribed', updated_at: nowIso() }"));
+  assert.ok(!src.includes(".update({ status: 'unsubscribed', last_contact_at"));
+});

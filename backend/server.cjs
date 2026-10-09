@@ -17654,10 +17654,12 @@ const processInboundSmsMessage = async ({
 
   if (isStopMessage(textBody)) {
     // Opting out is always honored, even when the signature could not be checked (missing a real STOP is the worse mistake).
-    await bestEffort(supabaseAdmin
-      .from('leads')
-      .update({ status: 'unsubscribed', last_contact_at: nowIso() })
-      .or(`phone.eq.${normalizedFromPhone},phone_e164.eq.${normalizedFromPhone}`));
+    // The database only accepts "Unsubscribed" (capital U) as a lead status, and has no last_contact_at column;
+    // the old lowercase write was silently rejected, so the lead never showed as opted out.
+    await writeWithColumnFallback(
+      (p) => supabaseAdmin.from('leads').update(p).or(`phone.eq.${normalizedFromPhone},phone_e164.eq.${normalizedFromPhone}`),
+      { status: 'Unsubscribed', updated_at: nowIso() }
+    );
     await bestEffort(supabaseAdmin.from('sms_suppression').upsert({ phone: normalizedFromPhone, reason: 'stop_reply', created_at: nowIso() }));
     // Honor STOP for listing price-drop alert subscribers too (global suppression).
     await listingAlertService.suppressPhone(alertDeps(), { phone: normalizedFromPhone, reason: 'stop_reply' })
@@ -28223,7 +28225,7 @@ app.post('/api/conversations/:conversationId/messages', requireConversationAcces
           .eq('id', conversation.lead_id)
           .maybeSingle();
 
-        if (leadStatus?.status === 'unsubscribed') {
+        if (String(leadStatus?.status || '').toLowerCase() === 'unsubscribed') {
           return res.status(400).json({ error: 'Cannot send status: User is Unsubscribed (Red Light)' });
         }
       }

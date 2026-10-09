@@ -1,3 +1,9 @@
+## 2026-10-09 — Claude: live text/STOP test done (fix for lead status local, NOT pushed)
+
+- Pushed 31e5fdfe (signature check + STOP everywhere). Live test with Chris's phone (206-755-1047), throwaway LO + fake lead, all removed after: LO route sent a real text; Chris replied HELLO -> arrived and was accepted as VERIFIED (real Textbelt signature matches the docs; conversation + message saved); then STOP -> number landed on `sms_suppression`; a second send was refused (409 lead_opted_out). A forged unsigned reply is now rejected (`unverified_sender`). No automatic reply came back after HELLO (nothing queued for a lead with no agent settings; not investigated).
+- Found: lead status stayed "New" after STOP because the code wrote lowercase 'unsubscribed' and a nonexistent `last_contact_at` (DB check allows only 'Unsubscribed'); fixed locally with the tolerant writer + case-insensitive readers (+test, backend 371). NOT pushed. Chris's number was removed from the STOP list after the test (his choice to receive texts again).
+- Not tested: texts from the follow-up funnels, appointment reminders, price-drop alerts; the central `sendSms` STOP check is unit-tested only.
+
 ## 2026-10-09 — Claude: text-message STOP safety fixes (local, NOT pushed; live text test pending)
 
 - Read the STOP path and found three gaps: (1) `/api/webhooks/textbelt/inbound` accepted unsigned requests, so anyone could fake a STOP for any buyer or fake an inbound text that triggers an AI text reply; (2) only the LO manual-text route and price-drop alerts checked the STOP list, every other text (funnel follow-ups, AI replies, reminders) ignored it; (3) STOP matched only an exact word and looked up leads by `phone` only (leads also store `phone_e164`).
