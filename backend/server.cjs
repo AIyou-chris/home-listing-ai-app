@@ -75,9 +75,13 @@ const { WebSocketServer } = require('ws');
 const { createPublicBookingLimiter, validatePublicBookingFields } = require('./services/publicBookingGuard');
 const { checkAdminSetupToken } = require('./services/adminSetupGuard');
 const { writeWithColumnFallback } = require('./services/columnFallback');
+const dbMsg = require('./services/messageRows');
 const businessBrain = require('./services/businessBrain');
 // Writes that keep working when the database is missing a column the code names (see services/columnFallback.js).
-const insertRowTolerant = (table, payload) => writeWithColumnFallback((p) => supabaseAdmin.from(table).insert(p), payload);
+const insertRowTolerant = (table, payload) => writeWithColumnFallback(
+  (p) => supabaseAdmin.from(table).insert(p),
+  table === 'ai_conversation_messages' ? dbMsg.normalizeMessagePayload(payload) : payload
+);
 const updateRowTolerant = (table, id, payload) => writeWithColumnFallback((p) => supabaseAdmin.from(table).update(p).eq('id', id), payload);
 const publicBookingLimiter = createPublicBookingLimiter();
 const upload = multer({
@@ -148,6 +152,8 @@ const ownedAppointment = async (req, appointmentId) => {
 // best-effort notification was 500-ing the pre-approval form. Wrap the builder in a real
 // promise and swallow the failure: these calls are never allowed to fail the request.
 const bestEffort = (query) => Promise.resolve(query).then((r) => r, () => null);
+// Supabase refuses passwords found in known leaks ("known to be weak and easy to guess"). Say so plainly instead of a generic failure.
+const isWeakPasswordError = (err) => /weak|easy to guess|password.*(short|characters)|at least \d+ char/i.test(String(err?.message || '')) || err?.code === 'weak_password';
 const { createTypeSafeClient: createJevClient } = require('./services/typesafeClient');
 const MAILGUN_API_KEY = process.env.MAILGUN_API_KEY;
 // The specialized "HTTP Webhook Signing Key" must be used for webhooks, NOT the Sending API Key.
@@ -7808,7 +7814,7 @@ const loadAgentIdentityById = async (agentId) => {
 
   const primary = await supabaseAdmin
     .from('agents')
-    .select('id, user_id, auth_user_id')
+    .select('id, auth_user_id')
     .eq('id', scopedAgentId)
     .limit(1)
     .maybeSingle();
@@ -9556,7 +9562,7 @@ const extractLastVisitorQuestion = (messages) => {
   const lastVisitor = (messages || [])
     .slice()
     .reverse()
-    .find((row) => String(row?.sender || '').toLowerCase() === 'visitor');
+    .find((row) => dbMsg.isVisitorRow(row));
   return lastVisitor?.content || null;
 };
 
@@ -9668,7 +9674,7 @@ const generatePublicChatAnswer = async ({ listingContext, recentMessages, questi
   const messages = [
     { role: 'system', content: buildPublicListingSystemPrompt(listingContext) },
     ...(recentMessages || []).map((row) => ({
-      role: String(row?.sender || '').toLowerCase() === 'visitor' ? 'user' : 'assistant',
+      role: dbMsg.isVisitorRow(row) ? 'user' : 'assistant',
       content: String(row?.content || '')
     })),
     { role: 'user', content: String(question || '') }
@@ -12051,7 +12057,7 @@ const processSmsSendJob = async (job) => {
   });
 
   if (kind === 'ai_auto_reply' && payload.conversation_id) {
-    await supabaseAdmin.from('ai_conversation_messages').insert({
+    await insertRowTolerant('ai_conversation_messages', {
       conversation_id: payload.conversation_id,
       user_id: agentId,
       sender: 'ai',
@@ -12429,7 +12435,7 @@ const scoreLeadIntentFromTags = (tags) => {
 
 const buildRuleBasedLeadConversationSummary = ({ messages, listingContext }) => {
   const visitorMessages = (messages || []).filter(
-    (row) => String(row?.sender || '').toLowerCase() === 'visitor'
+    (row) => dbMsg.isVisitorRow(row)
   );
   const tags = new Set();
   for (const message of visitorMessages) {
@@ -13539,8 +13545,8 @@ const mapAiConversationMessageFromRow = (row) =>
       id: row.id,
       conversationId: row.conversation_id,
       userId: row.user_id,
-      sender: row.sender,
-      channel: row.channel,
+      sender: dbMsg.fromDbSender(row),
+      channel: dbMsg.fromDbChannel(row),
       content: row.content,
       text: row.content,
       translation: row.translation,
@@ -17691,7 +17697,7 @@ const processInboundSmsMessage = async ({
     return { processed: true, ignored: true, reason: 'conversation_not_available' };
   }
 
-  await supabaseAdmin.from('ai_conversation_messages').insert({
+  await insertRowTolerant('ai_conversation_messages', {
     conversation_id: conversationId,
     user_id: resolvedAgentId,
     sender: 'lead',
@@ -19775,7 +19781,7 @@ app.post('/api/public/conversations/start', async (req, res) => {
       listing_id: listingId,
       messages: (messageRows || []).map((row) => ({
         id: row.id,
-        sender: row.sender,
+        sender: dbMsg.fromDbSender(row),
         text: row.content,
         created_at: row.created_at
       })),
@@ -22053,8 +22059,8 @@ app.get('/api/dashboard/leads/:leadId/conversation', async (req, res) => {
       },
       messages: (messageRows || []).map((row) => ({
         id: row.id,
-        sender: row.sender,
-        channel: row.channel || 'web',
+        sender: dbMsg.fromDbSender(row),
+        channel: dbMsg.fromDbChannel(row),
         text: row.content,
         is_capture_event: Boolean(row.is_capture_event),
         intent_tags: Array.isArray(row.intent_tags) ? row.intent_tags : [],
@@ -22150,7 +22156,7 @@ app.get('/api/dashboard/leads/export-conversations', async (req, res) => {
       .map(l => {
         const conv = convByLead[l.id];
         const messages = (msgsByConv[conv.id] || []).map(m => ({
-          sender: m.sender,
+          sender: dbMsg.fromDbSender(m),
           text: m.content,
           created_at: m.created_at
         }));
@@ -24913,7 +24919,7 @@ app.post('/api/dashboard/listings/:listingId/videos/generate', async (req, res) 
     if (!owned && property.agent_id) {
       const primaryAgentOwnerLookup = await supabaseAdmin
         .from('agents')
-        .select('id,user_id')
+        .select('id,auth_user_id')
         .eq('id', property.agent_id)
         .maybeSingle();
 
@@ -28191,8 +28197,8 @@ app.post('/api/conversations/:conversationId/messages', requireConversationAcces
 
     const { data: messageRow, error: insertError } = await supabaseAdmin
       .from('ai_conversation_messages')
-      .insert(insertPayload)
-      .select(AI_CONVERSATION_MESSAGE_SELECT_FIELDS)
+      .insert(dbMsg.normalizeMessageRow(insertPayload))
+      .select(AI_CONVERSATION_MESSAGE_SELECT_FIELDS_LEGACY)
       .single();
 
     if (insertError) {
@@ -30240,8 +30246,8 @@ app.get('/api/lo/leads/:leadId/conversation', requireAuth, async (req, res) => {
 
     const messages = (messageRows || []).map(m => ({
       id: m.id,
-      sender: m.sender,
-      channel: m.channel || 'web',
+      sender: dbMsg.fromDbSender(m),
+      channel: dbMsg.fromDbChannel(m),
       text: String(m.content || m.metadata?.text || ''),
       created_at: m.created_at,
     }));
@@ -31922,6 +31928,7 @@ app.post('/api/public/office-invite/:token/claim', async (req, res) => {
     });
     if (authErr) {
       if (authErr.message?.includes('already')) return res.status(409).json({ error: 'email_already_registered' });
+      if (isWeakPasswordError(authErr)) return res.status(400).json({ error: 'password_too_weak' });
       throw authErr;
     }
     const authUserId = authData.user.id;
@@ -32648,7 +32655,11 @@ app.post('/api/agent/claim/:token', async (req, res) => {
     const [firstName, ...rest] = displayName.split(' ');
     const lastName = rest.join(' ') || '';
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({ email: invite.invited_email, password, email_confirm: true, user_metadata: { first_name: firstName, last_name: lastName } });
-    if (authError) { if (authError.message?.includes('already')) return res.status(409).json({ error: 'email_already_registered' }); throw authError; }
+    if (authError) {
+      if (authError.message?.includes('already')) return res.status(409).json({ error: 'email_already_registered' });
+      if (isWeakPasswordError(authError)) return res.status(400).json({ error: 'password_too_weak' });
+      throw authError;
+    }
     const authUserId = authData.user.id;
 
     // Resolve LO's agents.id profile ID — invite.lo_agent_id stores the auth id,

@@ -43,3 +43,19 @@ test('no agents lookup asks for the column agents.user_id (it does not exist; th
   assert.deepStrictEqual(bad, []);
   assert.ok(!src.includes('auth_user_id.eq.${agentId},user_id.eq.${agentId}'));
 });
+
+test('a weak password at invite claim gets a plain message, not a generic failure', () => {
+  assert.ok(src.includes('const isWeakPasswordError'));
+  assert.ok((src.match(/password_too_weak/g) || []).length >= 2);
+  assert.ok(/isWeakPasswordError\(/.test(src));
+  const fe = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'pages', 'AgentClaimPage.tsx'), 'utf8');
+  assert.ok(fe.includes('password_too_weak'));
+});
+
+test('chat messages go through the translator so the database check rules accept them', () => {
+  assert.ok(src.includes("table === 'ai_conversation_messages' ? dbMsg.normalizeMessagePayload(payload)"));
+  // no raw insert into the messages table (it would skip the translator); the inbound-email one already uses allowed words
+  const raw = src.match(/from\('ai_conversation_messages'\)\s*\.insert\(/g) || [];
+  assert.ok(raw.length <= 2, `raw inserts into ai_conversation_messages: ${raw.length}`);
+  assert.ok(!/from\('ai_conversation_messages'\)\.insert\(/.test(src));
+});

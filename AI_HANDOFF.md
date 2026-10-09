@@ -1,3 +1,11 @@
+## 2026-10-09 — Claude: live end-to-end test found the buyer chat never saved (fix local, NOT pushed)
+
+- Test (Chris's own LO + anaiyou+agent1@pm.me): WOW invite sent and arrived, WOW page opened, claim worked (after a weak-password retry; new auto sign-in worked), agent created and published a listing, LO auto-attached, public page loads. **Buyer chat failed: HTTP 500 on every message.**
+- Root cause: live table `ai_conversation_messages` only accepts sender in (lead, agent, ai) and channel in (chat, voice, email). Code wrote sender 'visitor'/'system' and channel 'web'/'sms'. So the listing chat has NEVER answered live or saved a message; the page quietly showed canned answers. SMS two-way history was also being rejected.
+- Fix (code only, DB untouched): `backend/services/messageRows.js` translates at the DB edge (visitor→lead, web/sms→chat, original kept in metadata `sender_label`/`channel_label`) and back on read; `insertRowTolerant` applies it to every message write; two raw inserts moved onto it; agent reply route uses the legacy select. +4 tests (350 backend pass).
+- Also: friendly message for weak passwords at invite claim (`password_too_weak`); stopped repeat `agents.user_id` lookups (7810, 24912).
+- Open: listing tab title reads "Draft Listing" (title field never set from address); test data left in prod: agent anaiyou+agent1@pm.me (id 97eec383...), listing 482 Maple Court (80bb0cdc...), invite, conversation b315d802.... Delete only with Chris's OK.
+
 ## 2026-10-09 — Claude: spend stops + no more "unlimited" (local, NOT pushed)
 
 - Chris asked: never promise unlimited, and stop guards on everything so one user/bug cannot cause a big bill. Details and every number: `docs/audits/SPEND_STOPS_2026-10-09.md`.

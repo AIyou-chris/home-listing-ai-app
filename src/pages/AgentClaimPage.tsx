@@ -84,7 +84,8 @@ const AgentClaimPage: React.FC = () => {
       })
       const data = await res.json() as { success?: boolean; error?: string }
       if (!res.ok || !data.success) {
-        if (data.error === 'email_already_registered') setFormError('This email is already registered. Try signing in instead.')
+        if (data.error === 'password_too_weak') setFormError('That password is too easy to guess (it shows up in known leaks). Please choose a longer one that is not a common word or number pattern.')
+        else if (data.error === 'email_already_registered') setFormError('This email is already registered. Try signing in instead.')
         else if (data.error === 'already_claimed') setError('This invite has already been claimed.')
         else setFormError('Something went wrong. Try again.')
         return
