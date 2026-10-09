@@ -1,3 +1,9 @@
+## 2026-10-09 — Claude: "Delete my account" now deletes everything (local, NOT pushed)
+
+- New `backend/services/accountDeletion.js` (+8 tests): finds the person's listings, leads and conversations, removes children before parents (messages, lead events, phone calls and lines, invoices, notifications, settings and 100+ other tables), unlinks things that belong to others (a deleted LO's copy of an agent lead, invites, invoices), deletes the account row, then uploaded files, then the login (only if the account row is gone, so a failed run can be retried). Empty id list does nothing. Admin accounts cannot be deleted here. Phone numbers are NEVER released automatically: Chris gets an email to release them in Telnyx. A failed finish emails Chris.
+- Checked against the live DB read-only: all 153 table/column pairs exist. NOT run against real data (needs a throwaway account; ask Chris first). Stripe cancel (already there) kept.
+- Privacy draft updated to match (`docs/legal/PRIVACY_POLICY_DRAFT_2026-10-09`). Backend 365 pass.
+
 ## 2026-10-09 — Claude: privacy policy draft for the attorney (docs only, nothing live)
 
 - `docs/legal/PRIVACY_POLICY_DRAFT_2026-10-09.docx` (+ .md): full rewrite to match today's product (AI chat and phone line, transcripts, pre-approval answers, buyer details going to BOTH agent and LO, all vendors incl. OpenAI, TypeSafe, Mailgun, Textbelt, Telnyx, Sentry, Google, cookies/analytics, children, state rights). Notes for the attorney at the top list open choices (cookie banner, GLBA/DPA with LOs, California table, OpenAI training setting). Appendix lists matching changes for Terms, consent boxes (no privacy/terms link next to them today), pre-approval form, AI phone greeting.

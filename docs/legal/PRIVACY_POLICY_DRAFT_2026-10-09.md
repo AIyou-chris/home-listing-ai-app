@@ -20,7 +20,7 @@ subtitle: "Draft prepared 2026-10-09. NOT published. Do not put live until an at
 **Facts to confirm with me before you finalize:**
 
 - Retention today: lead and conversation data is kept 3 years unless deletion is requested. Call transcripts: we store the transcript and summary. I checked the code: **we do not record or store call audio**. (Our phone and AI providers handle the live call under their own terms; please confirm what they retain.)
-- Self-service "Delete my account" removes the account, listings, leads and subscriptions but does **not** yet remove chat messages, phone-line settings or invoices. Until I fix that, deletion is completed on request by email. The text below says so honestly.
+- Self-service "Delete my account" now removes the account and everything tied to it: listings, leads, chat messages, phone-line settings and call transcripts, notifications, settings, uploaded files, and the login (fixed 2026-10-09 once deployed). It cancels any subscription. It does **not** delete records belonging to someone else: for example, when a loan officer deletes their account, the agent's own copy of a lead stays with the agent (unlinked from the loan officer). A bought phone number is released by hand by us. Buyers who are not account holders ask by email.
 - The loan officer is likely a covered financial institution under GLBA; we act as their service provider for lead data. **[Please advise on wording and on whether we need a data processing addendum with each loan officer.]**
 - Text-message provider is currently Textbelt; Telnyx is used for the AI phone line. Both may change.
 
@@ -118,7 +118,7 @@ We use cookies and browser storage that are necessary for sign-in and for the ch
 
 ## 9. Your choices and rights
 
-You can ask us to **see, correct, delete or export** your information, and to stop contacting you. Email **hello@homelistingai.com**. We will confirm your request and answer within 45 days (sooner where the law says). Account holders can also delete their account in Settings. Deleting an account removes the account, listings and leads; ask us in writing if you want everything else removed too, and we will do it. To stop texts, reply STOP. To stop emails, click unsubscribe.
+You can ask us to **see, correct, delete or export** your information, and to stop contacting you. Email **hello@homelistingai.com**. We will confirm your request and answer within 45 days (sooner where the law says). Account holders can also delete their account in Settings, which removes their account, listings, leads, chat messages, call transcripts, settings and uploaded files. Buyers can ask us by email to delete their chat, details and call transcript. To stop texts, reply STOP. To stop emails, click unsubscribe.
 
 **If you live in California or another state with a privacy law,** you may have additional rights, including to know what we collect, to delete it, to correct it, and to opt out of sale or sharing. We do not sell personal information and do not share it for cross-context advertising. We will not treat you worse for using your rights. **[Attorney: add the required state-specific notice and categories table.]**
 

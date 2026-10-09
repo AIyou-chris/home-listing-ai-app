@@ -20965,35 +20965,59 @@ app.post('/api/account/delete', async (req, res) => {
       console.warn('[AccountDelete] Stripe cleanup lookup failed:', stripeLookupError?.message || stripeLookupError);
     }
 
-    const deleteWhereIn = async (table, column, values) => {
-      if (!values.length) return;
-      const { error } = await supabaseAdmin.from(table).delete().in(column, values);
-      if (error && !isIgnorableCleanupError(error)) throw error;
-    };
+    // Never let this route delete a platform admin.
+    const { data: adminCheck } = await supabaseAdmin.auth.admin.getUserById(canonicalAuthUserId).catch(() => ({ data: null }));
+    const accountEmail = String(adminCheck?.user?.email || '').toLowerCase();
+    const protectedEmails = ['cdipotter@me.com', String(process.env.ADMIN_EMAIL || '').toLowerCase()].filter(Boolean);
+    if (accountEmail && protectedEmails.includes(accountEmail)) {
+      return res.status(403).json({ error: 'admin_account_cannot_be_deleted_here' });
+    }
 
-    // Child records first, then parent records.
-    await deleteWhereIn('listing_sources', 'agent_id', agentIdentifiers);
-    await deleteWhereIn('appointments', 'agent_id', agentIdentifiers);
-    await deleteWhereIn('appointments', 'user_id', agentIdentifiers);
-    await deleteWhereIn('leads', 'agent_id', agentIdentifiers);
-    await deleteWhereIn('leads', 'user_id', agentIdentifiers);
-    await deleteWhereIn('usage_events', 'agent_id', agentIdentifiers);
-    await deleteWhereIn('usage_counters', 'agent_id', agentIdentifiers);
-    await deleteWhereIn('usage_periods', 'agent_id', agentIdentifiers);
-    await deleteWhereIn('subscriptions', 'agent_id', agentIdentifiers);
-    await deleteWhereIn('properties', 'agent_id', agentIdentifiers);
-    await deleteWhereIn('properties', 'user_id', agentIdentifiers);
-    await deleteWhereIn('agents', 'id', agentIdentifiers);
-    await deleteWhereIn('agents', 'auth_user_id', agentIdentifiers);
+    // Remove everything that belongs to this person (see services/accountDeletion.js), then the login.
+    const result = await require('./services/accountDeletion').deleteAccountData({
+      supabase: supabaseAdmin,
+      ids: agentIdentifiers,
+      authUserId: canonicalAuthUserId
+    });
+
+    if (!result.ok) {
+      console.error('[AccountDelete] Could not remove the account row; login kept so this can be retried:', JSON.stringify(result.errors));
+      spendGuardModule.guard.runBypassed(() => emailService.sendEmail({
+        to: process.env.OWNER_ALERT_EMAIL || 'homelistingai@gmail.com',
+        subject: 'Account deletion did not finish',
+        html: `<p>Someone asked to delete their account (${String(accountEmail).replace(/[<>&]/g, '')}) and the last step failed. Their login was kept so it can be retried.</p><pre>${JSON.stringify(result.errors, null, 2).replace(/[<>&]/g, '')}</pre>`
+      }).catch(() => null));
+      return res.status(500).json({ error: 'failed_to_delete_account_fully', message: 'We removed most of your data but could not finish. Our team has been told and will complete it.' });
+    }
+
+    // Their uploaded files (headshot, logo, listing photos) live in a folder named after their login id. Best effort.
+    try {
+      const bucket = supabaseAdmin.storage.from('ai-card-assets');
+      const { data: files } = await bucket.list(canonicalAuthUserId, { limit: 1000 });
+      const paths = (files || []).filter((f) => f?.name && f.id).map((f) => `${canonicalAuthUserId}/${f.name}`);
+      if (paths.length > 0) await bucket.remove(paths);
+    } catch (storageErr) {
+      console.warn('[AccountDelete] Could not remove stored files:', storageErr?.message || storageErr);
+    }
 
     const { error: authDeleteError } = await supabaseAdmin.auth.admin.deleteUser(canonicalAuthUserId);
     if (authDeleteError && !/not found/i.test(String(authDeleteError.message || ''))) {
       throw authDeleteError;
     }
 
+    // A bought phone number keeps costing money and is never released automatically. Tell the owner.
+    if (result.phoneNumbers.length > 0) {
+      spendGuardModule.guard.runBypassed(() => emailService.sendEmail({
+        to: process.env.OWNER_ALERT_EMAIL || 'homelistingai@gmail.com',
+        subject: 'Release this phone number: account deleted',
+        html: `<p>${String(accountEmail).replace(/[<>&]/g, '')} deleted their account. Their AI phone number(s) are still bought and billing until you release them in Telnyx:</p><p>${result.phoneNumbers.join(', ')}</p>`
+      }).catch(() => null));
+    }
+
     return res.json({
       success: true,
-      deleted_user_id: canonicalAuthUserId
+      deleted_user_id: canonicalAuthUserId,
+      removed: result.counts
     });
   } catch (error) {
     console.error('[AccountDelete] Failed to delete account:', error);
