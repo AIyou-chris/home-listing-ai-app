@@ -1,3 +1,14 @@
+## 2026-10-09 — Claude: test data cleaned up (Chris said "clean up")
+
+- Deleted from production, in one safety-checked block: test agent anaiyou+agent1@pm.me (agent row + login), listing 482 Maple Court, Test Buyer lead, its conversation + messages, the WOW invite, partnership row, bells/alerts and related rows. Counts are back to before the test (agents 3, leads 4, invites 1). Chris's LO account, Fred's partnership and the test1234 listing were not touched.
+- Left behind: one test photo file in storage bucket ai-card-assets under folder c88fd9cf-30cf-437c-898d-33089f551f61/ (harmless; remove from the Supabase Storage screen if wanted). Email log rows from the test remain.
+
+## 2026-10-09 — Codex: PhotoCraft/PdfCraft first local tests passed
+
+- Chris requested help testing ArtCraft family. Downloaded official PhotoCraft 0.5.0/PdfCraft 0.4.0 universal Mac DMGs under tmp/artcraft-test; verified publisher SHA256SUMS; mounted read-only, launched directly via CUA. No Gatekeeper bypass, installation into /Applications, subscriptions, AI generations or production changes. Pinokio skill used for discovery; pterm search did not respond and was interrupted; control plane unreachable.
+- PhotoCraft: opened existing marketing WebP (1536x1024), added editable Inter text layer, exported separate PNG; file format/dimensions checked. Original unchanged on disk. Unsaved working document remains open. PdfCraft: created safe two-page PDF, opened, moved first page after second, saved sample; visible first page now says page two. Samples/output/screenshots under tmp/artcraft-test. This is a first smoke test, not full stability, browser integration, automation, PSD roundtrip, or AI studio testing. Other Craft apps untested.
+- Main ArtCraft license is restrictive fair source; separate PhotoCraft README identifies MIT/Apache2.0. Dashboard integration remains a proposal, not implemented. No app code changed/pushed. DMGs remain mounted while apps are open.
+
 ## 2026-10-09 — Claude: end-to-end test PASSED after chat fix (description fix local, NOT pushed)
 
 - Live run, all on production: WOW invite emailed → page opened → claim (auto sign-in) → listing published → LO auto-attached → buyer chat answered live (after pushing a1a3225c; saved as lead/chat with original labels in metadata) → buyer submitted phone with consent box → lead row saved (agent + LO ids, consent_sms true, Warm) → agent bell + email, LO bell + email, all within 1 second.
