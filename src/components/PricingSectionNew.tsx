@@ -32,7 +32,7 @@ export const PricingSectionNew: React.FC<PricingProps> = ({ onNavigateToSignUp: 
                     </h3>
                     <p className="text-lg md:text-xl text-slate-300 font-light leading-relaxed">
                         Built for loan officers and their agent partners. Email and SMS alerts included.
-                        LO Lite includes 50 texts/month, LO includes 250, LO Pro is unlimited.
+                        LO Lite includes 50 texts/month, LO includes 250, LO Pro includes up to 2,000.
                     </p>
 
                     {/* 7-day free trial detail */}
@@ -203,7 +203,7 @@ export const PricingSectionNew: React.FC<PricingProps> = ({ onNavigateToSignUp: 
                                 </li>
                                 <li className="flex items-start gap-3 text-white font-medium">
                                     <span className="material-symbols-outlined text-cyan-400 text-xl shrink-0">check</span>
-                                    Unlimited SMS / month
+                                    Up to 2,000 SMS / month
                                 </li>
                                 <li className="flex items-start gap-3 text-white font-medium">
                                     <span className="material-symbols-outlined text-cyan-400 text-xl shrink-0">check</span>
@@ -287,7 +287,7 @@ export const PricingSectionNew: React.FC<PricingProps> = ({ onNavigateToSignUp: 
                                     </li>
                                     <li className="flex items-start gap-3 text-white">
                                         <span className="material-symbols-outlined text-amber-400 text-xl shrink-0">check</span>
-                                        Unlimited listings across your LO team
+                                        Up to 500 listings per LO across your team
                                     </li>
                                     <li className="flex items-start gap-3 text-white">
                                         <span className="material-symbols-outlined text-amber-400 text-xl shrink-0">check</span>
@@ -339,7 +339,7 @@ export const PricingSectionNew: React.FC<PricingProps> = ({ onNavigateToSignUp: 
                                 </li>
                                 <li className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                                     <span className="text-white font-medium text-sm">LO Pro</span>
-                                    <span className="text-slate-400 text-xs">Unlimited outbound SMS / month</span>
+                                    <span className="text-slate-400 text-xs">Up to 2,000 outbound SMS / month</span>
                                 </li>
                             </ul>
                         </div>

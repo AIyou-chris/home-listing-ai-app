@@ -144,6 +144,20 @@ const sendSms = async (to, message, mediaUrls = [], userId = null) => {
     : '';
   const messageText = `${message}${appendedMedia}`.trim();
 
+  // Stop guard: platform-wide daily cap, a few texts per number per day, and a monthly cap per account.
+  {
+    const { guard } = require('./spendGuard');
+    let accountMonthLimit = null;
+    try {
+      if (userId && typeof guard.smsAccountLimit === 'function') accountMonthLimit = await guard.smsAccountLimit(userId);
+    } catch (_e) { /* lookup failed: fall back to the default monthly cap */ }
+    const gate = guard.sms({ to: destination, accountId: userId, accountMonthLimit });
+    if (!gate.ok) {
+      console.warn(`🛑 [SMS] Spend guard stop: ${gate.reason}. Not sent.`);
+      return false;
+    }
+  }
+
   try {
     console.log(`📱 [SMS] Sending to ${destination} via ${getSmsProviderName()}...`);
     const result = await sendViaTextbelt({ destination, messageText });

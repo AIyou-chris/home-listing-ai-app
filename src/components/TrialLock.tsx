@@ -56,9 +56,9 @@ const TrialLock: React.FC<TrialLockProps> = ({ _user }) => {
                             Trial Membership Expired
                         </div>
 
-                        <h3 className="text-xl font-semibold text-white mb-4">You're one step away from unlimited potential.</h3>
+                        <h3 className="text-xl font-semibold text-white mb-4">You're one step away from keeping everything running.</h3>
                         <p className="text-slate-400 text-sm mb-8 leading-relaxed">
-                            Unlock the full power of HomeListingAI. Create unlimited smart listings, export your leads, and keep your AI Agent working for you 24/7.
+                            Unlock the full power of HomeListingAI. Add your listings (up to your plan), export your leads, and keep your AI Agent working for you 24/7.
                         </p>
 
                         <div className="space-y-3">

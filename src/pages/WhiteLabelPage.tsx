@@ -264,7 +264,7 @@ const WhiteLabelPage: React.FC<WhiteLabelPageProps> = ({
                                 </p>
                                 <ul className="space-y-4 mb-10 pb-4 border-b border-slate-800/50">
                                     {[
-                                        'Unlimited Agent Accounts',
+                                        'Agent accounts for your whole office',
                                         '24/7 Server Uptime Monitoring',
                                         'Omnichannel Marketing Tools',
                                         'New Feature Rollouts (Weekly)',

@@ -224,7 +224,7 @@ const buildUpgradeHtml = (firstName, planId, dashboardUrl) => {
           <p class="body-text" style="margin-bottom: 12px;"><strong>What just unlocked:</strong></p>
           <ul class="unlock-list">
             <li class="unlock-item"><span class="unlock-icon">✓</span>50 active listings across your partner network</li>
-            <li class="unlock-item"><span class="unlock-icon">✓</span>Unlimited SMS per month</li>
+            <li class="unlock-item"><span class="unlock-icon">✓</span>Up to 2,000 SMS per month</li>
             <li class="unlock-item"><span class="unlock-icon">✓</span>Priority lead routing</li>
             <li class="unlock-item"><span class="unlock-icon">✓</span>Everything in LO — all features included</li>
           </ul>
@@ -722,6 +722,16 @@ module.exports = (supabaseAdmin) => {
   const emailTrackingService = require('./emailTrackingService');
 
   const sendEmail = async ({ to, subject, html, cc = [], bcc = [], tags, options }) => {
+    // Stop guard: never email one address more than a handful of times a day (a loop or bug
+    // could otherwise send hundreds to one inbox). The platform-wide daily stop is in spendGuard's fetch wrapper.
+    {
+      const firstTo = Array.isArray(to) ? to[0] : to;
+      const gate = require('./spendGuard').guard.emailTo({ to: firstTo });
+      if (!gate.ok) {
+        console.warn(`[EmailService] Spend guard stop: ${gate.reason} (${firstTo}). Not sent.`);
+        return { sent: false, skipped: 'spend_guard' };
+      }
+    }
     try {
       // 1. Prepare Tracking (if context available)
       let finalHtml = html;

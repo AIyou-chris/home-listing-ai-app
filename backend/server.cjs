@@ -17,6 +17,24 @@ dotenv.config({
 });
 dotenv.config();
 
+// ── Stop guards (see services/spendGuard.js) ─────────────────────────────────
+// Installed first, before any SDK or service captures `fetch`, so EVERY paid call (OpenAI, TypeSafe,
+// translation, Mailgun, Telnyx number orders) is counted against a daily ceiling. The owner is emailed
+// once a day per stop that trips. All limits can be changed from Render env (SPEND_* names).
+const spendGuardModule = require('./services/spendGuard');
+globalThis.fetch = spendGuardModule.installFetchGuard(spendGuardModule.guard, globalThis.fetch);
+spendGuardModule.guard.setAlertSender(({ kind, detail }) => {
+  spendGuardModule.guard.runBypassed(async () => {
+    try {
+      await require('./services/emailService').sendEmail({
+        to: process.env.OWNER_ALERT_EMAIL || 'homelistingai@gmail.com',
+        subject: `Safety stop tripped: ${detail}`,
+        html: `<p>A spending safety stop just tripped on HomeListingAI.</p><p><strong>${String(detail).replace(/[<>&]/g, '')}</strong></p><p>Nothing more of that kind will go out until tomorrow (UTC), unless you raise the limit in Render (the SPEND_* settings). If you did not expect this, look for a bug or abuse before raising it.</p>`
+      });
+    } catch (_e) { /* the alert is best effort */ }
+  });
+});
+
 const Sentry = require('@sentry/node');
 if (process.env.SENTRY_DSN) {
   Sentry.init({
@@ -623,6 +641,7 @@ const aiSpendGuard = (req, res, next) => {
     aiDailyUsage.global = 0;
   }
   if (aiDailyUsage.global >= AI_DAILY_GLOBAL_CAP) {
+    spendGuardModule.guard.alertOnce('public_chat:all', `Daily public chat limit reached (${AI_DAILY_GLOBAL_CAP} messages). Buyers see a "very busy" message until tomorrow.`);
     return res.status(429).json({ success: false, error: 'ai_daily_cap', message: 'The assistant is very busy today. Please try again tomorrow or contact the agent directly.' });
   }
   const ipCount = aiDailyUsage.perIp.get(req.ip) || 0;
@@ -30468,13 +30487,13 @@ const resolveLoPlanTier = async (loAgent) => {
 };
 
 // ── LO WOW Invite limit ────────────────────────────────────────────────────────
-// Returns: number of invites allowed per month (Infinity = unlimited, 0 = fully blocked)
+// Returns: number of invites allowed per month (0 = fully blocked)
 // During the 7-day trial, invites are capped low to limit AI-cost exposure before
 // the LO actually pays. Full plan limit kicks in once the sub is active.
 const resolveLoWowInviteLimit = async (loAgent) => {
   const tier = await resolveLoPlanTier(loAgent);
   if (tier === 'trial') return LO_TRIAL_INVITE_CAP;
-  if (tier === 'lo_pro') return Infinity; // $299 — unlimited
+  if (tier === 'lo_pro') return 1000;     // $299 — up to 1,000/month (a fair-use ceiling, not unlimited)
   if (tier === 'lo') return 250;          // $149 — 250/month
   if (tier === 'lo_lite') return 50;      // $79  — 50/month
   return 0; // No active/trialing LO subscription → blocked
@@ -30559,7 +30578,7 @@ app.post('/api/lo/partners/invite', requireAuth, async (req, res) => {
     const emailLower = email.trim().toLowerCase();
 
     // ── WOW invite cap — enforce per-LO-plan limit ───────────────────────────
-    // Trial (7 days): 10 · LO $149: 250/mo · LO Pro $299: unlimited · expired/no plan: 0
+    // Trial (7 days): 10 · LO $149: 250/mo · LO Pro $299: 1,000/mo · expired/no plan: 0
     try {
       const inviteLimit = await resolveLoWowInviteLimit(loAgent);
       if (isFinite(inviteLimit)) {
@@ -30583,7 +30602,7 @@ app.post('/api/lo/partners/invite', requireAuth, async (req, res) => {
           });
         }
       }
-      // inviteLimit === Infinity → LO Pro, skip count check
+      // LO Pro has a 1,000/month ceiling like everyone else
     } catch (limitErr) {
       console.warn('[LO Invite] Could not check invite limit (non-fatal):', limitErr?.message);
       // Non-fatal — don't block the invite if the plan check fails
@@ -32964,6 +32983,8 @@ app.post('/api/lo/listings/:listingId/reel', requireLoAgent, async (req, res) =>
     const now = Date.now();
     const recent = (reelStartLog.get(loAgentId) || []).filter((t) => now - t < 3600000);
     if (recent.length >= 5) return res.status(429).json({ error: 'reel_rate_limited' });
+    const reelGate = spendGuardModule.guard.reel({ accountId: loAgentId });
+    if (!reelGate.ok) return res.status(429).json({ error: 'reel_limit_reached', message: 'You have used this month\'s reels. More will be available next month, or ask us to raise your limit.' });
 
     const { data: listing } = await supabaseAdmin
       .from('properties')
@@ -33052,6 +33073,8 @@ app.post('/api/lo/listings/:listingId/hoa-read', requireLoAgent, (req, res, next
     const now = Date.now();
     const recent = (hoaReadLog.get(loAgentId) || []).filter((t) => now - t < 3600000);
     if (recent.length >= 10) return res.status(429).json({ error: 'hoa_rate_limited' });
+    const hoaGate = spendGuardModule.guard.hoaRead({ accountId: loAgentId });
+    if (!hoaGate.ok) return res.status(429).json({ error: 'hoa_limit_reached', message: 'Daily document-reading limit reached. Try again tomorrow.' });
     hoaReadLog.set(loAgentId, [...recent, now]);
 
     const out = await reader.readPdf(req.file.buffer);
@@ -33121,6 +33144,7 @@ app.get('/api/dashboard/listings/:listingId/agent-share-kit', async (req, res) =
 // Caps must match the marketed plans (PricingSectionNew/LOSignupPage):
 // LO Lite $79 → 5, trial + LO $149 → 20, LO Pro $299 → 50, expired/no plan → 1 (Free tier).
 const LO_PLAN_LISTING_LIMITS = { trial: 20, lo_lite: 5, lo: 20, lo_pro: 50, none: 1 };
+const LO_OFFICE_LISTING_CAP = 500;
 // How many listings this LO may be on, how many they are on, and whether they can add another.
 // Office-managed LOs (and the office / white-label plans) are never capped here.
 async function loListingCapacity(loProfileId) {
@@ -33129,7 +33153,8 @@ async function loListingCapacity(loProfileId) {
   const rows = (await fetchLoAssignedListings(loProfileId)).filter((r) => !['archived', 'sold'].includes(String(r.status || '').toLowerCase()));
   const used = rows.length;
   if (!agentRow || agentRow.office_id || agentRow.plan === 'office' || agentRow.plan === 'white_label') {
-    return { tier: 'office', limit: -1, used, unlimited: true, atLimit: false, remaining: null };
+    // Office plans are big but not endless: a fixed ceiling so one account cannot run storage and AI costs without limit.
+    return { tier: 'office', limit: LO_OFFICE_LISTING_CAP, used, unlimited: false, atLimit: used >= LO_OFFICE_LISTING_CAP, remaining: Math.max(0, LO_OFFICE_LISTING_CAP - used) };
   }
   const tier = await resolveLoPlanTier(agentRow);
   const limit = LO_PLAN_LISTING_LIMITS[tier] ?? LO_PLAN_LISTING_LIMITS.none;
@@ -33799,6 +33824,27 @@ async function getLoPhoneMinuteLimit(loAgentId) {
   return limit;
 }
 
+// Monthly text cap per account, by plan (the numbers we advertise). Anything we cannot work out gets the default.
+const SMS_MONTHLY_BY_TIER = { trial: 50, lo_lite: 50, lo: 250, lo_pro: 2000, none: 0 };
+const smsLimitCache = new Map(); // account id -> { limit, at }
+spendGuardModule.guard.smsAccountLimit = async (accountId) => {
+  const hit = smsLimitCache.get(accountId);
+  if (hit && Date.now() - hit.at < 10 * 60 * 1000) return hit.limit;
+  let limit = null;
+  try {
+    const { data: row } = await supabaseAdmin.from('agents')
+      .select('account_type, plan, stripe_customer_id, payment_status, created_at')
+      .or(`id.eq.${accountId},auth_user_id.eq.${accountId}`).limit(1).maybeSingle();
+    if (row && (row.account_type === 'lo' || row.account_type === 'office')) {
+      limit = row.plan === 'office' || row.plan === 'white_label'
+        ? SMS_MONTHLY_BY_TIER.lo_pro
+        : (SMS_MONTHLY_BY_TIER[await resolveLoPlanTier(row)] ?? null);
+    }
+  } catch (_e) { limit = null; }
+  smsLimitCache.set(accountId, { limit, at: Date.now() });
+  return limit;
+};
+
 let loPhoneCallsInstance = null;
 function getLoPhoneCalls() {
   if (!loPhoneCallsInstance) {
@@ -33810,6 +33856,7 @@ function getLoPhoneCalls() {
       generateSummary: openAiChatReply,
       WebSocketImpl: WebSocketClient,
       getMinuteLimit: getLoPhoneMinuteLimit,
+      allowAiCall: ({ from }) => spendGuardModule.guard.aiCall({ from }).ok,
       onLead: async ({ loAgentId, lead, intent, handoff }) => {
         if (intent === 'hot' || handoff) return deliverHotLeadAlert(loAgentId, 'lo', lead, 90);
         await supabaseAdmin.from('notifications').insert({
@@ -33923,6 +33970,7 @@ app.post('/api/lo/brain/voice-preview', requireLoAgent, async (req, res) => {
     const now = Date.now();
     const recent = (loVoicePreviewHits.get(req.loAgentId) || []).filter((t) => now - t < 60 * 60 * 1000);
     if (recent.length >= 30) return res.status(429).json({ error: 'too_many_previews' });
+    if (!spendGuardModule.guard.voicePreview({ accountId: req.loAgentId }).ok) return res.status(429).json({ error: 'too_many_previews' });
     recent.push(now);
     loVoicePreviewHits.set(req.loAgentId, recent);
 

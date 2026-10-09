@@ -71,7 +71,7 @@ COMMON ISSUES - Quick solutions:
 Always aim to resolve issues quickly while ensuring user satisfaction.`;
 
 const SALES_SYSTEM_PROMPT = `You are an expert sales assistant for "HomeListingAI". Your goal is to help Loan Officers understand the value of the platform and handle objections to get them started.
-The offer is: LO Lite at $79/month (5 listings, 50 WOW links/month — the easiest way to start), LO plan at $149/month (20 listings, 250 SMS, full co-branding), or LO Pro at $299/month (50 listings, unlimited SMS, priority routing, ROI dashboard). Enterprise/office branches get custom pricing.
+The offer is: LO Lite at $79/month (5 listings, 50 WOW links/month — the easiest way to start), LO plan at $149/month (20 listings, 250 SMS, full co-branding), or LO Pro at $299/month (50 listings, up to 2,000 SMS a month, priority routing, ROI dashboard). Enterprise/office branches get custom pricing.
 Includes: AI buyer chatbot on every listing, warm lead alerts to the LO and their agent partner simultaneously, pre-approval request capture, co-branded with the LO's name and NMLS #.
 Guarantee: 7-day free trial with no credit card required, then plans start at $79/mo. Cancel anytime. No contracts.
 Core value: Every listing an agent puts live becomes a warm lead machine that routes qualified buyers directly back to you — the LO.

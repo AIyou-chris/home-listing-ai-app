@@ -42,7 +42,7 @@ const planMeta: Record<PlanId, { name: string; monthly: string; subtitle: string
   pro: {
     name: 'LO Pro',
     monthly: '$299/mo',
-    subtitle: '50 listings, unlimited SMS, priority routing & ROI dashboard.'
+    subtitle: '50 listings, up to 2,000 SMS, priority routing & ROI dashboard.'
   }
 };
 
@@ -307,7 +307,7 @@ const BillingCommandPage: React.FC = () => {
                 <td className="px-3 py-3">—</td>
                 <td className="px-3 py-3">50</td>
                 <td className="px-3 py-3">250</td>
-                <td className="px-3 py-3">Unlimited</td>
+                <td className="px-3 py-3">Up to 2,000</td>
               </tr>
               <tr className="border-b border-slate-100">
                 <td className="px-3 py-3 font-medium">ROI dashboard</td>
@@ -368,7 +368,7 @@ const BillingCommandPage: React.FC = () => {
           <div className="rounded-xl border border-slate-200 bg-white p-3">
             <p className="text-xs uppercase tracking-wide text-slate-500">LO Pro</p>
             <p className="mt-1 text-lg font-semibold text-slate-900">$299/mo</p>
-            <p className="text-xs text-slate-400 mt-0.5">50 listings · Unlimited SMS</p>
+            <p className="text-xs text-slate-400 mt-0.5">50 listings · Up to 2,000 SMS</p>
             <button
               type="button"
               onClick={() => void startUpgrade('pro')}
@@ -408,7 +408,7 @@ const BillingCommandPage: React.FC = () => {
       </section>
 
       <section className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-        LO Lite includes 50 outbound SMS per month, LO includes 250, and LO Pro is unlimited. Only automated outbound texts count toward your limit.
+        LO Lite includes 50 outbound SMS per month, LO includes 250, and LO Pro includes up to 2,000. Only automated outbound texts count toward your limit. When you reach it, texts pause until next month.
       </section>
     </div>
   );

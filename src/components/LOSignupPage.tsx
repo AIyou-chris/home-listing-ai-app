@@ -47,7 +47,7 @@ const PLANS: Record<Plan, { name: string; price: string; tagline: string; featur
         features: [
             '50 active listings across your partner network',
             'Everything in LO — all features included',
-            'Unlimited SMS / month',
+            'Up to 2,000 SMS / month',
             'Priority lead routing',
             'Advanced analytics dashboard',
             'Multiple agent partnerships',

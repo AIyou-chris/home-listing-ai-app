@@ -106,6 +106,7 @@ function createLoPhoneCallService({
   fetchImpl = globalThis.fetch,
   WebSocketImpl = null,
   getMinuteLimit = null, // async (loAgentId) => AI minutes allowed this month (null = no cap)
+  allowAiCall = null, // ({ from }) => boolean. Stop guard: false = do not start another AI call (spam / runaway)
   setTimer = setTimeout,
   log = console,
 } = {}) {
@@ -335,8 +336,12 @@ function createLoPhoneCallService({
           log.warn('[LO Call] minute check failed, allowing AI', err?.message || err);
         }
       }
-      const mode = brainOn && cfg().aiReady && !overCap ? 'ai' : (cell ? 'forward' : 'unavailable');
-      await patchCall(call.id, { mode, ...(overCap ? { error: 'monthly_ai_minutes_used' } : {}) });
+      let guardStop = false;
+      if (brainOn && cfg().aiReady && !overCap && allowAiCall) {
+        try { guardStop = !allowAiCall({ from: call.from_number }); } catch (_e) { guardStop = false; }
+      }
+      const mode = brainOn && cfg().aiReady && !overCap && !guardStop ? 'ai' : (cell ? 'forward' : 'unavailable');
+      await patchCall(call.id, { mode, ...(overCap ? { error: 'monthly_ai_minutes_used' } : guardStop ? { error: 'daily_ai_call_limit' } : {}) });
       await telnyx.callAction(ccid, 'answer', { client_state: b64({ c: call.id }) });
       return { handled: 'answered', mode, callId: call.id };
     }

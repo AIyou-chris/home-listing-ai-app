@@ -98,7 +98,7 @@ const featureRows: { label: string; free: FeatureValue; lite: FeatureValue; star
     { label: 'ROI dashboard', free: false, lite: false, starter: false, pro: true },
 
     { section: 'Communications', label: '', free: false, lite: false, starter: false, pro: false },
-    { label: 'Automated SMS / month', free: false, lite: '50 / mo', starter: '250 / mo', pro: 'Unlimited' },
+    { label: 'Automated SMS / month', free: false, lite: '50 / mo', starter: '250 / mo', pro: 'Up to 2,000 / mo' },
     { label: 'Appointment reminder automation', free: false, lite: false, starter: false, pro: true },
 
     { section: 'Support', label: '', free: false, lite: false, starter: false, pro: false },

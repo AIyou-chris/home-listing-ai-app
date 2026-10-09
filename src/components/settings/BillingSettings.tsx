@@ -46,7 +46,7 @@ const featureRows: Array<{ label: string; free: string; lite: string; starter: s
   { label: 'Co-branded with your NMLS #', free: '—', lite: '✓', starter: '✓', pro: '✓' },
   { label: 'Pre-approval request capture', free: '—', lite: '—', starter: '✓', pro: '✓' },
   { label: 'Warm lead alerts (LO + agent)', free: '—', lite: '✓', starter: '✓', pro: '✓ Priority routing' },
-  { label: 'Automated SMS / month', free: '—', lite: '50', starter: '250', pro: 'Unlimited' },
+  { label: 'Automated SMS / month', free: '—', lite: '50', starter: '250', pro: 'Up to 2,000' },
   { label: 'ROI dashboard', free: '—', lite: '—', starter: '—', pro: '✓' },
   { label: 'Support', free: 'Email', lite: 'Email', starter: 'Priority email', pro: 'Priority + onboarding' }
 ];

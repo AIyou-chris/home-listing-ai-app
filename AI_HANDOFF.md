@@ -1,3 +1,10 @@
+## 2026-10-09 — Claude: spend stops + no more "unlimited" (local, NOT pushed)
+
+- Chris asked: never promise unlimited, and stop guards on everything so one user/bug cannot cause a big bill. Details and every number: `docs/audits/SPEND_STOPS_2026-10-09.md`.
+- New `backend/services/spendGuard.js` (+8 tests). A wrapper on global `fetch`, installed first in `server.cjs`, counts/stops OpenAI, TypeSafe, translation, Mailgun and Telnyx number orders. Own checks: texts (platform, per number, per account by plan), per-address email, AI phone calls (platform + per caller), reels, document reads, voice previews. One owner email per stop per day. All limits are `SPEND_*` Render settings.
+- Copy: "unlimited" removed everywhere (site, SEO/AI files, sales bot, billing screens, welcome email). Pro = up to 2,000 texts, up to 1,000 WOW links a month; office = up to 500 listings per LO. Enforced in code (WOW links, office listing cap, texts). Test `spendStopsWired` blocks "unlimited" coming back.
+- Not done: set a monthly spend limit in the OpenAI dashboard (needs Chris). Backend 343, Jest 156, tsc, lint, build pass.
+
 ## 2026-10-08 — Claude: investor-view review, core journey traced (local, NOT pushed)
 
 - Plan and evidence: `docs/audits/INVESTOR_REVIEW_PLAN_2026-10-08.md`. Same local branch as the launch audit; nothing pushed or deployed.
