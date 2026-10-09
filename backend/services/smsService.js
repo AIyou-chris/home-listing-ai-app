@@ -144,6 +144,17 @@ const sendSms = async (to, message, mediaUrls = [], userId = null) => {
     : '';
   const messageText = `${message}${appendedMedia}`.trim();
 
+  // TCPA: never text a number that replied STOP (this covers every kind of text we send).
+  try {
+    const optedOut = await module.exports.isSuppressed(destination);
+    if (optedOut) {
+      console.warn(`🛑 [SMS] ${destination} opted out (STOP). Not sent.`);
+      return false;
+    }
+  } catch (suppressionErr) {
+    console.warn('[SMS] Could not check the STOP list, sending anyway:', suppressionErr?.message || suppressionErr);
+  }
+
   // Stop guard: platform-wide daily cap, a few texts per number per day, and a monthly cap per account.
   {
     const { guard } = require('./spendGuard');
@@ -194,7 +205,16 @@ const sendSms = async (to, message, mediaUrls = [], userId = null) => {
   }
 };
 
+// Is this number on the STOP list? (a function so tests can replace it)
+const isSuppressed = async (destination) => {
+  const { supabaseAdmin } = require('./supabase');
+  if (!supabaseAdmin) return false;
+  const { data } = await supabaseAdmin.from('sms_suppression').select('phone').eq('phone', destination).limit(1);
+  return Array.isArray(data) && data.length > 0;
+};
+
 module.exports = {
+  isSuppressed,
   getSmsProviderName,
   normalizePhoneNumber,
   sendSms,

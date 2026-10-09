@@ -85,3 +85,9 @@ test('public pages, SEO text and the sales bot do not state customer results we 
   }
   assert.deepStrictEqual(hits, []);
 });
+
+test('the Textbelt reply webhook checks its signature and only acts on a STOP when it cannot', () => {
+  assert.ok(src.includes('verifyTextbeltWebhook({ headers: req.headers, rawBody: req.rawBody'));
+  assert.ok(src.includes("reason: 'unverified_sender'"));
+  assert.ok(src.includes('isStopMessage(textBody)'));
+});

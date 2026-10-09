@@ -1,3 +1,9 @@
+## 2026-10-09 — Claude: text-message STOP safety fixes (local, NOT pushed; live text test pending)
+
+- Read the STOP path and found three gaps: (1) `/api/webhooks/textbelt/inbound` accepted unsigned requests, so anyone could fake a STOP for any buyer or fake an inbound text that triggers an AI text reply; (2) only the LO manual-text route and price-drop alerts checked the STOP list, every other text (funnel follow-ups, AI replies, reminders) ignored it; (3) STOP matched only an exact word and looked up leads by `phone` only (leads also store `phone_e164`).
+- Fixes: `verifyTextbeltWebhook` (HMAC-SHA256 of timestamp+raw body with the Textbelt key, 15 min freshness, per Textbelt docs); the route now acts on anything other than STOP only when verified (a STOP is always honored); `isStopMessage` handles "Stop.", "stop all", unsubscribe, cancel, end, quit, revoke, optout; leads matched by phone or phone_e164; `sendSms` itself refuses numbers in `sms_suppression`. Tests +5 (370 backend).
+- Risk to watch: if Textbelt's real signature differs from its docs, non-STOP replies will be ignored as "unverified_sender" (STOPs still work). The live test with Chris's phone proves this.
+
 ## 2026-10-09 — Claude: "Delete my account" pushed AND tested live (ffadff5a)
 
 - Pushed, deployed, then tested on production with two throwaway accounts (fake .invalid emails, seeded with a listing, lead, conversation + messages, bells, events). Deleted the loan officer first: its row, login, partnership, listing assignment and bell went; the agent's lead stayed with lo_agent_id null; agent listing/conversation/messages/bell stayed. Then deleted the agent: every seeded row and the login went. All real-data counts matched the snapshot taken before (agents 3, logins 3, listings 8, leads 4, conversations 1, notifications 7, subscriptions 37, invites 1). LO anaiyou@pm.me and test1234 untouched. Throwaway passwords file removed.

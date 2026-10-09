@@ -17644,30 +17644,39 @@ const processInboundSmsMessage = async ({
   fromPhone,
   textBody,
   rawEventId,
-  providerName = getSmsProviderName()
+  providerName = getSmsProviderName(),
+  verified = true
 }) => {
   const normalizedFromPhone = normalizePhoneE164(fromPhone);
   if (!normalizedFromPhone || !textBody) {
     return { processed: true, ignored: true, reason: 'missing_message_fields' };
   }
 
-  const stopKeywords = ['STOP', 'STOPALL', 'UNSUBSCRIBE', 'CANCEL', 'END', 'QUIT'];
-  if (stopKeywords.includes(String(textBody).trim().toUpperCase())) {
-    await supabaseAdmin
+  if (isStopMessage(textBody)) {
+    // Opting out is always honored, even when the signature could not be checked (missing a real STOP is the worse mistake).
+    await bestEffort(supabaseAdmin
       .from('leads')
       .update({ status: 'unsubscribed', last_contact_at: nowIso() })
-      .eq('phone', normalizedFromPhone);
+      .or(`phone.eq.${normalizedFromPhone},phone_e164.eq.${normalizedFromPhone}`));
+    await bestEffort(supabaseAdmin.from('sms_suppression').upsert({ phone: normalizedFromPhone, reason: 'stop_reply', created_at: nowIso() }));
     // Honor STOP for listing price-drop alert subscribers too (global suppression).
     await listingAlertService.suppressPhone(alertDeps(), { phone: normalizedFromPhone, reason: 'stop_reply' })
       .catch((err) => console.error('alert suppressPhone failed:', err));
     return { processed: true, unsubscribed: true };
   }
 
-  const { data: lead } = await supabaseAdmin
+  // Anything other than a STOP is only acted on if the sender is proven to be Textbelt.
+  if (!verified) {
+    return { processed: true, ignored: true, reason: 'unverified_sender' };
+  }
+
+  const { data: leadRows } = await supabaseAdmin
     .from('leads')
-    .select('id, user_id, name, status')
-    .eq('phone', normalizedFromPhone)
-    .maybeSingle();
+    .select('id, user_id, agent_id, name, status')
+    .or(`phone.eq.${normalizedFromPhone},phone_e164.eq.${normalizedFromPhone}`)
+    .order('created_at', { ascending: false })
+    .limit(1);
+  const lead = leadRows?.[0] || null;
 
   if (!lead) {
     return { processed: true, ignored: true, reason: 'lead_not_found' };
@@ -17922,11 +17931,17 @@ app.post('/api/webhooks/textbelt/inbound', async (req, res) => {
     const textBody = payload.text || payload.body || payload.message || null;
     const rawEventId = payload.textId || payload.id || payload.messageId || nowIso();
 
+    const signatureCheck = verifyTextbeltWebhook({ headers: req.headers, rawBody: req.rawBody, apiKey: process.env.TEXTBELT_API_KEY });
+    if (!signatureCheck.ok) {
+      console.warn('[Textbelt Inbound] signature not verified:', signatureCheck.reason);
+    }
+
     const result = await processInboundSmsMessage({
       fromPhone,
       textBody,
       rawEventId,
-      providerName: 'textbelt'
+      providerName: 'textbelt',
+      verified: signatureCheck.ok
     });
 
     res.status(200).json({
@@ -33913,7 +33928,7 @@ app.post('/api/lo/listings/:listingId/phone-line/buy', requireLoAgent, async (re
 // ─── LO AI answers the phone (Telnyx → OpenAI Realtime over SIP) ───
 const { createLoPhoneCallService } = require('./services/loPhoneCallService');
 const { createTelnyxClient: createTelnyxCallClient } = require('./services/telnyxClient');
-const { verifyTelnyxSignature, verifyOpenAiWebhook } = require('./services/webhookSignatures');
+const { verifyTelnyxSignature, verifyOpenAiWebhook, verifyTextbeltWebhook, isStopMessage } = require('./services/webhookSignatures');
 const WebSocketClient = require('ws');
 // AI phone minutes per month, by plan. Out of minutes → calls ring the LO's cell.
 const LO_PHONE_MINUTES = { trial: 30, lo_lite: 100, lo: 300, lo_pro: 1000, none: 0 };

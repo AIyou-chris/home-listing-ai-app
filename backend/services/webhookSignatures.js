@@ -95,4 +95,24 @@ function callTokenMatches(callId, token, secret) {
   return Boolean(secret) && sameString(token, callToken(callId, secret));
 }
 
-module.exports = { verifyTelnyxSignature, verifyOpenAiWebhook, callToken, callTokenMatches, checkTimestamp, sameString };
+// Textbelt reply webhooks: HMAC-SHA256 (hex) of `${X-textbelt-timestamp}${raw body}` with the Textbelt API key
+// as the secret, header X-textbelt-signature. Textbelt's own docs say reject anything older than 15 minutes.
+function verifyTextbeltWebhook({ headers, rawBody, apiKey, now = Date.now() }) {
+  if (!apiKey) return { ok: false, reason: 'no_key_configured' };
+  const timestamp = header(headers, 'x-textbelt-timestamp');
+  const signature = header(headers, 'x-textbelt-signature');
+  if (!signature) return { ok: false, reason: 'signature_missing' };
+  const fresh = checkTimestamp(timestamp, now, 15 * 60);
+  if (!fresh.ok) return fresh;
+  const expected = createHmac('sha256', String(apiKey)).update(`${timestamp}${rawBody ?? ''}`).digest('hex');
+  return sameString(signature, expected) ? { ok: true } : { ok: false, reason: 'signature_mismatch' };
+}
+
+// "STOP", "Stop.", " stop all ", "UNSUBSCRIBE!" and the other words carriers treat as an opt-out.
+const STOP_WORDS = new Set(['STOP', 'STOPALL', 'UNSUBSCRIBE', 'CANCEL', 'END', 'QUIT', 'REVOKE', 'OPTOUT']);
+function isStopMessage(text) {
+  const cleaned = String(text ?? '').toUpperCase().replace(/[^A-Z]/g, '');
+  return STOP_WORDS.has(cleaned);
+}
+
+module.exports = { verifyTelnyxSignature, verifyOpenAiWebhook, verifyTextbeltWebhook, isStopMessage, callToken, callTokenMatches, checkTimestamp, sameString };
