@@ -1,3 +1,8 @@
+## 2026-10-09 — Claude: "Delete my account" pushed AND tested live (ffadff5a)
+
+- Pushed, deployed, then tested on production with two throwaway accounts (fake .invalid emails, seeded with a listing, lead, conversation + messages, bells, events). Deleted the loan officer first: its row, login, partnership, listing assignment and bell went; the agent's lead stayed with lo_agent_id null; agent listing/conversation/messages/bell stayed. Then deleted the agent: every seeded row and the login went. All real-data counts matched the snapshot taken before (agents 3, logins 3, listings 8, leads 4, conversations 1, notifications 7, subscriptions 37, invites 1). LO anaiyou@pm.me and test1234 untouched. Throwaway passwords file removed.
+- Not exercised in the test: Stripe cancel, phone line release email, uploaded-file removal (no files seeded), failure-email path. Code reviewed and unit-tested only.
+
 ## 2026-10-09 — Claude: "Delete my account" now deletes everything (local, NOT pushed)
 
 - New `backend/services/accountDeletion.js` (+8 tests): finds the person's listings, leads and conversations, removes children before parents (messages, lead events, phone calls and lines, invoices, notifications, settings and 100+ other tables), unlinks things that belong to others (a deleted LO's copy of an agent lead, invites, invoices), deletes the account row, then uploaded files, then the login (only if the account row is gone, so a failed run can be retried). Empty id list does nothing. Admin accounts cannot be deleted here. Phone numbers are NEVER released automatically: Chris gets an email to release them in Telnyx. A failed finish emails Chris.
