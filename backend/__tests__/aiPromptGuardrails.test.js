@@ -59,3 +59,10 @@ test('chat messages go through the translator so the database check rules accept
   assert.ok(raw.length <= 2, `raw inserts into ai_conversation_messages: ${raw.length}`);
   assert.ok(!/from\('ai_conversation_messages'\)\.insert\(/.test(src));
 });
+
+test('the buyer chat is given the listing description and what the agent taught the home', () => {
+  const at = src.indexOf('const buildListingContext');
+  const block = src.slice(at, at + 5200);
+  assert.ok(block.includes('agent_provided_facts'));
+  assert.ok(/description:\s*pickText/.test(block));
+});

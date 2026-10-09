@@ -1,3 +1,10 @@
+## 2026-10-09 — Claude: end-to-end test PASSED after chat fix (description fix local, NOT pushed)
+
+- Live run, all on production: WOW invite emailed → page opened → claim (auto sign-in) → listing published → LO auto-attached → buyer chat answered live (after pushing a1a3225c; saved as lead/chat with original labels in metadata) → buyer submitted phone with consent box → lead row saved (agent + LO ids, consent_sms true, Warm) → agent bell + email, LO bell + email, all within 1 second.
+- Found during the run: the buyer chat was not given the listing description or the Listing Brain notes (said "no garage info" when the description had a two-car garage). Fixed locally in `buildListingContext` (+test), not pushed.
+- Not verified: reminder/follow-up texts to the buyer, the LO leads screen with this lead, STOP reply. Listing tab title flips to "Draft Listing" after the chat opens (cosmetic).
+- Test data still in prod (delete only with Chris's OK): agent anaiyou+agent1@pm.me (97eec383-7d8f-492b-bd97-0d8b6f1aee01), listing 482 Maple Court (80bb0cdc-b413-41c9-8ded-a5ffd5f92cc2), lead Test Buyer (6fc91c9c-868a-4423-95d4-d7fca6672541), invite 62cb4ec6-..., conversation b315d802-....
+
 ## 2026-10-09 — Claude: live end-to-end test found the buyer chat never saved (fix local, NOT pushed)
 
 - Test (Chris's own LO + anaiyou+agent1@pm.me): WOW invite sent and arrived, WOW page opened, claim worked (after a weak-password retry; new auto sign-in worked), agent created and published a listing, LO auto-attached, public page loads. **Buyer chat failed: HTTP 500 on every message.**

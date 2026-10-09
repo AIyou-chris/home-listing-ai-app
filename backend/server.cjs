@@ -9607,6 +9607,19 @@ const buildListingContext = async (listingId) => {
     agent = agentRow || null;
   }
 
+  // What the agent wrote about the home: its description and anything taught on the Listing Brain tab.
+  // Without these the buyer chat could not answer from the very facts the agent entered.
+  let agentProvidedFacts = null;
+  try {
+    const sources = await listListingBrainSources({ listingId: row.id, agentId: [row.agent_id, row.user_id] });
+    const text = sources
+      .map((src) => String(src?.content || src?.text || '').trim())
+      .filter(Boolean)
+      .join('\n---\n')
+      .slice(0, 6000);
+    agentProvidedFacts = text || null;
+  } catch (_e) { agentProvidedFacts = null; }
+
   return {
     listing_id: row.id,
     agent_id: agentId,
@@ -9619,6 +9632,8 @@ const buildListingContext = async (listingId) => {
     beds: numericOrNull(row.bedrooms),
     baths: numericOrNull(row.bathrooms),
     sqft: numericOrNull(row.sqft || row.square_feet),
+    description: pickText(typeof row.description === 'string' ? row.description : null)?.slice(0, 3000) || null,
+    agent_provided_facts: agentProvidedFacts,
     features,
     hoa: pickText(row.hoa, row.hoa_monthly, row.hoa_fee),
     taxes: pickText(row.taxes, row.property_taxes, row.annual_taxes),
@@ -9649,7 +9664,7 @@ const buildPublicListingSystemPrompt = (context) => {
     '',
     'You are the public listing AI for one specific home.',
     'Objective:',
-    '1) Answer questions about THIS home using listing context only. General home-buying questions can be answered from the basics below.',
+    '1) Answer questions about THIS home using the listing context only, including its description and the agent_provided_facts. General home-buying questions can be answered from the basics below.',
     '2) If a detail is missing, say exactly: "I don\'t have that detail here, but I can have the agent confirm it for you."',
     '3) Keep replies under 60 words when possible.',
     '4) Ask only one question per message.',
