@@ -7,6 +7,11 @@
 - Restored lead 8e0c51ff (Oct 1 pre-approval test lead) which my booking test had deduped into and renamed; removed the test appointment, reminders and events. Counts back to baseline (agents 3, leads 4, auth users 3).
 - Still untested: new-LO signup run, AI phone call (Chris calls (754) 243-8686), price-drop alerts, real card payment, Stripe webhook events (Chris must add 5 events), Chris eyeballing the pages on his phone.
 
+## 2026-10-10 — Phone line down (Telnyx credits), quiet-call recorder
+- (7:00am) Verizon "cannot connect" on (754) 243-8686 = Telnyx balance ran out. Chris topped up; line works. TODO Chris: turn on Telnyx Auto-recharge.
+- Test call 14:36 UTC: AI greeted, caller side now transcribed, lead created, but AI went silent after its 2nd reply (caller heard nothing; transcript ends ~15s of a 41s call). Render logs show no `[LO Call]` lines.
+- Added `recordTrail` in `loPhoneCallService.js`: quiet calls (>20s, <=2 caller turns) save the OpenAI event trail into `lo_phone_calls.error` as `quiet_call_trail {...}`. Next: one more test call, read that column.
+
 ## 2026-10-09 — Claude: appointment reminder fixed (+ buyer follow-up findings) (local until pushed)
 
 - Booked a real showing on test1234 via the live form (buyer anaiyou+buyer1@pm.me, 206-755-1047, consent ticked). Worked: appointment saved, confirmation email to the buyer + "New Appointment" email to the agent, lead Warm. Found: (1) the only reminder in the code is a 1-hour email that only looked for status 'confirmed', but public bookings are saved as 'scheduled', so it NEVER fired; its text also said "Join Meeting" with a dead link for in-person showings. Fixed in `schedulerService.js` (`buildAppointmentReminder`: address + local time, Join button only for real links, status scheduled|confirmed, 90-minute duplicate guard, records last_reminder_at). +4 tests. (2) 24h/2h reminders queued are `voice` calls and `suppressed` for non-Pro plans (expected). No SMS reminder exists. (3) A returning buyer (deduped lead) got CONSENT_RECORDED logged but leads.consent_sms stayed false; now updated.

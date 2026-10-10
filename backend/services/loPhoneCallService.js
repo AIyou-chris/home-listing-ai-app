@@ -474,8 +474,23 @@ function createLoPhoneCallService({
     return state;
   }
 
+  // Compact trail of what OpenAI told us, so a call that goes quiet can be diagnosed afterwards.
+  // Audio chunks are only counted; everything else is kept (capped).
+  const NOISY_EVENTS = new Set(['response.output_audio.delta', 'response.audio.delta', 'response.output_audio_transcript.delta', 'response.audio_transcript.delta', 'rate_limits.updated']);
+  function recordTrail(state, ev) {
+    const t = ev?.type || 'unknown';
+    state.eventCounts = state.eventCounts || {};
+    state.eventCounts[t] = (state.eventCounts[t] || 0) + 1;
+    if (NOISY_EVENTS.has(t)) return;
+    state.trail = state.trail || [];
+    if (state.trail.length >= 120) return;
+    const extra = t === 'error' ? (ev.error?.message || ev.error?.code || '') : (ev.response?.status_details?.reason || ev.response?.status || '');
+    state.trail.push(`${new Date().toISOString().slice(11, 23)} ${t}${extra ? ` ${String(extra).slice(0, 120)}` : ''}`);
+  }
+
   async function handleRealtimeEvent(call, state, ev, { send, hangup, line, lo }) {
     const t = ev?.type || '';
+    recordTrail(state, ev);
     if (t === 'error' || t === 'conversation.item.input_audio_transcription.failed') {
       log.warn('[LO Call] realtime event problem', { call: call.id, type: t, error: ev.error?.message || ev.error || null });
       return;
@@ -660,6 +675,12 @@ function createLoPhoneCallService({
     const details = { ...(call.caller_details || {}), ...(state?.details || {}) };
     const patch = { transcript, caller_details: details, ended_at: call.ended_at || new Date().toISOString() };
     if (call.status !== 'transferred') patch.status = 'completed';
+    // A call that lasted a while but heard the caller at most twice is "quiet": keep the trail to see why.
+    const callerTurns = transcript.filter((m) => m.role === 'caller').length;
+    const longMs = call.answered_at ? Date.now() - new Date(call.answered_at).getTime() : 0;
+    if (state?.trail?.length && callerTurns <= 2 && longMs > 20000) {
+      patch.error = `quiet_call_trail ${JSON.stringify({ counts: state.eventCounts, trail: state.trail }).slice(0, 6000)}`;
+    }
 
     if (call.mode !== 'ai' || !transcript.length) {
       await patchCall(callId, patch);
