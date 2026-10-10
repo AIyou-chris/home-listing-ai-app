@@ -33097,6 +33097,12 @@ app.post('/api/lo/listings/:listingId/reel', requireLoAgent, async (req, res) =>
     const reels = getListingReelService();
     if (!reels) return res.status(503).json({ error: 'reel_unavailable' });
     if (!process.env.OPENAI_API_KEY) return res.status(503).json({ error: 'reel_unavailable' });
+    // The server's build skips install scripts, so the video tool (ffmpeg) may be missing. Say so up front,
+    // before spending money on a voiceover that can never be turned into a video.
+    if (!(await reels.available())) {
+      console.warn('[LO Reel] ffmpeg is not installed on this server; reels are off until it is.');
+      return res.status(503).json({ error: 'reel_unavailable' });
+    }
 
     const { data: assignment } = await supabaseAdmin
       .from('listing_lo_assignments').select('listing_id').eq('listing_id', listingId).eq('lo_agent_id', loAgentId).limit(1).maybeSingle();

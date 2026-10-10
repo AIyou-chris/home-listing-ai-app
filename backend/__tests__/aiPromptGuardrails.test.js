@@ -96,3 +96,9 @@ test('a STOP reply marks the lead with the status word the database accepts', ()
   assert.ok(src.includes("{ status: 'Unsubscribed', updated_at: nowIso() }"));
   assert.ok(!src.includes(".update({ status: 'unsubscribed', last_contact_at"));
 });
+
+test('the reel route checks the video tool is installed before paying for a voiceover', () => {
+  const at = src.indexOf("app.post('/api/lo/listings/:listingId/reel'");
+  const block = src.slice(at, at + 1500);
+  assert.ok(block.includes('await reels.available()'));
+});
