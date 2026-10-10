@@ -1209,7 +1209,8 @@ const createBillingEngine = ({ supabaseAdmin, stripe, enqueueJob, appBaseUrl }) 
       return { processed: true, event: type, agent_id: agentId, plan_id: PLAN_IDS.FREE };
     }
 
-    if (type === 'invoice.payment_failed' || type === 'invoice.payment_succeeded') {
+    // Stripe sends invoice.paid; older code listened for invoice.payment_succeeded. Accept both.
+    if (type === 'invoice.payment_failed' || type === 'invoice.payment_succeeded' || type === 'invoice.paid') {
       const customerId = object?.customer || null;
       const subscriptionId = object?.subscription || null;
       const agentId = await resolveAgentIdFromStripeIdentifiers({

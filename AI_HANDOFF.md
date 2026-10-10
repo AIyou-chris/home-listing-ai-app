@@ -1,3 +1,10 @@
+## 2026-10-09 — Claude: Stripe money-path gap found + safety net (local, NOT pushed)
+
+- Read Stripe (live, account acct_1SeL5YGtlY59RT0y, read-only connector): the HomeListingAI webhook (we_1TcVi8GtlY59RT0yvjHFesQx -> /api/webhooks/stripe) listens to invoice.*, payment_intent.*, subscription_schedule.* but NOT checkout.session.completed or customer.subscription.created/updated/deleted. Our code stores agents.stripe_customer_id from those events, so a paying LO would read as unpaid ('none') after the trial. Prices exist: LO Lite $79 price_1TpW0CGtlY59RT0yGkRgHex3, LO $149 price_1TYd8DGtlY59RT0yYHOhMssj, LO Pro $299 price_1TYd9fGtlY59RT0ytmzaJbkR. Only subscription ever on the account is an old cancelled FoodTruck one: zero HLAI payments.
+- Chris must add 5 events in the Stripe dashboard (connector cannot write): checkout.session.completed, customer.subscription.created, customer.subscription.updated, customer.subscription.deleted, invoice.payment_succeeded.
+- Code safety net: `/api/lo/plan-status` links the Stripe customer by subscription metadata if our record is empty; plan from the monthly amount ($79/$149/$299) if the price-id settings are missing or wrong (`services/loPlanTier.js`); `invoice.paid` handled like payment_succeeded. +3 tests (374 backend).
+- Unknown: whether Render has STRIPE_LO_LITE/LO/LO_PRO_PRICE_ID set (amount fallback now covers it).
+
 ## 2026-10-09 — Claude: live text/STOP test done (fix for lead status local, NOT pushed)
 
 - Pushed 31e5fdfe (signature check + STOP everywhere). Live test with Chris's phone (206-755-1047), throwaway LO + fake lead, all removed after: LO route sent a real text; Chris replied HELLO -> arrived and was accepted as VERIFIED (real Textbelt signature matches the docs; conversation + message saved); then STOP -> number landed on `sms_suppression`; a second send was refused (409 lead_opted_out). A forged unsigned reply is now rejected (`unverified_sender`). No automatic reply came back after HELLO (nothing queued for a lead with no agent settings; not investigated).

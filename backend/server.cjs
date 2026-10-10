@@ -30589,12 +30589,10 @@ const resolveLoPlanTier = async (loAgent) => {
     for (const sub of subs.data) {
       if (!ENTITLED_STATUSES.has(sub.status)) continue;
       for (const item of sub.items.data) {
-        const isPro = LO_PRO_PRICE_ID && item.price.id === LO_PRO_PRICE_ID;
-        const isLo = LO_PRICE_ID && item.price.id === LO_PRICE_ID;
-        const isLite = LO_LITE_PRICE_ID && item.price.id === LO_LITE_PRICE_ID;
-        if (!isPro && !isLo && !isLite) continue;
+        const paidTier = require('./services/loPlanTier').tierForPrice(item.price, { pro: LO_PRO_PRICE_ID, lo: LO_PRICE_ID, lite: LO_LITE_PRICE_ID });
+        if (!paidTier) continue;
         if (sub.status === 'trialing') return 'trial';
-        return isPro ? 'lo_pro' : (isLite ? 'lo_lite' : 'lo');
+        return paidTier;
       }
     }
   } catch (err) {
@@ -33295,6 +33293,7 @@ app.get('/api/lo/listing-limit', requireAuth, async (req, res) => {
 });
 
 // ── LO plan status — powers the dashboard trial countdown banner ──────────────
+const stripeReconcileTried = new Map(); // loAgentId -> last time we asked Stripe
 app.get('/api/lo/plan-status', requireAuth, async (req, res) => {
   try {
     const loAgentId = await resolveLoAgentId(req);
@@ -33305,6 +33304,24 @@ app.get('/api/lo/plan-status', requireAuth, async (req, res) => {
       .eq('id', loAgentId)
       .single();
     if (!agentRow) return res.status(404).json({ error: 'not_found' });
+    // Safety net: if a customer paid but Stripe's "checkout completed" message never reached us, our record has no
+    // Stripe customer id and they would look unpaid. Find their subscription in Stripe and save the id.
+    if (!agentRow.stripe_customer_id && stripe) {
+      const lastTry = stripeReconcileTried.get(loAgentId) || 0;
+      if (Date.now() - lastTry > 60 * 1000) {
+        stripeReconcileTried.set(loAgentId, Date.now());
+        try {
+          const found = await require('./services/loPlanTier').findStripeCustomerForLo(stripe, { ids: [loAgentId, req.authUserId], slug: agentRow.slug });
+          if (found) {
+            await bestEffort(supabaseAdmin.from('agents').update({ stripe_customer_id: found }).eq('id', loAgentId));
+            agentRow.stripe_customer_id = found;
+            console.info('[LO Plan] Linked Stripe customer from subscription metadata for', loAgentId);
+          }
+        } catch (err) {
+          console.warn('[LO Plan] Stripe reconcile failed (non-fatal):', err?.message || err);
+        }
+      }
+    }
     const tier = await resolveLoPlanTier(agentRow);
     let trialEndsAt = null;
     let trialDaysLeft = null;
