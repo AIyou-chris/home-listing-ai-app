@@ -7,6 +7,11 @@
 - Restored lead 8e0c51ff (Oct 1 pre-approval test lead) which my booking test had deduped into and renamed; removed the test appointment, reminders and events. Counts back to baseline (agents 3, leads 4, auth users 3).
 - Still untested: new-LO signup run, AI phone call (Chris calls (754) 243-8686), price-drop alerts, real card payment, Stripe webhook events (Chris must add 5 events), Chris eyeballing the pages on his phone.
 
+## 2026-10-10 — Phone: short replies, ask name+number, custom phone greeting
+- Phone rules: replies 1-2 sentences, ask name + best number by the 2nd reply, save details right away.
+- New `lo_chatbot_configs.phone_greeting` (column added live, `phone-greeting-migration.sql`); box under Advanced on AI Brain; recording notice always kept.
+- Second test call (15:19 UTC) worked: AI answered, caller transcribed. Earlier silence did not repeat; trail recorder stays on.
+
 ## 2026-10-10 — Phone line down (Telnyx credits), quiet-call recorder
 - (7:00am) Verizon "cannot connect" on (754) 243-8686 = Telnyx balance ran out. Chris topped up; line works. TODO Chris: turn on Telnyx Auto-recharge.
 - Test call 14:36 UTC: AI greeted, caller side now transcribed, lead created, but AI went silent after its 2nd reply (caller heard nothing; transcript ends ~15s of a 41s call). Render logs show no `[LO Call]` lines.

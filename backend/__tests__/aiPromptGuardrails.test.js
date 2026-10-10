@@ -102,3 +102,15 @@ test('the reel route checks the video tool is installed before paying for a voic
   const block = src.slice(at, at + 1500);
   assert.ok(block.includes('await reels.available()'));
 });
+
+test('phone greeting: custom text is used and the recording notice is always kept', () => {
+  const { createLoPhoneCallService } = require('../services/loPhoneCallService');
+  const svc = createLoPhoneCallService({ supabase: {}, fetchImpl: async () => ({ ok: true }), log: console });
+  const lo = { first_name: 'Chris' };
+  const custom = svc.openingLine({ config: { bot_name: 'Sky', phone_greeting: 'Hey, {ai_name} here for {lo_name}!' }, lo });
+  assert.match(custom, /Sky here for Chris/);
+  assert.match(custom, /transcribed/);
+  const kept = svc.openingLine({ config: { bot_name: 'Sky', phone_greeting: 'Hi! This call is recorded.' }, lo });
+  assert.doesNotMatch(kept, /transcribed/);
+  assert.match(svc.openingLine({ config: { bot_name: 'Sky' }, lo }), /Thanks for calling|thanks for calling/);
+});

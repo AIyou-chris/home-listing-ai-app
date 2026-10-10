@@ -37,6 +37,7 @@ interface BrainConfig {
   banned_phrases: string[];
   voice_name: string;
   voice_style: string;
+  phone_greeting: string;
   calls_mode: Mode;
   texts_mode: Mode;
   call_opening: string;
@@ -63,6 +64,7 @@ const EMPTY_CONFIG: BrainConfig = {
   company_name: '', company_nmls: '', licensed_states: [], required_disclosure: '', banned_phrases: [],
   voice_name: 'marin',
   voice_style: 'Warm, calm and friendly. Speak at an easy pace, like a helpful neighbor.',
+  phone_greeting: '',
   calls_mode: 'off',
   texts_mode: 'ask',
   call_opening: 'Hi {first_name}, this is {ai_name}, the AI assistant for {lo_name}. You asked about {listing_address} — is now a good time for a quick question or two?',
@@ -991,6 +993,11 @@ const LOBrainPage: React.FC = () => {
             </button>
             {showAdvanced && (
               <div className="flex flex-col gap-4">
+                <div>
+                  <label className="lb-label mb-1 block" htmlFor="phone-greeting">What the phone says first when someone calls</label>
+                  <textarea id="phone-greeting" className="lb-input" rows={3} value={config.phone_greeting || ''} onChange={(e) => update({ phone_greeting: e.target.value })} placeholder="Leave blank to use the standard greeting. Use {ai_name} and {lo_name} to fill in names." />
+                  <p className="mt-1 text-xs text-slate-600">We always add that the call is transcribed, if you leave it out.</p>
+                </div>
                 <div>
                   <label className="lb-label mb-1 block" htmlFor="voice-style">How the phone voice should sound</label>
                   <input id="voice-style" className="lb-input" value={config.voice_style} onChange={(e) => update({ voice_style: e.target.value })} placeholder="e.g. Warm, calm and friendly. Easy pace." />

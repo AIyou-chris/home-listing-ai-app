@@ -244,7 +244,8 @@ function createLoPhoneCallService({
       'THIS IS A LIVE PHONE CALL. Rules for the phone:',
       `- Your very first words: greet them, say you are ${botName}, ${loFirst}'s AI assistant, and that the call is transcribed so ${loFirst} can follow up. Then ask how you can help.`,
       '- Talk like a person on the phone: short sentences, one question at a time, let them finish. Never read out links, lists or symbols.',
-      "- Early on, get their name and ask if the number they're calling from is the best one. Call save_caller_details as you learn things.",
+      '- KEEP EVERY REPLY SHORT: one or two sentences, about 15 seconds at most. Answer what they asked, then ask ONE question. Never repeat your introduction or explain what you can do.',
+      "- By your SECOND reply, ask for their name and whether the number they're calling from is the best one. Call save_caller_details the moment you learn anything (name, number, which home, what they want).",
       canTransfer
         ? `- If they ask for ${loFirst}, or they're ready to apply or get pre-approved now, say you're connecting them, then call transfer_to_loan_officer.`
         : `- ${loFirst} can't be connected live right now. If they want a person, promise ${loFirst} will call them back soon and ask the best time.`,
@@ -258,6 +259,12 @@ function createLoPhoneCallService({
   function openingLine({ config, lo }) {
     const loFirst = clean(lo.first_name) || 'the loan officer';
     const botName = clean(config.bot_name) || 'an AI assistant';
+    const custom = clean(config.phone_greeting);
+    if (custom) {
+      const filled = custom.replace(/\{ai_name\}/gi, botName).replace(/\{(?:lo_name|first_name)\}/gi, loFirst);
+      // The recording notice is a legal must-have, so it is never left out.
+      return /transcrib|record/i.test(filled) ? filled : `${filled} This call is transcribed so ${loFirst} can follow up.`;
+    }
     return `Hi, thanks for calling! This is ${botName}, ${loFirst}'s AI assistant. This call is transcribed so ${loFirst} can follow up. How can I help you today?`;
   }
 

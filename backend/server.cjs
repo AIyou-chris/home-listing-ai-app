@@ -33643,7 +33643,7 @@ function getLoBrain() {
 }
 
 // Fields the LO Brain page may write. Anything not sent is left as it is.
-const LO_BRAIN_TEXT_FIELDS = ['bot_name', 'greeting', 'personality', 'knowledge_base', 'compliance_rules', 'tone', 'marketing_voice', 'loan_advisor_rules', 'borrower_care_rules', 'company_name', 'company_nmls', 'required_disclosure', 'voice_style', 'call_opening', 'voicemail_message', 'sms_followup_template', 'sms_reminder_template'];
+const LO_BRAIN_TEXT_FIELDS = ['bot_name', 'greeting', 'personality', 'knowledge_base', 'compliance_rules', 'tone', 'marketing_voice', 'loan_advisor_rules', 'borrower_care_rules', 'company_name', 'company_nmls', 'required_disclosure', 'voice_style', 'phone_greeting', 'call_opening', 'voicemail_message', 'sms_followup_template', 'sms_reminder_template'];
 // OpenAI speech voices (gpt-4o-mini-tts + Realtime). Marin and Cedar sound the most natural.
 const LO_BRAIN_VOICES = ['marin', 'cedar', 'alloy', 'ash', 'ballad', 'coral', 'echo', 'fable', 'nova', 'onyx', 'sage', 'shimmer', 'verse'];
 const LO_BRAIN_MODES = ['off', 'ask', 'auto'];
@@ -33711,6 +33711,7 @@ app.get('/api/lo/chatbot-config', requireLoAgent, async (req, res) => {
       equal_housing: true,
       voice_name: 'marin',
       voice_style: 'Warm, calm and friendly. Speak at an easy pace, like a helpful neighbor.',
+      phone_greeting: '',
       calls_mode: 'off',
       texts_mode: 'ask',
       call_opening: "Hi {first_name}, this is {ai_name}, the AI assistant for {lo_name}. You asked about {listing_address} — is now a good time for a quick question or two?",
