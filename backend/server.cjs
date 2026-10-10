@@ -20296,6 +20296,8 @@ app.post('/api/leads/capture', async (req, res) => {
     });
 
     if (FEATURE_FLAG_SMS_ENABLED && phoneE164 && consentSms === true) {
+      // A returning buyer who agrees now: keep the saved flag in step with the consent log.
+      await bestEffort(supabaseAdmin.from('leads').update({ consent_sms: true }).eq('id', leadId));
       await recordLeadEvent({
         leadId,
         type: 'CONSENT_RECORDED',

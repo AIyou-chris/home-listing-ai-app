@@ -2,11 +2,35 @@ const cron = require('node-cron');
 const { addMinutes, subHours, differenceInHours } = require('date-fns');
 const { buildWowReminderEmail } = require('./wowReminderEmail');
 
+const escapeHtml = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+// The one-hour reminder a buyer gets. In-person showings get the address and local time; a join button only
+// appears when there is a real meeting link (the old email always said "Join Meeting" with a dead link).
+const buildAppointmentReminder = (appt, now = new Date()) => {
+  const tz = appt.timezone || 'America/Los_Angeles';
+  let when = '';
+  try {
+    when = new Date(appt.start_iso).toLocaleString('en-US', { timeZone: tz, weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  } catch (_e) { when = new Date(appt.start_iso).toUTCString(); }
+  const place = String(appt.location || appt.property_address || '').trim();
+  const isShowing = /showing/i.test(String(appt.kind || '')) || Boolean(place);
+  const subject = isShowing ? `Reminder: your showing${place ? ` at ${place}` : ''} is in about 1 hour` : `Reminder: your appointment is in about 1 hour`;
+  const link = appt.meet_link && /^https?:\/\//i.test(appt.meet_link) ? appt.meet_link : null;
+  const html = `<div style="font-family: sans-serif; padding: 20px; max-width: 520px;">
+    <h2 style="margin:0 0 12px;">${isShowing ? 'Showing reminder' : 'Appointment reminder'}</h2>
+    <p>Hi ${escapeHtml(appt.name || 'there')},</p>
+    <p>This is a friendly reminder: ${isShowing ? 'your showing' : 'your appointment'}${place ? ` at <strong>${escapeHtml(place)}</strong>` : ''} is in about <strong>1 hour</strong> (${escapeHtml(when)}).</p>
+    ${link ? `<p><a href="${escapeHtml(link)}" style="background:#4f46e5;color:#fff;padding:10px 20px;text-decoration:none;border-radius:6px;display:inline-block;">Join the meeting</a></p>` : ''}
+    <p style="margin-top: 20px; color: #666; font-size: 12px;">Need to change the time? Reply to the confirmation email or contact your agent.</p>
+  </div>`;
+  return { subject, html };
+};
+
 /**
  * Scheduler Service
  * Handles periodic tasks like Appointment Reminders
  */
-module.exports = (supabaseAdmin, emailService) => {
+const startScheduler = (supabaseAdmin, emailService) => {
 
     // 1. Appointment Reminders (Every Minute)
     cron.schedule('* * * * *', async () => {
@@ -28,10 +52,11 @@ module.exports = (supabaseAdmin, emailService) => {
 
             const { data: appointments, error } = await supabaseAdmin
                 .from('appointments')
-                .select('id, start_iso, user_id, email, name, meet_link')
+                .select('id, start_iso, user_id, email, name, meet_link, kind, timezone, location, property_address, last_reminder_at')
                 .gte('start_iso', startRange.toISOString())
                 .lt('start_iso', endRange.toISOString())
-                .eq('status', 'confirmed');
+                // Public bookings are saved as "scheduled" and need no further confirmation to be real.
+                .in('status', ['scheduled', 'confirmed']);
 
             if (error) {
                 console.error('Scheduler DB Error:', error);
@@ -42,30 +67,21 @@ module.exports = (supabaseAdmin, emailService) => {
                 console.log(`⏰ Scheduler: Found ${appointments.length} appointments for 1-hour reminders.`);
 
                 for (const appt of appointments) {
-                    const { email, name, meet_link, start_iso } = appt;
+                    const { email } = appt;
                     if (!email) continue;
+                    // Already reminded in the last 90 minutes (a restart or overlapping run): do not email twice.
+                    if (appt.last_reminder_at && (Date.now() - new Date(appt.last_reminder_at).getTime()) < 90 * 60 * 1000) continue;
 
-                    const timeString = new Date(start_iso).toLocaleTimeString();
-
-                    await emailService.sendEmail({
+                    const reminder = buildAppointmentReminder(appt);
+                    const sent = await emailService.sendEmail({
                         to: email,
-                        subject: `Reminder: Upcoming Appointment at ${timeString}`,
-                        html: `
-                    <div style="font-family: sans-serif; padding: 20px;">
-                        <h2>Appointment Reminder</h2>
-                        <p>Hi ${name || 'there'},</p>
-                        <p>This is a friendly reminder about your upcoming appointment in <strong>1 hour</strong>.</p>
-                        <p>When it's time, click the link below to join:</p>
-                        <p>
-                            <a href="${meet_link || '#'}" style="background: #4f46e5; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
-                                Join Meeting
-                            </a>
-                        </p>
-                        <p style="margin-top: 20px; color: #666; font-size: 12px;">If you need to reschedule, please contact your agent.</p>
-                    </div>
-                `,
+                        subject: reminder.subject,
+                        html: reminder.html,
                         tags: { type: 'reminder', appointment_id: appt.id }
                     });
+                    await supabaseAdmin.from('appointments')
+                        .update({ last_reminder_at: new Date().toISOString(), last_reminder_outcome: sent?.sent ? 'sent' : 'failed' })
+                        .eq('id', appt.id).then(() => null, () => null);
                     console.log(`✅ Reminder sent to ${email} (Appt: ${appt.id})`);
                 }
             }
@@ -315,3 +331,6 @@ module.exports = (supabaseAdmin, emailService) => {
 
     console.log('⏰ Scheduler Service Initialized (Job: 1h Reminders)');
 };
+
+module.exports = startScheduler;
+module.exports.buildAppointmentReminder = buildAppointmentReminder;
