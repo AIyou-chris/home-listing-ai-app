@@ -146,8 +146,12 @@ const LOSignupPage: React.FC = () => {
                 </div>
 
                 <div className="w-full max-w-md mb-6 text-center">
-                    <p className="text-white font-bold text-lg">{PLANS.lo_lite.name} — {PLANS.lo_lite.price} / month</p>
-                    <p className="text-cyan-300 text-sm mt-1">Founding price: the first 25 loan officers pay $49 a month for as long as they stay subscribed.</p>
+                    <p className="text-white font-bold text-lg">{PLANS.lo_lite.name}</p>
+                    <div className="mt-3 rounded-2xl border border-cyan-400/60 bg-cyan-500/10 p-4">
+                        <p className="text-cyan-300 font-extrabold tracking-widest text-xs uppercase mb-1">Launch price · first 25 loan officers</p>
+                        <p className="text-white"><span className="text-5xl font-extrabold">$49</span> <span className="text-slate-400">/ month</span> <span className="text-xl text-slate-500 line-through ml-2">$79</span></p>
+                        <p className="text-slate-200 text-sm mt-1">Locked in for as long as you stay subscribed.</p>
+                    </div>
                     <ul className="mt-4 space-y-2 text-left inline-block">
                         {PLANS.lo_lite.features.map((f) => (
                             <li key={f} className="flex items-start gap-2 text-sm text-slate-300">

@@ -24,7 +24,7 @@ Loan officers struggle with two things: getting warm leads and staying top-of-mi
 ## Pricing (as of 2026)
 - 7-day free trial: full access, no credit card required
 - One plan: HomeListingAI for Loan Officers: $79/month (5 active listings, 50 WOW links/month, 50 text messages/month, 100 AI phone minutes/month, AI buyer chat co-branded with your name and NMLS #, warm lead alerts, lead inbox)
-- Founding price: the first 25 loan officers pay $49/month for as long as they stay subscribed.
+- Launch price: the first 25 loan officers pay $49/month (instead of $79) for as long as they stay subscribed.
 - Month-to-month, no contract, cancel anytime. The plan is $79/month.
 
 ## Founded By

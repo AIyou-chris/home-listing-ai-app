@@ -34,13 +34,15 @@ export const PricingSectionNew: React.FC<PricingProps> = ({ onNavigateToSignUp: 
 
                 <div className="bg-[#0B1121]/80 backdrop-blur-sm border border-cyan-500/40 rounded-3xl p-8 sm:p-10">
                     <h3 className="text-2xl font-bold text-white mb-2">HomeListingAI for Loan Officers</h3>
-                    <div className="flex items-baseline gap-2 mb-2">
-                        <span className="text-5xl font-extrabold text-white">$79</span>
-                        <span className="text-slate-400">/ month</span>
+                    <div className="mb-6 rounded-2xl border border-cyan-400/60 bg-cyan-500/10 p-5 text-center">
+                        <p className="text-cyan-300 font-extrabold tracking-widest text-sm uppercase mb-2">Launch price · first 25 loan officers</p>
+                        <div className="flex items-baseline justify-center gap-3">
+                            <span className="text-6xl sm:text-7xl font-extrabold text-white">$49</span>
+                            <span className="text-slate-400">/ month</span>
+                            <span className="text-2xl text-slate-500 line-through">$79</span>
+                        </div>
+                        <p className="text-slate-200 text-sm mt-2">Locked in for as long as you stay subscribed.</p>
                     </div>
-                    <p className="inline-block rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-sm font-semibold px-3 py-1 mb-6">
-                        Founding price: the first 25 loan officers pay $49 a month for as long as they stay subscribed.
-                    </p>
                     <ul className="space-y-3 mb-8">
                         {INCLUDED.map((item) => (
                             <li key={item} className="flex items-start gap-3 text-white">
