@@ -28532,7 +28532,10 @@ app.get('/api/conversations/export/csv', requireNamedUserIsCaller, async (req, r
   }
 });
 
-let aiConversationsLegacyOnly = false;
+// The live table does not have the newer columns (agent_id, visitor_id, channel...), so start on the legacy list.
+// Asking for them first only logs a database error on every restart. After running ai-chat-columns-migration.sql,
+// set AI_CONVERSATIONS_FULL_COLUMNS=true on Render to use them.
+let aiConversationsLegacyOnly = process.env.AI_CONVERSATIONS_FULL_COLUMNS !== 'true';
 app.get('/api/admin/conversations', verifyAdmin, async (req, res) => {
   try {
     const { scope, status, search, limit = '100' } = req.query;

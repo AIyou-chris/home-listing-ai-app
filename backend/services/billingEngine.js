@@ -296,11 +296,20 @@ const createBillingEngine = ({ supabaseAdmin, stripe, enqueueJob, appBaseUrl }) 
   const getOrCreateSubscription = async (agentId) => {
     const plans = await loadPlanRows();
 
-    const { data, error } = await supabaseAdmin
+    // An account has two ids (login id and profile id). Stripe webhooks save the subscription under one and
+    // dashboard calls can arrive with the other, which used to create a second, blank row that never heard about
+    // cancellations. Look under both ids and prefer the row that is tied to a real Stripe subscription.
+    let lookupIds = [agentId];
+    try {
+      const idRecord = await resolveAgentRecord(agentId);
+      lookupIds = [...new Set([agentId, idRecord?.id, idRecord?.auth_user_id].filter(Boolean))];
+    } catch (_e) { /* fall back to the id we were given */ }
+
+    const { data: foundRows, error } = await supabaseAdmin
       .from('subscriptions')
       .select('*')
-      .eq('agent_id', agentId)
-      .maybeSingle();
+      .in('agent_id', lookupIds);
+    const data = pickSubscriptionRow(foundRows);
 
     if (error) {
       if (isMissingTableError(error)) {
@@ -1429,9 +1438,22 @@ const createBillingEngine = ({ supabaseAdmin, stripe, enqueueJob, appBaseUrl }) 
   };
 };
 
+// When one account has several subscription rows, use the one tied to a real Stripe subscription, then the newest.
+const pickSubscriptionRow = (rows) => {
+  const list = Array.isArray(rows) ? rows.filter(Boolean) : [];
+  if (!list.length) return null;
+  return [...list].sort((x, y) => {
+    const xs = x.stripe_subscription_id ? 1 : 0;
+    const ys = y.stripe_subscription_id ? 1 : 0;
+    if (xs !== ys) return ys - xs;
+    return new Date(y.updated_at || 0).getTime() - new Date(x.updated_at || 0).getTime();
+  })[0];
+};
+
 module.exports = {
   createBillingEngine,
   PLAN_IDS,
   DEFAULT_LIMITS,
   OVERAGE_PRICING
 };
+module.exports.pickSubscriptionRow = pickSubscriptionRow;

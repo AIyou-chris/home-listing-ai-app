@@ -7,6 +7,13 @@
 - Restored lead 8e0c51ff (Oct 1 pre-approval test lead) which my booking test had deduped into and renamed; removed the test appointment, reminders and events. Counts back to baseline (agents 3, leads 4, auth users 3).
 - Still untested: new-LO signup run, AI phone call (Chris calls (754) 243-8686), price-drop alerts, real card payment, Stripe webhook events (Chris must add 5 events), Chris eyeballing the pages on his phone.
 
+## 2026-10-11 — Real checkout test PASSED (trial -> Stripe -> account linked -> cancel)
+- Chris's test LO anaiyou+launch1@pm.me (slug Chris_Test1): Stripe page showed 7 days free, Launch Price -$30, $0 due today; DB then had `agents.stripe_customer_id`, `plan=lo_lite`, subscription trialing; Stripe portal Cancel set `cancel_at_period_end=true` and the webhook updated our row. Test account still exists (delete only with Chris's OK; its blank duplicate subscriptions row goes with it).
+- `/checkout/:slug?status=success|cancelled` page now says "Your free trial has started" / "Checkout was cancelled" (was "You already have a free account").
+- `billingEngine.getOrCreateSubscription` looks under BOTH ids (login + profile) and prefers the row with a stripe_subscription_id (`pickSubscriptionRow`), so a blank duplicate can no longer shadow the real row.
+- Admin AI Conversations starts on the legacy column list (`AI_CONVERSATIONS_FULL_COLUMNS=true` to opt in after the migration); stops NODE-EXPRESS-2 noise on every restart.
+- Not yet proven: the first real charge on day 7 (watch the first real customer; Sentry covers the webhook path).
+
 ## 2026-10-11 — Test checkout found a live bug: "Checkout unavailable" (fix NOT PUSHED YET)
 - Chris's fresh test LO (anaiyou+launch1@pm.me) clicked "Choose my plan": Stripe said "You may only specify one of these parameters: allow_promotion_codes, discounts." Cause: `paymentService.createCheckoutSession` sent `allow_promotion_codes:false` next to `discounts` (the launch coupon). Fix: `buildCheckoutConfig` omits it when a coupon is applied (+3 tests).
 - The other checkout path `billingEngine.createCheckoutSession` (Settings/Billing "Start plan") had NO launch coupon and NO trial days: now applies `FOUNDING_COUPON_ID` for `lo_lite` and gives only the trial days left (`resolveAgentRecord` now also selects `created_at`; without it checkoutTrialDays would have given a free 7 days).
