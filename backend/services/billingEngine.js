@@ -219,7 +219,7 @@ const createBillingEngine = ({ supabaseAdmin, stripe, enqueueJob, appBaseUrl }) 
     if (!agentId) return null;
     const { data, error } = await supabaseAdmin
       .from('agents')
-      .select('id, auth_user_id, email, stripe_customer_id, plan, subscription_status')
+      .select('id, auth_user_id, email, stripe_customer_id, plan, subscription_status, created_at')
       .or(`id.eq.${agentId},auth_user_id.eq.${agentId}`)
       .limit(1)
       .maybeSingle();
@@ -868,12 +868,24 @@ const createBillingEngine = ({ supabaseAdmin, stripe, enqueueJob, appBaseUrl }) 
     const dashboardSuccess = successUrl || `${(appBaseUrl || 'https://homelistingai.com').replace(/\/$/, '')}/dashboard/today?upgraded=true`;
     const dashboardCancel = cancelUrl || `${(appBaseUrl || 'https://homelistingai.com').replace(/\/$/, '')}/dashboard/settings/billing?checkout=cancelled`;
 
+    // Launch price: the first 25 get the Stripe coupon in FOUNDING_COUPON_ID. Stripe rejects a request that has
+    // both `discounts` and `allow_promotion_codes`, so the promo box is only added when no coupon is applied.
+    const discounts = normalizedPlanId === PLAN_IDS.LO_LITE
+      ? await require('./foundingCoupon').pickFoundingDiscount({ stripe, couponId: process.env.FOUNDING_COUPON_ID })
+      : [];
+    // The no-card trial already used part of the first week: Stripe only adds the days left (0 once it ended).
+    let trialDays = 0;
+    try {
+      const agentRow = await resolveAgentRecord(agentId);
+      trialDays = require('./checkoutTrial').checkoutTrialDays({ createdAt: agentRow?.created_at });
+    } catch (_e) { trialDays = 0; }
+
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       customer: customerId || undefined,
       customer_email: !customerId ? email || undefined : undefined,
       line_items: [{ price: plan.stripe_price_id, quantity: 1 }],
-      allow_promotion_codes: true,
+      ...(discounts.length ? { discounts } : { allow_promotion_codes: true }),
       success_url: dashboardSuccess,
       cancel_url: dashboardCancel,
       metadata: {
@@ -881,6 +893,7 @@ const createBillingEngine = ({ supabaseAdmin, stripe, enqueueJob, appBaseUrl }) 
         plan_id: normalizedPlanId
       },
       subscription_data: {
+        ...(trialDays > 0 ? { trial_period_days: trialDays } : {}),
         metadata: {
           agent_id: agentId,
           plan_id: normalizedPlanId

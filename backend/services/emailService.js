@@ -65,7 +65,7 @@ const buildWelcomeHtml = (firstName, dashboardUrl, password, billingUrl) => `<!D
           <div style="background:#2563eb;color:#fff;width:28px;height:28px;border-radius:50%;font-size:13px;font-weight:800;text-align:center;line-height:28px;flex-shrink:0;margin-right:14px;">2</div>
           <div>
             <p style="font-size:14px;font-weight:700;color:#0f172a;margin:0 0 3px;">Send your first WOW Link</p>
-            <p style="font-size:13px;color:#64748b;margin:0;line-height:1.5;">Pick a real estate agent, hit <em>Add Partner</em>, and send them a live listing demo with your AI financing chatbot already running — before they even sign up.</p>
+            <p style="font-size:13px;color:#64748b;margin:0;line-height:1.5;">Pick a real estate agent, tap <em>Send a WOW Link</em>, and send them a live listing demo with your AI financing chatbot already running — before they even sign up.</p>
           </div>
         </div>
 

@@ -1,6 +1,34 @@
 const STRIPE_SECRET_KEY = String(process.env.STRIPE_SECRET_KEY || '').trim();
 const stripe = STRIPE_SECRET_KEY ? require('stripe')(STRIPE_SECRET_KEY) : null;
 
+// Builds the Stripe Checkout Session settings. Kept separate so it can be tested without Stripe.
+// Stripe rejects a request that contains BOTH `allow_promotion_codes` and `discounts` (even when the first is
+// false), so the promo-code box is only added when no coupon is being applied.
+const buildCheckoutConfig = ({ finalPriceId, trialPeriodDays = 7, slug, agentId = null, planId = null, sUrl, cUrl, email, discounts = [] }) => {
+  const config = {
+    line_items: [{ price: finalPriceId, quantity: 1 }],
+    mode: 'subscription',
+    subscription_data: {
+      // Stripe rejects 0; no trial means leave the field out.
+      ...(trialPeriodDays > 0 ? { trial_period_days: trialPeriodDays } : {}),
+      metadata: { slug, ...(agentId ? { agent_id: String(agentId) } : {}), ...(planId ? { plan_id: String(planId) } : {}) },
+    },
+    success_url: sUrl,
+    cancel_url: cUrl,
+    customer_email: email,
+    client_reference_id: slug,
+    metadata: {
+      slug,
+      source: 'homelistingai_app',
+      ...(agentId ? { agent_id: String(agentId) } : {}),
+      ...(planId ? { plan_id: String(planId) } : {})
+    },
+  };
+  if (discounts && discounts.length > 0) config.discounts = discounts;
+  else config.allow_promotion_codes = true; // let people type a promo code in Stripe
+  return config;
+};
+
 module.exports = ({
   baseAppUrl = 'https://homelistingai.com'
 }) => {
@@ -29,33 +57,7 @@ module.exports = ({
     console.log(`[Stripe] Creating session for ${email} (${slug}) using price ${finalPriceId}. Trial: ${trialPeriodDays} days.`);
 
     try {
-      const sessionConfig = {
-        line_items: [{ price: finalPriceId, quantity: 1 }],
-        mode: 'subscription',
-        subscription_data: {
-          // Stripe rejects 0; no trial means leave the field out.
-          ...(trialPeriodDays > 0 ? { trial_period_days: trialPeriodDays } : {}),
-          metadata: { slug, ...(agentId ? { agent_id: String(agentId) } : {}), ...(planId ? { plan_id: String(planId) } : {}) },
-        },
-        success_url: sUrl,
-        cancel_url: cUrl,
-        customer_email: email,
-        client_reference_id: slug,
-        metadata: {
-          slug,
-          source: 'homelistingai_app',
-          ...(agentId ? { agent_id: String(agentId) } : {}),
-          ...(planId ? { plan_id: String(planId) } : {})
-        },
-        allow_promotion_codes: true, // Allow promo codes in Stripe UI
-      };
-
-      // If specific discounts are passed (like a coupon code), add them
-      // Note: allow_promotion_codes cannot be true if discounts are explicitly applied
-      if (discounts && discounts.length > 0) {
-        sessionConfig.discounts = discounts;
-        sessionConfig.allow_promotion_codes = false;
-      }
+      const sessionConfig = buildCheckoutConfig({ finalPriceId, trialPeriodDays, slug, agentId, planId, sUrl, cUrl, email, discounts });
 
       const session = await stripe.checkout.sessions.create(sessionConfig);
 
@@ -144,3 +146,4 @@ module.exports = ({
 
   return { isConfigured, listProviders, createCheckoutSession, createPortalSession, listInvoices, getCustomerByEmail, getSubscriptionStatus };
 };
+module.exports.buildCheckoutConfig = buildCheckoutConfig;

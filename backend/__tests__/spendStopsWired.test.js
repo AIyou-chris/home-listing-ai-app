@@ -28,7 +28,7 @@ test('texts, email, reels, document reads, voice previews and AI calls all call 
 test('no public page, plan list, AI text file or sales prompt promises "unlimited"', () => {
   const files = [
     'index.html', 'public/llms.txt', 'public/ai.txt', 'scripts/generate-seo-pages.mjs', 'src/services/helpSalesChatBot.ts',
-    'src/components/ComparePlansModal.tsx', 'src/components/settings/BillingSettings.tsx', 'src/components/LOSignupPage.tsx',
+    'src/pages/HelpPage.tsx', 'src/components/ApprovedLandingPage.tsx', 'src/components/settings/BillingSettings.tsx', 'src/components/LOSignupPage.tsx',
     'src/components/PricingSectionNew.tsx', 'src/components/dashboard-command/BillingCommandPage.tsx', 'src/components/TrialLock.tsx',
     'src/pages/WhiteLabelPage.tsx', 'backend/services/emailService.js'
   ];

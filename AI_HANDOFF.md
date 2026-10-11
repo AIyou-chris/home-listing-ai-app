@@ -7,6 +7,13 @@
 - Restored lead 8e0c51ff (Oct 1 pre-approval test lead) which my booking test had deduped into and renamed; removed the test appointment, reminders and events. Counts back to baseline (agents 3, leads 4, auth users 3).
 - Still untested: new-LO signup run, AI phone call (Chris calls (754) 243-8686), price-drop alerts, real card payment, Stripe webhook events (Chris must add 5 events), Chris eyeballing the pages on his phone.
 
+## 2026-10-11 — Test checkout found a live bug: "Checkout unavailable" (fix NOT PUSHED YET)
+- Chris's fresh test LO (anaiyou+launch1@pm.me) clicked "Choose my plan": Stripe said "You may only specify one of these parameters: allow_promotion_codes, discounts." Cause: `paymentService.createCheckoutSession` sent `allow_promotion_codes:false` next to `discounts` (the launch coupon). Fix: `buildCheckoutConfig` omits it when a coupon is applied (+3 tests).
+- The other checkout path `billingEngine.createCheckoutSession` (Settings/Billing "Start plan") had NO launch coupon and NO trial days: now applies `FOUNDING_COUPON_ID` for `lo_lite` and gives only the trial days left (`resolveAgentRecord` now also selects `created_at`; without it checkoutTrialDays would have given a free 7 days).
+- Welcome email now says "Send a WOW Link" (was "Add Partner"); `spendStopsWired` test updated for deleted ComparePlansModal.
+- CLAUDE.md trimmed 68KB -> 18KB; old notes in `docs/history/CLAUDE_MD_HISTORY_2026-10-11.md`.
+- Lesson: the first real checkout had never been tried by anyone; always click through the money path with a fresh account.
+
 ## 2026-10-11 — Trim pass + landing page (NOT PUSHED YET)
 - LO menu is 6 items (Today, Partners, Listings, AI Brain, Leads, Settings). Appointments = link on Leads page; Invoices = link on Partners page (routes unchanged).
 - Today: greeting -> "call next" hero (or big Send-a-WOW-Link card when no new lead) -> setup checklist -> one-line numbers -> recent leads + listings. Removed page guide, 4 stat cards, AI card (shows only if AI is off/untrained).
