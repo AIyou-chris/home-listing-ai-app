@@ -332,11 +332,11 @@ describe('SettingsPage billing tab', () => {
 
     await waitFor(() => expect(mockedBilling.fetchDashboardBilling).toHaveBeenCalled())
 
-    const upgradeButton = await screen.findByRole('button', { name: /upgrade to lo — \$149\/mo/i })
+    const upgradeButton = await screen.findByRole('button', { name: /start plan — \$79\/mo/i })
     fireEvent.click(upgradeButton)
 
     await waitFor(() => {
-      expect(mockedBilling.createBillingCheckoutSession).toHaveBeenCalledWith('starter')
+      expect(mockedBilling.createBillingCheckoutSession).toHaveBeenCalledWith('lo_lite')
     })
   })
 })

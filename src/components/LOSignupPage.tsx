@@ -7,51 +7,21 @@ import { PublicHeader } from './layout/PublicHeader';
 import { PublicFooter } from './layout/PublicFooter';
 import { BackgroundTechIcons } from './BackgroundTechIcons';
 
-type Plan = 'lo_lite' | 'lo' | 'lo_pro';
+type Plan = 'lo_lite';
 
+// One plan at launch. Other tiers stay in the backend but are no longer sold.
 const PLANS: Record<Plan, { name: string; price: string; tagline: string; features: string[]; highlight: boolean }> = {
     lo_lite: {
-        name: 'LO Lite',
+        name: 'HomeListingAI',
         price: '$79',
-        tagline: 'Try the platform with your first agent partners.',
+        tagline: 'Everything a loan officer needs.',
         highlight: false,
         features: [
-            '5 active listings across your partner network',
-            'AI buyer chatbot on every listing page',
-            'Co-branded with your name + NMLS #',
-            'Warm lead alerts to you + your partner',
-            'Lead inbox + activity timeline',
-            '50 SMS / month included',
-        ],
-    },
-    lo: {
-        name: 'LO',
-        price: '$149',
-        tagline: 'Build your agent network and fill your pipeline.',
-        highlight: false,
-        features: [
-            '20 active listings across your partner network',
-            'AI buyer chatbot on every listing page',
-            'Co-branded with your name + NMLS #',
-            'Warm lead alerts to you + your partner',
-            'Preapproval request capture built in',
-            'Lead inbox + activity timeline',
-            '250 SMS / month included',
-        ],
-    },
-    lo_pro: {
-        name: 'LO Pro',
-        price: '$299',
-        tagline: 'High-volume LOs running a serious agent network.',
-        highlight: true,
-        features: [
-            '50 active listings across your partner network',
-            'Everything in LO — all features included',
-            'Up to 2,000 SMS / month',
-            'Priority lead routing',
-            'Advanced analytics dashboard',
-            'Multiple agent partnerships',
-            'Co-branded assets with your LO branding',
+            '5 active listings across your agent partners',
+            'AI buyer chat on every listing, with your name + NMLS #',
+            'Warm lead alerts to you and your partner',
+            'Your own AI phone line: 100 AI minutes a month',
+            '50 WOW Links and 50 texts a month',
         ],
     },
 };
@@ -61,9 +31,10 @@ const LOSignupPage: React.FC = () => {
     const [searchParams] = useSearchParams();
 
     const planParam = searchParams.get('plan');
-    const initialPlan: Plan = planParam === 'lo_pro' ? 'lo_pro' : (planParam === 'lo_lite' ? 'lo_lite' : 'lo');
+    void planParam;
+    const initialPlan: Plan = 'lo_lite';
 
-    const [selectedPlan, setSelectedPlan] = useState<Plan>(initialPlan);
+    const [selectedPlan] = useState<Plan>(initialPlan);
     const [firstName, setFirstName] = useState('');
     const [lastName, setLastName] = useState('');
     const [email, setEmail] = useState('');
@@ -170,61 +141,21 @@ const LOSignupPage: React.FC = () => {
                         Start your 7-day free trial
                     </h1>
                     <p className="text-slate-400 text-base">
-                        No card needed. Full access for 7 days — pick a plan now, decide on day 7.
+                        No card needed. Full access for 7 days, then decide.
                     </p>
                 </div>
 
-                {/* Plan Picker */}
-                <div className="w-full max-w-4xl mb-8">
-                    <p className="text-sm text-slate-400 text-center mb-4 uppercase tracking-widest font-semibold">Choose your plan</p>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        {(Object.entries(PLANS) as [Plan, typeof PLANS[Plan]][]).map(([key, plan]) => (
-                            <button
-                                key={key}
-                                type="button"
-                                onClick={() => setSelectedPlan(key)}
-                                className={`relative text-left rounded-2xl p-6 border-2 transition-all focus:outline-none ${
-                                    selectedPlan === key
-                                        ? 'border-cyan-500 bg-cyan-950/30 shadow-[0_0_20px_rgba(6,182,212,0.15)]'
-                                        : 'border-slate-700 bg-[#0B1121]/60 hover:border-slate-500'
-                                }`}
-                            >
-                                {plan.highlight && (
-                                    <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-cyan-500 text-[#02050D] text-xs font-bold uppercase tracking-wider py-0.5 px-3 rounded-full">
-                                        Most Popular
-                                    </span>
-                                )}
-                                <div className="flex items-start justify-between mb-3">
-                                    <div>
-                                        <p className="text-white font-bold text-lg">{plan.name}</p>
-                                        <p className="text-slate-400 text-xs mt-0.5">{plan.tagline}</p>
-                                    </div>
-                                    <div className={`w-5 h-5 rounded-full border-2 flex-shrink-0 mt-0.5 flex items-center justify-center transition-colors ${
-                                        selectedPlan === key ? 'border-cyan-500 bg-cyan-500' : 'border-slate-600'
-                                    }`}>
-                                        {selectedPlan === key && (
-                                            <span className="material-symbols-outlined text-[#02050D] text-[12px] font-bold">check</span>
-                                        )}
-                                    </div>
-                                </div>
-                                <div className="flex items-baseline gap-1 mb-4">
-                                    <span className="text-3xl font-extrabold text-white">{plan.price}</span>
-                                    <span className="text-slate-400 text-sm">/ month</span>
-                                </div>
-                                <ul className="space-y-2">
-                                    {plan.features.slice(0, 4).map((f, i) => (
-                                        <li key={i} className="flex items-start gap-2 text-sm text-slate-300">
-                                            <span className="material-symbols-outlined text-cyan-500 text-base shrink-0 mt-0.5">check</span>
-                                            {f}
-                                        </li>
-                                    ))}
-                                    {plan.features.length > 4 && (
-                                        <li className="text-xs text-slate-500 pl-6">+ {plan.features.length - 4} more features</li>
-                                    )}
-                                </ul>
-                            </button>
+                <div className="w-full max-w-md mb-6 text-center">
+                    <p className="text-white font-bold text-lg">{PLANS.lo_lite.name} — {PLANS.lo_lite.price} / month</p>
+                    <p className="text-cyan-300 text-sm mt-1">Founding price: the first 25 loan officers pay $49 a month for as long as they stay subscribed.</p>
+                    <ul className="mt-4 space-y-2 text-left inline-block">
+                        {PLANS.lo_lite.features.map((f) => (
+                            <li key={f} className="flex items-start gap-2 text-sm text-slate-300">
+                                <span className="material-symbols-outlined text-cyan-500 text-base shrink-0 mt-0.5">check</span>
+                                {f}
+                            </li>
                         ))}
-                    </div>
+                    </ul>
                 </div>
 
                 {/* Sign Up Form */}
@@ -330,13 +261,6 @@ const LOSignupPage: React.FC = () => {
                                     <p className="text-sm font-semibold text-white">{PLANS[selectedPlan].name} Plan</p>
                                     <p className="text-xs text-slate-400">7-day free trial, then {PLANS[selectedPlan].price}/mo</p>
                                 </div>
-                                <button
-                                    type="button"
-                                    onClick={() => document.getElementById('lo-plan-picker')?.scrollIntoView({ behavior: 'smooth' })}
-                                    className="text-xs text-cyan-400 hover:text-cyan-300 transition-colors"
-                                >
-                                    Change
-                                </button>
                             </div>
 
                             <button

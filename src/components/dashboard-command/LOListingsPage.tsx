@@ -174,6 +174,9 @@ const STATUS_CHIP: Record<string, { label: string; cls: string }> = {
   archived: { label: 'Archived', cls: 'bg-slate-100 text-slate-700' },
 };
 
+// Per-listing phone numbers are hidden at launch: they are not part of the single plan.
+const SHOW_LISTING_NUMBERS = false;
+
 const ListingCard: React.FC<ListingCardProps> = ({ listing, mode, onRemove, onAdd, loading, phoneEnabled, phoneLine, onPhoneLine, demo }) => {
   const [showToggles, setShowToggles] = useState(false);
   const [showPhone, setShowPhone] = useState(false);
@@ -665,7 +668,7 @@ const LOListingsPage: React.FC = () => {
                 mode="assigned"
                 onRemove={handleRemove}
                 loading={removingId === listing.id}
-                phoneEnabled={phoneEnabled}
+                phoneEnabled={SHOW_LISTING_NUMBERS && phoneEnabled}
                 phoneLine={phoneLines[listing.id] || null}
                 onPhoneLine={handlePhoneLine}
                 demo={demoMode}

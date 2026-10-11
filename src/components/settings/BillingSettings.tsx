@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { BillingSettings } from '../../types';
 import {
   createBillingCheckoutSession,
@@ -26,7 +26,7 @@ type PaidPlanId = Exclude<PlanId, 'free'>;
 
 const planLabels: Record<PlanId, string> = {
   free: 'Free',
-  lo_lite: 'LO Lite — $79/mo',
+  lo_lite: 'HomeListingAI — $79/mo',
   starter: 'LO — $149/mo',
   pro: 'LO Pro — $299/mo'
 };
@@ -39,17 +39,6 @@ const statusLabels: Record<string, string> = {
   cancelled: 'Cancelled',
   cancel_pending: 'Cancel scheduled'
 };
-
-const featureRows: Array<{ label: string; free: string; lite: string; starter: string; pro: string }> = [
-  { label: 'Active listings', free: '1', lite: '5', starter: '20', pro: '50' },
-  { label: 'AI buyer chatbot', free: '—', lite: '✓ Every listing', starter: '✓ Every listing', pro: '✓ Every listing' },
-  { label: 'Co-branded with your NMLS #', free: '—', lite: '✓', starter: '✓', pro: '✓' },
-  { label: 'Pre-approval request capture', free: '—', lite: '—', starter: '✓', pro: '✓' },
-  { label: 'Warm lead alerts (LO + agent)', free: '—', lite: '✓', starter: '✓', pro: '✓ Priority routing' },
-  { label: 'Automated SMS / month', free: '—', lite: '50', starter: '250', pro: 'Up to 2,000' },
-  { label: 'ROI dashboard', free: '—', lite: '—', starter: '—', pro: '✓' },
-  { label: 'Support', free: 'Email', lite: 'Email', starter: 'Priority email', pro: 'Priority + onboarding' }
-];
 
 const inferPlanFromSettings = (settings: BillingSettings): PlanId => {
   const name = String(settings.planName || '').toLowerCase();
@@ -73,7 +62,6 @@ const BillingSettingsPage: React.FC<BillingSettingsProps> = ({
   const [busy, setBusy] = useState<'lo_lite' | 'starter' | 'pro' | 'portal' | null>(null);
   const [deleteConfirmation, setDeleteConfirmation] = useState('');
   const [deleteBusy, setDeleteBusy] = useState(false);
-  const comparisonRef = useRef<HTMLDivElement | null>(null);
   const [accountType, setAccountType] = useState<string | null>(null);
   const [myInvoices, setMyInvoices] = useState<Invoice[]>([]);
 
@@ -142,10 +130,6 @@ const BillingSettingsPage: React.FC<BillingSettingsProps> = ({
       setError(err instanceof Error ? err.message : 'Failed to open billing portal.');
       setBusy(null);
     }
-  };
-
-  const handleChangePlanClick = () => {
-    comparisonRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   const planButtons = useMemo(() => {
@@ -319,23 +303,7 @@ const BillingSettingsPage: React.FC<BillingSettingsProps> = ({
                   disabled={planButtons.liteDisabled}
                   className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                 >
-                  {busy === 'lo_lite' ? 'Opening checkout…' : 'Upgrade to LO Lite — $79/mo'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void startCheckout('starter')}
-                  disabled={planButtons.starterDisabled}
-                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-                >
-                  {busy === 'starter' ? 'Opening checkout…' : 'Upgrade to LO — $149/mo'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void startCheckout('pro')}
-                  disabled={planButtons.proDisabled}
-                  className="rounded-lg bg-primary-600 px-3 py-2 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50"
-                >
-                  {busy === 'pro' ? 'Opening checkout…' : 'Upgrade to LO Pro — $299/mo'}
+                  {busy === 'lo_lite' ? 'Opening checkout…' : 'Start plan — $79/mo'}
                 </button>
               </>
             ) : (
@@ -350,14 +318,6 @@ const BillingSettingsPage: React.FC<BillingSettingsProps> = ({
                 </button>
                 <button
                   type="button"
-                  onClick={handleChangePlanClick}
-                  disabled={busy !== null}
-                  className="rounded-lg border border-primary-300 bg-primary-50 px-3 py-2 text-sm font-semibold text-primary-700 hover:bg-primary-100 disabled:opacity-50"
-                >
-                  Change plan
-                </button>
-                <button
-                  type="button"
                   onClick={() => void openPortal()}
                   disabled={busy !== null}
                   className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100 disabled:opacity-50"
@@ -366,74 +326,6 @@ const BillingSettingsPage: React.FC<BillingSettingsProps> = ({
                 </button>
               </>
             )}
-          </div>
-        </div>
-      </FeatureSection>
-
-      <FeatureSection title="Plan comparison" icon="table_chart">
-        <div ref={comparisonRef} className="rounded-2xl border border-slate-200 bg-white p-0 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="min-w-full border-collapse">
-              <thead className="bg-slate-50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Feature</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-slate-900">Free</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-slate-900">LO Lite — $79/mo</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-slate-900">
-                    <div className="inline-flex items-center gap-2">
-                      <span>LO — $149/mo</span>
-                      <span className="rounded-full bg-primary-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary-700">Most popular</span>
-                    </div>
-                  </th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-slate-900">LO Pro — $299/mo</th>
-                </tr>
-              </thead>
-              <tbody>
-                {featureRows.map((row) => (
-                  <tr key={row.label} className="border-t border-slate-100">
-                    <td className="px-4 py-3 text-sm font-medium text-slate-700">{row.label}</td>
-                    <td className="px-4 py-3 text-sm text-slate-600">{row.free}</td>
-                    <td className="px-4 py-3 text-sm text-slate-700">{row.lite}</td>
-                    <td className="px-4 py-3 text-sm text-slate-700">{row.starter}</td>
-                    <td className="px-4 py-3 text-sm text-slate-700">{row.pro}</td>
-                  </tr>
-                ))}
-                <tr className="border-t border-slate-200 bg-slate-50">
-                  <td className="px-4 py-4 text-sm font-semibold text-slate-700">Action</td>
-                  <td className="px-4 py-4 text-sm text-slate-500">{currentPlanId === 'free' ? 'Current plan' : 'Free option'}</td>
-                  <td className="px-4 py-4">
-                    <button
-                      type="button"
-                      onClick={() => void startCheckout('lo_lite')}
-                      disabled={planButtons.liteDisabled}
-                      className="rounded-md border border-primary-400 bg-primary-50 px-3 py-2 text-xs font-semibold text-primary-700 hover:bg-primary-100 disabled:opacity-50"
-                    >
-                      {currentPlanId === 'lo_lite' ? 'Current plan' : busy === 'lo_lite' ? 'Opening…' : 'Choose plan'}
-                    </button>
-                  </td>
-                  <td className="px-4 py-4">
-                    <button
-                      type="button"
-                      onClick={() => void startCheckout('starter')}
-                      disabled={planButtons.starterDisabled}
-                      className="rounded-md border border-primary-400 bg-primary-50 px-3 py-2 text-xs font-semibold text-primary-700 hover:bg-primary-100 disabled:opacity-50"
-                    >
-                      {currentPlanId === 'starter' ? 'Current plan' : busy === 'starter' ? 'Opening…' : 'Choose plan'}
-                    </button>
-                  </td>
-                  <td className="px-4 py-4">
-                    <button
-                      type="button"
-                      onClick={() => void startCheckout('pro')}
-                      disabled={planButtons.proDisabled}
-                      className="rounded-md bg-primary-600 px-3 py-2 text-xs font-semibold text-white hover:bg-primary-700 disabled:opacity-50"
-                    >
-                      {currentPlanId === 'pro' ? 'Current plan' : busy === 'pro' ? 'Opening…' : 'Choose plan'}
-                    </button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
           </div>
         </div>
       </FeatureSection>

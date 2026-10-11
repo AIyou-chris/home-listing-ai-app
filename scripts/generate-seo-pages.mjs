@@ -67,7 +67,7 @@ const STATIC_ROUTES = [
       '<li><strong>Fast follow-up:</strong> automatic 24-hour and 72-hour reminders if an agent hasn&rsquo;t opened the WOW Link, plus instant alerts when an agent claims their account.</li>',
       '</ul>',
       '<h2>Pricing</h2>',
-      '<p>Plans start at $79/month. LO Lite is $79/month (5 active listings, 50 WOW links/month). The LO plan is $149/month (20 active listings, 250 SMS/month, full co-branding, warm-lead alerts). LO Pro is $299/month (50 active listings, up to 2,000 SMS a month, priority lead routing, ROI dashboard). All plans are month-to-month with a 7-day free trial — no credit card required, no contract.</p>',
+      '<p>One plan: $79/month (5 active listings, 50 WOW links/month, 50 text messages/month, 100 AI phone minutes/month, AI buyer chat co-branded with your name and NMLS #, warm-lead alerts). Founding price: the first 25 loan officers pay $49/month for as long as they stay subscribed. Month-to-month with a 7-day free trial — no credit card required, no contract.</p>',
       '<h2>Frequently asked questions</h2>',
       '<h3>What is the best lead generation tool for mortgage loan officers?</h3>',
       '<p>HomeListingAI is built specifically for loan officers. Rather than reselling the same internet leads to many LOs, it generates warm leads through agent partnerships — the loan officer gives agents a co-branded AI listing page, and buyers who share their contact details are routed back to the LO. Plans start at $79/month with a 7-day free trial, no card needed.</p>',

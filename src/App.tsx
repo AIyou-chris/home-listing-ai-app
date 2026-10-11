@@ -8,6 +8,7 @@ import { Property, View, AgentProfile, NotificationSettings, EmailSettings, Cale
 import { SAMPLE_AGENT } from './constants';
 const LandingPage = lazy(() => import('./components/LandingPage'));
 const HowItWorksPage = lazy(() => import('./pages/HowItWorksPage'));
+const HelpPage = lazy(() => import('./pages/HelpPage'));
 const SignUpPage = lazy(() => import('./components/SignUpPage'));
 const SignInPage = lazy(() => import('./components/SignInPage'));
 const ForgotPasswordPage = lazy(() => import('./components/ForgotPasswordPage'));
@@ -1716,6 +1717,7 @@ const App: React.FC = () => {
                     <Route path="/demo/listings/:id" element={<DemoListingPage />} />
                     <Route path="/lo-demo" element={<Navigate to="/demo-dashboard/lo-today" replace />} />
                     <Route path="/how-it-works" element={<HowItWorksPage />} />
+                    <Route path="/help" element={<HelpPage />} />
 
                     {/* Fallback */}
                     <Route path="*" element={<NotFound />} />

@@ -19,15 +19,15 @@ type PlanStatus = {
 };
 
 const PLAN_LABELS: Record<string, string> = {
-  lo_lite: 'LO Lite — $79/mo',
-  lo: 'LO — $149/mo',
-  lo_pro: 'LO Pro — $299/mo'
+  lo_lite: 'HomeListingAI — $79/mo',
+  lo: 'HomeListingAI — $79/mo',
+  lo_pro: 'HomeListingAI — $79/mo'
 };
 
 const preferredPlan = (): 'lo_lite' | 'lo' | 'lo_pro' => {
   try {
     const v = localStorage.getItem('hlai_preferred_plan');
-    if (v === 'lo' || v === 'lo_pro' || v === 'lo_lite') return v;
+    void v; // one plan now: everyone checks out on the single plan
   } catch { /* private mode */ }
   return 'lo_lite';
 };

@@ -33,10 +33,9 @@ Result: Loan officers build a pipeline of warm mortgage leads through agent part
 
 ## Pricing
 - 7-day free trial: full access, no credit card required
-- LO Lite ($79/mo): 5 active listings, 50 WOW links/month, full share kit, lead routing
-- LO ($149/mo): 20 active listings, 250 WOW links/month, 250 SMS/month, full co-branding, warm-lead alerts
-- LO Pro ($299/mo): 50 active listings, up to 1,000 WOW links a month, up to 2,000 SMS a month, priority lead routing, ROI dashboard
-- All plans month-to-month, no contract, cancel anytime. Entry price: $79/month.
+- One plan: HomeListingAI for Loan Officers: $79/month (5 active listings, 50 WOW links/month, 50 text messages/month, 100 AI phone minutes/month, AI buyer chat co-branded with your name and NMLS #, warm lead alerts, lead inbox)
+- Founding price: the first 25 loan officers pay $49/month for as long as they stay subscribed.
+- Month-to-month, no contract, cancel anytime. Price: $79/month.
 
 ## Who This Is For
 - Mortgage loan officers (primary)

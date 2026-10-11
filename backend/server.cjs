@@ -1790,6 +1790,17 @@ app.post('/api/agents/register', async (req, res) => {
     const result = await agentOnboardingService.registerAgent({ firstName, lastName, email, accountType, phone, nmls });
     res.json(result);
 
+    // One free trial per phone number: a repeat phone gets no trial and must pay to unlock.
+    if (accountType === 'lo') {
+      (async () => {
+        try {
+          if (await require('./services/repeatTrial').isRepeatTrial({ supabase: supabaseAdmin, email, phone })) {
+            await supabaseAdmin.from('agents').update({ payment_status: 'trial_used' }).eq('email', String(email || '').toLowerCase()).eq('account_type', 'lo');
+          }
+        } catch (err) { console.warn('[Signup] repeat-trial check failed:', err?.message || err); }
+      })();
+    }
+
     // Fire-and-forget owner alert — never block or fail the signup response.
     notifyOwnerOfSignup({ firstName, lastName, email, accountType, phone, nmls }).catch((err) => {
       console.error('[SignupAlert] Failed to notify owner:', err?.message || err);
@@ -33876,6 +33887,12 @@ app.post('/api/lo/phone-line/buy', requireLoAgent, async (req, res) => {
   try {
     if (!loPhoneEnabledFor(req.loAgentId)) return res.status(403).json({ error: 'phone_not_enabled' });
     if (req.body?.confirm !== true) return res.status(400).json({ error: 'confirmation_required' });
+    {
+      // Buying a number costs real money every month, so it needs a paid plan, not a free trial.
+      const { data: planRow } = await supabaseAdmin.from('agents').select('plan, stripe_customer_id, payment_status, created_at').eq('id', req.loAgentId).maybeSingle();
+      const tier = (planRow?.plan === 'office' || planRow?.plan === 'white_label') ? 'lo_pro' : await resolveLoPlanTier(planRow || {});
+      if (tier === 'trial' || tier === 'none') return res.status(402).json({ error: 'phone_number_needs_paid_plan', message: 'Buying an AI phone number is part of the paid plan.' });
+    }
     const svc = getLoPhoneLines();
     const result = await svc.buyNumber(req.loAgentId);
     res.status(result.ok ? 200 : 422).json({ ok: result.ok, reason: result.reason || null, message: result.error || null, line: svc.publicView(result.line, { aiReady: getLoPhoneCalls().isAiReady() }) });
@@ -33959,7 +33976,7 @@ const { createTelnyxClient: createTelnyxCallClient } = require('./services/telny
 const { verifyTelnyxSignature, verifyOpenAiWebhook, verifyTextbeltWebhook, isStopMessage } = require('./services/webhookSignatures');
 const WebSocketClient = require('ws');
 // AI phone minutes per month, by plan. Out of minutes → calls ring the LO's cell.
-const LO_PHONE_MINUTES = { trial: 30, lo_lite: 100, lo: 300, lo_pro: 1000, none: 0 };
+const LO_PHONE_MINUTES = { trial: 10, lo_lite: 100, lo: 300, lo_pro: 1000, none: 0 };
 const loMinuteLimitCache = new Map(); // loAgentId -> { limit, at }
 async function getLoPhoneMinuteLimit(loAgentId) {
   const hit = loMinuteLimitCache.get(loAgentId);
@@ -33973,7 +33990,7 @@ async function getLoPhoneMinuteLimit(loAgentId) {
 }
 
 // Monthly text cap per account, by plan (the numbers we advertise). Anything we cannot work out gets the default.
-const SMS_MONTHLY_BY_TIER = { trial: 50, lo_lite: 50, lo: 250, lo_pro: 2000, none: 0 };
+const SMS_MONTHLY_BY_TIER = { trial: 10, lo_lite: 50, lo: 250, lo_pro: 2000, none: 0 };
 const smsLimitCache = new Map(); // account id -> { limit, at }
 spendGuardModule.guard.smsAccountLimit = async (accountId) => {
   const hit = smsLimitCache.get(accountId);
@@ -37210,6 +37227,11 @@ app.post('/api/payments/checkout-session', async (req, res) => {
       } catch (err) {
         console.warn('Coupon lookup failed', err);
       }
+    }
+
+    // Founding price: first 25 LOs get the Stripe coupon in FOUNDING_COUPON_ID automatically (Stripe enforces the 25).
+    if (!explicitDiscounts.length && plan === 'lo_lite' && !isFreeAccessCode(normalizedPromoCode)) {
+      explicitDiscounts = await require('./services/foundingCoupon').pickFoundingDiscount({ stripe, couponId: process.env.FOUNDING_COUPON_ID });
     }
 
     // Resolve price ID based on plan param

@@ -7,6 +7,14 @@
 - Restored lead 8e0c51ff (Oct 1 pre-approval test lead) which my booking test had deduped into and renamed; removed the test appointment, reminders and events. Counts back to baseline (agents 3, leads 4, auth users 3).
 - Still untested: new-LO signup run, AI phone call (Chris calls (754) 243-8686), price-drop alerts, real card payment, Stripe webhook events (Chris must add 5 events), Chris eyeballing the pages on his phone.
 
+## 2026-10-10 — One plan ($79, founding $49), trial limits, Telnyx balance alert, Help page (NOT PUSHED YET)
+- One plan: $79 (5 listings, 50 WOW, 50 texts, 100 AI phone min). Pricing section, LO signup, billing pages, trial banner, sales bot, llms.txt, ai.txt, index.html JSON-LD, SEO generator all say one plan. Old tiers stay in the backend (hidden, not sold). ComparePlansModal file kept only for its PENDING_PLAN_KEY export. Per-listing phone numbers hidden (`SHOW_LISTING_NUMBERS=false` in LOListingsPage).
+- Founding price: Stripe coupon id in Render env `FOUNDING_COUPON_ID` (forever, $30 off, max 25 redemptions) auto-applied for `lo_lite` checkouts via `services/foundingCoupon.js`. Chris must create the coupon + env var BEFORE the pricing page goes live.
+- Trial limits: trial 10 AI phone minutes + 10 texts; buying a phone number needs a paid plan (402 `phone_number_needs_paid_plan`); `services/repeatTrial.js`: a second LO signup with an already-used phone gets `payment_status='trial_used'` (no trial).
+- `services/telnyxBalanceWatch.js`: every 6h, emails owner once/day if Telnyx balance < $20 (`TELNYX_LOW_BALANCE`).
+- New `/help` page + footer link. Phone cap behaviour verified: out of minutes -> calls ring LO cell.
+- NOT done: LO menu cut to 5 items (Leads/Appointments into Today, Invoices into Settings).
+
 ## 2026-10-10 — Phone: short replies, ask name+number, custom phone greeting
 - Phone rules: replies 1-2 sentences, ask name + best number by the 2nd reply, save details right away.
 - New `lo_chatbot_configs.phone_greeting` (column added live, `phone-greeting-migration.sql`); box under Advanced on AI Brain; recording notice always kept.

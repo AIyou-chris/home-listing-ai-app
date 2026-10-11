@@ -1,6 +1,7 @@
 const cron = require('node-cron');
 const { addMinutes, subHours, differenceInHours } = require('date-fns');
 const { buildWowReminderEmail } = require('./wowReminderEmail');
+const { createTelnyxBalanceWatch } = require('./telnyxBalanceWatch');
 
 const escapeHtml = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -328,6 +329,10 @@ const startScheduler = (supabaseAdmin, emailService) => {
             console.error('[Weekly Value Email] Exception:', err);
         }
     });
+
+    // Telnyx balance watch (every 6 hours): emails the owner, once a day at most, if the balance is low.
+    const checkTelnyxBalance = createTelnyxBalanceWatch({ sendEmail: emailService ? (m) => emailService.sendEmail(m) : null });
+    cron.schedule('0 */6 * * *', () => { checkTelnyxBalance().catch(() => {}); });
 
     console.log('⏰ Scheduler Service Initialized (Job: 1h Reminders)');
 };
