@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import PageGuide from './PageGuide';
 import { useNavigate } from 'react-router-dom'
 import { buildDashboardPath, useDemoMode } from '../../demo/useDemoMode'
 import { buildApiUrl } from '../../lib/api'
@@ -505,6 +504,21 @@ const LOTodayPage: React.FC = () => {
   // Only real drafts count as "not live yet". Sold and archived homes are simply finished.
   const draftCount = data.assignedListings.filter((l) => l.status === 'draft').length
 
+  const wowCard = (
+      <div className="flex flex-col items-start justify-between gap-3 rounded-2xl border border-primary-200 bg-primary-50 p-5 sm:flex-row sm:items-center">
+        <div>
+          <h2 className="text-sm font-bold text-slate-900">Get your next warm lead</h2>
+          <p className="mt-0.5 text-xs text-slate-600">Send an agent a WOW link. Their buyers chat with your AI, and you get the lead.</p>
+        </div>
+        <button
+          onClick={() => navTo('/lo-partners')}
+          className="shrink-0 rounded-lg bg-primary-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-primary-700"
+        >
+          Send a WOW link
+        </button>
+      </div>
+  )
+
   return (
     <div className="space-y-6 pb-24">
 
@@ -519,8 +533,7 @@ const LOTodayPage: React.FC = () => {
       </div>
 
       {heroLead && <CallNowHero lead={heroLead} onOpen={(id) => navTo(`/lo-leads?lead=${id}`)} onCalled={handleCalled} />}
-
-      <PageGuide pageKey="lo-today" />
+      {!heroLead && wowCard}
 
       {/* ── Setup Checklist (shown until onboarding complete or dismissed) ────── */}
       {setup && !setupDismissed && (
@@ -531,35 +544,15 @@ const LOTodayPage: React.FC = () => {
         />
       )}
 
-      {/* ── Stat row ─────────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">New leads today</p>
-          <p className="text-3xl font-black text-slate-900">{stats.newToday}</p>
-          <p className="text-xs text-slate-400 mt-1">{stats.newThisWeek} this week · {stats.totalLeads} total</p>
-        </div>
-        <div className="rounded-2xl border border-rose-100 bg-rose-50 p-5 shadow-sm">
-          <p className="text-xs font-semibold text-rose-600 uppercase tracking-wide mb-2">Hot leads</p>
-          <p className="text-3xl font-black text-rose-700">{stats.hotLeads ?? 0}</p>
-          <p className="text-xs text-rose-500 mt-1">ready to talk</p>
-        </div>
-        <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-5 shadow-sm">
-          <p className="text-xs font-semibold text-emerald-600 uppercase tracking-wide mb-2">Pre-approvals</p>
-          <p className="text-3xl font-black text-emerald-700">{stats.preApprovalLeads}</p>
-          <p className="text-xs text-emerald-500 mt-1">financing intent</p>
-        </div>
-        <div
-          className="rounded-2xl border border-violet-100 bg-violet-50 p-5 shadow-sm cursor-pointer hover:shadow-md transition-shadow"
-          onClick={() => navTo('/lo-partners')}
-        >
-          <p className="text-xs font-semibold text-violet-600 uppercase tracking-wide mb-2">Partners Reached</p>
-          <p className="text-3xl font-black text-violet-700">{stats.partnersReached ?? 0}</p>
-          <p className="text-xs text-violet-500 mt-1">{stats.partnersOpened ?? 0} opened their WOW link</p>
-        </div>
-      </div>
+      {/* ── Numbers in one line ─────────────────────────────────────────────────── */}
+      <p className="text-sm text-slate-600">
+        <span className="font-bold text-slate-900">{stats.newToday}</span> new today
+        {' · '}<span className="font-bold text-rose-700">{stats.hotLeads ?? 0}</span> hot
+        {' · '}<span className="font-bold text-slate-900">{stats.partnersReached ?? 0}</span> agents reached
+      </p>
 
       {/* ── What the AI did while you were busy ──────────────────────────────── */}
-      <AiActivityCard data={data} navTo={navTo} />
+      {data.brain && (!data.brain.active || !data.brain.hasKnowledge) && <AiActivityCard data={data} navTo={navTo} />}
 
       {/* ── Testimonial ask (once they're getting real leads) ─────────────────── */}
       {stats.totalLeads >= 2 && <LoTestimonialAsk />}
@@ -694,19 +687,7 @@ const LOTodayPage: React.FC = () => {
         </div>
       </div>
 
-      {/* ── One primary action ────────────────────────────────────────────────── */}
-      <div className="flex flex-col items-start justify-between gap-3 rounded-2xl border border-primary-200 bg-primary-50 p-5 sm:flex-row sm:items-center">
-        <div>
-          <h2 className="text-sm font-bold text-slate-900">Get your next warm lead</h2>
-          <p className="mt-0.5 text-xs text-slate-600">Send an agent a WOW link. Their buyers chat with your AI, and you get the lead.</p>
-        </div>
-        <button
-          onClick={() => navTo('/lo-partners')}
-          className="shrink-0 rounded-lg bg-primary-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-primary-700"
-        >
-          Send a WOW link
-        </button>
-      </div>
+      {heroLead && wowCard}
 
     </div>
   )

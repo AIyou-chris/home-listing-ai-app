@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import { agentOnboardingService } from '../services/agentOnboardingService';
 import { supabase } from '../services/supabase';
-import { PENDING_PLAN_KEY } from './ComparePlansModal';
+const PENDING_PLAN_KEY = 'homelistingai:pending_plan';
 import { PublicHeader } from './layout/PublicHeader';
 import { PublicFooter } from './layout/PublicFooter';
 import { StripeLogo } from './StripeLogo';

@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import PageGuide from './PageGuide';
 import { useNavigate } from 'react-router-dom'
 import { useDemoMode, buildDashboardPath } from '../../demo/useDemoMode'
 import { buildApiUrl } from '../../lib/api'
@@ -326,6 +325,9 @@ const InviteModal: React.FC<{ onClose: () => void; onSent: () => void; usage: In
 
 // ─── Partner Card ─────────────────────────────────────────────────────────────
 
+// The follow-up log and the monthly recap email are hidden at launch to keep this page simple.
+const SHOW_PARTNER_EXTRAS = false
+
 const PartnerCard: React.FC<{ partner: Partner; onViewListings: (p: Partner) => void; onRemoved: () => void }> = ({ partner, onViewListings, onRemoved }) => {
   const navigate = useNavigate()
   const demoMode = useDemoMode()
@@ -603,22 +605,22 @@ const PartnerCard: React.FC<{ partner: Partner; onViewListings: (p: Partner) => 
         >
           View Partner →
         </button>
-        <button
+        {SHOW_PARTNER_EXTRAS && <button
           onClick={logFollowUp}
           className="px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-700 text-xs font-semibold transition-all"
           title="Log follow-up"
           aria-label="Log that you talked to this partner"
         >
           📞 Talked
-        </button>
-        <button
+        </button>}
+        {SHOW_PARTNER_EXTRAS && <button
           onClick={openRecapPreview}
           disabled={recapLoading}
           className="px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 text-xs font-semibold transition-all disabled:opacity-50"
           title="Email this partner a 'what we did together this month' recap"
         >
           {recapLoading ? '…' : '📊 Recap'}
-        </button>
+        </button>}
         {partner.email && (
           <a
             href={`mailto:${partner.email}`}
@@ -862,6 +864,7 @@ const PartnerDetail: React.FC<{ partner: Partner; onClose: () => void }> = ({ pa
 
 const LOPartnersPage: React.FC = () => {
   const demoMode = useDemoMode()
+  const navigate = useNavigate()
   const [partners, setPartners] = useState<Partner[]>([])
   const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([])
   const [inviteUsage, setInviteUsage] = useState<InviteUsage | null>(null)
@@ -929,9 +932,30 @@ const LOPartnersPage: React.FC = () => {
           {partners.length} active partner{partners.length !== 1 ? 's' : ''}
           {pendingInvites.length > 0 && ` · ${pendingInvites.length} invite pending`}
         </p>
+        {!demoMode && (
+          <button
+            onClick={() => navigate('/dashboard/lo-invoices')}
+            className="mt-2 inline-flex min-h-[40px] items-center gap-1 text-sm font-semibold text-blue-700 underline"
+          >
+            Invoices to your agents
+          </button>
+        )}
       </div>
 
-      <PageGuide pageKey="lo-partners" />
+      {/* Add partner button — only when there's content (empty state has its own CTA) */}
+      {(partners.length > 0 || pendingInvites.length > 0) && (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          {inviteUsage && inviteUsage.limit != null && (
+            <p className="text-xs font-semibold text-slate-600">{inviteUsage.used} of {inviteUsage.limit} WOW Links used this month</p>
+          )}
+          <button
+            onClick={() => setShowInvite(true)}
+            className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-xl px-7 py-3.5 text-base transition-all shadow-sm"
+          >
+            Send a WOW Link
+          </button>
+        </div>
+      )}
 
       {/* Empty state */}
       {loadFailed && (
@@ -1064,21 +1088,6 @@ const LOPartnersPage: React.FC = () => {
               )
             })}
           </div>
-        </div>
-      )}
-
-      {/* Add partner button — only when there's content (empty state has its own CTA) */}
-      {(partners.length > 0 || pendingInvites.length > 0) && (
-        <div className="flex flex-wrap items-center justify-end gap-3">
-          {inviteUsage && inviteUsage.limit != null && (
-            <p className="text-xs font-semibold text-slate-600">{inviteUsage.used} of {inviteUsage.limit} WOW Links used this month</p>
-          )}
-          <button
-            onClick={() => setShowInvite(true)}
-            className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-xl px-5 py-2.5 text-sm transition-all shadow-sm"
-          >
-            + Add Partner
-          </button>
         </div>
       )}
 

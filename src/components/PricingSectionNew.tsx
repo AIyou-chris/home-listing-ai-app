@@ -15,7 +15,7 @@ const INCLUDED = [
     'Warm lead alerts to you and your agent partner',
     'Your own AI phone line: 100 AI minutes a month',
     '50 text messages a month',
-    'Lead inbox, appointments and follow-up',
+    'Lead inbox and appointments',
 ];
 
 export const PricingSectionNew: React.FC<PricingProps> = ({ onNavigateToSignUp: _onNavigateToSignUp, onEnterDemoMode }) => {

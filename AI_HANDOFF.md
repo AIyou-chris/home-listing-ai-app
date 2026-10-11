@@ -7,6 +7,13 @@
 - Restored lead 8e0c51ff (Oct 1 pre-approval test lead) which my booking test had deduped into and renamed; removed the test appointment, reminders and events. Counts back to baseline (agents 3, leads 4, auth users 3).
 - Still untested: new-LO signup run, AI phone call (Chris calls (754) 243-8686), price-drop alerts, real card payment, Stripe webhook events (Chris must add 5 events), Chris eyeballing the pages on his phone.
 
+## 2026-10-11 — Trim pass + landing page (NOT PUSHED YET)
+- LO menu is 6 items (Today, Partners, Listings, AI Brain, Leads, Settings). Appointments = link on Leads page; Invoices = link on Partners page (routes unchanged).
+- Today: greeting -> "call next" hero (or big Send-a-WOW-Link card when no new lead) -> setup checklist -> one-line numbers -> recent leads + listings. Removed page guide, 4 stat cards, AI card (shows only if AI is off/untrained).
+- Partners: big "Send a WOW Link" button on top; follow-up log + recap buttons hidden (`SHOW_PARTNER_EXTRAS=false`).
+- Landing dead code cleaned: hero image 1.36MB png -> 219KB webp, 4 unused webp images deleted, 13 unused CSS classes pruned (143 -> 99 rules), ComparePlansModal.tsx deleted (plan key moved into SignUpPage). Other dead files found but NOT touched: src/components/admin/AdminSocialPostPanel.tsx (27KB, unreferenced), src/services/supabaseKb.ts.
+- Landing page: removed the 7-tool picker (it advertised an outbound "AI Phone Caller" that does not exist), "Why agents say yes", and the guarantee block; added "What you get. Four things."; FAQ cut to 5 honest answers.
+
 ## 2026-10-10 — One plan ($79, founding $49), trial limits, Telnyx balance alert, Help page (NOT PUSHED YET)
 - One plan: $79 (5 listings, 50 WOW, 50 texts, 100 AI phone min). Pricing section, LO signup, billing pages, trial banner, sales bot, llms.txt, ai.txt, index.html JSON-LD, SEO generator all say one plan. Old tiers stay in the backend (hidden, not sold). ComparePlansModal file kept only for its PENDING_PLAN_KEY export. Per-listing phone numbers hidden (`SHOW_LISTING_NUMBERS=false` in LOListingsPage).
 - Founding price: Stripe coupon id in Render env `FOUNDING_COUPON_ID` (forever, $30 off, max 25 redemptions) auto-applied for `lo_lite` checkouts via `services/foundingCoupon.js`. Chris must create the coupon + env var BEFORE the pricing page goes live.

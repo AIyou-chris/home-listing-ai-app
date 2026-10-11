@@ -589,6 +589,12 @@ const LOLeadsPage: React.FC = () => {
           <p className="mt-1 text-sm text-slate-600">
             Buyers who reached you through your AI chat, your AI phone line or a pre-approval form.
           </p>
+          <button
+            onClick={() => navigate(buildDashboardPath('/lo-appointments', demoMode))}
+            className="mt-2 inline-flex min-h-[40px] items-center gap-1 text-sm font-semibold text-blue-700 underline"
+          >
+            See showings and appointments
+          </button>
         </div>
         {!demoMode && (
           <button

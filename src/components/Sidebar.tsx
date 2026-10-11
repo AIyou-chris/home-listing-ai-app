@@ -43,8 +43,6 @@ const LO_NAV_ITEMS = [
   { key: 'lo-listings', icon: 'storefront', label: 'Listings', path: '/lo-listings', testid: 'nav-lo-listings' },
   { key: 'lo-chatbot', icon: 'psychology', label: 'AI Brain', path: '/lo-chatbot', testid: 'nav-lo-chatbot' },
   { key: 'lo-leads', icon: 'person_search', label: 'Leads', path: '/lo-leads', testid: 'nav-lo-leads' },
-  { key: 'lo-appointments', icon: 'event_available', label: 'Appointments', path: '/lo-appointments', testid: 'nav-lo-appointments' },
-  { key: 'lo-invoices', icon: 'receipt_long', label: 'Invoices', path: '/lo-invoices', testid: 'nav-lo-invoices' },
   { key: 'settings', icon: 'settings', label: 'Settings', path: '/settings', testid: 'nav-settings' }
 ] as const;
 
@@ -203,7 +201,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
     ? activeNavItems.filter((item) => item.key !== 'settings')
     : activeNavItems;
   // Invoices and the Agent Brain need a real account, so the demo and blueprint dashboards do not show the links.
-  const navItems = visibleNavItems.filter((item) => !((item.key === 'lo-invoices' || item.key === 'agent-brain') && (derivedDemoMode || derivedBlueprintMode)));
+  const navItems = visibleNavItems.filter((item) => !(item.key === 'agent-brain' && (derivedDemoMode || derivedBlueprintMode)));
 
   // ── Positioning logic (JS-driven, no Tailwind breakpoint classes) ──────────
   // Desktop: sidebar is part of the normal flex flow, always visible.
