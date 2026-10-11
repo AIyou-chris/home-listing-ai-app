@@ -203,7 +203,7 @@ const PreApprovalSheet: React.FC<PreApprovalSheetProps> = ({ open, onClose, list
               {sending ? 'Sending…' : `Send to ${loFirst}`}
             </button>
             <p className="text-[11px] leading-snug text-slate-500">
-              No credit check. This is not a loan application or a commitment to lend. {loName}{lo?.nmls ? `, NMLS ${lo.nmls},` : ''} may contact you by text, phone or email. Reply STOP to opt out of texts.
+              No credit check. This is not a loan application or a commitment to lend. {loName}{lo?.nmls ? `, NMLS ${lo.nmls},` : ''} may contact you by text, phone or email. Reply STOP to opt out of texts. <a href="/privacy" target="_blank" rel="noreferrer" className="underline">Privacy</a> · <a href="/terms" target="_blank" rel="noreferrer" className="underline">Terms</a>
             </p>
           </div>
         )}

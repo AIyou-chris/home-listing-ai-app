@@ -21,7 +21,7 @@ const TermsOfServicePage: React.FC = () => {
                     <div className="bg-[#0B1121]/80 backdrop-blur-md p-8 sm:p-12 rounded-3xl shadow-[0_0_40px_rgba(6,182,212,0.1)] border border-cyan-900/30">
                         <p className="text-cyan-400 font-bold tracking-widest text-sm uppercase mb-3">Legal</p>
                         <h1 className="text-3xl sm:text-5xl font-extrabold text-white mb-3 tracking-tight">Terms of Service</h1>
-                        <p className="text-slate-400 text-sm mb-10">Last updated: May 2026</p>
+                        <p className="text-slate-400 text-sm mb-10">Last updated: October 11, 2026</p>
 
                         <div className="prose prose-lg prose-invert max-w-none text-slate-300 font-light leading-relaxed space-y-10">
 
@@ -58,15 +58,18 @@ const TermsOfServicePage: React.FC = () => {
                                     <li>Not use the platform for discriminatory housing practices</li>
                                     <li>Not share login credentials or allow unauthorized access to your account</li>
                                     <li>Not scrape, reverse engineer, or resell platform data or features</li>
+                                    <li>Hold the licenses you need, follow the laws that apply to your business, and get the consent you need from the people you contact. You are responsible for your own compliance. We are not your lawyer or your compliance officer.</li>
                                 </ul>
                             </section>
 
                             <section>
                                 <h2 className="text-2xl font-bold text-white mb-4 tracking-tight">4. Plans, Billing & Cancellation</h2>
                                 <ul className="list-disc pl-6 space-y-2 marker:text-cyan-500">
+                                    <li>New accounts get a 7-day free trial with no card needed. If you start a plan during the trial, you are not charged until the trial ends.</li>
                                     <li>Subscriptions are billed monthly. No annual lock-in.</li>
                                     <li>You may cancel at any time. Access continues through the end of your billing period.</li>
-                                    <li>Overage charges apply per listing beyond your plan's included limit (see pricing page for rates).</li>
+                                    <li>Each plan includes set limits (for example listings, texts and AI phone minutes). When you reach a limit, that feature pauses until your limit resets or you change plans. We do not charge extra for going over.</li>
+                                    <li>A launch price (for example $49 a month for the first 25 loan officers) stays the same for as long as your subscription stays active. If you cancel and come back later, the price then in effect applies.</li>
                                     <li>We do not offer prorated refunds for partial months, except where required by law.</li>
                                     <li>We reserve the right to change pricing with 30 days' notice to active subscribers.</li>
                                 </ul>
@@ -79,17 +82,18 @@ const TermsOfServicePage: React.FC = () => {
 
                             <section>
                                 <h2 className="text-2xl font-bold text-white mb-4 tracking-tight">6. AI-Generated Content</h2>
-                                <p>Our AI tools generate listing descriptions, market summaries, and chatbot responses. You are responsible for reviewing AI-generated content before publishing. HomeListingAI does not guarantee the accuracy of AI outputs and is not liable for errors in auto-generated content.</p>
+                                <p>Our AI tools generate listing descriptions, market summaries, and chatbot responses. You are responsible for reviewing AI-generated content before publishing. AI answers can be wrong. Buyer chat and phone answers are general information, not legal, tax or financial advice, and not a loan offer or a commitment to lend. HomeListingAI does not guarantee the accuracy of AI outputs and is not liable for errors in auto-generated content.</p>
                             </section>
 
                             <section>
                                 <h2 className="text-2xl font-bold text-white mb-4 tracking-tight">7. Lead Data Ownership</h2>
-                                <p>Leads captured through your listings belong to you. HomeListingAI does not sell lead data to third parties. We may use aggregated, anonymized data to improve the platform.</p>
+                                <p>Leads captured through your listings belong to you. HomeListingAI does not sell lead data to third parties. We may use aggregated, anonymized data to improve the platform. See our <a href="/privacy" className="text-cyan-400 hover:text-cyan-300 transition-colors">Privacy Policy</a> for how buyer details are handled.</p>
+                                <p className="mt-4"><strong className="text-white font-semibold">Agent accounts and invoices.</strong> A real estate agent's account on the platform does not oblige the agent to refer anyone to a loan officer. Invoices a loan officer sends an agent are between those two people. We create, email and track them, but we do not collect the payment or give advice about it.</p>
                             </section>
 
                             <section>
                                 <h2 className="text-2xl font-bold text-white mb-4 tracking-tight">8. Limitation of Liability</h2>
-                                <p>HomeListingAI is provided "as is." We are not liable for lost leads, missed opportunities, system downtime, or indirect damages. Our total liability is limited to the amount you paid in the 3 months prior to any claim.</p>
+                                <p>HomeListingAI is provided "as is." We do not promise any number of leads, loans or results. We are not liable for lost leads, missed opportunities, system downtime, or indirect damages. Our total liability is limited to the amount you paid in the 3 months prior to any claim.</p>
                             </section>
 
                             <section>

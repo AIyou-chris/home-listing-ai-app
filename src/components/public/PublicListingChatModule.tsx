@@ -791,7 +791,7 @@ const PublicListingChatModule: React.FC<PublicListingChatModuleProps> = ({
                         className="mt-0.5 h-4 w-4 flex-shrink-0"
                       />
                       <span>
-                        I agree that the listing agent{loName ? ` and ${loName}, the loan officer` : ''} may contact me about this home by call, text or email. Msg &amp; data rates may apply. Reply STOP to opt out. No obligation.
+                        I agree that the listing agent{loName ? ` and ${loName}, the loan officer` : ''} may contact me about this home by call, text or email. Msg &amp; data rates may apply. Reply STOP to opt out. No obligation. <a href="/privacy" target="_blank" rel="noreferrer" className="underline">Privacy</a> · <a href="/terms" target="_blank" rel="noreferrer" className="underline">Terms</a>
                       </span>
                     </label>
                     <button
