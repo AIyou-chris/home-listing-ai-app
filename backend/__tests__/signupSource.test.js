@@ -20,3 +20,9 @@ test('the blog call to action names the 7-day trial and sends the article as the
   assert.match(src, /Start my free 7-day trial/);
   assert.match(src, /utm_source=blog&utm_medium=article&utm_campaign=/);
 });
+
+test('article byline has an author link and machine-readable dates', () => {
+  const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'blog', 'render.cjs'), 'utf8');
+  assert.match(src, /rel="author"/);
+  assert.match(src, /<time datetime=/);
+});

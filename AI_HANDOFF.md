@@ -1,3 +1,7 @@
+## 2026-10-12 — Claude: blog SEO brief check (local, NOT pushed)
+
+- Checked live blog against `Desktop/Blog AI-Search and SEO Implementation Brief`: bots get 200, robots.txt allows AI bots, SSR, canonical, JSON-LD, OG, RSS, sitemap lastmod (17 of 25 URLs) all pass. Added `rel="author"` and `<time datetime>` to the article byline (`backend/blog/render.cjs`, +1 test). Still open: Render `INDEXNOW_KEY`, Search Console/Bing verification (Chris), comparison tables not required by the writing rules, real first-hand evidence in posts.
+
 ## 2026-10-12 — Claude: blog call to action + "where did this signup come from" (local, NOT pushed)
 
 - Blog CTA now says "Start my free 7-day trial" with a plain pitch (`backend/blog/render.cjs`). New first-touch tracking: `src/services/signupAttribution.ts` saves utm_source/ref on the first visit (localStorage), `registerAgent` sends it, `/api/agents/register` saves it in `agents.metadata.signup_source` (`services/signupSource.js`) and the owner signup email has a "Came from" row. Tests: backend signupSource (3) + Jest signupAttribution (2); blog tests, tsc, lint pass.
