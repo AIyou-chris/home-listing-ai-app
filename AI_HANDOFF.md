@@ -1,3 +1,8 @@
+## 2026-10-12 — Claude: pushed ce614846; first real blog publish + first real social posts (Chris OK'd both)
+
+- Pushed all local fixes (ce614846). Chris set Render `INDEXNOW_KEY` (key file serves). Published blog article "What Real Estate Agents Actually Want from a Lender" (id 375db936...). Created campaign 67891b2f (approved) and posted it live: Facebook ("AI You" page), Instagram reel, LinkedIn, YouTube Short, all `published` with URLs in `admin_marketing_posts`. Instagram "Post now" returned HTTP 504 (gateway timeout) although the post DID go through; do not re-press after a 504, check the list first.
+- Test lead anaiyou+funnel2@pm.me + its enrollment still in the live DB (waiting for Chris to confirm the email looked right). Campaign 67891b2f kept as the record of the posts.
+
 ## 2026-10-12 — Claude: blog SEO brief check (local, NOT pushed)
 
 - Checked live blog against `Desktop/Blog AI-Search and SEO Implementation Brief`: bots get 200, robots.txt allows AI bots, SSR, canonical, JSON-LD, OG, RSS, sitemap lastmod (17 of 25 URLs) all pass. Added `rel="author"` and `<time datetime>` to the article byline (`backend/blog/render.cjs`, +1 test). Still open: Render `INDEXNOW_KEY`, Search Console/Bing verification (Chris), comparison tables not required by the writing rules, real first-hand evidence in posts.
