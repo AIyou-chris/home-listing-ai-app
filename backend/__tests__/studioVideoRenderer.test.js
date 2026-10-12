@@ -30,3 +30,12 @@ test('very short caption cards keep increasing timestamps after pause adjustment
  const scenes=Array.from({length:30},()=>['A short caption']);const boundaries=renderer.captionTimeline(scenes,12,[.7,1.5,2.1,3.2]);
  assert.equal(boundaries.at(-1),12);assert.ok(boundaries.every((time,i)=>i===0||time>boundaries[i-1]));
 });
+
+test('picture layout keeps a finished picture whole and makes a playable video', { skip: false }, async (t) => {
+  const renderer = require('../services/studioVideoRenderer');
+  if (!(await renderer.available())) return t.skip('ffmpeg not available here');
+  const sharp = require('sharp');
+  const photo = await sharp({ create: { width: 1080, height: 1080, channels: 3, background: { r: 30, g: 40, b: 120 } } }).jpeg().toBuffer();
+  const mp4 = await renderer.render({ brief: { videoFormat: 'vertical', videoDuration: '15', layout: 'picture', endCard: 'none' }, outputs: { title: 'T', videoScript: 'One line. Another line.' } }, photo);
+  assert.ok(mp4.length > 2000);
+});

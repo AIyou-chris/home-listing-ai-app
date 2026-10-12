@@ -126,14 +126,27 @@ async function render(campaign, photo, audio={}) {
   try {
     // Animate only the background. The text layer remains at its original size/position.
     const background=path.join(dir,'background.png');
-    const bg=photo?sharp(photo).resize(width*2,height*2,{fit:'cover'}):sharp(backgroundSvg(width*2,height*2,options.videoStyle));
-    await bg.png().toFile(background);
+    if(photo&&options.layout==='picture') {
+      // A finished picture already carries its own words, so keep all of it in view: soft blurred fill behind, the whole picture in front.
+      const fill=await sharp(photo).resize(width*2,height*2,{fit:'cover'}).blur(30).modulate({brightness:.7}).png().toBuffer();
+      const whole=await sharp(photo).resize(width*2,height*2,{fit:'inside'}).png().toBuffer();
+      await sharp(fill).composite([{input:whole,gravity:'centre'}]).png().toFile(background);
+    } else {
+      const bg=photo?sharp(photo).resize(width*2,height*2,{fit:'cover'}):sharp(backgroundSvg(width*2,height*2,options.videoStyle));
+      await bg.png().toFile(background);
+    }
     const fps=15, timeline=spoken?Math.max(spoken,Math.min(duration-closing,scenes.length*.4)):duration-closing;
     // Free pause detection nudges estimated card boundaries into natural speech pauses.
     const pauses=voice?await voicePauses(voice,speed,dir):[];
     const boundaries=captionTimeline(scenes,timeline,pauses);
     const graphics=[];let lastFrame=0;
-    for(let i=0;i<scenes.length;i++) {
+    if(options.layout==='picture') {
+      // No caption cards: one clear frame so only the picture moves.
+      const clear=path.join(dir,'clear.png');
+      await sharp({create:{width,height,channels:4,background:{r:0,g:0,b:0,alpha:0}}}).png().toFile(clear);
+      graphics.push({file:clear,frames:Math.max(1,Math.round((duration-closing)*fps))});
+    }
+    for(let i=0;options.layout!=='picture'&&i<scenes.length;i++) {
       const endFrame=i===scenes.length-1?Math.round((duration-closing)*fps):Math.round(boundaries[i]*fps);
       const frames=endFrame-lastFrame;lastFrame=endFrame;
       const fade=options.transition==='fade'?Math.min(3,Math.floor(frames/4)):0;

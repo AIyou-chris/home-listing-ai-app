@@ -1,3 +1,8 @@
+## 2026-10-12 — Claude: motion video from a finished picture (local, NOT pushed)
+
+- New video option `layout: 'picture'` ("My finished picture, no captions" in Video words): `studioVideoRenderer.js` keeps the whole picture in view over a blurred fill, slow push-in, no caption cards, optional end card; options added in backend `studioVideoOptions.js`, frontend `studioVideoOptions.ts` and `MarketingVideoControls.tsx`. +1 renderer test. Pushed before this: picture text fix + CTA button (d847dcc9), verified live (new1.jpg).
+- Campaign e5c597f2 (draft) holds three AI picture choices; the layout was re-done on scene 1 (library id 3df0b603). Not yet "used" in the campaign, not approved, not posted.
+
 ## 2026-10-12 — Claude: AI picture text layout fixed (local, NOT pushed)
 
 - Chris: words too tight, orphan word "week", no CTA on the picture. `marketingImages/compositor.cjs`: sharp text got both width+height, which auto-fit every line to a different size (fixed: no box), line pitch 1.12 -> 1.32, no single short word alone on the last line, larger type and a 46% panel for square/portrait. Chris then said he WANTS a call to action: pictures now carry headline + a white "Start your free 7-day trial" button (`cta` param, default on) + logo. Preview checked by eye.

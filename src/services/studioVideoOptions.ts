@@ -9,6 +9,7 @@ export type StudioVideoOptions = {
   motion: 'gentle' | 'still';
   transition: 'fade' | 'cut';
   endCard: 'wow' | 'none';
+  layout: 'cards' | 'picture';
 };
-export const defaultVideoOptions: StudioVideoOptions = { narration: 'none', voice: 'nova', voiceSpeed: '1', music: 'none', musicVolume: 'low', captionSize: 'normal', videoStyle: 'blue', motion: 'gentle', transition: 'fade', endCard: 'wow' };
+export const defaultVideoOptions: StudioVideoOptions = { narration: 'none', voice: 'nova', voiceSpeed: '1', music: 'none', musicVolume: 'low', captionSize: 'normal', videoStyle: 'blue', motion: 'gentle', transition: 'fade', endCard: 'wow', layout: 'cards' };
 export const videoOptions = (campaign: Partial<StudioVideoOptions>): StudioVideoOptions => Object.fromEntries(Object.entries(defaultVideoOptions).map(([key, value]) => [key, campaign[key as keyof StudioVideoOptions] ?? value])) as StudioVideoOptions;

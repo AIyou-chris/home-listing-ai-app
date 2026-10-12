@@ -1,6 +1,6 @@
 'use strict';
-const DEFAULTS={narration:'none',voice:'nova',voiceSpeed:'1',music:'none',musicVolume:'low',captionSize:'normal',videoStyle:'blue',motion:'gentle',transition:'fade',endCard:'wow'};
-const CHOICES={narration:['none','saved'],voice:['nova','alloy','onyx'],voiceSpeed:['0.9','1','1.1'],music:['none','calm','upbeat','upload'],musicVolume:['low','medium'],captionSize:['normal','large'],videoStyle:['blue','dark'],motion:['gentle','still'],transition:['fade','cut'],endCard:['wow','none']};
+const DEFAULTS={narration:'none',voice:'nova',voiceSpeed:'1',music:'none',musicVolume:'low',captionSize:'normal',videoStyle:'blue',motion:'gentle',transition:'fade',endCard:'wow',layout:'cards'};
+const CHOICES={narration:['none','saved'],voice:['nova','alloy','onyx'],voiceSpeed:['0.9','1','1.1'],music:['none','calm','upbeat','upload'],musicVolume:['low','medium'],captionSize:['normal','large'],videoStyle:['blue','dark'],motion:['gentle','still'],transition:['fade','cut'],endCard:['wow','none'],layout:['cards','picture']};
 function videoOptions(raw={}) {
   const out={};
   for(const key of Object.keys(DEFAULTS)) {
