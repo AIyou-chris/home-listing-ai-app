@@ -1,3 +1,9 @@
+## 2026-10-12 — Claude: post picture redesign + admin name (local, NOT pushed)
+
+- Chris saw the live posts: the free branded picture was an empty blue box with tiny text (it reused the video card). New `pictureSvg` in `studioVideoRenderer.js`: big headline, brand, "Free 7-day trial" pill, link. Already-posted pictures stay as they are (Chris can delete the 4 posts by hand; Facebook/Instagram/LinkedIn/YouTube).
+- Funnel email signature said "System Admin": admin agents row (288b64c6...) set to Chris Potter (live, one row) and the auto-create default changed.
+- Funnel emails verified by Chris in Proton (paragraphs, signature OK). Test lead funnel2 + enrollments deleted.
+
 ## 2026-10-12 — Claude: pushed ce614846; first real blog publish + first real social posts (Chris OK'd both)
 
 - Pushed all local fixes (ce614846). Chris set Render `INDEXNOW_KEY` (key file serves). Published blog article "What Real Estate Agents Actually Want from a Lender" (id 375db936...). Created campaign 67891b2f (approved) and posted it live: Facebook ("AI You" page), Instagram reel, LinkedIn, YouTube Short, all `published` with URLs in `admin_marketing_posts`. Instagram "Post now" returned HTTP 504 (gateway timeout) although the post DID go through; do not re-press after a 504, check the list first.

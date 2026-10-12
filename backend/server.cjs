@@ -16002,8 +16002,8 @@ const resolveOrCreateAdminAgentForFunnels = async (userEmail) => {
     .from('agents')
     .insert({
       email: userEmail,
-      first_name: 'System',
-      last_name: 'Admin',
+      first_name: 'Chris',
+      last_name: 'Potter',
       auth_user_id: authUserId,
       slug: 'admin-' + crypto.randomUUID().split('-')[0],
       status: 'active',
