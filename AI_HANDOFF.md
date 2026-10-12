@@ -1,3 +1,9 @@
+## 2026-10-12 — Claude: second real social post (new picture + motion video), all four published
+
+- Campaign e5c597f2: picture (scene 1 with headline + "Start your free 7-day trial" button) and 15s motion video (layout `picture`, calm music), approved by Chris ("post it"), posted: Facebook, LinkedIn, YouTube Short, Instagram Reel, all `published` (URLs in `admin_marketing_posts`). Instagram "Post now" again returned HTTP 504 after about 30s but published: the request outlives the proxy timeout. Open item: make Instagram post-now return right away and let the screen poll, so a 504 stops looking like a failure.
+- Chris was asked to delete the first four posts (campaign 67891b2f) by hand.
+- 77599c14 (picture-only video option) and everything before it is pushed.
+
 ## 2026-10-12 — Claude: motion video from a finished picture (local, NOT pushed)
 
 - New video option `layout: 'picture'` ("My finished picture, no captions" in Video words): `studioVideoRenderer.js` keeps the whole picture in view over a blurred fill, slow push-in, no caption cards, optional end card; options added in backend `studioVideoOptions.js`, frontend `studioVideoOptions.ts` and `MarketingVideoControls.tsx`. +1 renderer test. Pushed before this: picture text fix + CTA button (d847dcc9), verified live (new1.jpg).
