@@ -3,6 +3,7 @@
 const { withDefaults, buildBrainPrompt } = require('./businessBrain');
 const { MARKETING_VOICE_RULES } = require('./brandVoice');
 const { PLATFORM_GUARDRAILS, PLATFORM_BANNED_PHRASES } = require('./loBrainService');
+const { scrubVoice } = require('./brandVoice');
 const { videoOptions } = require('./studioVideoOptions');
 const TABLE = 'admin_marketing_campaigns';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -110,7 +111,7 @@ function createStudioService({ db, openai, loadBrain, media, now = () => new Dat
         }, { timeout: 60000, maxRetries: 0 });
         const choice = completion.choices?.[0];
         if (choice?.finish_reason !== 'stop' || choice.message?.refusal) throw new Error('AI could not complete this draft.');
-        outputs = validateOutputs(JSON.parse(choice.message.content));
+        outputs = validateOutputs(Object.fromEntries(Object.entries(JSON.parse(choice.message.content)).map(([k, v]) => [k, scrubVoice(v)])));
       } catch (_cause) {
         await update(owner, claimed, { status: 'failed', generation_error: 'AI creation did not finish. Your brief is saved; you can try again.' });
         throw new StudioError(502, 'AI creation did not finish. Your brief is saved; you can try again.');

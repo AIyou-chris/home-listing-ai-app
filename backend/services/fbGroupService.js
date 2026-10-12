@@ -70,18 +70,26 @@ No emojis. No stock phrases like "everyone wins" or "give it a spin". Sound like
 function createFbGroupWriter({ openaiApiKey, model = process.env.OPENAI_CHAT_MODEL || 'gpt-4o', fetchImpl = fetch } = {}) {
   async function write({ group, topic, link }) {
     if (!openaiApiKey) throw new Error('writer_not_configured');
-    const res = await fetchImpl('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${openaiApiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model, temperature: 0.7,
-        messages: [{ role: 'user', content: buildPostPrompt({ group, topic, link }) }],
-        response_format: { type: 'json_schema', json_schema: { name: 'fb_group_posts', strict: true, schema: SCHEMA } }
-      })
-    });
-    if (!res.ok) throw new Error(`writer_failed_${res.status}`);
-    const json = await res.json();
-    const out = JSON.parse(json.choices?.[0]?.message?.content || '{}');
+    const KEYS = ['valueFirst', 'noLink', 'promotional'];
+    // A version that is empty or looks like code (the model sometimes echoes the schema) is not a post.
+    const unusable = (t) => !String(t || '').trim() || /^\s*[{[]/.test(t) || /"type"\s*:\s*"string"/.test(t);
+    let out = {};
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const res = await fetchImpl('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${openaiApiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model, temperature: 0.7,
+          messages: [{ role: 'user', content: buildPostPrompt({ group, topic, link }) }],
+          response_format: { type: 'json_schema', json_schema: { name: 'fb_group_posts', strict: true, schema: SCHEMA } }
+        })
+      });
+      if (!res.ok) throw new Error(`writer_failed_${res.status}`);
+      const json = await res.json();
+      out = JSON.parse(json.choices?.[0]?.message?.content || '{}');
+      if (!KEYS.some((k) => unusable(out[k]))) break;
+      if (attempt === 1) throw new Error('writer_bad_output');
+    }
     const linkAllowed = group.links_allowed === true;
     const variants = {};
     for (const key of ['valueFirst', 'noLink', 'promotional']) {

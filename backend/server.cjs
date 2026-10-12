@@ -16131,7 +16131,9 @@ app.post('/api/admin/marketing/funnels/:funnelKey', verifyAdmin, async (req, res
       }));
 
       // funnel_steps has no step_key / delay_minutes column in production; the full steps live in funnels.steps.
-      const { error: stepsInsertError } = await insertRowTolerant('funnel_steps', normalizedRows);
+      // Leave those two out so every save does not trip a schema alert before the fallback runs.
+      const rowsForTable = normalizedRows.map(({ step_key: _stepKey, delay_minutes: _delayMinutes, ...row }) => row);
+      const { error: stepsInsertError } = await insertRowTolerant('funnel_steps', rowsForTable);
 
       if (stepsInsertError) {
         throw stepsInsertError;
@@ -18542,11 +18544,15 @@ app.post('/api/admin/leads/import', verifyAdmin, async (req, res) => {
           try {
             // 1. Get Funnel ID (once per batch ideally, but safe here)
             // 1. Try to find Agent-Specific Funnel
+            // The admin's saved funnel belongs to their agents row, which is a different id from the login id.
+            const { data: adminAgentRow } = req.user?.email
+              ? await supabaseAdmin.from('agents').select('id').eq('email', req.user.email).maybeSingle()
+              : { data: null };
             let { data: funnelData } = await supabaseAdmin
               .from('funnels')
-              .select('id, steps')
+              .select('id, steps, agent_id')
               .eq('funnel_key', intendedFunnel)
-              .eq('agent_id', user.id)
+              .eq('agent_id', adminAgentRow?.id || user.id)
               .maybeSingle();
 
             // 2. Fallback to System Funnel
@@ -18554,7 +18560,7 @@ app.post('/api/admin/leads/import', verifyAdmin, async (req, res) => {
               const DEFAULT_AGENT = process.env.DEFAULT_LEAD_USER_ID || '3d16b4d9-a7cd-4820-af02-e58fa8bab4de';
               const { data: systemFunnel } = await supabaseAdmin
                 .from('funnels')
-                .select('id, steps')
+                .select('id, steps, agent_id')
                 .eq('funnel_key', intendedFunnel)
                 // We use .or to find either the default agent OR just in case some legacy data has no agent_id (though constraint prevents)
                 .eq('agent_id', DEFAULT_AGENT)
@@ -18566,7 +18572,7 @@ app.post('/api/admin/leads/import', verifyAdmin, async (req, res) => {
                 // Final Hail Mary: Just get ANY funnel with this key (if system ID is wrong/changed)
                 const { data: panicFunnel } = await supabaseAdmin
                   .from('funnels')
-                  .select('id, steps')
+                  .select('id, steps, agent_id')
                   .eq('funnel_key', intendedFunnel)
                   .limit(1)
                   .maybeSingle();
@@ -18579,7 +18585,7 @@ app.post('/api/admin/leads/import', verifyAdmin, async (req, res) => {
               const delay = firstStep ? (firstStep.delay_minutes || 0) : 0;
               // Prepare enrollments
               const enrollments = insertedLeads.map(lead => ({
-                agent_id: user.id,
+                agent_id: funnelData.agent_id || adminAgentRow?.id || user.id,
                 lead_id: lead.id,
                 funnel_id: funnelData.id,
                 current_step_index: 0,

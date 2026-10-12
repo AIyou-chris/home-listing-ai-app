@@ -37,4 +37,24 @@ const findVoiceViolations = (text) => {
   return hits;
 };
 
-module.exports = { BANNED_WORDS, VOICE_RULES, MARKETING_VOICE_RULES, findVoiceViolations };
+// The model still slips banned words in. This swaps them for plain ones, keeps one "!" at most
+// and fills leftover placeholders, so a draft never reaches the admin with them in.
+const PLAIN_WORDS = [
+  [/game[- ]chang(?:er|ing)/gi, 'big help'], [/\bpowerful\b/gi, 'strong'], [/\belevate\b/gi, 'improve'],
+  [/\bunlock the power of\b/gi, 'use'], [/\bunlock\b/gi, 'open up'], [/\btransform(s|ed|ing)?\b/gi, (m, e) => `change${e === 's' ? 's' : e === 'ed' ? 'd' : e === 'ing' ? 'ing' : ''}`.replace('changeing', 'changing')],
+  [/\bleverage\b/gi, 'use'], [/\bseamless(ly)?\b/gi, 'smooth'], [/\beffortless(ly)?\b/gi, 'easy'],
+  [/\bempower(s|ed|ing)?\b/gi, 'help'], [/\brevolutioniz(e|es|ed|ing)\b/gi, 'change'], [/\brevolutionary\b/gi, 'new'],
+  [/\bcutting-edge\b/gi, 'modern'], [/\bsupercharge\b/gi, 'boost'], [/\bdive in\b/gi, 'take a look'],
+  [/\bsolutions?\b/gi, 'tool'], [/\butilize\b/gi, 'use'], [/\bfacilitate\b/gi, 'help']
+];
+const scrubVoice = (value) => {
+  if (typeof value !== 'string') return value;
+  let text = value.replace(/^\s*attention\b[^!.\n]*[!.]\s*/i, '');
+  for (const [pattern, plain] of PLAIN_WORDS) text = text.replace(pattern, plain);
+  text = text.replace(/\[(?:your )?name\]/gi, (m) => (/your/i.test(m) ? 'Chris' : 'there'));
+  let seen = false;
+  text = text.replace(/!/g, () => { if (!seen) { seen = true; return '!'; } return '.'; });
+  return text;
+};
+
+module.exports = { scrubVoice, BANNED_WORDS, VOICE_RULES, MARKETING_VOICE_RULES, findVoiceViolations };

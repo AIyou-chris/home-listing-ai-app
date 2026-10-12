@@ -30,6 +30,10 @@ module.exports = ({ supabaseAdmin, emailService, smsService, voiceService }) => 
         result = result.replace(/{{\s*agent\.first_name\s*}}/gi, agentFirstName);
         result = result.replace(/{{\s*agent\.name\s*}}/gi, agentFullName);
 
+        // Signature: the agent's name, or the company sign-off when the account has no name yet.
+        const rawSignature = agentFullName ? `Best,\n${agentFullName}` : 'Best,\nHomeListingAI Team';
+        result = result.replace(/{{\s*agent\.signature\s*}}/gi, rawSignature);
+
         return result;
     };
 
@@ -99,7 +103,11 @@ module.exports = ({ supabaseAdmin, emailService, smsService, voiceService }) => 
                 const content = mergeTokens(step.content || step.body, lead, agent, true);
 
                 // --- PREVIEW TEXT INJECTION ---
-                let finalHtml = content; // Removed global .replace(/\n/g, '<br>')
+                // Plain-text bodies keep their line breaks; bodies written with HTML are left as they are.
+                const looksLikeHtml = /<(br|p|div|a|span|table|ul|ol|li|strong|em|b|i|h[1-6])[\s>/]/i.test(content);
+                let finalHtml = looksLikeHtml
+                    ? content
+                    : content.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\r?\n/g, '<br/>');
                 if (step.previewText) {
                     const previewHtml = `<div style="display:none;font-size:1px;color:#333333;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;">
                         ${mergeTokens(step.previewText, lead, agent, true)}
@@ -321,6 +329,7 @@ module.exports = ({ supabaseAdmin, emailService, smsService, voiceService }) => 
 
     return {
         processBatch,
-        enrollLead
+        enrollLead,
+        executeStep
     };
 };
