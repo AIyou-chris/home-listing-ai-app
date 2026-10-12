@@ -1,3 +1,7 @@
+## 2026-10-12 — Claude: AI picture text layout fixed (local, NOT pushed)
+
+- Chris: words too tight, orphan word "week", no CTA on the picture. `marketingImages/compositor.cjs`: sharp text got both width+height, which auto-fit every line to a different size (fixed: no box), line pitch 1.12 -> 1.32, no single short word alone on the last line, larger type and a 46% panel for square/portrait. Pictures carry only the headline + logo (pass `subline` empty; the trial button lives only on the free card). Preview checked by eye.
+
 ## 2026-10-12 — Claude: post picture redesign + admin name (local, NOT pushed)
 
 - Chris saw the live posts: the free branded picture was an empty blue box with tiny text (it reused the video card). New `pictureSvg` in `studioVideoRenderer.js`: big headline, brand, "Free 7-day trial" pill, link. Already-posted pictures stay as they are (Chris can delete the 4 posts by hand; Facebook/Instagram/LinkedIn/YouTube).

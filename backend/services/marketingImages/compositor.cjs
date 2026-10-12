@@ -54,19 +54,21 @@ async function compose(buffer,{format='blog',brand='homelistingai',text_zone='le
   const b=brandFor(brand);const w=f.width,h=f.height;let layers=[];
   // An opaque brand panel guarantees white-text AA contrast; a feathered edge
   // joins it to the photograph. No claim about unmeasured photographic contrast.
-  const side=text_zone==='right'?'right':'left';const panel=Math.round(w*.40);let font=Math.round(Math.min(w*.048,h*.14));
-  function wrap(text,maxChars){const lines=[];let line='';for(const word of text.trim().split(/\s+/).filter(Boolean)){if((line+' '+word).trim().length>maxChars&&line){lines.push(line);line=word;}else line=(line+' '+word).trim();}if(line)lines.push(line);return lines;}
+  const side=text_zone==='right'?'right':'left';const tall=w/h<=1.2;const panel=Math.round(w*(tall?.46:.40));let font=Math.round(Math.min(w*(tall?.064:.048),h*.14));
+  function wrap(text,maxChars){const lines=[];let line='';for(const word of text.trim().split(/\s+/).filter(Boolean)){if((line+' '+word).trim().length>maxChars&&line){lines.push(line);line=word;}else line=(line+' '+word).trim();}if(line)lines.push(line);// Never leave one short word alone on the last line: pull the word above it down.
+    if(lines.length>1){const last=lines[lines.length-1];const prev=lines[lines.length-2].split(' ');if(!last.includes(' ')&&last.length<=6&&prev.length>1){lines[lines.length-1]=prev.pop()+' '+last;lines[lines.length-2]=prev.join(' ');}}
+    return lines;}
   let lines,smallLines;
-  for(;font>=18;font--){const maxChars=Math.floor((panel-w*.07)/(font*.62));lines=wrap(headline,maxChars);smallLines=wrap(subline,Math.floor(maxChars/.46));if(lines.every(s=>s.length<=maxChars)&&lines.length<=4&&h*.27+lines.length*font*1.12+font*.7+smallLines.length*font*.65<h*.70)break;}
+  for(;font>=18;font--){const maxChars=Math.floor((panel-w*.07)/(font*.62));lines=wrap(headline,maxChars);smallLines=wrap(subline,Math.floor(maxChars/.46));if(lines.every(s=>s.length<=maxChars)&&lines.length<=4&&h*.27+lines.length*font*1.32+font*.7+smallLines.length*font*.65<h*.70)break;}
   if(font<18)throw new Error('Use shorter words so the headline stays easy to read.');
   if(subline.length>90)throw new Error('Keep the small line under 90 characters.');
   const x=side==='right'?w-panel:0;const tx=x+w*.035;
   const fontfile=path.resolve(__dirname,'../../assets/fonts/Inter.ttf');
-  async function lettering(text,size,top,bold=false,left=tx){const rendered=await sharp({text:{text:`<span foreground="white">${xml(text)}</span>`,font:`Inter ${bold?'Bold ':''}${size}`,fontfile,width:Math.round(panel-w*.07),height:Math.ceil(size*1.22),rgba:true,wrap:'none'}}).png().toBuffer();layers.push({input:rendered,left:Math.round(left),top:Math.round(top)});}
+  async function lettering(text,size,top,bold=false,left=tx){const rendered=await sharp({text:{text:`<span foreground="white">${xml(text)}</span>`,font:`Inter ${bold?'Bold ':''}${size}`,fontfile,rgba:true,wrap:'none'}}).png().toBuffer();layers.push({input:rendered,left:Math.round(left),top:Math.round(top)});}
   if(headline||subline){const fade=w*.10;const gx=side==='left'?panel:w-panel-fade;
     layers.push({input:Buffer.from(`<svg width="${w}" height="${h}"><defs><linearGradient id="shade" x1="${side==='left'?'0':'1'}" x2="${side==='left'?'1':'0'}"><stop offset="0" stop-color="${b.blue}"/><stop offset="1" stop-color="${b.blue}" stop-opacity="0"/></linearGradient></defs><rect x="${x}" width="${panel}" height="${h}" fill="${b.blue}"/><rect x="${gx}" width="${fade}" height="${h}" fill="url(#shade)"/></svg>`),left:0,top:0});
-    for(let i=0;i<lines.length;i++)await lettering(lines[i],font,h*.27-font*.8+i*font*1.12,true);
-    for(let i=0;i<smallLines.length;i++)await lettering(smallLines[i],Math.round(font*.46),h*.27+lines.length*font*1.12+font*.7+i*font*.65);
+    for(let i=0;i<lines.length;i++)await lettering(lines[i],font,h*.27-font*.8+i*font*1.32,true);
+    for(let i=0;i<smallLines.length;i++)await lettering(smallLines[i],Math.round(font*.46),h*.27+lines.length*font*1.32+font*.7+i*font*.65);
   }
   if(brand==='homelistingai') {const width=Math.round(Math.min(panel*.28,h*.13));const logo=await sharp(logoPath).resize({width,height:Math.round(h*.13),fit:'inside'}).png().toBuffer({resolveWithObject:true});layers.push({input:logo.data,left:Math.round(tx),top:Math.round(h*.78)});if(headline||subline)await lettering('HomeListingAI',Math.round(Math.min(w*.018,h*.04)),h*.82,true,tx+logo.info.width+w*.018);}
   if(requiresLending){const badge=await sharp(lendingAsset).resize({width:Math.round(w*.09),height:Math.round(h*.10),fit:'inside'}).png().toBuffer();layers.push({input:badge,left:Math.round(w*.87),top:Math.round(h*.82)});layers.push({input:Buffer.from(`<svg width="${w}" height="${h}"><rect x="${w*.65}" y="${h*.93}" width="${w*.35}" height="${h*.07}" fill="${b.blue}"/><text x="${w*.67}" y="${h*.977}" fill="white" font-size="${h*.025}">NMLS ${xml(nmls)}</text></svg>`),left:0,top:0});}
