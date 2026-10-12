@@ -1,6 +1,6 @@
 ## 2026-10-12 — Claude: AI picture text layout fixed (local, NOT pushed)
 
-- Chris: words too tight, orphan word "week", no CTA on the picture. `marketingImages/compositor.cjs`: sharp text got both width+height, which auto-fit every line to a different size (fixed: no box), line pitch 1.12 -> 1.32, no single short word alone on the last line, larger type and a 46% panel for square/portrait. Pictures carry only the headline + logo (pass `subline` empty; the trial button lives only on the free card). Preview checked by eye.
+- Chris: words too tight, orphan word "week", no CTA on the picture. `marketingImages/compositor.cjs`: sharp text got both width+height, which auto-fit every line to a different size (fixed: no box), line pitch 1.12 -> 1.32, no single short word alone on the last line, larger type and a 46% panel for square/portrait. Chris then said he WANTS a call to action: pictures now carry headline + a white "Start your free 7-day trial" button (`cta` param, default on) + logo. Preview checked by eye.
 
 ## 2026-10-12 — Claude: post picture redesign + admin name (local, NOT pushed)
 

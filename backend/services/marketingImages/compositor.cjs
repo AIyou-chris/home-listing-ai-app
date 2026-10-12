@@ -46,7 +46,7 @@ async function inspectBackground(buffer,zone,{readWords=ocr,uploaded=false}={}) 
   if(count&&edges/count>.20)problems.push('The headline space is too busy. Try “less busy” or move the subject.');
   return {problems,emptySpace:!problems.some(p=>p.includes('busy')),ocrPassed:uploaded||!problems.some(p=>p.includes('word')||p.includes('Words'))};
 }
-async function compose(buffer,{format='blog',brand='homelistingai',text_zone='left',headline='',subline='',alt_text='',requiresLending=false,nmls='',lendingAsset,logoPath=path.resolve(__dirname,'../../../public/newlogo.png'),encoding}={}) {
+async function compose(buffer,{format='blog',brand='homelistingai',text_zone='left',headline='',subline='',cta='Start your free 7-day trial',alt_text='',requiresLending=false,nmls='',lendingAsset,logoPath=path.resolve(__dirname,'../../../public/newlogo.png'),encoding}={}) {
   const f=Object.hasOwn(FORMATS,format)?FORMATS[format]:null;if(!f)throw new Error('Choose a supported size.');
   validateCopy(headline,subline);
   if(!alt_text.trim())throw new Error('Add a short picture description first.');
@@ -59,7 +59,7 @@ async function compose(buffer,{format='blog',brand='homelistingai',text_zone='le
     if(lines.length>1){const last=lines[lines.length-1];const prev=lines[lines.length-2].split(' ');if(!last.includes(' ')&&last.length<=6&&prev.length>1){lines[lines.length-1]=prev.pop()+' '+last;lines[lines.length-2]=prev.join(' ');}}
     return lines;}
   let lines,smallLines;
-  for(;font>=18;font--){const maxChars=Math.floor((panel-w*.07)/(font*.62));lines=wrap(headline,maxChars);smallLines=wrap(subline,Math.floor(maxChars/.46));if(lines.every(s=>s.length<=maxChars)&&lines.length<=4&&h*.27+lines.length*font*1.32+font*.7+smallLines.length*font*.65<h*.70)break;}
+  for(;font>=18;font--){const maxChars=Math.floor((panel-w*.07)/(font*.62));lines=wrap(headline,maxChars);smallLines=wrap(subline,Math.floor(maxChars/.46));if(lines.every(s=>s.length<=maxChars)&&lines.length<=4&&h*.27+lines.length*font*1.32+font*.7+smallLines.length*font*.65+(cta?font*1.3:0)<h*.70)break;}
   if(font<18)throw new Error('Use shorter words so the headline stays easy to read.');
   if(subline.length>90)throw new Error('Keep the small line under 90 characters.');
   const x=side==='right'?w-panel:0;const tx=x+w*.035;
@@ -69,6 +69,13 @@ async function compose(buffer,{format='blog',brand='homelistingai',text_zone='le
     layers.push({input:Buffer.from(`<svg width="${w}" height="${h}"><defs><linearGradient id="shade" x1="${side==='left'?'0':'1'}" x2="${side==='left'?'1':'0'}"><stop offset="0" stop-color="${b.blue}"/><stop offset="1" stop-color="${b.blue}" stop-opacity="0"/></linearGradient></defs><rect x="${x}" width="${panel}" height="${h}" fill="${b.blue}"/><rect x="${gx}" width="${fade}" height="${h}" fill="url(#shade)"/></svg>`),left:0,top:0});
     for(let i=0;i<lines.length;i++)await lettering(lines[i],font,h*.27-font*.8+i*font*1.32,true);
     for(let i=0;i<smallLines.length;i++)await lettering(smallLines[i],Math.round(font*.46),h*.27+lines.length*font*1.32+font*.7+i*font*.65);
+    if(cta&&headline){// The call to action: a white button under the words, with dark lettering.
+      const ctaSize=Math.round(font*.48);const textBuf=await sharp({text:{text:`<span foreground="#172554">${xml(cta)}</span>`,font:`Inter Bold ${ctaSize}`,fontfile,rgba:true,wrap:'none'}}).png().toBuffer();
+      const tm=await sharp(textBuf).metadata();const padX=Math.round(ctaSize*.9),padY=Math.round(ctaSize*.55);
+      const bw=tm.width+padX*2,bh=tm.height+padY*2;const by=Math.round(h*.27+lines.length*font*1.32+smallLines.length*font*.65+font*.9);
+      layers.push({input:Buffer.from(`<svg width="${bw}" height="${bh}"><rect width="${bw}" height="${bh}" rx="${Math.round(bh/2)}" fill="#ffffff"/></svg>`),left:Math.round(tx),top:by});
+      layers.push({input:textBuf,left:Math.round(tx+padX),top:by+padY});
+    }
   }
   if(brand==='homelistingai') {const width=Math.round(Math.min(panel*.28,h*.13));const logo=await sharp(logoPath).resize({width,height:Math.round(h*.13),fit:'inside'}).png().toBuffer({resolveWithObject:true});layers.push({input:logo.data,left:Math.round(tx),top:Math.round(h*.78)});if(headline||subline)await lettering('HomeListingAI',Math.round(Math.min(w*.018,h*.04)),h*.82,true,tx+logo.info.width+w*.018);}
   if(requiresLending){const badge=await sharp(lendingAsset).resize({width:Math.round(w*.09),height:Math.round(h*.10),fit:'inside'}).png().toBuffer();layers.push({input:badge,left:Math.round(w*.87),top:Math.round(h*.82)});layers.push({input:Buffer.from(`<svg width="${w}" height="${h}"><rect x="${w*.65}" y="${h*.93}" width="${w*.35}" height="${h*.07}" fill="${b.blue}"/><text x="${w*.67}" y="${h*.977}" fill="white" font-size="${h*.025}">NMLS ${xml(nmls)}</text></svg>`),left:0,top:0});}
