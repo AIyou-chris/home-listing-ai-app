@@ -14,6 +14,7 @@ export type ImagePerformance = { recipe_id: string; mood: string; text_zone: str
 export const adminMarketingMediaService = {
   async imageCatalog(): Promise<ImageCatalog> { return request('image-catalog'); },
   async imageLibrary(): Promise<MarketingImage[]> { return (await request('image-library')).images; },
+  async removeImage(id: string): Promise<void> { await request(`image-library/${encodeURIComponent(id)}`, 'DELETE'); },
   async imageResults(): Promise<ImagePerformance[]> { return (await request('image-results')).scenes; },
   async loadImageSamples(): Promise<{ added: number }> { return request('image-samples','POST',{}); },
   async reviewImage(id: string, review: Record<string, boolean>): Promise<void> { await request(`image-library/${encodeURIComponent(id)}/review`,'POST',{review}); },
@@ -22,6 +23,7 @@ export const adminMarketingMediaService = {
   async imageLayout(campaign: StudioCampaign, imageId: string, options: { format: string; headline: string; subline: string }): Promise<void> { await request(`campaigns/${encodeURIComponent(campaign.id)}/image-layout`, 'POST', { version: campaign.version, imageId, ...options }); },
   async capabilities(): Promise<{ video: boolean; picture: boolean; aiPicture: boolean; aiVoice?: boolean }> { return request('media-capabilities'); },
   async list(id: string): Promise<StudioMedia[]> { return (await request(`campaigns/${encodeURIComponent(id)}/media`)).media; },
+  async remove(campaign: StudioCampaign, kind: StudioMedia['kind']): Promise<StudioMedia[]> { return (await request(`campaigns/${encodeURIComponent(campaign.id)}/media/${kind}`, 'DELETE', { version: campaign.version })).media; },
   async picture(campaign: StudioCampaign, options: { data?: string; ai?: boolean } = {}): Promise<StudioMedia[]> { return (await request(`campaigns/${encodeURIComponent(campaign.id)}/picture`, 'POST', { version: campaign.version, ...options })).media; },
   async audio(campaign: StudioCampaign, options: { kind: 'voice' | 'music'; data?: string; ai?: boolean }): Promise<StudioMedia[]> { return (await request(`campaigns/${encodeURIComponent(campaign.id)}/audio`, 'POST', { version: campaign.version, ...options })).media; },
   async video(campaign: StudioCampaign): Promise<StudioMedia[]> { return (await request(`campaigns/${encodeURIComponent(campaign.id)}/video`, 'POST', { version: campaign.version })).media; }

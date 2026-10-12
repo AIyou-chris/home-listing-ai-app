@@ -39,6 +39,16 @@ export default function MarketingCampaignMedia({ campaign, dirty, onChange }: { 
     catch (cause) { setError(cause instanceof Error ? cause.message : 'Creation failed. Please try again.'); }
     finally { setBusy(false); }
   }
+  async function removeMedia(kind: StudioMedia['kind']) {
+    if (!window.confirm(`Delete this saved ${kind}? Published content stays published.`)) return;
+    setBusy(true); setError('');
+    try {
+      setMedia(await adminMarketingMediaService.remove(campaign, kind));
+      const latest = (await adminMarketingStudioService.list()).find(row => row.id === campaign.id);
+      if (latest && latest.version !== campaign.version) onChange(latest);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not delete this media.'); }
+    finally { setBusy(false); }
+  }
   async function makeAudio(kind: 'voice' | 'music', data?: string) {
     setBusy(true); setError('');
     try {
@@ -74,6 +84,7 @@ export default function MarketingCampaignMedia({ campaign, dirty, onChange }: { 
   return <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:p-5" aria-label="Pictures and video">
     <div className="flex flex-wrap items-center justify-between gap-2"><h4 className="text-lg font-bold text-slate-900">Pictures & finished video</h4><button type="button" className={button} disabled={busy} onClick={() => setReload(value => value + 1)} aria-label="Refresh media"><RefreshCw size={15} />Refresh</button></div>
     <p className="mt-2 text-sm text-slate-600">Tweak the script and picture direction below, save your edits, then create a preview. Your media stays private until you decide to share it.</p>
+    <div className="mt-3 flex flex-wrap gap-2">{media.map(item => <button key={item.kind} type="button" disabled={dirty || busy || processing || item.status === 'processing'} className={button} onClick={() => void removeMedia(item.kind)}>Delete saved {item.kind}</button>)}</div>
     {dirty && <p className="mt-3 text-sm font-semibold text-primary-700">Save your edits before making new media.</p>}
     {error && <p role="alert" className="mt-3 text-sm text-red-700">{error}</p>}
     <div className="mt-5 grid gap-5 xl:grid-cols-2">

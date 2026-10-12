@@ -56,6 +56,11 @@ const createFakeDb = (seed = {}) => {
         hit.forEach((r) => Object.assign(r, patch));
         return { data: hit, error: null };
       }
+      if (op === 'delete') {
+        const hit = rows.filter(matches);
+        hit.forEach((row) => rows.splice(rows.indexOf(row), 1));
+        return { data: hit, error: null };
+      }
       let hit = rows.filter(matches);
       if (orderBy) hit = hit.sort((a, b) => (String(a[orderBy.col]) < String(b[orderBy.col]) ? -1 : 1) * (orderBy.asc ? 1 : -1));
       const total = hit.length;
@@ -68,6 +73,7 @@ const createFakeDb = (seed = {}) => {
       insert(p) { op = 'insert'; patch = p; return api; },
       upsert(p, o = {}) { op = 'upsert'; patch = p; conflict = o.onConflict || null; ignoreDup = Boolean(o.ignoreDuplicates); return api; },
       update(p) { op = 'update'; patch = p; return api; },
+      delete() { op = 'delete'; return api; },
       eq(c, v) { filters.push((r) => r[c] === v); return api; },
       in(c, vs) { filters.push((r) => vs.includes(r[c])); return api; },
       lt(c, v) { filters.push((r) => r[c] < v); return api; },

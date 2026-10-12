@@ -11,3 +11,20 @@ let sent:Record<string,unknown>;
 beforeEach(()=>{jest.clearAllMocks();global.fetch=jest.fn(async(_url,options)=>{if(options?.method==='POST'){sent=JSON.parse(String(options.body));return {ok:false,json:async()=>({error:'Fix these items before publishing.',errors:['Article needs more words.']})} as Response;}return {ok:true,json:async()=>String(_url).endsWith('/posts')?{posts:[post]}:{post}} as Response;});});
 test('failed publication shows server checks and preserves the draft and its version',async()=>{render(<BlogEditor/>);fireEvent.click(await screen.findByRole('button',{name:'Edit',exact:true}));await screen.findByLabelText('Article content');fireEvent.click(screen.getByRole('button',{name:'Publish',exact:true}));await screen.findByText('Article needs more words.');expect(sent.status).toBe('published');expect(sent.updated_at).toBe(post.updated_at);expect(screen.getByLabelText('Article content')).toHaveValue(post.content);expect(toast.success).not.toHaveBeenCalled();});
 test('scheduling sends a UTC time and the saved version',async()=>{render(<BlogEditor/>);fireEvent.click(await screen.findByRole('button',{name:'Edit',exact:true}));await screen.findByLabelText('Article content');fireEvent.change(screen.getByLabelText('Scheduled publication'),{target:{value:'2026-12-01T09:00'}});fireEvent.click(screen.getByRole('button',{name:'Review & schedule publication'}));await waitFor(()=>expect(sent.status).toBe('scheduled'));expect(sent.scheduled_at).toBe('2026-12-01T17:00:00.000Z');expect(sent.updated_at).toBe(post.updated_at);});
+
+test('publication filter separates published articles from drafts and links to the live article',async()=>{
+ (global.fetch as jest.Mock).mockResolvedValue({ok:true,json:async()=>({posts:[post,{...post,id:'published-id',title:'Live article',slug:'live-article',status:'published'}]})});
+ render(<BlogEditor/>);await screen.findByText('Live article');fireEvent.change(screen.getByLabelText('Publication status'),{target:{value:'published'}});
+ expect(screen.queryByText('My article')).not.toBeInTheDocument();expect(screen.getByRole('link',{name:'View published post'})).toHaveAttribute('href','/blog/live-article');
+ fireEvent.change(screen.getByLabelText('Publication status'),{target:{value:'draft'}});expect(screen.getByText('My article')).toBeInTheDocument();expect(screen.queryByText('Live article')).not.toBeInTheDocument();
+});
+test('blog deletion requires confirmation',async()=>{
+ const confirm=jest.spyOn(window,'confirm').mockReturnValue(false);render(<BlogEditor/>);await screen.findByText('My article');
+ fireEvent.click(screen.getByRole('button',{name:'Delete My article'}));expect(global.fetch).not.toHaveBeenCalledWith(expect.anything(),expect.objectContaining({method:'DELETE'}));confirm.mockRestore();
+});
+
+test('blog list errors show a retry instead of pretending saved posts are absent',async()=>{
+ (global.fetch as jest.Mock).mockRejectedValueOnce(new Error('offline'));
+ render(<BlogEditor/>);await screen.findByText('Could not load your blog posts. Try again.');expect(screen.queryByText('No posts match these filters.')).not.toBeInTheDocument();
+ fireEvent.click(screen.getByRole('button',{name:'Retry blog posts'}));await screen.findByText('My article');
+});

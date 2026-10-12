@@ -30,6 +30,17 @@ function createImageWorkflow({db,openai,jev,campaign,clearApproval,claim,finish,
   const jobs=new Map();
   return {
     library,
+    async remove(owner,id) {
+      const selected=await image(owner,id);
+      const references=result(await db.from('blog_posts').select('id').eq('featured_image',require('./blog.cjs').PREFIX+id).limit(1));
+      if(references.length)throw new StudioError(409,'This picture is used by a blog post. Change that article’s featured picture before deleting it.');
+      const deleted=result(await table().delete().eq('owner_id',owner).eq('id',id).eq('updated_at',selected.updated_at).select('id'));
+      if(!deleted.length)throw new StudioError(409,'This picture changed. Reload before deleting it.');
+      const shared=selected.background_path?result(await table().select('id').eq('background_path',selected.background_path).limit(1)):[];
+      const paths=[selected.path,...(!shared.length?[selected.background_path]:[])].filter(Boolean);
+      if(paths.length)result(await db.storage.from(BUCKET).remove(paths));
+      return {success:true};
+    },
     async review(owner,id,body={}) {
       const selected=await image(owner,id);if(selected.checks.problems.length)throw new StudioError(400,selected.checks.problems[0]);
       if(!['real','idea','brand','honest'].every(key=>body.review?.[key]===true))throw new StudioError(400,'Check the four review boxes before using this picture.');

@@ -1,17 +1,21 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { Suspense, useEffect, useRef, useState } from 'react';
 import { CalendarDays, ChevronLeft, ChevronRight, Copy, Download, Film, Image as ImageIcon, Info, Megaphone, Plus, QrCode, Sparkles, Trash2 } from 'lucide-react';
 import QRCode from 'qrcode';
 import { briefAsText, loadStudioBriefs, type StudioBrief, type PictureMode } from './marketingStudioDrafts';
 
 import { adminMarketingStudioService, type StudioCampaign } from '../../services/adminMarketingStudioService';
+import { adminMarketingMediaService } from '../../services/adminMarketingMediaService';
 import MarketingCampaignReview from './MarketingCampaignReview';
 import MarketingImageLibrary from './MarketingImageLibrary';
 import ConnectedAccountsPanel from './ConnectedAccountsPanel';
 import FbGroupsPanel from './FbGroupsPanel';
 
-type Tab = 'create' | 'campaigns' | 'video' | 'calendar' | 'qr' | 'accounts' | 'images' | 'groups';
+const BlogEditor = React.lazy(() => import('../../admin-dashboard/Blog/BlogEditor'));
+
+type Tab = 'create' | 'campaigns' | 'video' | 'calendar' | 'qr' | 'accounts' | 'images' | 'groups' | 'content';
 const TABS: { id: Tab; label: string }[] = [
   { id: 'create', label: 'Create' }, { id: 'campaigns', label: 'My campaigns' },
+  { id: 'content', label: 'Content Library' },
   { id: 'video', label: 'Make a Video' }, { id: 'calendar', label: 'Calendar' },
   { id: 'qr', label: 'QR Codes' }, { id: 'images', label: 'Picture library' }, { id: 'groups', label: 'Facebook Groups' }, { id: 'accounts', label: 'Connected accounts' },
 ];
@@ -22,12 +26,21 @@ const buttonClass = 'inline-flex min-h-10 items-center justify-center gap-2 roun
 const primaryClass = 'inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50';
 const cardClass = 'min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6';
 
+function campaignTitle(campaign: StudioCampaign) {
+  const title = (campaign.outputs.title || campaign.idea).replace(/\s+/g, ' ').trim();
+  return title.length > 100 ? `${title.slice(0, 97)}…` : title;
+}
+
 function dateKey(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
 export default function AdminMarketingStudio({ ownerId }: { ownerId: string }) {
   const [tab, setTab] = useState<Tab>(() => (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('social') ? 'accounts' : 'create'));
+  const [contentKind, setContentKind] = useState<'blogs' | 'campaigns'>('blogs');
+  const [photoFile, setPhotoFile] = useState<File>();
+  const [savedPhoto, setSavedPhoto] = useState(false);
+  const photoRequest = useRef(0);
   const [briefs, setBriefs] = useState<StudioCampaign[]>([]);
   const [localBriefs, setLocalBriefs] = useState<StudioBrief[]>([]);
   const [busy, setBusy] = useState(false);
@@ -76,13 +89,14 @@ export default function AdminMarketingStudio({ ownerId }: { ownerId: string }) {
     return () => { active = false; window.clearInterval(timer); };
   }, [briefs]);
 
-  useEffect(() => () => { if (photoPreview) URL.revokeObjectURL(photoPreview); }, [photoPreview]);
+  useEffect(() => () => { if (photoPreview.startsWith('blob:')) URL.revokeObjectURL(photoPreview); }, [photoPreview]);
 
   const selected = briefs.find(brief => brief.id === selectedId);
   const stuckGenerating = selected?.status === 'generating' && Date.now() - Date.parse(selected.version) >= 120000;
   const canSave = Boolean(ownerId && loadedOwner === ownerId && !storageError && !busy);
 
-  function changeTab(next: Tab) {
+  function changeTab(next: Tab, fresh = true) {
+    if (fresh && next === 'create') { newBrief(); return; }
     setTab(next);
     setMessage('');
     setError('');
@@ -97,7 +111,7 @@ export default function AdminMarketingStudio({ ownerId }: { ownerId: string }) {
     if (!canSave) { setError('Wait for your account to load before saving.'); return; }
     if (!idea.trim()) { setError('Describe what you want to promote first.'); return; }
     if (pictureMode === 'describe' && !pictureDescription.trim()) { setError('Describe the picture, or let the AI decide.'); return; }
-    if (pictureMode === 'own' && !photoName) { setError('Choose a photo, or let the AI decide.'); return; }
+    if (pictureMode === 'own' && (!photoName || (!photoFile && !savedPhoto))) { setError('Choose or reattach your photo, or let the AI decide.'); return; }
     const previous = briefs.find(brief => brief.id === editingId && brief.kind === kind);
     const brief: StudioBrief = {
       id: previous?.id || crypto.randomUUID(), kind, idea: idea.trim(), goal, tone: tone.trim(), audience: audience.trim(),
@@ -107,7 +121,18 @@ export default function AdminMarketingStudio({ ownerId }: { ownerId: string }) {
     setBusy(true);
     try {
       const saved = await adminMarketingStudioService.save(brief, previous?.version);
-      replaceCampaign(saved); setSelectedId(saved.id); setEditingId(saved.id); setTab('campaigns');
+      replaceCampaign(saved); setSelectedId(saved.id); setEditingId(saved.id);
+      if (pictureMode === 'own' && photoFile) {
+        const data = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result));
+          reader.onerror = () => reject(new Error('Could not read your photo. Your brief is saved; try again.'));
+          reader.readAsDataURL(photoFile);
+        });
+        await adminMarketingMediaService.picture(saved, { data });
+        setSavedPhoto(true); setPhotoFile(undefined);
+      }
+      setTab('campaigns');
       setMessage('Brief saved to your account. Nothing has been published.');
       if (generate) await generateCampaign(saved);
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not save this brief.'); }
@@ -144,12 +169,12 @@ export default function AdminMarketingStudio({ ownerId }: { ownerId: string }) {
   }
 
   async function removeCampaign(campaign: StudioCampaign) {
-    if (!window.confirm('Remove this campaign from your account?')) return;
+    if (!window.confirm('Delete this saved campaign and its draft content, photos and videos? Scheduled posts will be cancelled. Published social posts and articles saved to your blog stay published; manage articles in Content Library.')) return;
     setBusy(true); setError('');
     try {
       await adminMarketingStudioService.remove(campaign);
       setBriefs(rows => rows.filter(row => row.id !== campaign.id)); setSelectedId('');
-      if (editingId === campaign.id) setEditingId(''); setMessage('Campaign removed.');
+      if (editingId === campaign.id) { resetBrief(); } setMessage('Saved campaign and draft assets deleted.');
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not remove this campaign.'); }
     finally { setBusy(false); }
   }
@@ -157,13 +182,29 @@ export default function AdminMarketingStudio({ ownerId }: { ownerId: string }) {
   function editBrief(brief: StudioBrief) {
     setIdea(brief.idea); setGoal(brief.goal); setTone(brief.tone); setAudience(brief.audience);
     setPictureMode(brief.pictureMode); setPictureDescription(brief.pictureDescription); setPhotoName(brief.photoName);
-    setPhotoPreview(''); setVideoFormat(brief.videoFormat); setVideoDuration(brief.videoDuration); setPlannedAt(brief.plannedAt);
-    setEditingId(brief.id); changeTab(brief.kind === 'video' ? 'video' : 'create');
+    setPhotoPreview(''); setPhotoFile(undefined); setSavedPhoto(false);
+    const request = ++photoRequest.current;
+    if (brief.pictureMode === 'own') {
+      adminMarketingMediaService.list(brief.id).then(rows => {
+        if (request !== photoRequest.current) return;
+        const photo = rows.find(row => row.kind === 'image' && row.source === 'upload' && row.status === 'ready');
+        setPhotoPreview(photo?.url || ''); setSavedPhoto(Boolean(photo));
+      }).catch(() => { if (request === photoRequest.current) setError('Could not load the saved photo. Reattach it before saving.'); });
+    }
+    setVideoFormat(brief.videoFormat); setVideoDuration(brief.videoDuration); setPlannedAt(brief.plannedAt);
+    setEditingId(brief.id); changeTab(brief.kind === 'video' ? 'video' : 'create', false);
+  }
+
+  function resetBrief() {
+    photoRequest.current += 1;
+    setEditingId(''); setIdea(''); setPlannedAt(''); setPhotoName(''); setPhotoPreview('');
+    setPhotoFile(undefined); setSavedPhoto(false); setPictureMode('auto'); setPictureDescription('');
+    setGoal(GOALS[0]); setTone('Helpful and confident'); setAudience('Loan officers and real estate agents');
+    setVideoFormat('vertical'); setVideoDuration('30');
   }
 
   function newBrief() {
-    setEditingId(''); setIdea(''); setPlannedAt(''); setPhotoName(''); setPhotoPreview('');
-    setPictureMode('auto'); setPictureDescription(''); changeTab('create');
+    resetBrief(); changeTab('create', false);
   }
 
   function choosePhoto(file?: File) {
@@ -171,6 +212,7 @@ export default function AdminMarketingStudio({ ownerId }: { ownerId: string }) {
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 8 * 1024 * 1024) {
       setError('Choose a JPG, PNG, or WebP photo smaller than 8 MB.'); return;
     }
+    photoRequest.current += 1; setPhotoFile(file); setSavedPhoto(false);
     setError(''); setPhotoName(file.name); setPhotoPreview(URL.createObjectURL(file));
   }
 
@@ -217,10 +259,11 @@ export default function AdminMarketingStudio({ ownerId }: { ownerId: string }) {
         <div className="mt-2 flex flex-wrap gap-2">{([{ id: 'auto', label: 'Let the AI decide' }, { id: 'describe', label: 'Describe the picture' }, { id: 'own', label: 'Use my own photo' }] as const).map(option => <button key={option.id} type="button" aria-pressed={pictureMode === option.id} onClick={() => setPictureMode(option.id)} className={`${buttonClass} rounded-full text-xs ${pictureMode === option.id ? 'border-primary-500 bg-primary-50 text-primary-700' : ''}`}>{option.label}</button>)}</div>
         {pictureMode === 'auto' && <p className="mt-2 text-xs text-slate-500">The AI writes a picture direction. Create or upload the picture in your saved campaign.</p>}
         {pictureMode === 'describe' && <label className="mt-3 block text-sm text-slate-700">Describe your picture<textarea value={pictureDescription} onChange={event => setPictureDescription(event.target.value)} maxLength={1500} required rows={2} className={`${inputClass} mt-2`} placeholder="A loan officer showing an agent a listing on a phone…" /></label>}
-        {pictureMode === 'own' && <div className="mt-3"><label className="block text-sm text-slate-700">Choose a photo<input type="file" accept="image/jpeg,image/png,image/webp" onChange={event => { choosePhoto(event.target.files?.[0]); event.target.value = ''; }} className="mt-2 block w-full text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-primary-50 file:px-3 file:py-2 file:text-primary-700" /></label>{photoPreview && <img src={photoPreview} alt="Your selected campaign photo" className="mt-3 max-h-40 rounded-xl object-contain" />}{photoName && <p className="mt-2 break-all text-xs text-slate-600">{photoName}</p>}<p className="mt-2 text-xs text-slate-500">This is a preview for your brief. Upload this photo in your saved campaign to keep it in your account and use it in videos.</p></div>}
+        {pictureMode === 'own' && <div className="mt-3"><label className="block text-sm text-slate-700">Choose a photo<input type="file" accept="image/jpeg,image/png,image/webp" onChange={event => { choosePhoto(event.target.files?.[0]); event.target.value = ''; }} className="mt-2 block w-full text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-primary-50 file:px-3 file:py-2 file:text-primary-700" /></label>{photoPreview && <img src={photoPreview} alt="Your selected campaign photo" className="mt-3 max-h-40 rounded-xl object-contain" />}{photoName && <p className="mt-2 break-all text-xs text-slate-600">{photoName}</p>}<p className="mt-2 text-xs text-slate-500">Your photo is uploaded to your account when you save this brief or create the campaign.</p></div>}
       </fieldset>
       <button type="submit" disabled={!canSave} className={`${primaryClass} mt-5 w-full`}><Sparkles size={16} />{busy ? 'Creating…' : kind === 'video' ? 'Create video script' : 'Create campaign'}</button>
       <button type="button" disabled={!canSave} className={`${buttonClass} mt-2 w-full`} onClick={event => saveBrief(event, kind)}>Save brief only</button>
+      {editingId && <button type="button" disabled={busy} className={`${buttonClass} mt-2 w-full`} onClick={() => { const draft = briefs.find(row => row.id === editingId); if (draft) void removeCampaign(draft); }}>Delete draft</button>}
       {editingId && <p className="mt-2 text-xs text-slate-600">Saving a changed brief replaces its generated drafts and clears approval.</p>}
       <p className="mt-2 text-center text-xs text-slate-500">Create drafts, then preview pictures and finished videos in My campaigns. Social accounts come last.</p>
     </form>
@@ -232,7 +275,7 @@ export default function AdminMarketingStudio({ ownerId }: { ownerId: string }) {
       <span className="rounded-full bg-primary-50 px-3 py-1.5 text-xs font-semibold text-primary-700">Stage 4 · Voice, music & video</span>
     </div>
     <div role="tablist" aria-label="Marketing Studio" className="mt-5 flex max-w-full gap-5 overflow-x-auto border-b border-slate-200 sm:gap-7">
-      {TABS.map(({ id, label }, index) => <button key={id} ref={node => { tabRefs.current[id] = node; }} type="button" role="tab" id={`studio-tab-${id}`} aria-selected={tab === id} aria-controls={`studio-panel-${id}`} tabIndex={tab === id ? 0 : -1} onClick={() => changeTab(id)} onKeyDown={event => {
+      {TABS.map(({ id, label }, index) => <button key={id} ref={node => { tabRefs.current[id] = node; }} type="button" role="tab" id={`studio-tab-${id}`} aria-selected={tab === id} aria-controls={`studio-panel-${id}`} tabIndex={tab === id ? 0 : -1} disabled={busy && id === 'create'} onClick={() => changeTab(id)} onKeyDown={event => {
         let target: number;
         if (event.key === 'ArrowRight') target = (index + 1) % TABS.length;
         else if (event.key === 'ArrowLeft') target = (index - 1 + TABS.length) % TABS.length;
@@ -260,17 +303,26 @@ export default function AdminMarketingStudio({ ownerId }: { ownerId: string }) {
           <fieldset className="mt-4 border-t border-slate-200 pt-4"><legend className="sr-only">Posting mode</legend><div className="flex flex-wrap items-center gap-x-5 gap-y-3 text-sm"><span className="font-semibold text-slate-900">Posting mode</span><label className="flex items-center gap-2"><input type="radio" name="studio-posting-mode" checked readOnly className="h-4 w-4 accent-blue-600" />Manual</label><label className="flex items-center gap-2 text-slate-400"><input type="radio" name="studio-posting-mode" disabled className="h-4 w-4" />Daily automatic</label></div><p className="mt-2 text-xs text-slate-500">Daily posting unlocks when account connections and scheduling are ready.</p></fieldset>
         </div>
       </div>}
-      {tab === 'campaigns' && <>
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-bold text-slate-900">My campaigns</h3><p className="mt-1 text-sm text-slate-500">Campaigns saved to your account. Review before approving.</p></div><button type="button" onClick={newBrief} className={buttonClass}><Plus size={16} />New campaign</button></div>
-        {!briefs.length ? <div className="rounded-xl border border-dashed border-slate-300 p-10 text-center"><Megaphone size={28} className="mx-auto text-primary-600" /><h4 className="mt-3 font-bold text-slate-900">Your first campaign starts with an idea</h4><p className="mt-1 text-sm text-slate-500">Create a campaign or save a brief, then return here to review or edit it.</p><button type="button" onClick={newBrief} className={`${primaryClass} mt-4`}>Create a brief</button></div> : <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
-          <div className="max-h-[520px] space-y-2 overflow-y-auto">{briefs.map(brief => <button type="button" key={brief.id} onClick={() => setSelectedId(brief.id)} aria-pressed={selected?.id === brief.id} className={`w-full rounded-xl border p-4 text-left ${selected?.id === brief.id ? 'border-primary-400 bg-primary-50' : 'border-slate-200 hover:bg-slate-50'}`}><span className="line-clamp-2 break-words text-sm font-semibold text-slate-900">{brief.idea}</span><span className="mt-2 block text-xs text-slate-500">{brief.kind === 'video' ? 'Video' : 'Campaign'} · {brief.status} · {new Date(brief.createdAt).toLocaleDateString()}</span></button>)}</div>
-          <div className={cardClass}>{selected ? <><h4 className="break-words text-lg font-bold text-slate-900">{selected.idea}</h4><p className="mt-1 text-sm text-slate-500">{selected.status === 'brief' ? 'Brief only — not generated or scheduled.' : selected.status === 'generating' ? 'Creating your draft…' : selected.status === 'failed' ? selected.generationError : 'Saved to your account. Nothing has been published.'}</p><pre className="mt-5 whitespace-pre-wrap break-words font-sans text-sm leading-6 text-slate-700">{briefAsText(selected)}</pre><div className="mt-5 flex flex-wrap gap-2"><button type="button" disabled={busy || (selected.status === 'generating' && !stuckGenerating)} onClick={() => editBrief(selected)} className={buttonClass}>Edit brief</button><button type="button" className={buttonClass} onClick={async () => { try { await navigator.clipboard.writeText(briefAsText(selected)); setMessage('Brief copied.'); } catch { setError('Could not copy. Select the brief text and copy it instead.'); } }}><Copy size={16} />Copy</button><button type="button" className={buttonClass} disabled={busy || (selected.status === 'generating' && !stuckGenerating)} onClick={() => removeCampaign(selected)}><Trash2 size={16} />Remove</button></div>{(['brief', 'failed'].includes(selected.status) || stuckGenerating) && <button type="button" disabled={busy} className={`${primaryClass} mt-4`} onClick={() => generateCampaign(selected)}>{busy ? 'Creating…' : stuckGenerating ? 'Retry interrupted creation' : 'Create campaign draft'}</button>}{['draft', 'approved'].includes(selected.status) && <MarketingCampaignReview key={`${selected.id}:${selected.version}`} campaign={selected} onChange={replaceCampaign} />}</> : <p className="text-sm text-slate-500">Choose a brief to review it.</p>}</div>
+      {tab === 'content' && <>
+        <h3 className="font-bold text-slate-900">Content Library</h3>
+        <p className="mt-1 text-sm text-slate-500">Find, view, edit or delete your saved content. Blogs show their publishing status; campaign drafts and posted social content are managed separately.</p>
+        <div className="my-4 flex gap-2">
+          <button type="button" aria-pressed={contentKind === 'blogs'} className={buttonClass} onClick={() => setContentKind('blogs')}>Blog posts</button>
+          <button type="button" aria-pressed={contentKind === 'campaigns'} className={buttonClass} onClick={() => setContentKind('campaigns')}>Campaign content</button>
+        </div>
+        {contentKind === 'blogs' && <Suspense fallback={<p role="status">Loading blog posts…</p>}><BlogEditor /></Suspense>}
+      </>}
+      {(tab === 'campaigns' || (tab === 'content' && contentKind === 'campaigns')) && <>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-bold text-slate-900">My campaigns</h3><p className="mt-1 text-sm text-slate-500">Campaigns saved to your account. Review before approving.</p></div><button type="button" disabled={busy} onClick={newBrief} className={buttonClass}><Plus size={16} />New campaign</button></div>
+        {!briefs.length ? <div className="rounded-xl border border-dashed border-slate-300 p-10 text-center"><Megaphone size={28} className="mx-auto text-primary-600" /><h4 className="mt-3 font-bold text-slate-900">Your first campaign starts with an idea</h4><p className="mt-1 text-sm text-slate-500">Create a campaign or save a brief, then return here to review or edit it.</p><button type="button" disabled={busy} onClick={newBrief} className={`${primaryClass} mt-4`}>Create a brief</button></div> : <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
+          <div className="max-h-[520px] space-y-2 overflow-y-auto">{briefs.map(brief => <button type="button" key={brief.id} onClick={() => setSelectedId(brief.id)} aria-pressed={selected?.id === brief.id} className={`w-full rounded-xl border p-4 text-left ${selected?.id === brief.id ? 'border-primary-400 bg-primary-50' : 'border-slate-200 hover:bg-slate-50'}`}><span className="line-clamp-2 break-words text-sm font-semibold text-slate-900">{campaignTitle(brief)}</span><span className="mt-2 block text-xs text-slate-500">{brief.kind === 'video' ? 'Video' : 'Campaign'} · {brief.status} · {new Date(brief.createdAt).toLocaleDateString()}</span></button>)}</div>
+          <div className={cardClass}>{selected ? <><h4 className="break-words text-lg font-bold text-slate-900">{campaignTitle(selected)}</h4><p className="mt-1 text-sm text-slate-500">{selected.status === 'brief' ? 'Brief only — not generated or scheduled.' : selected.status === 'generating' ? 'Creating your draft…' : selected.status === 'failed' ? selected.generationError : 'Saved campaign draft. See publishing history below; approval alone does not publish.'}</p><details key={selected.id} className="mt-3"><summary className="cursor-pointer text-sm font-semibold text-slate-700">View brief</summary><pre className="mt-3 whitespace-pre-wrap break-words font-sans text-sm leading-6 text-slate-700">{briefAsText(selected)}</pre></details><div className="mt-5 flex flex-wrap gap-2"><button type="button" disabled={busy || (selected.status === 'generating' && !stuckGenerating)} onClick={() => editBrief(selected)} className={buttonClass}>Resume Draft</button><button type="button" className={buttonClass} onClick={async () => { try { await navigator.clipboard.writeText(briefAsText(selected)); setMessage('Brief copied.'); } catch { setError('Could not copy. Select the brief text and copy it instead.'); } }}><Copy size={16} />Copy</button><button type="button" className={buttonClass} disabled={busy || (selected.status === 'generating' && !stuckGenerating)} onClick={() => removeCampaign(selected)}><Trash2 size={16} />Delete saved campaign</button></div>{(['brief', 'failed'].includes(selected.status) || stuckGenerating) && <button type="button" disabled={busy} className={`${primaryClass} mt-4`} onClick={() => generateCampaign(selected)}>{busy ? 'Creating…' : stuckGenerating ? 'Retry interrupted creation' : 'Create campaign draft'}</button>}{['draft', 'approved'].includes(selected.status) && <MarketingCampaignReview key={`${selected.id}:${selected.version}`} campaign={selected} onChange={replaceCampaign} />}</> : <p className="text-sm text-slate-500">Choose a brief to review it.</p>}</div>
         </div>}
       </>}
       {tab === 'calendar' && <>
         <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-bold text-slate-900">Content calendar</h3><p className="mt-1 text-sm text-slate-500">Planning dates only. Nothing on this calendar will publish automatically.</p></div><div className="flex items-center gap-2"><button type="button" aria-label="Previous month" className={buttonClass} onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}><ChevronLeft size={17} /></button><span className="min-w-36 text-center text-sm font-semibold">{month.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</span><button type="button" aria-label="Next month" className={buttonClass} onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}><ChevronRight size={17} /></button></div></div>
         <div className="mt-5 hidden overflow-hidden rounded-xl border border-slate-200 sm:block"><div className="grid grid-cols-7 bg-slate-50">{['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => <div key={day} className="p-3 text-center text-xs font-semibold text-slate-500">{day}</div>)}</div><div className="grid grid-cols-7">{Array.from({ length: Math.ceil((month.getDay() + new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate()) / 7) * 7 }, (_, index) => { const day = index - month.getDay() + 1; const valid = day > 0 && day <= new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate(); const date = dateKey(new Date(month.getFullYear(), month.getMonth(), day)); return <div key={index} className={`min-h-24 min-w-0 border-b border-r border-slate-100 p-2 ${valid ? 'bg-white' : 'bg-slate-50'}`}>{valid && <><span className={`flex h-6 w-6 items-center justify-center text-xs ${date === dateKey(new Date()) ? 'rounded-full bg-primary-600 font-bold text-white' : 'text-slate-500'}`}>{day}</span>{briefs.filter(brief => brief.plannedAt.startsWith(date)).map(brief => <button key={brief.id} type="button" onClick={() => { setSelectedId(brief.id); changeTab('campaigns'); }} className="mt-1 w-full truncate rounded bg-primary-50 p-1 text-left text-xs text-primary-800" title={brief.idea}>{brief.idea}</button>)}</>}</div>; })}</div></div>
-        <div className="mt-5 grid gap-4 lg:grid-cols-2"><label className="block text-sm font-semibold text-slate-800">Plan a date for your current brief<input type="datetime-local" value={plannedAt} onChange={event => setPlannedAt(event.target.value)} className={`${inputClass} mt-2`} /><span className="mt-2 block text-xs font-normal text-slate-500">Uses your browser’s local time. Save the brief to keep this date.</span></label><div><p className="text-sm text-slate-600">{idea.trim() ? idea : 'Start a campaign or open a saved brief to assign a planning date.'}</p><button type="button" className={`${buttonClass} mt-3`} onClick={() => changeTab(briefs.find(brief => brief.id === editingId)?.kind === 'video' ? 'video' : 'create')}>Return to brief</button></div></div>
+        <div className="mt-5 grid gap-4 lg:grid-cols-2"><label className="block text-sm font-semibold text-slate-800">Plan a date for your current brief<input type="datetime-local" value={plannedAt} onChange={event => setPlannedAt(event.target.value)} className={`${inputClass} mt-2`} /><span className="mt-2 block text-xs font-normal text-slate-500">Uses your browser’s local time. Save the brief to keep this date.</span></label><div><p className="text-sm text-slate-600">{idea.trim() ? idea : 'Start a campaign or open a saved brief to assign a planning date.'}</p><button type="button" className={`${buttonClass} mt-3`} onClick={() => changeTab(briefs.find(brief => brief.id === editingId)?.kind === 'video' ? 'video' : 'create', false)}>Return to brief</button></div></div>
         <div className="mt-5 sm:hidden"><h4 className="font-semibold text-slate-900">Planned this month</h4>{briefs.filter(brief => brief.plannedAt.startsWith(dateKey(month).slice(0, 7))).map(brief => <button type="button" key={brief.id} className={`${buttonClass} mt-2 w-full justify-start text-left`} onClick={() => { setSelectedId(brief.id); changeTab('campaigns'); }}><CalendarDays size={16} /><span className="min-w-0"><span className="block text-xs">{brief.plannedAt.replace('T', ' ')}</span><span className="block break-words">{brief.idea}</span></span></button>)}</div>
       </>}
       {tab === 'qr' && <div className="grid gap-5 lg:grid-cols-2"><form onSubmit={createQr} className={cardClass}><h3 className="flex items-center gap-2 text-lg font-bold text-slate-900"><QrCode size={20} className="text-primary-600" />Turn a link into a QR code</h3><p className="mt-2 text-sm text-slate-500">Use it on flyers, social images, or an open-house sign.</p><label className="mt-5 block text-sm font-semibold text-slate-800">Destination link<input type="url" value={qrUrl} onChange={event => changeQrUrl(event.target.value)} required maxLength={2000} className={`${inputClass} mt-2`} /></label><button type="submit" className={`${primaryClass} mt-4`} disabled={qrBusy}>{qrBusy ? 'Making QR code…' : 'Create QR code'}</button></form><div className={`${cardClass} flex min-h-64 flex-col items-center justify-center`}>{qrImage ? <><img src={qrImage} alt={`QR code linking to ${qrUrl}`} className="h-52 w-52" /><a className={`${buttonClass} mt-3`} href={qrImage} download="homelistingai-qr.png"><Download size={16} />Download PNG</a><p className="mt-3 max-w-full break-all text-center text-xs text-slate-500">{qrUrl}</p></> : <p className="text-sm text-slate-500">Your QR code will appear here.</p>}</div></div>}

@@ -97,3 +97,24 @@ test('handler rejects missing verified user even when client sends an owner ID',
 });
 
 test('video settings validate choices and preserve every text output without an AI call',async()=>{const t=setup();await t.service.save(OWNER,ID,{brief});const row=await t.service.generate(OWNER,ID);const saved=await t.service.settings(OWNER,ID,{version:row.updated_at,videoFormat:'landscape',videoDuration:'15',videoOptions:{music:'calm',captionSize:'large',narration:'saved'}});assert.deepEqual(saved.outputs,outputs);assert.equal(saved.brief.music,'calm');assert.equal(t.calls(),1);await assert.rejects(t.service.settings(OWNER,ID,{version:saved.updated_at,videoFormat:'vertical',videoDuration:'30',videoOptions:{voiceSpeed:'9'}}),/valid voice/);});
+
+test('saving an unchanged resumed brief preserves generated content, approval and generation count',async()=>{
+ const t=setup();await t.service.save(OWNER,ID,{brief});const generated=await t.service.generate(OWNER,ID);
+ const approved=await t.service.approve(OWNER,ID,{version:generated.updated_at});
+ const resumed=await t.service.save(OWNER,ID,{brief,version:approved.updated_at});
+ assert.deepEqual(resumed,approved);assert.equal(t.calls(),1);
+});
+test('delete individual content keeps other assets and can be approved; strict AI output still needs every field',async()=>{
+ const t=setup();await t.service.save(OWNER,ID,{brief});const generated=await t.service.generate(OWNER,ID);
+ const edited=await t.service.edit(OWNER,ID,{version:generated.updated_at,outputs:{...outputs,facebook:''}});
+ assert.equal(edited.outputs.facebook,'');assert.equal(edited.outputs.blog,outputs.blog);
+ assert.equal((await t.service.approve(OWNER,ID,{version:edited.updated_at})).status,'approved');
+ assert.throws(()=>validateOutputs({...outputs,facebook:''}),/incomplete/);
+ assert.throws(()=>validateOutputs({title:'Only title'},true),/at least one/);
+});
+test('campaign deletion rejects stale version and wrong owner without losing saved data',async()=>{
+ const t=setup();const row=await t.service.save(OWNER,ID,{brief});
+ await assert.rejects(t.service.remove(OTHER,ID,row.updated_at),/not found/);
+ await assert.rejects(t.service.remove(OWNER,ID,'old'),/changed/);assert.equal(t.rows.length,1);
+ await t.service.remove(OWNER,ID,row.updated_at);assert.equal(t.rows.length,0);
+});

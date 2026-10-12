@@ -22,7 +22,7 @@ const call = async (path: string, init?: RequestInit) => {
 };
 const toLocalInput = (iso: string) => { const d = new Date(iso); return Number.isNaN(d.getTime()) ? '' : new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16); };
 
-export default function MarketingCampaignPosting({ campaignId, plannedAt, hasBlogPost }: { campaignId: string; plannedAt?: string; hasBlogPost: boolean }) {
+export default function MarketingCampaignPosting({ campaignId, plannedAt, hasBlogPost, canPublish = true }: { campaignId: string; plannedAt?: string; hasBlogPost: boolean; canPublish?: boolean }) {
   const base = `/api/admin/marketing-studio/campaigns/${campaignId}`;
   const [connected, setConnected] = useState<Record<string, boolean>>({});
   const [posts, setPosts] = useState<Post[]>([]);
@@ -54,7 +54,10 @@ export default function MarketingCampaignPosting({ campaignId, plannedAt, hasBlo
     setNote(iso ? 'Scheduled. It posts at that time while Auto-posting is ON.' : 'Ready. Press Post now on each one, or it goes out within 5 minutes if Auto-posting is ON.');
   });
   const postNow = (channel: Channel) => act(`now-${channel}`, async () => { setPosts((await call(`${base}/posts/${channel}/post-now`, { method: 'POST', body: '{}' })).posts); });
-  const remove = (channel: Channel) => act(`rm-${channel}`, async () => { setPosts((await call(`${base}/posts/${channel}`, { method: 'DELETE' })).posts); });
+  const remove = (channel: Channel) => {
+    if (!window.confirm('Cancel this scheduled or failed post? Published posts are kept.')) return;
+    return act(`rm-${channel}`, async () => { setPosts((await call(`${base}/posts/${channel}`, { method: 'DELETE' })).posts); });
+  };
   const saveBlog = () => act('blog', async () => { await call(`${base}/save-blog`, { method: 'POST', body: '{}' }); setBlogSaved(true); setNote('Saved as a draft in your blog. Open Blog to review and publish it.'); });
 
   const taken = new Set(posts.filter((p) => p.status !== 'failed').map((p) => p.channel));
@@ -62,9 +65,10 @@ export default function MarketingCampaignPosting({ campaignId, plannedAt, hasBlo
 
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-4" aria-labelledby={`post-${campaignId}`}>
-      <h3 id={`post-${campaignId}`} className="font-semibold text-slate-900">Send it out</h3>
+      <h3 id={`post-${campaignId}`} className="font-semibold text-slate-900">Publishing history & actions</h3>
       <p className="mt-1 text-sm text-slate-600">Pick the accounts. Links to your site get tracking tags automatically, so you can see which campaign brought each visit.</p>
 
+      {canPublish && <>
       <div className="mt-3 flex flex-wrap gap-3">
         {ORDER.map((c) => (
           <label key={c} className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm ${connected[c] ? 'border-slate-300 text-slate-800' : 'border-slate-200 text-slate-400'}`}>
@@ -83,9 +87,13 @@ export default function MarketingCampaignPosting({ campaignId, plannedAt, hasBlo
         <button type="button" className={primary} disabled={busy !== '' || picked.size === 0 || (when === 'later' && !at)} onClick={() => void schedule()}>{busy === 'schedule' ? 'Saving…' : 'Choose these'}</button>
         <button type="button" className={btn} disabled={busy !== '' || blogSaved} onClick={() => void saveBlog()}>{blogSaved ? 'Article is in your blog' : busy === 'blog' ? 'Saving…' : 'Save article to my blog (draft)'}</button>
       </div>
+      </>}
+      {!canPublish && <p className="mt-3 text-sm text-slate-600">Save and approve this draft to publish. Existing posts remain visible below.</p>}
+      <a href="/admin/blog" className={`${btn} mt-3 inline-block`}>Manage blog posts</a>
       {error && <p role="alert" className="mt-2 text-sm text-red-700">{error}</p>}
       {note && <p role="status" className="mt-2 text-sm text-emerald-700">{note}</p>}
 
+      {posts.length === 0 && !error && <p className="mt-3 text-sm text-slate-500">No scheduled or published social posts for this campaign.</p>}
       {posts.length > 0 && (
         <ul className="mt-4 divide-y divide-slate-100 rounded-lg border border-slate-200">
           {posts.map((p) => (
@@ -101,7 +109,7 @@ export default function MarketingCampaignPosting({ campaignId, plannedAt, hasBlo
               </div>
               {p.status !== 'published' && p.status !== 'posting' && (
                 <div className="flex gap-2">
-                  <button type="button" className={btn} disabled={busy !== ''} onClick={() => void postNow(p.channel)}>{busy === `now-${p.channel}` ? 'Posting…' : p.status === 'failed' ? 'Try again' : 'Post now'}</button>
+                  <button type="button" className={btn} disabled={busy !== '' || !canPublish} onClick={() => void postNow(p.channel)}>{busy === `now-${p.channel}` ? 'Posting…' : p.status === 'failed' ? 'Try again' : 'Post now'}</button>
                   <button type="button" className={btn} disabled={busy !== ''} onClick={() => void remove(p.channel)}>Remove</button>
                 </div>
               )}

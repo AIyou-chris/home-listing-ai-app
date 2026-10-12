@@ -14,7 +14,7 @@ function result(res) { if(res.error) throw new StudioError(503,'Could not confir
 function createMediaService({db, openai, jev, imageInspector, video=renderer}) {
   let rendering=false; // One FFmpeg process per server to keep the web app responsive.
   function table(owner) { if(!UUID.test(owner||''))throw new StudioError(401,'Sign in as an admin first.');if(!db)throw new StudioError(503,'Media storage is unavailable.');return db.from(TABLE); }
-  async function campaign(owner,id) { table(owner);if(!UUID.test(id||''))throw new StudioError(400,'Invalid campaign ID.');const row=result(await db.from('admin_marketing_campaigns').select('*').eq('owner_id',owner).eq('id',id).maybeSingle());if(!row)throw new StudioError(404,'Campaign not found.');if(!['draft','approved'].includes(row.status))throw new StudioError(409,'Create and save your campaign drafts first.');validateOutputs(row.outputs);return row; }
+  async function campaign(owner,id,allowBrief=false) { table(owner);if(!UUID.test(id||''))throw new StudioError(400,'Invalid campaign ID.');const row=result(await db.from('admin_marketing_campaigns').select('*').eq('owner_id',owner).eq('id',id).maybeSingle());if(!row)throw new StudioError(404,'Campaign not found.');if(!allowBrief){if(!['draft','approved'].includes(row.status))throw new StudioError(409,'Create and save your campaign drafts first.');validateOutputs(row.outputs,true);}return row; }
   async function clearApproval(owner,row) {
     if(row.status!=='approved')return row;
     const saved=result(await db.from('admin_marketing_campaigns').update({status:'draft',updated_at:new Date(Math.max(Date.now(),Date.parse(row.updated_at)+1)).toISOString()}).eq('owner_id',owner).eq('id',row.id).eq('updated_at',row.updated_at).select('*').maybeSingle());
@@ -42,7 +42,7 @@ function createMediaService({db, openai, jev, imageInspector, video=renderer}) {
   }
   async function fail(owner,claim,error) { await table(owner).update({status:'failed',error:error?.status===400||error?.message?.startsWith('Your voice is too long')?error.message:'Creation did not finish. Your campaign is safe; try again.',updated_at:new Date().toISOString()}).eq('owner_id',owner).eq('campaign_id',claim.next.campaign_id).eq('kind',claim.next.kind).eq('token',claim.next.token); }
   async function list(owner,id) {
-    const row=await campaign(owner,id);const rows=result(await table(owner).select('*').eq('owner_id',owner).eq('campaign_id',id));
+    const row=await campaign(owner,id,true);const rows=result(await table(owner).select('*').eq('owner_id',owner).eq('campaign_id',id));
     return Promise.all(rows.map(async media=>{
       const currentHash=media.kind==='video'?renderHash(row,rows):media.kind==='voice'?voiceHash(row,media.source):media.content_hash.startsWith('picture-v2:')?pictureDirectionHash(row):pictureHash(row);
       const stale=(media.kind==='voice'||!['upload'].includes(media.source))&&media.kind!=='music'&&media.content_hash!==currentHash;
@@ -57,7 +57,8 @@ function createMediaService({db, openai, jev, imageInspector, video=renderer}) {
     async reviewable(owner,id) {const row=await campaign(owner,id);const options=videoOptions(row.brief);const rows=(await list(owner,id)).filter(item=>item.kind!=='voice'&&item.kind!=='music'||item.kind==='voice'&&options.narration==='saved'||item.kind==='music'&&options.music==='upload');if((options.narration==='saved'&&!rows.some(item=>item.kind==='voice'))||(options.music==='upload'&&!rows.some(item=>item.kind==='music'))||rows.some(item=>item.status!=='ready'||item.stale))throw new StudioError(409,'Finish creating and refresh any outdated pictures or videos before approving.');},
     async capabilities(owner) {table(owner);return {video:await video.available(),picture:true,aiPicture:Boolean(openai),aiVoice:Boolean(openai)};},
     async picture(owner,id,body={}) {
-      const row=await campaign(owner,id);
+      const row=await campaign(owner,id,Boolean(body.data));
+      if(row.status==='generating')throw new StudioError(409,'Wait for campaign creation to finish before uploading a photo.');
       if(body.version!==row.updated_at)throw new StudioError(409,'Save your latest edits before creating a picture.');
       let bytes;let source='template';let type='image/png';
       if(body.data) {
@@ -81,6 +82,7 @@ function createMediaService({db, openai, jev, imageInspector, video=renderer}) {
     async audio(owner,id,body={}) {
       const row=await campaign(owner,id);
       if(body.version!==row.updated_at)throw new StudioError(409,'Save your latest edits before creating audio.');
+      if((body.kind||'voice')==='voice'&&!row.outputs.videoScript?.trim())throw new StudioError(409,'Add and save a video script before making a voice.');
       const kind=body.kind||'voice';if(!['voice','music'].includes(kind))throw new StudioError(400,'Choose voice or music.');
       let bytes,source='upload';
       if(body.data) {
@@ -109,6 +111,7 @@ function createMediaService({db, openai, jev, imageInspector, video=renderer}) {
     async render(owner,id,body={}) {
       const row=await campaign(owner,id);
       if(body.version!==row.updated_at)throw new StudioError(409,'Save your latest edits before creating a video.');
+      if(!row.outputs.videoScript?.trim())throw new StudioError(409,'Add and save a video script before making a video.');
       if(rendering)throw new StudioError(409,'Another video is being made. Try again shortly.');
       rendering=true;
       let started=false;
@@ -137,8 +140,22 @@ function createMediaService({db, openai, jev, imageInspector, video=renderer}) {
         return list(owner,id);
       } finally {if(!started)rendering=false;}
     },
+    async remove(owner,id,kind,version) {
+      if(!['image','video','voice','music'].includes(kind))throw new StudioError(400,'Choose a valid media type.');
+      const row=await campaign(owner,id,true);
+      if(row.status==='generating'||row.updated_at!==version)throw new StudioError(409,'This campaign changed. Reload before deleting media.');
+      const item=await existing(owner,id,kind);
+      if(!item)return list(owner,id);
+      if(item.status==='processing')throw new StudioError(409,'Wait for this media to finish before deleting it.');
+      await clearApproval(owner,row);
+      const deleted=result(await table(owner).delete().eq('owner_id',owner).eq('campaign_id',id).eq('kind',kind).eq('token',item.token).eq('updated_at',item.updated_at).select('path'));
+      if(!deleted.length)throw new StudioError(409,'This media changed. Reload before deleting it.');
+      if(item.path)result(await db.storage.from(BUCKET).remove([item.path]));
+      return list(owner,id);
+    },
     async cleanup(owner,id) {
-      const rows=result(await table(owner).select('path').eq('owner_id',owner).eq('campaign_id',id));
+      const rows=result(await table(owner).select('path,status').eq('owner_id',owner).eq('campaign_id',id));
+      if(rows.some(row=>row.status==='processing'))throw new StudioError(409,'Wait for media creation to finish before deleting this campaign.');
       return rows.map(row=>row.path).filter(Boolean);
     },
     async removeFiles(paths) {if(paths.length)await db.storage.from(BUCKET).remove(paths);}
@@ -146,6 +163,6 @@ function createMediaService({db, openai, jev, imageInspector, video=renderer}) {
 }
 function createMediaHandlers(service) {
   const handle=action=>async(req,res)=>{try {res.json(await action(req));}catch(e){res.status(e.status||500).json({error:e.status?e.message:'Media creation failed. Your campaign is still saved.'});}};
-  return {list:handle(async req=>({media:await service.list(req.user?.id,req.params.id)})),capabilities:handle(req=>service.capabilities(req.user?.id)),picture:handle(async req=>({media:await service.picture(req.user?.id,req.params.id,req.body)})),audio:handle(async req=>({media:await service.audio(req.user?.id,req.params.id,req.body)})),render:handle(async req=>({media:await service.render(req.user?.id,req.params.id,req.body)}))};
+  return {remove:handle(async req=>({media:await service.remove(req.user?.id,req.params.id,req.params.kind,req.body?.version)})),list:handle(async req=>({media:await service.list(req.user?.id,req.params.id)})),capabilities:handle(req=>service.capabilities(req.user?.id)),picture:handle(async req=>({media:await service.picture(req.user?.id,req.params.id,req.body)})),audio:handle(async req=>({media:await service.audio(req.user?.id,req.params.id,req.body)})),render:handle(async req=>({media:await service.render(req.user?.id,req.params.id,req.body)}))};
 }
 module.exports={createMediaService,createMediaHandlers,hash};

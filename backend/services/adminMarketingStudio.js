@@ -25,15 +25,17 @@ function validateBrief(raw = {}) {
   if (brief.pictureMode === 'own' && !brief.photoName) throw new StudioError(400, 'Choose a photo first.');
   return brief;
 }
-function validateOutputs(raw) {
+function validateOutputs(raw, allowEmpty = false) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new StudioError(502, 'The AI returned incomplete content. Try again.');
   const output = {};
   for (const [key, max] of Object.entries(OUTPUT_LIMITS)) {
+    if (allowEmpty && key !== 'title' && (raw[key] === '' || raw[key] === undefined)) { output[key] = ''; continue; }
     if (typeof raw[key] !== 'string' || !raw[key].trim() || [...raw[key]].length > max) throw new StudioError(502, `The ${key} draft is incomplete or too long. Try again.`);
     const lower = raw[key].toLowerCase();
     if (PLATFORM_BANNED_PHRASES.some(phrase => lower.includes(phrase)) || /no lead goes cold|never miss (?:a |any )?lead/i.test(raw[key])) throw new StudioError(502, 'Remove the guaranteed-results wording before approving this draft.');
     output[key] = raw[key].trim();
   }
+  if (allowEmpty && !['blog','email','linkedin','facebook','instagram','bluesky','videoScript'].some(key => output[key])) throw new StudioError(400, 'Keep at least one content draft, or delete the campaign instead.');
   return output;
 }
 function databaseResult(result) {
@@ -68,6 +70,7 @@ function createStudioService({ db, openai, loadBrain, media, now = () => new Dat
       if (existing) {
         editable(existing);
         if (body.version !== existing.updated_at) throw new StudioError(409, 'This campaign changed in another window. Reload before saving.');
+        if (JSON.stringify(validateBrief(existing.brief)) === JSON.stringify(brief)) return existing;
         return update(owner, existing, { brief, outputs: {}, status: 'brief', generation_error: null, brain_updated_at: null });
       }
       const counted = await table(owner).select('id', { count: 'exact', head: true }).eq('owner_id', owner);
@@ -80,8 +83,10 @@ function createStudioService({ db, openai, loadBrain, media, now = () => new Dat
     },
     async remove(owner, id, version) {
       const row = await get(owner, id); editable(row);
-      const mediaPaths = media ? await media.cleanup(owner, id) : [];
       if (version !== row.updated_at) throw new StudioError(409, 'This campaign changed. Reload before removing it.');
+      const posting = databaseResult(await db.from('admin_marketing_posts').select('id').eq('campaign_id', id).eq('status', 'posting').limit(1));
+      if (posting.length) throw new StudioError(409, 'Wait for publishing to finish before deleting this campaign.');
+      const mediaPaths = media ? await media.cleanup(owner, id) : [];
       const deleted = databaseResult(await table(owner).delete().eq('owner_id', owner).eq('id', row.id).eq('updated_at', row.updated_at).select('id'));
       if (!deleted.length) throw new StudioError(409, 'This campaign changed. Reload before removing it.');
       if (media) await media.removeFiles(mediaPaths);
@@ -118,7 +123,7 @@ function createStudioService({ db, openai, loadBrain, media, now = () => new Dat
       if (!['draft','approved'].includes(row.status)) throw new StudioError(409, 'Generate content before editing it.');
       if (body.version !== row.updated_at) throw new StudioError(409, 'This campaign changed. Reload before saving.');
       let outputs;
-      try { outputs = validateOutputs(body.outputs); } catch (error) { error.status = 400; throw error; }
+      try { outputs = validateOutputs(body.outputs, true); } catch (error) { error.status = 400; throw error; }
       return update(owner, row, { outputs, status: 'draft' });
     },
     async settings(owner, id, body) {
@@ -132,7 +137,7 @@ function createStudioService({ db, openai, loadBrain, media, now = () => new Dat
     async approve(owner, id, body) {
       const row = await get(owner, id);
       if (row.status !== 'draft' || body.version !== row.updated_at) throw new StudioError(409, 'Save and review the current draft before approving it.');
-      validateOutputs(row.outputs);
+      validateOutputs(row.outputs, true);
       if (media) await media.reviewable(owner, id);
       return update(owner, row, { status: 'approved' });
     }

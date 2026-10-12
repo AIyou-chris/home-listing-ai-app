@@ -3,7 +3,7 @@ import {fireEvent,render,screen,waitFor} from '@testing-library/react';
 import MarketingImageLibrary from './MarketingImageLibrary';
 import {adminMarketingMediaService as api,type MarketingImage} from '../../services/adminMarketingMediaService';
 import type {StudioCampaign} from '../../services/adminMarketingStudioService';
-jest.mock('../../services/adminMarketingMediaService',()=>({adminMarketingMediaService:{imageCatalog:jest.fn(),imageLibrary:jest.fn(),imageResults:jest.fn(),chooseImage:jest.fn(),imageOptions:jest.fn(),imageLayout:jest.fn()}}));
+jest.mock('../../services/adminMarketingMediaService',()=>({adminMarketingMediaService:{removeImage:jest.fn(),imageCatalog:jest.fn(),imageLibrary:jest.fn(),imageResults:jest.fn(),chooseImage:jest.fn(),imageOptions:jest.fn(),imageLayout:jest.fn()}}));
 jest.mock('../../services/adminMarketingStudioService',()=>({adminMarketingStudioService:{list:jest.fn().mockResolvedValue([])}}));
 const mocked=api as jest.Mocked<typeof api>;
 const campaign={id:'campaign',version:'v1',pictureMode:'auto'} as StudioCampaign;
@@ -12,3 +12,12 @@ beforeEach(()=>{jest.clearAllMocks();mocked.imageCatalog.mockResolvedValue({reci
 test('cost appears before spending; Use this requires every human check',async()=>{render(<MarketingImageLibrary campaign={campaign}/>);await screen.findByText(/about \$0.045 total/);await screen.findByAltText('A quiet coffee table');fireEvent.click(screen.getByRole('button',{name:/A quiet coffee table/}));const use=screen.getByRole('button',{name:'Use this',exact:true});expect(use).toBeDisabled();for(const text of ['Real-looking?','One idea?','Matches brand?','Nothing misleading?'])fireEvent.click(screen.getByLabelText(text));expect(use).toBeEnabled();fireEvent.click(use);await waitFor(()=>expect(mocked.chooseImage).toHaveBeenCalledWith(campaign,'photo',{real:true,idea:true,brand:true,honest:true},'blog'));expect(mocked.imageOptions).not.toHaveBeenCalled();});
 test('automatic quality failures prevent use even after all review boxes',async()=>{mocked.imageLibrary.mockResolvedValue([{...photo,checks:{...photo.checks,problems:['Words appeared in the background.']}}]);render(<MarketingImageLibrary campaign={campaign}/>);await screen.findByAltText('A quiet coffee table');fireEvent.click(screen.getByRole('button',{name:/A quiet coffee table/}));for(const text of ['Real-looking?','One idea?','Matches brand?','Nothing misleading?'])fireEvent.click(screen.getByLabelText(text));expect(screen.getByRole('button',{name:'Use this',exact:true})).toBeDisabled();expect(mocked.chooseImage).not.toHaveBeenCalled();});
 test('free layout never calls the paid image generator; own-photo mode blocks it',async()=>{render(<MarketingImageLibrary campaign={{...campaign,pictureMode:'own'}}/>);await screen.findByAltText('A quiet coffee table');expect(screen.getByRole('button',{name:'Make three choices'})).toBeDisabled();fireEvent.click(screen.getByRole('button',{name:/A quiet coffee table/}));fireEvent.click(screen.getByRole('button',{name:'Apply size and words · free'}));await waitFor(()=>expect(mocked.imageLayout).toHaveBeenCalled());expect(mocked.imageOptions).not.toHaveBeenCalled();});
+
+test('deleting a library picture confirms first and preserves it when the server refuses',async()=>{
+ const confirm=jest.spyOn(window,'confirm').mockReturnValueOnce(false).mockReturnValue(true);
+ mocked.removeImage.mockRejectedValueOnce(new Error('This picture is used by a blog post.')).mockResolvedValueOnce(undefined);
+ render(<MarketingImageLibrary campaign={campaign}/>);await screen.findByAltText('A quiet coffee table');fireEvent.click(screen.getByRole('button',{name:/A quiet coffee table/}));
+ fireEvent.click(screen.getByRole('button',{name:'Delete library picture'}));expect(mocked.removeImage).not.toHaveBeenCalled();
+ fireEvent.click(screen.getByRole('button',{name:'Delete library picture'}));await screen.findByText('This picture is used by a blog post.');expect(screen.getByRole('button',{name:'Delete library picture'})).toBeEnabled();
+ fireEvent.click(screen.getByRole('button',{name:'Delete library picture'}));await screen.findByText('Picture deleted from your library.');expect(screen.queryByAltText('A quiet coffee table')).not.toBeInTheDocument();confirm.mockRestore();
+});

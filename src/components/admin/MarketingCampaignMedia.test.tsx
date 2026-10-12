@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import MarketingCampaignMedia from './MarketingCampaignMedia';
 import { adminMarketingMediaService as api } from '../../services/adminMarketingMediaService';
 import { adminMarketingStudioService as campaignApi, type StudioCampaign } from '../../services/adminMarketingStudioService';
-jest.mock('../../services/adminMarketingMediaService', () => ({ adminMarketingMediaService: { imageCatalog: jest.fn().mockResolvedValue({ recipes: [], formats: { blog: {label: 'Blog hero',width:1536,height:1024} }, costs: { blog: {set:0.045,one:0.015,final:0.052} } }), imageResults: jest.fn().mockResolvedValue([]), imageLibrary: jest.fn().mockResolvedValue([]), imageOptions: jest.fn(), imageLayout: jest.fn(), chooseImage: jest.fn(), list: jest.fn(), capabilities: jest.fn(), picture: jest.fn(), video: jest.fn(), audio: jest.fn() } }));
+jest.mock('../../services/adminMarketingMediaService', () => ({ adminMarketingMediaService: { imageCatalog: jest.fn().mockResolvedValue({ recipes: [], formats: { blog: {label: 'Blog hero',width:1536,height:1024} }, costs: { blog: {set:0.045,one:0.015,final:0.052} } }), imageResults: jest.fn().mockResolvedValue([]), imageLibrary: jest.fn().mockResolvedValue([]), imageOptions: jest.fn(), imageLayout: jest.fn(), chooseImage: jest.fn(), list: jest.fn(), capabilities: jest.fn(), remove: jest.fn(), picture: jest.fn(), video: jest.fn(), audio: jest.fn() } }));
 jest.mock('../../services/adminMarketingStudioService', () => ({ adminMarketingStudioService: { settings: jest.fn(), list: jest.fn() } }));
 const mocked = api as jest.Mocked<typeof api>;
 const campaign: StudioCampaign = { id: '33333333-3333-4333-8333-333333333333', idea: 'New market', kind: 'video', goal: 'Warm leads', audience: 'Loan officers', tone: 'Helpful', pictureMode: 'auto', pictureDescription: '', photoName: '', videoFormat: 'vertical', videoDuration: '30', plannedAt: '', createdAt: '2026-10-04', status: 'draft', version: '2026-10-04', outputs: { title: 'New market', videoScript: 'Saved script' } };
@@ -57,4 +57,13 @@ test('movement and ending controls save without purchasing new media', async () 
   expect(player).toHaveAttribute('preload','auto');
   expect(screen.getByRole('link',{name:'Watch video'})).toHaveAttribute('href','https://private.example/video.mp4');
   expect(screen.getByRole('link',{name:'Watch video'})).not.toHaveAttribute('download');
+});
+
+test('saved media deletion requires confirmation and leaves other media available',async()=>{
+ const picture={kind:'image' as const,status:'ready' as const,source:'upload' as const,url:'https://private.example/photo',stale:false,updatedAt:'2026-10-04'};
+ mocked.list.mockResolvedValue([picture]);mocked.remove.mockResolvedValue([]);(campaignApi.list as jest.Mock).mockResolvedValue([campaign]);
+ const confirm=jest.spyOn(window,'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true);
+ render(<MarketingCampaignMedia campaign={campaign} dirty={false} onChange={jest.fn()}/>);await screen.findByAltText('Your saved campaign picture');
+ fireEvent.click(screen.getByRole('button',{name:'Delete saved image'}));expect(mocked.remove).not.toHaveBeenCalled();
+ fireEvent.click(screen.getByRole('button',{name:'Delete saved image'}));await waitFor(()=>expect(mocked.remove).toHaveBeenCalledWith(campaign,'image'));await waitFor(()=>expect(screen.queryByAltText('Your saved campaign picture')).not.toBeInTheDocument());confirm.mockRestore();
 });

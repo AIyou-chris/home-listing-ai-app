@@ -27192,6 +27192,7 @@ app.get('/api/admin/marketing-studio/image-catalog', verifyAdmin, imageAction(re
 app.get('/api/admin/marketing-studio/image-library', verifyAdmin, imageAction(async req=>({images:await marketingMediaService.images.library(req.user.id)})));
 app.get('/api/admin/marketing-studio/image-results', verifyAdmin, imageAction(async req=>({scenes:await marketingMediaService.images.performance(req.user.id)})));
 app.post('/api/admin/marketing-studio/image-library/:imageId/review', verifyAdmin, imageAction(req=>marketingMediaService.images.review(req.user.id,req.params.imageId,req.body)));
+app.delete('/api/admin/marketing-studio/image-library/:imageId', verifyAdmin, imageAction(req=>marketingMediaService.images.remove(req.user.id,req.params.imageId)));
 app.post('/api/admin/marketing-studio/image-samples', verifyAdmin, imageAction(req=>marketingMediaService.images.samples(req.user.id)));
 app.get('/api/public/marketing-images/:id', async(req,res)=>{
   try{const image=await require('./services/marketingImages/blog.cjs').publishedImage(supabaseAdmin,req.params.id);if(!image)return res.sendStatus(404);res.setHeader('Cache-Control','public, max-age=300');res.type(image.type).send(image.buffer);}catch{res.sendStatus(404);}
@@ -27200,6 +27201,7 @@ app.post('/api/admin/marketing-studio/campaigns/:id/image-options', verifyAdmin,
 app.post('/api/admin/marketing-studio/campaigns/:id/image-choice', verifyAdmin, imageAction(req=>marketingMediaService.images.choose(req.user.id,req.params.id,req.body)));
 app.post('/api/admin/marketing-studio/campaigns/:id/image-layout', verifyAdmin, imageAction(req=>marketingMediaService.images.layout(req.user.id,req.params.id,req.body)));
 app.get('/api/admin/marketing-studio/campaigns/:id/media', verifyAdmin, marketingMediaHandlers.list);
+app.delete('/api/admin/marketing-studio/campaigns/:id/media/:kind', verifyAdmin, marketingMediaHandlers.remove);
 app.post('/api/admin/marketing-studio/campaigns/:id/picture', verifyAdmin, express.json({ limit: '12mb' }), marketingMediaHandlers.picture);
 app.post('/api/admin/marketing-studio/campaigns/:id/audio', verifyAdmin, marketingMediaHandlers.audio);
 app.post('/api/admin/marketing-studio/campaigns/:id/video', verifyAdmin, marketingMediaHandlers.render);

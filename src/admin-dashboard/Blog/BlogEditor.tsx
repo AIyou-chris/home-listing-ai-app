@@ -57,6 +57,8 @@ const BlogEditor: React.FC = () => {
   const [reviewErrors,setReviewErrors]=useState<string[]>([]);
   const [previewHtml,setPreviewHtml]=useState('');
   const [scheduleAt,setScheduleAt]=useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [listError, setListError] = useState('');
   const [topicFilter,setTopicFilter]=useState('');
   const topics=[{slug:'realtor-referrals',title:'Agent referrals'},{slug:'mortgage-leads',title:'Mortgage leads'},{slug:'lo-marketing',title:'LO marketing'},{slug:'ai-for-loan-officers',title:'AI for loan officers'},{slug:'agent-partners',title:'For agent partners'}];
   const seedLibrary=async()=>{setIsLoading(true);try{const r=await fetch(`${API}/api/admin/blog/seed`,{method:'POST',headers:await authHeader()});const d=await r.json();if(!r.ok)throw Error(d.error);toast.success(`${d.added} starter records added`);await fetchPosts();}catch(e){toast.error(e instanceof Error?e.message:'Could not load the library');}finally{setIsLoading(false);}};
@@ -83,13 +85,13 @@ const BlogEditor: React.FC = () => {
   useEffect(() => { if (view === 'list') fetchPosts(); }, [view]);
 
   const fetchPosts = async () => {
-    setIsLoading(true);
+    setIsLoading(true); setListError('');
     try {
       const r = await fetch(`${API}/api/admin/blog/posts`, { headers: await authHeader() });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || 'failed');
       setPosts((d.posts as BlogPost[]) || []);
-    } catch { toast.error('Failed to fetch posts'); }
+    } catch { setListError('Could not load your blog posts. Try again.'); }
     setIsLoading(false);
   };
 
@@ -234,6 +236,8 @@ const BlogEditor: React.FC = () => {
     else toast.success('Caption copied');
   };
 
+  const visiblePosts = posts.filter(post => (!topicFilter || post.pillar === topicFilter) && (statusFilter === 'all' || (statusFilter === 'draft' ? ['brief', 'draft'].includes(post.status) : post.status === statusFilter)));
+
   // ── List View ─────────────────────────────────────────────────────────────
   if (view === 'list') return (
     <div className="space-y-6">
@@ -275,6 +279,8 @@ const BlogEditor: React.FC = () => {
         <p className="text-sm text-slate-700">Social plan: two posts a day. Publishing an article prepares drafts for you to review in Marketing Studio.</p>
         <div className="flex flex-wrap gap-3"><button onClick={seedLibrary} disabled={isLoading} className="px-4 py-2 rounded-lg bg-blue-700 text-white font-bold text-sm">Load starter library</button><label className="text-sm">Filter topic<select className="ml-2 border rounded-lg p-2" value={topicFilter} onChange={e=>setTopicFilter(e.target.value)}><option value="">All topics</option>{topics.map(topic=><option key={topic.slug} value={topic.slug}>{topic.title}</option>)}</select></label></div>
       </section>
+      <label className="block text-sm font-semibold text-slate-700">Publication status<select aria-label="Publication status" value={statusFilter} onChange={event => setStatusFilter(event.target.value)} className="ml-3 rounded-lg border border-slate-300 p-2"><option value="all">All content</option><option value="draft">Drafts and briefs</option><option value="scheduled">Scheduled</option><option value="published">Published</option><option value="archived">Archived</option></select></label>
+      {listError && <p role="alert" className="text-sm text-red-700">{listError}<button type="button" onClick={() => void fetchPosts()} className="ml-3 underline">Retry blog posts</button></p>}
       <div className="bg-white rounded-2xl border border-slate-200 overflow-x-auto">
         {isLoading ? <div className="p-12 text-center text-slate-400">Loading…</div> : (
           <table className="w-full text-sm">
@@ -286,7 +292,7 @@ const BlogEditor: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {posts.filter(post => !topicFilter || post.pillar === topicFilter).map(post => (
+              {visiblePosts.map(post => (
                 <tr key={post.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-5 py-3">
                     <p className="font-semibold text-slate-900">{post.title}</p>
@@ -300,12 +306,13 @@ const BlogEditor: React.FC = () => {
                   <td className="px-5 py-3 text-slate-400 text-xs">{post.published_at ? new Date(post.published_at).toLocaleDateString() : '—'}</td>
                   <td className="px-5 py-3 text-right flex items-center justify-end gap-2">
                     {post.status === 'brief' && post.role !== 'tool' && <button disabled={isGenerating} onClick={() => writeBrief(post)} className="px-3 py-2 text-sm font-bold text-blue-700">Write article from brief</button>}
+                    {post.status === 'published' && <a href={`/blog/${encodeURIComponent(post.slug)}`} target="_blank" rel="noreferrer" className="px-3 py-1.5 text-xs font-bold text-primary-600">View published post</a>}
                     <button onClick={() => handleEdit(post)} className="px-3 py-1.5 text-xs font-bold text-primary-600 hover:bg-primary-50 rounded-lg transition-all">Edit</button>
                     <button aria-label={`Delete ${post.title}`} onClick={() => handleDelete(post.id)} className="p-1.5 text-rose-400 hover:bg-rose-50 rounded-lg transition-all"><Trash2 size={14} /></button>
                   </td>
                 </tr>
               ))}
-              {posts.length === 0 && <tr><td colSpan={4} className="px-5 py-12 text-center text-slate-400">No posts yet. Use the AI writer above to create your first one.</td></tr>}
+              {!listError && visiblePosts.length === 0 && <tr><td colSpan={4} className="px-5 py-12 text-center text-slate-400">No posts match these filters.</td></tr>}
             </tbody>
           </table>
         )}
