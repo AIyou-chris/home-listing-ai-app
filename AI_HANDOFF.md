@@ -1,3 +1,9 @@
+## 2026-10-12 — Claude: smoke test part 2 (fixes pushed as 7b9db3b3; two small follow-ups local, NOT pushed)
+
+- Pushed 7b9db3b3 and re-tested live: bulk import now enrolls (no FK error) and the funnel email sent; new campaign has no banned words (max one "!" per draft); AI pictures (3 choices), AI voice, and a voiced 20s video all work live. Render env `LO_MAILING_ADDRESS` deleted by Chris; cold-email footer address is now correct.
+- Local follow-ups (backend tests pass, NOT pushed): Facebook Groups writer strips the model's "### NoLink:" label; `scrubVoice` keeps a leading capital ("Open up Warm Leads...").
+- Open: test lead anaiyou+funnel2@pm.me + its enrollment still in the live DB until Chris confirms the email looked right; an image-library row shows status "failed" with the text "Your choices are ready..." while choices wait for a pick; admin "Delete saved campaign" gives "campaign changed" if the page is stale (reload fixes). Not tested: real social post, real blog publish, QR, Calendar.
+
 ## 2026-10-12 — Claude: live smoke test of the Marketing suite (part 1, nothing pushed, no code changed)
 
 - Tested live as admin: Create campaign (paid), free picture, 30s video (ffmpeg DOES work on Render for Studio), Approve, Save to blog, blog publish gate (refused 185-word stub), public /blog + RSS + sitemap, cold-email draft, LO acquisition link (open + click tracked), funnel save + enroll + Mailgun send, Facebook Groups. No real social post made. Test rows removed (campaign, blog draft, group, lead, enrollment, invite). Funnel `realtor_funnel` stays SAVED (made an admin agents row).

@@ -23,3 +23,10 @@ test('gives an error when both tries are unusable', async () => {
   const fetchImpl = async () => reply({ valueFirst: '', noLink: 'b', promotional: 'c' });
   await assert.rejects(createFbGroupWriter({ openaiApiKey: 'k', fetchImpl }).write({ group, topic: 't', link: 'x' }), /writer_bad_output/);
 });
+
+test('drops a label the model puts in front of a version', async () => {
+  const fetchImpl = async () => reply({ valueFirst: '### ValueFirst:\nReal post', noLink: '### NoLink:\nTwo', promotional: 'Three' });
+  const out = await createFbGroupWriter({ openaiApiKey: 'k', fetchImpl }).write({ group, topic: 't', link: 'x' });
+  assert.strictEqual(out.valueFirst.text, 'Real post');
+  assert.strictEqual(out.noLink.text, 'Two');
+});

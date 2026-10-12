@@ -18,3 +18,7 @@ test('leaves clean text alone', () => {
 test('transform verbs keep their ending', () => {
   assert.strictEqual(scrubVoice('It transforms the page and transformed the lead.'), 'It changes the page and changed the lead.');
 });
+
+test('keeps a capital letter at the start of a swapped word', () => {
+  assert.strictEqual(scrubVoice('Unlock Warm Leads with WOW Links'), 'Open up Warm Leads with WOW Links');
+});

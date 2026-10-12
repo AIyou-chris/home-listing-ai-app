@@ -50,7 +50,13 @@ const PLAIN_WORDS = [
 const scrubVoice = (value) => {
   if (typeof value !== 'string') return value;
   let text = value.replace(/^\s*attention\b[^!.\n]*[!.]\s*/i, '');
-  for (const [pattern, plain] of PLAIN_WORDS) text = text.replace(pattern, plain);
+  for (const [pattern, plain] of PLAIN_WORDS) {
+    text = text.replace(pattern, (...args) => {
+      const match = args[0];
+      const swap = typeof plain === 'function' ? plain(...args) : plain;
+      return /^[A-Z]/.test(match) ? swap.charAt(0).toUpperCase() + swap.slice(1) : swap;
+    });
+  }
   text = text.replace(/\[(?:your )?name\]/gi, (m) => (/your/i.test(m) ? 'Chris' : 'there'));
   let seen = false;
   text = text.replace(/!/g, () => { if (!seen) { seen = true; return '!'; } return '.'; });

@@ -93,7 +93,8 @@ function createFbGroupWriter({ openaiApiKey, model = process.env.OPENAI_CHAT_MOD
     const linkAllowed = group.links_allowed === true;
     const variants = {};
     for (const key of ['valueFirst', 'noLink', 'promotional']) {
-      let text = String(out[key] || '').trim();
+      // The model sometimes starts a version with its own label, like "### NoLink:". That is not part of the post.
+      let text = String(out[key] || '').replace(/^\s*(?:#{1,6}\s*)?(?:value\s*first|no\s*link|promotional)\s*:?\s*\n+/i, '').trim();
       if (!linkAllowed) text = text.replace(/https?:\/\/\S+|\b[a-z0-9-]+\.(com|ai|io|net)\b\S*/gi, '').replace(/[ \t]+\n/g, '\n').trim();
       variants[key] = { text, voiceIssues: findVoiceViolations(text) };
     }
