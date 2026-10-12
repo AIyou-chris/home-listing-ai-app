@@ -26203,7 +26203,10 @@ app.get('/api/admin/analytics/funnel-performance', verifyAdmin, (_req, res) => {
 // Serve static files from the React app
 // redirect:false matters: with the default, a folder like dist/blog answers /blog with a 301 to /blog/,
 // and Netlify (which strips trailing slashes) sends it straight back, an endless loop that took /blog down.
-app.use(express.static(path.join(__dirname, '../dist'), { redirect: false }));
+// The sitemap and the blog feed are built live from the database (see blog/routes.cjs). The copies the
+// build leaves in dist/ go stale the moment a new article is published, so those two paths skip the static files.
+const distStatic = express.static(path.join(__dirname, '../dist'), { redirect: false });
+app.use((req, res, next) => (req.path === '/sitemap.xml' || req.path === '/blog/rss.xml' ? next() : distStatic(req, res, next)));
 
 // New Routes
 

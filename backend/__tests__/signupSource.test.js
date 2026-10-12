@@ -26,3 +26,8 @@ test('article byline has an author link and machine-readable dates', () => {
   assert.match(src, /rel="author"/);
   assert.match(src, /<time datetime=/);
 });
+
+test('the sitemap and blog feed come from the live blog routes, not the stale build copies', () => {
+  const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'server.cjs'), 'utf8');
+  assert.match(src, /req\.path === '\/sitemap\.xml' \|\| req\.path === '\/blog\/rss\.xml' \? next\(\)/);
+});
