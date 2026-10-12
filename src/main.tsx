@@ -5,6 +5,9 @@ import { HelmetProvider } from 'react-helmet-async'
 import PublicApp from './PublicApp'
 import ErrorBoundary from './components/ErrorBoundary'
 import RouteAnalyticsTracker from './components/RouteAnalyticsTracker'
+import { captureFirstTouch } from './services/signupAttribution'
+
+captureFirstTouch()
 
 const rootElement = document.getElementById('root')!
 const root = createRoot(rootElement)

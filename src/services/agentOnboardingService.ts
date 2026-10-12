@@ -1,4 +1,5 @@
 import { buildApiUrl } from '../lib/api';
+import { readFirstTouch } from './signupAttribution';
 
 export interface AgentRegistrationPayload {
   firstName: string;
@@ -88,7 +89,7 @@ export const agentOnboardingService = {
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({ ...payload, attribution: readFirstTouch() })
     });
 
     const data = await handleResponse<AgentRegistrationResponse>(response);

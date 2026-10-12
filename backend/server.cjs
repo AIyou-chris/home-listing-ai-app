@@ -1790,6 +1790,18 @@ app.post('/api/agents/register', async (req, res) => {
     const result = await agentOnboardingService.registerAgent({ firstName, lastName, email, accountType, phone, nmls });
     res.json(result);
 
+    // Where did they come from? Saved on the account so the owner can see which post or link worked.
+    const firstTouch = require('./services/signupSource').cleanFirstTouch(req.body?.attribution);
+    if (firstTouch) {
+      (async () => {
+        try {
+          const lower = String(email || '').toLowerCase();
+          const { data: row } = await supabaseAdmin.from('agents').select('id, metadata').eq('email', lower).maybeSingle();
+          if (row?.id) await supabaseAdmin.from('agents').update({ metadata: { ...(row.metadata || {}), signup_source: firstTouch } }).eq('id', row.id);
+        } catch (err) { console.warn('[Signup] could not save the signup source:', err?.message || err); }
+      })();
+    }
+
     // One free trial per phone number: a repeat phone gets no trial and must pay to unlock.
     if (accountType === 'lo') {
       (async () => {
@@ -1802,7 +1814,7 @@ app.post('/api/agents/register', async (req, res) => {
     }
 
     // Fire-and-forget owner alert — never block or fail the signup response.
-    notifyOwnerOfSignup({ firstName, lastName, email, accountType, phone, nmls }).catch((err) => {
+    notifyOwnerOfSignup({ firstName, lastName, email, accountType, phone, nmls, firstTouch }).catch((err) => {
       console.error('[SignupAlert] Failed to notify owner:', err?.message || err);
     });
   } catch (error) {
@@ -1814,7 +1826,7 @@ app.post('/api/agents/register', async (req, res) => {
 // Alert the platform owner (you) by email + text whenever someone signs up.
 // Owner targets are env-driven so they never end up in version control:
 //   OWNER_ALERT_EMAIL (default: homelistingai@gmail.com), OWNER_ALERT_PHONE (no default — SMS skipped if unset)
-async function notifyOwnerOfSignup({ firstName, lastName, email, accountType, phone, nmls }) {
+async function notifyOwnerOfSignup({ firstName, lastName, email, accountType, phone, nmls, firstTouch }) {
   const fullName = [firstName, lastName].filter(Boolean).join(' ').trim() || 'Unknown';
   const type = accountType || 'agent';
   const when = new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles' });
@@ -1840,6 +1852,7 @@ async function notifyOwnerOfSignup({ firstName, lastName, email, accountType, ph
         <tr><td style="padding:8px 0;color:#64748b;">Phone</td><td style="padding:8px 0;font-weight:600;">${phone || '—'}</td></tr>
         <tr><td style="padding:8px 0;color:#64748b;">Account type</td><td style="padding:8px 0;font-weight:600;">${type}</td></tr>
         ${nmls ? `<tr><td style="padding:8px 0;color:#64748b;">NMLS</td><td style="padding:8px 0;font-weight:600;">${nmls}</td></tr>` : ''}
+        <tr><td style="padding:8px 0;color:#64748b;">Came from</td><td style="padding:8px 0;font-weight:600;">${require('./services/signupSource').describe(firstTouch)}</td></tr>
         <tr><td style="padding:8px 0;color:#64748b;">When</td><td style="padding:8px 0;font-weight:600;">${when} PT</td></tr>
       </table>
     </div>

@@ -1,3 +1,8 @@
+## 2026-10-12 — Claude: blog call to action + "where did this signup come from" (local, NOT pushed)
+
+- Blog CTA now says "Start my free 7-day trial" with a plain pitch (`backend/blog/render.cjs`). New first-touch tracking: `src/services/signupAttribution.ts` saves utm_source/ref on the first visit (localStorage), `registerAgent` sends it, `/api/agents/register` saves it in `agents.metadata.signup_source` (`services/signupSource.js`) and the owner signup email has a "Came from" row. Tests: backend signupSource (3) + Jest signupAttribution (2); blog tests, tsc, lint pass.
+- Google ping needs Render env `INDEXNOW_KEY` (any 8-128 letters/numbers); key file is served at /blog/indexnow-key.txt once set.
+
 ## 2026-10-12 — Claude: smoke test part 2 (fixes pushed as 7b9db3b3; two small follow-ups local, NOT pushed)
 
 - Pushed 7b9db3b3 and re-tested live: bulk import now enrolls (no FK error) and the funnel email sent; new campaign has no banned words (max one "!" per draft); AI pictures (3 choices), AI voice, and a voiced 20s video all work live. Render env `LO_MAILING_ADDRESS` deleted by Chris; cold-email footer address is now correct.
