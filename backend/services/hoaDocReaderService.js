@@ -119,22 +119,20 @@ function createHoaDocReader({ openaiApiKey, model = process.env.OPENAI_CHAT_MODE
     return { raw, chosen, usage: json.usage || null };
   }
 
-  // Quote must appear on the page the model named (or anywhere in the chosen pages).
+  // A verified fact must match its cited page and the complete quoted number.
   function verify(raw, pages) {
     const pageText = pages.map((t) => norm(t));
-    const all = pageText.join(' ');
     const facts = {};
     for (const key of FIELD_KEYS) {
       const f = raw[key] || {};
       if (f.value == null) { facts[key] = { status: 'not_found', value: null, page: null, quote: null }; continue; }
       const q = norm(f.quote);
       const onPage = Number.isInteger(f.page) && f.page >= 1 && f.page <= pages.length ? pageText[f.page - 1].includes(q) : false;
-      const anywhere = q.length >= 4 && all.includes(q);
       const hasLabel = /[a-z]{4,}/i.test(String(f.quote || '').replace(/[0-9$,.%()/-]/g, ''));
-      const isNumeric = ['annual_assessment_income', 'annual_reserve_contribution', 'monthly_reserve_contribution', 'reserve_balance', 'percent_funded'].includes(key);
-      const valueInQuote = !isNumeric || (toNumber(f.value) != null && norm(f.quote).replace(/,/g, '').includes(String(toNumber(f.value))));
+      const isNumeric = ['annual_assessment_income', 'annual_reserve_contribution', 'monthly_reserve_contribution', 'reserve_balance', 'percent_funded', 'total_units', 'delinquent_units_60plus'].includes(key);
+      const valueInQuote = !isNumeric || (toNumber(f.value) != null && (norm(f.quote).replace(/,/g, '').match(/-?\d+(?:\.\d+)?/g) || []).some((token) => Number(token) === toNumber(f.value)));
       facts[key] = {
-        status: q.length >= 4 && (onPage || anywhere) && hasLabel && valueInQuote ? 'verified' : 'needs_review',
+        status: q.length >= 4 && onPage && hasLabel && valueInQuote ? 'verified' : 'needs_review',
         value: f.value, page: f.page, quote: f.quote
       };
     }

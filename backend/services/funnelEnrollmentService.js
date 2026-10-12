@@ -129,7 +129,7 @@ const ensureFunnelStepsPayload = async ({ supabaseAdmin, funnel }) => {
 
     const { data: stepRows, error } = await supabaseAdmin
         .from('funnel_steps')
-        .select('id,step_key,step_name,action_type,subject,email_subject,content,email_body,delay_days,delay_minutes,description,preview_text')
+        .select('id,step_name,action_type,subject,content,delay_days,description,preview_text')
         .eq('funnel_id', funnel.id)
         .order('step_index', { ascending: true });
 

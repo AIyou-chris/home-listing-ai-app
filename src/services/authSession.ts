@@ -24,14 +24,26 @@ const AUTH_WAIT_INTERVAL_MS = 150
 
 const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms))
 
+export const isInvalidAuthSessionError = (error: unknown): boolean => {
+  if (!error || typeof error !== 'object') return false
+  const code = String((error as { code?: unknown }).code || '')
+  return ['user_not_found', 'session_not_found', 'bad_jwt', 'refresh_token_not_found', 'refresh_token_already_used'].includes(code)
+}
+
 const readAuthSnapshot = async (): Promise<AuthSessionSnapshot> => {
-  const [{ data: sessionData }, { data: userData }] = await Promise.all([
+  const [{ data: sessionData }, userResult] = await Promise.all([
     supabase.auth.getSession().catch(() => ({ data: { session: null } })),
-    supabase.auth.getUser().catch(() => ({ data: { user: null } }))
+    supabase.auth.getUser().catch(() => ({ data: { user: null }, error: null }))
   ])
 
+  if (isInvalidAuthSessionError(userResult.error)) {
+    // A persisted token can outlive a deleted account. Clear only this browser's
+    // session; never sign out healthy sessions because of a network outage.
+    await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined)
+    return { userId: null, accessToken: null }
+  }
   return {
-    userId: sessionData?.session?.user?.id || userData?.user?.id || null,
+    userId: userResult.data?.user?.id || sessionData?.session?.user?.id || null,
     accessToken: sessionData?.session?.access_token || null
   }
 }

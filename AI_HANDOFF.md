@@ -1,3 +1,14 @@
+## 2026-10-11 — Claude: second bug-hunt pass (NOT PUSHED)
+
+- Fixed (local): `loadAdminFunnelSteps` selected `step_key`/`delay_minutes` that do not exist on `funnel_steps`; `/api/dashboard` last-seen middleware put an unauthenticated header into a PostgREST `.or()` (filter injection could mark every agent active and defeat the inactivity check); now UUID-only. Backend 412 pass, lint clean.
+- Checked and OK: owner derivation (x-user-id must equal the token), incoming-lead webhook secret, property-chat limiter+spend guard, all 150+ tables have RLS, column check clean except legacy funnel columns that the code tolerates.
+- FOUND, NOT APPLIED: left-over dev policies. Anyone can read/edit/delete every `ai_kb` row, read every `ai_transcripts` row, and insert into `leads` as anon. Fix is `supabase/migrations/20261012000000_close_open_policies.sql`; waiting for Chris's OK.
+
+## 2026-10-11 — Claude: agents-table lockdown APPLIED live (Chris said yes)
+
+- Applied `20261011215821_restrict_agent_profile_access.sql` to project HOMELISTINGAI (yocchddxdsaldgsibmmc). Checked first: the frontend only reads its own agents row and edits allowed profile fields. After: anon has no SELECT/UPDATE on agents; logged-in users can SELECT and UPDATE only 13 profile columns (no plan/billing/admin fields).
+- Not verified: a live login + profile save after the change (my curl probe of the live API was blocked). Code fixes from the bug hunt are still local and NOT pushed; Chris must say "push".
+
 ## 2026-10-11 — Codex: broad bug hunt, verified local fixes (NOT PUSHED)
 
 - Report: `docs/audits/BUG_HUNT_2026-10-11.md`. Final checks: 158 frontend + 412 backend = 570 passing tests; typecheck, lint, production build, diff check pass. Nineteen new regression tests over the initial baseline. No production writes, messages, phone calls, purchases or publishing switches changed.

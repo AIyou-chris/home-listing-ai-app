@@ -1869,7 +1869,10 @@ app.get('/api/agents/:slug', async (req, res) => {
     if (!agent) {
       return res.status(404).json({ error: 'Agent not found' });
     }
-    res.json({ agent });
+    // Keep public cards useful without exposing billing or login records.
+    const publicFields = ['id', 'slug', 'first_name', 'last_name', 'company', 'title', 'website', 'bio', 'headshot_url', 'nmls_number', 'status'];
+    const publicAgent = Object.fromEntries(publicFields.map((key) => [key, agent[key] ?? null]));
+    res.json({ agent: publicAgent });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -7848,39 +7851,16 @@ const loadAgentIdentityById = async (agentId) => {
 
 const resolveRequesterAdminAccess = async (requesterUserId) => {
   const scopedRequesterId = toTrimmedOrNull(requesterUserId);
-  if (!scopedRequesterId) return false;
+  if (!scopedRequesterId || !supabaseAdmin) return false;
 
-  let agentRow = null;
-  const primary = await supabaseAdmin
-    .from('agents')
-    .select('id, auth_user_id, is_admin, metadata')
-    .or(`id.eq.${scopedRequesterId},auth_user_id.eq.${scopedRequesterId}`)
-    .limit(1)
-    .maybeSingle();
-
-  if (!primary.error) {
-    agentRow = primary.data || null;
-  } else if (/is_admin/i.test(primary.error.message || '')) {
-    const fallback = await supabaseAdmin
-      .from('agents')
-      .select('id, auth_user_id, metadata')
-      .or(`id.eq.${scopedRequesterId},auth_user_id.eq.${scopedRequesterId}`)
-      .limit(1)
-      .maybeSingle();
-    if (fallback.error) throw fallback.error;
-    agentRow = fallback.data || null;
-  } else {
-    throw primary.error;
-  }
-
-  if (!agentRow) return false;
-  const metadata = agentRow.metadata && typeof agentRow.metadata === 'object' ? agentRow.metadata : {};
-  const isMetadataAdmin =
-    metadata.is_admin === true ||
-    metadata.admin === true ||
-    ['admin', 'super-admin', 'super_admin'].includes(String(metadata.role || '').toLowerCase());
-
-  return Boolean(agentRow.is_admin) || isMetadataAdmin;
+  // Agent profiles are user-editable. Only server-controlled auth claims can
+  // authorize access to another owner's listing.
+  const { data, error } = await supabaseAdmin.rpc('is_user_admin', { uid: scopedRequesterId });
+  if (!error && data === true) return true;
+  const { data: authData, error: authError } = await supabaseAdmin.auth.admin.getUserById(scopedRequesterId);
+  if (authError || !authData?.user) return false;
+  const claims = authData.user.app_metadata || {};
+  return claims.claims_admin === true || claims.admin === true;
 };
 
 const resolveAgentIdForRequesterUser = async (requesterUserId, options = {}) => {
@@ -15952,7 +15932,7 @@ const loadAdminFunnelSteps = async (funnel) => {
 
   const { data: stepRows, error } = await supabaseAdmin
     .from('funnel_steps')
-    .select('id, step_key, step_name, action_type, subject, content, description, delay_days, delay_minutes, preview_text')
+    .select('id, step_name, action_type, subject, content, description, delay_days, preview_text')
     .eq('funnel_id', funnel.id)
     .order('step_index', { ascending: true });
 
@@ -15961,8 +15941,8 @@ const loadAdminFunnelSteps = async (funnel) => {
   }
 
   return mapStoredAdminFunnelSteps((stepRows || []).map((row) => ({
-    id: row.step_key || row.id,
-    step_key: row.step_key || row.id,
+    id: row.id,
+    step_key: row.id,
     title: row.step_name || 'Untitled Step',
     description: row.description || '',
     type: row.action_type || 'email',
@@ -32817,13 +32797,17 @@ app.post('/api/leads/pre-qual', async (req, res) => {
     const { listing_id: listingId, full_name: fullName, email, phone, purchase_timeline, credit_range, income_range, down_payment, property_type, notes, currently_preapproved } = req.body || {};
     if (!listingId) return res.status(400).json({ error: 'listing_id_required' });
     if (!email && !phone) return res.status(400).json({ error: 'email_or_phone_required' });
+    if (typeof fullName !== 'string' || !fullName.trim() || fullName.length > 200) return res.status(400).json({ error: 'name_required' });
+    if ((email != null && typeof email !== 'string') || (phone != null && typeof phone !== 'string')) return res.status(400).json({ error: 'invalid_contact' });
     const emailLower = (email || '').trim().toLowerCase() || null;
+    const phoneE164 = normalizePhoneE164(phone || '') || null;
+    if (emailLower && (emailLower.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailLower))) return res.status(400).json({ error: 'invalid_email' });
+    if (!emailLower && !phoneE164) return res.status(400).json({ error: 'valid_contact_required' });
     const { data: loRow } = await supabaseAdmin.from('listing_lo_assignments').select('lo_agent_id').eq('listing_id', listingId).limit(1);
     const loAgentId = loRow?.[0]?.lo_agent_id || null;
-    const { data: property } = await supabaseAdmin.from('properties').select('id, address, agent_id, user_id').eq('id', listingId).maybeSingle();
-    if (!property) return res.status(404).json({ error: 'listing_not_found' });
+    const { data: property } = await supabaseAdmin.from('properties').select('id, address, agent_id, user_id, status').eq('id', listingId).maybeSingle();
+    if (!property || !isListingPublished(property)) return res.status(404).json({ error: 'listing_not_found' });
     const listingAgentId = property.agent_id || property.user_id || null;
-    const phoneE164 = normalizePhoneE164(phone || '') || null;
     const timestamp = nowIso();
 
     // 1) Canonical lead: update the buyer's existing lead on this listing, or create one.
@@ -36576,7 +36560,9 @@ app.post(['/api/voice/hume/connect', '/api/voice/telnyx/events'], async (req, re
 // ── last_seen_at middleware — fire-and-forget on all authenticated dashboard calls ──
 app.use('/api/dashboard', (req, res, next) => {
   const agentId = String(req.headers['x-user-id'] || req.headers['x-agent-id'] || req.query.agentId || '');
-  if (agentId && agentId.length > 10) {
+  // Header is unauthenticated and goes into a PostgREST .or() string: only a plain UUID may pass,
+  // or "x,id.neq.0" would stamp every agent as recently active.
+  if (isMarketingUuid(agentId)) {
     supabaseAdmin
       .from('agents')
       .update({ last_seen_at: new Date().toISOString() })
@@ -37292,7 +37278,7 @@ app.post('/api/payments/portal-session', requireAuth, async (req, res) => {
     const slug = null
 
     // Find agent
-    let query = supabaseAdmin.from('agents').select('stripe_account_id, email, id')
+    let query = supabaseAdmin.from('agents').select('stripe_customer_id, email, id')
     if (userId) query = query.eq('auth_user_id', userId)
     else query = query.eq('slug', slug)
 
@@ -37302,12 +37288,12 @@ app.post('/api/payments/portal-session', requireAuth, async (req, res) => {
       return res.status(404).json({ success: false, error: 'Agent not found.' })
     }
 
-    let customerId = agent.stripe_account_id
+    let customerId = agent.stripe_customer_id
     if (!customerId) {
       const customer = await paymentService.getCustomerByEmail(agent.email)
       if (customer) {
         customerId = customer.id
-        await supabaseAdmin.from('agents').update({ stripe_account_id: customerId }).eq('id', agent.id)
+        await supabaseAdmin.from('agents').update({ stripe_customer_id: customerId }).eq('id', agent.id)
       } else {
         return res.status(400).json({ success: false, error: 'No billing account found for this user.' })
       }

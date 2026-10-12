@@ -4,7 +4,8 @@ jest.mock('../supabase', () => ({
   supabase: {
     auth: {
       getSession: jest.fn().mockResolvedValue({ data: { session: null } }),
-      getUser: jest.fn().mockResolvedValue({ data: { user: null } })
+      getUser: jest.fn().mockResolvedValue({ data: { user: null } }),
+      signOut: jest.fn().mockResolvedValue({ error: null })
     }
   }
 }))
@@ -121,3 +122,24 @@ describe('waitForAuthenticatedSession', () => {
     expect(snapshot.accessToken).toBeNull()
   })
 })
+
+
+it('discards a cached session after the server says the user was deleted', async () => {
+  jest.useFakeTimers();
+  mockIsDemoModeActive.mockReturnValue(false);
+  mockGetSession.mockResolvedValue({data:{session:{user:{id:'deleted'},access_token:'stale'}}});
+  mockGetUser.mockResolvedValue({data:{user:null},error:{code:'user_not_found'}});
+  const promise=waitForAuthenticatedSession();
+  await jest.runAllTimersAsync();
+  expect(await promise).toEqual({userId:null,accessToken:null});
+  expect(supabase.auth.signOut).toHaveBeenCalledWith({scope:'local'});
+  jest.useRealTimers();
+});
+
+it('does not erase a session during a temporary auth-server failure', async () => {
+  jest.clearAllMocks();
+  mockGetSession.mockResolvedValue({data:{session:{user:{id:'valid'},access_token:'token'}}});
+  mockGetUser.mockResolvedValue({data:{user:null},error:{code:'unexpected_failure',status:503}});
+  expect(await waitForAuthenticatedSession()).toEqual({userId:'valid',accessToken:'token'});
+  expect(supabase.auth.signOut).not.toHaveBeenCalled();
+});

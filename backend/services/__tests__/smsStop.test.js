@@ -46,3 +46,26 @@ test('sendSms never texts a number on the STOP list', async () => {
     sms.isSuppressed = original;
   }
 });
+
+
+test('STOP lookup failure never reaches the text provider', async () => {
+  const sms = require('../smsService');
+  const axios = require('axios');
+  const {guard} = require('../spendGuard');
+  const original = sms.isSuppressed, originalPost = axios.post, originalGate = guard.sms;
+  const oldKey = process.env.TEXTBELT_API_KEY;
+  let providerCalls=0;
+  sms.isSuppressed=async()=>{throw new Error('db unavailable');};
+  axios.post=async()=>{providerCalls++;return {data:{success:true,textId:'fake'}};};
+  guard.sms=()=>({ok:true});
+  process.env.TEXTBELT_API_KEY='test-only-key';
+  try {assert.equal(await sms.sendSms('+15551230001','hello'),false);assert.equal(providerCalls,0);}
+  finally {sms.isSuppressed=original;axios.post=originalPost;guard.sms=originalGate;if(oldKey===undefined)delete process.env.TEXTBELT_API_KEY;else process.env.TEXTBELT_API_KEY=oldKey;}
+});
+
+test('Supabase error response is not treated as an empty STOP list', async () => {
+  const sms=require('../smsService');const db=require('../supabase');const original=db.supabaseAdmin;
+  const q={select(){return q;},eq(){return q;},limit:async()=>({data:null,error:new Error('db unavailable')})};
+  db.supabaseAdmin={from:()=>q};
+  try {await assert.rejects(()=>sms.isSuppressed('+15551230002'));} finally {db.supabaseAdmin=original;}
+});

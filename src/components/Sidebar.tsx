@@ -290,7 +290,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
                       Back to Home
                     </a>
                     <a
-                      href="/#signup"
+                      href="/lo-signup"
                       className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-primary-700"
                     >
                       <span className="material-symbols-outlined text-lg">rocket_launch</span>

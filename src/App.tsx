@@ -2,6 +2,7 @@ import React, { useState, useEffect, Suspense, lazy, useCallback, useRef } from 
 import { Routes, Route, useNavigate, useLocation, Navigate, Outlet, useParams } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from './services/supabase';
+import { isInvalidAuthSessionError } from './services/authSession';
 import ScrollToTop from './components/ScrollToTop';
 import LoTrialBanner from './components/LoTrialBanner';
 import { Property, View, AgentProfile, NotificationSettings, EmailSettings, CalendarSettings, BillingSettings, Lead, Appointment, Interaction } from './types';
@@ -740,10 +741,10 @@ const App: React.FC = () => {
         }
 
         const normalizedProfileRole = profileRoleCandidates.find((candidate) =>
-            candidate === 'admin' || candidate === 'agent' || candidate === 'user'
+            candidate === 'agent' || candidate === 'user'
         );
 
-        if (normalizedProfileRole === 'admin') return 'admin';
+        // Admin access comes only from the server-controlled claims/RPC above.
         if (normalizedProfileRole === 'agent') return 'agent';
         if (normalizedProfileRole === 'user') return 'user';
 
@@ -763,10 +764,21 @@ const App: React.FC = () => {
 
     useEffect(() => {
         let active = true;
+        let authRevision = 0;
         hasInitializedAuthRef.current = true; // Disable legacy auth bootstrapping below.
 
         const applyAuthSnapshot = async (nextSession: Session | null) => {
             if (!active) return;
+            const revision = ++authRevision;
+            if (nextSession) {
+                const checked = await supabase.auth.getUser(nextSession.access_token).catch(() => ({ error: null }));
+                if (!active || revision !== authRevision) return;
+                if (isInvalidAuthSessionError(checked.error)) {
+                    nextSession = null;
+                    await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
+                    if (!active || revision !== authRevision) return;
+                }
+            }
 
             setSession(nextSession);
             setAuthReady(true);
@@ -790,7 +802,7 @@ const App: React.FC = () => {
             setUser(currentUser);
 
             const resolvedRole = await resolveRoleForSession(nextSession);
-            if (!active) return;
+            if (!active || revision !== authRevision) return;
 
             setRole(resolvedRole);
             setIsAdmin(resolvedRole === 'admin');
@@ -815,7 +827,8 @@ const App: React.FC = () => {
         })();
 
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-            void applyAuthSnapshot(nextSession ?? null);
+            // Defer auth API calls until Supabase releases its callback lock.
+            window.setTimeout(() => { void applyAuthSnapshot(nextSession ?? null); }, 0);
         });
 
         return () => {

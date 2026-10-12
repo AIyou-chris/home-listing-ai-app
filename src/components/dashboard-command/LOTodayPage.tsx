@@ -492,12 +492,13 @@ const LOTodayPage: React.FC = () => {
   const heroSource = recentLeads
     .filter((l) => String(l.status).toLowerCase() === 'new')
     .sort((a, b) => (toIntentLevel(a.intentLevel) === 'Hot' ? 0 : 1) - (toIntentLevel(b.intentLevel) === 'Hot' ? 0 : 1) || new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0]
+  const heroListing = data.assignedListings.find((listing) => listing.listingId === heroSource?.listingId)
   const heroLead: DashboardLeadItem | null = heroSource ? {
     id: heroSource.id, name: heroSource.name, phone: heroSource.phone, email: heroSource.email, status: heroSource.status,
     source_type: heroSource.sourceType, intent_level: toIntentLevel(heroSource.intentLevel), intent_score: 0, timeline: 'unknown', financing: 'unknown',
     lead_summary: null, next_best_action: null, intent_reason: heroSource.intentReason || null, can_ask_lo: false,
     last_activity_at: heroSource.createdAt, last_activity_relative: '', last_message_preview: null, created_at: heroSource.createdAt,
-    listing_id: heroSource.listingId, listing: null
+    listing_id: heroSource.listingId, listing: heroListing ? { id: heroListing.listingId, address: heroListing.address } : null
   } : null
   // Live homes first. Unfinished drafts collapse into one line instead of cluttering the list.
   const assignedListings = data.assignedListings.filter((l) => l.status === 'published')

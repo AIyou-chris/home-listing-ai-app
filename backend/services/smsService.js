@@ -152,7 +152,8 @@ const sendSms = async (to, message, mediaUrls = [], userId = null) => {
       return false;
     }
   } catch (suppressionErr) {
-    console.warn('[SMS] Could not check the STOP list, sending anyway:', suppressionErr?.message || suppressionErr);
+    console.warn('[SMS] Could not check the STOP list. Text not sent:', suppressionErr?.message || suppressionErr);
+    return false;
   }
 
   // Stop guard: platform-wide daily cap, a few texts per number per day, and a monthly cap per account.
@@ -208,8 +209,9 @@ const sendSms = async (to, message, mediaUrls = [], userId = null) => {
 // Is this number on the STOP list? (a function so tests can replace it)
 const isSuppressed = async (destination) => {
   const { supabaseAdmin } = require('./supabase');
-  if (!supabaseAdmin) return false;
-  const { data } = await supabaseAdmin.from('sms_suppression').select('phone').eq('phone', destination).limit(1);
+  if (!supabaseAdmin) throw new Error('STOP lookup unavailable');
+  const { data, error } = await supabaseAdmin.from('sms_suppression').select('phone').eq('phone', destination).limit(1);
+  if (error) throw error;
   return Array.isArray(data) && data.length > 0;
 };
 

@@ -207,6 +207,11 @@ module.exports = ({ supabaseAdmin, emailService, smsService, voiceService }) => 
         for (const enrollment of enrollments) {
             const { leads: lead, agents: agent, funnels: funnelDef } = enrollment;
 
+            if (!lead || !agent) {
+                await supabaseAdmin.from('funnel_enrollments').update({ status: 'failed' }).eq('id', enrollment.id);
+                continue;
+            }
+
             // Debug Log
             console.log(`[FunnelExecutor] Checking Lead ${lead.id} Status: '${lead.status}'`);
 
@@ -216,9 +221,10 @@ module.exports = ({ supabaseAdmin, emailService, smsService, voiceService }) => 
                 continue;
             }
 
-            // --- SAFETY CHECK: STOP IF WON ---
-            if (lead.status === 'Won') {
-                console.log(`[FunnelExecutor] Lead ${lead.id} is WON. Stopping funnel execution.`);
+            // Opt-out stops every channel, not just texts. A converted lead also stops.
+            const stoppedStatus = String(lead.status || '').trim().toLowerCase();
+            if (stoppedStatus === 'won' || stoppedStatus === 'unsubscribed') {
+                console.log(`[FunnelExecutor] Lead ${lead.id} is ${stoppedStatus}. Stopping funnel execution.`);
                 await supabaseAdmin
                     .from('funnel_enrollments')
                     .update({ status: 'completed' }) // Gracefully complete
@@ -229,9 +235,9 @@ module.exports = ({ supabaseAdmin, emailService, smsService, voiceService }) => 
                     enrollment_id: enrollment.id,
                     agent_id: agent.id,
                     step_index: enrollment.current_step_index,
-                    action_type: 'stop_won',
+                    action_type: stoppedStatus === 'won' ? 'stop_won' : 'stop_unsubscribed',
                     status: 'skipped',
-                    result_details: { reason: 'Lead converted (Won). Funnel stopped.' }
+                    result_details: { reason: stoppedStatus === 'won' ? 'Lead converted (Won). Funnel stopped.' : 'Lead unsubscribed. Funnel stopped.' }
                 });
                 continue;
             }

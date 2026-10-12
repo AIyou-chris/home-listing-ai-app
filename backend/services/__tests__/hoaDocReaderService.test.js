@@ -46,3 +46,16 @@ test('toNumber reads dollars and percents', () => {
   assert.equal(toNumber('30.68%'), 30.68);
   assert.equal(toNumber('none'), null);
 });
+
+
+test('a quoted number must match completely, not just a substring', () => {
+  const raw = empty();
+  raw.reserve_balance = { value: '23', page: 2, quote: 'BEGINNING RESERVE BALANCE: $23,402' };
+  assert.equal(reader.verify(raw, pages).reserve_balance.status, 'needs_review');
+});
+
+test('an incorrect page citation is not verified', () => {
+  const raw = empty();
+  raw.reserve_balance = { value: '23,402', page: 1, quote: 'BEGINNING RESERVE BALANCE: $23,402' };
+  assert.equal(reader.verify(raw, pages).reserve_balance.status, 'needs_review');
+});

@@ -52,7 +52,7 @@ const PreApprovalSheet: React.FC<PreApprovalSheetProps> = ({ open, onClose, list
   const loFirst = loName.split(' ')[0] || 'your loan officer';
   const answered = QUESTIONS.filter((q) => answers[q.key]).length;
   const digits = phone.replace(/\D/g, '');
-  const phoneOk = digits.length >= 10;
+  const phoneOk = digits.length === 10 || (digits.length === 11 && digits.startsWith('1'));
   const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
   // A buyer gives a name plus ONE way to reach them: phone or email, their choice.
   const canSend = firstName.trim().length > 0 && (phoneOk || emailOk) && !sending;

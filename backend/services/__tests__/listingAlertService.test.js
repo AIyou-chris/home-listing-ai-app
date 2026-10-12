@@ -166,3 +166,15 @@ test('suppressPhone adds to suppression and unsubscribes matching subscribers', 
   assert.strictEqual(sb._db.sms_suppression[0].phone, '+15550000009');
   assert.strictEqual(sb._db.listing_alert_subscribers[0].status, 'unsubscribed');
 });
+
+
+test('subscriber database errors cannot be reported as a successful signup', async () => {
+  const supabase = {from:()=>({upsert:async()=>({error:{message:'database unavailable'}})})};
+  const result=await subscribeToListing(deps(supabase),{listingId:'L1',phone:'5551234567'});
+  assert.strictEqual(result.ok,false);
+});
+test('STOP persistence failure is raised so the webhook can retry', async () => {
+  const supabase = {from:()=>({upsert:async()=>({error:{message:'database unavailable'}})})};
+  supabase.from = () => ({upsert:async()=>({error:{message:'database unavailable'}}), update:()=>({eq:async()=>({error:null})})});
+  await assert.rejects(()=>suppressPhone(deps(supabase),{phone:'5551234567'}));
+});

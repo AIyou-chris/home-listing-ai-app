@@ -50,7 +50,7 @@ async function subscribeToListing(deps, { listingId, agentId, phone, visitorId, 
   const normalized = normalizeAlertPhone(phone);
   if (!listingId || !normalized) return { ok: false, reason: 'invalid_input' };
   try {
-    await supabase.from('listing_alert_subscribers').upsert({
+    const { error } = await supabase.from('listing_alert_subscribers').upsert({
       listing_id: listingId,
       agent_id: agentId || null,
       phone: normalized,
@@ -58,7 +58,8 @@ async function subscribeToListing(deps, { listingId, agentId, phone, visitorId, 
       status: 'active',
       consent_text: consentText || null,
       consent_at: new Date().toISOString(),
-    });
+    }, { onConflict: 'listing_id,phone' });
+    if (error) throw error;
     return { ok: true, phone: normalized };
   } catch (err) {
     logger?.error?.('subscribeToListing failed', err);
@@ -115,11 +116,13 @@ async function sendAlert(deps, { pendingId }) {
 async function suppressPhone(deps, { phone, reason }) {
   const { supabase } = deps;
   const normalized = normalizeAlertPhone(phone) || phone;
-  await supabase.from('sms_suppression').upsert({
+  const { error: suppressionError } = await supabase.from('sms_suppression').upsert({
     phone: normalized, reason: reason || 'stop_reply', created_at: new Date().toISOString(),
   });
-  await supabase.from('listing_alert_subscribers')
+  if (suppressionError) throw suppressionError;
+  const { error: unsubscribeError } = await supabase.from('listing_alert_subscribers')
     .update({ status: 'unsubscribed' }).eq('phone', normalized);
+  if (unsubscribeError) throw unsubscribeError;
   return { ok: true, phone: normalized };
 }
 
