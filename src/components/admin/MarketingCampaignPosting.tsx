@@ -20,6 +20,13 @@ const call = async (path: string, init?: RequestInit) => {
   if (!res.ok) throw new Error(data.error || 'Something went wrong');
   return data;
 };
+const quick = (kind: 'hour' | 'tomorrow' | 'monday') => {
+  const d = new Date();
+  if (kind === 'hour') d.setHours(d.getHours() + 1, 0, 0, 0);
+  else if (kind === 'tomorrow') { d.setDate(d.getDate() + 1); d.setHours(9, 0, 0, 0); }
+  else { d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7)); d.setHours(9, 0, 0, 0); }
+  return d.toISOString();
+};
 const toLocalInput = (iso: string) => { const d = new Date(iso); return Number.isNaN(d.getTime()) ? '' : new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16); };
 
 export default function MarketingCampaignPosting({ campaignId, plannedAt, hasBlogPost, canPublish = true }: { campaignId: string; plannedAt?: string; hasBlogPost: boolean; canPublish?: boolean }) {
@@ -33,12 +40,16 @@ export default function MarketingCampaignPosting({ campaignId, plannedAt, hasBlo
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
   const [blogSaved, setBlogSaved] = useState(hasBlogPost);
+  const [autoOn, setAutoOn] = useState<boolean | null>(null);
+  const [editing, setEditing] = useState<Channel | null>(null);
+  const [editAt, setEditAt] = useState('');
 
   const load = useCallback(async () => {
     try {
       const [c, p] = await Promise.all([call('/api/admin/house-social/connections'), call(`${base}/posts`)]);
       setConnected(Object.fromEntries((c.connections as Connection[]).map((x) => [x.platform, x.connected])));
       setPosts(p.posts);
+      try { setAutoOn((await call('/api/admin/house-social/auto-post')).enabled === true); } catch { setAutoOn(null); }
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not load'); }
   }, [base]);
   useEffect(() => { void load(); }, [load]);
@@ -60,7 +71,18 @@ export default function MarketingCampaignPosting({ campaignId, plannedAt, hasBlo
   };
   const saveBlog = () => act('blog', async () => { await call(`${base}/save-blog`, { method: 'POST', body: '{}' }); setBlogSaved(true); setNote('Sent to your blog. The writer is writing the full article now; it shows as a draft in Manage blog posts in about a minute or two. Nothing is published.'); });
 
-  const taken = new Set(posts.filter((p) => p.status !== 'failed').map((p) => p.channel));
+  const reschedule = (channel: Channel) => act(`edit-${channel}`, async () => {
+    if (!editAt) throw new Error('Choose a date and time first.');
+    const r = await call(`${base}/posts`, { method: 'PUT', body: JSON.stringify({ channels: [channel], at: new Date(editAt).toISOString() }) });
+    setPosts(r.posts); setEditing(null); setNote(`${LABEL[channel]} will post on ${new Date(editAt).toLocaleString()}.`);
+  });
+  const turnAutoOn = () => {
+    if (!window.confirm('Turn auto-posting ON? Everything you scheduled will post to your real accounts at its time.')) return;
+    return act('auto', async () => { await call('/api/admin/house-social/auto-post', { method: 'POST', body: JSON.stringify({ enabled: true }) }); setAutoOn(true); setNote('Auto-posting is ON. Scheduled posts go out at their time.'); });
+  };
+  const waiting = posts.some((p) => p.status === 'scheduled');
+  // Only posts that are live or in flight are locked; a scheduled post can be moved to a new time.
+  const taken = new Set(posts.filter((p) => p.status === 'published' || p.status === 'posting').map((p) => p.channel));
   const toggle = (c: Channel) => setPicked((s) => { const n = new Set(s); if (n.has(c)) n.delete(c); else n.add(c); return n; });
 
   return (
@@ -73,15 +95,26 @@ export default function MarketingCampaignPosting({ campaignId, plannedAt, hasBlo
         {ORDER.map((c) => (
           <label key={c} className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm ${connected[c] ? 'border-slate-300 text-slate-800' : 'border-slate-200 text-slate-400'}`}>
             <input type="checkbox" disabled={!connected[c] || taken.has(c)} checked={picked.has(c)} onChange={() => toggle(c)} />
-            {LABEL[c]}{!connected[c] && ' (connect it first)'}{taken.has(c) && ' (already chosen)'}
+            {LABEL[c]}{!connected[c] && ' (connect it first)'}{taken.has(c) && ' (already posted)'}
           </label>
         ))}
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-slate-800">
-        <label className="flex items-center gap-2"><input type="radio" checked={when === 'now'} onChange={() => setWhen('now')} /> As soon as I say</label>
-        <label className="flex items-center gap-2"><input type="radio" checked={when === 'later'} onChange={() => setWhen('later')} /> On a date</label>
-        {when === 'later' && <input type="datetime-local" value={at} min={toLocalInput(new Date().toISOString())} onChange={(e) => setAt(e.target.value)} className="rounded-lg border border-slate-300 px-2 py-1.5" aria-label="Post date and time" />}
+      <div className="mt-3 rounded-xl bg-slate-50 p-3 text-sm text-slate-800">
+        <div className="flex flex-wrap items-center gap-4">
+          <label className="flex items-center gap-2"><input type="radio" checked={when === 'now'} onChange={() => setWhen('now')} /> As soon as I say</label>
+          <label className="flex items-center gap-2"><input type="radio" checked={when === 'later'} onChange={() => setWhen('later')} /> On a date and time</label>
+        </div>
+        {when === 'later' && <div className="mt-3">
+          <label className="block font-semibold">Date and time (your time zone)
+            <input type="datetime-local" value={at} min={toLocalInput(new Date().toISOString())} onChange={(e) => setAt(e.target.value)} className="mt-1 block w-full max-w-xs rounded-lg border border-slate-300 bg-white px-3 py-2" aria-label="Post date and time" />
+          </label>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <button type="button" className={btn} onClick={() => setAt(toLocalInput(quick('hour')))}>In 1 hour</button>
+            <button type="button" className={btn} onClick={() => setAt(toLocalInput(quick('tomorrow')))}>Tomorrow 9:00 AM</button>
+            <button type="button" className={btn} onClick={() => setAt(toLocalInput(quick('monday')))}>Next Monday 9:00 AM</button>
+          </div>
+        </div>}
       </div>
       <div className="mt-3 flex flex-wrap gap-2">
         <button type="button" className={primary} disabled={busy !== '' || picked.size === 0 || (when === 'later' && !at)} onClick={() => void schedule()}>{busy === 'schedule' ? 'Saving…' : 'Choose these'}</button>
@@ -93,6 +126,8 @@ export default function MarketingCampaignPosting({ campaignId, plannedAt, hasBlo
       {error && <p role="alert" className="mt-2 text-sm text-red-700">{error}</p>}
       {note && <p role="status" className="mt-2 text-sm text-emerald-700">{note}</p>}
 
+      {waiting && autoOn === false && <div role="status" className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"><span><strong>Auto-posting is OFF.</strong> Scheduled posts will not go out by themselves. Turn it on, or press Post now.</span><button type="button" className={btn} disabled={busy !== ''} onClick={() => void turnAutoOn()}>Turn auto-posting on</button></div>}
+      {waiting && autoOn === true && <p className="mt-3 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">Auto-posting is ON. Scheduled posts go out within 5 minutes of their time.</p>}
       {posts.length === 0 && !error && <p className="mt-3 text-sm text-slate-500">No scheduled or published social posts for this campaign.</p>}
       {posts.length > 0 && (
         <ul className="mt-4 divide-y divide-slate-100 rounded-lg border border-slate-200">
@@ -107,8 +142,14 @@ export default function MarketingCampaignPosting({ campaignId, plannedAt, hasBlo
                     : `Scheduled for ${new Date(p.scheduled_for).toLocaleString()}`}
                 </p>
               </div>
+              {editing === p.channel && <div className="flex w-full flex-wrap items-center gap-2 rounded-lg bg-slate-50 p-2">
+                <input type="datetime-local" value={editAt} min={toLocalInput(new Date().toISOString())} onChange={(e) => setEditAt(e.target.value)} className="rounded-lg border border-slate-300 bg-white px-2 py-1.5" aria-label={`New time for ${LABEL[p.channel]}`} />
+                <button type="button" className={primary} disabled={busy !== '' || !editAt} onClick={() => void reschedule(p.channel)}>{busy === `edit-${p.channel}` ? 'Saving…' : 'Save time'}</button>
+                <button type="button" className={btn} onClick={() => setEditing(null)}>Cancel</button>
+              </div>}
               {p.status !== 'published' && p.status !== 'posting' && (
                 <div className="flex gap-2">
+                  <button type="button" className={btn} disabled={busy !== '' || !canPublish} onClick={() => { setEditing(p.channel); setEditAt(toLocalInput(p.scheduled_for)); }}>Change time</button>
                   <button type="button" className={btn} disabled={busy !== '' || !canPublish} onClick={() => void postNow(p.channel)}>{busy === `now-${p.channel}` ? 'Posting…' : p.status === 'failed' ? 'Try again' : 'Post now'}</button>
                   <button type="button" className={btn} disabled={busy !== ''} onClick={() => void remove(p.channel)}>Remove</button>
                 </div>

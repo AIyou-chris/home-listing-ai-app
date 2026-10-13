@@ -1,3 +1,8 @@
+## 2026-10-13 — Claude: posting card: date and time picker, change time, auto-posting warning (pushed)
+
+- `MarketingCampaignPosting.tsx`: "On a date and time" now shows a clear picker with quick buttons (In 1 hour, Tomorrow 9 AM, Next Monday 9 AM); each scheduled/failed post has "Change time" (re-uses PUT `/posts`, which already upserts); only published/posting channels are locked. A waiting post with auto-posting OFF shows an amber banner with "Turn auto-posting on" (same switch API as Connected accounts, with confirm); ON shows "posts within 5 minutes of their time". +1 Jest test.
+- Reminder: scheduled posts only go out while the admin switch `social_auto_post` is ON (default OFF); "Post now" always works.
+
 ## 2026-10-13 — Claude: blog writer fixes found by testing the campaign -> blog button (pushed)
 
 - Chris pressed the new button: brief was created but stayed empty. Reproduced locally with the real writer: root cause = the model returns `seo_keywords` as ONE comma string, the column is `text[]`, so Supabase refused the save (503 "Article storage is unavailable"); the old background call swallowed it. Fix in `blog/service.cjs` `save`: comma/newline strings for `seo_keywords`, `related_slugs`, `planned_links` become lists. (The first-ever writer runs probably got arrays by luck.)
