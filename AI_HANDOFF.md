@@ -1,3 +1,8 @@
+## 2026-10-13 — Claude: "video still not working" check + script directions stripped (local, NOT pushed)
+
+- Chris's campaign 4be4690f: the file he linked was a valid 30s vertical captions video (old render, marked STALE after he switched to "finished picture" + landscape). Remade it live: 960x540, 30s, plays in the browser, shows his full ad. Render took about 75s (30s landscape) while the screen shows "Creating…". Likely cause of his report: the old stale video stays on screen until Make video is pressed again; consider a clearer "settings changed, remake video" prompt.
+- Found: writer scripts contain "[Opening shot: ...]" directions that became on-screen captions and would be read aloud by the AI voice. New `services/videoScriptText.js` (`spokenScript`) is used by the renderer captions and the TTS input (+2 tests).
+
 ## 2026-10-13 — Claude: Marketing Studio layout: one column, collapsible cards (local, NOT pushed)
 
 - Chris asked for one column like the rest of the app and every card collapsible. New `Collapsible.tsx` (+ `collapsibleAll.ts` Expand/Collapse all) used on: Create/Video form + info card, My campaigns list, campaign review (each draft, Send it out, quote cards, Pictures & finished video with Picture and Video sub-cards, AI picture maker), Connected accounts (each network, Auto-posting), Facebook Groups (form and each group). Two-column grids removed in Studio, media, video controls, accounts. Jest 39 admin tests + new Collapsible test, tsc, lint, build pass. NOT looked at on the live screen yet (needs push + deploy).

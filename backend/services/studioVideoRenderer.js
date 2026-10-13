@@ -1,4 +1,5 @@
 'use strict';
+const { spokenScript } = require('./videoScriptText');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const os = require('node:os');
@@ -114,7 +115,7 @@ async function render(campaign, photo, audio={}) {
   const options=videoOptions(campaign.brief);
   const vertical=campaign.brief.videoFormat==='vertical'; const width=vertical?540:960; const height=vertical?960:540;
   const large=options.captionSize==='large';
-  const scenes=captionScenes(campaign.outputs.videoScript,vertical?(large?23:27):(large?43:52),vertical?(large?6:7):(large?4:5));
+  const scenes=captionScenes(spokenScript(campaign.outputs.videoScript),vertical?(large?23:27):(large?43:52),vertical?(large?6:7):(large?4:5));
   if (!scenes.length || scenes.length>30) throw Error('Shorten the video script before rendering.');
   const voice=options.narration==='saved'?audio.voice:null;
   const speed=Number(options.voiceSpeed);

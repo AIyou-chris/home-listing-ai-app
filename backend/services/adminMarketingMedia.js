@@ -1,4 +1,5 @@
 'use strict';
+const { spokenScript } = require('./videoScriptText');
 const crypto = require('node:crypto');
 const renderer = require('./studioVideoRenderer');
 const { StudioError, validateOutputs } = require('./adminMarketingStudio');
@@ -91,7 +92,7 @@ function createMediaService({db, openai, jev, imageInspector, video=renderer}) {
       } else {
         if(kind!=='voice'||body.ai!==true)throw new StudioError(400,'Choose an audio file first.');
         if(!openai)throw new StudioError(503,'AI voice is not configured. Upload your own recording.');
-        if(row.outputs.videoScript.split(/\s+/).length>200)throw new StudioError(400,'Shorten your script to 200 words or fewer before making an AI voice.');
+        if(spokenScript(row.outputs.videoScript).split(/\s+/).length>200)throw new StudioError(400,'Shorten your script to 200 words or fewer before making an AI voice.');
         source='ai';
       }
       await clearApproval(owner,row);
@@ -99,7 +100,7 @@ function createMediaService({db, openai, jev, imageInspector, video=renderer}) {
       const create=async()=>{
         try {
           if(source==='ai') {
-            const speech=await openai.audio.speech.create({model:'tts-1',voice:videoOptions(row.brief).voice,input:row.outputs.videoScript,response_format:'mp3'},{timeout:60000,maxRetries:0});
+            const speech=await openai.audio.speech.create({model:'tts-1',voice:videoOptions(row.brief).voice,input:spokenScript(row.outputs.videoScript),response_format:'mp3'},{timeout:60000,maxRetries:0});
             try {bytes=await video.normalizeAudio(Buffer.from(await speech.arrayBuffer()));}catch {throw new StudioError(400,'Your spoken script is too long. Shorten it and make the voice again.');}
           }
           await finish(owner,claimed,bytes,'audio/mpeg');
