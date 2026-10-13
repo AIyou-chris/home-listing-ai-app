@@ -40,7 +40,7 @@ Never let the deep work leak into the message.
 ## Always
 
 - Do the heavy lifting yourself. He does not code.
-- Do not push to GitHub until he says "push".
+- **Pushing code: standing OK (Chris, 2026-10-13).** After a fix passes tests, commit and push it to `main` without asking. Say in one line that it is pushed. Still ask first for: live database changes, anything that spends real money beyond a few cents, real posts/emails/texts to other people, and deleting real data.
 - Do not change the live database without his OK.
 - If something is wrong, say so in one line. Do not hide it.
 - End each session with a short entry at the top of `AI_HANDOFF.md`.
