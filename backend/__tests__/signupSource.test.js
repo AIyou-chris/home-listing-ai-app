@@ -31,3 +31,12 @@ test('the sitemap and blog feed come from the live blog routes, not the stale bu
   const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'server.cjs'), 'utf8');
   assert.match(src, /req\.path === '\/sitemap\.xml' \|\| req\.path === '\/blog\/rss\.xml' \? next\(\)/);
 });
+
+test('sending a campaign to the blog creates a brief and runs the real blog writer, not a short stub', () => {
+  const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'server.cjs'), 'utf8');
+  const route = src.slice(src.indexOf("campaigns/:id/save-blog'"), src.indexOf('// GET /api/admin/social/status'));
+  assert.match(route, /status: 'brief'/);
+  assert.match(route, /blogService\.generate\(req\.user\.id, \{ id: saved\.post\.id \}\)/);
+  assert.ok(!route.includes("status: 'draft'"), 'no more stub draft');
+  assert.match(route, /admin_marketing_images/);
+});

@@ -36120,30 +36120,42 @@ if (APP_RUNTIME_MODE !== 'worker') {
   setInterval(() => { runMarketingPostSweep().catch(() => {}); }, 5 * 60 * 1000);
 }
 
-// Save a campaign's article as a blog DRAFT (never published from here). Safe to press twice.
+// Send a campaign to the blog: makes a real blog brief (with the campaign picture when it is a checked library
+// picture) and has the blog writer write the full, checked article in the background. Never published from here.
+// Safe to press twice.
 app.post('/api/admin/marketing-studio/campaigns/:id/save-blog', verifyAdmin, async (req, res) => {
   try {
     if (!/^[0-9a-f-]{36}$/i.test(String(req.params.id || ''))) return res.status(400).json({ error: 'Invalid campaign ID' });
-    const { data: camp } = await supabaseAdmin.from('admin_marketing_campaigns').select('id, owner_id, status, outputs, blog_post_id').eq('id', req.params.id).maybeSingle();
+    const { data: camp } = await supabaseAdmin.from('admin_marketing_campaigns').select('id, owner_id, status, brief, outputs, blog_post_id').eq('id', req.params.id).maybeSingle();
     if (!camp) return res.status(404).json({ error: 'Campaign not found' });
     if (camp.blog_post_id) return res.json({ postId: camp.blog_post_id, already: true });
     const title = String(camp.outputs?.title || '').trim();
-    const body = String(camp.outputs?.blog || '').trim();
-    if (!title || !body) return res.status(400).json({ error: 'This campaign has no article yet.' });
-    const esc = (v) => v.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-    const content = body.split(/\n{2,}/).map((p) => `<p>${esc(p.trim()).replace(/\n/g, '<br>')}</p>`).join('');
+    if (!title) return res.status(400).json({ error: 'This campaign has no title yet.' });
+    const topic = [title, String(camp.brief?.idea || '').trim()].filter(Boolean).join(' — ').slice(0, 200);
+
+    // Carry the campaign picture over only when it is a reviewed library picture (the blog's own rule).
+    let featured = {};
+    const { data: libs } = await supabaseAdmin.from('admin_marketing_images').select('id, checks')
+      .eq('owner_id', camp.owner_id).eq('approved', true).contains('used_in', [{ campaign_id: camp.id }]).limit(5);
+    const lib = (libs || []).find((row) => !(row.checks?.problems || []).length);
+    if (lib) featured = { featured_image: `https://homelistingai.com/api/public/marketing-images/${lib.id}`, featured_image_alt: title.slice(0, 200) };
+
+    const brief = { title: topic, content: '', status: 'brief', role: 'spoke', pillar: 'lo-marketing', compliance_note: true, related_slugs: [], planned_links: [], ...featured };
     let saved;
-    try { saved = await blogService.save(req.user.id, { title, content, status: 'draft' }); }
+    try { saved = await blogService.save(req.user.id, brief); }
     catch (err) {
       if (err?.status !== 409) throw err;
-      saved = await blogService.save(req.user.id, { title, slug: `${title}-${String(camp.id).slice(0, 6)}`, content, status: 'draft' });
+      saved = await blogService.save(req.user.id, { ...brief, slug: `${topic}-${String(camp.id).slice(0, 6)}` });
     }
     await supabaseAdmin.from('admin_marketing_campaigns').update({ blog_post_id: saved.post.id }).eq('id', camp.id);
-    res.json({ postId: saved.post.id });
+    res.json({ postId: saved.post.id, writing: true, picture: Boolean(lib) });
+
+    // The writer takes a minute or more, longer than the web proxy waits, so it runs after the reply.
+    blogService.generate(req.user.id, { id: saved.post.id }).catch((err) => console.warn('[Marketing blog] writer did not finish:', err?.message || err));
   } catch (err) {
     if (err?.status) return res.status(err.status).json({ error: err.message });
     console.error('[Marketing blog] save failed:', err?.message || err);
-    res.status(500).json({ error: 'Could not save the article. Try again.' });
+    res.status(500).json({ error: 'Could not send the article to the blog. Try again.' });
   }
 });
 

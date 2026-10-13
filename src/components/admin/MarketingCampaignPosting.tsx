@@ -58,7 +58,7 @@ export default function MarketingCampaignPosting({ campaignId, plannedAt, hasBlo
     if (!window.confirm('Cancel this scheduled or failed post? Published posts are kept.')) return;
     return act(`rm-${channel}`, async () => { setPosts((await call(`${base}/posts/${channel}`, { method: 'DELETE' })).posts); });
   };
-  const saveBlog = () => act('blog', async () => { await call(`${base}/save-blog`, { method: 'POST', body: '{}' }); setBlogSaved(true); setNote('Saved as a draft in your blog. Open Blog to review and publish it.'); });
+  const saveBlog = () => act('blog', async () => { await call(`${base}/save-blog`, { method: 'POST', body: '{}' }); setBlogSaved(true); setNote('Sent to your blog. The writer is writing the full article now; it shows as a draft in Manage blog posts in about a minute or two. Nothing is published.'); });
 
   const taken = new Set(posts.filter((p) => p.status !== 'failed').map((p) => p.channel));
   const toggle = (c: Channel) => setPicked((s) => { const n = new Set(s); if (n.has(c)) n.delete(c); else n.add(c); return n; });
@@ -85,7 +85,7 @@ export default function MarketingCampaignPosting({ campaignId, plannedAt, hasBlo
       </div>
       <div className="mt-3 flex flex-wrap gap-2">
         <button type="button" className={primary} disabled={busy !== '' || picked.size === 0 || (when === 'later' && !at)} onClick={() => void schedule()}>{busy === 'schedule' ? 'Saving…' : 'Choose these'}</button>
-        <button type="button" className={btn} disabled={busy !== '' || blogSaved} onClick={() => void saveBlog()}>{blogSaved ? 'Article is in your blog' : busy === 'blog' ? 'Saving…' : 'Save article to my blog (draft)'}</button>
+        <button type="button" className={btn} disabled={busy !== '' || blogSaved} onClick={() => void saveBlog()}>{blogSaved ? 'Article is in your blog' : busy === 'blog' ? 'Sending…' : 'Write the full article for my blog (draft)'}</button>
       </div>
       </>}
       {!canPublish && <p className="mt-3 text-sm text-slate-600">Save and approve this draft to publish. Existing posts remain visible below.</p>}
