@@ -47,3 +47,8 @@ test('the blog title sent from a campaign stays short enough for the blog rules'
   assert.ok(!/join\(' — '\)/.test(route), 'idea must not be glued into the title');
   assert.match(route, /title\.length > 110/);
 });
+
+test('the blog save turns comma-separated keyword strings into lists before writing', () => {
+  const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'blog', 'service.cjs'), 'utf8');
+  assert.match(src, /for\(const key of \['seo_keywords','related_slugs','planned_links'\]\)if\(typeof patch\[key\]==='string'\)/);
+});

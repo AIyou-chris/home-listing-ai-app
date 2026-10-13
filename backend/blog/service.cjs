@@ -53,6 +53,8 @@ function createBlogService({db,openai,env=process.env,fetchImpl=fetch,now=()=>ne
   if(!UUID.test(owner||''))throw new BlogError(401,'Sign in as an admin.');
   const existing=body.id?await get(body.id):null;if(existing&&body.updated_at!==existing.updated_at)throw new BlogError(409,'This article changed. Reload before saving.');
   const patch={};for(const key of fields)if(body[key]!==undefined)patch[key]=body[key];
+  // The writer sometimes sends keyword and link lists as one comma-separated string; the columns want lists.
+  for(const key of ['seo_keywords','related_slugs','planned_links'])if(typeof patch[key]==='string')patch[key]=patch[key].split(/[,\n]/).map(v=>v.trim()).filter(Boolean);
   const p={...(existing||{}),...patch};p.slug=slugify(p.slug||p.title);
   if(!p.title||p.title.length>200||!p.slug||p.slug.length>180||String(p.content||'').length>120000)throw new BlogError(400,'Check the title, slug and article length.');
   if(!['brief','draft','scheduled','published','archived'].includes(p.status||'draft'))throw new BlogError(400,'Choose a valid article status.');
@@ -78,7 +80,18 @@ function createBlogService({db,openai,env=process.env,fetchImpl=fetch,now=()=>ne
   const brief=existing||{title:String(body.idea||'').slice(0,4000),role:'spoke',pillar:'lo-marketing',compliance_note:true,related_slugs:[]};
   if(!brief.title)throw new BlogError(400,'Choose a brief or enter an idea.');
   try{const c=await openai.chat.completions.create({model:'gpt-4.1-mini',response_format:{type:'json_object'},max_tokens:14000,temperature:.5,messages:[{role:'system',content:writerPrompt(brief)},{role:'user',content:'Write the complete draft.'}]},{timeout:180000,maxRetries:0});if(c.choices[0].finish_reason!=='stop')throw Error('incomplete');
-   const raw=JSON.parse(c.choices[0].message.content),post={...brief,...raw,slug:existing?.slug||slugify(raw.title),status:'draft',featured_image:brief.featured_image||'/blog/assets/'+brief.pillar+'.webp',featured_image_alt:brief.featured_image_alt||raw.title,author:'Chris Potter'};
+   let raw=JSON.parse(c.choices[0].message.content);
+   // The writer often misses the checker's rules (too short, product name too early or too often).
+   // One repair pass tells it exactly what failed, and the better draft is kept. Picture problems are not its job.
+   const wordCount=html=>String(html||'').replace(/<[^>]+>/g,' ').split(/\s+/).filter(Boolean).length;
+   const problemsOf=r=>checks({...brief,...r,status:'draft',featured_image:brief.featured_image||'/blog/assets/'+brief.pillar+'.webp',featured_image_alt:brief.featured_image_alt||r.title}).errors.filter(e=>!/picture|alt text/i.test(e));
+   const firstProblems=problemsOf(raw);
+   if(firstProblems.length){try{
+    const target=brief.role==='hub'?3000:1400;
+    const fix=await openai.chat.completions.create({model:'gpt-4.1-mini',response_format:{type:'json_object'},max_tokens:14000,temperature:.4,messages:[{role:'system',content:writerPrompt(brief)},{role:'user',content:'Write the complete draft.'},{role:'assistant',content:JSON.stringify(raw)},{role:'user',content:`The checker found these problems: ${firstProblems.join(' | ')}. Return the same JSON, rewritten to fix every one. Content should be about ${target} words. Keep the topic, headings, both step lists and the script. Name HomeListingAI at most twice and only after the halfway point; the title and short answer must not name it. Add real working detail, never filler.`}]},{timeout:180000,maxRetries:0});
+    if(fix.choices[0].finish_reason==='stop'){const better=JSON.parse(fix.choices[0].message.content);if(problemsOf(better).length<firstProblems.length||wordCount(better.content)>wordCount(raw.content)&&problemsOf(better).length<=firstProblems.length)raw=better;}
+   }catch{/* keep the first draft; the checks will list what is left */}}
+   const post={...brief,...raw,slug:existing?.slug||slugify(raw.title),status:'draft',featured_image:brief.featured_image||'/blog/assets/'+brief.pillar+'.webp',featured_image_alt:brief.featured_image_alt||raw.title,author:'Chris Potter'};
    if(existing){const saved=await save(owner,{...post,id:existing.id,updated_at:existing.updated_at});await table().update({generation_started_at:null}).eq('id',existing.id);return saved;}
    return {post,review:checks(post)};
   }catch(error){if(existing)await table().update({generation_started_at:null}).eq('id',existing.id);if(error instanceof BlogError)throw error;throw new BlogError(502,'Writing did not finish. Your brief is saved; try again or edit it.');}
