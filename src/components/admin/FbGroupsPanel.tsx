@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import Collapsible from './Collapsible';
 import { Check, Clipboard, ExternalLink, Pencil, Plus, Sparkles, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { supabase } from '../../services/supabase';
@@ -93,7 +94,7 @@ const FbGroupsPanel: React.FC = () => {
       <div className="mt-4"><button type="button" className={primary} onClick={() => { setEditing(null); setForm(EMPTY); setShowForm((v) => !v); }}><Plus className="h-4 w-4" /> Add a group</button></div>
 
       {showForm && (
-        <div className="mt-4 grid gap-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:grid-cols-2">
+        <div className="mt-4"><Collapsible title={editing ? "Edit group" : "Add a group"} hint="Its rules decide what the post can say"><div className="grid gap-3">
           <label className="text-sm font-semibold text-slate-700">Group name<input className={input} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
           <label className="text-sm font-semibold text-slate-700">Group link<input className={input} placeholder="https://facebook.com/groups/..." value={form.facebookUrl} onChange={(e) => setForm({ ...form, facebookUrl: e.target.value })} /></label>
           <label className="text-sm font-semibold text-slate-700">Who is in it<input className={input} placeholder="Loan officers, realtors..." value={form.audience} onChange={(e) => setForm({ ...form, audience: e.target.value })} /></label>
@@ -113,14 +114,14 @@ const FbGroupsPanel: React.FC = () => {
             <button type="button" className={primary} disabled={busy === 'save'} onClick={() => void save()}>{busy === 'save' ? 'Saving…' : 'Save group'}</button>
             <button type="button" className={btn} onClick={() => { setShowForm(false); setEditing(null); setForm(EMPTY); }}>Cancel</button>
           </div>
-        </div>
+        </div></Collapsible></div>
       )}
 
       <div className="mt-5 space-y-4">
         {groups === null && <p className="text-sm text-slate-500">Loading…</p>}
         {groups?.length === 0 && !loadError && <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600">No groups yet. Add the first one.</p>}
         {groups?.map((g) => (
-          <article key={g.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <Collapsible key={g.id} title={g.name} hint={[g.audience, g.join_status].filter(Boolean).join(" · ")} defaultOpen={false}>
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <h4 className="text-lg font-bold text-slate-900">{g.name}</h4>
@@ -158,7 +159,7 @@ const FbGroupsPanel: React.FC = () => {
                 ))}
               </div>
             )}
-          </article>
+          </Collapsible>
         ))}
       </div>
     </section>

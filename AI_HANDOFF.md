@@ -1,3 +1,7 @@
+## 2026-10-13 — Claude: Marketing Studio layout: one column, collapsible cards (local, NOT pushed)
+
+- Chris asked for one column like the rest of the app and every card collapsible. New `Collapsible.tsx` (+ `collapsibleAll.ts` Expand/Collapse all) used on: Create/Video form + info card, My campaigns list, campaign review (each draft, Send it out, quote cards, Pictures & finished video with Picture and Video sub-cards, AI picture maker), Connected accounts (each network, Auto-posting), Facebook Groups (form and each group). Two-column grids removed in Studio, media, video controls, accounts. Jest 39 admin tests + new Collapsible test, tsc, lint, build pass. NOT looked at on the live screen yet (needs push + deploy).
+
 ## 2026-10-12 — Claude: second real social post (new picture + motion video), all four published
 
 - Campaign e5c597f2: picture (scene 1 with headline + "Start your free 7-day trial" button) and 15s motion video (layout `picture`, calm music), approved by Chris ("post it"), posted: Facebook, LinkedIn, YouTube Short, Instagram Reel, all `published` (URLs in `admin_marketing_posts`). Instagram "Post now" again returned HTTP 504 after about 30s but published: the request outlives the proxy timeout. Open item: make Instagram post-now return right away and let the screen poll, so a 504 stops looking like a failure.

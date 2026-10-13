@@ -31,7 +31,7 @@ export default function MarketingImageLibrary({campaign,onChange,disabled=false,
     <h3 className="text-xl font-bold text-slate-900">{campaign?'Make your picture':'Picture library'}</h3><p className="mt-1 text-sm text-slate-600">Real scenes, clean words, your logo. Every picture waits for your review.</p>
     {error&&<p role="alert" className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-800">{error}</p>}{message&&<p role="status" className="mt-3 text-sm text-green-700">{message}</p>}
     {!campaign&&<button type="button" className={`${button} mt-4`} disabled={busy} onClick={samples}>Load sample ideas · free</button>}
-    {campaign&&<div className="mt-4 grid gap-3 sm:grid-cols-2">
+    {campaign&&<div className="mt-4 grid gap-3">
       <label className="text-sm font-semibold">Picture size<select className={input} value={format} onChange={e=>setFormat(e.target.value)} disabled={busy||disabled}>{Object.entries(catalog?.formats||{blog:{label:'Blog hero',width:1536,height:1024}}).map(([id,f])=><option key={id} value={id}>{f.label} · {f.width} × {f.height}</option>)}</select></label>
       <label className="text-sm font-semibold">Scene<select className={input} value={recipe} onChange={e=>{setRecipe(e.target.value);setLending(catalog?.recipes.find(r=>r.id===e.target.value)?.use==='paid_ad');}} disabled={busy||disabled}><option value="">Choose a scene for me</option>{catalog?.recipes.map(r=><option key={r.id} value={r.id}>{r.use} · {r.pillar} · {r.subject}</option>)}</select></label>
       <label className="text-sm font-semibold">Headline (up to 8 words)<input className={input} value={headline} maxLength={120} onChange={e=>setHeadline(e.target.value)} disabled={busy||disabled} placeholder="A warmer way to find your next lead" /></label>

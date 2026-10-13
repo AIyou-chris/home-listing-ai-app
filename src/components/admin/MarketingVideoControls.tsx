@@ -7,7 +7,7 @@ export default function MarketingVideoControls({ options, setOptions, disabled, 
   const select = (key: keyof StudioVideoOptions, value: string) => setOptions({ ...options, [key]: value });
   return <details className="mt-4 rounded-xl border border-slate-200 bg-white p-3" open>
     <summary className="cursor-pointer font-semibold text-slate-900">Voice, music & style</summary>
-    <div className="mt-3 grid grid-cols-2 gap-3">
+    <div className="mt-3 grid gap-3">
       <label className="text-sm font-semibold text-slate-700">Narration<select aria-label="Narration" className={field} value={options.narration} disabled={disabled} onChange={e => select('narration', e.target.value)}><option value="none">Voice off</option><option value="saved">Voice on</option></select></label>
       <label className="text-sm font-semibold text-slate-700">Voice speed<select aria-label="Voice speed" className={field} value={options.voiceSpeed} disabled={disabled} onChange={e => select('voiceSpeed', e.target.value)}><option value="0.9">Slower</option><option value="1">Normal</option><option value="1.1">Faster</option></select></label>
     </div>
@@ -20,14 +20,14 @@ export default function MarketingVideoControls({ options, setOptions, disabled, 
       {voice?.stale && <p className="mt-2 text-sm text-amber-800">Your script or voice changed. Make or upload the voice again.</p>}
       {voice?.error && <p className="mt-2 text-sm text-red-700">{voice.error}</p>}
     </div>}
-    <div className="mt-3 grid grid-cols-2 gap-3">
+    <div className="mt-3 grid gap-3">
       <label className="text-sm font-semibold text-slate-700">Music<select aria-label="Background music" className={field} value={options.music} disabled={disabled} onChange={e => select('music', e.target.value)}><option value="none">No music</option><option value="calm">Calm</option><option value="upbeat">Upbeat</option><option value="upload">Upload</option></select></label>
       <label className="text-sm font-semibold text-slate-700">Music volume<select aria-label="Music volume" className={field} value={options.musicVolume} disabled={disabled} onChange={e => select('musicVolume', e.target.value)}><option value="low">Quiet</option><option value="medium">Medium</option></select></label>
       <label className="text-sm font-semibold text-slate-700">Video words<select aria-label="Video words" className={field} value={options.layout} disabled={disabled} onChange={e => select('layout', e.target.value)}><option value="cards">Captions on the picture</option><option value="picture">My finished picture, no captions</option></select></label>
       <label className="text-sm font-semibold text-slate-700">Captions<select aria-label="Caption size" className={field} value={options.captionSize} disabled={disabled} onChange={e => select('captionSize', e.target.value)}><option value="normal">Normal</option><option value="large">Larger</option></select></label>
       <label className="text-sm font-semibold text-slate-700">Colour<select aria-label="Video colour" className={field} value={options.videoStyle} disabled={disabled} onChange={e => select('videoStyle', e.target.value)}><option value="blue">Blue & indigo</option><option value="dark">Dark slate</option></select></label>
     </div>
-    <div className="mt-3 grid grid-cols-2 gap-3">
+    <div className="mt-3 grid gap-3">
       <label className="text-sm font-semibold text-slate-700">Picture movement<select aria-label="Picture movement" className={field} value={options.motion} disabled={disabled} onChange={e => select('motion', e.target.value)}><option value="gentle">Slow zoom</option><option value="still">Still</option></select></label>
       <label className="text-sm font-semibold text-slate-700">Transitions<select aria-label="Caption transitions" className={field} value={options.transition} disabled={disabled} onChange={e => select('transition', e.target.value)}><option value="fade">Soft fade</option><option value="cut">Cut</option></select></label>
     </div>

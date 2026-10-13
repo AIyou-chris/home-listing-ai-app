@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import Collapsible from './Collapsible';
 import { Briefcase, Camera, Link2, Play, RefreshCw, Share2, Unplug } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { supabase } from '../../services/supabase';
@@ -121,7 +122,7 @@ const ConnectedAccountsPanel: React.FC = () => {
       <h3 className="text-xl font-bold text-slate-900">Connected accounts</h3>
       <p className="mt-1 max-w-2xl text-sm text-slate-600">Connect HomeListingAI's own accounts. Everyone on the team shares these. Connect once for the company.</p>
 
-      <AutoPostSwitch />
+      <div className="mt-4"><Collapsible title="Auto-posting" hint="The master switch. Post now always works."><AutoPostSwitch /></Collapsible></div>
 
       {loadError && (
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-800" role="alert">
@@ -131,25 +132,18 @@ const ConnectedAccountsPanel: React.FC = () => {
       )}
 
       {!connections ? (
-        <div className="mt-4 grid gap-4 sm:grid-cols-2" aria-busy="true">
+        <div className="mt-4 grid gap-4" aria-busy="true">
           {[0, 1, 2, 3].map((i) => <div key={i} className="h-36 animate-pulse rounded-2xl border border-slate-200 bg-white" />)}
         </div>
       ) : (
-        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <div className="mt-4 space-y-3">
           {connections.map((c) => {
             const d = DETAILS[c.platform];
             const working = busy === c.platform;
             const reconnect = c.status === 'needs_reconnect' || c.status === 'revoked';
             return (
-              <article key={c.platform} className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <Collapsible key={c.platform} title={<span className="flex flex-wrap items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary-50 text-primary-700">{d.icon}</span>{d.label}<span className={`rounded-full px-2.5 py-1 text-xs font-bold ${c.connected ? 'bg-emerald-50 text-emerald-700' : reconnect ? 'bg-amber-50 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>{c.connected ? 'Connected' : reconnect ? 'Reconnect' : c.configured ? 'Not connected' : 'Setup needed'}</span></span>} hint={c.accountLabel || d.help} defaultOpen={false}>
                 <div>
-                  <div className="flex items-start justify-between">
-                    <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-50 text-primary-700">{d.icon}</span>
-                    <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${c.connected ? 'bg-emerald-50 text-emerald-700' : reconnect ? 'bg-amber-50 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>
-                      {c.connected ? 'Connected' : reconnect ? 'Reconnect' : c.configured ? 'Not connected' : 'Setup needed'}
-                    </span>
-                  </div>
-                  <h4 className="mt-3 text-lg font-bold text-slate-900">{d.label}</h4>
                   <p className="text-sm text-slate-600">{c.accountLabel || d.help}</p>
                   {c.lastError && <p className="mt-2 text-xs text-amber-700">{c.lastError}</p>}
                   {!c.configured && c.setupNeeded && <p className="mt-2 text-xs text-slate-500">Missing: {c.setupNeeded}</p>}
@@ -161,7 +155,7 @@ const ConnectedAccountsPanel: React.FC = () => {
                     <button type="button" onClick={() => void connect(c.platform)} disabled={working || !c.configured} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"><Link2 className="h-4 w-4" /> {working ? 'Opening…' : reconnect ? 'Reconnect' : 'Connect'}</button>
                   )}
                 </div>
-              </article>
+              </Collapsible>
             );
           })}
         </div>
