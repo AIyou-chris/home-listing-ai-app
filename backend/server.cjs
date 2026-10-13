@@ -36131,7 +36131,10 @@ app.post('/api/admin/marketing-studio/campaigns/:id/save-blog', verifyAdmin, asy
     if (camp.blog_post_id) return res.json({ postId: camp.blog_post_id, already: true });
     const title = String(camp.outputs?.title || '').trim();
     if (!title) return res.status(400).json({ error: 'This campaign has no title yet.' });
-    const topic = [title, String(camp.brief?.idea || '').trim()].filter(Boolean).join(' — ').slice(0, 200);
+    // The blog's own rules cap a title at 200 characters and its web address at 180, so keep the title short
+    // and put the longer idea in the intent field.
+    const topic = title.length > 110 ? `${title.slice(0, 110).replace(/\s+\S*$/, '')}` : title;
+    const intent = String(camp.brief?.idea || '').trim().slice(0, 300);
 
     // Carry the campaign picture over only when it is a reviewed library picture (the blog's own rule).
     let featured = {};
@@ -36140,7 +36143,7 @@ app.post('/api/admin/marketing-studio/campaigns/:id/save-blog', verifyAdmin, asy
     const lib = (libs || []).find((row) => !(row.checks?.problems || []).length);
     if (lib) featured = { featured_image: `https://homelistingai.com/api/public/marketing-images/${lib.id}`, featured_image_alt: title.slice(0, 200) };
 
-    const brief = { title: topic, content: '', status: 'brief', role: 'spoke', pillar: 'lo-marketing', compliance_note: true, related_slugs: [], planned_links: [], ...featured };
+    const brief = { title: topic, search_intent: intent, content: '', status: 'brief', role: 'spoke', pillar: 'lo-marketing', compliance_note: true, related_slugs: [], planned_links: [], ...featured };
     let saved;
     try { saved = await blogService.save(req.user.id, brief); }
     catch (err) {

@@ -1,6 +1,7 @@
 ## 2026-10-13 — Claude: campaign -> blog now uses the real blog writer + carries the picture (local, NOT pushed)
 
 - Chris opened a campaign's blog post: 110 words, no featured image. Cause: `/save-blog` saved the campaign's short text as a draft with no picture. Now it creates a blog BRIEF (title = campaign title + idea, role spoke, pillar lo-marketing, compliance note on), attaches the campaign picture as `featured_image` when it is a reviewed library picture (`admin_marketing_images.used_in` contains the campaign), replies at once, then runs `blogService.generate(owner,{id})` after the reply (writer takes over a minute, longer than the proxy waits). Result is a full 1,300+ word checked draft in Manage blog posts; never published from here. Button reads "Write the full article for my blog (draft)". Free branded cards and uploaded photos are NOT library pictures, so those posts get the default topic image and Chris picks one with "Choose from picture library".
+- LIVE TEST FOUND A BUG: first version put title + idea in the blog title (up to 200 chars), the blog slug then exceeded 180 and save returned 400 'Check the title, slug and article length'. Fixed: title = campaign title (max 110), idea goes in `search_intent`.
 - Not tested live yet (needs push). Existing stub draft "Launch Campaign for HomeListingAI: Build Your Future" is untouched.
 
 ## 2026-10-13 — Claude: "video still not working" check + script directions stripped (local, NOT pushed)

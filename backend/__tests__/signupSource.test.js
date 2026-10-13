@@ -40,3 +40,10 @@ test('sending a campaign to the blog creates a brief and runs the real blog writ
   assert.ok(!route.includes("status: 'draft'"), 'no more stub draft');
   assert.match(route, /admin_marketing_images/);
 });
+
+test('the blog title sent from a campaign stays short enough for the blog rules', () => {
+  const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'server.cjs'), 'utf8');
+  const route = src.slice(src.indexOf("campaigns/:id/save-blog'"), src.indexOf('// GET /api/admin/social/status'));
+  assert.ok(!/join\(' — '\)/.test(route), 'idea must not be glued into the title');
+  assert.match(route, /title\.length > 110/);
+});
