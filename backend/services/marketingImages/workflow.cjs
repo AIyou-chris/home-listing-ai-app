@@ -25,6 +25,7 @@ function createImageWorkflow({db,openai,jev,campaign,clearApproval,claim,finish,
     const id=crypto.randomUUID();let paths=[];
     try {const backgroundPath=await upload(owner,`${id}-background`,background,'image/jpeg','jpg');paths.push(backgroundPath);const path=await upload(owner,id,rendered.buffer,rendered.type,rendered.extension);paths.push(path);
       result(await table().insert({id,owner_id:owner,campaign_id:campaignRow.id,group_id:groupId,brand:direction.brand,format:direction.format,prompt:direction.prompt,recipe_id:direction.recipe_id,mood:direction.mood,text_zone:direction.text_zone,variant:direction.variant,alt_text:direction.alt_text,cost,width:rendered.width,height:rendered.height,path,background_path:backgroundPath,background_fingerprint:crypto.createHash('sha256').update(background).digest('hex'),source_hash:pictureHash(campaignRow),settings:{headline:settings.headline||'',subline:settings.subline||'',encoding:settings.encoding||null},checks:{problems:[...check.problems,...rendered.problems],contrast:rendered.contrast,bytes:rendered.bytes,ocrPassed:check.ocrPassed,emptySpace:check.emptySpace},approved:false,used_in:[]}));
+      return {id,rendered,problems:[...check.problems,...rendered.problems]};
     }catch(error){if(paths.length)await db.storage.from(BUCKET).remove(paths);throw error;}
   }
   const jobs=new Map();
@@ -101,6 +102,31 @@ function createImageWorkflow({db,openai,jev,campaign,clearApproval,claim,finish,
       }catch(error){await fail(owner,claimed,error);}finally{jobs.delete(`${owner}:${id}`);}};
       jobs.set(`${owner}:${id}`,groupId);job().catch(()=>{});
       return {groupId,estimatedCost:estimate(previous?.format||format,quality,count),version:nextRow.updated_at};
+    },
+    // Autopilot: ONE cinematic scene made with gpt-image-1, the headline and button added on top, saved straight to the
+    // campaign. No review boxes (nobody is there to tick them), so the picture stays out of the reusable library
+    // (approved:false) and can never become a blog hero. The automatic picture checks still apply.
+    async auto(owner,id,body={}) {
+      const row=await campaign(owner,id);
+      if(!openai)throw new StudioError(503,'AI pictures are not enabled.');
+      const format=body.format||'square';if(!Object.hasOwn(FORMATS,format))throw new StudioError(400,'Choose a picture size.');
+      const headline=String(body.headline||row.outputs?.title||'').trim();
+      const cta=body.cta||'Claim your founding price';
+      try{validateCopy(headline,'',14);}catch(e){throw new StudioError(400,e.message);}
+      const all=result(await table().select('id').eq('owner_id',owner).limit(200));if(all.length>=195)throw new StudioError(429,'Your picture library is full. Delete old pictures first.');
+      const {writeLaunchScene}=require('./launchScene.cjs');
+      const nextRow=await clearApproval(owner,row);const claimed=await claim(owner,nextRow,'image','ai',pictureHash(row));
+      try{
+        const scene=await writeLaunchScene({openai,headline,idea:body.idea||row.brief?.idea||'',variant:Number(body.variant)||0,avoid:body.avoid||''});
+        const direction={prompt:scene.prompt,alt_text:scene.alt_text,text_zone:'left',recipe_id:'launch-auto',mood:'cinematic',variant:Number(body.variant)||0,brand:'homelistingai',format};
+        const generated=await openai.images.generate({model:'gpt-image-1',prompt:direction.prompt,size:FORMATS[format].native,quality:'medium',output_format:'jpeg',n:1},{timeout:180000,maxRetries:0});
+        const data=generated.data?.[0]?.b64_json;if(!data)throw new Error('No image returned');
+        const saved=await saveOption(owner,row,direction,Buffer.from(data,'base64'),{headline,subline:'',cta,style:'launch',maxWords:14},crypto.randomUUID(),estimate(format,'medium',1));
+        if(saved.problems.length)throw new StudioError(400,saved.problems[0]);
+        await finish(owner,claimed,saved.rendered.buffer,saved.rendered.type);
+        result(await table().update({used_in:[{campaign_id:id,use:'autopilot',at:new Date().toISOString()}],review:{auto:true},updated_at:new Date().toISOString()}).eq('owner_id',owner).eq('id',saved.id));
+        return {ok:true,altText:scene.alt_text};
+      }catch(error){await fail(owner,claimed,error);throw error;}
     },
     async choose(owner,id,body={}) {
       const row=await campaign(owner,id);if(body.version!==row.updated_at)throw new StudioError(409,'Save or reload your latest edits first.');

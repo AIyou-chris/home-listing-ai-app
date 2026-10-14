@@ -1,3 +1,10 @@
+## 2026-10-14 — Claude: Autopilot now makes real cinematic pictures with gpt-image-1 + "New picture" (pushed)
+
+- Chris: pictures were boring, wanted something better / "ChatGPT's newer image maker". Checked his OpenAI key (`/v1/models`): only `gpt-image-1` and `gpt-image-1-mini` are available, no newer one (it may unlock after OpenAI organization verification; not confirmed). Unsplash: only demo/sample photos and the blog editor's Search photos (falls back to defaults, no key); marketing never uses it.
+- New: `workflow.auto` (`marketingImages/workflow.cjs`) + `launchScene.cjs`: an LLM writes ONE symbolic scene from the headline (empty chair, doorway of orange light, silhouettes; no text/logos/UI/identifiable faces), `gpt-image-1` at MEDIUM makes it (about 4 cents; estimate, not read from the account), then the compositor adds the headline (last line red) and an orange "Claim your founding price" button on a black panel (`style:'launch'`, bigger type, up to 14 words, $49/$79 allowed). Saved to the campaign with no review boxes (`approved:false`, `review:{auto:true}`) so these can never become blog heroes. Counts against the 3 AI picture attempts per campaign. Any failure falls back to the free branded card (`AUTOPILOT_AI_PICTURES=off` in Render env turns the AI pictures off).
+- `engine.redoPicture` + route `POST /api/admin/autopilot/posts/:campaignId/new-picture`: another scene (variant n, avoids the last), video made again, approved again, times unchanged; UI shows a picture preview and a "New picture" button on each waiting post. +4 tests (Autopilot 20, marketing images 12), backend 466.
+- Fixed while testing: `top0` self-reference would have crashed non-launch pictures (caught by eye, test added).
+
 ## 2026-10-14 — Claude: dates on every blog row (pushed)
 
 - Chris asked for dates on drafts and all of them. Manage blog posts: the old "Published" column is now "Date": Published <date>, Goes live <date time>, Written <date> (drafts), Idea added <date> (briefs), Archived <date>. The editor header shows the same line plus "last saved <time>". Autopilot "Blog drafts" rows show their date. Jest blog + admin tests pass.

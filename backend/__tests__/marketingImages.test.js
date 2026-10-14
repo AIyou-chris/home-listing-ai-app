@@ -28,3 +28,15 @@ test('library picture deletion enforces ownership, protects blog references and 
  t.db.tables.blog_posts=[];await t.service.images.remove(OWNER,ID);
  assert.equal(t.files.has('selected.jpg'),false);assert.equal(t.files.has('shared.jpg'),true);assert.equal(t.db.tables.admin_marketing_images.length,1);
 });
+
+test('the launch look and the normal look both render, and launch allows a longer headline and the two product prices', async () => {
+  const sharp = require('sharp');
+  const { compose } = require('../services/marketingImages/compositor.cjs');
+  const bg = await sharp({ create: { width: 1024, height: 1024, channels: 3, background: { r: 40, g: 24, b: 12 } } }).jpeg().toBuffer();
+  const normal = await compose(bg, { format: 'square', text_zone: 'left', headline: 'Send one WOW Link', alt_text: 'a chair' });
+  assert.deepStrictEqual(normal.problems, []);
+  const launch = await compose(bg, { format: 'square', text_zone: 'left', headline: "Founding price: $49 a month. First 25 loan officers.", cta: 'Claim your founding price', style: 'launch', maxWords: 14, alt_text: 'a chair' });
+  assert.deepStrictEqual(launch.problems, []);
+  assert.strictEqual(launch.width, 1080);
+  await assert.rejects(compose(bg, { format: 'square', text_zone: 'left', headline: 'Pay only $500 a month', style: 'launch', maxWords: 14, alt_text: 'x' }), /promises, rates|claimed results/);
+});

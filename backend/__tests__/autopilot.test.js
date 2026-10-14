@@ -46,11 +46,11 @@ const GOOD = {
   instagram: 'One link. One agent. #LoanOfficers', bluesky: 'Send one WOW Link.', videoScript: 'Send one WOW Link to one agent today.'
 };
 
-function harness({ outputs = GOOD, now = new Date('2026-10-13T20:00:00Z'), blog = null } = {}) {
+function harness({ outputs = GOOD, now = new Date('2026-10-13T20:00:00Z'), blog = null, mediaExtra = {} } = {}) {
   let current = now;
   const db = fakeDb();
   db.tables.admin_switches.push({ key: 'autopilot_on', enabled: true, updated_by: 'ddee9647-fd81-4e54-be9c-dd25e46a99bf' });
-  const scheduled = []; const mails = [];
+  const scheduled = []; const mails = []; const pictureCalls = [];
   const studio = {
     async generate(owner, id) { const r = db.tables.admin_marketing_campaigns.find((x) => x.id === id); Object.assign(r, { status: 'draft', outputs: { ...outputs }, updated_at: 'v1' }); return r; },
     async edit(owner, id, body) { const r = db.tables.admin_marketing_campaigns.find((x) => x.id === id); r.outputs = body.outputs; r.updated_at = 'v2'; return r; },
@@ -58,14 +58,14 @@ function harness({ outputs = GOOD, now = new Date('2026-10-13T20:00:00Z'), blog 
     async approve(owner, id) { const r = db.tables.admin_marketing_campaigns.find((x) => x.id === id); r.status = 'approved'; return r; },
     async remove(owner, id) { const t = db.tables.admin_marketing_campaigns; t.splice(t.findIndex((x) => x.id === id), 1); }
   };
-  const media = { async picture() {}, async render() {}, async list() { return [{ kind: 'video', status: 'ready' }]; }, async cleanup() { return []; }, async removeFiles() {} };
+  const media = { async picture() { pictureCalls.push(1); }, async render() {}, async list() { return [{ kind: 'video', status: 'ready' }]; }, async cleanup() { return []; }, async removeFiles() {}, ...mediaExtra };
   const ap = createAutopilot({
     db, studioFor: () => studio, media, blog, now: () => current, log: { warn() {} },
     getPoster: () => ({ async schedule(args) { scheduled.push(args); } }),
     getConnections: async () => ({ facebook: true, instagram: true, linkedin: true, youtube: true }),
     sendMail: async (m) => { mails.push(m); }
   });
-  return { db, ap, scheduled, mails, setNow: (d) => { current = d; } };
+  return { db, ap, scheduled, mails, pictureCalls, setNow: (d) => { current = d; } };
 }
 
 test('Pacific slot times are right across daylight saving', () => {
@@ -280,4 +280,35 @@ test('a failed blog draft is not retried in a loop, and "write now" always works
   const forced = await h.ap.maybeBlogDraft('ddee9647-fd81-4e54-be9c-dd25e46a99bf', { force: true });
   assert.strictEqual(calls, 2);
   assert.match(forced.failed, /writer broke/);
+});
+
+test('each post gets a cinematic AI picture with its headline; if that fails the free card is used instead', async () => {
+  const autoCalls = [];
+  const good = harness({ now: new Date('2026-10-13T23:00:00Z'), mediaExtra: { images: { async auto(owner, id, body) { autoCalls.push(body); return { ok: true, altText: 'a chair' }; } } } });
+  await good.ap.tick();
+  assert.ok(autoCalls.length >= 1 && autoCalls.every((c) => c.headline && c.headline.length > 3), 'the headline goes to the picture maker');
+  assert.strictEqual(good.pictureCalls.length, 0, 'no free card when the AI picture worked');
+  assert.ok(good.scheduled.length >= 1);
+
+  const broken = harness({ now: new Date('2026-10-13T23:00:00Z'), mediaExtra: { images: { async auto() { throw new Error('image service down'); } } } });
+  await broken.ap.tick();
+  assert.ok(broken.pictureCalls.length >= 1, 'falls back to the free branded card');
+  assert.ok(broken.scheduled.length >= 1, 'the post still goes out');
+});
+
+test('"New picture" makes another scene for a waiting post, renders the video again and approves it again', async () => {
+  const calls = []; let renders = 0;
+  const h = harness({ now: new Date('2026-10-13T23:00:00Z'), mediaExtra: { async render() { renders += 1; }, images: { async auto(owner, id, body) { calls.push(body); return { ok: true, altText: 'a doorway' }; } } } });
+  await h.ap.tick();
+  const row = h.db.tables.admin_marketing_campaigns[0];
+  h.db.tables.admin_marketing_posts.push({ campaign_id: row.id, channel: 'facebook', status: 'scheduled' });
+  const first = renders;
+  const out = await h.ap.redoPicture('ddee9647-fd81-4e54-be9c-dd25e46a99bf', row.id);
+  assert.strictEqual(out.redone, true);
+  assert.strictEqual(calls.at(-1).variant, 1, 'a different scene each time');
+  assert.strictEqual(renders, first + 1, 'the video is made again');
+  assert.strictEqual(row.status, 'approved');
+  assert.strictEqual(row.brief.sceneAlt, 'a doorway');
+  h.db.tables.admin_marketing_posts[0].status = 'published';
+  assert.strictEqual((await h.ap.redoPicture('ddee9647-fd81-4e54-be9c-dd25e46a99bf', row.id)).status, 409, 'a post that is out cannot be changed');
 });

@@ -146,7 +146,16 @@ function createAutopilot({ db, studioFor, media, getPoster, getConnections, send
       const problems = checkPost(outputs, { allowed: tokensFor(topic.facts) });
       if (problems.length) { await cleanup(owner, id); return { ok: false, reason: `safety check: ${problems.slice(0, 3).join('; ')}` }; }
       row = await studio.edit(owner, id, { version: row.updated_at, outputs });
-      await media.picture(owner, id, { version: row.updated_at });
+      // A real cinematic scene (gpt-image-1) with the headline on top; if that fails, the free branded card.
+      let aiPicture = false;
+      if (media.images?.auto && process.env.AUTOPILOT_AI_PICTURES !== 'off') {
+        try { await media.images.auto(owner, id, { headline: topic.headline || outputs.title, idea: topic.idea }); aiPicture = true; }
+        catch (err) { log.warn?.('[Autopilot] AI picture skipped, using the free card:', err?.message || err); }
+      }
+      if (!aiPicture) {
+        row = (await db.from('admin_marketing_campaigns').select('*').eq('id', id).maybeSingle()).data;
+        await media.picture(owner, id, { version: row.updated_at });
+      }
       row = (await db.from('admin_marketing_campaigns').select('*').eq('id', id).maybeSingle()).data;
       row = await studio.settings(owner, id, { version: row.updated_at, videoFormat: 'vertical', videoDuration: '15', videoOptions: { layout: 'picture', music: 'calm', musicVolume: 'low', endCard: 'wow', narration: 'none' } });
       let hasVideo = false;
@@ -283,8 +292,16 @@ function createAutopilot({ db, studioFor, media, getPoster, getConnections, send
     const rows = all.filter((r) => !r.brief.failed || r.brief.skipped || !worked.has(r.brief.slot));
     const ids = rows.map((r) => r.id);
     const posts = ids.length ? ((await db.from('admin_marketing_posts').select('campaign_id, channel, status, scheduled_for, posted_at, url, error').in('campaign_id', ids)).data || []) : [];
+    const who = owner || await ownerOf();
+    const pictures = {};
+    if (who && media?.list) {
+      for (const r of rows.filter((x) => !x.brief.failed).slice(0, 6)) {
+        try { pictures[r.id] = (await media.list(who, r.id)).find((m) => m.kind === 'image' && m.url)?.url || ''; } catch { /* no preview */ }
+      }
+    }
     return rows.map((r) => ({
       campaignId: r.id, slot: r.brief.slot, topic: r.brief.topicKey, title: r.outputs?.title || '', failed: Boolean(r.brief.failed), skipped: Boolean(r.brief.skipped), reason: r.generation_error || '',
+      pictureUrl: pictures[r.id] || '',
       preview: String(r.outputs?.facebook || r.outputs?.linkedin || '').slice(0, 600),
       posts: posts.filter((p) => p.campaign_id === r.id)
     })).sort((a, b) => String(b.slot).localeCompare(String(a.slot)));
@@ -322,6 +339,30 @@ function createAutopilot({ db, studioFor, media, getPoster, getConnections, send
     return { on: false, cancelled: ids.length };
   }
 
+  // New picture for a waiting post: another scene, the video made again from it, approved again. The scheduled times stay.
+  async function redoPicture(owner, campaignId) {
+    const { data: row } = await db.from('admin_marketing_campaigns').select('*').eq('id', campaignId).maybeSingle();
+    if (!row || row.brief?.source !== 'autopilot' || row.brief?.failed) return { error: 'not an Autopilot post', status: 404 };
+    const { data: posts } = await db.from('admin_marketing_posts').select('status').eq('campaign_id', campaignId);
+    if ((posts || []).some((p) => p.status === 'published' || p.status === 'posting')) return { error: 'This post is already out or going out.', status: 409 };
+    if (!media.images?.auto) return { error: 'New pictures are not available right now.', status: 503 };
+    const redo = (row.brief.redo || 0) + 1;
+    const result = await media.images.auto(owner, campaignId, { headline: row.brief.cardHeadline || row.outputs?.title, idea: row.brief.idea, variant: redo, avoid: row.brief.sceneAlt || '' });
+    await db.from('admin_marketing_campaigns').update({ brief: { ...row.brief, redo, sceneAlt: result.altText || '' } }).eq('id', campaignId);
+    let fresh = (await db.from('admin_marketing_campaigns').select('*').eq('id', campaignId).maybeSingle()).data;
+    try {
+      await media.render(owner, campaignId, { version: fresh.updated_at });
+      for (let i = 0; i < 40; i += 1) {
+        await new Promise((r) => setTimeout(r, i === 0 ? 5000 : 8000));
+        const v = (await media.list(owner, campaignId)).find((m) => m.kind === 'video');
+        if (v && (v.status === 'ready' || v.status === 'failed')) break;
+      }
+    } catch (err) { log.warn?.('[Autopilot] video after new picture skipped:', err?.message || err); }
+    fresh = (await db.from('admin_marketing_campaigns').select('*').eq('id', campaignId).maybeSingle()).data;
+    await studioFor().approve(owner, campaignId, { version: fresh.updated_at });
+    return { redone: true, redo };
+  }
+
   // Take one waiting post back. "skip" leaves the time empty; otherwise the next tick writes a replacement.
   async function removeUpcoming(owner, campaignId, { skip = false } = {}) {
     const { data: row } = await db.from('admin_marketing_campaigns').select('id, brief, updated_at, owner_id').eq('id', campaignId).maybeSingle();
@@ -348,7 +389,7 @@ function createAutopilot({ db, studioFor, media, getPoster, getConnections, send
     return { on, autoPost, lastIssue: lastBad ? { slot: lastBad.brief.slot, reason: lastBad.generation_error || 'did not pass the check' } : null, plan: plan ? { ...plan, offerEnds: endsAt ? monthDay(endsAt) : null } : null, direction: await direction(), blogDrafts: await blogDrafts(), slots: owner || !on ? await summary(owner) : [], times: SLOTS.map((s) => `${s.h > 12 ? s.h - 12 : s.h}:${pad(s.m)} ${s.h >= 12 ? 'PM' : 'AM'} Pacific`) };
   }
 
-  return { tick, start, stop, status, setDirection, removeUpcoming, maybeBlogDraft, upcomingSlots, ptToUtc };
+  return { tick, start, stop, status, setDirection, removeUpcoming, redoPicture, maybeBlogDraft, upcomingSlots, ptToUtc };
 }
 
 module.exports = { createAutopilot, upcomingSlots, ptToUtc, SLOTS, CHANNELS };

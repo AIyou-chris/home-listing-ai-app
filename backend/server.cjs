@@ -36163,6 +36163,15 @@ app.post('/api/admin/autopilot', verifyAdmin, async (req, res) => {
     res.json(req.body.enabled ? await autopilot.start(req.user.id, { plan: req.body.plan !== false }) : await autopilot.stop(req.user.id));
   } catch (err) { console.error('[Autopilot] switch failed:', err?.message || err); res.status(500).json({ error: 'Could not change Autopilot' }); }
 });
+// "New picture": another scene for one waiting post (the video is made again from it). Runs after the reply.
+app.post('/api/admin/autopilot/posts/:campaignId/new-picture', verifyAdmin, async (req, res) => {
+  try {
+    const autopilot = getAutopilot(); if (!autopilot) return res.status(503).json({ error: 'Autopilot is not available right now' });
+    if (!/^[0-9a-f-]{36}$/i.test(String(req.params.campaignId || ''))) return res.status(400).json({ error: 'Invalid post' });
+    res.json({ started: true });
+    autopilot.redoPicture(req.user.id, req.params.campaignId).catch((err) => console.warn('[Autopilot] new picture failed:', err?.message || err));
+  } catch (err) { console.error('[Autopilot] new-picture failed:', err?.message || err); res.status(500).json({ error: 'Could not start a new picture' }); }
+});
 // "New direction": standing instructions applied to every post not yet written.
 app.post('/api/admin/autopilot/direction', verifyAdmin, async (req, res) => {
   try {
