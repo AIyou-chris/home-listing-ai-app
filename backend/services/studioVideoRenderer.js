@@ -55,6 +55,11 @@ function pictureSvg({ title, width = 1080, height = 1080, style = 'brand' }) {
   const launch = style === 'launch';
   const margin = 80;
   const headings = wrap(String(title || 'Warm leads. Agent partnerships.'), launch ? 18 : 17).slice(0, 5);
+  // Never leave one short word alone on the last line: pull a word down from the line above.
+  if (headings.length > 1) {
+    const last = headings[headings.length - 1]; const prev = headings[headings.length - 2].split(' ');
+    if (!last.includes(' ') && last.length <= 8 && prev.length > 2) { headings[headings.length - 1] = `${prev.pop()} ${last}`; headings[headings.length - 2] = prev.join(' '); }
+  }
   const longest = Math.max(...headings.map((h) => h.length));
   const size = headings.length > 3 ? 78 : longest > 16 ? 80 : 92;
   const top = 250;
@@ -72,7 +77,7 @@ function pictureSvg({ title, width = 1080, height = 1080, style = 'brand' }) {
   return Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><defs>${defs}</defs><rect width="100%" height="100%" fill="url(#bg)"/><rect x="${margin}" y="${margin}" width="12" height="64" rx="6" fill="${accent}"/><text x="${margin + 36}" y="${margin + 46}" fill="#ffffff" font-family="sans-serif" font-size="44" font-weight="800">HomeListingAI</text>${headings.map(line).join('')}<rect x="${margin}" y="${height - 250}" width="${launch ? 640 : 560}" height="84" rx="42" fill="${pill}"/><text x="${margin + (launch ? 320 : 280)}" y="${height - 195}" text-anchor="middle" fill="${pillText}" font-family="sans-serif" font-size="34" font-weight="800">${cta}</text><text x="${margin}" y="${height - 110}" fill="${launch ? '#ffb066' : '#bfdbfe'}" font-family="sans-serif" font-size="34" font-weight="600">homelistingai.com${launch ? '/lo-signup' : '/for-loan-officers'}</text></svg>`);
 }
 async function picture(campaign) {
-  return sharp(pictureSvg({ title: campaign.outputs.title, style: campaign.brief?.cardStyle })).png().toBuffer();
+  return sharp(pictureSvg({ title: campaign.brief?.cardHeadline || campaign.outputs.title, style: campaign.brief?.cardStyle })).png().toBuffer();
 }
 function backgroundSvg(width,height,style) {
   return Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><defs><linearGradient id="background" x2="1" y2="1"><stop stop-color="${style==='dark'?'#0f172a':'#172554'}"/><stop offset="1" stop-color="${style==='dark'?'#334155':'#4338ca'}"/></linearGradient></defs><rect width="100%" height="100%" fill="url(#background)"/><circle cx="${width*.3}" cy="${height*.2}" r="${width*.4}" fill="#60a5fa" opacity=".15"/><circle cx="${width*.9}" cy="${height*.75}" r="${width*.5}" fill="#818cf8" opacity=".2"/></svg>`);

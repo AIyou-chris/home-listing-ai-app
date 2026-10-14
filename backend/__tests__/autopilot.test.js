@@ -235,3 +235,14 @@ test('three different times failing in a row pauses Autopilot; repeated tries at
   assert.strictEqual(h.db.tables.admin_switches.find((x) => x.key === 'autopilot_on').enabled, false);
   assert.ok(h.mails.some((m) => /paused/i.test(m.subject)));
 });
+
+test('every launch topic has its own short picture headline, and it reaches the picture brief', async () => {
+  const { LAUNCH } = require('../services/autopilot/topics');
+  assert.ok(LAUNCH.every((t) => t.headline && t.headline.length < 80), 'a headline for each launch topic');
+  const now = new Date('2026-10-13T23:00:00Z');
+  const h = harness({ now });
+  h.db.tables.admin_switches.push({ key: 'autopilot_plan_launch30', enabled: true, updated_at: new Date(now.getTime() - 2 * 86400000).toISOString() });
+  await h.ap.tick();
+  const morning = h.db.tables.admin_marketing_campaigns.find((r) => r.brief.slot.endsWith('@08:00'));
+  assert.ok(morning.brief.cardHeadline && morning.brief.cardHeadline === LAUNCH.find((t) => t.key === morning.brief.topicKey).headline);
+});

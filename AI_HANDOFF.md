@@ -1,3 +1,9 @@
+## 2026-10-14 — Claude: Autopilot is running; first two posts read and approved; punchy picture headlines (pushed)
+
+- Chris turned Autopilot back ON ~16:00 UTC; I pressed "Write the next post now" once. Written and scheduled with all 4 channels, picture + video ready: 12:00 PM PT "Warm Leads vs. Cold Leads" (topic warm-vs-cold) and 5:00 PM PT "Control Your Competition, Not the Market" (l1-cant-control). I read both: on voice, no promises, link to /for-loan-officers. The old noon post that spoke to agents was removed (and its slot reopened) before it could go out.
+- Pictures in the launch look worked, but the headline was the AI's long title. Each launch topic now has its own short headline (Chris's lines: "Your Realtors are quitting. Your referrals are disappearing.", "Your next top Realtor partner doesn't know you exist.", etc.) stored as `brief.cardHeadline` and used by `studioVideoRenderer.picture`; no lone short word on the last line. Applies to posts written from now on. +1 test (16 in `autopilot.test.js`).
+- Server fonts: the picture on Render renders in DejaVu Sans (no Helvetica); acceptable. Open: blog drafts twice a week (offered, waiting for Chris), TikTok, email series, direct outreach.
+
 ## 2026-10-14 — Claude: Autopilot paused itself after 3 failures; made it sturdier (pushed)
 
 - What Chris saw: Autopilot OFF with three failed 5:00 PM tries: "AI creation did not finish", safety "act now", and placeholders in facebook/linkedin/instagram. The pause worked as designed, but it was triggered by the SAME time slot being retried every 10 minutes.

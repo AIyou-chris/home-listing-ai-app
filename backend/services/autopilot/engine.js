@@ -117,7 +117,7 @@ function createAutopilot({ db, studioFor, media, getPoster, getConnections, send
     audience: 'Loan officers and real estate agents', pictureMode: 'auto', pictureDescription: '', photoName: '',
     videoFormat: 'vertical', videoDuration: '15', plannedAt: '',
     source: 'autopilot', slot: slot.key, topicKey: topic.key, link: topic.link || LO, ...(topic.facts?.length ? { facts: topic.facts } : {}),
-    ...(topic.plan ? { cardStyle: 'launch', plan: 'launch30', planWeek: topic.plan.week } : {})
+    ...(topic.plan ? { cardStyle: 'launch', plan: 'launch30', planWeek: topic.plan.week, ...(topic.headline ? { cardHeadline: topic.headline } : {}) } : {})
   });
 
   async function cleanup(owner, id) {
