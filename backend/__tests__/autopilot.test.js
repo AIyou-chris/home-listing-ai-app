@@ -7,7 +7,7 @@ const { TOPICS } = require('../services/autopilot/topics');
 
 // A very small in-memory database: just the calls the engine makes.
 function fakeDb(seed = {}) {
-  const tables = { admin_switches: [], admin_marketing_campaigns: [], admin_marketing_posts: [], ...seed };
+  const tables = { admin_switches: [], admin_marketing_campaigns: [], admin_marketing_posts: [], platform_brain: [], ...seed };
   const pick = (row, key) => (key.includes('->>') ? (row[key.split('->>')[0]] || {})[key.split('->>')[1]] : row[key]);
   const builder = (name) => {
     let rows = null; let op = null; let payload = null; const filters = []; let lim = null; let single = false;
@@ -26,7 +26,7 @@ function fakeDb(seed = {}) {
         const t = tables[name]; const match = () => t.filter((r) => filters.every((f) => f(r)));
         let data = null; let error = null;
         if (op === 'insert') { const row = { ...payload }; t.push(row); data = row; }
-        else if (op === 'upsert') { const i = t.findIndex((r) => r.key === payload.key); if (i >= 0) Object.assign(t[i], payload); else t.push({ ...payload }); data = payload; }
+        else if (op === 'upsert') { const i = t.findIndex((r) => (payload.id !== undefined ? r.id === payload.id : r.key === payload.key)); if (i >= 0) Object.assign(t[i], payload); else t.push({ ...payload }); data = payload; }
         else if (op === 'update') { match().forEach((r) => Object.assign(r, payload)); data = match(); }
         else if (op === 'delete') { for (const r of match()) t.splice(t.indexOf(r), 1); data = []; }
         else { data = match(); if (lim) data = data.slice(0, lim); }
@@ -148,4 +148,57 @@ test('week 4 posts the founding price and links to signup; the checker lets only
   const base = { title: 't', facebook: 'x'.repeat(70), linkedin: 'y'.repeat(90), instagram: 'z', bluesky: 'b', videoScript: 'v' };
   assert.deepStrictEqual(checkPost({ ...base, facebook: 'Founding price is $49 a month instead of $79 for the first 25 loan officers. Start your 7-day free trial, no card.' + ' ok'.repeat(10) }), []);
   assert.ok(checkPost({ ...base, facebook: 'HomeListingAI finds new Realtors for you and fills your pipeline with guaranteed referrals every month.' }).length >= 2);
+});
+
+test('verified facts may be quoted with their exact numbers; any other statistic is blocked', () => {
+  const { tokensFor } = require('../services/autopilot/facts');
+  const base = { title: 't', facebook: 'x'.repeat(70), linkedin: 'y'.repeat(90), instagram: 'z', bluesky: 'b', videoScript: 'v' };
+  const post = { ...base, facebook: 'NAR membership is about 10% below its 2022 peak, per NAR. Send one WOW Link to one agent this week and start a new relationship.' };
+  assert.ok(checkPost(post).some((p) => /unverified percentage/.test(p)), 'blocked without the fact');
+  assert.deepStrictEqual(checkPost(post, { allowed: tokensFor(['nar-members-now']) }), []);
+  assert.ok(checkPost({ ...post, facebook: post.facebook.replace('10%', '40%') }, { allowed: tokensFor(['nar-members-now']) }).length >= 1, 'an invented number is still blocked');
+  assert.ok(checkPost({ ...base, facebook: 'About 3 million agents left the business last year, so act now with a trial today.' }).some((p) => /unverified number/.test(p)));
+});
+
+test('a saved direction and the founding-price end date go into the posts that are written next', async () => {
+  const day = 86400000; const now = new Date('2026-10-13T23:00:00Z');
+  const h = harness({ now });
+  h.db.tables.admin_switches.push({ key: 'autopilot_plan_launch30', enabled: true, updated_at: new Date(now.getTime() - 19 * day).toISOString() }); // plan day 20
+  h.db.tables.platform_brain.push({ id: 'founding-offer', config: { endsAt: '2026-11-02T00:00:00.000Z' } });
+  await h.ap.setDirection('Lean on the free trial this week. Never mention rates.');
+  const out = await h.ap.tick();
+  const rows = h.db.tables.admin_marketing_campaigns;
+  assert.ok(rows.length >= 1, JSON.stringify(out));
+  const evening = rows.find((r) => r.brief.slot.endsWith('@17:00'));
+  assert.ok(evening, 'the evening post exists');
+  assert.match(evening.brief.idea, /New direction from Chris/);
+  assert.match(evening.brief.idea, /Lean on the free trial/);
+  assert.ok(evening.brief.topicKey.startsWith('l4-'), 'from day 17 the evening post is the founding-price offer');
+  assert.match(evening.brief.idea, /ends on November 1 or when the 25 spots are gone/);
+  assert.strictEqual((await h.ap.status()).direction, 'Lean on the free trial this week. Never mention rates.');
+});
+
+test('the founding discount stops being applied after its end date', async () => {
+  const { pickFoundingDiscount } = require('../services/foundingCoupon');
+  const stripe = { coupons: { retrieve: async () => ({ valid: true }) } };
+  const db = fakeDb(); db.tables.platform_brain.push({ id: 'founding-offer', config: { endsAt: '2026-11-02T00:00:00.000Z' } });
+  assert.deepStrictEqual(await pickFoundingDiscount({ stripe, couponId: 'C', db, now: () => new Date('2026-10-20T00:00:00Z') }), [{ coupon: 'C' }]);
+  assert.deepStrictEqual(await pickFoundingDiscount({ stripe, couponId: 'C', db, now: () => new Date('2026-11-03T00:00:00Z') }), []);
+  assert.deepStrictEqual(await pickFoundingDiscount({ stripe, couponId: 'C', db: fakeDb(), now: () => new Date('2027-01-01T00:00:00Z') }), [{ coupon: 'C' }], 'no end date set: unchanged');
+});
+
+test('Replace writes a new post for that time, Skip leaves it empty, and a post that is out cannot be taken back', async () => {
+  const h = harness({ now: new Date('2026-10-13T23:00:00Z') });
+  await h.ap.tick();
+  const [first, second] = h.db.tables.admin_marketing_campaigns;
+  const owner = 'ddee9647-fd81-4e54-be9c-dd25e46a99bf';
+  h.db.tables.admin_marketing_posts.push({ campaign_id: first.id, channel: 'facebook', status: 'published' });
+  assert.strictEqual((await h.ap.removeUpcoming(owner, first.id)).status, 409);
+
+  h.db.tables.admin_marketing_posts.push({ campaign_id: second.id, channel: 'facebook', status: 'scheduled' });
+  const slot = second.brief.slot;
+  const skipped = await h.ap.removeUpcoming(owner, second.id, { skip: true });
+  assert.strictEqual(skipped.skipped, true);
+  await h.ap.tick();
+  assert.strictEqual(h.db.tables.admin_marketing_campaigns.filter((r) => r.brief.slot === slot && !r.brief.skipped).length, 0, 'a skipped time stays empty');
 });

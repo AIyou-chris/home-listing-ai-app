@@ -36156,6 +36156,24 @@ app.post('/api/admin/autopilot', verifyAdmin, async (req, res) => {
     res.json(req.body.enabled ? await autopilot.start(req.user.id, { plan: req.body.plan !== false }) : await autopilot.stop(req.user.id));
   } catch (err) { console.error('[Autopilot] switch failed:', err?.message || err); res.status(500).json({ error: 'Could not change Autopilot' }); }
 });
+// "New direction": standing instructions applied to every post not yet written.
+app.post('/api/admin/autopilot/direction', verifyAdmin, async (req, res) => {
+  try {
+    const autopilot = getAutopilot(); if (!autopilot) return res.status(503).json({ error: 'Autopilot is not available right now' });
+    if (typeof req.body?.direction !== 'string' || req.body.direction.length > 1000) return res.status(400).json({ error: 'Keep the direction under 1,000 characters.' });
+    res.json(await autopilot.setDirection(req.body.direction));
+  } catch (err) { console.error('[Autopilot] direction failed:', err?.message || err); res.status(500).json({ error: 'Could not save the direction' }); }
+});
+// Take back one waiting post: "skip" leaves that time empty, otherwise a replacement is written.
+app.post('/api/admin/autopilot/posts/:campaignId/remove', verifyAdmin, async (req, res) => {
+  try {
+    const autopilot = getAutopilot(); if (!autopilot) return res.status(503).json({ error: 'Autopilot is not available right now' });
+    if (!/^[0-9a-f-]{36}$/i.test(String(req.params.campaignId || ''))) return res.status(400).json({ error: 'Invalid post' });
+    const out = await autopilot.removeUpcoming(req.user.id, req.params.campaignId, { skip: req.body?.skip === true });
+    if (out.error) return res.status(out.status || 400).json({ error: out.error });
+    res.json(out);
+  } catch (err) { console.error('[Autopilot] remove failed:', err?.message || err); res.status(500).json({ error: 'Could not take that post back' }); }
+});
 // "Write the next one now": starts the next missing post at once instead of waiting for the timer.
 app.post('/api/admin/autopilot/run-now', verifyAdmin, async (req, res) => {
   try {
@@ -37308,7 +37326,7 @@ app.post('/api/payments/checkout-session', async (req, res) => {
 
     // Founding price: first 25 LOs get the Stripe coupon in FOUNDING_COUPON_ID automatically (Stripe enforces the 25).
     if (!explicitDiscounts.length && plan === 'lo_lite' && !isFreeAccessCode(normalizedPromoCode)) {
-      explicitDiscounts = await require('./services/foundingCoupon').pickFoundingDiscount({ stripe, couponId: process.env.FOUNDING_COUPON_ID });
+      explicitDiscounts = await require('./services/foundingCoupon').pickFoundingDiscount({ stripe, couponId: process.env.FOUNDING_COUPON_ID, db: supabaseAdmin });
     }
 
     // Resolve price ID based on plan param

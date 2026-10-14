@@ -12,8 +12,9 @@ const FINDS_AGENTS = /\b(we|it|homelistingai|this app|the app|our ai|ai)\s+(find
 const ALLOWED_MONEY = /^\$(49|79)(\/mo(nth)?)?$/;
 
 // The last gate before anything posts on its own. Returns a list of plain-words problems; empty means it may go.
-function checkPost(outputs = {}) {
+function checkPost(outputs = {}, { allowed = [] } = {}) {
   const problems = [];
+  const ok = new Set(allowed.map((t) => String(t).toLowerCase()));
   for (const key of FIELDS) {
     const text = String(outputs[key] || '');
     if (!text.trim()) { if (key !== 'bluesky') problems.push(`${key} is empty`); continue; }
@@ -26,7 +27,9 @@ function checkPost(outputs = {}) {
     if (KICKBACK.test(text)) problems.push(`${key} mentions paying for referrals`);
     if (INVENTED.test(text)) problems.push(`${key} may invent results or customers`);
     if (FINDS_AGENTS.test(text)) problems.push(`${key} claims the product finds or supplies agents`);
-    if (/\d\s*%/.test(text)) problems.push(`${key} has a percentage`);
+    // Statistics: only numbers from the verified facts list (facts.js) may appear.
+    for (const pct of text.match(/\d+(?:\.\d+)?\s*%/g) || []) if (!ok.has(pct.replace(/\s/g, '').toLowerCase())) problems.push(`${key} has an unverified percentage (${pct})`);
+    for (const big of text.match(/\d+(?:\.\d+)?\s*(?:million|billion|thousand)/gi) || []) if (!ok.has(big.replace(/\s+/g, ' ').toLowerCase())) problems.push(`${key} has an unverified number (${big})`);
     for (const money of text.match(/\$\s?\d[\d,]*(?:\.\d+)?(?:\/mo(?:nth)?)?/g) || []) if (!ALLOWED_MONEY.test(money.replace(/\s/g, ''))) problems.push(`${key} has a money amount (${money})`);
     if ((text.match(/#\w+/g) || []).length > 4) problems.push(`${key} has too many hashtags`);
     if (/\b[A-Z]{4,}(?:\s+[A-Z]{4,}){2,}\b/.test(text)) problems.push(`${key} is shouting in capitals`);

@@ -6,6 +6,8 @@ const crypto = require('node:crypto');
 const { TOPICS, LAUNCH, GOALS, LO } = require('./topics');
 const { checkPost } = require('./safety');
 const { getSwitch, setSwitch } = require('../adminSwitches');
+const { factsText, tokensFor } = require('./facts');
+const { offerEndsAt, setOfferEndsAt } = require('../foundingOffer');
 
 const TZ = 'America/Los_Angeles';
 const SLOTS = [{ h: 8, m: 0 }, { h: 12, m: 0 }, { h: 17, m: 0 }];
@@ -51,21 +53,40 @@ function createAutopilot({ db, studioFor, media, getPoster, getConnections, send
     return data || [];
   }
 
+  // Chris's standing instructions for every post not written yet (Autopilot tab, "New direction").
+  async function direction() {
+    try { const { data } = await db.from('platform_brain').select('config').eq('id', 'autopilot-direction').maybeSingle(); return String(data?.config?.text || '').slice(0, 1000); }
+    catch { return ''; }
+  }
+  async function setDirection(text) {
+    const { error } = await db.from('platform_brain').upsert({ id: 'autopilot-direction', config: { text: String(text || '').trim().slice(0, 1000) }, updated_at: now().toISOString() }, { onConflict: 'id' });
+    if (error) throw error;
+    return { direction: String(text || '').trim().slice(0, 1000) };
+  }
+  const monthDay = (d) => d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', timeZone: TZ });
+
   // The 30-day launch plan: started with Autopilot, runs for 30 days, then everyday posts take over.
   async function launchPlan() {
     const { data } = await db.from('admin_switches').select('enabled, updated_at').eq('key', 'autopilot_plan_launch30').maybeSingle();
     if (!data || data.enabled !== true) return null;
     const day = Math.floor((now().getTime() - Date.parse(data.updated_at)) / 86400000);
     if (!(day >= 0 && day < 30)) return null;
-    return { name: '30-day launch', day: day + 1, week: Math.min(4, Math.floor(day / 7) + 1) };
+    return { name: '30-day launch', day: day + 1, week: Math.min(4, Math.floor(day / 7) + 1), offerOpen: day + 1 >= 17 };
   }
 
   async function pickTopic(slot, rows) {
     const used = new Set(rows.slice(0, 30).map((r) => r.brief?.topicKey));
     const plan = await launchPlan();
+    const standing = await direction();
+    const endsAt = plan ? await offerEndsAt(db) : null;
     const withHistory = (topic) => {
       const before = rows.filter((r) => r.brief?.topicKey === topic.key && r.outputs?.title).slice(0, 4).map((r) => `"${r.outputs.title}"`);
-      return { ...topic, plan, idea: before.length ? `${topic.idea} Take a different angle and a different headline than these earlier posts: ${before.join(', ')}.` : topic.idea };
+      let idea = topic.idea;
+      if (before.length) idea += ` Take a different angle and a different headline than these earlier posts: ${before.join(', ')}.`;
+      if (topic.facts?.length) idea += `\nVerified facts you may use, only if they fit, with the numbers worded exactly as given (say in plain words where it comes from):\n${factsText(topic.facts)}`;
+      if (plan && topic.campaign === 4 && endsAt) idea += ` The founding price ends on ${monthDay(endsAt)} or when the 25 spots are gone, whichever comes first. You may say so.`;
+      if (standing) idea += `\nNew direction from Chris, follow it for this post: ${standing}`;
+      return { ...topic, plan, idea };
     };
     const article = async () => {
       if (!loadArticles) return null;
@@ -78,8 +99,8 @@ function createAutopilot({ db, studioFor, media, getPoster, getConnections, send
     if (plan) {
       const week = LAUNCH.filter((t) => t.week === plan.week);
       if (slot.index === 0) { const fresh = week.filter((t) => !used.has(t.key)); const pool = fresh.length ? fresh : week; return withHistory(pool[rows.length % pool.length]); }
-      if (slot.index === 2 && plan.week < 4) { const art = await article(); if (art) return withHistory(art); }
-      if (slot.index === 2 && plan.week === 4) { const offer = week.filter((t) => t.campaign === 4); return withHistory(offer[rows.length % offer.length]); }
+      if (slot.index === 2 && plan.week < 4 && !plan.offerOpen) { const art = await article(); if (art) return withHistory(art); }
+      if (slot.index === 2 && plan.offerOpen) { const offer = LAUNCH.filter((t) => t.campaign === 4); const freshOffer = offer.filter((t) => !used.has(t.key)); const offerPool = freshOffer.length ? freshOffer : offer; return withHistory(offerPool[rows.length % offerPool.length]); }
       const product = TOPICS.filter((t) => ['agent-partners', 'warm-leads', 'ai'].includes(t.pillar)); const fresh = product.filter((t) => !used.has(t.key));
       const pool = fresh.length ? fresh : product; return withHistory({ ...pool[(rows.length + 1) % pool.length], idea: `${pool[(rows.length + 1) % pool.length].idea} Tie it back to this week: ${plan.week <= 2 ? 'the market is tough and loan officers need new agent relationships' : 'a WOW Link is how you start one'}.` });
     }
@@ -94,7 +115,7 @@ function createAutopilot({ db, studioFor, media, getPoster, getConnections, send
     tone: topic.plan ? 'Bold, direct and honest. Short punchy lines, contrast and consequence. No fake statistics and no fear tactics.' : 'Friendly and simple',
     audience: 'Loan officers and real estate agents', pictureMode: 'auto', pictureDescription: '', photoName: '',
     videoFormat: 'vertical', videoDuration: '15', plannedAt: '',
-    source: 'autopilot', slot: slot.key, topicKey: topic.key, link: topic.link || LO,
+    source: 'autopilot', slot: slot.key, topicKey: topic.key, link: topic.link || LO, ...(topic.facts?.length ? { facts: topic.facts } : {}),
     ...(topic.plan ? { cardStyle: 'launch', plan: 'launch30', planWeek: topic.plan.week } : {})
   });
 
@@ -114,7 +135,7 @@ function createAutopilot({ db, studioFor, media, getPoster, getConnections, send
       const link = topic.link || LO;
       const outputs = { ...row.outputs };
       for (const key of ['facebook', 'linkedin', 'instagram']) if (!/https?:\/\//.test(outputs[key] || '')) outputs[key] = `${String(outputs[key] || '').trim()}\n\n${link}`;
-      const problems = checkPost(outputs);
+      const problems = checkPost(outputs, { allowed: tokensFor(topic.facts) });
       if (problems.length) { await cleanup(owner, id); return { ok: false, reason: `safety check: ${problems.slice(0, 3).join('; ')}` }; }
       row = await studio.edit(owner, id, { version: row.updated_at, outputs });
       await media.picture(owner, id, { version: row.updated_at });
@@ -146,7 +167,7 @@ function createAutopilot({ db, studioFor, media, getPoster, getConnections, send
 
   async function writeSlot(owner, slot) {
     const rows = await recent();
-    if (rows.some((r) => r.brief?.slot === slot.key && r.status !== 'failed')) return { skipped: true };
+    if (rows.some((r) => r.brief?.slot === slot.key && (r.status !== 'failed' || r.brief?.skipped))) return { skipped: true };
     const topic = await pickTopic(slot, rows);
     let result = await build(owner, slot, topic);
     if (!result.ok) {
@@ -184,7 +205,7 @@ function createAutopilot({ db, studioFor, media, getPoster, getConnections, send
         if (!r.skipped && force) break;
         if (!r.skipped && !r.ok) {
           const recentRows = await recent(MAX_FAILS_IN_ROW);
-          if (recentRows.length >= MAX_FAILS_IN_ROW && recentRows.every((x) => x.brief?.failed)) {
+          if (recentRows.length >= MAX_FAILS_IN_ROW && recentRows.every((x) => x.brief?.failed && !x.brief?.skipped)) {
             await setSwitch(db, 'autopilot_on', false, owner);
             await sendMail?.({ subject: 'Autopilot paused itself', text: `Three posts in a row did not pass. Autopilot switched itself OFF so nothing odd goes out. Last reason: ${r.reason}` });
             return { paused: true, results };
@@ -219,7 +240,8 @@ function createAutopilot({ db, studioFor, media, getPoster, getConnections, send
     const ids = rows.map((r) => r.id);
     const posts = ids.length ? ((await db.from('admin_marketing_posts').select('campaign_id, channel, status, scheduled_for, posted_at, url, error').in('campaign_id', ids)).data || []) : [];
     return rows.map((r) => ({
-      campaignId: r.id, slot: r.brief.slot, topic: r.brief.topicKey, title: r.outputs?.title || '', failed: Boolean(r.brief.failed), reason: r.generation_error || '',
+      campaignId: r.id, slot: r.brief.slot, topic: r.brief.topicKey, title: r.outputs?.title || '', failed: Boolean(r.brief.failed), skipped: Boolean(r.brief.skipped), reason: r.generation_error || '',
+      preview: String(r.outputs?.facebook || r.outputs?.linkedin || '').slice(0, 600),
       posts: posts.filter((p) => p.campaign_id === r.id)
     })).sort((a, b) => String(b.slot).localeCompare(String(a.slot)));
   }
@@ -240,6 +262,7 @@ function createAutopilot({ db, studioFor, media, getPoster, getConnections, send
   async function start(owner, { plan = true } = {}) {
     await setSwitch(db, 'autopilot_on', true, owner);
     await setSwitch(db, 'autopilot_plan_launch30', plan === true, owner);
+    if (plan === true) { try { await setOfferEndsAt(db, new Date(now().getTime() + 30 * 86400000)); } catch (err) { log.warn?.('[Autopilot] could not set the offer end date:', err?.message || err); } }
     await setSwitch(db, 'social_auto_post', true, owner);
     return { on: true };
   }
@@ -253,14 +276,32 @@ function createAutopilot({ db, studioFor, media, getPoster, getConnections, send
     return { on: false, cancelled: ids.length };
   }
 
+  // Take one waiting post back. "skip" leaves the time empty; otherwise the next tick writes a replacement.
+  async function removeUpcoming(owner, campaignId, { skip = false } = {}) {
+    const { data: row } = await db.from('admin_marketing_campaigns').select('id, brief, updated_at, owner_id').eq('id', campaignId).maybeSingle();
+    if (!row || row.brief?.source !== 'autopilot') return { error: 'not an Autopilot post', status: 404 };
+    const { data: posts } = await db.from('admin_marketing_posts').select('status').eq('campaign_id', campaignId);
+    if ((posts || []).some((p) => p.status === 'published' || p.status === 'posting')) return { error: 'This post is already out or going out.', status: 409 };
+    await db.from('admin_marketing_posts').delete().eq('campaign_id', campaignId);
+    await studioFor().remove(row.owner_id, campaignId, row.updated_at);
+    if (skip) {
+      const stamp = now().toISOString();
+      await db.from('admin_marketing_campaigns').insert({ id: crypto.randomUUID(), owner_id: row.owner_id, status: 'failed', generation_error: 'Skipped by you',
+        brief: { ...row.brief, failed: true, skipped: true }, created_at: stamp, updated_at: stamp });
+    }
+    return { removed: true, skipped: skip };
+  }
+
   async function status() {
     const on = await getSwitch(db, 'autopilot_on');
     const autoPost = await getSwitch(db, 'social_auto_post');
     const owner = await ownerOf();
-    return { on, autoPost, plan: on ? await launchPlan() : null, slots: owner || !on ? await summary(owner) : [], times: SLOTS.map((s) => `${s.h > 12 ? s.h - 12 : s.h}:${pad(s.m)} ${s.h >= 12 ? 'PM' : 'AM'} Pacific`) };
+    const plan = on ? await launchPlan() : null;
+    const endsAt = plan ? await offerEndsAt(db) : null;
+    return { on, autoPost, plan: plan ? { ...plan, offerEnds: endsAt ? monthDay(endsAt) : null } : null, direction: await direction(), slots: owner || !on ? await summary(owner) : [], times: SLOTS.map((s) => `${s.h > 12 ? s.h - 12 : s.h}:${pad(s.m)} ${s.h >= 12 ? 'PM' : 'AM'} Pacific`) };
   }
 
-  return { tick, start, stop, status, upcomingSlots, ptToUtc };
+  return { tick, start, stop, status, setDirection, removeUpcoming, upcomingSlots, ptToUtc };
 }
 
 module.exports = { createAutopilot, upcomingSlots, ptToUtc, SLOTS, CHANNELS };

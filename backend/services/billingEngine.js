@@ -880,7 +880,7 @@ const createBillingEngine = ({ supabaseAdmin, stripe, enqueueJob, appBaseUrl }) 
     // Launch price: the first 25 get the Stripe coupon in FOUNDING_COUPON_ID. Stripe rejects a request that has
     // both `discounts` and `allow_promotion_codes`, so the promo box is only added when no coupon is applied.
     const discounts = normalizedPlanId === PLAN_IDS.LO_LITE
-      ? await require('./foundingCoupon').pickFoundingDiscount({ stripe, couponId: process.env.FOUNDING_COUPON_ID })
+      ? await require('./foundingCoupon').pickFoundingDiscount({ stripe, couponId: process.env.FOUNDING_COUPON_ID, db: supabaseAdmin })
       : [];
     // The no-card trial already used part of the first week: Stripe only adds the days left (0 once it ended).
     let trialDays = 0;

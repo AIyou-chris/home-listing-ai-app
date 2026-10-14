@@ -6,9 +6,9 @@ import Collapsible from './Collapsible';
 // Autopilot: three posts a day, written the day before, checked, then posted by themselves. One big Stop.
 
 type PostRow = { channel: string; status: 'scheduled' | 'posting' | 'published' | 'failed'; scheduled_for: string; posted_at: string | null; url: string | null; error: string | null };
-type Slot = { campaignId: string; slot: string; topic: string; title: string; failed: boolean; reason: string; posts: PostRow[] };
-type Plan = { name: string; day: number; week: number } | null;
-type Status = { on: boolean; autoPost: boolean; plan?: Plan; slots: Slot[]; times: string[] };
+type Slot = { campaignId: string; slot: string; topic: string; title: string; failed: boolean; skipped?: boolean; reason: string; preview?: string; posts: PostRow[] };
+type Plan = { name: string; day: number; week: number; offerOpen?: boolean; offerEnds?: string | null } | null;
+type Status = { on: boolean; autoPost: boolean; plan?: Plan; direction?: string; slots: Slot[]; times: string[] };
 
 const LABEL: Record<string, string> = { facebook: 'Facebook', instagram: 'Instagram', linkedin: 'LinkedIn', youtube: 'YouTube' };
 const btn = 'rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50';
@@ -34,11 +34,13 @@ export default function AutopilotPanel() {
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
   const [launch, setLaunch] = useState(true);
+  const [direction, setDirection] = useState('');
+  const [directionLoaded, setDirectionLoaded] = useState(false);
 
   const load = useCallback(async () => {
-    try { setStatus(await call('/api/admin/autopilot')); setError(''); }
+    try { const next: Status = await call('/api/admin/autopilot'); setStatus(next); setDirection((current) => (directionLoaded ? current : next.direction || '')); setDirectionLoaded(true); setError(''); }
     catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not load Autopilot'); }
-  }, []);
+  }, [directionLoaded]);
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {
     if (!status?.on) return undefined;
@@ -58,6 +60,11 @@ export default function AutopilotPanel() {
     if (!window.confirm('Stop Autopilot?\n\nNothing new will be written, and posts that are scheduled but not yet posted are taken back. Posts already out stay out.')) return;
     return act('off', async () => { const r = await call('/api/admin/autopilot', { method: 'POST', body: JSON.stringify({ enabled: false }) }); setNote(`Autopilot is OFF. ${r.cancelled ? 'Waiting posts were taken back.' : ''}`); });
   };
+  const saveDirection = () => act('direction', async () => { await call('/api/admin/autopilot/direction', { method: 'POST', body: JSON.stringify({ direction }) }); setNote(direction.trim() ? 'Saved. Every post written from now on follows it.' : 'Direction cleared.'); });
+  const takeBack = (campaignId: string, skip: boolean) => {
+    if (!window.confirm(skip ? 'Skip this time? Nothing will be posted at it.' : 'Replace this post? It is taken back and a new one is written.')) return;
+    return act(`remove-${campaignId}`, async () => { await call(`/api/admin/autopilot/posts/${campaignId}/remove`, { method: 'POST', body: JSON.stringify({ skip }) }); setNote(skip ? 'Skipped.' : 'Taken back. A new one is being written.'); });
+  };
   const runNow = () => act('run', async () => { await call('/api/admin/autopilot/run-now', { method: 'POST', body: '{}' }); setNote('Writing the next post now. It takes about 2 minutes. This page updates by itself.'); });
 
   const on = status?.on === true;
@@ -71,7 +78,7 @@ export default function AutopilotPanel() {
       <div className={`rounded-2xl border p-5 ${on ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 bg-slate-50'}`}>
         <p className="text-lg font-bold text-slate-900">Autopilot is {status ? (on ? 'ON' : 'OFF') : '…'}</p>
         <p className="mt-1 text-sm text-slate-700">{status?.times?.length ? `Posts at ${status.times.join(', ')} to LinkedIn, Facebook, Instagram and YouTube.` : 'Posts three times a day.'}</p>
-        {on && status?.plan && <p className="mt-1 text-sm font-semibold text-emerald-800">Running the {status.plan.name} campaign: day {status.plan.day} of 30, week {status.plan.week} ({['Wake them up', 'Turn up the pressure', 'Introduce the solution', 'Close the deal'][status.plan.week - 1]}).</p>}
+        {on && status?.plan && <p className="mt-1 text-sm font-semibold text-emerald-800">Running the {status.plan.name} campaign: day {status.plan.day} of 30, week {status.plan.week} ({['Wake them up', 'Turn up the pressure', 'Introduce the solution', 'Close the deal'][status.plan.week - 1]}).{status.plan.offerOpen && status.plan.offerEnds ? ` The founding price is being promoted and ends ${status.plan.offerEnds} (or when the 25 spots are gone).` : ''}</p>}
         {!on && <label className="mt-3 flex items-start gap-2 text-sm text-slate-800"><input type="checkbox" className="mt-1" checked={launch} onChange={(e) => setLaunch(e.target.checked)} /><span><strong>Run the 30-day launch campaign</strong> ("The market changed. It's time you did too."), black and red look, four weeks. Leave it unchecked for plain everyday posts.</span></label>}
         <div className="mt-4 flex flex-wrap gap-3">
           {!on && <button type="button" className="rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50" disabled={busy !== '' || !status} onClick={() => void turnOn()}>{busy === 'on' ? 'Turning on…' : 'Turn Autopilot ON'}</button>}
@@ -82,6 +89,11 @@ export default function AutopilotPanel() {
         {error && <p role="alert" className="mt-3 text-sm text-red-700">{error}</p>}
         {note && <p role="status" className="mt-3 text-sm text-emerald-800">{note}</p>}
       </div>
+
+      <Collapsible title="New direction" hint="Tell Autopilot something new. It applies to every post not yet written." defaultOpen={false}>
+        <textarea value={direction} onChange={(e) => setDirection(e.target.value)} maxLength={1000} rows={4} aria-label="New direction for Autopilot" placeholder="Example: This week lean on the free trial. Don't mention rates. Talk about weekends." className="w-full rounded-xl border border-slate-300 p-3 text-sm" />
+        <div className="mt-2 flex flex-wrap items-center gap-3"><button type="button" className={btn} disabled={busy !== ''} onClick={() => void saveDirection()}>{busy === 'direction' ? 'Saving…' : 'Save direction'}</button><span className="text-xs text-slate-500">{direction.length} / 1000. Posts already written stay as they are; use Replace on those.</span></div>
+      </Collapsible>
 
       <Collapsible title="How it works" hint="What happens, and what keeps it safe" defaultOpen={false}>
         <ul className="list-disc space-y-2 pl-5 text-sm text-slate-700">
@@ -100,7 +112,14 @@ export default function AutopilotPanel() {
           {status?.slots.map((s) => (
             <li key={s.campaignId} className="py-3 text-sm">
               <p className="font-semibold text-slate-900">{slotLabel(s.slot)}</p>
-              <p className="text-slate-700">{s.failed ? <span className="text-red-700">Did not go out: {s.reason || 'did not pass the check'}</span> : (s.title || 'Writing…')}</p>
+              <p className="text-slate-700">{s.skipped ? <span className="text-slate-500">Skipped by you</span> : s.failed ? <span className="text-red-700">Did not go out: {s.reason || 'did not pass the check'}</span> : (s.title || 'Writing…')}</p>
+              {!s.failed && s.preview && <details className="mt-1"><summary className="cursor-pointer text-xs font-semibold text-slate-600">Read the post</summary><p className="mt-1 whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-sm text-slate-800">{s.preview}</p></details>}
+              {!s.failed && s.posts.length > 0 && !s.posts.some((p) => p.status === 'published' || p.status === 'posting') && (
+                <div className="mt-2 flex gap-2">
+                  <button type="button" className={btn} disabled={busy !== ''} onClick={() => void takeBack(s.campaignId, false)}>Replace</button>
+                  <button type="button" className={btn} disabled={busy !== ''} onClick={() => void takeBack(s.campaignId, true)}>Skip</button>
+                </div>
+              )}
               {!s.failed && (
                 <div className="mt-1 flex flex-wrap gap-2">
                   {s.posts.length === 0 && <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">Being written</span>}
