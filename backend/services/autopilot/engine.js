@@ -111,7 +111,7 @@ function createAutopilot({ db, studioFor, media, getPoster, getConnections, send
   }
 
   const briefFor = (topic, slot) => ({
-    kind: 'campaign', idea: topic.idea, goal: topic.week === 4 ? 'Promote an offer' : (GOALS[topic.pillar] || 'Drive website visits'),
+    kind: 'campaign', idea: `Write TO loan officers: "you" is the loan officer. Never speak to agents or homebuyers, and never describe things as "your listings". ${topic.idea}`, goal: topic.week === 4 ? 'Promote an offer' : (GOALS[topic.pillar] || 'Drive website visits'),
     tone: topic.plan ? 'Bold, direct and honest. Short punchy lines, contrast and consequence. No fake statistics and no fear tactics.' : 'Friendly and simple',
     audience: 'Loan officers and real estate agents', pictureMode: 'auto', pictureDescription: '', photoName: '',
     videoFormat: 'vertical', videoDuration: '15', plannedAt: '',
@@ -161,7 +161,7 @@ function createAutopilot({ db, studioFor, media, getPoster, getConnections, send
       return { ok: true, campaignId: id, channels, hasVideo };
     } catch (err) {
       await cleanup(owner, id);
-      return { ok: false, reason: String(err?.message || err).slice(0, 160) };
+      return { ok: false, reason: String(err?.detail ? `${err.message} (${err.detail})` : err?.message || err).slice(0, 260) };
     }
   }
 

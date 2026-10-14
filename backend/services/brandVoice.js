@@ -45,6 +45,7 @@ const PLAIN_WORDS = [
   [/\bleverage\b/gi, 'use'], [/\bseamless(ly)?\b/gi, 'smooth'], [/\beffortless(ly)?\b/gi, 'easy'],
   [/\bempower(s|ed|ing)?\b/gi, 'help'], [/\brevolutioniz(e|es|ed|ing)\b/gi, 'change'], [/\brevolutionary\b/gi, 'new'],
   [/\bcutting-edge\b/gi, 'modern'], [/\bsupercharge\b/gi, 'boost'], [/\bdive in\b/gi, 'take a look'],
+  [/\bnever miss (?:a |any |another )?leads?\b/gi, 'miss fewer leads'], [/\bno lead goes cold\b/gi, 'fewer leads go cold'],
   [/\bsolutions?\b/gi, 'tool'], [/\butilize\b/gi, 'use'], [/\bfacilitate\b/gi, 'help']
 ];
 const scrubVoice = (value) => {

@@ -119,3 +119,13 @@ test('campaign deletion rejects stale version and wrong owner without losing sav
  await assert.rejects(t.service.remove(OWNER,ID,'old'),/changed/);assert.equal(t.rows.length,1);
  await t.service.remove(OWNER,ID,row.updated_at);assert.equal(t.rows.length,0);
 });
+
+test('a draft a few characters over its limit is trimmed at a sentence end instead of failing', () => {
+  const { fitLengths, OUTPUT_LIMITS } = require('../services/adminMarketingStudio');
+  const first = 'Send one WOW Link to one agent this week and see what happens. '.repeat(3);
+  const long = first + 'x'.repeat(OUTPUT_LIMITS.bluesky);
+  const out = fitLengths({ bluesky: long, title: 'Short' });
+  assert.ok([...out.bluesky].length <= OUTPUT_LIMITS.bluesky);
+  assert.strictEqual(out.bluesky, first.trim());
+  assert.strictEqual(out.title, 'Short');
+});

@@ -22,3 +22,7 @@ test('transform verbs keep their ending', () => {
 test('keeps a capital letter at the start of a swapped word', () => {
   assert.strictEqual(scrubVoice('Unlock Warm Leads with WOW Links'), 'Open up Warm Leads with WOW Links');
 });
+
+test('absolute lead promises are softened instead of failing a paid draft', () => {
+  assert.strictEqual(scrubVoice('Never miss a lead again. No lead goes cold.'), 'Miss fewer leads again. Fewer leads go cold.');
+});

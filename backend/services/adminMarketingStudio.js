@@ -26,6 +26,18 @@ function validateBrief(raw = {}) {
   if (brief.pictureMode === 'own' && !brief.photoName) throw new StudioError(400, 'Choose a photo first.');
   return brief;
 }
+// The writer sometimes runs a few characters past a limit (a Bluesky line at 309 of 300). Trim at a sentence or word end instead of failing a paid draft.
+function fitLengths(output) {
+  const out = { ...output };
+  for (const [key, max] of Object.entries(OUTPUT_LIMITS)) {
+    const value = out[key];
+    if (typeof value !== 'string' || [...value].length <= max) continue;
+    const cut = [...value].slice(0, max).join('');
+    const end = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('! '), cut.lastIndexOf('? '), cut.lastIndexOf('.\n'));
+    out[key] = end > max * 0.5 ? cut.slice(0, end + 1).trim() : `${cut.replace(/\s+\S*$/, '').replace(/[,;:\-\s]+$/, '')}.`.trim();
+  }
+  return out;
+}
 function validateOutputs(raw, allowEmpty = false) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new StudioError(502, 'The AI returned incomplete content. Try again.');
   const output = {};
@@ -111,10 +123,10 @@ function createStudioService({ db, openai, loadBrain, media, now = () => new Dat
         }, { timeout: 60000, maxRetries: 0 });
         const choice = completion.choices?.[0];
         if (choice?.finish_reason !== 'stop' || choice.message?.refusal) throw new Error('AI could not complete this draft.');
-        outputs = validateOutputs(Object.fromEntries(Object.entries(JSON.parse(choice.message.content)).map(([k, v]) => [k, scrubVoice(v)])));
+        outputs = validateOutputs(fitLengths(Object.fromEntries(Object.entries(JSON.parse(choice.message.content)).map(([k, v]) => [k, scrubVoice(v)]))));
       } catch (_cause) {
         await update(owner, claimed, { status: 'failed', generation_error: 'AI creation did not finish. Your brief is saved; you can try again.' });
-        throw new StudioError(502, 'AI creation did not finish. Your brief is saved; you can try again.');
+        throw Object.assign(new StudioError(502, 'AI creation did not finish. Your brief is saved; you can try again.'), { detail: String(_cause?.message || '').slice(0, 160) });
       }
       // Persistence errors are not model errors: never retry a paid generation automatically.
       return update(owner, claimed, { outputs, status: 'draft', brain_updated_at: brain.updatedAt, generation_error: null });
@@ -160,4 +172,4 @@ function createStudioHandlers(dependencies) {
     approve: handle(async req => ({ campaign: await service.approve(req.user?.id, req.params.id, req.body || {}) }))
   };
 }
-module.exports = { createStudioService, createStudioHandlers, validateBrief, validateOutputs, OUTPUT_LIMITS, OUTPUT_SCHEMA, StudioError };
+module.exports = { createStudioService, createStudioHandlers, validateBrief, validateOutputs, fitLengths, OUTPUT_LIMITS, OUTPUT_SCHEMA, StudioError };
