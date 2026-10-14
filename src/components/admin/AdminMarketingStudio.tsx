@@ -9,13 +9,14 @@ import MarketingCampaignReview from './MarketingCampaignReview';
 import MarketingImageLibrary from './MarketingImageLibrary';
 import Collapsible from './Collapsible';
 import ConnectedAccountsPanel from './ConnectedAccountsPanel';
+import AutopilotPanel from './AutopilotPanel';
 import FbGroupsPanel from './FbGroupsPanel';
 
 const BlogEditor = React.lazy(() => import('../../admin-dashboard/Blog/BlogEditor'));
 
-type Tab = 'create' | 'campaigns' | 'video' | 'calendar' | 'qr' | 'accounts' | 'images' | 'groups' | 'content';
+type Tab = 'autopilot' | 'create' | 'campaigns' | 'video' | 'calendar' | 'qr' | 'accounts' | 'images' | 'groups' | 'content';
 const TABS: { id: Tab; label: string }[] = [
-  { id: 'create', label: 'Create' }, { id: 'campaigns', label: 'My campaigns' },
+  { id: 'autopilot', label: 'Autopilot' }, { id: 'create', label: 'Create' }, { id: 'campaigns', label: 'My campaigns' },
   { id: 'content', label: 'Content Library' },
   { id: 'video', label: 'Make a Video' }, { id: 'calendar', label: 'Calendar' },
   { id: 'qr', label: 'QR Codes' }, { id: 'images', label: 'Picture library' }, { id: 'groups', label: 'Facebook Groups' }, { id: 'accounts', label: 'Connected accounts' },
@@ -326,6 +327,7 @@ export default function AdminMarketingStudio({ ownerId }: { ownerId: string }) {
         <div className="mt-5 sm:hidden"><h4 className="font-semibold text-slate-900">Planned this month</h4>{briefs.filter(brief => brief.plannedAt.startsWith(dateKey(month).slice(0, 7))).map(brief => <button type="button" key={brief.id} className={`${buttonClass} mt-2 w-full justify-start text-left`} onClick={() => { setSelectedId(brief.id); changeTab('campaigns'); }}><CalendarDays size={16} /><span className="min-w-0"><span className="block text-xs">{brief.plannedAt.replace('T', ' ')}</span><span className="block break-words">{brief.idea}</span></span></button>)}</div>
       </>}
       {tab === 'qr' && <div className="grid gap-5"><form onSubmit={createQr} className={cardClass}><h3 className="flex items-center gap-2 text-lg font-bold text-slate-900"><QrCode size={20} className="text-primary-600" />Turn a link into a QR code</h3><p className="mt-2 text-sm text-slate-500">Use it on flyers, social images, or an open-house sign.</p><label className="mt-5 block text-sm font-semibold text-slate-800">Destination link<input type="url" value={qrUrl} onChange={event => changeQrUrl(event.target.value)} required maxLength={2000} className={`${inputClass} mt-2`} /></label><button type="submit" className={`${primaryClass} mt-4`} disabled={qrBusy}>{qrBusy ? 'Making QR code…' : 'Create QR code'}</button></form><div className={`${cardClass} flex min-h-64 flex-col items-center justify-center`}>{qrImage ? <><img src={qrImage} alt={`QR code linking to ${qrUrl}`} className="h-52 w-52" /><a className={`${buttonClass} mt-3`} href={qrImage} download="homelistingai-qr.png"><Download size={16} />Download PNG</a><p className="mt-3 max-w-full break-all text-center text-xs text-slate-500">{qrUrl}</p></> : <p className="text-sm text-slate-500">Your QR code will appear here.</p>}</div></div>}
+      {tab === 'autopilot' && <AutopilotPanel />}
       {tab === 'accounts' && <ConnectedAccountsPanel />}
       {tab === 'groups' && <FbGroupsPanel />}
     </div>

@@ -13,6 +13,7 @@ function setup({ failAI = false, emptyBrain = false } = {}) {
     constructor() { this.filters=[]; this.mode='select'; }
     select(_columns, options) { this.countOnly=options?.head; return this; }
     eq(key,value) { this.filters.push(row => row[key] === value); return this; }
+    or(expression) { if (/source\.neq\.autopilot/.test(expression)) this.filters.push(row => row.brief?.source !== 'autopilot'); return this; }
     order() { return this; }
     limit() { return this; }
     insert(value) { this.mode='insert'; this.value=value; return this; }

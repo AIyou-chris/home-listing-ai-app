@@ -63,7 +63,7 @@ function createStudioService({ db, openai, loadBrain, media, now = () => new Dat
     if (row.status === 'generating' && Date.now() - Date.parse(row.updated_at) < 120000) throw new StudioError(409, 'This campaign is still being created. Please wait.');
   }
   return {
-    async list(owner) { return databaseResult(await table(owner).select('*').eq('owner_id', owner).order('created_at', { ascending: false }).limit(100)); },
+    async list(owner) { return databaseResult(await table(owner).select('*').eq('owner_id', owner).or('brief->>source.is.null,brief->>source.neq.autopilot').order('created_at', { ascending: false }).limit(100)); },
     async save(owner, id, body) {
       requireId(id);
       const brief = validateBrief(body.brief);
@@ -74,7 +74,7 @@ function createStudioService({ db, openai, loadBrain, media, now = () => new Dat
         if (JSON.stringify(validateBrief(existing.brief)) === JSON.stringify(brief)) return existing;
         return update(owner, existing, { brief, outputs: {}, status: 'brief', generation_error: null, brain_updated_at: null });
       }
-      const counted = await table(owner).select('id', { count: 'exact', head: true }).eq('owner_id', owner);
+      const counted = await table(owner).select('id', { count: 'exact', head: true }).eq('owner_id', owner).or('brief->>source.is.null,brief->>source.neq.autopilot');
       databaseResult(counted);
       if (counted.count >= 100) throw new StudioError(409, 'You have 100 campaigns. Remove one before saving another.');
       const stamp = now();

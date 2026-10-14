@@ -1,0 +1,124 @@
+'use strict';
+const test = require('node:test');
+const assert = require('node:assert');
+const { createAutopilot, upcomingSlots, ptToUtc } = require('../services/autopilot/engine');
+const { checkPost } = require('../services/autopilot/safety');
+const { TOPICS } = require('../services/autopilot/topics');
+
+// A very small in-memory database: just the calls the engine makes.
+function fakeDb(seed = {}) {
+  const tables = { admin_switches: [], admin_marketing_campaigns: [], admin_marketing_posts: [], ...seed };
+  const pick = (row, key) => (key.includes('->>') ? (row[key.split('->>')[0]] || {})[key.split('->>')[1]] : row[key]);
+  const builder = (name) => {
+    let rows = null; let op = null; let payload = null; const filters = []; let lim = null; let single = false;
+    const api = {
+      select() { if (!op) op = 'select'; return api; },
+      insert(p) { op = 'insert'; payload = p; return api; },
+      update(p) { op = 'update'; payload = p; return api; },
+      upsert(p) { op = 'upsert'; payload = p; return api; },
+      delete() { op = 'delete'; return api; },
+      eq(k, v) { filters.push((r) => pick(r, k) === v); return api; },
+      in(k, vs) { filters.push((r) => vs.includes(pick(r, k))); return api; },
+      lt(k, v) { filters.push((r) => String(pick(r, k)) < v); return api; },
+      order() { return api; }, limit(n) { lim = n; return api; },
+      maybeSingle() { single = 'maybe'; return api; }, single() { single = 'one'; return api; },
+      then(resolve) {
+        const t = tables[name]; const match = () => t.filter((r) => filters.every((f) => f(r)));
+        let data = null; let error = null;
+        if (op === 'insert') { const row = { ...payload }; t.push(row); data = row; }
+        else if (op === 'upsert') { const i = t.findIndex((r) => r.key === payload.key); if (i >= 0) Object.assign(t[i], payload); else t.push({ ...payload }); data = payload; }
+        else if (op === 'update') { match().forEach((r) => Object.assign(r, payload)); data = match(); }
+        else if (op === 'delete') { for (const r of match()) t.splice(t.indexOf(r), 1); data = []; }
+        else { data = match(); if (lim) data = data.slice(0, lim); }
+        if (single) data = Array.isArray(data) ? (data[0] ?? null) : data;
+        resolve({ data, error });
+      }
+    };
+    return api;
+  };
+  return { tables, from: builder };
+}
+
+const GOOD = {
+  title: 'Send one WOW Link', facebook: 'Send one WOW Link to one agent. They get a free listing page and you get the warm lead. Try it free for 7 days, no card.',
+  linkedin: 'Agents like free help. A WOW Link gives them a listing page that answers buyers all day, and the loan officer gets the warm lead. Start with one agent and a 7-day trial.',
+  instagram: 'One link. One agent. #LoanOfficers', bluesky: 'Send one WOW Link.', videoScript: 'Send one WOW Link to one agent today.'
+};
+
+function harness({ outputs = GOOD, now = new Date('2026-10-13T20:00:00Z') } = {}) {
+  const db = fakeDb();
+  db.tables.admin_switches.push({ key: 'autopilot_on', enabled: true, updated_by: 'ddee9647-fd81-4e54-be9c-dd25e46a99bf' });
+  const scheduled = []; const mails = [];
+  const studio = {
+    async generate(owner, id) { const r = db.tables.admin_marketing_campaigns.find((x) => x.id === id); Object.assign(r, { status: 'draft', outputs: { ...outputs }, updated_at: 'v1' }); return r; },
+    async edit(owner, id, body) { const r = db.tables.admin_marketing_campaigns.find((x) => x.id === id); r.outputs = body.outputs; r.updated_at = 'v2'; return r; },
+    async settings(owner, id) { const r = db.tables.admin_marketing_campaigns.find((x) => x.id === id); r.updated_at = 'v3'; return r; },
+    async approve(owner, id) { const r = db.tables.admin_marketing_campaigns.find((x) => x.id === id); r.status = 'approved'; return r; },
+    async remove(owner, id) { const t = db.tables.admin_marketing_campaigns; t.splice(t.findIndex((x) => x.id === id), 1); }
+  };
+  const media = { async picture() {}, async render() {}, async list() { return [{ kind: 'video', status: 'ready' }]; }, async cleanup() { return []; }, async removeFiles() {} };
+  const ap = createAutopilot({
+    db, studioFor: () => studio, media, now: () => now, log: { warn() {} },
+    getPoster: () => ({ async schedule(args) { scheduled.push(args); } }),
+    getConnections: async () => ({ facebook: true, instagram: true, linkedin: true, youtube: true }),
+    sendMail: async (m) => { mails.push(m); }
+  });
+  return { db, ap, scheduled, mails };
+}
+
+test('Pacific slot times are right across daylight saving', () => {
+  assert.strictEqual(ptToUtc(2026, 10, 14, 8, 0).toISOString(), '2026-10-14T15:00:00.000Z');
+  assert.strictEqual(ptToUtc(2026, 11, 2, 8, 0).toISOString(), '2026-11-02T16:00:00.000Z');
+  const keys = upcomingSlots(new Date('2026-10-13T20:00:00Z')).map((s) => s.key);
+  assert.deepStrictEqual(keys, ['2026-10-13@17:00', '2026-10-14@08:00', '2026-10-14@12:00', '2026-10-14@17:00']);
+});
+
+test('the safety check lets a normal post through and stops promises, made-up results and outside links', () => {
+  assert.deepStrictEqual(checkPost({ ...GOOD, facebook: GOOD.facebook + ' https://homelistingai.com/for-loan-officers' }), []);
+  const bad = checkPost({ ...GOOD, facebook: 'We guarantee 40% more leads. Thousands of loan officers love it [Name] http://evil.com' });
+  assert.ok(bad.length >= 4, JSON.stringify(bad));
+  assert.ok(checkPost({ ...GOOD, linkedin: 'Replace your staff with AI and save $500 every month, no need to hire anyone at all.' }).length >= 2);
+});
+
+test('every topic is unique and uses plain product facts only', () => {
+  assert.strictEqual(new Set(TOPICS.map((t) => t.key)).size, TOPICS.length);
+  for (const t of TOPICS) assert.ok(!/\d\s*%|guarantee/i.test(t.idea), t.key);
+});
+
+test('with Autopilot ON it writes, schedules and posts nothing by itself outside the 18-hour window', async () => {
+  const { ap, scheduled, db } = harness();
+  const out = await ap.tick();
+  assert.ok(out.results.length >= 1);
+  assert.ok(scheduled.length >= 1);
+  for (const call of scheduled) { assert.deepStrictEqual(call.channels.sort(), ['facebook', 'instagram', 'linkedin', 'youtube']); }
+  const slots = db.tables.admin_marketing_campaigns.map((c) => c.brief.slot);
+  assert.strictEqual(new Set(slots).size, slots.length, 'one post per slot');
+  const again = await ap.tick();
+  assert.ok(again.results.every((r) => r.skipped), 'a second tick does not write the same slots again');
+});
+
+test('with Autopilot OFF nothing is written', async () => {
+  const { ap, db, scheduled } = harness();
+  db.tables.admin_switches[0].enabled = false;
+  assert.deepStrictEqual(await ap.tick(), { off: true });
+  assert.strictEqual(scheduled.length, 0);
+});
+
+test('a post that fails the safety check is never scheduled, and three failures in a row switch Autopilot off and email', async () => {
+  const { ap, scheduled, db, mails } = harness({ outputs: { ...GOOD, facebook: 'We guarantee more leads for every loan officer who tries it this week, no risk at all.' } });
+  const out = await ap.tick();
+  assert.strictEqual(scheduled.length, 0);
+  assert.ok(db.tables.admin_marketing_campaigns.every((c) => c.status === 'failed'));
+  assert.ok(out.paused || db.tables.admin_marketing_campaigns.length >= 1);
+  const first = db.tables.admin_switches.find((s) => s.key === 'autopilot_on');
+  if (out.paused) { assert.strictEqual(first.enabled, false); assert.ok(mails.length >= 1); }
+});
+
+test('Stop turns it off and takes back posts that are waiting', async () => {
+  const { ap, db } = harness();
+  await ap.tick();
+  db.tables.admin_marketing_posts.push({ campaign_id: db.tables.admin_marketing_campaigns[0].id, channel: 'facebook', status: 'scheduled' }, { campaign_id: db.tables.admin_marketing_campaigns[0].id, channel: 'linkedin', status: 'published' });
+  const out = await ap.stop('ddee9647-fd81-4e54-be9c-dd25e46a99bf');
+  assert.strictEqual(out.on, false);
+  assert.deepStrictEqual(db.tables.admin_marketing_posts.map((p) => p.status), ['published']);
+});

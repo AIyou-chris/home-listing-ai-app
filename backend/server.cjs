@@ -36120,6 +36120,55 @@ if (APP_RUNTIME_MODE !== 'worker') {
   setInterval(() => { runMarketingPostSweep().catch(() => {}); }, 5 * 60 * 1000);
 }
 
+// ---- Autopilot: three posts a day, written ahead, checked, and posted by the scheduler above. ----
+// Master switch `autopilot_on` (default OFF). Stop turns it off and takes back anything not yet posted.
+let autopilotInstance = null;
+const getAutopilot = () => {
+  if (!autopilotInstance && supabaseAdmin) {
+    const { createStudioService } = require('./services/adminMarketingStudio');
+    autopilotInstance = require('./services/autopilot/engine').createAutopilot({
+      db: supabaseAdmin,
+      studioFor: () => createStudioService({ db: supabaseAdmin, openai, loadBrain: loadBusinessBrain, media: marketingMediaService }),
+      media: marketingMediaService,
+      getPoster: () => getMarketingPoster(),
+      getConnections: async () => {
+        const { data } = await supabaseAdmin.from('house_social_connections').select('platform, status');
+        return Object.fromEntries((data || []).map((c) => [c.platform, c.status === 'connected']));
+      },
+      loadArticles: async () => (await blogService.publicPosts()).filter((p) => p.role !== 'tool').slice(0, 12),
+      sendMail: async ({ subject, text }) => {
+        const to = process.env.OWNER_ALERT_EMAIL || 'homelistingai@gmail.com';
+        const html = `<pre style="font-family:inherit;white-space:pre-wrap">${String(text).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))}</pre>`;
+        await emailService.sendEmail({ to, subject, html, tags: { template: 'autopilot', type: 'internal' } });
+      }
+    });
+  }
+  return autopilotInstance;
+};
+app.get('/api/admin/autopilot', verifyAdmin, async (req, res) => {
+  try { const autopilot = getAutopilot(); if (!autopilot) return res.status(503).json({ error: 'Autopilot is not available right now' }); res.json(await autopilot.status()); }
+  catch (err) { console.error('[Autopilot] status failed:', err?.message || err); res.status(500).json({ error: 'Could not load Autopilot' }); }
+});
+app.post('/api/admin/autopilot', verifyAdmin, async (req, res) => {
+  try {
+    const autopilot = getAutopilot(); if (!autopilot) return res.status(503).json({ error: 'Autopilot is not available right now' });
+    if (typeof req.body?.enabled !== 'boolean') return res.status(400).json({ error: 'enabled must be true or false' });
+    res.json(req.body.enabled ? await autopilot.start(req.user.id) : await autopilot.stop(req.user.id));
+  } catch (err) { console.error('[Autopilot] switch failed:', err?.message || err); res.status(500).json({ error: 'Could not change Autopilot' }); }
+});
+// "Write the next one now": starts the next missing post at once instead of waiting for the timer.
+app.post('/api/admin/autopilot/run-now', verifyAdmin, async (req, res) => {
+  try {
+    const autopilot = getAutopilot(); if (!autopilot) return res.status(503).json({ error: 'Autopilot is not available right now' });
+    if (!(await require('./services/adminSwitches').getSwitch(supabaseAdmin, 'autopilot_on'))) return res.status(409).json({ error: 'Turn Autopilot on first.' });
+    res.json({ started: true });
+    autopilot.tick({ force: true }).catch(() => {});
+  } catch (err) { console.error('[Autopilot] run-now failed:', err?.message || err); res.status(500).json({ error: 'Could not start the next post' }); }
+});
+if (APP_RUNTIME_MODE !== 'worker') {
+  setInterval(() => { try { getAutopilot()?.tick().catch(() => {}); } catch { /* never break the server */ } }, 10 * 60 * 1000);
+}
+
 // Send a campaign to the blog: makes a real blog brief (with the campaign picture when it is a checked library
 // picture) and has the blog writer write the full, checked article in the background. Never published from here.
 // Safe to press twice.
