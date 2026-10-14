@@ -277,7 +277,10 @@ function createAutopilot({ db, studioFor, media, getPoster, getConnections, send
   }
 
   async function summary(owner, days = 1) {
-    const rows = (await recent(60)).filter((r) => r.brief?.slot);
+    const all = (await recent(60)).filter((r) => r.brief?.slot);
+    // A failed try is hidden once the same time has a post that worked, so the list shows what matters.
+    const worked = new Set(all.filter((r) => !r.brief.failed).map((r) => r.brief.slot));
+    const rows = all.filter((r) => !r.brief.failed || r.brief.skipped || !worked.has(r.brief.slot));
     const ids = rows.map((r) => r.id);
     const posts = ids.length ? ((await db.from('admin_marketing_posts').select('campaign_id, channel, status, scheduled_for, posted_at, url, error').in('campaign_id', ids)).data || []) : [];
     return rows.map((r) => ({

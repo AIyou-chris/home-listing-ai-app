@@ -70,6 +70,29 @@ function createBlogService({db,openai,env=process.env,fetchImpl=fetch,now=()=>ne
   let distribution=null;if(post.status==='published')distribution=await afterPublish(post);
   return {post,review,distribution};
  }
+ const wordCount=html=>String(html||'').replace(/<[^>]+>/g,' ').split(/\s+/).filter(Boolean).length;
+ const problemsOf=(brief,r)=>checks({...brief,...r,status:'draft',featured_image:brief.featured_image||'/blog/assets/'+brief.pillar+'.webp',featured_image_alt:brief.featured_image_alt||r.title}).errors.filter(e=>!/picture|alt text/i.test(e));
+ async function repairDraft(brief,start){
+  let raw=start;
+  for(let pass=0;pass<2;pass++){
+   const before=problemsOf(brief,raw);if(!before.length||!openai)break;
+   try{
+    const target=brief.role==='hub'?3000:1400;
+    const fix=await openai.chat.completions.create({model:'gpt-4.1-mini',response_format:{type:'json_object'},max_tokens:14000,temperature:.4,messages:[{role:'system',content:writerPrompt(brief)},{role:'user',content:'Write the complete draft.'},{role:'assistant',content:JSON.stringify(raw)},{role:'user',content:`The checker found these problems: ${before.join(' | ')}. Return the same JSON, rewritten to fix every one. Content should be about ${target} words. Keep the topic, headings, both step lists and the script. Name HomeListingAI at most twice and only after the halfway point; the title and short answer must not name it. Meta description must be 140 to 158 characters. If a hub link is planned, put it in the first third. Add real working detail, never filler.`}]},{timeout:180000,maxRetries:0});
+    if(fix.choices[0].finish_reason!=='stop')break;
+    const better=JSON.parse(fix.choices[0].message.content);const after=problemsOf(brief,better);
+    if(after.length<before.length||(after.length===before.length&&wordCount(better.content)>wordCount(raw.content)))raw=better;else break;
+   }catch{break;}
+  }
+  return raw;
+ }
+ // Re-run the repair on an article that is already saved as a draft (keeps its slug and picture).
+ async function repair(owner,id){
+  const existing=await get(id);if(!existing||existing.status==='published')throw new BlogError(409,'Only drafts can be repaired.');
+  const start={title:existing.title,seo_title:existing.seo_title,seo_description:existing.seo_description,excerpt:existing.excerpt,seo_keywords:existing.seo_keywords,short_answer:existing.short_answer,content:existing.content,faq:existing.faq};
+  const raw=await repairDraft(existing,start);
+  return save(owner,{...existing,...raw,id:existing.id,updated_at:existing.updated_at});
+ }
  async function generate(owner,body){
   const existing=body.id?await get(body.id):null;
   if(existing?.status==='published')throw new BlogError(409,'Save a reviewed draft before replacing a live article.');
@@ -81,16 +104,9 @@ function createBlogService({db,openai,env=process.env,fetchImpl=fetch,now=()=>ne
   if(!brief.title)throw new BlogError(400,'Choose a brief or enter an idea.');
   try{const c=await openai.chat.completions.create({model:'gpt-4.1-mini',response_format:{type:'json_object'},max_tokens:14000,temperature:.5,messages:[{role:'system',content:writerPrompt(brief)},{role:'user',content:'Write the complete draft.'}]},{timeout:180000,maxRetries:0});if(c.choices[0].finish_reason!=='stop')throw Error('incomplete');
    let raw=JSON.parse(c.choices[0].message.content);
-   // The writer often misses the checker's rules (too short, product name too early or too often).
-   // One repair pass tells it exactly what failed, and the better draft is kept. Picture problems are not its job.
-   const wordCount=html=>String(html||'').replace(/<[^>]+>/g,' ').split(/\s+/).filter(Boolean).length;
-   const problemsOf=r=>checks({...brief,...r,status:'draft',featured_image:brief.featured_image||'/blog/assets/'+brief.pillar+'.webp',featured_image_alt:brief.featured_image_alt||r.title}).errors.filter(e=>!/picture|alt text/i.test(e));
-   const firstProblems=problemsOf(raw);
-   if(firstProblems.length){try{
-    const target=brief.role==='hub'?3000:1400;
-    const fix=await openai.chat.completions.create({model:'gpt-4.1-mini',response_format:{type:'json_object'},max_tokens:14000,temperature:.4,messages:[{role:'system',content:writerPrompt(brief)},{role:'user',content:'Write the complete draft.'},{role:'assistant',content:JSON.stringify(raw)},{role:'user',content:`The checker found these problems: ${firstProblems.join(' | ')}. Return the same JSON, rewritten to fix every one. Content should be about ${target} words. Keep the topic, headings, both step lists and the script. Name HomeListingAI at most twice and only after the halfway point; the title and short answer must not name it. Add real working detail, never filler.`}]},{timeout:180000,maxRetries:0});
-    if(fix.choices[0].finish_reason==='stop'){const better=JSON.parse(fix.choices[0].message.content);if(problemsOf(better).length<firstProblems.length||wordCount(better.content)>wordCount(raw.content)&&problemsOf(better).length<=firstProblems.length)raw=better;}
-   }catch{/* keep the first draft; the checks will list what is left */}}
+   // The writer often misses the checker's rules (too short, product name too early or too often, hub link, meta length).
+   // Up to two repair passes tell it exactly what failed, and a better draft is kept. Picture problems are not its job.
+   raw=await repairDraft(brief,raw);
    const post={...brief,...raw,slug:existing?.slug||slugify(raw.title),status:'draft',featured_image:brief.featured_image||'/blog/assets/'+brief.pillar+'.webp',featured_image_alt:brief.featured_image_alt||raw.title,author:'Chris Potter'};
    if(existing){const saved=await save(owner,{...post,id:existing.id,updated_at:existing.updated_at});await table().update({generation_started_at:null}).eq('id',existing.id);return saved;}
    return {post,review:checks(post)};
@@ -112,6 +128,6 @@ function createBlogService({db,openai,env=process.env,fetchImpl=fetch,now=()=>ne
   return {download:'/api/public/blog/download/'+token};
  }
  async function seed(){const posts=await all(),known=new Set(posts.map(p=>p.slug));let count=0;for(const brief of plan.posts){if(known.has(brief.slug))continue;let p={...brief,content:'',excerpt:'Editorial brief: '+brief.title,featured_image:'/blog/assets/'+brief.pillar+'.webp',featured_image_alt:brief.title};try{p={...p,...JSON.parse(await fs.readFile(path.join(__dirname,'content',brief.slug+'.json'),'utf8'))};}catch{}const review=p.content?checks(p):null;if(review&&!review.ok)throw new BlogError(422,'Seed article needs review: '+p.slug,review.errors);delete p.planned_links_dummy;if(review){p.content=review.content;p.reading_minutes=review.reading_minutes;}const inserted=await table().upsert({...p,published_at:null,updated_at:now()},{onConflict:'slug',ignoreDuplicates:true});result(inserted);count++;}return {added:count};}
- return {get,preview,all,publicPosts,save,generate,publishDue,ping,afterPublish,lead,download,recordEvent,seed};
+ return {get,preview,all,publicPosts,save,generate,repair,publishDue,ping,afterPublish,lead,download,recordEvent,seed};
 }
 module.exports={createBlogService,BlogError,pdf,WORKSHEETS};

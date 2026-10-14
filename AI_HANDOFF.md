@@ -1,3 +1,8 @@
+## 2026-10-14 — Claude: blog drafts checked live; second repair pass; list tidy-up (pushed)
+
+- Chris ran it: two drafts exist ("Open house strategies for loan officers that agents will say yes to" 1,543 words / 1 flag; "The 30-day agent partnership plan for new loan officers" 1,147 / 2 flags). Flags were small (hub link in first third, 3 words short, meta description length). `blog/service.cjs`: repair is now up to TWO passes (`repairDraft`), also asks for meta 140-158 and the hub link in the first third; new `service.repair(owner,id)` re-runs it on a saved draft. Ran it on both: 1,646 and 1,401 words, zero checker errors. Both are still DRAFTS for Chris to read and publish.
+- Autopilot list: failed tries for a time that later worked are hidden (engine `summary`), so the old three 5:00 PM failures vanish.
+
 ## 2026-10-14 — Claude: Autopilot blog drafts (pushed)
 
 - Chris said "blog yes". `engine.maybeBlogDraft`: at most 2 a week, at least 3 days apart, it takes the oldest planned article (`blog_posts.status='brief'`, role not tool, `generation_attempts=0`) and runs `blogService.generate` (with the repair pass). Result is a DRAFT; Autopilot never publishes. Each try writes a marker switch `autopilot_blog_<postId>` first, so a failure is not retried in a loop. Autopilot tab: new "Blog drafts" card (list, "Write a blog draft now" = `POST /api/admin/autopilot/blog-now` forced, link to Manage blog posts); the evening digest email lists drafts waiting. +2 tests (18 in `autopilot.test.js`), backend 463.
