@@ -36141,7 +36141,16 @@ const getAutopilot = () => {
           const { data } = await supabaseAdmin.from('blog_posts').select('id, title, role, generation_attempts').eq('status', 'brief').neq('role', 'tool').eq('generation_attempts', 0).order('created_at', { ascending: true }).limit(1);
           return data?.[0] || null;
         },
-        write: (owner, id) => blogService.generate(owner, { id })
+        write: (owner, id) => blogService.generate(owner, { id }),
+        // A cinematic picture for the new draft, attached as its featured image (the article is still a draft for Chris to read).
+        makeHero: async (owner, id) => {
+          const { data: post } = await supabaseAdmin.from('blog_posts').select('id, title, excerpt, short_answer, status').eq('id', id).maybeSingle();
+          if (!post || post.status === 'published') return null;
+          const made = await marketingMediaService.images.blogHero(owner, { postId: id, title: post.title, excerpt: post.excerpt || post.short_answer || '', count: 1 });
+          if (!made[0]) return null;
+          await supabaseAdmin.from('blog_posts').update({ featured_image: `https://homelistingai.com/api/public/marketing-images/${made[0].id}`, featured_image_alt: String(made[0].alt_text || post.title).slice(0, 300) }).eq('id', id).neq('status', 'published');
+          return made[0];
+        }
       },
       sendMail: async ({ subject, text }) => {
         const to = process.env.OWNER_ALERT_EMAIL || 'homelistingai@gmail.com';
@@ -36189,6 +36198,21 @@ app.post('/api/admin/autopilot/posts/:campaignId/remove', verifyAdmin, async (re
     if (out.error) return res.status(out.status || 400).json({ error: out.error });
     res.json(out);
   } catch (err) { console.error('[Autopilot] remove failed:', err?.message || err); res.status(500).json({ error: 'Could not take that post back' }); }
+});
+// Blog pictures made by AI for one article: start (runs after the reply) and list.
+app.post('/api/admin/blog/posts/:id/hero', verifyAdmin, async (req, res) => {
+  try {
+    if (!/^[0-9a-f-]{36}$/i.test(String(req.params.id || ''))) return res.status(400).json({ error: 'Invalid article' });
+    const { data: post } = await supabaseAdmin.from('blog_posts').select('id, title, excerpt, short_answer, status').eq('id', req.params.id).maybeSingle();
+    if (!post) return res.status(404).json({ error: 'Save the article first.' });
+    res.json({ started: true });
+    marketingMediaService.images.blogHero(req.user.id, { postId: post.id, title: post.title, excerpt: post.excerpt || post.short_answer || '', count: Math.min(2, Number(req.body?.count) || 2), variantStart: Number(req.body?.variantStart) || 0 })
+      .catch((err) => console.warn('[Blog picture] failed:', err?.message || err));
+  } catch (err) { console.error('[Blog picture] start failed:', err?.message || err); res.status(500).json({ error: 'Could not start the picture' }); }
+});
+app.get('/api/admin/blog/posts/:id/hero', verifyAdmin, async (req, res) => {
+  try { res.json({ pictures: await marketingMediaService.images.blogHeroList(req.user.id, req.params.id) }); }
+  catch (err) { res.status(err.status || 500).json({ error: err.status ? err.message : 'Could not load the pictures' }); }
 });
 // "Write a blog draft now": the next planned article is written as a DRAFT (never published from here).
 app.post('/api/admin/autopilot/blog-now', verifyAdmin, async (req, res) => {

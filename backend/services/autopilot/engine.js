@@ -259,7 +259,12 @@ function createAutopilot({ db, studioFor, media, getPoster, getConnections, send
     const next = await blog.nextBrief();
     if (!next) return { skipped: 'no planned article left' };
     await setSwitch(db, `autopilot_blog_${next.id}`, true, owner);
-    try { await blog.write(owner, next.id); return { id: next.id, title: next.title }; }
+    try {
+      await blog.write(owner, next.id);
+      let picture = false;
+      try { picture = Boolean(blog.makeHero && await blog.makeHero(owner, next.id)); } catch (err) { log.warn?.('[Autopilot] blog picture skipped:', err?.message || err); }
+      return { id: next.id, title: next.title, picture };
+    }
     catch (err) { log.warn?.('[Autopilot] blog draft failed:', err?.message || err); return { id: next.id, title: next.title, failed: String(err?.message || err).slice(0, 160) }; }
   }
 

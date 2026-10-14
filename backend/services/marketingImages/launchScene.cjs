@@ -4,6 +4,7 @@
 const { safeDirection } = require('./direction.cjs');
 
 const LOOK = 'Cinematic low-key still photograph, deep black shadows, a single warm tangerine-orange light source with a subtle fire-red accent, fine film grain, shallow depth of field, dramatic yet realistic. Square frame: the main subject sits in the right third, and the left 45 percent of the frame is dark, calm and empty.';
+const LOOK_BLOG = 'Cinematic low-key still photograph, deep black shadows, warm tangerine-orange light with a subtle fire-red accent, fine film grain, shallow depth of field, dramatic yet realistic. Wide frame: the subject sits slightly right of center with calm dark space on the left. Expose it so the scene is clearly visible, never muddy or underexposed, with a bright orange highlight.';
 const RULES = 'No text, letters, numbers or logos anywhere. No screens showing an interface. No identifiable faces: use silhouettes, backs of heads, hands, empty chairs or objects. No robots, glowing brains, circuit boards, holograms, neon cyberpunk, floating panels, handshake over a globe, charts, dollar signs or clip-art houses.';
 
 const FALLBACK = [
@@ -17,7 +18,7 @@ const FALLBACK = [
   ['A long empty office hallway at night with one door glowing orange at the end', 'A dark office hallway with one glowing door']
 ];
 
-async function writeLaunchScene({ openai, headline = '', idea = '', variant = 0, avoid = '' }) {
+async function writeLaunchScene({ openai, headline = '', idea = '', variant = 0, avoid = '', look = 'launch' }) {
   const pick = FALLBACK[Math.abs(variant) % FALLBACK.length];
   let scene = pick[0]; let alt = pick[1];
   if (openai) {
@@ -33,7 +34,7 @@ async function writeLaunchScene({ openai, headline = '', idea = '', variant = 0,
       if (typeof data.scene === 'string' && data.scene.trim()) { scene = safeDirection(data.scene.trim().slice(0, 500)); alt = String(data.alt_text || scene).slice(0, 300); }
     } catch { /* keep the fallback scene */ }
   }
-  return { prompt: `${scene}\n\n${LOOK} ${RULES}`, alt_text: alt };
+  return { prompt: `${scene}\n\n${look === 'blog' ? LOOK_BLOG : LOOK} ${RULES}`, alt_text: alt };
 }
 
 module.exports = { writeLaunchScene, LOOK, RULES, FALLBACK };

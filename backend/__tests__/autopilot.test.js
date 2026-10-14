@@ -312,3 +312,19 @@ test('"New picture" makes another scene for a waiting post, renders the video ag
   h.db.tables.admin_marketing_posts[0].status = 'published';
   assert.strictEqual((await h.ap.redoPicture('ddee9647-fd81-4e54-be9c-dd25e46a99bf', row.id)).status, 409, 'a post that is out cannot be changed');
 });
+
+test('a blog draft gets an AI picture attached, and a picture failure never loses the draft', async () => {
+  const heroed = [];
+  const blog = { nextBrief: async () => ({ id: '55555555-5555-4555-8555-555555555555', title: 'E' }), write: async () => {}, makeHero: async (owner, id) => { heroed.push(id); return { id: 'img' }; } };
+  const h = harness({ blog, now: new Date('2026-10-13T23:00:00Z') });
+  const out = await h.ap.maybeBlogDraft('ddee9647-fd81-4e54-be9c-dd25e46a99bf', { force: true });
+  assert.deepStrictEqual(heroed, ['55555555-5555-4555-8555-555555555555']);
+  assert.strictEqual(out.picture, true);
+
+  const flaky = { ...blog, makeHero: async () => { throw new Error('image service down'); } };
+  const g = harness({ blog: flaky, now: new Date('2026-10-13T23:00:00Z') });
+  const second = await g.ap.maybeBlogDraft('ddee9647-fd81-4e54-be9c-dd25e46a99bf', { force: true });
+  assert.strictEqual(second.id, '55555555-5555-4555-8555-555555555555');
+  assert.strictEqual(second.picture, false);
+  assert.ok(!second.failed, 'the draft itself is still fine');
+});

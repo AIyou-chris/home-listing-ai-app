@@ -76,6 +76,44 @@ const BlogEditor: React.FC = () => {
   const [isLoadingImages, setIsLoadingImages] = useState(false);
   const [showImagePicker, setShowImagePicker] = useState(false);
   const [libraryPreview,setLibraryPreview]=useState('');
+  const [heroPics, setHeroPics] = useState<{ id: string; alt_text: string; url: string | null }[]>([]);
+  const [heroBusy, setHeroBusy] = useState(false);
+  const HERO_PREFIX = 'https://homelistingai.com/api/public/marketing-images/';
+  // A picture the AI attached to a draft is private until the article is live, so the editor needs its own preview link.
+  useEffect(() => {
+    const id = currentPost.id; const url = currentPost.featured_image || '';
+    if (!id || !url.startsWith(HERO_PREFIX) || libraryPreview) return undefined;
+    let active = true;
+    void (async () => {
+      try {
+        const r = await fetch(`${API}/api/admin/blog/posts/${id}/hero`, { headers: await authHeader() });
+        const d = await r.json();
+        const match = (d.pictures || []).find((p: { id: string; url: string | null }) => url === `${HERO_PREFIX}${p.id}`);
+        if (active && match?.url) setLibraryPreview(match.url);
+      } catch { /* the preview just stays blank */ }
+    })();
+    return () => { active = false; };
+  }, [currentPost.id, currentPost.featured_image, libraryPreview]);
+  const makeArticlePicture = async () => {
+    if (!currentPost.id) { toast.error('Save the draft first, then make a picture.'); return; }
+    setHeroBusy(true);
+    try {
+      const headers = { ...(await authHeader()), 'Content-Type': 'application/json' };
+      const before = heroPics.length;
+      const start = await fetch(`${API}/api/admin/blog/posts/${currentPost.id}/hero`, { method: 'POST', headers, body: JSON.stringify({ count: 2, variantStart: before }) });
+      if (!start.ok) throw new Error((await start.json().catch(() => ({}))).error || 'Could not start');
+      toast('Making 2 pictures. It takes about 2 minutes.', { duration: 5000 });
+      for (let i = 0; i < 30; i += 1) {
+        await new Promise(resolve => setTimeout(resolve, 8000));
+        const r = await fetch(`${API}/api/admin/blog/posts/${currentPost.id}/hero`, { headers: await authHeader() });
+        const d = await r.json();
+        const ready = (d.pictures || []).filter((p: { url: string | null; problems: string[] }) => p.url && !(p.problems || []).length);
+        setHeroPics(ready);
+        if (ready.length >= before + 2) break;
+      }
+    } catch (e) { toast.error(`Picture failed: ${e instanceof Error ? e.message : 'unknown'}`); }
+    finally { setHeroBusy(false); }
+  };
 
   // Social repurpose
   const [repurposed, setRepurposed] = useState<Record<SocialPlatform, string> | null>(null);
@@ -484,6 +522,23 @@ const BlogEditor: React.FC = () => {
               </div>
             )}
 
+            <button type="button" onClick={() => void makeArticlePicture()} disabled={heroBusy || !currentPost.id}
+              className="mt-3 min-h-11 w-full rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">
+              {heroBusy ? 'Making pictures…' : currentPost.id ? 'Make a picture for this article (AI)' : 'Save the draft to make a picture'}
+            </button>
+            {heroPics.length > 0 && (
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                {heroPics.map(p => (
+                  <div key={p.id} className="overflow-hidden rounded-lg border border-slate-200">
+                    {p.url && <img src={p.url} alt={p.alt_text} className="h-24 w-full object-cover" />}
+                    <button type="button" className="w-full bg-white px-2 py-2 text-xs font-bold text-primary-700 hover:bg-primary-50"
+                      onClick={() => { setCurrentPost(prev => ({ ...prev, featured_image: `${HERO_PREFIX}${p.id}`, featured_image_alt: p.alt_text })); setLibraryPreview(p.url || ''); toast.success('Picture chosen. Press Save Draft.'); }}>
+                      Use this
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
             <ApprovedMarketingImagePicker onPick={image => { setCurrentPost(prev => ({...prev,featured_image:`https://homelistingai.com/api/public/marketing-images/${image.id}`,featured_image_alt:image.alt_text}));setLibraryPreview(image.url); }} />
             <input type="text" value={currentPost.featured_image || ''} onChange={e => { setCurrentPost({ ...currentPost, featured_image: e.target.value }); setLibraryPreview(''); }}
               className="w-full mt-2 px-3 py-1.5 border border-slate-200 rounded-xl text-xs focus:outline-none" placeholder="Or paste image URL…" />

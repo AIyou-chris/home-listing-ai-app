@@ -24,7 +24,7 @@ function createImageWorkflow({db,openai,jev,campaign,clearApproval,claim,finish,
     const rendered=await compose(background,{...settings,...direction,headline:settings.headline||'',subline:settings.subline||''});
     const id=crypto.randomUUID();let paths=[];
     try {const backgroundPath=await upload(owner,`${id}-background`,background,'image/jpeg','jpg');paths.push(backgroundPath);const path=await upload(owner,id,rendered.buffer,rendered.type,rendered.extension);paths.push(path);
-      result(await table().insert({id,owner_id:owner,campaign_id:campaignRow.id,group_id:groupId,brand:direction.brand,format:direction.format,prompt:direction.prompt,recipe_id:direction.recipe_id,mood:direction.mood,text_zone:direction.text_zone,variant:direction.variant,alt_text:direction.alt_text,cost,width:rendered.width,height:rendered.height,path,background_path:backgroundPath,background_fingerprint:crypto.createHash('sha256').update(background).digest('hex'),source_hash:pictureHash(campaignRow),settings:{headline:settings.headline||'',subline:settings.subline||'',encoding:settings.encoding||null},checks:{problems:[...check.problems,...rendered.problems],contrast:rendered.contrast,bytes:rendered.bytes,ocrPassed:check.ocrPassed,emptySpace:check.emptySpace},approved:false,used_in:[]}));
+      result(await table().insert({id,owner_id:owner,campaign_id:campaignRow.id,group_id:groupId,brand:direction.brand,format:direction.format,prompt:direction.prompt,recipe_id:direction.recipe_id,mood:direction.mood,text_zone:direction.text_zone,variant:direction.variant,alt_text:direction.alt_text,cost,width:rendered.width,height:rendered.height,path,background_path:backgroundPath,background_fingerprint:crypto.createHash('sha256').update(background).digest('hex'),source_hash:pictureHash(campaignRow),settings:{headline:settings.headline||'',subline:settings.subline||'',encoding:settings.encoding||null,blog_post_id:settings.blog_post_id||null},checks:{problems:[...check.problems,...rendered.problems],contrast:rendered.contrast,bytes:rendered.bytes,ocrPassed:check.ocrPassed,emptySpace:check.emptySpace},approved:false,used_in:[]}));
       return {id,rendered,problems:[...check.problems,...rendered.problems]};
     }catch(error){if(paths.length)await db.storage.from(BUCKET).remove(paths);throw error;}
   }
@@ -127,6 +127,35 @@ function createImageWorkflow({db,openai,jev,campaign,clearApproval,claim,finish,
         result(await table().update({used_in:[{campaign_id:id,use:'autopilot',at:new Date().toISOString()}],review:{auto:true},updated_at:new Date().toISOString()}).eq('owner_id',owner).eq('id',saved.id));
         return {ok:true,altText:scene.alt_text};
       }catch(error){await fail(owner,claimed,error);throw error;}
+    },
+    // Blog pictures: cinematic scenes (gpt-image-1, medium) with no words on them, since the article shows its own title.
+    // They are saved as approved so they can be a featured image; the owner asked for this and still reads the draft
+    // before publishing. Each one is tied to its article so the editor can list them.
+    async blogHero(owner,body={}) {
+      await campaignAccess(owner);
+      if(!openai)throw new StudioError(503,'AI pictures are not enabled.');
+      const postId=String(body.postId||'');if(!/^[0-9a-f-]{36}$/i.test(postId))throw new StudioError(400,'Choose a saved article first.');
+      const count=Math.min(3,Math.max(1,Number(body.count)||1));
+      const all=result(await table().select('id').eq('owner_id',owner).limit(200));if(all.length>195)throw new StudioError(429,'Your picture library is full. Delete old pictures first.');
+      const {writeLaunchScene}=require('./launchScene.cjs');
+      const fakeCampaign={id:null,brief:{},outputs:{title:String(body.title||'').slice(0,160),imagePrompt:''}};
+      const groupId=crypto.randomUUID();const made=[];
+      for(let variant=0;variant<count;variant++) {
+        const scene=await writeLaunchScene({openai,headline:String(body.title||''),idea:String(body.excerpt||'').slice(0,400),variant:Number(body.variantStart||0)+variant,avoid:body.avoid||'',look:'blog'});
+        const direction={prompt:scene.prompt,alt_text:scene.alt_text,text_zone:'left',recipe_id:'blog-auto',mood:'cinematic',variant,brand:'homelistingai',format:'blog'};
+        const generated=await openai.images.generate({model:'gpt-image-1',prompt:direction.prompt,size:FORMATS.blog.native,quality:'medium',output_format:'jpeg',n:1},{timeout:180000,maxRetries:0});
+        const data=generated.data?.[0]?.b64_json;if(!data)continue;
+        const saved=await saveOption(owner,fakeCampaign,direction,Buffer.from(data,'base64'),{headline:'',subline:'',blog_post_id:postId},groupId,estimate('blog','medium',1));
+        if(saved.problems.length)continue;
+        result(await table().update({approved:true,review:{auto:true,real:true,idea:true,brand:true,honest:true},used_in:[{blog_id:postId,use:'blog-draft',at:new Date().toISOString()}],updated_at:new Date().toISOString()}).eq('owner_id',owner).eq('id',saved.id));
+        made.push({id:saved.id,alt_text:scene.alt_text});
+      }
+      return made;
+    },
+    async blogHeroList(owner,postId) {
+      await campaignAccess(owner);if(!/^[0-9a-f-]{36}$/i.test(postId||''))throw new StudioError(400,'Choose a saved article first.');
+      const rows=result(await table().select('*').eq('owner_id',owner).eq('settings->>blog_post_id',postId).order('created_at',{ascending:false}).limit(6));
+      return Promise.all(rows.map(async row=>{const signed=row.path?result(await db.storage.from(BUCKET).createSignedUrl(row.path,3600)):null;return {id:row.id,alt_text:row.alt_text,approved:row.approved,problems:row.checks?.problems||[],url:signed?.signedUrl||null};}));
     },
     async choose(owner,id,body={}) {
       const row=await campaign(owner,id);if(body.version!==row.updated_at)throw new StudioError(409,'Save or reload your latest edits first.');
