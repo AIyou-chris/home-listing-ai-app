@@ -259,7 +259,7 @@ function createAutopilot({ db, studioFor, media, getPoster, getConnections, send
     const ids = (marks || []).map((m) => m.key.replace('autopilot_blog_', '')).filter((id) => /^[0-9a-f-]{36}$/i.test(id));
     if (!ids.length) return [];
     const { data } = await db.from('blog_posts').select('id, title, status, review_errors, generation_attempts, updated_at').in('id', ids);
-    return ids.map((id) => (data || []).find((p) => p.id === id)).filter(Boolean).map((p) => ({ id: p.id, title: p.title, status: p.status, problems: Array.isArray(p.review_errors) ? p.review_errors.length : 0, written: p.status !== 'brief' }));
+    return ids.map((id) => (data || []).find((p) => p.id === id)).filter(Boolean).map((p) => ({ id: p.id, title: p.title, status: p.status, updatedAt: p.updated_at, problems: Array.isArray(p.review_errors) ? p.review_errors.length : 0, written: p.status !== 'brief' }));
   }
 
   // Old autopilot pictures and videos are removed after a while; the post records stay.

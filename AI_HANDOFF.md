@@ -1,3 +1,7 @@
+## 2026-10-14 — Claude: dates on every blog row (pushed)
+
+- Chris asked for dates on drafts and all of them. Manage blog posts: the old "Published" column is now "Date": Published <date>, Goes live <date time>, Written <date> (drafts), Idea added <date> (briefs), Archived <date>. The editor header shows the same line plus "last saved <time>". Autopilot "Blog drafts" rows show their date. Jest blog + admin tests pass.
+
 ## 2026-10-14 — Claude: Manage blog posts list sorts drafts first (pushed)
 
 - Chris could not find the new Autopilot drafts: the list showed grey BRIEF rows ahead of them. `BlogEditor.tsx` now orders drafts, scheduled, published, briefs, archived (newest first inside each group). Jest blog tests pass.

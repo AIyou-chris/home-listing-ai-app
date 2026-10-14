@@ -8,7 +8,7 @@ import Collapsible from './Collapsible';
 type PostRow = { channel: string; status: 'scheduled' | 'posting' | 'published' | 'failed'; scheduled_for: string; posted_at: string | null; url: string | null; error: string | null };
 type Slot = { campaignId: string; slot: string; topic: string; title: string; failed: boolean; skipped?: boolean; reason: string; preview?: string; posts: PostRow[] };
 type Plan = { name: string; day: number; week: number; offerOpen?: boolean; offerEnds?: string | null } | null;
-type BlogDraft = { id: string; title: string; status: string; problems: number; written: boolean };
+type BlogDraft = { id: string; title: string; status: string; updatedAt?: string; problems: number; written: boolean };
 type Status = { on: boolean; blogDrafts?: BlogDraft[]; autoPost: boolean; lastIssue?: { slot: string; reason: string } | null; plan?: Plan; direction?: string; slots: Slot[]; times: string[] };
 
 const LABEL: Record<string, string> = { facebook: 'Facebook', instagram: 'Instagram', linkedin: 'LinkedIn', youtube: 'YouTube' };
@@ -120,7 +120,7 @@ export default function AutopilotPanel() {
         {!status?.blogDrafts?.length && <p className="mt-3 text-sm text-slate-500">No drafts from Autopilot yet.</p>}
         <ul className="mt-3 divide-y divide-slate-100">
           {status?.blogDrafts?.map((d) => (
-            <li key={d.id} className="py-2 text-sm"><span className="font-semibold text-slate-900">{d.title}</span> <span className="text-slate-600">{d.written ? (d.problems ? `· draft, ${d.problems} thing${d.problems === 1 ? '' : 's'} to fix before publishing` : '· draft, ready for you to read') : '· being written'}</span></li>
+            <li key={d.id} className="py-2 text-sm"><span className="font-semibold text-slate-900">{d.title}</span> <span className="text-slate-600">{d.updatedAt ? `· ${new Date(d.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} ` : ''}{d.written ? (d.problems ? `· draft, ${d.problems} thing${d.problems === 1 ? '' : 's'} to fix before publishing` : '· draft, ready for you to read') : '· being written'}</span></li>
           ))}
         </ul>
       </Collapsible>

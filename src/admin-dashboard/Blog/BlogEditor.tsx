@@ -236,6 +236,16 @@ const BlogEditor: React.FC = () => {
     else toast.success('Caption copied');
   };
 
+  // One clear date for every row: when it went live, when it will, or when it was last written.
+  const shortDate = (value?: string | null) => { const t = value ? Date.parse(value) : NaN; return Number.isFinite(t) ? new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''; };
+  const postDateLabel = (post: BlogPost) => {
+    if (post.status === 'published') return post.published_at ? `Published ${shortDate(post.published_at)}` : 'Published';
+    if (post.status === 'scheduled') { const t = post.scheduled_at ? Date.parse(post.scheduled_at) : NaN; return Number.isFinite(t) ? `Goes live ${new Date(t).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : 'Scheduled'; }
+    const when = shortDate(post.updated_at);
+    if (post.status === 'draft') return when ? `Written ${when}` : 'Draft';
+    if (post.status === 'archived') return when ? `Archived ${when}` : 'Archived';
+    return when ? `Idea added ${when}` : '—';
+  };
   // Drafts waiting for you come first, then scheduled, live, ideas (briefs) and archived. Newest first inside each group.
   const statusOrder: Record<string, number> = { draft: 0, scheduled: 1, published: 2, brief: 3, archived: 4 };
   const visiblePosts = posts
@@ -292,7 +302,7 @@ const BlogEditor: React.FC = () => {
           <table className="w-full text-sm">
             <thead className="bg-slate-50 border-b border-slate-100">
               <tr>
-                {['Title', 'Status', 'Published', 'Actions'].map(h => (
+                {['Title', 'Status', 'Date', 'Actions'].map(h => (
                   <th key={h} className={`px-5 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wide ${h === 'Actions' ? 'text-right' : ''}`}>{h}</th>
                 ))}
               </tr>
@@ -309,7 +319,7 @@ const BlogEditor: React.FC = () => {
                       {post.status}
                     </span>
                   </td>
-                  <td className="px-5 py-3 text-slate-400 text-xs">{post.published_at ? new Date(post.published_at).toLocaleDateString() : '—'}</td>
+                  <td className="px-5 py-3 text-slate-500 text-xs">{postDateLabel(post)}</td>
                   <td className="px-5 py-3 text-right flex items-center justify-end gap-2">
                     {post.status === 'brief' && post.role !== 'tool' && <button disabled={isGenerating} onClick={() => writeBrief(post)} className="px-3 py-2 text-sm font-bold text-blue-700">Write article from brief</button>}
                     {post.status === 'published' && <a href={`/blog/${encodeURIComponent(post.slug)}`} target="_blank" rel="noreferrer" className="px-3 py-1.5 text-xs font-bold text-primary-600">View published post</a>}
@@ -377,7 +387,7 @@ const BlogEditor: React.FC = () => {
       <div className="bg-white border-b border-slate-200 px-6 py-4 flex flex-wrap gap-3 items-center justify-between sticky top-0 z-10">
         <div className="flex items-center gap-3">
           <button aria-label="Back to article list" onClick={() => setView('list')} className="p-2 hover:bg-slate-100 rounded-full text-slate-500"><ArrowLeft size={20} /></button>
-          <h1 className="text-lg font-black text-slate-800">{currentPost.id ? 'Edit Post' : 'New Post'}</h1>
+          <div><h1 className="text-lg font-black text-slate-800">{currentPost.id ? 'Edit Post' : 'New Post'}</h1>{currentPost.id && <p className="text-xs text-slate-500">{postDateLabel(currentPost as BlogPost)}{currentPost.updated_at && currentPost.status !== 'published' ? ` · last saved ${new Date(currentPost.updated_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : ''}</p>}</div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button disabled={!currentPost.id || isLoading} onClick={showPreview} className="px-3 py-2 border rounded-xl text-sm font-bold">Preview saved draft</button>
