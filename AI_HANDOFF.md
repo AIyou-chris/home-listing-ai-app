@@ -1,3 +1,7 @@
+## 2026-10-14 — Claude: Manage blog posts list sorts drafts first (pushed)
+
+- Chris could not find the new Autopilot drafts: the list showed grey BRIEF rows ahead of them. `BlogEditor.tsx` now orders drafts, scheduled, published, briefs, archived (newest first inside each group). Jest blog tests pass.
+
 ## 2026-10-14 — Claude: blog drafts checked live; second repair pass; list tidy-up (pushed)
 
 - Chris ran it: two drafts exist ("Open house strategies for loan officers that agents will say yes to" 1,543 words / 1 flag; "The 30-day agent partnership plan for new loan officers" 1,147 / 2 flags). Flags were small (hub link in first third, 3 words short, meta description length). `blog/service.cjs`: repair is now up to TWO passes (`repairDraft`), also asks for meta 140-158 and the hub link in the first third; new `service.repair(owner,id)` re-runs it on a saved draft. Ran it on both: 1,646 and 1,401 words, zero checker errors. Both are still DRAFTS for Chris to read and publish.

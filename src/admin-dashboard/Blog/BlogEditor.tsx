@@ -236,7 +236,13 @@ const BlogEditor: React.FC = () => {
     else toast.success('Caption copied');
   };
 
-  const visiblePosts = posts.filter(post => (!topicFilter || post.pillar === topicFilter) && (statusFilter === 'all' || (statusFilter === 'draft' ? ['brief', 'draft'].includes(post.status) : post.status === statusFilter)));
+  // Drafts waiting for you come first, then scheduled, live, ideas (briefs) and archived. Newest first inside each group.
+  const statusOrder: Record<string, number> = { draft: 0, scheduled: 1, published: 2, brief: 3, archived: 4 };
+  const visiblePosts = posts
+    .filter(post => (!topicFilter || post.pillar === topicFilter) && (statusFilter === 'all' || (statusFilter === 'draft' ? ['brief', 'draft'].includes(post.status) : post.status === statusFilter)))
+    .map((post, index) => ({ post, index }))
+    .sort((a, b) => ((statusOrder[a.post.status] ?? 9) - (statusOrder[b.post.status] ?? 9)) || (Date.parse(String(b.post.updated_at || '')) || 0) - (Date.parse(String(a.post.updated_at || '')) || 0) || a.index - b.index)
+    .map(item => item.post);
 
   // ── List View ─────────────────────────────────────────────────────────────
   if (view === 'list') return (
