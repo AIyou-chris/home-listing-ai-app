@@ -122,3 +122,30 @@ test('Stop turns it off and takes back posts that are waiting', async () => {
   assert.strictEqual(out.on, false);
   assert.deepStrictEqual(db.tables.admin_marketing_posts.map((p) => p.status), ['published']);
 });
+
+test('the 30-day launch plan uses the launch topics and the launch look, then stops after 30 days', async () => {
+  const day = 86400000; const now = new Date('2026-10-13T23:00:00Z'); // 4 PM Pacific: 5 PM today and 8 AM tomorrow are inside the 18-hour window
+  const running = harness({ now });
+  running.db.tables.admin_switches.push({ key: 'autopilot_plan_launch30', enabled: true, updated_at: new Date(now.getTime() - 2 * day).toISOString() });
+  await running.ap.tick();
+  const rows = running.db.tables.admin_marketing_campaigns;
+  assert.ok(rows.length >= 2);
+  assert.ok(rows.every((r) => r.brief.cardStyle === 'launch' && r.brief.planWeek === 1), 'all week-1 posts carry the launch look');
+  assert.ok(rows.find((r) => r.brief.slot.endsWith('@08:00')).brief.topicKey.startsWith('l1-'), 'the morning post is a week-1 campaign post');
+  assert.ok(/Bold, direct/.test(rows[0].brief.tone));
+
+  const over = harness({ now });
+  over.db.tables.admin_switches.push({ key: 'autopilot_plan_launch30', enabled: true, updated_at: new Date(now.getTime() - 40 * day).toISOString() });
+  await over.ap.tick();
+  assert.ok(over.db.tables.admin_marketing_campaigns.every((r) => !r.brief.cardStyle), 'after 30 days it goes back to everyday posts');
+});
+
+test('week 4 posts the founding price and links to signup; the checker lets only $49 and $79 through', () => {
+  const { LAUNCH } = require('../services/autopilot/topics');
+  const w4 = LAUNCH.filter((t) => t.week === 4);
+  assert.ok(w4.length >= 3 && w4.every((t) => t.link.endsWith('/lo-signup')));
+  assert.ok(LAUNCH.every((t) => /No statistics/.test(t.idea) && /never say the product finds/i.test(t.idea)));
+  const base = { title: 't', facebook: 'x'.repeat(70), linkedin: 'y'.repeat(90), instagram: 'z', bluesky: 'b', videoScript: 'v' };
+  assert.deepStrictEqual(checkPost({ ...base, facebook: 'Founding price is $49 a month instead of $79 for the first 25 loan officers. Start your 7-day free trial, no card.' + ' ok'.repeat(10) }), []);
+  assert.ok(checkPost({ ...base, facebook: 'HomeListingAI finds new Realtors for you and fills your pipeline with guaranteed referrals every month.' }).length >= 2);
+});

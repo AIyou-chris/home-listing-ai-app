@@ -1,3 +1,11 @@
+## 2026-10-13 — Claude: Autopilot now follows Chris's 30-day launch campaign (pushed)
+
+- Chris pasted his outline "THE MARKET CHANGED. IT'S TIME YOU DID TOO." Saved as `docs/marketing/LAUNCH_CAMPAIGN_30_DAY.md` (with my honesty notes at the bottom). Autopilot's "30-day launch" plan: `topics.js` `LAUNCH` (16 topics: week 1 Wake them up, 2 Turn up the pressure, 3 Introduce the solution, 4 Close the deal; campaigns 1-3 + offer). Morning post = that week's campaign angle, midday = a product/WOW Link post tied to the week, evening = a real blog article (weeks 1-3) or the founding-price offer (week 4). Posts avoid repeating earlier headlines on the same topic.
+- Look: new `cardStyle: 'launch'` picture (black, white headline, last line fire red, orange button "Claim your founding price", link /lo-signup) in `studioVideoRenderer.pictureSvg`. Tone: bold, direct, honest. Week 4 links to /lo-signup.
+- Honesty rules added to `safety.js`: the product never "finds/matches/supplies Realtors" and never promises referrals/closings (the real mechanism is a free WOW Link listing page the LO brings to an agent). No statistics about Realtors leaving. Offer wording: $49/mo for the first 25 LOs (regular $79), 7-day free trial, no card; no fake deadline.
+- Plan state: switch row `autopilot_plan_launch30` (its `updated_at` = day 1). Autopilot ON with the "Run the 30-day launch campaign" box checked (default) starts it; after 30 days it falls back to everyday posts. UI shows "day N of 30, week N". +2 tests (9 in `autopilot.test.js`), backend 452 pass.
+- Not in this build: TikTok, the five-part email series, direct outreach, landing page (outline items 5; cold email still needs its sending domain).
+
 ## 2026-10-13 — Claude: AUTOPILOT built (3 posts a day, automatic, Stop button) — pushed, switch is OFF
 
 - Chris asked for 3 posts/day, fully automatic till he says stop. His answers: nobody reviews first (safety check decides + daily email), times 8:00 AM / 12:00 PM / 5:00 PM Pacific, all four accounts, LinkedIn under his name OK if it follows `docs/brand/CHRIS_POTTER_VOICE.md`.

@@ -3,7 +3,7 @@
 // Each post is an ordinary Marketing Studio campaign (brief.source = 'autopilot'), so pictures, video,
 // approval and posting all use the code that is already tested. The master switch is `autopilot_on`.
 const crypto = require('node:crypto');
-const { TOPICS, GOALS, LO } = require('./topics');
+const { TOPICS, LAUNCH, GOALS, LO } = require('./topics');
 const { checkPost } = require('./safety');
 const { getSwitch, setSwitch } = require('../adminSwitches');
 
@@ -51,26 +51,51 @@ function createAutopilot({ db, studioFor, media, getPoster, getConnections, send
     return data || [];
   }
 
+  // The 30-day launch plan: started with Autopilot, runs for 30 days, then everyday posts take over.
+  async function launchPlan() {
+    const { data } = await db.from('admin_switches').select('enabled, updated_at').eq('key', 'autopilot_plan_launch30').maybeSingle();
+    if (!data || data.enabled !== true) return null;
+    const day = Math.floor((now().getTime() - Date.parse(data.updated_at)) / 86400000);
+    if (!(day >= 0 && day < 30)) return null;
+    return { name: '30-day launch', day: day + 1, week: Math.min(4, Math.floor(day / 7) + 1) };
+  }
+
   async function pickTopic(slot, rows) {
     const used = new Set(rows.slice(0, 30).map((r) => r.brief?.topicKey));
-    if (slot.index === 2 && loadArticles) {
+    const plan = await launchPlan();
+    const withHistory = (topic) => {
+      const before = rows.filter((r) => r.brief?.topicKey === topic.key && r.outputs?.title).slice(0, 4).map((r) => `"${r.outputs.title}"`);
+      return { ...topic, plan, idea: before.length ? `${topic.idea} Take a different angle and a different headline than these earlier posts: ${before.join(', ')}.` : topic.idea };
+    };
+    const article = async () => {
+      if (!loadArticles) return null;
       try {
-        const articles = await loadArticles();
-        const article = (articles || []).find((a) => !rows.some((r) => r.brief?.topicKey === `blog:${a.slug}`));
-        if (article) return { key: `blog:${article.slug}`, pillar: 'blog', link: `https://homelistingai.com/blog/${article.slug}`,
-          idea: `Share this real article with loan officers: "${article.title}". Say in plain words why it is worth ten minutes, using only what the title and summary say: ${String(article.excerpt || article.short_answer || '').slice(0, 300)} Do not add facts or numbers that are not here.` };
-      } catch { /* fall back to the topic bank */ }
+        const found = ((await loadArticles()) || []).find((a) => !rows.some((r) => r.brief?.topicKey === `blog:${a.slug}`));
+        return found ? { key: `blog:${found.slug}`, pillar: 'blog', link: `https://homelistingai.com/blog/${found.slug}`,
+          idea: `Share this real article with loan officers: "${found.title}". Say in plain words why it is worth ten minutes, using only what the title and summary say: ${String(found.excerpt || found.short_answer || '').slice(0, 300)} Do not add facts or numbers that are not here.` } : null;
+      } catch { return null; }
+    };
+    if (plan) {
+      const week = LAUNCH.filter((t) => t.week === plan.week);
+      if (slot.index === 0) { const fresh = week.filter((t) => !used.has(t.key)); const pool = fresh.length ? fresh : week; return withHistory(pool[rows.length % pool.length]); }
+      if (slot.index === 2 && plan.week < 4) { const art = await article(); if (art) return withHistory(art); }
+      if (slot.index === 2 && plan.week === 4) { const offer = week.filter((t) => t.campaign === 4); return withHistory(offer[rows.length % offer.length]); }
+      const product = TOPICS.filter((t) => ['agent-partners', 'warm-leads', 'ai'].includes(t.pillar)); const fresh = product.filter((t) => !used.has(t.key));
+      const pool = fresh.length ? fresh : product; return withHistory({ ...pool[(rows.length + 1) % pool.length], idea: `${pool[(rows.length + 1) % pool.length].idea} Tie it back to this week: ${plan.week <= 2 ? 'the market is tough and loan officers need new agent relationships' : 'a WOW Link is how you start one'}.` });
     }
+    if (slot.index === 2) { const art = await article(); if (art) return withHistory(art); }
     const fresh = TOPICS.filter((t) => !used.has(t.key));
     const pool = fresh.length ? fresh : TOPICS;
-    return pool[(rows.length + slot.index) % pool.length];
+    return withHistory(pool[(rows.length + slot.index) % pool.length]);
   }
 
   const briefFor = (topic, slot) => ({
-    kind: 'campaign', idea: topic.idea, goal: GOALS[topic.pillar] || 'Drive website visits', tone: 'Friendly and simple',
+    kind: 'campaign', idea: topic.idea, goal: topic.week === 4 ? 'Promote an offer' : (GOALS[topic.pillar] || 'Drive website visits'),
+    tone: topic.plan ? 'Bold, direct and honest. Short punchy lines, contrast and consequence. No fake statistics and no fear tactics.' : 'Friendly and simple',
     audience: 'Loan officers and real estate agents', pictureMode: 'auto', pictureDescription: '', photoName: '',
     videoFormat: 'vertical', videoDuration: '15', plannedAt: '',
-    source: 'autopilot', slot: slot.key, topicKey: topic.key, link: topic.link || LO
+    source: 'autopilot', slot: slot.key, topicKey: topic.key, link: topic.link || LO,
+    ...(topic.plan ? { cardStyle: 'launch', plan: 'launch30', planWeek: topic.plan.week } : {})
   });
 
   async function cleanup(owner, id) {
@@ -212,8 +237,9 @@ function createAutopilot({ db, studioFor, media, getPoster, getConnections, send
     await setSwitch(db, key, true, owner);
   }
 
-  async function start(owner) {
+  async function start(owner, { plan = true } = {}) {
     await setSwitch(db, 'autopilot_on', true, owner);
+    await setSwitch(db, 'autopilot_plan_launch30', plan === true, owner);
     await setSwitch(db, 'social_auto_post', true, owner);
     return { on: true };
   }
@@ -231,7 +257,7 @@ function createAutopilot({ db, studioFor, media, getPoster, getConnections, send
     const on = await getSwitch(db, 'autopilot_on');
     const autoPost = await getSwitch(db, 'social_auto_post');
     const owner = await ownerOf();
-    return { on, autoPost, slots: owner || !on ? await summary(owner) : [], times: SLOTS.map((s) => `${s.h > 12 ? s.h - 12 : s.h}:${pad(s.m)} ${s.h >= 12 ? 'PM' : 'AM'} Pacific`) };
+    return { on, autoPost, plan: on ? await launchPlan() : null, slots: owner || !on ? await summary(owner) : [], times: SLOTS.map((s) => `${s.h > 12 ? s.h - 12 : s.h}:${pad(s.m)} ${s.h >= 12 ? 'PM' : 'AM'} Pacific`) };
   }
 
   return { tick, start, stop, status, upcomingSlots, ptToUtc };

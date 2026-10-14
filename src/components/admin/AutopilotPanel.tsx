@@ -7,7 +7,8 @@ import Collapsible from './Collapsible';
 
 type PostRow = { channel: string; status: 'scheduled' | 'posting' | 'published' | 'failed'; scheduled_for: string; posted_at: string | null; url: string | null; error: string | null };
 type Slot = { campaignId: string; slot: string; topic: string; title: string; failed: boolean; reason: string; posts: PostRow[] };
-type Status = { on: boolean; autoPost: boolean; slots: Slot[]; times: string[] };
+type Plan = { name: string; day: number; week: number } | null;
+type Status = { on: boolean; autoPost: boolean; plan?: Plan; slots: Slot[]; times: string[] };
 
 const LABEL: Record<string, string> = { facebook: 'Facebook', instagram: 'Instagram', linkedin: 'LinkedIn', youtube: 'YouTube' };
 const btn = 'rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50';
@@ -32,6 +33,7 @@ export default function AutopilotPanel() {
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
+  const [launch, setLaunch] = useState(true);
 
   const load = useCallback(async () => {
     try { setStatus(await call('/api/admin/autopilot')); setError(''); }
@@ -50,7 +52,7 @@ export default function AutopilotPanel() {
   };
   const turnOn = () => {
     if (!window.confirm('Turn Autopilot ON?\n\nIt will write and post 3 times a day to your real LinkedIn, Facebook, Instagram and YouTube until you press Stop. Every post is checked first.')) return;
-    return act('on', async () => { await call('/api/admin/autopilot', { method: 'POST', body: JSON.stringify({ enabled: true }) }); setNote('Autopilot is ON. The next posts are being written now.'); });
+    return act('on', async () => { await call('/api/admin/autopilot', { method: 'POST', body: JSON.stringify({ enabled: true, plan: launch }) }); setNote('Autopilot is ON. The next posts are being written now.'); });
   };
   const stop = () => {
     if (!window.confirm('Stop Autopilot?\n\nNothing new will be written, and posts that are scheduled but not yet posted are taken back. Posts already out stay out.')) return;
@@ -69,6 +71,8 @@ export default function AutopilotPanel() {
       <div className={`rounded-2xl border p-5 ${on ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 bg-slate-50'}`}>
         <p className="text-lg font-bold text-slate-900">Autopilot is {status ? (on ? 'ON' : 'OFF') : '…'}</p>
         <p className="mt-1 text-sm text-slate-700">{status?.times?.length ? `Posts at ${status.times.join(', ')} to LinkedIn, Facebook, Instagram and YouTube.` : 'Posts three times a day.'}</p>
+        {on && status?.plan && <p className="mt-1 text-sm font-semibold text-emerald-800">Running the {status.plan.name} campaign: day {status.plan.day} of 30, week {status.plan.week} ({['Wake them up', 'Turn up the pressure', 'Introduce the solution', 'Close the deal'][status.plan.week - 1]}).</p>}
+        {!on && <label className="mt-3 flex items-start gap-2 text-sm text-slate-800"><input type="checkbox" className="mt-1" checked={launch} onChange={(e) => setLaunch(e.target.checked)} /><span><strong>Run the 30-day launch campaign</strong> ("The market changed. It's time you did too."), black and red look, four weeks. Leave it unchecked for plain everyday posts.</span></label>}
         <div className="mt-4 flex flex-wrap gap-3">
           {!on && <button type="button" className="rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50" disabled={busy !== '' || !status} onClick={() => void turnOn()}>{busy === 'on' ? 'Turning on…' : 'Turn Autopilot ON'}</button>}
           {on && <button type="button" className="rounded-lg bg-red-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-50" disabled={busy !== ''} onClick={() => void stop()}>{busy === 'off' ? 'Stopping…' : 'STOP Autopilot'}</button>}

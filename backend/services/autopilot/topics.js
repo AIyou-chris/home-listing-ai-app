@@ -31,7 +31,30 @@ const TOPICS = [
   { key: 'simple-setup', pillar: 'lo-marketing', link: LO, idea: 'Set up takes minutes: add your details, send a WOW Link, publish a listing. Say what the first week looks like in three plain steps.' }
 ];
 
+// The 30-day launch plan (docs/marketing/LAUNCH_CAMPAIGN_30_DAY.md). Four weeks, three campaign angles.
+// Every idea says what NOT to do, because these posts go out without a person reading them first.
+const SIGNUP = `${SITE}/lo-signup`;
+const RULES = 'Plain words, short punchy lines, one idea. No statistics, no numbers about Realtors, no customer stories, no guaranteed referrals or closings. Never say the product finds, matches or supplies Realtors: it gives the loan officer a free WOW Link listing page to bring to an agent, and the buyer chat sends the warm lead to the loan officer.';
+const LAUNCH = [
+  { week: 1, key: 'l1-quitting', campaign: 1, link: LO, idea: `Campaign 1, The Disappearing Network. Open with the three lines: Your Realtors are quitting. Your referrals are disappearing. What is your plan? Say plainly that agents are working harder for fewer deals and some are leaving the business, as a market view with no numbers. End with a clear next step. ${RULES}` },
+  { week: 1, key: 'l1-cant-control', campaign: 1, link: LO, idea: `You cannot control rates. You cannot control the housing market. You cannot stop Realtors from leaving. But you can control how you compete. Build the post on that turn. ${RULES}` },
+  { week: 1, key: 'l1-old-network', campaign: 1, link: LO, idea: `Depending on yesterday's referral network is a risk. Ask the loan officer when they last added a new agent partner, and why. Honest and direct, no scare tactics. ${RULES}` },
+  { week: 1, key: 'l1-waiting-for-rates', campaign: 1, link: LO, idea: `Waiting for rates to fall is not a business development plan. Say what to do this week instead: start one new agent relationship. ${RULES}` },
+  { week: 2, key: 'l2-competition', campaign: 2, link: LO, idea: `Campaign 2, Your Competition Is Not Waiting. Your competition is building new relationships. Are you? Say that loan officers who keep adding agent partners have more doors open, without any numbers or names. ${RULES}` },
+  { week: 2, key: 'l2-cost-of-nothing', campaign: 2, link: LO, idea: `The cost of doing nothing: every referral you never get because the agent does not know you exist. Show the consequence in plain words and give one small step. ${RULES}` },
+  { week: 2, key: 'l2-same-agents', campaign: 2, link: LO, idea: `Most loan officers lean on the same few agents. Ask what happens to the pipeline if two of them slow down. Then point to starting one new relationship. ${RULES}` },
+  { week: 2, key: 'l2-not-a-rate-sheet', campaign: 2, link: LO, idea: `Every loan officer shows up with a rate sheet. Competitors who show up with something that helps the agent sell a listing get remembered. Use that contrast. ${RULES}` },
+  { week: 3, key: 'l3-next-partner', campaign: 3, link: LO, idea: `Campaign 3, The Opportunity. Your next top Realtor partner does not know you exist. Show how to start: send them a free WOW Link, a listing page with an AI buyer chat, for one of their listings. ${RULES}` },
+  { week: 3, key: 'l3-how-it-works', campaign: 3, link: LO, idea: `Explain a WOW Link in three plain steps: you send it, the agent previews a page for their listing, buyers chat with it and the warm lead comes to you. Real steps only. ${RULES}` },
+  { week: 3, key: 'l3-start-with-value', campaign: 3, link: LO, idea: `Start the relationship with something useful instead of a pitch. A free listing page that answers buyers at night and on weekends is useful to an agent. Say it that simply. ${RULES}` },
+  { week: 3, key: 'l3-warm-lead', campaign: 3, link: LO, idea: `The payoff for the loan officer is a warm lead: a buyer who asked about a real home and left a name and a phone number. Describe that moment. Do not promise a number of leads. ${RULES}` },
+  { week: 4, key: 'l4-founding-price', campaign: 4, link: SIGNUP, idea: `Founding loan officer launch price: $49 a month instead of $79 for the first 25 loan officers who join, with a 7-day free trial and no card. It ends when the 25 spots are gone. Do not invent a date. Call to action: claim your founding price. ${RULES}` },
+  { week: 4, key: 'l4-stop-waiting', campaign: 4, link: SIGNUP, idea: `Stop waiting for the market to save you. Start building your next referral network. Finish with a direct call to action to start the free trial. ${RULES}` },
+  { week: 4, key: 'l4-try-one-agent', campaign: 4, link: SIGNUP, idea: `Low risk: start the 7-day free trial, send one WOW Link to one agent, and see what happens. Keep it small and clear. ${RULES}` },
+  { week: 4, key: 'l4-market-changed', campaign: 4, link: SIGNUP, idea: `The market changed. It is time you did too. Build your network. Build your pipeline. Build your future. A confident closing post that ends with the free trial. ${RULES}` }
+];
+
 const FORMATS = ['value', 'feature', 'article'];
 const GOALS = { 'agent-partners': 'Build agent partnerships', 'warm-leads': 'Get warm leads', 'ai': 'Drive website visits', 'lo-marketing': 'Drive website visits' };
 
-module.exports = { TOPICS, FORMATS, GOALS, SITE, LO };
+module.exports = { LAUNCH, TOPICS, FORMATS, GOALS, SITE, LO };

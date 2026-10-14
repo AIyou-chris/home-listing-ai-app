@@ -7,6 +7,8 @@ const PROMISES = /\b(guarantee[sd]?|lowest rate|best rate|no credit check|risk[-
 const REPLACE = /\b(replace|eliminate|get rid of)\b[^.]{0,30}\b(staff|team|employees|agents|loan officers|humans?|people)\b|never hire|no need to hire/i;
 const KICKBACK = /\b(referral fee|kickback|pay(?:ing)? (?:agents|realtors) for)\b/i;
 const INVENTED = /\b(thousands|hundreds|millions) of\b|\b(testimonial|case study)\b|\b(our|loan officers)\s+(customers|clients)\s+(say|report|love|saw|see)\b|\bsaid\s*[:"“]/i;
+// The product gives a loan officer something to bring to an agent. It does not find, match or supply agents.
+const FINDS_AGENTS = /\b(we|it|homelistingai|this app|the app|our ai|ai)\s+(finds?|locates?|matches|connects you (?:with|to)|sources?|supplies|delivers)\b[^.!?]{0,40}\b(realtors?|agents?|partners?|referrals?)\b|\b(database|directory|list) of (realtors?|agents)\b|\bguaranteed? (referrals?|closings?|deals?)\b/i;
 const ALLOWED_MONEY = /^\$(49|79)(\/mo(nth)?)?$/;
 
 // The last gate before anything posts on its own. Returns a list of plain-words problems; empty means it may go.
@@ -23,6 +25,7 @@ function checkPost(outputs = {}) {
     if (REPLACE.test(text)) problems.push(`${key} talks about replacing people`);
     if (KICKBACK.test(text)) problems.push(`${key} mentions paying for referrals`);
     if (INVENTED.test(text)) problems.push(`${key} may invent results or customers`);
+    if (FINDS_AGENTS.test(text)) problems.push(`${key} claims the product finds or supplies agents`);
     if (/\d\s*%/.test(text)) problems.push(`${key} has a percentage`);
     for (const money of text.match(/\$\s?\d[\d,]*(?:\.\d+)?(?:\/mo(?:nth)?)?/g) || []) if (!ALLOWED_MONEY.test(money.replace(/\s/g, ''))) problems.push(`${key} has a money amount (${money})`);
     if ((text.match(/#\w+/g) || []).length > 4) problems.push(`${key} has too many hashtags`);

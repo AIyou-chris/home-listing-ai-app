@@ -36153,7 +36153,7 @@ app.post('/api/admin/autopilot', verifyAdmin, async (req, res) => {
   try {
     const autopilot = getAutopilot(); if (!autopilot) return res.status(503).json({ error: 'Autopilot is not available right now' });
     if (typeof req.body?.enabled !== 'boolean') return res.status(400).json({ error: 'enabled must be true or false' });
-    res.json(req.body.enabled ? await autopilot.start(req.user.id) : await autopilot.stop(req.user.id));
+    res.json(req.body.enabled ? await autopilot.start(req.user.id, { plan: req.body.plan !== false }) : await autopilot.stop(req.user.id));
   } catch (err) { console.error('[Autopilot] switch failed:', err?.message || err); res.status(500).json({ error: 'Could not change Autopilot' }); }
 });
 // "Write the next one now": starts the next missing post at once instead of waiting for the timer.
