@@ -8,7 +8,8 @@ import Collapsible from './Collapsible';
 type PostRow = { channel: string; status: 'scheduled' | 'posting' | 'published' | 'failed'; scheduled_for: string; posted_at: string | null; url: string | null; error: string | null };
 type Slot = { campaignId: string; slot: string; topic: string; title: string; failed: boolean; skipped?: boolean; reason: string; preview?: string; posts: PostRow[] };
 type Plan = { name: string; day: number; week: number; offerOpen?: boolean; offerEnds?: string | null } | null;
-type Status = { on: boolean; autoPost: boolean; lastIssue?: { slot: string; reason: string } | null; plan?: Plan; direction?: string; slots: Slot[]; times: string[] };
+type BlogDraft = { id: string; title: string; status: string; problems: number; written: boolean };
+type Status = { on: boolean; blogDrafts?: BlogDraft[]; autoPost: boolean; lastIssue?: { slot: string; reason: string } | null; plan?: Plan; direction?: string; slots: Slot[]; times: string[] };
 
 const LABEL: Record<string, string> = { facebook: 'Facebook', instagram: 'Instagram', linkedin: 'LinkedIn', youtube: 'YouTube' };
 const btn = 'rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50';
@@ -66,6 +67,7 @@ export default function AutopilotPanel() {
     if (!window.confirm(skip ? 'Skip this time? Nothing will be posted at it.' : 'Replace this post? It is taken back and a new one is written.')) return;
     return act(`remove-${campaignId}`, async () => { await call(`/api/admin/autopilot/posts/${campaignId}/remove`, { method: 'POST', body: JSON.stringify({ skip }) }); setNote(skip ? 'Skipped.' : 'Taken back. A new one is being written.'); });
   };
+  const blogNow = () => act('blog', async () => { await call('/api/admin/autopilot/blog-now', { method: 'POST', body: '{}' }); setNote('Writing the next blog article as a draft. It takes about 2 minutes. Nothing is published.'); });
   const runNow = () => act('run', async () => { await call('/api/admin/autopilot/run-now', { method: 'POST', body: '{}' }); setNote('Writing the next post now. It takes about 2 minutes. This page updates by itself.'); });
 
   const on = status?.on === true;
@@ -106,6 +108,20 @@ export default function AutopilotPanel() {
           <li>You get one email each evening listing what went out, with links.</li>
           <li>Topics rotate and do not repeat. One post a day shares a real article from your blog.</li>
           <li>Stop takes back anything scheduled but not yet posted. Posts already out stay out.</li>
+        </ul>
+      </Collapsible>
+
+      <Collapsible title="Blog drafts" hint="Twice a week the next planned article is written as a draft for you to read and publish" defaultOpen={false}>
+        <p className="text-sm text-slate-700">Autopilot never publishes a blog article. It writes the draft, you read it, fix anything the checker flags, and press Publish.</p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button type="button" className={btn} disabled={busy !== ''} onClick={() => void blogNow()}>{busy === 'blog' ? 'Starting…' : 'Write a blog draft now'}</button>
+          <a href="/admin/blog" className={btn}>Open Manage blog posts</a>
+        </div>
+        {!status?.blogDrafts?.length && <p className="mt-3 text-sm text-slate-500">No drafts from Autopilot yet.</p>}
+        <ul className="mt-3 divide-y divide-slate-100">
+          {status?.blogDrafts?.map((d) => (
+            <li key={d.id} className="py-2 text-sm"><span className="font-semibold text-slate-900">{d.title}</span> <span className="text-slate-600">{d.written ? (d.problems ? `· draft, ${d.problems} thing${d.problems === 1 ? '' : 's'} to fix before publishing` : '· draft, ready for you to read') : '· being written'}</span></li>
+          ))}
         </ul>
       </Collapsible>
 

@@ -19,6 +19,7 @@ function fakeDb(seed = {}) {
       delete() { op = 'delete'; return api; },
       eq(k, v) { filters.push((r) => pick(r, k) === v); return api; },
       in(k, vs) { filters.push((r) => vs.includes(pick(r, k))); return api; },
+      like(k, pattern) { const head = pattern.replace('%', ''); filters.push((r) => String(pick(r, k)).startsWith(head)); return api; },
       lt(k, v) { filters.push((r) => String(pick(r, k)) < v); return api; },
       order() { return api; }, limit(n) { lim = n; return api; },
       maybeSingle() { single = 'maybe'; return api; }, single() { single = 'one'; return api; },
@@ -45,7 +46,7 @@ const GOOD = {
   instagram: 'One link. One agent. #LoanOfficers', bluesky: 'Send one WOW Link.', videoScript: 'Send one WOW Link to one agent today.'
 };
 
-function harness({ outputs = GOOD, now = new Date('2026-10-13T20:00:00Z') } = {}) {
+function harness({ outputs = GOOD, now = new Date('2026-10-13T20:00:00Z'), blog = null } = {}) {
   let current = now;
   const db = fakeDb();
   db.tables.admin_switches.push({ key: 'autopilot_on', enabled: true, updated_by: 'ddee9647-fd81-4e54-be9c-dd25e46a99bf' });
@@ -59,7 +60,7 @@ function harness({ outputs = GOOD, now = new Date('2026-10-13T20:00:00Z') } = {}
   };
   const media = { async picture() {}, async render() {}, async list() { return [{ kind: 'video', status: 'ready' }]; }, async cleanup() { return []; }, async removeFiles() {} };
   const ap = createAutopilot({
-    db, studioFor: () => studio, media, now: () => current, log: { warn() {} },
+    db, studioFor: () => studio, media, blog, now: () => current, log: { warn() {} },
     getPoster: () => ({ async schedule(args) { scheduled.push(args); } }),
     getConnections: async () => ({ facebook: true, instagram: true, linkedin: true, youtube: true }),
     sendMail: async (m) => { mails.push(m); }
@@ -245,4 +246,38 @@ test('every launch topic has its own short picture headline, and it reaches the 
   await h.ap.tick();
   const morning = h.db.tables.admin_marketing_campaigns.find((r) => r.brief.slot.endsWith('@08:00'));
   assert.ok(morning.brief.cardHeadline && morning.brief.cardHeadline === LAUNCH.find((t) => t.key === morning.brief.topicKey).headline);
+});
+
+test('twice a week it writes the next planned article as a draft, never publishes, and spaces them out', async () => {
+  const written = [];
+  const briefs = [{ id: '11111111-1111-4111-8111-111111111111', title: 'A' }, { id: '22222222-2222-4222-8222-222222222222', title: 'B' }, { id: '33333333-3333-4333-8333-333333333333', title: 'C' }];
+  const blog = { nextBrief: async () => briefs.find((b) => !written.includes(b.id)) || null, write: async (owner, id) => { written.push(id); } };
+  const h = harness({ blog, now: new Date('2026-10-13T23:00:00Z') });
+  // The marker rows are stamped by the real clock; this test runs on a pretend clock, so restamp them.
+  const run = async (when) => {
+    const at = new Date(when); h.setNow(at); await h.ap.tick();
+    h.db.tables.admin_switches.filter((x) => x.key.startsWith('autopilot_blog_') && !x.stamped).forEach((x) => { x.updated_at = at.toISOString(); x.stamped = true; });
+  };
+  await run('2026-10-13T23:00:00Z');
+  assert.deepStrictEqual(written, [briefs[0].id]);
+  await run('2026-10-14T23:00:00Z');
+  assert.strictEqual(written.length, 1, 'one day later is too soon');
+  await run('2026-10-17T00:00:00Z');
+  assert.strictEqual(written.length, 2, 'three days later is fine');
+  await run('2026-10-20T00:00:00Z');
+  assert.strictEqual(written.length, 2, 'two in the last seven days is the limit');
+  await run('2026-10-25T00:00:00Z');
+  assert.strictEqual(written.length, 3, 'a new week, another one');
+  assert.ok(h.db.tables.admin_switches.some((x) => x.key === `autopilot_blog_${briefs[0].id}`), 'each try is marked');
+});
+
+test('a failed blog draft is not retried in a loop, and "write now" always works', async () => {
+  let calls = 0;
+  const blog = { nextBrief: async () => ({ id: '44444444-4444-4444-8444-444444444444', title: 'D' }), write: async () => { calls += 1; throw new Error('writer broke'); } };
+  const h = harness({ blog, now: new Date('2026-10-13T23:00:00Z') });
+  await h.ap.tick(); await h.ap.tick();
+  assert.strictEqual(calls, 1, 'second tick is blocked by the marker');
+  const forced = await h.ap.maybeBlogDraft('ddee9647-fd81-4e54-be9c-dd25e46a99bf', { force: true });
+  assert.strictEqual(calls, 2);
+  assert.match(forced.failed, /writer broke/);
 });

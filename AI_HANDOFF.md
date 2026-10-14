@@ -1,3 +1,8 @@
+## 2026-10-14 — Claude: Autopilot blog drafts (pushed)
+
+- Chris said "blog yes". `engine.maybeBlogDraft`: at most 2 a week, at least 3 days apart, it takes the oldest planned article (`blog_posts.status='brief'`, role not tool, `generation_attempts=0`) and runs `blogService.generate` (with the repair pass). Result is a DRAFT; Autopilot never publishes. Each try writes a marker switch `autopilot_blog_<postId>` first, so a failure is not retried in a loop. Autopilot tab: new "Blog drafts" card (list, "Write a blog draft now" = `POST /api/admin/autopilot/blog-now` forced, link to Manage blog posts); the evening digest email lists drafts waiting. +2 tests (18 in `autopilot.test.js`), backend 463.
+- Cost: about 5 cents per draft (writer plus one repair pass). Chris must still read, fix the checker's flags and press Publish; remember the 8 published articles' internal links and the hub/spoke plan when choosing which to publish.
+
 ## 2026-10-14 — Claude: Autopilot is running; first two posts read and approved; punchy picture headlines (pushed)
 
 - Chris turned Autopilot back ON ~16:00 UTC; I pressed "Write the next post now" once. Written and scheduled with all 4 channels, picture + video ready: 12:00 PM PT "Warm Leads vs. Cold Leads" (topic warm-vs-cold) and 5:00 PM PT "Control Your Competition, Not the Market" (l1-cant-control). I read both: on voice, no promises, link to /for-loan-officers. The old noon post that spoke to agents was removed (and its slot reopened) before it could go out.

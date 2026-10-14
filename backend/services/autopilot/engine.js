@@ -16,6 +16,8 @@ const LEAD_HOURS = 18;           // a post is written about 18 hours before it g
 const MIN_AHEAD_MS = 25 * 60000; // never write a post for a time that is almost here
 const MAX_FAILS_IN_ROW = 3;
 const KEEP_MEDIA_DAYS = 10;
+const BLOG_PER_WEEK = 2;          // at most two blog drafts a week
+const BLOG_MIN_GAP_MS = 3 * 86400000; // and at least three days apart
 const RETRY_AFTER_MS = 30 * 60000; // wait this long before trying a failed time again
 
 const pad = (n) => String(n).padStart(2, '0');
@@ -41,7 +43,7 @@ function upcomingSlots(now, days = 2) {
   return out.filter((s) => s.at.getTime() > now.getTime());
 }
 
-function createAutopilot({ db, studioFor, media, getPoster, getConnections, sendMail, loadArticles, now = () => new Date(), log = console }) {
+function createAutopilot({ db, studioFor, media, getPoster, getConnections, sendMail, loadArticles, blog = null, now = () => new Date(), log = console }) {
   let busy = false;
   const ownerOf = async () => {
     const { data } = await db.from('admin_switches').select('updated_by').eq('key', 'autopilot_on').maybeSingle();
@@ -224,6 +226,7 @@ function createAutopilot({ db, studioFor, media, getPoster, getConnections, send
           }
         }
       }
+      try { await maybeBlogDraft(owner); } catch (err) { log.warn?.('[Autopilot] blog check failed:', err?.message || err); }
       await housekeeping(owner);
       await maybeDigest(owner);
       return { results };
@@ -231,6 +234,32 @@ function createAutopilot({ db, studioFor, media, getPoster, getConnections, send
       log.warn?.('[Autopilot] tick failed:', err?.message || err);
       return { error: String(err?.message || err) };
     } finally { busy = false; }
+  }
+
+  // Twice a week: the next planned article on the blog list is written by the blog writer and left as a DRAFT.
+  // Autopilot never publishes: Chris reads it and presses Publish. Each try is marked first, so a failure is not retried in a loop.
+  async function maybeBlogDraft(owner, { force = false } = {}) {
+    if (!blog) return { skipped: 'blog not connected' };
+    const { data: marks } = await db.from('admin_switches').select('key, updated_at').like('key', 'autopilot_blog_%').order('updated_at', { ascending: false }).limit(10);
+    const times = (marks || []).map((m) => Date.parse(m.updated_at)).filter(Number.isFinite);
+    const weekAgo = now().getTime() - 7 * 86400000;
+    if (!force) {
+      if (times.filter((t) => t > weekAgo).length >= BLOG_PER_WEEK) return { skipped: 'two this week already' };
+      if (times.some((t) => now().getTime() - t < BLOG_MIN_GAP_MS)) return { skipped: 'too soon after the last one' };
+    }
+    const next = await blog.nextBrief();
+    if (!next) return { skipped: 'no planned article left' };
+    await setSwitch(db, `autopilot_blog_${next.id}`, true, owner);
+    try { await blog.write(owner, next.id); return { id: next.id, title: next.title }; }
+    catch (err) { log.warn?.('[Autopilot] blog draft failed:', err?.message || err); return { id: next.id, title: next.title, failed: String(err?.message || err).slice(0, 160) }; }
+  }
+
+  async function blogDrafts() {
+    const { data: marks } = await db.from('admin_switches').select('key, updated_at').like('key', 'autopilot_blog_%').order('updated_at', { ascending: false }).limit(6);
+    const ids = (marks || []).map((m) => m.key.replace('autopilot_blog_', '')).filter((id) => /^[0-9a-f-]{36}$/i.test(id));
+    if (!ids.length) return [];
+    const { data } = await db.from('blog_posts').select('id, title, status, review_errors, generation_attempts, updated_at').in('id', ids);
+    return ids.map((id) => (data || []).find((p) => p.id === id)).filter(Boolean).map((p) => ({ id: p.id, title: p.title, status: p.status, problems: Array.isArray(p.review_errors) ? p.review_errors.length : 0, written: p.status !== 'brief' }));
   }
 
   // Old autopilot pictures and videos are removed after a while; the post records stay.
@@ -267,6 +296,8 @@ function createAutopilot({ db, studioFor, media, getPoster, getConnections, send
     const today = `${p.y}-${pad(p.mo)}-${pad(p.d)}`;
     const items = (await summary(owner)).filter((s) => s.slot.startsWith(today));
     const lines = items.map((s) => s.failed ? `${s.slot}: did not go out (${s.reason})` : `${s.slot}: ${s.title}\n` + s.posts.map((x) => `   ${x.channel}: ${x.status}${x.url ? ' ' + x.url : ''}${x.error ? ' (' + x.error + ')' : ''}`).join('\n'));
+    const drafts = (await blogDrafts()).filter((d) => d.written);
+    if (drafts.length) lines.push(`Blog drafts waiting for you to read and publish (Marketing Funnels, Manage blog posts):\n` + drafts.map((d) => `   ${d.title}${d.problems ? ` (${d.problems} things to fix before it can publish)` : ''}`).join('\n'));
     await sendMail({ subject: `Autopilot: ${items.filter((s) => !s.failed).length} of 3 posts today`, text: lines.length ? lines.join('\n\n') : 'No posts were written today.' });
     await setSwitch(db, key, true, owner);
   }
@@ -311,10 +342,10 @@ function createAutopilot({ db, studioFor, media, getPoster, getConnections, send
     const plan = on ? await launchPlan() : null;
     const endsAt = plan ? await offerEndsAt(db) : null;
     const lastBad = (await recent(20)).find((r) => r.brief?.failed && !r.brief?.skipped && now().getTime() - Date.parse(r.created_at) < 36 * 3600000);
-    return { on, autoPost, lastIssue: lastBad ? { slot: lastBad.brief.slot, reason: lastBad.generation_error || 'did not pass the check' } : null, plan: plan ? { ...plan, offerEnds: endsAt ? monthDay(endsAt) : null } : null, direction: await direction(), slots: owner || !on ? await summary(owner) : [], times: SLOTS.map((s) => `${s.h > 12 ? s.h - 12 : s.h}:${pad(s.m)} ${s.h >= 12 ? 'PM' : 'AM'} Pacific`) };
+    return { on, autoPost, lastIssue: lastBad ? { slot: lastBad.brief.slot, reason: lastBad.generation_error || 'did not pass the check' } : null, plan: plan ? { ...plan, offerEnds: endsAt ? monthDay(endsAt) : null } : null, direction: await direction(), blogDrafts: await blogDrafts(), slots: owner || !on ? await summary(owner) : [], times: SLOTS.map((s) => `${s.h > 12 ? s.h - 12 : s.h}:${pad(s.m)} ${s.h >= 12 ? 'PM' : 'AM'} Pacific`) };
   }
 
-  return { tick, start, stop, status, setDirection, removeUpcoming, upcomingSlots, ptToUtc };
+  return { tick, start, stop, status, setDirection, removeUpcoming, maybeBlogDraft, upcomingSlots, ptToUtc };
 }
 
 module.exports = { createAutopilot, upcomingSlots, ptToUtc, SLOTS, CHANNELS };

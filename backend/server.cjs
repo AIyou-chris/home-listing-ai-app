@@ -36136,6 +36136,13 @@ const getAutopilot = () => {
         return Object.fromEntries((data || []).map((c) => [c.platform, c.status === 'connected']));
       },
       loadArticles: async () => (await blogService.publicPosts()).filter((p) => p.role !== 'tool').slice(0, 12),
+      blog: {
+        nextBrief: async () => {
+          const { data } = await supabaseAdmin.from('blog_posts').select('id, title, role, generation_attempts').eq('status', 'brief').neq('role', 'tool').eq('generation_attempts', 0).order('created_at', { ascending: true }).limit(1);
+          return data?.[0] || null;
+        },
+        write: (owner, id) => blogService.generate(owner, { id })
+      },
       sendMail: async ({ subject, text }) => {
         const to = process.env.OWNER_ALERT_EMAIL || 'homelistingai@gmail.com';
         const html = `<pre style="font-family:inherit;white-space:pre-wrap">${String(text).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))}</pre>`;
@@ -36173,6 +36180,14 @@ app.post('/api/admin/autopilot/posts/:campaignId/remove', verifyAdmin, async (re
     if (out.error) return res.status(out.status || 400).json({ error: out.error });
     res.json(out);
   } catch (err) { console.error('[Autopilot] remove failed:', err?.message || err); res.status(500).json({ error: 'Could not take that post back' }); }
+});
+// "Write a blog draft now": the next planned article is written as a DRAFT (never published from here).
+app.post('/api/admin/autopilot/blog-now', verifyAdmin, async (req, res) => {
+  try {
+    const autopilot = getAutopilot(); if (!autopilot) return res.status(503).json({ error: 'Autopilot is not available right now' });
+    res.json({ started: true });
+    autopilot.maybeBlogDraft(req.user.id, { force: true }).catch(() => {});
+  } catch (err) { console.error('[Autopilot] blog-now failed:', err?.message || err); res.status(500).json({ error: 'Could not start the blog draft' }); }
 });
 // "Write the next one now": starts the next missing post at once instead of waiting for the timer.
 app.post('/api/admin/autopilot/run-now', verifyAdmin, async (req, res) => {
