@@ -492,7 +492,7 @@ const BlogEditor: React.FC = () => {
 
             {currentPost.featured_image && (
               <div className="relative mb-3">
-                <img src={libraryPreview || currentPost.featured_image} alt={currentPost.featured_image_alt || ""} className="w-full h-36 object-cover rounded-xl" />
+                <a href={libraryPreview || currentPost.featured_image} target="_blank" rel="noreferrer" title="Open full size"><img src={libraryPreview || currentPost.featured_image} alt={currentPost.featured_image_alt || ""} className="w-full aspect-[3/2] object-cover rounded-xl" /></a>
                 <button onClick={() => setCurrentPost({ ...currentPost, featured_image: '' })}
                   className="absolute top-2 right-2 bg-white text-slate-500 hover:text-red-500 rounded-full p-1 shadow border border-slate-200">
                   <X size={14} />
@@ -527,10 +527,10 @@ const BlogEditor: React.FC = () => {
               {heroBusy ? 'Making pictures…' : currentPost.id ? 'Make a picture for this article (AI)' : 'Save the draft to make a picture'}
             </button>
             {heroPics.length > 0 && (
-              <div className="mt-3 grid grid-cols-2 gap-2">
+              <div className="mt-3 grid grid-cols-1 gap-3">
                 {heroPics.map(p => (
                   <div key={p.id} className="overflow-hidden rounded-lg border border-slate-200">
-                    {p.url && <img src={p.url} alt={p.alt_text} className="h-24 w-full object-cover" />}
+                    {p.url && <a href={p.url} target="_blank" rel="noreferrer" title="Open full size"><img src={p.url} alt={p.alt_text} className="aspect-[3/2] w-full object-cover" /></a>}
                     <button type="button" className="w-full bg-white px-2 py-2 text-xs font-bold text-primary-700 hover:bg-primary-50"
                       onClick={() => { setCurrentPost(prev => ({ ...prev, featured_image: `${HERO_PREFIX}${p.id}`, featured_image_alt: p.alt_text })); setLibraryPreview(p.url || ''); toast.success('Picture chosen. Press Save Draft.'); }}>
                       Use this
