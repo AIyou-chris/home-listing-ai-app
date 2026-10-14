@@ -96,20 +96,21 @@ const BlogEditor: React.FC = () => {
   }, [currentPost.id, currentPost.featured_image, libraryPreview]);
   const makeArticlePicture = async () => {
     if (!currentPost.id) { toast.error('Save the draft first, then make a picture.'); return; }
-    setHeroBusy(true);
+    setHeroBusy(true); setHeroPics([]);
     try {
       const headers = { ...(await authHeader()), 'Content-Type': 'application/json' };
-      const before = heroPics.length;
-      const start = await fetch(`${API}/api/admin/blog/posts/${currentPost.id}/hero`, { method: 'POST', headers, body: JSON.stringify({ count: 2, variantStart: before }) });
+      // Remember what exists now, so only the NEW pictures are shown.
+      const baseline = new Set<string>(((await (await fetch(`${API}/api/admin/blog/posts/${currentPost.id}/hero`, { headers })).json()).pictures || []).map((p: { id: string }) => p.id));
+      const start = await fetch(`${API}/api/admin/blog/posts/${currentPost.id}/hero`, { method: 'POST', headers, body: JSON.stringify({ count: 3, variantStart: baseline.size }) });
       if (!start.ok) throw new Error((await start.json().catch(() => ({}))).error || 'Could not start');
-      toast('Making 2 pictures. It takes about 2 minutes.', { duration: 5000 });
-      for (let i = 0; i < 30; i += 1) {
+      toast('Making 3 different pictures. It takes about 3 minutes.', { duration: 6000 });
+      for (let i = 0; i < 36; i += 1) {
         await new Promise(resolve => setTimeout(resolve, 8000));
         const r = await fetch(`${API}/api/admin/blog/posts/${currentPost.id}/hero`, { headers: await authHeader() });
         const d = await r.json();
-        const ready = (d.pictures || []).filter((p: { url: string | null; problems: string[] }) => p.url && !(p.problems || []).length);
-        setHeroPics(ready);
-        if (ready.length >= before + 2) break;
+        const fresh = (d.pictures || []).filter((p: { id: string; url: string | null; problems: string[] }) => !baseline.has(p.id) && p.url && !(p.problems || []).length);
+        setHeroPics(fresh);
+        if (fresh.length >= 3) break;
       }
     } catch (e) { toast.error(`Picture failed: ${e instanceof Error ? e.message : 'unknown'}`); }
     finally { setHeroBusy(false); }

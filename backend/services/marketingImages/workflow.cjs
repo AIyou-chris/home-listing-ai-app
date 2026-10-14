@@ -140,13 +140,28 @@ function createImageWorkflow({db,openai,jev,campaign,clearApproval,claim,finish,
       const {writeLaunchScene}=require('./launchScene.cjs');
       const fakeCampaign={id:null,brief:{},outputs:{title:String(body.title||'').slice(0,160),imagePrompt:''}};
       const groupId=crypto.randomUUID();const made=[];
+      // Scenes already made for this article are named to the writer so every new picture is a different idea.
+      const earlier=result(await table().select('alt_text').eq('owner_id',owner).eq('settings->>blog_post_id',postId).limit(12)).map(r=>r.alt_text).filter(Boolean);
+      // Three looks: a bright editorial photo, the moody cinematic scene, and a bold one with the article title on it.
+      const LOOKS=[{look:'bright',title:false},{look:'blog',title:false},{look:'blog',title:true}];
+      const start=Number(body.variantStart||0);
       for(let variant=0;variant<count;variant++) {
-        const scene=await writeLaunchScene({openai,headline:String(body.title||''),idea:String(body.excerpt||'').slice(0,400),variant:Number(body.variantStart||0)+variant,avoid:body.avoid||'',look:'blog'});
+        const spec=LOOKS[(start+variant)%LOOKS.length];
+        const scene=await writeLaunchScene({openai,headline:String(body.title||''),idea:String(body.excerpt||'').slice(0,400),variant:start+variant,avoid:[...earlier,...made.map(m=>m.alt_text)].join(' | '),look:spec.look});
         const direction={prompt:scene.prompt,alt_text:scene.alt_text,text_zone:'left',recipe_id:'blog-auto',mood:'cinematic',variant,brand:'homelistingai',format:'blog'};
-        const generated=await openai.images.generate({model:'gpt-image-1',prompt:direction.prompt,size:FORMATS.blog.native,quality:'medium',output_format:'jpeg',n:1},{timeout:180000,maxRetries:0});
-        const data=generated.data?.[0]?.b64_json;if(!data)continue;
-        const saved=await saveOption(owner,fakeCampaign,direction,Buffer.from(data,'base64'),{headline:'',subline:'',blog_post_id:postId},groupId,estimate('blog','medium',1));
-        if(saved.problems.length)continue;
+        const copy=spec.title?{headline:String(body.title||'').replace(/\s+/g,' ').trim().slice(0,110),subline:'',cta:'',style:'launch',maxWords:16}:{headline:'',subline:''};
+        // The picture checks (no lettering in the scene, calm space for words) sometimes reject an attempt: try again, up to three times.
+        let saved=null;
+        for(let attempt=0;attempt<3&&!saved;attempt++){
+          let generated;try{generated=await openai.images.generate({model:'gpt-image-1',prompt:direction.prompt,size:FORMATS.blog.native,quality:'medium',output_format:'jpeg',n:1},{timeout:180000,maxRetries:0});}catch{continue;}
+          const data=generated.data?.[0]?.b64_json;if(!data)continue;
+          let candidate;try{candidate=await saveOption(owner,fakeCampaign,direction,Buffer.from(data,'base64'),{...copy,blog_post_id:postId},groupId,estimate('blog','medium',1));}catch{continue;}
+          // A picture with no words on it does not need calm space for words.
+          const real=spec.title?candidate.problems:candidate.problems.filter(p=>!/too busy/i.test(p));
+          if(real.length){try{await this.remove(owner,candidate.id);}catch{/* leave it unapproved in the library */}continue;}
+          saved=candidate;
+        }
+        if(!saved)continue;
         result(await table().update({approved:true,review:{auto:true,real:true,idea:true,brand:true,honest:true},used_in:[{blog_id:postId,use:'blog-draft',at:new Date().toISOString()}],updated_at:new Date().toISOString()}).eq('owner_id',owner).eq('id',saved.id));
         made.push({id:saved.id,alt_text:scene.alt_text});
       }

@@ -36206,7 +36206,7 @@ app.post('/api/admin/blog/posts/:id/hero', verifyAdmin, async (req, res) => {
     const { data: post } = await supabaseAdmin.from('blog_posts').select('id, title, excerpt, short_answer, status').eq('id', req.params.id).maybeSingle();
     if (!post) return res.status(404).json({ error: 'Save the article first.' });
     res.json({ started: true });
-    marketingMediaService.images.blogHero(req.user.id, { postId: post.id, title: post.title, excerpt: post.excerpt || post.short_answer || '', count: Math.min(2, Number(req.body?.count) || 2), variantStart: Number(req.body?.variantStart) || 0 })
+    marketingMediaService.images.blogHero(req.user.id, { postId: post.id, title: post.title, excerpt: post.excerpt || post.short_answer || '', count: Math.min(3, Number(req.body?.count) || 3), variantStart: Number(req.body?.variantStart) || 0 })
       .catch((err) => console.warn('[Blog picture] failed:', err?.message || err));
   } catch (err) { console.error('[Blog picture] start failed:', err?.message || err); res.status(500).json({ error: 'Could not start the picture' }); }
 });
