@@ -8,7 +8,7 @@ import Collapsible from './Collapsible';
 type PostRow = { channel: string; status: 'scheduled' | 'posting' | 'published' | 'failed'; scheduled_for: string; posted_at: string | null; url: string | null; error: string | null };
 type Slot = { campaignId: string; slot: string; topic: string; title: string; failed: boolean; skipped?: boolean; reason: string; preview?: string; posts: PostRow[] };
 type Plan = { name: string; day: number; week: number; offerOpen?: boolean; offerEnds?: string | null } | null;
-type Status = { on: boolean; autoPost: boolean; plan?: Plan; direction?: string; slots: Slot[]; times: string[] };
+type Status = { on: boolean; autoPost: boolean; lastIssue?: { slot: string; reason: string } | null; plan?: Plan; direction?: string; slots: Slot[]; times: string[] };
 
 const LABEL: Record<string, string> = { facebook: 'Facebook', instagram: 'Instagram', linkedin: 'LinkedIn', youtube: 'YouTube' };
 const btn = 'rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50';
@@ -34,11 +34,12 @@ export default function AutopilotPanel() {
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
   const [launch, setLaunch] = useState(true);
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
   const [direction, setDirection] = useState('');
   const [directionLoaded, setDirectionLoaded] = useState(false);
 
   const load = useCallback(async () => {
-    try { const next: Status = await call('/api/admin/autopilot'); setStatus(next); setDirection((current) => (directionLoaded ? current : next.direction || '')); setDirectionLoaded(true); setError(''); }
+    try { const next: Status = await call('/api/admin/autopilot'); setStatus(next); setUpdatedAt(new Date()); setDirection((current) => (directionLoaded ? current : next.direction || '')); setDirectionLoaded(true); setError(''); }
     catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not load Autopilot'); }
   }, [directionLoaded]);
   useEffect(() => { void load(); }, [load]);
@@ -84,8 +85,10 @@ export default function AutopilotPanel() {
           {!on && <button type="button" className="rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50" disabled={busy !== '' || !status} onClick={() => void turnOn()}>{busy === 'on' ? 'Turning on…' : 'Turn Autopilot ON'}</button>}
           {on && <button type="button" className="rounded-lg bg-red-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-50" disabled={busy !== ''} onClick={() => void stop()}>{busy === 'off' ? 'Stopping…' : 'STOP Autopilot'}</button>}
           {on && <button type="button" className={btn} disabled={busy !== ''} onClick={() => void runNow()}>{busy === 'run' ? 'Starting…' : 'Write the next post now'}</button>}
-          <button type="button" className={btn} disabled={busy !== ''} onClick={() => void load()}>Refresh</button>
+          <button type="button" className={btn} disabled={busy !== ''} onClick={() => void act('refresh', load)}>{busy === 'refresh' ? 'Refreshing…' : 'Refresh'}</button>
+          {updatedAt && <span className="self-center text-xs text-slate-500">Updated {updatedAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' })}</span>}
         </div>
+        {status?.lastIssue && <p role="status" className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Last problem ({slotLabel(status.lastIssue.slot)}): {status.lastIssue.reason}. {on ? 'It will try again on its own.' : 'If Autopilot switched itself off, it did that on purpose after repeated problems. Turn it back on when you are ready.'}</p>}
         {error && <p role="alert" className="mt-3 text-sm text-red-700">{error}</p>}
         {note && <p role="status" className="mt-3 text-sm text-emerald-800">{note}</p>}
       </div>

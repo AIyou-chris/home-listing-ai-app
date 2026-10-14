@@ -46,6 +46,7 @@ const GOOD = {
 };
 
 function harness({ outputs = GOOD, now = new Date('2026-10-13T20:00:00Z') } = {}) {
+  let current = now;
   const db = fakeDb();
   db.tables.admin_switches.push({ key: 'autopilot_on', enabled: true, updated_by: 'ddee9647-fd81-4e54-be9c-dd25e46a99bf' });
   const scheduled = []; const mails = [];
@@ -58,12 +59,12 @@ function harness({ outputs = GOOD, now = new Date('2026-10-13T20:00:00Z') } = {}
   };
   const media = { async picture() {}, async render() {}, async list() { return [{ kind: 'video', status: 'ready' }]; }, async cleanup() { return []; }, async removeFiles() {} };
   const ap = createAutopilot({
-    db, studioFor: () => studio, media, now: () => now, log: { warn() {} },
+    db, studioFor: () => studio, media, now: () => current, log: { warn() {} },
     getPoster: () => ({ async schedule(args) { scheduled.push(args); } }),
     getConnections: async () => ({ facebook: true, instagram: true, linkedin: true, youtube: true }),
     sendMail: async (m) => { mails.push(m); }
   });
-  return { db, ap, scheduled, mails };
+  return { db, ap, scheduled, mails, setNow: (d) => { current = d; } };
 }
 
 test('Pacific slot times are right across daylight saving', () => {
@@ -201,4 +202,36 @@ test('Replace writes a new post for that time, Skip leaves it empty, and a post 
   assert.strictEqual(skipped.skipped, true);
   await h.ap.tick();
   assert.strictEqual(h.db.tables.admin_marketing_campaigns.filter((r) => r.brief.slot === slot && !r.brief.skipped).length, 0, 'a skipped time stays empty');
+});
+
+test('a failed time is not retried for 30 minutes, and a stray [link] is filled in instead of failing the post', async () => {
+  const h = harness({ now: new Date('2026-10-13T23:00:00Z'), outputs: { ...GOOD, facebook: 'We guarantee more leads for every loan officer who tries it this week, no risk at all.' } });
+  await h.ap.tick();
+  const failedAfterFirst = h.db.tables.admin_marketing_campaigns.filter((c) => c.brief.failed).length;
+  assert.ok(failedAfterFirst >= 1);
+  h.setNow(new Date('2026-10-13T23:10:00Z'));
+  await h.ap.tick();
+  assert.strictEqual(h.db.tables.admin_marketing_campaigns.filter((c) => c.brief.failed).length, failedAfterFirst, 'no new tries inside 30 minutes');
+
+  const g = harness({ now: new Date('2026-10-13T23:00:00Z'), outputs: { ...GOOD, facebook: GOOD.facebook + ' Learn more [link]', linkedin: GOOD.linkedin + ' [Learn more]' } });
+  await g.ap.tick();
+  assert.ok(g.scheduled.length >= 1, 'the post goes out once the placeholder is filled');
+  const row = g.db.tables.admin_marketing_campaigns.find((c) => !c.brief.failed);
+  assert.ok(!/\[/.test(row.outputs.facebook + row.outputs.linkedin));
+  assert.match(row.outputs.facebook, /https:\/\/homelistingai\.com/);
+});
+
+test('three different times failing in a row pauses Autopilot; repeated tries at one time do not', async () => {
+  const bad = { ...GOOD, facebook: 'We guarantee more leads for every loan officer who tries it this week, no risk at all.' };
+  const h = harness({ now: new Date('2026-10-13T16:00:00Z'), outputs: bad });
+  for (const t of ['2026-10-13T16:00:00Z', '2026-10-13T17:00:00Z', '2026-10-13T18:00:00Z']) { h.setNow(new Date(t)); await h.ap.tick(); }
+  assert.strictEqual(h.db.tables.admin_switches.find((x) => x.key === 'autopilot_on').enabled, true, 'two times failing is not enough to pause');
+  h.setNow(new Date('2026-10-13T23:00:00Z'));
+  await h.ap.tick();
+  h.setNow(new Date('2026-10-14T00:00:00Z'));
+  await h.ap.tick();
+  h.setNow(new Date('2026-10-14T05:00:00Z')); // 10 PM Pacific: the next morning's 8 AM is now in range
+  await h.ap.tick();
+  assert.strictEqual(h.db.tables.admin_switches.find((x) => x.key === 'autopilot_on').enabled, false);
+  assert.ok(h.mails.some((m) => /paused/i.test(m.subject)));
 });

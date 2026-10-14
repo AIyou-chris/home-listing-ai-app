@@ -16,6 +16,7 @@ const LEAD_HOURS = 18;           // a post is written about 18 hours before it g
 const MIN_AHEAD_MS = 25 * 60000; // never write a post for a time that is almost here
 const MAX_FAILS_IN_ROW = 3;
 const KEEP_MEDIA_DAYS = 10;
+const RETRY_AFTER_MS = 30 * 60000; // wait this long before trying a failed time again
 
 const pad = (n) => String(n).padStart(2, '0');
 function ptParts(date) {
@@ -134,6 +135,11 @@ function createAutopilot({ db, studioFor, media, getPoster, getConnections, send
       let row = await studio.generate(owner, id);
       const link = topic.link || LO;
       const outputs = { ...row.outputs };
+      // A stray "[link]" or "[Learn more]" is replaced with the real link; other leftover brackets are removed.
+      for (const key of ['facebook', 'linkedin', 'instagram', 'bluesky']) {
+        if (typeof outputs[key] !== 'string') continue;
+        outputs[key] = outputs[key].replace(/\[(?:insert |your |the )?(?:link|url|website|site|learn more|cta)[^\]]*\]/gi, link).replace(/\[[^\]]{0,40}\]/g, '').replace(/[ \t]{2,}/g, ' ').trim();
+      }
       for (const key of ['facebook', 'linkedin', 'instagram']) if (!/https?:\/\//.test(outputs[key] || '')) outputs[key] = `${String(outputs[key] || '').trim()}\n\n${link}`;
       const problems = checkPost(outputs, { allowed: tokensFor(topic.facts) });
       if (problems.length) { await cleanup(owner, id); return { ok: false, reason: `safety check: ${problems.slice(0, 3).join('; ')}` }; }
@@ -168,6 +174,9 @@ function createAutopilot({ db, studioFor, media, getPoster, getConnections, send
   async function writeSlot(owner, slot) {
     const rows = await recent();
     if (rows.some((r) => r.brief?.slot === slot.key && (r.status !== 'failed' || r.brief?.skipped))) return { skipped: true };
+    // After a failed try at this time, wait before trying again so one bad stretch does not burn through attempts.
+    const lastTry = rows.filter((r) => r.brief?.slot === slot.key && r.brief?.failed).map((r) => Date.parse(r.created_at)).sort((a, b) => b - a)[0];
+    if (lastTry && now().getTime() - lastTry < RETRY_AFTER_MS) return { skipped: true, waiting: true };
     const topic = await pickTopic(slot, rows);
     let result = await build(owner, slot, topic);
     if (!result.ok) {
@@ -204,8 +213,11 @@ function createAutopilot({ db, studioFor, media, getPoster, getConnections, send
         results.push({ slot: slot.key, ...r });
         if (!r.skipped && force) break;
         if (!r.skipped && !r.ok) {
-          const recentRows = await recent(MAX_FAILS_IN_ROW);
-          if (recentRows.length >= MAX_FAILS_IN_ROW && recentRows.every((x) => x.brief?.failed && !x.brief?.skipped)) {
+          const recentRows = await recent(40);
+          const bySlot = new Map();
+          for (const x of recentRows) { const k = x.brief?.slot; if (!k) continue; const e = bySlot.get(k) || { ok: false, failed: false }; if (x.brief?.failed) { if (!x.brief?.skipped) e.failed = true; } else e.ok = true; bySlot.set(k, e); }
+          const lastSlots = [...bySlot.entries()].sort((a, b) => String(b[0]).localeCompare(String(a[0]))).slice(0, MAX_FAILS_IN_ROW).map(([, e]) => e);
+          if (lastSlots.length >= MAX_FAILS_IN_ROW && lastSlots.every((e) => e.failed && !e.ok)) {
             await setSwitch(db, 'autopilot_on', false, owner);
             await sendMail?.({ subject: 'Autopilot paused itself', text: `Three posts in a row did not pass. Autopilot switched itself OFF so nothing odd goes out. Last reason: ${r.reason}` });
             return { paused: true, results };
@@ -298,7 +310,8 @@ function createAutopilot({ db, studioFor, media, getPoster, getConnections, send
     const owner = await ownerOf();
     const plan = on ? await launchPlan() : null;
     const endsAt = plan ? await offerEndsAt(db) : null;
-    return { on, autoPost, plan: plan ? { ...plan, offerEnds: endsAt ? monthDay(endsAt) : null } : null, direction: await direction(), slots: owner || !on ? await summary(owner) : [], times: SLOTS.map((s) => `${s.h > 12 ? s.h - 12 : s.h}:${pad(s.m)} ${s.h >= 12 ? 'PM' : 'AM'} Pacific`) };
+    const lastBad = (await recent(20)).find((r) => r.brief?.failed && !r.brief?.skipped && now().getTime() - Date.parse(r.created_at) < 36 * 3600000);
+    return { on, autoPost, lastIssue: lastBad ? { slot: lastBad.brief.slot, reason: lastBad.generation_error || 'did not pass the check' } : null, plan: plan ? { ...plan, offerEnds: endsAt ? monthDay(endsAt) : null } : null, direction: await direction(), slots: owner || !on ? await summary(owner) : [], times: SLOTS.map((s) => `${s.h > 12 ? s.h - 12 : s.h}:${pad(s.m)} ${s.h >= 12 ? 'PM' : 'AM'} Pacific`) };
   }
 
   return { tick, start, stop, status, setDirection, removeUpcoming, upcomingSlots, ptToUtc };

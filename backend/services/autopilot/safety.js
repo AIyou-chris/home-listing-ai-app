@@ -20,7 +20,8 @@ function checkPost(outputs = {}, { allowed = [] } = {}) {
     if (!text.trim()) { if (key !== 'bluesky') problems.push(`${key} is empty`); continue; }
     const voice = findVoiceViolations(text);
     if (voice.length) problems.push(`${key}: ${voice.join(', ')}`);
-    if (/\[[^\]]*\]|\{\{|TODO|lorem/i.test(text)) problems.push(`${key} has a placeholder`);
+    const holder = text.match(/\[[^\]]*\]|\{\{[^}]*\}\}|TODO|lorem ipsum/i);
+    if (holder) problems.push(`${key} has a placeholder (${holder[0].slice(0, 30)})`);
     if (PLATFORM_BANNED_PHRASES.some((phrase) => text.toLowerCase().includes(phrase))) problems.push(`${key} has a banned claim`);
     if (PROMISES.test(text)) problems.push(`${key} makes a promise`);
     if (REPLACE.test(text)) problems.push(`${key} talks about replacing people`);
