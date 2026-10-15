@@ -66,10 +66,11 @@ async function compose(buffer,{format='blog',brand='homelistingai',text_zone='le
   if(subline.length>90)throw new Error('Keep the small line under 90 characters.');
   const x=side==='right'?w-panel:0;const tx=x+w*.035;
   const fontfile=path.resolve(__dirname,'../../assets/fonts/Inter.ttf');
-  async function lettering(text,size,top,bold=false,left=tx,color='white'){const rendered=await sharp({text:{text:`<span foreground="${color}">${xml(text)}</span>`,font:`Inter ${bold?'Bold ':''}${size}`,fontfile,rgba:true,wrap:'none'}}).png().toBuffer();layers.push({input:rendered,left:Math.round(left),top:Math.round(top)});}
+  const antonFile=path.resolve(__dirname,'../../assets/fonts/Anton-Regular.ttf');
+  async function lettering(text,size,top,bold=false,left=tx,color='white',display=false){const rendered=await sharp({text:{text:`<span foreground="${color}">${xml(display?text.toUpperCase():text)}</span>`,font:display?`Anton ${Math.round(size*1.12)}`:`Inter ${bold?'Bold ':''}${size}`,fontfile:display?antonFile:fontfile,rgba:true,wrap:'none'}}).png().toBuffer();layers.push({input:rendered,left:Math.round(left),top:Math.round(top)});}
   if(headline||subline){const fade=w*.10;const gx=side==='left'?panel:w-panel-fade;
     layers.push({input:Buffer.from(`<svg width="${w}" height="${h}"><defs><linearGradient id="shade" x1="${side==='left'?'0':'1'}" x2="${side==='left'?'1':'0'}"><stop offset="0" stop-color="${panelColor}"/><stop offset="1" stop-color="${panelColor}" stop-opacity="0"/></linearGradient></defs><rect x="${x}" width="${panel}" height="${h}" fill="${panelColor}"/><rect x="${gx}" width="${fade}" height="${h}" fill="url(#shade)"/></svg>`),left:0,top:0});
-    for(let i=0;i<lines.length;i++)await lettering(lines[i],font,top0-font*.8+i*font*1.32,true,tx,launch&&lines.length>1&&i===lines.length-1?'#ED1C24':'white');
+    for(let i=0;i<lines.length;i++)await lettering(lines[i],font,top0-font*.8+i*font*1.32,true,tx,launch&&lines.length>1&&i===lines.length-1?'#ED1C24':'white',launch);
     for(let i=0;i<smallLines.length;i++)await lettering(smallLines[i],Math.round(font*.46),top0+lines.length*font*1.32+font*.7+i*font*.65);
     if(cta&&headline){// The call to action: a white button under the words, with dark lettering.
       const ctaSize=Math.round(font*.48);const textBuf=await sharp({text:{text:`<span foreground="${launch?'#08090D':'#172554'}">${xml(cta)}</span>`,font:`Inter Bold ${ctaSize}`,fontfile,rgba:true,wrap:'none'}}).png().toBuffer();
