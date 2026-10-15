@@ -94,7 +94,7 @@ function createImageWorkflow({db,openai,jev,campaign,clearApproval,claim,finish,
           if(previous&&/move.*\b(left|right)\b/i.test(body.tweak||'')){const move=body.tweak.match(/move.*\b(left|right)\b/i)[1].toLowerCase();direction.text_zone=move==='left'?'right':'left';direction.prompt=direction.prompt.replace(/One subject on the (left|right) third; the (left|right) forty percent remains empty/i,`One subject on the ${move} third; the ${direction.text_zone} forty percent remains empty`);}
           let generated;
           if(previous){const {toFile}=require('openai');const reference=await toFile(await bytes(previous.background_path),'background.jpg',{type:'image/jpeg'});const {heroImagePrompt,safeDirection}=require('./direction.cjs');const tweak=safeDirection(body.tweak||'Keep the same idea and composition; refine natural photographic detail');direction.prompt=heroImagePrompt('',`${direction.prompt.split('\n\n')[0]}. ${tweak}`,previous.brand);generated=await openai.images.edit({model:'gpt-image-1-mini',image:reference,prompt:direction.prompt,size:FORMATS[previous.format].native,quality,output_format:'jpeg',n:1},{timeout:180000,maxRetries:0});}
-          else generated=await openai.images.generate({model:'gpt-image-1-mini',prompt:direction.prompt,size:FORMATS[format].native,quality,output_format:'jpeg',n:1},{timeout:180000,maxRetries:0});
+          else generated=await openai.images.generate({model:require('./brand.cjs').imageModels().draft,prompt:direction.prompt,size:FORMATS[format].native,quality,output_format:'jpeg',n:1},{timeout:180000,maxRetries:0});
           const data=generated.data?.[0]?.b64_json;if(!data)throw new Error('No image returned');
           await saveOption(owner,row,direction,Buffer.from(data,'base64'),previous?{...previous.settings,...body}:body,groupId,estimate(direction.format,quality,1));
         }
@@ -114,12 +114,12 @@ function createImageWorkflow({db,openai,jev,campaign,clearApproval,claim,finish,
       const cta=body.cta||'Claim your founding price';
       try{validateCopy(headline,'',14);}catch(e){throw new StudioError(400,e.message);}
       const all=result(await table().select('id').eq('owner_id',owner).limit(200));if(all.length>=195)throw new StudioError(429,'Your picture library is full. Delete old pictures first.');
-      const {writeLaunchScene}=require('./launchScene.cjs');
+      const {writeLaunchScene}=require('./launchScene.cjs');const brand=require('./brand.cjs');const models=brand.imageModels();
       const nextRow=await clearApproval(owner,row);const claimed=await claim(owner,nextRow,'image','ai',pictureHash(row));
       try{
         const scene=await writeLaunchScene({openai,headline,idea:body.idea||row.brief?.idea||'',variant:Number(body.variant)||0,avoid:body.avoid||''});
         const direction={prompt:scene.prompt,alt_text:scene.alt_text,text_zone:'left',recipe_id:'launch-auto',mood:'cinematic',variant:Number(body.variant)||0,brand:'homelistingai',format};
-        const generated=await openai.images.generate({model:'gpt-image-1',prompt:direction.prompt,size:FORMATS[format].native,quality:'medium',output_format:'jpeg',n:1},{timeout:180000,maxRetries:0});
+        const generated=await openai.images.generate({model:models.final,prompt:direction.prompt,size:FORMATS[format].native,quality:'medium',output_format:'jpeg',n:1},{timeout:180000,maxRetries:0});
         const data=generated.data?.[0]?.b64_json;if(!data)throw new Error('No image returned');
         const saved=await saveOption(owner,row,direction,Buffer.from(data,'base64'),{headline,subline:'',cta,style:'launch',maxWords:14},crypto.randomUUID(),estimate(format,'medium',1));
         if(saved.problems.length)throw new StudioError(400,saved.problems[0]);
@@ -153,7 +153,7 @@ function createImageWorkflow({db,openai,jev,campaign,clearApproval,claim,finish,
         // The picture checks (no lettering in the scene, calm space for words) sometimes reject an attempt: try again, up to three times.
         let saved=null;
         for(let attempt=0;attempt<3&&!saved;attempt++){
-          let generated;try{generated=await openai.images.generate({model:'gpt-image-1',prompt:direction.prompt,size:FORMATS.blog.native,quality:'medium',output_format:'jpeg',n:1},{timeout:180000,maxRetries:0});}catch{continue;}
+          let generated;try{generated=await openai.images.generate({model:require('./brand.cjs').imageModels().final,prompt:direction.prompt,size:FORMATS.blog.native,quality:'medium',output_format:'jpeg',n:1},{timeout:180000,maxRetries:0});}catch{continue;}
           const data=generated.data?.[0]?.b64_json;if(!data)continue;
           let candidate;try{candidate=await saveOption(owner,fakeCampaign,direction,Buffer.from(data,'base64'),{...copy,blog_post_id:postId},groupId,estimate('blog','medium',1));}catch{continue;}
           // A picture with no words on it does not need calm space for words.

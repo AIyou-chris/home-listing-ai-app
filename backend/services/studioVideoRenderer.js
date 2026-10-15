@@ -64,15 +64,15 @@ function pictureSvg({ title, width = 1080, height = 1080, style = 'brand' }) {
   const size = headings.length > 3 ? 78 : longest > 16 ? 80 : 92;
   const top = 250;
   const defs = launch
-    ? '<linearGradient id="bg" x2="0" y2="1"><stop stop-color="#050505"/><stop offset="1" stop-color="#1f0707"/></linearGradient>'
+    ? '<linearGradient id="bg" x2="0" y2="1"><stop stop-color="#08090D"/><stop offset="1" stop-color="#1A1D24"/></linearGradient>'
     : '<linearGradient id="bg" x2="1" y2="1"><stop stop-color="#172554"/><stop offset="1" stop-color="#4338ca"/></linearGradient>';
-  const accent = launch ? '#ff7a00' : '#93c5fd';
+  const accent = launch ? '#FF7A18' : '#93c5fd';
   const line = (text, i) => {
     const red = launch && i === headings.length - 1 && headings.length > 1;
-    return `<text x="${margin}" y="${top + i * (size + 22) + size}" fill="${red ? '#ef2b2b' : '#ffffff'}" font-family="sans-serif" font-size="${size}" font-weight="800">${escape(text)}</text>`;
+    return `<text x="${margin}" y="${top + i * (size + 22) + size}" fill="${red ? '#ED1C24' : '#ffffff'}" font-family="sans-serif" font-size="${size}" font-weight="800">${escape(text)}</text>`;
   };
-  const pill = launch ? '#ff7a00' : '#ffffff';
-  const pillText = launch ? '#0a0a0a' : '#172554';
+  const pill = launch ? '#FF7A18' : '#ffffff';
+  const pillText = launch ? '#08090D' : '#172554';
   const cta = launch ? 'Claim your founding price' : 'Free 7-day trial';
   return Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><defs>${defs}</defs><rect width="100%" height="100%" fill="url(#bg)"/><rect x="${margin}" y="${margin}" width="12" height="64" rx="6" fill="${accent}"/><text x="${margin + 36}" y="${margin + 46}" fill="#ffffff" font-family="sans-serif" font-size="44" font-weight="800">HomeListingAI</text>${headings.map(line).join('')}<rect x="${margin}" y="${height - 250}" width="${launch ? 640 : 560}" height="84" rx="42" fill="${pill}"/><text x="${margin + (launch ? 320 : 280)}" y="${height - 195}" text-anchor="middle" fill="${pillText}" font-family="sans-serif" font-size="34" font-weight="800">${cta}</text><text x="${margin}" y="${height - 110}" fill="${launch ? '#ffb066' : '#bfdbfe'}" font-family="sans-serif" font-size="34" font-weight="600">homelistingai.com${launch ? '/lo-signup' : '/for-loan-officers'}</text></svg>`);
 }

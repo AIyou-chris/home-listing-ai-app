@@ -8,6 +8,7 @@ const REPLACE = /\b(replace|eliminate|get rid of)\b[^.]{0,30}\b(staff|team|emplo
 const KICKBACK = /\b(referral fee|kickback|pay(?:ing)? (?:agents|realtors) for)\b/i;
 const INVENTED = /\b(thousands|hundreds|millions) of\b|\b(testimonial|case study)\b|\b(our|loan officers)\s+(customers|clients)\s+(say|report|love|saw|see)\b|\bsaid\s*[:"“]/i;
 // The product gives a loan officer something to bring to an agent. It does not find, match or supply agents.
+const MASS_EXIT = /\b(all|every|most|nearly all|so many|millions? of)\s+(the\s+)?(realtors?|agents?)\b[^.!?]{0,30}\b(are|is|have|has)?\s*(quit(?:ting)?|leav(?:e|ing)|left|gone|disappear(?:ing)?|abandon(?:ing)?)\b/i;
 const FINDS_AGENTS = /\b(we|it|homelistingai|this app|the app|our ai|ai)\s+(finds?|locates?|matches|connects you (?:with|to)|sources?|supplies|delivers)\b[^.!?]{0,40}\b(realtors?|agents?|partners?|referrals?)\b|\b(database|directory|list) of (realtors?|agents)\b|\bguaranteed? (referrals?|closings?|deals?)\b/i;
 const ALLOWED_MONEY = /^\$(49|79)(\/mo(nth)?)?$/;
 
@@ -27,6 +28,7 @@ function checkPost(outputs = {}, { allowed = [] } = {}) {
     if (REPLACE.test(text)) problems.push(`${key} talks about replacing people`);
     if (KICKBACK.test(text)) problems.push(`${key} mentions paying for referrals`);
     if (INVENTED.test(text)) problems.push(`${key} may invent results or customers`);
+    if (MASS_EXIT.test(text)) problems.push(`${key} says all or most Realtors are leaving`);
     if (FINDS_AGENTS.test(text)) problems.push(`${key} claims the product finds or supplies agents`);
     // Statistics: only numbers from the verified facts list (facts.js) may appear.
     for (const pct of text.match(/\d+(?:\.\d+)?\s*%/g) || []) if (!ok.has(pct.replace(/\s/g, '').toLowerCase())) problems.push(`${key} has an unverified percentage (${pct})`);

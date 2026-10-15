@@ -53,7 +53,7 @@ async function compose(buffer,{format='blog',brand='homelistingai',text_zone='le
   if(requiresLending&&(!lendingAsset||!/^\d{1,12}$/.test(nmls)))throw new Error('This ad needs your official Equal Housing Lender file and verified NMLS number.');
   const b=brandFor(brand);const w=f.width,h=f.height;let layers=[];
   // "launch" is the 30-day campaign look: a black text panel, the last headline line in fire red, an orange button.
-  const launch=style==='launch';const panelColor=launch?'#0a0a0a':b.blue;const top0=launch?h*.17:h*.27;
+  const launch=style==='launch';const panelColor=launch?'#08090D':b.blue;const top0=launch?h*.17:h*.27;
   // An opaque brand panel guarantees white-text AA contrast; a feathered edge
   // joins it to the photograph. No claim about unmeasured photographic contrast.
   const side=text_zone==='right'?'right':'left';const tall=w/h<=1.2;const panel=Math.round(w*(launch?.52:tall?.46:.40));let font=Math.round(Math.min(w*(launch?.082:tall?.064:.048),h*.14));
@@ -69,13 +69,13 @@ async function compose(buffer,{format='blog',brand='homelistingai',text_zone='le
   async function lettering(text,size,top,bold=false,left=tx,color='white'){const rendered=await sharp({text:{text:`<span foreground="${color}">${xml(text)}</span>`,font:`Inter ${bold?'Bold ':''}${size}`,fontfile,rgba:true,wrap:'none'}}).png().toBuffer();layers.push({input:rendered,left:Math.round(left),top:Math.round(top)});}
   if(headline||subline){const fade=w*.10;const gx=side==='left'?panel:w-panel-fade;
     layers.push({input:Buffer.from(`<svg width="${w}" height="${h}"><defs><linearGradient id="shade" x1="${side==='left'?'0':'1'}" x2="${side==='left'?'1':'0'}"><stop offset="0" stop-color="${panelColor}"/><stop offset="1" stop-color="${panelColor}" stop-opacity="0"/></linearGradient></defs><rect x="${x}" width="${panel}" height="${h}" fill="${panelColor}"/><rect x="${gx}" width="${fade}" height="${h}" fill="url(#shade)"/></svg>`),left:0,top:0});
-    for(let i=0;i<lines.length;i++)await lettering(lines[i],font,top0-font*.8+i*font*1.32,true,tx,launch&&lines.length>1&&i===lines.length-1?'#ef2b2b':'white');
+    for(let i=0;i<lines.length;i++)await lettering(lines[i],font,top0-font*.8+i*font*1.32,true,tx,launch&&lines.length>1&&i===lines.length-1?'#ED1C24':'white');
     for(let i=0;i<smallLines.length;i++)await lettering(smallLines[i],Math.round(font*.46),top0+lines.length*font*1.32+font*.7+i*font*.65);
     if(cta&&headline){// The call to action: a white button under the words, with dark lettering.
-      const ctaSize=Math.round(font*.48);const textBuf=await sharp({text:{text:`<span foreground="${launch?'#0a0a0a':'#172554'}">${xml(cta)}</span>`,font:`Inter Bold ${ctaSize}`,fontfile,rgba:true,wrap:'none'}}).png().toBuffer();
+      const ctaSize=Math.round(font*.48);const textBuf=await sharp({text:{text:`<span foreground="${launch?'#08090D':'#172554'}">${xml(cta)}</span>`,font:`Inter Bold ${ctaSize}`,fontfile,rgba:true,wrap:'none'}}).png().toBuffer();
       const tm=await sharp(textBuf).metadata();const padX=Math.round(ctaSize*.9),padY=Math.round(ctaSize*.55);
       const bw=tm.width+padX*2,bh=tm.height+padY*2;const by=Math.round(top0+lines.length*font*1.32+smallLines.length*font*.65+font*.9);
-      layers.push({input:Buffer.from(`<svg width="${bw}" height="${bh}"><rect width="${bw}" height="${bh}" rx="${Math.round(bh/2)}" fill="${launch?'#ff7a00':'#ffffff'}"/></svg>`),left:Math.round(tx),top:by});
+      layers.push({input:Buffer.from(`<svg width="${bw}" height="${bh}"><rect width="${bw}" height="${bh}" rx="${Math.round(bh/2)}" fill="${launch?'#FF7A18':'#ffffff'}"/></svg>`),left:Math.round(tx),top:by});
       layers.push({input:textBuf,left:Math.round(tx+padX),top:by+padY});
     }
   }
