@@ -8,6 +8,7 @@ import SequenceFeedbackPanel from '../SequenceFeedbackPanel';
 import AdminLoOutreachPanel from './AdminLoOutreachPanel';
 import AdminLoLeadFinderPanel from './AdminLoLeadFinderPanel';
 import AdminColdEmailPanel from './AdminColdEmailPanel';
+import MarketingAnalyticsPanel from './MarketingAnalyticsPanel';
 import AdminMarketingStudio from './AdminMarketingStudio';
 import { funnelService } from '../../services/funnelService';
 import { supabase } from '../../services/supabase';
@@ -1854,6 +1855,7 @@ const AdminMarketingFunnelsPanel: React.FC<FunnelAnalyticsPanelProps> = ({
                 {isAnalyticsOpen ? (
                     <div className="space-y-8 px-4 md:px-0 animate-in fade-in slide-in-from-bottom-4 duration-300">
                         {/* Analytics View */}
+                        <MarketingAnalyticsPanel />
                         <div className="grid grid-cols-1 gap-8">
                             <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm transition-all duration-300">
                                 <div

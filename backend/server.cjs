@@ -36161,6 +36161,16 @@ const getAutopilot = () => {
   }
   return autopilotInstance;
 };
+app.get('/api/admin/marketing-analytics', verifyAdmin, async (req, res) => {
+  try {
+    const { buildAnalytics } = require('./services/marketingAnalytics');
+    res.json(await buildAnalytics({ db: supabaseAdmin, days: Number(req.query.days) || 30 }));
+  } catch (err) {
+    console.error('[Marketing analytics] failed:', err?.message || err);
+    res.status(500).json({ error: 'Could not load the analytics.' });
+  }
+});
+
 app.get('/api/admin/autopilot', verifyAdmin, async (req, res) => {
   try { const autopilot = getAutopilot(); if (!autopilot) return res.status(503).json({ error: 'Autopilot is not available right now' }); res.json(await autopilot.status()); }
   catch (err) { console.error('[Autopilot] status failed:', err?.message || err); res.status(500).json({ error: 'Could not load Autopilot' }); }
