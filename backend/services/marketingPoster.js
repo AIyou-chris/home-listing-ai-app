@@ -118,7 +118,7 @@ function createMarketingPoster({ db, publish = publishToPlatform, now = () => ne
         ? { title: campaign.outputs?.title || 'HomeListingAI', description: text, videoStatus: media.video ? 'ready' : '', videoUrl: media.video || '' }
         : post.channel === 'instagram'
           ? { captionText: text, hashtags: [], videoStatus: media.video ? 'ready' : '', videoUrl: media.video || '', instagramContainerId: post.container_id || '' }
-          : { caption: text };
+          : { caption: text, videoStatus: media.video ? 'ready' : '', videoUrl: media.video || '' };
 
       const result = await publish(post.channel, {
         connection: {

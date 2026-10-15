@@ -26473,7 +26473,7 @@ app.get('/api/admin/analytics/overview', verifyAdmin, async (req, res) => {
           ? 'https://api.eu.mailgun.net'
           : 'https://api.mailgun.net';
         const mgParams = {
-          start: '30d',
+          start: String(Math.floor((Date.now() - 30 * 24 * 60 * 60 * 1000) / 1000)), // Mailgun wants epoch or RFC 2822, not '30d'
           resolution: 'day',
           event: ['accepted', 'delivered', 'failed', 'opened', 'clicked', 'unsubscribed', 'complained']
         };

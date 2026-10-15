@@ -47,6 +47,18 @@ async function postFacebook({ connection, payload, imageUrl, env, fetchImpl }) {
   const message = String(payload.caption || '').trim();
   if (!message) throw new Error('This post has no caption to send.');
 
+  // A finished video goes up as a Page video; if Facebook refuses it the picture goes up instead, so the post is never lost.
+  const videoUrl = payload.videoStatus === 'ready' && typeof payload.videoUrl === 'string' ? payload.videoUrl : '';
+  if (videoUrl) {
+    try {
+      const { body } = await call(`${graph(env)}/${pageId}/videos`, {
+        method: 'POST', body: new URLSearchParams({ file_url: videoUrl, description: message, access_token: token })
+      }, fetchImpl);
+      return { url: `https://www.facebook.com/${body.id}` };
+    } catch (err) {
+      if (err instanceof ReconnectError) throw err;
+    }
+  }
   const form = imageUrl
     ? { url: imageUrl, caption: message, access_token: token }
     : { message, access_token: token };
@@ -121,13 +133,41 @@ async function uploadLinkedInImage({ connection, author, imageUrl, fetchImpl }) 
   return asset;
 }
 
+// A LinkedIn video uses the same three steps as a picture, with the video recipe.
+async function uploadLinkedInVideo({ connection, author, videoUrl, fetchImpl }) {
+  const source = await fetchImpl(videoUrl);
+  if (!source.ok) throw new Error('Could not read the video file.');
+  const bytes = Buffer.from(await source.arrayBuffer());
+  const headers = { Authorization: `Bearer ${connection.accessToken}`, 'Content-Type': 'application/json', 'X-Restli-Protocol-Version': '2.0.0' };
+  const { body: registered } = await call('https://api.linkedin.com/v2/assets?action=registerUpload', {
+    method: 'POST', headers,
+    body: JSON.stringify({ registerUploadRequest: {
+      recipes: ['urn:li:digitalmediaRecipe:feedshare-video'], owner: author,
+      serviceRelationships: [{ relationshipType: 'OWNER', identifier: 'urn:li:userGeneratedContent' }]
+    } })
+  }, fetchImpl);
+  const uploadUrl = registered.value?.uploadMechanism?.['com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest']?.uploadUrl;
+  const asset = registered.value?.asset;
+  if (!uploadUrl || !asset) throw new Error('LinkedIn did not give an upload address for the video.');
+  const put = await fetchImpl(uploadUrl, { method: 'PUT', headers: { Authorization: `Bearer ${connection.accessToken}`, 'Content-Type': 'application/octet-stream' }, body: bytes });
+  if (!put.ok) throw new Error(`LinkedIn would not take the video (HTTP ${put.status}).`);
+  return asset;
+}
+
 async function postLinkedIn({ connection, payload, imageUrl, fetchImpl }) {
   const text = String(payload.caption || '').trim();
   if (!text) throw new Error('This post has no caption to send.');
   const author = `urn:li:person:${connection.external_account_id}`;
-  const asset = imageUrl ? await uploadLinkedInImage({ connection, author, imageUrl, fetchImpl }) : null;
+  const videoUrl = payload.videoStatus === 'ready' && typeof payload.videoUrl === 'string' ? payload.videoUrl : '';
+  let videoAsset = null;
+  if (videoUrl) {
+    // If the video upload fails, the picture goes up instead, so the post is never lost.
+    try { videoAsset = await uploadLinkedInVideo({ connection, author, videoUrl, fetchImpl }); }
+    catch (err) { if (err instanceof ReconnectError) throw err; }
+  }
+  const asset = videoAsset || (imageUrl ? await uploadLinkedInImage({ connection, author, imageUrl, fetchImpl }) : null);
   const content = asset
-    ? { shareCommentary: { text }, shareMediaCategory: 'IMAGE', media: [{ status: 'READY', media: asset }] }
+    ? { shareCommentary: { text }, shareMediaCategory: videoAsset ? 'VIDEO' : 'IMAGE', media: [{ status: 'READY', media: asset }] }
     : { shareCommentary: { text }, shareMediaCategory: 'NONE' };
   const { body, headers } = await call('https://api.linkedin.com/v2/ugcPosts', {
     method: 'POST',
