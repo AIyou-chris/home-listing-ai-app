@@ -12,11 +12,14 @@
 
 ## 0. Golden Rules (read this first — always)
 
-See `GOLDEN_RULES.md` in the project root. Every feature decision is measured against these three rules:
+See `GOLDEN_RULES.md` in the project root. Every feature decision is measured against these four rules:
 
 1. **🔥 Get warm leads** — does it turn browsers into real, qualified conversations?
 2. **🤝 Build agent partnerships** — does it make the LO indispensable to agents?
 3. **⚡ Keep it simple and fast** — 3 taps max, one primary action per screen, show don't tell
+4. **🛡️ Be compliant by default** — platform guardrails always on; LO/company rules layered on top, never removable
+
+**How to talk to the founder:** short, explained like I'm 10, verdict first (good / bad / better way), brutal honesty, replace any idea you kill with a stronger one. Full rules at the bottom of `GOLDEN_RULES.md`.
 
 This is built by someone with 15 years in the mortgage industry. The two biggest pain points for every LO are warm leads and agent partnerships. This app solves both. Never lose sight of that.
 
