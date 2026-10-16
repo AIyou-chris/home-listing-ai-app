@@ -2,11 +2,11 @@
 ### The guiding principles behind every product decision
 
 > Written from 15 years in the mortgage industry.
-> If a feature doesn't serve one of these three rules, we don't build it.
+> If a feature doesn't serve one of these four rules, we don't build it.
 
 ---
 
-## The Three Golden Rules
+## The Four Golden Rules
 
 ### 1. 🔥 Get Warm Leads
 Every feature should move a stranger closer to becoming a real, qualified lead.
@@ -89,6 +89,8 @@ Before building any feature, ask:
 If the answer is no to all three → don't build it.
 If the answer is yes to even one → it's worth discussing.
 
+Then the gate (Rule 4): does it keep the AI **compliant by default**? If not → it doesn't ship, no matter how good the other answers are.
+
 ---
 
 > *"In today's market, the loan officers who win are the ones who make their agents look like rockstars.
@@ -102,5 +104,5 @@ Answer short and sweet, explained like I'm 10 — but always keep the reasoning 
 
 - Verdict first (good / bad / better way), then the *why* in plain language
 - If you kill an idea, always replace it with a stronger one
-- Measure every idea against the three Golden Rules
+- Measure every idea against the four Golden Rules
 
