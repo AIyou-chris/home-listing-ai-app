@@ -53,15 +53,15 @@ async function compose(buffer,{format='blog',brand='homelistingai',text_zone='le
   if(requiresLending&&(!lendingAsset||!/^\d{1,12}$/.test(nmls)))throw new Error('This ad needs your official Equal Housing Lender file and verified NMLS number.');
   const b=brandFor(brand);const w=f.width,h=f.height;let layers=[];
   // "launch" is the 30-day campaign look: a black text panel, the last headline line in fire red, an orange button.
-  const launch=style==='launch';const panelColor=launch?'#08090D':b.blue;const top0=launch?h*.17:h*.27;
+  const pop=style==='pop';const launch=style==='launch'||pop;const panelColor=launch?'#08090D':b.blue;const top0=pop?h*.10:launch?h*.17:h*.27;
   // An opaque brand panel guarantees white-text AA contrast; a feathered edge
   // joins it to the photograph. No claim about unmeasured photographic contrast.
-  const side=text_zone==='right'?'right':'left';const tall=w/h<=1.2;const panel=Math.round(w*(launch?.52:tall?.46:.40));let font=Math.round(Math.min(w*(launch?.082:tall?.064:.048),h*.14));
+  const side=text_zone==='right'?'right':'left';const tall=w/h<=1.2;const panel=Math.round(w*(pop?.94:launch?.52:tall?.46:.40));let font=Math.round(Math.min(w*(launch?.082:tall?.064:.048),h*.14));
   function wrap(text,maxChars){const lines=[];let line='';for(const word of text.trim().split(/\s+/).filter(Boolean)){if((line+' '+word).trim().length>maxChars&&line){lines.push(line);line=word;}else line=(line+' '+word).trim();}if(line)lines.push(line);// Never leave one short word alone on the last line: pull the word above it down.
     if(lines.length>1){const last=lines[lines.length-1];const prev=lines[lines.length-2].split(' ');if(!last.includes(' ')&&last.length<=6&&prev.length>1){lines[lines.length-1]=prev.pop()+' '+last;lines[lines.length-2]=prev.join(' ');}}
     return lines;}
   let lines,smallLines;
-  for(;font>=18;font--){const maxChars=Math.floor((panel-w*.07)/(font*.62));lines=wrap(headline,maxChars);smallLines=wrap(subline,Math.floor(maxChars/.46));if(lines.every(s=>s.length<=maxChars)&&lines.length<=4&&top0+lines.length*font*1.32+font*.7+smallLines.length*font*.65+(cta?font*1.3:0)<(launch?h*.74:h*.70))break;}
+  for(;font>=18;font--){const maxChars=Math.floor((panel-w*.07)/(font*.62));lines=wrap(headline,maxChars);smallLines=wrap(subline,Math.floor(maxChars/.46));if(lines.every(s=>s.length<=maxChars)&&lines.length<=4&&top0+lines.length*font*1.32+font*.7+smallLines.length*font*.65+(cta?font*1.3:0)<(pop?h*.44:launch?h*.74:h*.70))break;}
   if(font<18)throw new Error('Use shorter words so the headline stays easy to read.');
   if(subline.length>90)throw new Error('Keep the small line under 90 characters.');
   const x=side==='right'?w-panel:0;const tx=x+w*.035;
@@ -69,8 +69,9 @@ async function compose(buffer,{format='blog',brand='homelistingai',text_zone='le
   const antonFile=path.resolve(__dirname,'../../assets/fonts/Anton-Regular.ttf');
   async function lettering(text,size,top,bold=false,left=tx,color='white',display=false){const rendered=await sharp({text:{text:`<span foreground="${color}">${xml(display?text.toUpperCase():text)}</span>`,font:display?`Anton ${Math.round(size*1.12)}`:`Inter ${bold?'Bold ':''}${size}`,fontfile:display?antonFile:fontfile,rgba:true,wrap:'none'}}).png().toBuffer();layers.push({input:rendered,left:Math.round(left),top:Math.round(top)});}
   if(headline||subline){const fade=w*.10;const gx=side==='left'?panel:w-panel-fade;
-    layers.push({input:Buffer.from(`<svg width="${w}" height="${h}"><defs><linearGradient id="shade" x1="${side==='left'?'0':'1'}" x2="${side==='left'?'1':'0'}"><stop offset="0" stop-color="${panelColor}"/><stop offset="1" stop-color="${panelColor}" stop-opacity="0"/></linearGradient></defs><rect x="${x}" width="${panel}" height="${h}" fill="${panelColor}"/><rect x="${gx}" width="${fade}" height="${h}" fill="url(#shade)"/></svg>`),left:0,top:0});
-    for(let i=0;i<lines.length;i++)await lettering(lines[i],font,top0-font*.8+i*font*1.32,true,tx,launch&&lines.length>1&&i===lines.length-1?'#ED1C24':'white',launch);
+    if(pop) layers.push({input:Buffer.from(`<svg width="${w}" height="${h}"><defs><linearGradient id="top" x2="0" y2="1"><stop stop-color="#08090D"/><stop offset="0.83" stop-color="#08090D"/><stop offset="1" stop-color="#08090D" stop-opacity="0"/></linearGradient></defs><rect width="${w}" height="${h*.53}" fill="url(#top)"/></svg>`),left:0,top:0});
+    else layers.push({input:Buffer.from(`<svg width="${w}" height="${h}"><defs><linearGradient id="shade" x1="${side==='left'?'0':'1'}" x2="${side==='left'?'1':'0'}"><stop offset="0" stop-color="${panelColor}"/><stop offset="1" stop-color="${panelColor}" stop-opacity="0"/></linearGradient></defs><rect x="${x}" width="${panel}" height="${h}" fill="${panelColor}"/><rect x="${gx}" width="${fade}" height="${h}" fill="url(#shade)"/></svg>`),left:0,top:0});
+    for(let i=0;i<lines.length;i++)await lettering(lines[i],font,top0-font*.8+i*font*1.32,true,tx,launch&&lines.length>1&&i===lines.length-1?(pop?'#00D9E8':'#ED1C24'):'white',launch);
     for(let i=0;i<smallLines.length;i++)await lettering(smallLines[i],Math.round(font*.46),top0+lines.length*font*1.32+font*.7+i*font*.65);
     if(cta&&headline){// The call to action: a white button under the words, with dark lettering.
       const ctaSize=Math.round(font*.48);const textBuf=await sharp({text:{text:`<span foreground="${launch?'#08090D':'#172554'}">${xml(cta)}</span>`,font:`Inter Bold ${ctaSize}`,fontfile,rgba:true,wrap:'none'}}).png().toBuffer();
@@ -80,7 +81,7 @@ async function compose(buffer,{format='blog',brand='homelistingai',text_zone='le
       layers.push({input:textBuf,left:Math.round(tx+padX),top:by+padY});
     }
   }
-  if(brand==='homelistingai') {const width=Math.round(Math.min(panel*.28,h*.13));const logo=await sharp(logoPath).resize({width,height:Math.round(h*.13),fit:'inside'}).png().toBuffer({resolveWithObject:true});layers.push({input:logo.data,left:Math.round(tx),top:Math.round(h*.78)});if(headline||subline){const nameSize=Math.round(Math.min(w*.018,h*.04));await lettering('HomeListingAI',nameSize,h*.80,true,tx+logo.info.width+w*.018);await lettering('homelistingai.com',Math.round(nameSize*.85),h*.80+nameSize*1.7,false,tx+logo.info.width+w*.018,'#FF7A18');}}
+  if(brand==='homelistingai') {const width=Math.round(Math.min(panel*.28,h*.13));const logo=await sharp(logoPath).resize({width,height:Math.round(h*.13),fit:'inside'}).png().toBuffer({resolveWithObject:true});layers.push({input:logo.data,left:Math.round(tx),top:Math.round(h*(pop?.87:.78))});if(headline||subline){const nameSize=Math.round(Math.min(w*.018,h*.04));await lettering('HomeListingAI',nameSize,h*(pop?.89:.80),true,tx+logo.info.width+w*.018);await lettering('homelistingai.com',Math.round(nameSize*.85),h*(pop?.89:.80)+nameSize*1.7,false,tx+logo.info.width+w*.018,'#FF7A18');}}
   if(requiresLending){const badge=await sharp(lendingAsset).resize({width:Math.round(w*.09),height:Math.round(h*.10),fit:'inside'}).png().toBuffer();layers.push({input:badge,left:Math.round(w*.87),top:Math.round(h*.82)});layers.push({input:Buffer.from(`<svg width="${w}" height="${h}"><rect x="${w*.65}" y="${h*.93}" width="${w*.35}" height="${h*.07}" fill="${b.blue}"/><text x="${w*.67}" y="${h*.977}" fill="white" font-size="${h*.025}">NMLS ${xml(nmls)}</text></svg>`),left:0,top:0});}
   const enc=encoding||(f.web?'webp':'jpeg');if(!['webp','avif','jpeg','png'].includes(enc))throw new Error('Choose WebP, AVIF, JPG or PNG.');
   const budget=f.web?250*1024:1024*1024;let data;

@@ -20,11 +20,11 @@ function createImageWorkflow({db,openai,jev,campaign,clearApproval,claim,finish,
   async function saveOption(owner,campaignRow,direction,background,settings,groupId,cost,cachedOcr) {
     const sharp=require('sharp');const f=FORMATS[direction.format];
     const cropped=await sharp(background,{limitInputPixels:24e6}).rotate().resize(f.width,f.height,{fit:'cover',position:'centre'}).jpeg().toBuffer();
-    const check=await inspect(cropped,direction.text_zone,{readWords:typeof cachedOcr==='boolean'?async()=>cachedOcr?[]:['Needs a new word check']:bytes=>readArtwork(bytes,openai)});
+    const check=await inspect(cropped,settings.style==='pop'?'top':direction.text_zone,{readWords:typeof cachedOcr==='boolean'?async()=>cachedOcr?[]:['Needs a new word check']:bytes=>readArtwork(bytes,openai)});
     const rendered=await compose(background,{...settings,...direction,headline:settings.headline||'',subline:settings.subline||''});
     const id=crypto.randomUUID();let paths=[];
     try {const backgroundPath=await upload(owner,`${id}-background`,background,'image/jpeg','jpg');paths.push(backgroundPath);const path=await upload(owner,id,rendered.buffer,rendered.type,rendered.extension);paths.push(path);
-      result(await table().insert({id,owner_id:owner,campaign_id:campaignRow.id,group_id:groupId,brand:direction.brand,format:direction.format,prompt:direction.prompt,recipe_id:direction.recipe_id,mood:direction.mood,text_zone:direction.text_zone,variant:direction.variant,alt_text:direction.alt_text,cost,width:rendered.width,height:rendered.height,path,background_path:backgroundPath,background_fingerprint:crypto.createHash('sha256').update(background).digest('hex'),source_hash:pictureHash(campaignRow),settings:{headline:settings.headline||'',subline:settings.subline||'',encoding:settings.encoding||null,blog_post_id:settings.blog_post_id||null},checks:{problems:[...check.problems,...rendered.problems],contrast:rendered.contrast,bytes:rendered.bytes,ocrPassed:check.ocrPassed,emptySpace:check.emptySpace},approved:false,used_in:[]}));
+      result(await table().insert({id,owner_id:owner,campaign_id:campaignRow.id,group_id:groupId,brand:direction.brand,format:direction.format,prompt:direction.prompt,recipe_id:direction.recipe_id,mood:direction.mood,text_zone:direction.text_zone,variant:direction.variant,alt_text:direction.alt_text,cost,width:rendered.width,height:rendered.height,path,background_path:backgroundPath,background_fingerprint:crypto.createHash('sha256').update(background).digest('hex'),source_hash:pictureHash(campaignRow),settings:{headline:settings.headline||'',subline:settings.subline||'',encoding:settings.encoding||null,style:settings.style||'brand',cta:settings.cta??null,maxWords:settings.maxWords||8,blog_post_id:settings.blog_post_id||null},checks:{problems:[...check.problems,...rendered.problems],contrast:rendered.contrast,bytes:rendered.bytes,ocrPassed:check.ocrPassed,emptySpace:check.emptySpace},approved:false,used_in:[]}));
       return {id,rendered,problems:[...check.problems,...rendered.problems]};
     }catch(error){if(paths.length)await db.storage.from(BUCKET).remove(paths);throw error;}
   }
@@ -83,7 +83,7 @@ function createImageWorkflow({db,openai,jev,campaign,clearApproval,claim,finish,
       const all=result(await table().select('id').eq('owner_id',owner).limit(200));
       if(all.length>197)throw new StudioError(429,'Your picture library is full. No AI charge was made.');
       let previous;
-      if(body.imageId){previous=await image(owner,body.imageId);if(previous.campaign_id!==id)throw new StudioError(400,'Tweak a picture from this campaign.');if(previous.source_hash!==pictureHash(row))throw new StudioError(409,'The campaign changed. Make new picture choices first.');}
+      if(body.imageId){previous=await image(owner,body.imageId);if(previous.settings?.finishedArtwork||!previous.background_path)throw new StudioError(400,'This is finished artwork. Make a new picture instead of changing its words.');if(previous.campaign_id!==id)throw new StudioError(400,'Tweak a picture from this campaign.');if(previous.source_hash!==pictureHash(row))throw new StudioError(409,'The campaign changed. Make new picture choices first.');}
       if(body.final&&(!previous?.approved||previous.checks.problems.length))throw new StudioError(400,'Use a checked picture before making its high-quality final.');
       const nextRow=await clearApproval(owner,row);const claimed=await claim(owner,nextRow,'image','ai',pictureHash(row));
       const groupId=crypto.randomUUID();const count=previous?1:3;const quality=body.final?'high':'medium';
@@ -96,14 +96,14 @@ function createImageWorkflow({db,openai,jev,campaign,clearApproval,claim,finish,
           if(previous){const {toFile}=require('openai');const reference=await toFile(await bytes(previous.background_path),'background.jpg',{type:'image/jpeg'});const {heroImagePrompt,safeDirection}=require('./direction.cjs');const tweak=safeDirection(body.tweak||'Keep the same idea and composition; refine natural photographic detail');direction.prompt=heroImagePrompt('',`${direction.prompt.split('\n\n')[0]}. ${tweak}`,previous.brand);generated=await openai.images.edit({model:'gpt-image-1-mini',image:reference,prompt:direction.prompt,size:FORMATS[previous.format].native,quality,output_format:'jpeg',n:1},{timeout:180000,maxRetries:0});}
           else generated=await openai.images.generate({model:require('./brand.cjs').imageModels().draft,prompt:direction.prompt,size:FORMATS[format].native,quality,output_format:'jpeg',n:1},{timeout:180000,maxRetries:0});
           const data=generated.data?.[0]?.b64_json;if(!data)throw new Error('No image returned');
-          await saveOption(owner,row,direction,Buffer.from(data,'base64'),previous?{...previous.settings,...body}:body,groupId,estimate(direction.format,quality,1));
+          await saveOption(owner,row,direction,Buffer.from(data,'base64'),previous?{...previous.settings,...body}:{...body,...(direction.text_zone==='top'?{style:'pop',cta:''}:{})},groupId,estimate(direction.format,quality,1));
         }
         await fail(owner,claimed,new StudioError(400,'Your choices are ready. Check one and click “Use this.”'));
       }catch(error){await fail(owner,claimed,error);}finally{jobs.delete(`${owner}:${id}`);}};
       jobs.set(`${owner}:${id}`,groupId);job().catch(()=>{});
       return {groupId,estimatedCost:estimate(previous?.format||format,quality,count),version:nextRow.updated_at};
     },
-    // Autopilot: ONE cinematic scene made with gpt-image-1, the headline and button added on top, saved straight to the
+    // Autopilot: ONE topic-driven scene with a bold colored headline, saved straight to the
     // campaign. No review boxes (nobody is there to tick them), so the picture stays out of the reusable library
     // (approved:false) and can never become a blog hero. The automatic picture checks still apply.
     async auto(owner,id,body={}) {
@@ -111,7 +111,7 @@ function createImageWorkflow({db,openai,jev,campaign,clearApproval,claim,finish,
       if(!openai)throw new StudioError(503,'AI pictures are not enabled.');
       const format=body.format||'square';if(!Object.hasOwn(FORMATS,format))throw new StudioError(400,'Choose a picture size.');
       const headline=String(body.headline||row.outputs?.title||'').trim();
-      const cta=body.cta||'Claim your founding price';
+      const cta='';
       try{validateCopy(headline,'',14);}catch(e){throw new StudioError(400,e.message);}
       const all=result(await table().select('id').eq('owner_id',owner).limit(200));if(all.length>=195)throw new StudioError(429,'Your picture library is full. Delete old pictures first.');
       const {writeLaunchScene}=require('./launchScene.cjs');const brand=require('./brand.cjs');const models=brand.imageModels();
@@ -121,7 +121,7 @@ function createImageWorkflow({db,openai,jev,campaign,clearApproval,claim,finish,
         const direction={prompt:scene.prompt,alt_text:scene.alt_text,text_zone:'left',recipe_id:'launch-auto',mood:'cinematic',variant:Number(body.variant)||0,brand:'homelistingai',format};
         const generated=await openai.images.generate({model:models.final,prompt:direction.prompt,size:FORMATS[format].native,quality:'medium',output_format:'jpeg',n:1},{timeout:180000,maxRetries:0});
         const data=generated.data?.[0]?.b64_json;if(!data)throw new Error('No image returned');
-        const saved=await saveOption(owner,row,direction,Buffer.from(data,'base64'),{headline,subline:'',cta,style:'launch',maxWords:14},crypto.randomUUID(),estimate(format,'medium',1));
+        const saved=await saveOption(owner,row,direction,Buffer.from(data,'base64'),{headline,subline:'',cta,style:'pop',maxWords:14},crypto.randomUUID(),estimate(format,'medium',1));
         if(saved.problems.length)throw new StudioError(400,saved.problems[0]);
         await finish(owner,claimed,saved.rendered.buffer,saved.rendered.type);
         result(await table().update({used_in:[{campaign_id:id,use:'autopilot',at:new Date().toISOString()}],review:{auto:true},updated_at:new Date().toISOString()}).eq('owner_id',owner).eq('id',saved.id));
@@ -149,7 +149,7 @@ function createImageWorkflow({db,openai,jev,campaign,clearApproval,claim,finish,
         const spec=LOOKS[(start+variant)%LOOKS.length];
         const scene=await writeLaunchScene({openai,headline:String(body.title||''),idea:String(body.excerpt||'').slice(0,400),variant:start+variant,avoid:[...earlier,...made.map(m=>m.alt_text)].join(' | '),look:spec.look});
         const direction={prompt:scene.prompt,alt_text:scene.alt_text,text_zone:'left',recipe_id:'blog-auto',mood:'cinematic',variant,brand:'homelistingai',format:'blog'};
-        const copy=spec.title?{headline:String(body.title||'').replace(/\s+/g,' ').trim().slice(0,110),subline:'',cta:'',style:'launch',maxWords:16}:{headline:'',subline:''};
+        const copy=spec.title?{headline:String(body.title||'').replace(/\s+/g,' ').trim().slice(0,110),subline:'',cta:'',style:'pop',maxWords:16}:{headline:'',subline:''};
         // The picture checks (no lettering in the scene, calm space for words) sometimes reject an attempt: try again, up to three times.
         let saved=null;
         for(let attempt=0;attempt<3&&!saved;attempt++){
@@ -190,6 +190,7 @@ function createImageWorkflow({db,openai,jev,campaign,clearApproval,claim,finish,
       const row=await campaign(owner,id);if(body.version!==row.updated_at)throw new StudioError(409,'Save your latest edits first.');
       const selected=await image(owner,body.imageId);
       if(selected.campaign_id!==id&&!selected.approved)throw new StudioError(400,'Review this picture in its original campaign first.');
+      if(selected.settings?.finishedArtwork||!selected.background_path)throw new StudioError(400,'This is finished artwork. Use the original picture without adding more words.');
       const direction={...selected,format:body.format||selected.format};
       const data=await bytes(selected.background_path);
       const all=result(await table().select('id').eq('owner_id',owner).limit(200));if(all.length>=200)throw new StudioError(429,'Your picture library is full.');

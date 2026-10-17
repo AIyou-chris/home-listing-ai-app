@@ -1,0 +1,37 @@
+[
+  {
+    "key": "referral-network",
+    "title": "Is your referral network still producing?",
+    "scene": "Detailed miniature houses linked by cyan and lime illuminated cables.",
+    "script": "When did you last build a new agent relationship? Bring something useful to the conversation. Start with a WOW Link.",
+    "colors": "cyan and lime"
+  },
+  {
+    "key": "mortgage-strategy",
+    "title": "Adapt your mortgage strategy now",
+    "scene": "A modern home beside a violet chess knight and coral path.",
+    "script": "A changing market calls for a clear next move. Start with the agent relationships you can strengthen today.",
+    "colors": "violet and coral"
+  },
+  {
+    "key": "agent-partnerships",
+    "title": "Build stronger agent partnerships",
+    "scene": "Hands building a bridge between miniature homes in cobalt and pink light.",
+    "script": "Bring your next agent partner something they can use. A WOW Link gives you a real listing experience to show.",
+    "colors": "cobalt and pink"
+  },
+  {
+    "key": "open-house",
+    "title": "Make your next open house count",
+    "scene": "A welcoming modern home with a yellow ribbon leading inside at blue hour.",
+    "script": "Give buyers a place to keep asking questions after the open house. Show your agent partner a WOW Link.",
+    "colors": "blue and yellow"
+  },
+  {
+    "key": "business-brain",
+    "title": "Train your AI Brain once. Use it for every listing.",
+    "scene": "A turquoise glass brain supporting three miniature homes on magenta tracks.",
+    "script": "Teach your AI Brain the business facts you want it to use. Give your listing conversations a shared source of answers.",
+    "colors": "turquoise and magenta"
+  }
+]

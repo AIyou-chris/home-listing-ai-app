@@ -8,7 +8,7 @@ async function request(path: string, method = 'GET', body?: unknown) {
   if (!response.ok) throw new Error(typeof data.error === 'string' ? data.error : 'Media is unavailable. Please try again.');
   return data;
 }
-export type MarketingImage = { id: string; campaign_id: string; group_id: string; recipe_id: string; format: string; text_zone: string; variant: number; mood: string; alt_text: string; url: string; approved: boolean; cost: number; width: number; height: number; headline?: string; settings?: { headline: string; subline: string }; checks: { problems: string[]; contrast: number; bytes: number }; used_in: { campaign_id: string; use: string }[] };
+export type MarketingImage = { id: string; campaign_id: string; group_id: string; recipe_id: string; format: string; text_zone: string; variant: number; mood: string; alt_text: string; url: string; approved: boolean; cost: number; width: number; height: number; headline?: string; settings?: { headline: string; subline: string; finishedArtwork?: boolean }; checks: { problems: string[]; contrast: number; bytes: number }; used_in: { campaign_id: string; use: string }[] };
 export type ImageCatalog = { recipes: { id: string; use: string; pillar: string; subject: string; mood: string }[]; formats: Record<string, { label: string; width: number; height: number }>; costs: Record<string, { set: number; one: number; final: number }> };
 export type ImagePerformance = { recipe_id: string; mood: string; text_zone: string; views: number; clicks: number; engagement: number; ctr: number | null };
 export const adminMarketingMediaService = {
