@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Download, Film, Image as Picture, RefreshCw } from 'lucide-react';
 import { adminMarketingMediaService, type StudioMedia } from '../../services/adminMarketingMediaService';
 import { adminMarketingStudioService, type StudioCampaign } from '../../services/adminMarketingStudioService';
@@ -19,6 +19,8 @@ export default function MarketingCampaignMedia({ campaign, dirty, onChange }: { 
   const [error, setError] = useState('');
   const [capabilities, setCapabilities] = useState({ video: false, aiPicture: false, aiVoice: false });
   const [reload, setReload] = useState(0);
+  const voiceForVideo = useRef<StudioCampaign>();
+  const activeCampaign = useRef<string | undefined>(campaign.id);
   useEffect(() => {
     let active = true;
     Promise.all([adminMarketingMediaService.list(campaign.id), adminMarketingMediaService.capabilities()]).then(([rows, caps]) => { if (active) { setMedia(rows); setCapabilities({ ...caps, aiVoice: Boolean(caps.aiVoice) }); setLoaded(true); setError(''); } }).catch(cause => { if (active) setError(cause instanceof Error ? cause.message : 'Could not load your media.'); });
@@ -28,17 +30,55 @@ export default function MarketingCampaignMedia({ campaign, dirty, onChange }: { 
   useEffect(() => {
     if (!processing) return;
     let active = true;
-    const timer = window.setInterval(() => { adminMarketingMediaService.list(campaign.id).then(rows => { if (active) setMedia(rows); }).catch(cause => { if (active) setError(cause instanceof Error ? cause.message : 'Could not refresh your video.'); }); }, 3000);
+    const timer = window.setInterval(() => { adminMarketingMediaService.list(campaign.id).then(rows => { if (active) setMedia(rows); }).catch(cause => { if (active) { voiceForVideo.current = undefined; setBusy(false); setError(cause instanceof Error ? cause.message : 'Could not refresh your video.'); } }); }, 3000);
     return () => { active = false; window.clearInterval(timer); };
   }, [processing, campaign.id]);
+  const renderVideo = useCallback(async (row: StudioCampaign) => {
+    setMedia(await adminMarketingMediaService.video(row));
+    const latest = (await adminMarketingStudioService.list()).find(item => item.id === row.id);
+    if (latest && latest.version !== row.version) onChange(latest);
+  }, [onChange]);
+  useEffect(() => {
+    const queued = voiceForVideo.current;
+    if (!queued) return;
+    const voice = media.find(item => item.kind === 'voice');
+    if (voice?.status === 'processing') return;
+    voiceForVideo.current = undefined;
+    if (voice?.status !== 'ready' || voice.stale) { setBusy(false); setError(voice?.error || 'Voice creation did not finish. Try again.'); return; }
+    setBusy(true);
+    renderVideo(queued).catch(cause => setError(cause instanceof Error ? cause.message : 'Could not make your video.')).finally(() => setBusy(false));
+  }, [media, renderVideo]);
+  useEffect(() => {
+    activeCampaign.current = campaign.id;
+    return () => { activeCampaign.current = undefined; voiceForVideo.current = undefined; };
+  }, [campaign.id]);
   async function make(kind: 'template' | 'ai' | 'video', data?: string) {
+    let waitingForVoice = false;
     setBusy(true); setError('');
-    try { setMedia(kind === 'video' ? await adminMarketingMediaService.video(campaign) : await adminMarketingMediaService.picture(campaign, { ...(data ? { data } : {}), ...(kind === 'ai' ? { ai: true } : {}) }));
+    try {
+      if (kind === 'video') {
+        let saved = optionsChanged ? await adminMarketingStudioService.settings(campaign, format, duration, options) : campaign;
+        if (optionsChanged) onChange(saved);
+        if (needsVoice) {
+          const rows = await adminMarketingMediaService.audio(saved, { kind: 'voice', ai: true });
+          if (saved.status === 'approved') {
+            const latest = (await adminMarketingStudioService.list()).find(item => item.id === saved.id);
+            if (!latest) throw new Error('Reload your campaign before making this video.');
+            saved = latest; onChange(saved);
+          }
+          if (activeCampaign.current !== saved.id) return;
+          waitingForVoice = true;
+          voiceForVideo.current = saved;
+          setMedia(rows);
+        } else await renderVideo(saved);
+        return;
+      }
+      setMedia(await adminMarketingMediaService.picture(campaign, { ...(data ? { data } : {}), ...(kind === 'ai' ? { ai: true } : {}) }));
       const latest = (await adminMarketingStudioService.list()).find(row => row.id === campaign.id);
       if (latest && latest.version !== campaign.version) onChange(latest);
     }
-    catch (cause) { setError(cause instanceof Error ? cause.message : 'Creation failed. Please try again.'); }
-    finally { setBusy(false); }
+    catch (cause) { voiceForVideo.current = undefined; setError(cause instanceof Error ? cause.message : 'Creation failed. Please try again.'); }
+    finally { if (!waitingForVoice) setBusy(false); }
   }
   async function removeMedia(kind: StudioMedia['kind']) {
     if (!window.confirm(`Delete this saved ${kind}? Published content stays published.`)) return;
@@ -81,7 +121,8 @@ export default function MarketingCampaignMedia({ campaign, dirty, onChange }: { 
   const disabled = dirty || busy || processing || !loaded;
   const picture = media.find(item => item.kind === 'image'); const video = media.find(item => item.kind === 'video');
   const voice = media.find(item => item.kind === 'voice'); const music = media.find(item => item.kind === 'music');
-  const audioMissing = options.narration === 'saved' && (voice?.status !== 'ready' || voice.stale) || options.music === 'upload' && music?.status !== 'ready';
+  const needsVoice = options.narration === 'saved' && (voice?.status !== 'ready' || voice.stale || options.voice !== videoOptions(campaign).voice);
+  const audioMissing = options.music === 'upload' && music?.status !== 'ready';
   return <Collapsible title="Pictures & finished video" hint="Make the picture and the video for this campaign"><section aria-label="Pictures and video">
     <div className="flex flex-wrap items-center justify-between gap-2"><span className="text-sm font-semibold text-slate-700">Your media stays private until you share it</span><button type="button" className={button} disabled={busy} onClick={() => setReload(value => value + 1)} aria-label="Refresh media"><RefreshCw size={15} />Refresh</button></div>
     <p className="mt-2 text-sm text-slate-600">Tweak the script and picture direction below, save your edits, then create a preview. Your media stays private until you decide to share it.</p>
@@ -101,18 +142,18 @@ export default function MarketingCampaignMedia({ campaign, dirty, onChange }: { 
       </div></Collapsible>
       <Collapsible nested title={<span className="flex items-center gap-2"><Film size={18} />Video</span>}><div>
         <div className="mt-3 flex min-h-48 items-center justify-center border border-slate-200 bg-black">{video?.url ? <video key={video.url} src={video.url} controls playsInline poster={picture?.url || undefined} preload="auto" className="max-h-96 w-full object-contain" aria-label="Finished campaign video" /> : <p className="p-5 text-center text-sm text-slate-500">{processing ? 'Making your media… Keep this page open to watch the result.' : 'Create a video to watch it here.'}</p>}</div>
-        {video?.stale && <p className="mt-2 text-sm text-amber-800">Your content or picture changed. Remake the video to include your edits.</p>}
+        {video?.stale && <p className="mt-2 text-sm text-amber-800">This is the old video. Click the video button below to apply your saved changes.</p>}
         {video?.error && <p className="mt-2 text-sm text-red-700">{video.error}</p>}
         <div className="mt-3 grid gap-3"><label className="text-sm font-semibold text-slate-700">Video format<select aria-label="Video preview format" value={format} disabled={disabled} onChange={event => setFormat(event.target.value as StudioCampaign['videoFormat'])} className="mt-1 w-full rounded-lg border border-slate-300 bg-white p-2"><option value="vertical">Vertical</option><option value="landscape">Landscape</option></select></label><label className="text-sm font-semibold text-slate-700">Video length<select aria-label="Video preview length" value={duration} disabled={disabled} onChange={event => setDuration(event.target.value as StudioCampaign['videoDuration'])} className="mt-1 w-full rounded-lg border border-slate-300 bg-white p-2"><option value="15">15 seconds</option><option value="30">30 seconds</option><option value="60">60 seconds</option></select></label></div>
         <MarketingVideoControls options={options} setOptions={setOptions} disabled={disabled} aiVoice={Boolean(capabilities.aiVoice) && !optionsChanged} voice={voice} music={music} makeVoice={() => makeAudio('voice')} upload={(kind, file) => { if (optionsChanged) { setError('Save video settings before uploading audio.'); return; } uploadAudio(kind, file); }} />
-        {optionsChanged && <button type="button" className={`${button} mt-2`} disabled={disabled} onClick={async () => { setBusy(true); setError(''); try { onChange(await adminMarketingStudioService.settings(campaign, format, duration, options)); } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not save video settings.'); } finally { setBusy(false); } }}>Save video settings</button>}
-        <p className="mt-3 text-sm text-slate-600">Your saved script and picture, with the voice and music you choose.</p>
-        <p className="mt-2 text-xs text-slate-500">Video length is a minimum. Longer narration extends it up to 90 seconds, so your words are not cut off. No AI video subscription.</p>
-        <button type="button" className={`${primary} mt-3`} disabled={disabled || optionsChanged || audioMissing || !capabilities.video || Boolean(picture?.stale)} onClick={() => make('video')}>{busy || processing ? 'Creating…' : video ? 'Remake video' : 'Make video'}</button>
+        {optionsChanged && <button type="button" className={`${button} mt-2`} disabled={disabled} onClick={async () => { setBusy(true); setError(''); try { onChange(await adminMarketingStudioService.settings(campaign, format, duration, options)); } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not save video settings.'); } finally { setBusy(false); } }}>Save settings only</button>}
+        <p className="mt-3 text-sm text-slate-600">The video button saves these choices and builds a new preview. Missing narration is made with AI only when the button says it uses API balance.</p>
+        <p className="mt-2 text-xs text-slate-500">Slow zoom moves the whole picture; it does not animate objects inside it. Video length is a minimum. Longer narration extends it up to 90 seconds, so your words are not cut off. No AI video subscription.</p>
+        <button type="button" className={`${primary} mt-3`} disabled={disabled || audioMissing || (needsVoice && !capabilities.aiVoice) || !capabilities.video || Boolean(picture?.stale)} onClick={() => make('video')}>{busy || processing ? 'Creating…' : needsVoice ? `${optionsChanged ? 'Save & make' : 'Make'} video + AI voice — uses API balance` : optionsChanged ? 'Save & remake video' : video ? 'Remake video' : 'Make video'}</button>
         {audioMissing && <p className="mt-2 text-sm text-amber-800">Make or upload the selected audio before rendering your video.</p>}
         {loaded && !capabilities.video && <p className="mt-2 text-sm text-amber-800">Video rendering needs to be enabled on this server. Your script is saved.</p>}
-        {video?.url && <a href={video.url} target="_blank" rel="noreferrer" className={`${button} mt-3`}>Watch video</a>}
-        {video?.url && <a href={video.url} target="_blank" rel="noreferrer" download="campaign-video.mp4" className={`${button} ml-2 mt-3`}><Download size={15} />Open / download MP4</a>}
+        {video?.url && !video.stale && !optionsChanged && <a href={video.url} target="_blank" rel="noreferrer" className={`${button} mt-3`}>Watch video</a>}
+        {video?.url && !video.stale && !optionsChanged && <a href={video.url} target="_blank" rel="noreferrer" download="campaign-video.mp4" className={`${button} ml-2 mt-3`}><Download size={15} />Open / download MP4</a>}
       </div></Collapsible>
     </div>
   </section></Collapsible>;

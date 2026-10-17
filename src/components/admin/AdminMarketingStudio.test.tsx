@@ -5,11 +5,11 @@ import { adminMarketingStudioService as api, type StudioCampaign } from '../../s
 import { adminMarketingMediaService as mediaApi } from '../../services/adminMarketingMediaService';
 import { loadStudioBriefs, saveStudioBriefs, type StudioBrief } from './marketingStudioDrafts';
 
-jest.mock('../../services/adminMarketingMediaService', () => ({ adminMarketingMediaService: { imageCatalog: jest.fn().mockResolvedValue({ recipes: [], formats: { blog: {label: 'Blog hero',width:1536,height:1024} }, costs: { blog: {set:0.045,one:0.015,final:0.052} } }), imageResults: jest.fn().mockResolvedValue([]), imageLibrary: jest.fn().mockResolvedValue([]), imageOptions: jest.fn(), imageLayout: jest.fn(), chooseImage: jest.fn(), list: jest.fn().mockResolvedValue([]), capabilities: jest.fn().mockResolvedValue({ video: true, picture: true, aiPicture: true }), picture: jest.fn().mockResolvedValue([]), video: jest.fn().mockResolvedValue([]) } }));
+jest.mock('../../services/adminMarketingMediaService', () => ({ adminMarketingMediaService: { imageCatalog: jest.fn().mockResolvedValue({ recipes: [], formats: { blog: {label: 'Blog hero',width:1536,height:1024} }, costs: { blog: {set:0.045,one:0.015,final:0.052} } }), imageResults: jest.fn().mockResolvedValue([]), imageLibrary: jest.fn().mockResolvedValue([]), imageOptions: jest.fn(), imageLayout: jest.fn(), chooseImage: jest.fn(), list: jest.fn().mockResolvedValue([]), capabilities: jest.fn().mockResolvedValue({ video: true, picture: true, aiPicture: true, aiVoice: true }), audio: jest.fn(), picture: jest.fn().mockResolvedValue([]), video: jest.fn().mockResolvedValue([]) } }));
 jest.mock('../../admin-dashboard/Blog/BlogEditor', () => ({ __esModule: true, default: () => <p>Existing blog management</p> }));
 jest.mock('./MarketingCampaignPosting', () => ({ __esModule: true, default: () => <p>Publishing history</p> }));
 jest.mock('qrcode', () => ({ __esModule: true, default: { toDataURL: jest.fn() } }));
-jest.mock('../../services/adminMarketingStudioService', () => ({ adminMarketingStudioService: { list: jest.fn(), save: jest.fn(), generate: jest.fn(), remove: jest.fn(), edit: jest.fn(), approve: jest.fn() } }));
+jest.mock('../../services/adminMarketingStudioService', () => ({ adminMarketingStudioService: { list: jest.fn(), save: jest.fn(), generate: jest.fn(), remove: jest.fn(), edit: jest.fn(), approve: jest.fn(), settings: jest.fn() } }));
 const mocked = api as jest.Mocked<typeof api>;
 const owner = '11111111-1111-4111-8111-111111111111';
 const localBrief: StudioBrief = { id: '22222222-2222-4222-8222-222222222222', kind: 'campaign', idea: 'New market idea', goal: 'Warm leads', tone: 'Helpful', audience: 'Loan officers', pictureMode: 'auto', pictureDescription: '', photoName: '', videoFormat: 'vertical', videoDuration: '30', plannedAt: '', createdAt: '2026-10-04T00:00:00.000Z' };
@@ -157,4 +157,16 @@ test('Resume Draft restores an account-saved photo and Create clears it without 
  render(<AdminMarketingStudio ownerId={owner}/>);await ready();fireEvent.click(screen.getByRole('tab',{name:'My campaigns'}));fireEvent.click(screen.getByRole('button',{name:/New market.*Campaign/}));
  fireEvent.click(screen.getByRole('button',{name:'Resume Draft'}));expect(await screen.findByAltText('Your selected campaign photo')).toHaveAttribute('src','https://private.example/home.png');
  fireEvent.click(screen.getByRole('tab',{name:'Create',exact:true}));expect(screen.queryByAltText('Your selected campaign photo')).not.toBeInTheDocument();expect(screen.queryByText('saved-home.png')).not.toBeInTheDocument();expect(mocked.remove).not.toHaveBeenCalled();
+});
+
+
+test('saving video choices keeps the real campaign editor mounted until narration and rendering start',async()=>{
+ const draft={...saved,status:'draft' as const,outputs};const changed={...draft,narration:'saved' as const,music:'upbeat' as const,version:'v2'};
+ mocked.list.mockResolvedValue([draft]);mocked.settings.mockResolvedValue(changed);
+ (mediaApi.audio as jest.Mock).mockResolvedValue([{kind:'voice',status:'ready',source:'ai',stale:false,updatedAt:new Date().toISOString()}]);
+ render(<AdminMarketingStudio ownerId={owner}/>);await ready();fireEvent.click(screen.getByRole('tab',{name:'My campaigns'}));fireEvent.click(screen.getByRole('button',{name:/New market.*Campaign/}));
+ await waitFor(()=>expect(screen.getByLabelText('Narration')).toBeEnabled());
+ fireEvent.change(screen.getByLabelText('Narration'),{target:{value:'saved'}});fireEvent.change(screen.getByLabelText('Background music'),{target:{value:'upbeat'}});
+ fireEvent.click(screen.getByRole('button',{name:'Save & make video + AI voice — uses API balance'}));
+ await waitFor(()=>expect(mediaApi.video).toHaveBeenCalledWith(changed));expect(mediaApi.audio).toHaveBeenCalledTimes(1);
 });

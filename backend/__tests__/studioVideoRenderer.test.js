@@ -35,7 +35,20 @@ test('picture layout keeps a finished picture whole and makes a playable video',
   const renderer = require('../services/studioVideoRenderer');
   if (!(await renderer.available())) return t.skip('ffmpeg not available here');
   const sharp = require('sharp');
-  const photo = await sharp({ create: { width: 1080, height: 1080, channels: 3, background: { r: 30, g: 40, b: 120 } } }).jpeg().toBuffer();
+  const photo = await sharp({ create: { width: 1080, height: 1080, channels: 3, background: { r: 30, g: 40, b: 120 } } }).composite([{input:Buffer.from('<svg width="1080" height="1080"><rect x="100" y="100" width="880" height="880" fill="none" stroke="white" stroke-width="50"/><circle cx="540" cy="540" r="200" fill="red"/></svg>')}]).jpeg().toBuffer();
   const mp4 = await renderer.render({ brief: { videoFormat: 'vertical', videoDuration: '15', layout: 'picture', endCard: 'none' }, outputs: { title: 'T', videoScript: 'One line. Another line.' } }, photo);
   assert.ok(mp4.length > 2000);
+  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'hlai-motion-test-'));
+  try {
+    const file=path.join(dir,'moving.mp4');await fs.writeFile(file,mp4);
+    const frame=async seconds=>{const {stdout}=await run(process.env.FFMPEG_BIN||'ffmpeg',['-hide_banner','-loglevel','error','-ss',String(seconds),'-i',file,'-frames:v','1','-f','image2pipe','-vcodec','png','pipe:1'],{encoding:'buffer',maxBuffer:2e6});return sharp(stdout).greyscale().raw().toBuffer();};
+    const first=await frame(1),later=await frame(10);let difference=0;for(let i=0;i<first.length;i++)difference+=Math.abs(first[i]-later[i]);
+    assert.ok(difference/first.length>1,'The finished picture must visibly move between frames');
+  } finally {await fs.rm(dir,{recursive:true,force:true});}
+});
+
+test('upbeat music has distinct percussion rather than the calm pad with a quiet melody',()=>{
+ const highFrequencyEnergy=bytes=>{let energy=0;for(let i=46;i<bytes.length;i+=2){const change=bytes.readInt16LE(i)-bytes.readInt16LE(i-2);energy+=change*change;}return energy;};
+ const calm=renderer.musicWav('calm',4),upbeat=renderer.musicWav('upbeat',4);
+ assert.ok(highFrequencyEnergy(upbeat)>highFrequencyEnergy(calm)*4,'Upbeat needs audible percussion transients');
 });

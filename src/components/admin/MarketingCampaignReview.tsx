@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import MarketingCampaignMedia from './MarketingCampaignMedia';
 import Collapsible from './Collapsible';
 import { setAllOpen } from './collapsibleAll';
@@ -16,6 +16,7 @@ const FIELDS: { key: keyof CampaignOutputs; label: string; max: number }[] = [
 const button = 'rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-primary-500';
 export default function MarketingCampaignReview({ campaign, onChange }: { campaign: StudioCampaign; onChange: (campaign: StudioCampaign) => void }) {
   const [outputs, setOutputs] = useState(campaign.outputs as CampaignOutputs);
+  useEffect(() => { setOutputs(campaign.outputs as CampaignOutputs); }, [campaign.outputs]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');

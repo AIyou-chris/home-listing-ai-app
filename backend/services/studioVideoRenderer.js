@@ -125,8 +125,16 @@ function musicWav(style, seconds) {
   for(let i=0;i<length;i++) {
     const t=i/rate, chord=chords[Math.floor(t/4)%4], local=t%4;
     const pad=chord.reduce((sum,f)=>sum+Math.sin(2*Math.PI*f*t),0)/3*Math.min(1,local*3,(4-local)*3)*.15;
-    const beat=style==='upbeat' ? Math.sin(2*Math.PI*chord[Math.floor(t*2)%3]*t)*Math.exp(-(t%.5)*10)*.12 : 0;
-    const fade=Math.min(1,t,seconds-t);buffer.writeInt16LE(Math.round((pad+beat)*fade*32767),44+i*2);
+    let beat=0;
+    if(style==='upbeat') {
+      const pulse=t%.5, halfBeat=t%.25, noise=(Math.sin(i*127.1)*43758.5453)%1;
+      const kick=Math.sin(2*Math.PI*(55*pulse+1.6*(1-Math.exp(-pulse*35))))*Math.exp(-pulse*18)*.28;
+      const snare=Math.floor(t*2)%2===1?noise*Math.exp(-pulse*32)*.16:0;
+      const hat=noise*Math.exp(-halfBeat*75)*.07;
+      const melody=Math.sin(2*Math.PI*chord[Math.floor(t*4)%3]*t)*Math.exp(-halfBeat*14)*.07;
+      beat=kick+snare+hat+melody;
+    }
+    const fade=Math.min(1,t,seconds-t);buffer.writeInt16LE(Math.round(((style==='upbeat'?pad*.45:pad)+beat)*fade*32767),44+i*2);
   }
   return buffer;
 }
@@ -147,9 +155,9 @@ async function render(campaign, photo, audio={}) {
     // Animate only the background. The text layer remains at its original size/position.
     const background=path.join(dir,'background.png');
     if(photo&&options.layout==='picture') {
-      // A finished picture already carries its own words, so keep all of it in view: soft blurred fill behind, the whole picture in front.
+      // Leave room around finished artwork so the stronger zoom keeps its headline and logo in view.
       const fill=await sharp(photo).resize(width*2,height*2,{fit:'cover'}).blur(30).modulate({brightness:.7}).png().toBuffer();
-      const whole=await sharp(photo).resize(width*2,height*2,{fit:'inside'}).png().toBuffer();
+      const whole=await sharp(photo).resize(Math.round(width*1.7),Math.round(height*1.7),{fit:'inside'}).png().toBuffer();
       await sharp(fill).composite([{input:whole,gravity:'centre'}]).png().toFile(background);
     } else {
       const bg=photo?sharp(photo).resize(width*2,height*2,{fit:'cover'}):sharp(backgroundSvg(width*2,height*2,options.videoStyle));
@@ -190,7 +198,7 @@ async function render(campaign, photo, audio={}) {
     await fs.writeFile(path.join(dir,'frames.txt'),graphics.map(g=>`file '${g.file}'\noption framerate ${fps}\nduration ${g.frames/fps}\n`).join('')+`file '${graphics.at(-1).file}'\noption framerate ${fps}\n`);
     const out=path.join(dir,'video.mp4');
     const args=['-nostdin','-y','-hide_banner','-loglevel','error','-filter_complex_threads','1','-loop','1','-framerate',String(fps),'-i',background,'-f','concat','-safe','0','-i',path.join(dir,'frames.txt')];
-    const zoom=options.motion==='gentle'?`zoompan=z='1.02+0.06*min(on/${Math.max(1,duration*fps-1)},1)':x='iw/2-iw/zoom/2':y='ih/2-ih/zoom/2':d=1:s=${width}x${height}:fps=${fps}`:`scale=${width}:${height}`;
+    const zoom=options.motion==='gentle'?`zoompan=z='1.00+0.14*min(on/${Math.max(1,(duration-closing)*fps-1)},1)':x='iw/2-iw/zoom/2':y='ih/2-ih/zoom/2':d=1:s=${width}x${height}:fps=${fps}`:`scale=${width}:${height}`;
     const filters=[`[0:v]${zoom},setsar=1[background]`,`[1:v]fps=${fps},format=rgba[graphics]`,`[background][graphics]overlay=shortest=1:format=auto,format=yuv420p[finished]`];
     const tracks=[];let index=2;
     if(voice) {const file=path.join(dir,'voice.mp3');await fs.writeFile(file,voice);args.push('-i',file);filters.push(`[${index++}:a]atempo=${speed},apad,atrim=duration=${duration}[voice]`);tracks.push('[voice]');}
