@@ -8,6 +8,23 @@
 > When you finish work, update "What We've Done", "Right Now" and "Next Up".
 > If something here doesn't match the code, the code wins — fix this file.
 
+## Contents
+
+*10 sections. A long file may only be read in part, so jump to the section you need from this list.*
+
+- [How to talk to Chris](#how-to-talk-to-chris)
+- [The Goal](#the-goal)
+- [The Overhaul Plan (Sept 2026)](#the-overhaul-plan-sept-2026)
+- [Stack](#stack)
+- [Brand](#brand)
+- [What We've Done ✅](#what-weve-done)
+- [Right Now 🔨](#right-now)
+- [Next Up ⏭️](#next-up)
+- [Known Problems ⚠️](#known-problems)
+- [Decisions Log](#decisions-log)
+
+---
+
 ## How to talk to Chris
 
 - Answer short. Explain it like he's 10.

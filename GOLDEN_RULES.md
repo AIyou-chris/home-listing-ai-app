@@ -6,6 +6,18 @@
 
 ---
 
+## Contents
+
+*5 sections. A long file may only be read in part, so jump to the section you need from this list.*
+
+- [The Three Golden Rules](#the-three-golden-rules)
+- [What This App Actually Solves](#what-this-app-actually-solves)
+- [Design Principles (derived from the Golden Rules)](#design-principles-derived-from-the-golden-rules)
+- [The "No" Filter](#the-no-filter)
+- [How to Talk to the Founder (rule for Claude)](#how-to-talk-to-the-founder-rule-for-claude)
+
+---
+
 ## The Three Golden Rules
 
 ### 1. 🔥 Get Warm Leads
