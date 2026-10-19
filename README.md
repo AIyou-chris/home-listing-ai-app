@@ -1,3 +1,28 @@
+## Contents
+
+*18 sections. A long file may only be read in part, so jump to the section you need from this list.*
+
+- [Supabase Chat Tables](#supabase-chat-tables)
+- [✨ New Features & Improvements](#new-features--improvements)
+- [🚀 Quick Start](#quick-start)
+- [🏗️ Project Structure](#project-structure)
+- [📊 Analytics Dashboard](#analytics-dashboard)
+- [🔔 Notification System](#notification-system)
+- [⚖️ Property Comparison](#property-comparison)
+- [🚀 Deployment](#deployment)
+- [🔧 Configuration](#configuration)
+- [📱 Features](#features)
+- [🛠️ Development](#development)
+- [Phase 3.1 Jobs Worker (Reliability)](#phase-31-jobs-worker-reliability)
+- [🔒 Security](#security)
+- [📈 Performance](#performance)
+- [🤝 Contributing](#contributing)
+- [📄 License](#license)
+- [🆘 Support](#support)
+- [🎯 Roadmap](#roadmap)
+
+---
+
 ## Supabase Chat Tables
 
 Run this SQL in Supabase to enable persistent conversations and messages:

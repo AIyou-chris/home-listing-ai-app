@@ -10,6 +10,23 @@
 
 ---
 
+## Contents
+
+*10 sections. A long file may only be read in part, so jump to the section you need from this list.*
+
+- [0. Golden Rules (read this first — always)](#0-golden-rules-read-this-first--always)
+- [1. App Purpose / Who It's For](#1-app-purpose--who-its-for)
+- [2. Tech Stack](#2-tech-stack)
+- [3. Coding Conventions (Codex-established)](#3-coding-conventions-codex-established)
+- [4. Pages — Done vs In Progress](#4-pages--done-vs-in-progress)
+- [5. How to Work With This User](#5-how-to-work-with-this-user)
+- [6. Key Files to Know](#6-key-files-to-know)
+- [7. Current State (2026-10-11)](#7-current-state-2026-10-11)
+- [Agent skills](#agent-skills)
+- [MCP Tools: code-review-graph](#mcp-tools-code-review-graph)
+
+---
+
 ## 0. Golden Rules (read this first — always)
 
 See `GOLDEN_RULES.md` in the project root. Every feature decision is measured against these three rules:
