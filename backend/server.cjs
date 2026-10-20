@@ -36153,6 +36153,15 @@ const getAutopilot = () => {
   }
   return autopilotInstance;
 };
+app.get('/api/admin/today', verifyAdmin, async (req, res) => {
+  try {
+    const { buildToday } = require('./services/adminToday');
+    res.json(await buildToday({ db: supabaseAdmin, owner: req.user.id, days: 7 }));
+  } catch (err) {
+    console.error('[Admin today] failed:', err?.message || err);
+    res.status(500).json({ error: 'Could not load Today.' });
+  }
+});
 app.get('/api/admin/marketing-analytics', verifyAdmin, async (req, res) => {
   try {
     const { buildAnalytics } = require('./services/marketingAnalytics');

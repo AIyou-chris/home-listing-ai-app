@@ -25,6 +25,7 @@ import type { ScheduleAppointmentFormData } from '../components/ScheduleAppointm
 import { adminConversationsService } from '../services/adminConversationsService';
 
 export type DashboardView =
+  | 'today'
   | 'dashboard'
   | 'leads'
   | 'ai-card'
@@ -44,6 +45,7 @@ export type DashboardView =
   | 'lo-platform';
 
 import AdminBroadcastPage from './components/AdminBroadcastPage';
+import AdminTodayPage from './components/AdminTodayPage';
 import BlogEditor from './Blog/BlogEditor';
 import { AdminLOPage } from './components/AdminLOPage';
 
@@ -81,14 +83,14 @@ interface AdminDashboardProps {
   initialTab?: DashboardView;
 }
 
-const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'dashboard' }) => {
+const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'today' }) => {
   // The appointment form's "assigned agent" picker used to offer two made-up people and the server ignored it, so it is empty (hidden).
   const agentOptions: Array<{ id: string; name: string }> = [];
   const { tab } = useParams<{ tab: string }>();
   const navigate = useNavigate();
 
   // Use URL tab if available, otherwise fall back to initialTab
-  const normalizedTab = tab === 'overview' ? 'dashboard' : tab;
+  const normalizedTab = tab === 'overview' ? 'today' : tab;
   const activeView = (normalizedTab as DashboardView) || initialTab;
   // Admin routes should never honor demo mode flags or demo dashboards.
   const isDemoMode = false;
@@ -337,11 +339,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'dashboard
   };
 
   const resetToDashboard = () => {
-    handleSetView('dashboard');
+    handleSetView('today');
   };
 
   const renderMainContent = () => {
     switch (activeView) {
+      case 'today':
+        return <AdminTodayPage onGo={(to) => handleSetView(to === 'marketing' ? 'marketing-funnels' : 'settings')} />;
       case 'dashboard':
         return <AdminCommandCenter />;
       case 'leads':

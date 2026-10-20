@@ -3,6 +3,7 @@ import { LogoWithName } from '../components/LogoWithName';
 import { adminAuthService } from '../services/adminAuthService';
 
 type DashboardView =
+  | 'today'
   | 'dashboard'
   | 'leads'
   | 'ai-card'
@@ -71,7 +72,8 @@ const NavItem: React.FC<{
 
 const AdminDashboardSidebar: React.FC<AdminDashboardSidebarProps> = ({ activeView, setView, isOpen, onClose, isDesktop, badgeCounts }) => {
   const navItems = [
-    { view: 'dashboard', icon: 'home', label: 'Admin Overview' },
+    { view: 'today', icon: 'home', label: 'Today' },
+    { view: 'dashboard', icon: 'monitor_heart', label: 'System Health' },
     { view: 'leads', icon: 'groups', label: 'Leads & Appointments' },
     { view: 'ai-conversations', icon: 'chat_bubble', label: 'AI Conversations' },
     { view: 'inbox', icon: 'inbox', label: 'Inbox' },
