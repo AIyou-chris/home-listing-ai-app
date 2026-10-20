@@ -46,6 +46,7 @@ export type DashboardView =
 
 import AdminBroadcastPage from './components/AdminBroadcastPage';
 import BlogEditor from './Blog/BlogEditor';
+import { groupFor } from './adminNav';
 import { AdminLOPage } from './components/AdminLOPage';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -441,7 +442,24 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'today' })
           <div className="w-10" />
         </header>
         <main className="flex-1 overflow-x-hidden overflow-y-auto bg-slate-50">
-          <div className="min-h-full space-y-6 p-6">{renderMainContent()}</div>
+          <div className="min-h-full space-y-6 p-6">
+            {groupFor(activeView).tabs.length > 1 && (
+              <nav aria-label="Sections" className="flex flex-wrap gap-2">
+                {groupFor(activeView).tabs.map((t) => (
+                  <button
+                    key={t.view}
+                    type="button"
+                    onClick={() => handleSetView(t.view)}
+                    aria-current={groupFor(activeView).tabs.some((x) => x.view === activeView) && t.view === activeView ? 'page' : undefined}
+                    className={`rounded-full border px-4 py-2 text-sm font-semibold ${t.view === activeView ? 'border-primary-600 bg-primary-600 text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </nav>
+            )}
+            {renderMainContent()}
+          </div>
         </main>
       </div>
     </div>

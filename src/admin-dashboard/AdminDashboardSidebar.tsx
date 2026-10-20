@@ -1,6 +1,7 @@
 import React from 'react';
 import { LogoWithName } from '../components/LogoWithName';
 import { adminAuthService } from '../services/adminAuthService';
+import { NAV_GROUPS, groupFor } from './adminNav';
 
 type DashboardView =
   | 'today'
@@ -43,12 +44,9 @@ const NavItem: React.FC<{
   children: React.ReactNode;
   onClose: () => void;
   badge?: number;
-}> = ({ viewName, activeView, setView, icon, children, onClose, badge }) => {
-  const isListingsActive = viewName === 'listings' && (activeView === 'listings' || activeView === 'property' || activeView === 'add-listing');
-  const isLeadsActive = viewName === 'leads' && activeView === 'leads';
-  const isAiCardActive = viewName === 'ai-card' && activeView === 'ai-card';
-
-  const isActive = activeView === viewName || (viewName === 'today' && activeView === 'dashboard') || isListingsActive || isLeadsActive || isAiCardActive;
+  active: boolean;
+}> = ({ viewName, setView, icon, children, onClose, badge, active }) => {
+  const isActive = active;
 
   return (
     <button
@@ -71,19 +69,13 @@ const NavItem: React.FC<{
 };
 
 const AdminDashboardSidebar: React.FC<AdminDashboardSidebarProps> = ({ activeView, setView, isOpen, onClose, isDesktop, badgeCounts }) => {
-  const navItems = [
-    { view: 'today', icon: 'home', label: 'Today' },
-    { view: 'leads', icon: 'groups', label: 'Leads & Appointments' },
-    { view: 'ai-conversations', icon: 'chat_bubble', label: 'AI Conversations' },
-    { view: 'inbox', icon: 'inbox', label: 'Inbox' },
-    { view: 'knowledge-base', icon: 'psychology', label: 'Business Brain' },
-    { view: 'marketing-funnels', icon: 'campaign', label: 'Marketing Funnels' },
-    { view: 'broadcast', icon: 'podium', label: 'Broadcasts' },
-    { view: 'listings', icon: 'home_work', label: 'Listings' },
-    { view: 'lo-platform', icon: 'account_balance', label: 'LO Platform' },
-    { view: 'users', icon: 'people', label: 'Users' },
-    { view: 'settings', icon: 'settings', label: 'Settings' }
-  ];
+  const navItems = NAV_GROUPS.map((g) => ({
+    view: g.tabs[0].view,
+    icon: g.icon,
+    label: g.label,
+    active: groupFor(activeView).id === g.id,
+    badge: g.tabs.reduce((n, t) => n + (badgeCounts?.[t.view] || 0), 0)
+  }));
 
   const handleLogoClick = () => {
     setView('dashboard');
@@ -129,10 +121,11 @@ const AdminDashboardSidebar: React.FC<AdminDashboardSidebarProps> = ({ activeVie
                 key={item.view}
                 viewName={item.view as DashboardView}
                 activeView={activeView}
+                active={item.active}
                 setView={setView}
                 icon={item.icon}
                 onClose={onClose}
-                badge={badgeCounts?.[item.view as DashboardView]}
+                badge={item.badge}
               >
                 {item.label}
               </NavItem>
