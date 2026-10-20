@@ -6,8 +6,9 @@ const { buildToday } = require('../services/adminToday');
 function fakeDb(tables, broken = []) {
   return {
     from(name) {
-      const q = { select: () => q, eq: () => q, gte: () => q, order: () => q, in: () => q, limit: () => q,
-        then: (ok) => ok(broken.includes(name) ? { data: null, error: new Error('down') } : { data: tables[name] || [], error: null }) };
+      let rows = null;
+      const q = { select: () => q, eq: (k, v) => { rows = (rows || tables[name] || []).filter((r) => r[k] === undefined || r[k] === v); return q; }, gte: () => q, order: () => q, in: () => q, limit: () => q,
+        then: (ok) => ok(broken.includes(name) ? { data: null, error: new Error('down') } : { data: rows || tables[name] || [], error: null }) };
       return q;
     }
   };
@@ -21,9 +22,9 @@ const base = {
   admin_marketing_posts: [
     { id: 'p1', campaign_id: 'c1', channel: 'linkedin', status: 'published', posted_at: '2026-10-19T10:00:00Z', url: 'https://x.test/1' },
     { id: 'p2', campaign_id: 'c1', channel: 'facebook', status: 'failed' },
-    { id: 'p3', campaign_id: 'other-owner', channel: 'linkedin', status: 'published', posted_at: '2026-10-19T11:00:00Z' }
+    { id: 'p3', campaign_id: 'other-owner', owner_id: 'someone-else', channel: 'linkedin', status: 'published', posted_at: '2026-10-19T11:00:00Z' }
   ],
-  house_social_connections: [{ platform: 'instagram', status: 'needs_reconnect' }],
+  house_social_connections: [{ platform: 'instagram', status: 'needs_reconnect', owner_id: 'me' }, { platform: 'youtube', status: 'needs_reconnect', owner_id: 'someone-else' }],
   cold_email_sends: [{ sent_at: '2026-10-18T00:00:00Z' }, { sent_at: '2026-10-18T00:00:00Z', replied_at: '2026-10-19T00:00:00Z', reply_class: 'positive' }]
 };
 
@@ -34,6 +35,7 @@ test('sorts posts, drafts, failures and reconnects into the right boxes', async 
   assert.strictEqual(t.wentOut.emailsSent, 2);
   const kinds = t.needsMe.items.map((i) => i.kind).sort();
   assert.deepStrictEqual(kinds, ['approve', 'failed-post', 'reconnect', 'replies']);
+  assert.strictEqual(t.needsMe.items.filter((i) => i.kind === 'reconnect').length, 1, 'only my own connections');
 });
 
 test('says not available instead of showing zero when a table cannot be read', async () => {

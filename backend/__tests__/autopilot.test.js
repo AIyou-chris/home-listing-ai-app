@@ -6,6 +6,9 @@ const { checkPost } = require('../services/autopilot/safety');
 const { TOPICS } = require('../services/autopilot/topics');
 
 // A very small in-memory database: just the calls the engine makes.
+const OWNER = 'ddee9647-fd81-4e54-be9c-dd25e46a99bf';
+const OTHER = '11111111-1111-4111-8111-111111111111';
+
 function fakeDb(seed = {}) {
   const tables = { admin_switches: [], admin_marketing_campaigns: [], admin_marketing_posts: [], platform_brain: [], ...seed };
   const pick = (row, key) => (key.includes('->>') ? (row[key.split('->>')[0]] || {})[key.split('->>')[1]] : row[key]);
@@ -49,7 +52,7 @@ const GOOD = {
 function harness({ outputs = GOOD, now = new Date('2026-10-13T20:00:00Z'), blog = null, mediaExtra = {} } = {}) {
   let current = now;
   const db = fakeDb();
-  db.tables.admin_switches.push({ key: 'autopilot_on', enabled: true, updated_by: 'ddee9647-fd81-4e54-be9c-dd25e46a99bf' });
+  db.tables.admin_switches.push({ key: 'autopilot_on', enabled: true, owner_id: OWNER, updated_by: OWNER });
   const scheduled = []; const mails = []; const pictureCalls = [];
   const studio = {
     async generate(owner, id) { const r = db.tables.admin_marketing_campaigns.find((x) => x.id === id); Object.assign(r, { status: 'draft', outputs: { ...outputs }, updated_at: 'v1' }); return r; },
@@ -62,7 +65,7 @@ function harness({ outputs = GOOD, now = new Date('2026-10-13T20:00:00Z'), blog 
   const ap = createAutopilot({
     db, studioFor: () => studio, media, blog, now: () => current, log: { warn() {} },
     getPoster: () => ({ async schedule(args) { scheduled.push(args); } }),
-    getConnections: async () => ({ facebook: true, instagram: true, linkedin: true, youtube: true }),
+    getConnections: async (owner) => ({ facebook: true, instagram: true, linkedin: true, youtube: true }),
     sendMail: async (m) => { mails.push(m); }
   });
   return { db, ap, scheduled, mails, pictureCalls, setNow: (d) => { current = d; } };
@@ -128,7 +131,7 @@ test('Stop turns it off and takes back posts that are waiting', async () => {
 test('the 30-day launch plan uses the launch topics and the launch look, then stops after 30 days', async () => {
   const day = 86400000; const now = new Date('2026-10-13T23:00:00Z'); // 4 PM Pacific: 5 PM today and 8 AM tomorrow are inside the 18-hour window
   const running = harness({ now });
-  running.db.tables.admin_switches.push({ key: 'autopilot_plan_launch30', enabled: true, updated_at: new Date(now.getTime() - 2 * day).toISOString() });
+  running.db.tables.admin_switches.push({ key: 'autopilot_plan_launch30', owner_id: OWNER, enabled: true, updated_at: new Date(now.getTime() - 2 * day).toISOString() });
   await running.ap.tick();
   const rows = running.db.tables.admin_marketing_campaigns;
   assert.ok(rows.length >= 2);
@@ -137,7 +140,7 @@ test('the 30-day launch plan uses the launch topics and the launch look, then st
   assert.ok(/Bold, direct/.test(rows[0].brief.tone));
 
   const over = harness({ now });
-  over.db.tables.admin_switches.push({ key: 'autopilot_plan_launch30', enabled: true, updated_at: new Date(now.getTime() - 40 * day).toISOString() });
+  over.db.tables.admin_switches.push({ key: 'autopilot_plan_launch30', owner_id: OWNER, enabled: true, updated_at: new Date(now.getTime() - 40 * day).toISOString() });
   await over.ap.tick();
   assert.ok(over.db.tables.admin_marketing_campaigns.every((r) => !r.brief.cardStyle), 'after 30 days it goes back to everyday posts');
 });
@@ -165,9 +168,9 @@ test('verified facts may be quoted with their exact numbers; any other statistic
 test('a saved direction and the founding-price end date go into the posts that are written next', async () => {
   const day = 86400000; const now = new Date('2026-10-13T23:00:00Z');
   const h = harness({ now });
-  h.db.tables.admin_switches.push({ key: 'autopilot_plan_launch30', enabled: true, updated_at: new Date(now.getTime() - 19 * day).toISOString() }); // plan day 20
+  h.db.tables.admin_switches.push({ key: 'autopilot_plan_launch30', owner_id: OWNER, enabled: true, updated_at: new Date(now.getTime() - 19 * day).toISOString() }); // plan day 20
   h.db.tables.platform_brain.push({ id: 'founding-offer', config: { endsAt: '2026-11-02T00:00:00.000Z' } });
-  await h.ap.setDirection('Lean on the free trial this week. Never mention rates.');
+  await h.ap.setDirection(OWNER, 'Lean on the free trial this week. Never mention rates.');
   const out = await h.ap.tick();
   const rows = h.db.tables.admin_marketing_campaigns;
   assert.ok(rows.length >= 1, JSON.stringify(out));
@@ -177,7 +180,7 @@ test('a saved direction and the founding-price end date go into the posts that a
   assert.match(evening.brief.idea, /Lean on the free trial/);
   assert.ok(evening.brief.topicKey.startsWith('l4-'), 'from day 17 the evening post is the founding-price offer');
   assert.match(evening.brief.idea, /ends on November 1 or when the 25 spots are gone/);
-  assert.strictEqual((await h.ap.status()).direction, 'Lean on the free trial this week. Never mention rates.');
+  assert.strictEqual((await h.ap.status(OWNER)).direction, 'Lean on the free trial this week. Never mention rates.');
 });
 
 test('the founding discount stops being applied after its end date', async () => {
@@ -242,7 +245,7 @@ test('every launch topic has its own short picture headline, and it reaches the 
   assert.ok(LAUNCH.every((t) => t.headline && t.headline.length < 80), 'a headline for each launch topic');
   const now = new Date('2026-10-13T23:00:00Z');
   const h = harness({ now });
-  h.db.tables.admin_switches.push({ key: 'autopilot_plan_launch30', enabled: true, updated_at: new Date(now.getTime() - 2 * 86400000).toISOString() });
+  h.db.tables.admin_switches.push({ key: 'autopilot_plan_launch30', owner_id: OWNER, enabled: true, updated_at: new Date(now.getTime() - 2 * 86400000).toISOString() });
   await h.ap.tick();
   const morning = h.db.tables.admin_marketing_campaigns.find((r) => r.brief.slot.endsWith('@08:00'));
   assert.ok(morning.brief.cardHeadline && morning.brief.cardHeadline === LAUNCH.find((t) => t.key === morning.brief.topicKey).headline);
@@ -327,4 +330,33 @@ test('a blog draft gets an AI picture attached, and a picture failure never lose
   assert.strictEqual(second.id, '55555555-5555-4555-8555-555555555555');
   assert.strictEqual(second.picture, false);
   assert.ok(!second.failed, 'the draft itself is still fine');
+});
+
+test('two customers: each one\'s Autopilot, posts, direction and Stop are kept apart', async () => {
+  const h = harness();
+  h.db.tables.admin_switches.push({ key: 'autopilot_on', enabled: true, owner_id: OTHER, updated_by: OTHER });
+  await h.ap.setDirection(OTHER, 'Only talk about the invoice tool.');
+  await h.ap.tick();
+  const mine = h.db.tables.admin_marketing_campaigns.filter((c) => c.owner_id === OWNER);
+  const theirs = h.db.tables.admin_marketing_campaigns.filter((c) => c.owner_id === OTHER);
+  assert.ok(mine.length >= 1 && theirs.length >= 1, 'both customers are served');
+  assert.ok(h.scheduled.every((s) => [OWNER, OTHER].includes(s.owner)), 'every scheduled post names its customer');
+  assert.ok(mine.every((c) => !/invoice tool/.test(c.brief.idea)), 'one customer\'s direction never reaches another');
+  assert.ok(theirs.some((c) => /invoice tool/.test(c.brief.idea)));
+  assert.strictEqual((await h.ap.status(OWNER)).direction, '');
+  assert.strictEqual((await h.ap.status(OTHER)).direction, 'Only talk about the invoice tool.');
+  h.db.tables.admin_marketing_posts.push({ campaign_id: theirs[0].id, status: 'scheduled' }, { campaign_id: mine[0].id, status: 'scheduled' });
+  const stopped = await h.ap.stop(OWNER);
+  assert.strictEqual(stopped.on, false);
+  assert.ok(h.db.tables.admin_marketing_posts.some((p) => p.campaign_id === theirs[0].id), 'Stop does not take back the other customer\'s posts');
+  assert.strictEqual(h.db.tables.admin_switches.find((s) => s.key === 'autopilot_on' && s.owner_id === OTHER).enabled, true);
+  assert.strictEqual(h.db.tables.admin_switches.find((s) => s.key === 'autopilot_on' && s.owner_id === OWNER).enabled, false);
+});
+
+test('a customer cannot replace or redo another customer\'s post', async () => {
+  const h = harness();
+  await h.ap.tick();
+  const row = h.db.tables.admin_marketing_campaigns.find((c) => c.owner_id === OWNER && !c.brief.failed);
+  assert.strictEqual((await h.ap.removeUpcoming(OTHER, row.id)).status, 404);
+  assert.strictEqual((await h.ap.redoPicture(OTHER, row.id)).status, 404);
 });

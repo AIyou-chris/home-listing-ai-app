@@ -31489,9 +31489,9 @@ async function runColdEmailSweep() {
   try {
     const coldEngine = require('./services/coldEmail/engine');
     const coldSender = require('./services/coldEmail/sender');
-    const sendOn = await require('./services/adminSwitches').getSwitch(supabaseAdmin, 'cold_email_send');
-    if (!sendOn) return; // the admin's master switch is OFF: nothing is sent
-    const result = await coldEngine.sweep(supabaseAdmin, { cfg: { ...coldSender.readConfig(), enabled: true } });
+    const owners = await require('./services/adminSwitches').ownersWithSwitchOn(supabaseAdmin, 'cold_email_send');
+    if (!owners.length) return; // every customer's master switch is OFF: nothing is sent
+    const result = await coldEngine.sweep(supabaseAdmin, { owners, cfg: { ...coldSender.readConfig(), enabled: true } });
     if (result.sent || result.paused) console.log('[ColdEmail] sweep', JSON.stringify({ sent: result.sent, failed: result.failed, paused: result.paused }));
   } catch (err) {
     if (!/does not exist|schema cache/i.test(err?.message || '')) console.warn('[ColdEmail] sweep failed:', err?.message);
@@ -31525,6 +31525,7 @@ app.get('/api/admin/lo-outreach/invites', verifyAdmin, async (req, res) => {
     const { data, error } = await supabaseAdmin
       .from('lo_outreach_invites')
       .select('id, lo_name, lo_email, lo_phone, lo_website, status, opened_at, clicked_at, email_clicked_at, created_at')
+      .eq('created_by', req.user.id)
       .order('created_at', { ascending: false })
       .limit(500);
     if (error) throw error;
@@ -31722,7 +31723,6 @@ coldEmailRoutes.register(app, {
   verifyMailgunSignature,
   signingKey: MAILGUN_WEBHOOK_SIGNING_KEY,
   signingKeyIsSet: Boolean(MAILGUN_WEBHOOK_SIGNING_KEY) && MAILGUN_WEBHOOK_SIGNING_KEY !== MAILGUN_API_KEY,
-  defaultLeadUserId: DEFAULT_LEAD_USER_ID,
   upload,
   ownerAlertEmail: process.env.OWNER_ALERT_EMAIL || BUSINESS.alertEmail
 });
@@ -35578,6 +35578,7 @@ app.get('/api/admin/blog/posts', verifyAdmin, async (req, res) => {
     const { data, error } = await supabaseAdmin
       .from('blog_posts')
       .select('id,title,slug,status,published_at,created_at,updated_at,pillar,role,target_keyword,scheduled_at,review_errors')
+      .eq('owner_id', req.user.id)
       .order('created_at', { ascending: false });
     if (error) throw error;
     res.json({ posts: data || [] });
@@ -35591,8 +35592,9 @@ app.get('/api/admin/blog/posts', verifyAdmin, async (req, res) => {
 app.get('/api/admin/blog/posts/:id', verifyAdmin, async (req, res) => {
   try {
     const { data, error } = await supabaseAdmin
-      .from('blog_posts').select('*').eq('id', req.params.id).single();
+      .from('blog_posts').select('*').eq('id', req.params.id).eq('owner_id', req.user.id).maybeSingle();
     if (error) throw error;
+    if (!data) return res.status(404).json({ error: 'post_not_found' });
     res.json({ post: data });
   } catch (err) {
     console.error('[Blog Get]', err);
@@ -35610,7 +35612,7 @@ app.post('/api/admin/blog/posts', verifyAdmin, async (req, res) => {
 app.delete('/api/admin/blog/posts/:id', verifyAdmin, async (req, res) => {
   try {
     const { error } = await supabaseAdmin
-      .from('blog_posts').delete().eq('id', req.params.id);
+      .from('blog_posts').delete().eq('id', req.params.id).eq('owner_id', req.user.id);
     if (error) throw error;
     res.json({ success: true });
   } catch (err) {
@@ -35720,7 +35722,7 @@ app.post('/api/admin/blog/posts/:id/share-social', verifyAdmin, async (req, res)
   try {
     if (!bufferService.isConfigured()) return res.status(400).json({ error: 'buffer_not_configured' });
     const { data: post, error } = await supabaseAdmin
-      .from('blog_posts').select('*').eq('id', req.params.id).maybeSingle();
+      .from('blog_posts').select('*').eq('id', req.params.id).eq('owner_id', req.user.id).maybeSingle();
     if (error) throw error;
     if (!post) return res.status(404).json({ error: 'post_not_found' });
     if (post.status !== 'published' || !post.slug) {
@@ -35882,7 +35884,7 @@ app.get('/api/admin/house-social/connections', verifyAdmin, async (req, res) => 
     const { PLATFORMS, providerStatus } = require('./services/houseSocialOauth');
     const store = getHouseSocialStore();
     if (!store) return res.status(503).json({ error: 'unavailable' });
-    const byPlatform = new Map((await store.list()).map((row) => [row.platform, row]));
+    const byPlatform = new Map((await store.list(req.user.id)).map((row) => [row.platform, row]));
     res.json({
       connections: PLATFORMS.map((platform) => {
         const row = byPlatform.get(platform);
@@ -35930,7 +35932,7 @@ app.delete('/api/admin/house-social/connections/:platform', verifyAdmin, async (
     if (!PLATFORMS.includes(platform)) return res.status(404).json({ error: 'Unknown social platform' });
     const store = getHouseSocialStore();
     if (!store) return res.status(503).json({ error: 'unavailable' });
-    await store.remove(platform);
+    await store.remove(req.user.id, platform);
     res.json({ ok: true });
   } catch (err) {
     console.error('[House social] disconnect failed:', err?.message || err);
@@ -35958,7 +35960,7 @@ app.get('/api/marketing/oauth/:platform/callback', async (req, res) => {
     if (!attempt) return res.redirect(studioReturn(platform, 'error', 'That connection link expired. Please try again.'));
     const tokens = await exchangeCode(platform, { code: req.query.code, codeVerifier: attempt.code_verifier });
     const account = await accountFor(platform, tokens);
-    await store.saveConnection(platform, { account, tokens, connectedBy: attempt.started_by });
+    await store.saveConnection(attempt.owner_id || attempt.started_by, platform, { account, tokens, connectedBy: attempt.started_by });
     return res.redirect(studioReturn(platform, 'connected'));
   } catch (err) {
     console.error('[House social] callback failed:', platform, err?.message || err);
@@ -35972,8 +35974,8 @@ const fbGroupWriteLog = new Map(); // admin id -> [timestamps] (20 per hour)
 app.get('/api/admin/fb-groups', verifyAdmin, async (req, res) => {
   try {
     const [{ data: groups, error }, { data: posts, error: postError }] = await Promise.all([
-      supabaseAdmin.from('house_fb_groups').select('*').order('name'),
-      supabaseAdmin.from('house_fb_group_posts').select('id, group_id, group_name, variant, notes, posted_at').order('posted_at', { ascending: false }).limit(100)
+      supabaseAdmin.from('house_fb_groups').select('*').eq('owner_id', req.user.id).order('name'),
+      supabaseAdmin.from('house_fb_group_posts').select('id, group_id, group_name, variant, notes, posted_at').eq('owner_id', req.user.id).order('posted_at', { ascending: false }).limit(100)
     ]);
     if (error || postError) throw error || postError;
     res.json({ groups: groups || [], posts: posts || [] });
@@ -35987,7 +35989,7 @@ app.post('/api/admin/fb-groups', verifyAdmin, async (req, res) => {
   const { cleanGroup } = require('./services/fbGroupService');
   const cleaned = cleanGroup(req.body);
   if (cleaned.error) return res.status(400).json({ error: cleaned.error });
-  const { data, error } = await supabaseAdmin.from('house_fb_groups').insert(cleaned.value).select().single();
+  const { data, error } = await supabaseAdmin.from('house_fb_groups').insert({ ...cleaned.value, owner_id: req.user.id }).select().single();
   if (error) return res.status(error.code === '23505' ? 409 : 500).json({ error: error.code === '23505' ? 'That group is already in your list' : 'Could not save that group' });
   res.json({ group: data });
 });
@@ -35996,14 +35998,14 @@ app.patch('/api/admin/fb-groups/:id', verifyAdmin, async (req, res) => {
   const { cleanGroup } = require('./services/fbGroupService');
   const cleaned = cleanGroup(req.body);
   if (cleaned.error) return res.status(400).json({ error: cleaned.error });
-  const { data, error } = await supabaseAdmin.from('house_fb_groups').update(cleaned.value).eq('id', req.params.id).select().maybeSingle();
+  const { data, error } = await supabaseAdmin.from('house_fb_groups').update(cleaned.value).eq('id', req.params.id).eq('owner_id', req.user.id).select().maybeSingle();
   if (error) return res.status(error.code === '23505' ? 409 : 500).json({ error: 'Could not save that group' });
   if (!data) return res.status(404).json({ error: 'Group not found' });
   res.json({ group: data });
 });
 
 app.delete('/api/admin/fb-groups/:id', verifyAdmin, async (req, res) => {
-  const { error } = await supabaseAdmin.from('house_fb_groups').delete().eq('id', req.params.id);
+  const { error } = await supabaseAdmin.from('house_fb_groups').delete().eq('id', req.params.id).eq('owner_id', req.user.id);
   if (error) return res.status(500).json({ error: 'Could not remove that group' });
   res.json({ ok: true });
 });
@@ -36016,7 +36018,7 @@ app.post('/api/admin/fb-groups/:id/write', verifyAdmin, async (req, res) => {
     const now = Date.now();
     const recent = (fbGroupWriteLog.get(adminKey) || []).filter((t) => now - t < 3600000);
     if (recent.length >= 20) return res.status(429).json({ error: 'That is 20 posts this hour. Try again soon.' });
-    const { data: group } = await supabaseAdmin.from('house_fb_groups').select('*').eq('id', req.params.id).maybeSingle();
+    const { data: group } = await supabaseAdmin.from('house_fb_groups').select('*').eq('id', req.params.id).eq('owner_id', req.user.id).maybeSingle();
     if (!group) return res.status(404).json({ error: 'Group not found' });
     fbGroupWriteLog.set(adminKey, [...recent, now]);
     const { createFbGroupWriter } = require('./services/fbGroupService');
@@ -36035,17 +36037,17 @@ app.post('/api/admin/fb-groups/:id/write', verifyAdmin, async (req, res) => {
 // Log that a person posted it by hand.
 app.post('/api/admin/fb-groups/:id/posted', verifyAdmin, async (req, res) => {
   try {
-    const { data: group } = await supabaseAdmin.from('house_fb_groups').select('id, name').eq('id', req.params.id).maybeSingle();
+    const { data: group } = await supabaseAdmin.from('house_fb_groups').select('id, name').eq('id', req.params.id).eq('owner_id', req.user.id).maybeSingle();
     if (!group) return res.status(404).json({ error: 'Group not found' });
     const now = new Date().toISOString();
     const { error } = await supabaseAdmin.from('house_fb_group_posts').insert({
-      group_id: group.id, group_name: group.name,
+      owner_id: req.user.id, group_id: group.id, group_name: group.name,
       variant: String(req.body?.variant || '').slice(0, 40),
       post_text: String(req.body?.text || '').slice(0, 5000),
       notes: String(req.body?.notes || '').slice(0, 1000), posted_at: now
     });
     if (error) throw error;
-    await supabaseAdmin.from('house_fb_groups').update({ last_posted_at: now, updated_at: now }).eq('id', group.id);
+    await supabaseAdmin.from('house_fb_groups').update({ last_posted_at: now, updated_at: now }).eq('id', group.id).eq('owner_id', req.user.id);
     res.json({ ok: true });
   } catch (err) {
     console.error('[FB groups] posted log failed:', err?.message || err);
@@ -36073,19 +36075,19 @@ const posterAction = (fn) => async (req, res) => {
     res.status(500).json({ error: 'Could not do that. Try again.' });
   }
 };
-app.get('/api/admin/marketing-studio/campaigns/:id/posts', verifyAdmin, posterAction((poster, req) => poster.list(req.params.id)));
+app.get('/api/admin/marketing-studio/campaigns/:id/posts', verifyAdmin, posterAction((poster, req) => poster.list(req.params.id, req.user.id)));
 app.put('/api/admin/marketing-studio/campaigns/:id/posts', verifyAdmin, posterAction((poster, req) =>
-  poster.schedule({ campaignId: req.params.id, channels: req.body?.channels, at: req.body?.at || null, by: req.user?.email })));
-app.delete('/api/admin/marketing-studio/campaigns/:id/posts/:channel', verifyAdmin, posterAction((poster, req) => poster.cancel(req.params.id, req.params.channel)));
-app.post('/api/admin/marketing-studio/campaigns/:id/posts/:channel/post-now', verifyAdmin, posterAction((poster, req) => poster.postNow(req.params.id, req.params.channel)));
+  poster.schedule({ owner: req.user.id, campaignId: req.params.id, channels: req.body?.channels, at: req.body?.at || null, by: req.user?.email })));
+app.delete('/api/admin/marketing-studio/campaigns/:id/posts/:channel', verifyAdmin, posterAction((poster, req) => poster.cancel(req.user.id, req.params.id, req.params.channel)));
+app.post('/api/admin/marketing-studio/campaigns/:id/posts/:channel/post-now', verifyAdmin, posterAction((poster, req) => poster.postNow(req.user.id, req.params.id, req.params.channel)));
 
 // Auto-posting master switch (default OFF). "Post now" always works; the 5-minute sweep only runs while this is ON.
 app.get('/api/admin/house-social/auto-post', verifyAdmin, async (req, res) => {
-  res.json({ enabled: await require('./services/adminSwitches').getSwitch(supabaseAdmin, 'social_auto_post') });
+  res.json({ enabled: await require('./services/adminSwitches').getSwitch(supabaseAdmin, 'social_auto_post', req.user.id) });
 });
 app.post('/api/admin/house-social/auto-post', verifyAdmin, async (req, res) => {
   try {
-    const enabled = await require('./services/adminSwitches').setSwitch(supabaseAdmin, 'social_auto_post', req.body?.enabled === true, req.user?.email);
+    const enabled = await require('./services/adminSwitches').setSwitch(supabaseAdmin, 'social_auto_post', req.body?.enabled === true, req.user?.email, req.user.id);
     console.log(`[Marketing post] auto-posting switched ${enabled ? 'ON' : 'OFF'} by ${req.user?.email || 'admin'}`);
     res.json({ enabled });
   } catch (err) {
@@ -36099,9 +36101,10 @@ async function runMarketingPostSweep() {
   if (marketingPostSweepBusy || !supabaseAdmin) return;
   marketingPostSweepBusy = true;
   try {
-    if (!(await require('./services/adminSwitches').getSwitch(supabaseAdmin, 'social_auto_post'))) return;
+    const owners = await require('./services/adminSwitches').ownersWithSwitchOn(supabaseAdmin, 'social_auto_post');
+    if (!owners.length) return;
     const poster = getMarketingPoster();
-    const result = poster ? await poster.sweep() : null;
+    const result = poster ? await poster.sweep(owners) : null;
     if (result?.posted) console.log('[Marketing post] sweep posted', result.posted);
   } catch (err) {
     if (!/does not exist|schema cache/i.test(err?.message || '')) console.warn('[Marketing post] sweep failed:', err?.message);
@@ -36124,20 +36127,20 @@ const getAutopilot = () => {
       studioFor: () => createStudioService({ db: supabaseAdmin, openai, loadBrain: loadBusinessBrain, media: marketingMediaService }),
       media: marketingMediaService,
       getPoster: () => getMarketingPoster(),
-      getConnections: async () => {
-        const { data } = await supabaseAdmin.from('house_social_connections').select('platform, status');
+      getConnections: async (owner) => {
+        const { data } = await supabaseAdmin.from('house_social_connections').select('platform, status').eq('owner_id', owner);
         return Object.fromEntries((data || []).map((c) => [c.platform, c.status === 'connected']));
       },
       loadArticles: async () => (await blogService.publicPosts()).filter((p) => p.role !== 'tool').slice(0, 12),
       blog: {
-        nextBrief: async () => {
-          const { data } = await supabaseAdmin.from('blog_posts').select('id, title, role, generation_attempts').eq('status', 'brief').neq('role', 'tool').eq('generation_attempts', 0).order('created_at', { ascending: true }).limit(1);
+        nextBrief: async (owner) => {
+          const { data } = await supabaseAdmin.from('blog_posts').select('id, title, role, generation_attempts').eq('owner_id', owner).eq('status', 'brief').neq('role', 'tool').eq('generation_attempts', 0).order('created_at', { ascending: true }).limit(1);
           return data?.[0] || null;
         },
         write: (owner, id) => blogService.generate(owner, { id }),
         // A cinematic picture for the new draft, attached as its featured image (the article is still a draft for Chris to read).
         makeHero: async (owner, id) => {
-          const { data: post } = await supabaseAdmin.from('blog_posts').select('id, title, excerpt, short_answer, status').eq('id', id).maybeSingle();
+          const { data: post } = await supabaseAdmin.from('blog_posts').select('id, title, excerpt, short_answer, status').eq('id', id).eq('owner_id', owner).maybeSingle();
           if (!post || post.status === 'published') return null;
           const made = await marketingMediaService.images.blogHero(owner, { postId: id, title: post.title, excerpt: post.excerpt || post.short_answer || '', count: 1 });
           if (!made[0]) return null;
@@ -36166,7 +36169,7 @@ app.get('/api/admin/today', verifyAdmin, async (req, res) => {
 app.get('/api/admin/marketing-analytics', verifyAdmin, async (req, res) => {
   try {
     const { buildAnalytics } = require('./services/marketingAnalytics');
-    res.json(await buildAnalytics({ db: supabaseAdmin, days: Number(req.query.days) || 30 }));
+    res.json(await buildAnalytics({ db: supabaseAdmin, owner: req.user.id, days: Number(req.query.days) || 30 }));
   } catch (err) {
     console.error('[Marketing analytics] failed:', err?.message || err);
     res.status(500).json({ error: 'Could not load the analytics.' });
@@ -36174,7 +36177,7 @@ app.get('/api/admin/marketing-analytics', verifyAdmin, async (req, res) => {
 });
 
 app.get('/api/admin/autopilot', verifyAdmin, async (req, res) => {
-  try { const autopilot = getAutopilot(); if (!autopilot) return res.status(503).json({ error: 'Autopilot is not available right now' }); res.json(await autopilot.status()); }
+  try { const autopilot = getAutopilot(); if (!autopilot) return res.status(503).json({ error: 'Autopilot is not available right now' }); res.json(await autopilot.status(req.user.id)); }
   catch (err) { console.error('[Autopilot] status failed:', err?.message || err); res.status(500).json({ error: 'Could not load Autopilot' }); }
 });
 app.post('/api/admin/autopilot', verifyAdmin, async (req, res) => {
@@ -36198,7 +36201,7 @@ app.post('/api/admin/autopilot/direction', verifyAdmin, async (req, res) => {
   try {
     const autopilot = getAutopilot(); if (!autopilot) return res.status(503).json({ error: 'Autopilot is not available right now' });
     if (typeof req.body?.direction !== 'string' || req.body.direction.length > 1000) return res.status(400).json({ error: 'Keep the direction under 1,000 characters.' });
-    res.json(await autopilot.setDirection(req.body.direction));
+    res.json(await autopilot.setDirection(req.user.id, req.body.direction));
   } catch (err) { console.error('[Autopilot] direction failed:', err?.message || err); res.status(500).json({ error: 'Could not save the direction' }); }
 });
 // Take back one waiting post: "skip" leaves that time empty, otherwise a replacement is written.
@@ -36215,7 +36218,7 @@ app.post('/api/admin/autopilot/posts/:campaignId/remove', verifyAdmin, async (re
 app.post('/api/admin/blog/posts/:id/hero', verifyAdmin, async (req, res) => {
   try {
     if (!/^[0-9a-f-]{36}$/i.test(String(req.params.id || ''))) return res.status(400).json({ error: 'Invalid article' });
-    const { data: post } = await supabaseAdmin.from('blog_posts').select('id, title, excerpt, short_answer, status').eq('id', req.params.id).maybeSingle();
+    const { data: post } = await supabaseAdmin.from('blog_posts').select('id, title, excerpt, short_answer, status').eq('id', req.params.id).eq('owner_id', req.user.id).maybeSingle();
     if (!post) return res.status(404).json({ error: 'Save the article first.' });
     res.json({ started: true });
     marketingMediaService.images.blogHero(req.user.id, { postId: post.id, title: post.title, excerpt: post.excerpt || post.short_answer || '', count: Math.min(3, Number(req.body?.count) || 3), variantStart: Number(req.body?.variantStart) || 0 })
@@ -36238,9 +36241,9 @@ app.post('/api/admin/autopilot/blog-now', verifyAdmin, async (req, res) => {
 app.post('/api/admin/autopilot/run-now', verifyAdmin, async (req, res) => {
   try {
     const autopilot = getAutopilot(); if (!autopilot) return res.status(503).json({ error: 'Autopilot is not available right now' });
-    if (!(await require('./services/adminSwitches').getSwitch(supabaseAdmin, 'autopilot_on'))) return res.status(409).json({ error: 'Turn Autopilot on first.' });
+    if (!(await require('./services/adminSwitches').getSwitch(supabaseAdmin, 'autopilot_on', req.user.id))) return res.status(409).json({ error: 'Turn Autopilot on first.' });
     res.json({ started: true });
-    autopilot.tick({ force: true }).catch(() => {});
+    autopilot.tick({ force: true, owner: req.user.id }).catch(() => {});
   } catch (err) { console.error('[Autopilot] run-now failed:', err?.message || err); res.status(500).json({ error: 'Could not start the next post' }); }
 });
 if (APP_RUNTIME_MODE !== 'worker') {

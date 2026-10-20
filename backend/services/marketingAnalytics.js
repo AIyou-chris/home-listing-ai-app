@@ -15,17 +15,20 @@ async function safe(label, notes, run, fallback) {
   try { return await run(); } catch (err) { notes.push(`${label} could not be read.`); return fallback; }
 }
 
-async function buildAnalytics({ db, days = 30, now = Date.now() }) {
+// `owner` is the customer. Posts, cold email, article events and campaign names are theirs only.
+async function buildAnalytics({ db, owner, days = 30, now = Date.now() }) {
+  if (!owner) throw new Error('owner_required');
   const span = [7, 30, 90].includes(Number(days)) ? Number(days) : 30;
   const since = new Date(now - span * DAY).toISOString();
   const notes = [];
   const rows = async (query) => { const { data, error } = await query; if (error) throw error; return data || []; };
 
-  const posts = await safe('Posts', notes, () => rows(db.from('admin_marketing_posts').select('campaign_id,channel,status,posted_at,scheduled_for').gte('created_at', since).limit(2000)), []);
+  const posts = await safe('Posts', notes, () => rows(db.from('admin_marketing_posts').select('campaign_id,channel,status,posted_at,scheduled_for').eq('owner_id', owner).gte('created_at', since).limit(2000)), []);
   const agents = await safe('Signups', notes, () => rows(db.from('agents').select('id,created_at,account_type,metadata').gte('created_at', since).limit(3000)), []);
   const leads = await safe('Leads', notes, () => rows(db.from('leads').select('source,source_type,created_at').gte('created_at', since).limit(3000)), []);
-  const events = await safe('Blog events', notes, () => rows(db.from('blog_events').select('slug,event').gte('created_at', since).limit(10000)), []);
-  const sends = await safe('Cold email', notes, () => rows(db.from('cold_email_sends').select('status,touch,angle,opener,variant_id,bounced_at,complained_at,clicked_at,replied_at,reply_class').gte('created_at', since).limit(5000)), []);
+  const slugs = (await safe('Articles', notes, () => rows(db.from('blog_posts').select('slug').eq('owner_id', owner).limit(1000)), [])).map((p) => p.slug);
+  const events = slugs.length ? await safe('Blog events', notes, () => rows(db.from('blog_events').select('slug,event').in('slug', slugs).gte('created_at', since).limit(10000)), []) : [];
+  const sends = await safe('Cold email', notes, () => rows(db.from('cold_email_sends').select('status,touch,angle,opener,variant_id,bounced_at,complained_at,clicked_at,replied_at,reply_class').eq('owner_id', owner).gte('created_at', since).limit(5000)), []);
 
   // Posts
   const channels = {};
@@ -41,7 +44,7 @@ async function buildAnalytics({ db, days = 30, now = Date.now() }) {
   const prefixes = [...new Set(tagged.map((a) => a.touch.campaign).filter(Boolean))];
   let titles = {};
   if (prefixes.length) {
-    const campaigns = await safe('Campaign names', notes, () => rows(db.from('admin_marketing_campaigns').select('id,outputs').limit(1000)), []);
+    const campaigns = await safe('Campaign names', notes, () => rows(db.from('admin_marketing_campaigns').select('id,outputs').eq('owner_id', owner).limit(1000)), []);
     for (const c of campaigns) { const short = String(c.id).slice(0, 8); if (prefixes.includes(short)) titles[short] = String(c.outputs?.title || '').slice(0, 90); }
   }
   const signupsByCampaign = tally(tagged.filter((a) => a.touch.campaign), (a) => `${a.touch.campaign}|${a.touch.source || ''}`)
@@ -88,7 +91,7 @@ async function buildAnalytics({ db, days = 30, now = Date.now() }) {
     signups: { total: agents.length, tagged: tagged.length, bySource: signupsBySource, byCampaign: signupsByCampaign.slice(0, 8) },
     leads: { total: leads.length, bySource: leadsBySource.slice(0, 8) },
     blog, cold, verdicts, notes,
-    gaps: ['Visits per social post are kept by Facebook, LinkedIn, Instagram and YouTube. Only signups, leads and blog views are counted here.']
+    gaps: ['Signups and leads are counted for the whole business, not per customer.', 'Visits per social post are kept by Facebook, LinkedIn, Instagram and YouTube. Only signups, leads and blog views are counted here.']
   };
 }
 

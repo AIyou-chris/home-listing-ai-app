@@ -14,11 +14,10 @@ const switches = require('../services/adminSwitches');
 const page = (title, message) => `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><body style="font-family:-apple-system,Segoe UI,sans-serif;max-width:420px;margin:15vh auto;padding:0 20px;color:#0f172a"><h2>${title}</h2><p style="line-height:1.6;color:#334155">${message}</p></body>`;
 
 const register = (app, deps) => {
-  const { verifyAdmin, supabaseAdmin: db, openai, emailService, verifyMailgunSignature, signingKey, signingKeyIsSet, defaultLeadUserId, upload, ownerAlertEmail } = deps;
-  // Sending is governed by the admin's switch (default OFF), not by an env setting.
-  let sendOn = false;
-  const refreshSwitch = async () => { sendOn = await switches.getSwitch(db, 'cold_email_send'); return sendOn; };
-  const cfg = () => ({ ...sender.readConfig(), enabled: sendOn });
+  const { verifyAdmin, supabaseAdmin: db, openai, emailService, verifyMailgunSignature, signingKey, signingKeyIsSet, upload, ownerAlertEmail } = deps;
+  // Sending is governed by each customer's own switch (default OFF), not by an env setting.
+  const refreshSwitch = (req) => switches.getSwitch(db, 'cold_email_send', req.user.id);
+  const cfg = (on) => ({ ...sender.readConfig(), enabled: on });
   const fail = (res, err, code = 'cold_email_failed') => {
     console.error(`[ColdEmail] ${code}:`, err?.message || err);
     const missing = engine.TABLE_MISSING.test(err?.message || '');
@@ -29,15 +28,14 @@ const register = (app, deps) => {
     const r = await openai.chat.completions.create({ model: 'gpt-4o-mini', temperature: 0.7, max_tokens: 500, response_format: { type: 'json_object' }, messages: [{ role: 'user', content: prompt }] });
     return r.choices[0]?.message?.content || '';
   };
-  const winnerHint = async () => {
-    try { const r = await engine.loadResults(db); return r.winner.angle ? `angle ${r.winner.angle}${r.winner.opener ? `, opener ${r.winner.opener}` : ''}` : ''; } catch { return ''; }
+  const winnerHint = async (owner) => {
+    try { const r = await engine.loadResults(db, owner); return r.winner.angle ? `angle ${r.winner.angle}${r.winner.opener ? `, opener ${r.winner.opener}` : ''}` : ''; } catch { return ''; }
   };
 
   // ---- status / checklist ----
   app.get('/api/admin/cold-email/overview', verifyAdmin, async (req, res) => {
     try {
-      await refreshSwitch();
-      const c = cfg();
+      const c = cfg(await refreshSwitch(req));
       const ready = await engine.tablesReady(db);
       const out = {
         tablesReady: ready,
@@ -47,10 +45,10 @@ const register = (app, deps) => {
       };
       if (ready) {
         for (const status of ['new', 'verified', 'in_sequence', 'replied', 'unsubscribed', 'bounced', 'bad_email']) {
-          const { count } = await db.from('lo_prospects').select('id', { count: 'exact', head: true }).eq('status', status);
+          const { count } = await db.from('lo_prospects').select('id', { count: 'exact', head: true }).eq('owner_id', req.user.id).eq('status', status);
           out.counts[status] = count || 0;
         }
-        const { data: batches } = await db.from('cold_email_batches').select('*').order('created_at', { ascending: false }).limit(20);
+        const { data: batches } = await db.from('cold_email_batches').select('*').eq('owner_id', req.user.id).order('created_at', { ascending: false }).limit(20);
         out.batches = batches || [];
       }
       res.json(out);
@@ -72,18 +70,18 @@ const register = (app, deps) => {
     try {
       const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
       if (!rows.length) return res.status(400).json({ error: 'rows_required' });
-      res.json(await engine.importProspects(db, rows));
+      res.json(await engine.importProspects(db, req.user.id, rows));
     } catch (err) { fail(res, err); }
   });
   app.post('/api/admin/cold-email/prospects/from-finder', verifyAdmin, async (req, res) => {
-    try { res.json(await engine.promoteFromFinder(db, Math.min(Number(req.body?.limit) || 200, 1000))); } catch (err) { fail(res, err); }
+    try { res.json(await engine.promoteFromFinder(db, req.user.id, Math.min(Number(req.body?.limit) || 200, 1000))); } catch (err) { fail(res, err); }
   });
   app.post('/api/admin/cold-email/prospects/verify', verifyAdmin, async (req, res) => {
-    try { res.json(await engine.verifyProspects(db, { limit: Math.min(Number(req.body?.limit) || 200, 500) })); } catch (err) { fail(res, err); }
+    try { res.json(await engine.verifyProspects(db, req.user.id, { limit: Math.min(Number(req.body?.limit) || 200, 500) })); } catch (err) { fail(res, err); }
   });
   app.get('/api/admin/cold-email/prospects', verifyAdmin, async (req, res) => {
     try {
-      let q = db.from('lo_prospects').select('id,email,first_name,last_name,company,city,state,status,source,personalization_fact,last_contacted_at,created_at').order('created_at', { ascending: false }).limit(Math.min(Number(req.query.limit) || 100, 500));
+      let q = db.from('lo_prospects').select('id,email,first_name,last_name,company,city,state,status,source,personalization_fact,last_contacted_at,created_at').eq('owner_id', req.user.id).order('created_at', { ascending: false }).limit(Math.min(Number(req.query.limit) || 100, 500));
       if (req.query.status) q = q.eq('status', String(req.query.status));
       const { data, error } = await q;
       if (error) throw error;
@@ -94,7 +92,7 @@ const register = (app, deps) => {
     try {
       const status = req.body?.status === 'demo_booked' ? 'demo_booked' : null;
       if (!status) return res.status(400).json({ error: 'status_not_allowed' });
-      await db.from('lo_prospects').update({ status }).eq('id', req.params.id);
+      await db.from('lo_prospects').update({ status }).eq('id', req.params.id).eq('owner_id', req.user.id);
       res.json({ success: true });
     } catch (err) { fail(res, err); }
   });
@@ -109,10 +107,10 @@ const register = (app, deps) => {
     try {
       const b = req.body || {};
       let p = {};
-      if (b.prospectId) { const { data } = await db.from('lo_prospects').select('*').eq('id', b.prospectId).maybeSingle(); if (data) p = data; }
+      if (b.prospectId) { const { data } = await db.from('lo_prospects').select('*').eq('id', b.prospectId).eq('owner_id', req.user.id).maybeSingle(); if (data) p = data; }
       const draft = await writer.draftFirstTouch({
         complete,
-        params: { angle: b.angle || 'agent_referrals', opener: b.opener, firstName: p.first_name || b.firstName, company: p.company || b.company, market: p.city || b.market, personalizationFact: p.personalization_fact || b.personalizationFact, replyOnly: b.replyOnly !== false, winner: await winnerHint() }
+        params: { angle: b.angle || 'agent_referrals', opener: b.opener, firstName: p.first_name || b.firstName, company: p.company || b.company, market: p.city || b.market, personalizationFact: p.personalization_fact || b.personalizationFact, replyOnly: b.replyOnly !== false, winner: await winnerHint(req.user.id) }
       });
       res.json(draft);
     } catch (err) { fail(res, err, 'draft_failed'); }
@@ -123,53 +121,53 @@ const register = (app, deps) => {
     try {
       const body = { ...(req.body || {}) };
       if (body.marketingCampaignId) {
-        const { data: camp } = await db.from('admin_marketing_campaigns').select('id, status, brief').eq('id', body.marketingCampaignId).maybeSingle();
+        const { data: camp } = await db.from('admin_marketing_campaigns').select('id, status, brief').eq('id', body.marketingCampaignId).eq('owner_id', req.user.id).maybeSingle();
         if (!camp || camp.status !== 'approved') return res.status(400).json({ error: 'pick_approved_campaign' });
         body.theme = [camp.brief?.idea, camp.brief?.goal].filter(Boolean).join(' | ').slice(0, 400);
       } else { delete body.marketingCampaignId; delete body.theme; }
-      res.json(await engine.createBatch(db, body));
+      res.json(await engine.createBatch(db, req.user.id, body));
     } catch (err) { if (/required|pick/.test(err.message)) return res.status(400).json({ error: err.message }); fail(res, err); }
   });
   app.get('/api/admin/cold-email/batches/:id', verifyAdmin, async (req, res) => {
     try {
-      const { data: batch } = await db.from('cold_email_batches').select('*').eq('id', req.params.id).maybeSingle();
+      const { data: batch } = await db.from('cold_email_batches').select('*').eq('id', req.params.id).eq('owner_id', req.user.id).maybeSingle();
       if (!batch) return res.status(404).json({ error: 'not_found' });
       const { data: sends } = await db.from('cold_email_sends').select('id,touch,subject,body_text,check_failures,status,scheduled_for,sent_at,reply_class,lo_prospects(email,first_name,company)').eq('batch_id', req.params.id).order('touch', { ascending: true }).limit(1000);
       res.json({ batch, sends: sends || [] });
     } catch (err) { fail(res, err); }
   });
   app.post('/api/admin/cold-email/batches/:id/generate', verifyAdmin, async (req, res) => {
-    try { res.json(await engine.generateDrafts(db, req.params.id, { complete, limit: 8, winner: await winnerHint() })); } catch (err) { fail(res, err, 'generate_failed'); }
+    try { res.json(await engine.generateDrafts(db, req.user.id, req.params.id, { complete, limit: 8, winner: await winnerHint() })); } catch (err) { fail(res, err, 'generate_failed'); }
   });
   app.patch('/api/admin/cold-email/sends/:id', verifyAdmin, async (req, res) => {
-    try { res.json(await engine.editSend(db, req.params.id, { subject: String(req.body?.subject || ''), body_text: String(req.body?.body_text || '') })); } catch (err) { if (err.message === 'not_editable') return res.status(409).json({ error: 'not_editable' }); fail(res, err); }
+    try { res.json(await engine.editSend(db, req.user.id, req.params.id, { subject: String(req.body?.subject || ''), body_text: String(req.body?.body_text || '') })); } catch (err) { if (err.message === 'not_editable') return res.status(409).json({ error: 'not_editable' }); fail(res, err); }
   });
   app.post('/api/admin/cold-email/batches/:id/approve', verifyAdmin, async (req, res) => {
     try {
       if (req.body?.confirm !== true) return res.status(400).json({ error: 'confirm_required' });
-      await refreshSwitch();
-      res.json(await engine.approveBatch(db, req.params.id, { approvedBy: req.user?.email || null, cfg: cfg() }));
+      const on = await refreshSwitch(req);
+      res.json(await engine.approveBatch(db, req.user.id, req.params.id, { approvedBy: req.user?.email || null, cfg: cfg(on) }));
     } catch (err) { if (err.message === 'batch_not_draft') return res.status(409).json({ error: err.message }); fail(res, err); }
   });
   const setBatchPaused = (pausing) => async (req, res) => {
     try {
-      await db.from('cold_email_batches').update({ status: pausing ? 'paused' : 'approved', paused_reason: pausing ? 'Paused by admin' : null }).eq('id', req.params.id);
+      await db.from('cold_email_batches').update({ status: pausing ? 'paused' : 'approved', paused_reason: pausing ? 'Paused by admin' : null }).eq('id', req.params.id).eq('owner_id', req.user.id);
       res.json({ success: true });
     } catch (err) { fail(res, err); }
   };
   app.post('/api/admin/cold-email/batches/:id/pause', verifyAdmin, setBatchPaused(true));
   app.post('/api/admin/cold-email/batches/:id/resume', verifyAdmin, setBatchPaused(false));
   app.post('/api/admin/cold-email/run', verifyAdmin, async (req, res) => {
-    try { await refreshSwitch(); res.json(await engine.sweep(db, { cfg: cfg() })); } catch (err) { fail(res, err, 'sweep_failed'); }
+    try { const on = await refreshSwitch(req); res.json(on ? await engine.sweep(db, { cfg: cfg(true), owners: [req.user.id] }) : { sent: 0, skipped: 0, failed: 0, paused: null, blockers: [], off: true }); } catch (err) { fail(res, err, 'sweep_failed'); }
   });
 
   // The master switch. OFF = nothing is sent, ever. Turning it ON needs the sending setup to be complete.
   app.get('/api/admin/cold-email/switch', verifyAdmin, async (req, res) => {
     try {
-      const enabled = await refreshSwitch();
+      const enabled = await refreshSwitch(req);
       const setup = sender.blockers({ ...sender.readConfig(), enabled: true });
       let waiting = 0;
-      try { const { count } = await db.from('cold_email_sends').select('id', { count: 'exact', head: true }).eq('status', 'approved'); waiting = count || 0; } catch { /* tables may not exist yet */ }
+      try { const { count } = await db.from('cold_email_sends').select('id', { count: 'exact', head: true }).eq('owner_id', req.user.id).eq('status', 'approved'); waiting = count || 0; } catch { /* tables may not exist yet */ }
       res.json({ enabled, setupBlockers: setup, waiting });
     } catch (err) { fail(res, err); }
   });
@@ -180,8 +178,7 @@ const register = (app, deps) => {
         const setup = sender.blockers({ ...sender.readConfig(), enabled: true });
         if (setup.length) return res.status(409).json({ error: 'not_configured', message: setup[0], blockers: setup });
       }
-      await switches.setSwitch(db, 'cold_email_send', want, req.user?.email);
-      sendOn = want;
+      await switches.setSwitch(db, 'cold_email_send', want, req.user?.email, req.user.id);
       console.log(`[ColdEmail] sending switched ${want ? 'ON' : 'OFF'} by ${req.user?.email || 'admin'}`);
       res.json({ enabled: want });
     } catch (err) { fail(res, err); }
@@ -190,7 +187,7 @@ const register = (app, deps) => {
   // Test send goes to the admin's own mailbox so the headers can be inspected. Never to a prospect.
   app.post('/api/admin/cold-email/test-send', verifyAdmin, async (req, res) => {
     try {
-      const c = cfg();
+      const c = cfg(true);
       const blockers = sender.blockers({ ...c, enabled: true });
       if (blockers.length) return res.status(409).json({ error: 'not_configured', blockers });
       const to = req.user?.email;
@@ -204,7 +201,7 @@ const register = (app, deps) => {
   });
 
   app.get('/api/admin/cold-email/results', verifyAdmin, async (req, res) => {
-    try { res.json(await engine.loadResults(db)); } catch (err) { fail(res, err); }
+    try { res.json(await engine.loadResults(db, req.user.id)); } catch (err) { fail(res, err); }
   });
 
   // Log a reply by hand (useful before the inbound webhook is connected).
@@ -219,9 +216,9 @@ const register = (app, deps) => {
       });
     },
     createLead: async ({ prospect, touch, angle, opener, body }) => {
-      if (!defaultLeadUserId) return;
+      if (!prospect.owner_id) return;
       await db.from('leads').insert({
-        user_id: defaultLeadUserId,
+        user_id: prospect.owner_id,
         name: [prospect.first_name, prospect.last_name].filter(Boolean).join(' ') || prospect.email,
         email: prospect.email,
         source: 'cold-email',
@@ -236,12 +233,12 @@ const register = (app, deps) => {
     try {
       const { fromEmail, subject, body } = req.body || {};
       if (!fromEmail || !body) return res.status(400).json({ error: 'fromEmail_and_body_required' });
-      res.json(await engine.handleReply(db, { fromEmail, subject, body, ...replyContext() }));
+      res.json(await engine.handleReply(db, { fromEmail, subject, body, owner: req.user.id, ...replyContext() }));
     } catch (err) { fail(res, err); }
   });
   app.get('/api/admin/cold-email/replies', verifyAdmin, async (req, res) => {
     try {
-      const { data } = await db.from('cold_email_replies').select('id,from_email,subject,body_text,class,drafted_reply,handled,created_at').order('created_at', { ascending: false }).limit(50);
+      const { data } = await db.from('cold_email_replies').select('id,from_email,subject,body_text,class,drafted_reply,handled,created_at').eq('owner_id', req.user.id).order('created_at', { ascending: false }).limit(50);
       res.json({ replies: data || [] });
     } catch (err) { fail(res, err); }
   });

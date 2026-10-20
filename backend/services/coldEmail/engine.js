@@ -56,7 +56,11 @@ const normalizeProspect = (row) => {
   };
 };
 
-const importProspects = async (db, rows) => {
+// Every prospect, batch and send belongs to one customer (owner). Nothing here reads or writes another customer's rows.
+const needOwner = (owner) => { if (!owner) throw new Error('owner_required'); };
+
+const importProspects = async (db, owner, rows) => {
+  needOwner(owner);
   const suppressed = await loadSuppression(db);
   const seen = new Set();
   const result = { added: 0, duplicates: 0, rejected: [] };
@@ -73,15 +77,25 @@ const importProspects = async (db, rows) => {
   }
   for (let i = 0; i < toInsert.length; i += 200) {
     const chunk = toInsert.slice(i, i + 200);
-    const { data, error } = await db.from('lo_prospects').upsert(chunk, { onConflict: 'email', ignoreDuplicates: true }).select('id');
-    if (error) throw error;
-    result.added += (data || []).length;
-    result.duplicates += chunk.length - (data || []).length;
+    // Skip people this customer already has, then add the rest (works under the old and the new database key alike).
+    const { data: have, error: haveError } = await db.from('lo_prospects').select('email').eq('owner_id', owner).in('email', chunk.map((c) => c.email));
+    if (haveError) throw haveError;
+    const known = new Set((have || []).map((r) => emailKey(r.email)));
+    const fresh = chunk.filter((c) => !known.has(c.email)).map((c) => ({ ...c, owner_id: owner }));
+    let added = 0;
+    if (fresh.length) {
+      const { data, error } = await db.from('lo_prospects').insert(fresh).select('id');
+      if (error) throw error;
+      added = (data || []).length;
+    }
+    result.added += added;
+    result.duplicates += chunk.length - added;
   }
   return result;
 };
 
-const promoteFromFinder = async (db, limit = 200) => {
+const promoteFromFinder = async (db, owner, limit = 200) => {
+  needOwner(owner);
   const { data, error } = await db.from('lo_lead_pool').select('email,name,employer,job_title,phone,linkedin,city,source_url,is_role,status').eq('status', 'new').eq('is_role', false).limit(limit);
   if (error) throw error;
   // The finder pool also holds non-loan-officers (tax advisors, "founders") and test rows. Only people whose
@@ -91,12 +105,13 @@ const promoteFromFinder = async (db, limit = 200) => {
   const rows = (data || [])
     .filter((r) => looksLikeLo(r) && !isTestRow(r))
     .map((r) => ({ email: r.email, name: r.name, company: r.employer, city: r.city, source: 'lead-finder' }));
-  const out = await importProspects(db, rows);
+  const out = await importProspects(db, owner, rows);
   return { ...out, skippedNotLo: (data || []).length - rows.length };
 };
 
-const verifyProspects = async (db, { limit = 200 } = {}) => {
-  const { data, error } = await db.from('lo_prospects').select('id,email').eq('status', 'new').limit(limit);
+const verifyProspects = async (db, owner, { limit = 200 } = {}) => {
+  needOwner(owner);
+  const { data, error } = await db.from('lo_prospects').select('id,email').eq('owner_id', owner).eq('status', 'new').limit(limit);
   if (error) throw error;
   const cache = new Map();
   let ok = 0; let bad = 0;
@@ -104,23 +119,24 @@ const verifyProspects = async (db, { limit = 200 } = {}) => {
     const domain = p.email.split('@')[1];
     if (!cache.has(domain)) cache.set(domain, await mxLookup(domain));
     const good = cache.get(domain);
-    await db.from('lo_prospects').update({ mx_ok: good, status: good ? 'verified' : 'bad_email', verified_at: new Date().toISOString() }).eq('id', p.id);
+    await db.from('lo_prospects').update({ mx_ok: good, status: good ? 'verified' : 'bad_email', verified_at: new Date().toISOString() }).eq('id', p.id).eq('owner_id', owner);
     if (good) ok += 1; else bad += 1;
   }
   return { verified: ok, bad };
 };
 
 // ---- batches ---------------------------------------------------------------
-const createBatch = async (db, { name, angle, opener = 'A', variantId = 'A', window = 'morning', replyOnly = true, prospectIds = [], marketingCampaignId = null, theme = null }) => {
+const createBatch = async (db, owner, { name, angle, opener = 'A', variantId = 'A', window = 'morning', replyOnly = true, prospectIds = [], marketingCampaignId = null, theme = null }) => {
+  needOwner(owner);
   if (!name || !angle) throw new Error('name_and_angle_required');
   if (!prospectIds.length) throw new Error('pick_prospects');
-  const { data: batch, error } = await db.from('cold_email_batches').insert({ name, angle, opener, variant_id: variantId, send_window: window, reply_only: replyOnly, marketing_campaign_id: marketingCampaignId, theme }).select('*').single();
+  const { data: batch, error } = await db.from('cold_email_batches').insert({ owner_id: owner, name, angle, opener, variant_id: variantId, send_window: window, reply_only: replyOnly, marketing_campaign_id: marketingCampaignId, theme }).select('*').single();
   if (error) throw error;
-  const { data: prospects } = await db.from('lo_prospects').select('id,status,last_contacted_at').in('id', prospectIds.slice(0, 500));
+  const { data: prospects } = await db.from('lo_prospects').select('id,status,last_contacted_at').eq('owner_id', owner).in('id', prospectIds.slice(0, 500));
   const recent = Date.now() - rules.RECENT_DAYS * 86400000;
   const rows = (prospects || [])
     .filter((p) => p.status === 'verified' && !(p.last_contacted_at && new Date(p.last_contacted_at).getTime() > recent))
-    .map((p) => ({ batch_id: batch.id, prospect_id: p.id, touch: 1, angle, opener, variant_id: variantId, status: 'pending' }));
+    .map((p) => ({ owner_id: owner, batch_id: batch.id, prospect_id: p.id, touch: 1, angle, opener, variant_id: variantId, status: 'pending' }));
   if (rows.length) {
     const { error: insErr } = await db.from('cold_email_sends').upsert(rows, { onConflict: 'prospect_id,touch', ignoreDuplicates: true });
     if (insErr) throw insErr;
@@ -128,8 +144,10 @@ const createBatch = async (db, { name, angle, opener = 'A', variantId = 'A', win
   return { batch, queued: rows.length, skipped: prospectIds.length - rows.length };
 };
 
-const generateDrafts = async (db, batchId, { complete, limit = 8, winner = '' }) => {
-  const { data: batch } = await db.from('cold_email_batches').select('*').eq('id', batchId).single();
+const generateDrafts = async (db, owner, batchId, { complete, limit = 8, winner = '' }) => {
+  needOwner(owner);
+  const { data: batch } = await db.from('cold_email_batches').select('*').eq('id', batchId).eq('owner_id', owner).maybeSingle();
+  if (!batch) throw new Error('not_found');
   const { data: pending } = await db.from('cold_email_sends').select('id,prospect_id').eq('batch_id', batchId).eq('touch', 1).eq('status', 'pending').limit(limit);
   let done = 0; let flagged = 0;
   for (const s of pending || []) {
@@ -145,8 +163,9 @@ const generateDrafts = async (db, batchId, { complete, limit = 8, winner = '' })
   return { generated: done, flagged, remaining: count || 0 };
 };
 
-const editSend = async (db, sendId, { subject, body_text }) => {
-  const { data: s } = await db.from('cold_email_sends').select('*, cold_email_batches(reply_only)').eq('id', sendId).single();
+const editSend = async (db, owner, sendId, { subject, body_text }) => {
+  needOwner(owner);
+  const { data: s } = await db.from('cold_email_sends').select('*, cold_email_batches(reply_only)').eq('id', sendId).eq('owner_id', owner).maybeSingle();
   if (!s || !['draft', 'approved'].includes(s.status)) throw new Error('not_editable');
   const check = rules.checkColdEmail({ touch: s.touch, subject, body: body_text, replyOnly: s.touch === 1 && s.cold_email_batches?.reply_only !== false });
   await db.from('cold_email_sends').update({ subject, body_text, check_failures: check.failures.map((f) => f.message) }).eq('id', sendId);
@@ -156,14 +175,15 @@ const editSend = async (db, sendId, { subject, body_text }) => {
 const linkFor = (cfg, prospect, batch, touch) =>
   `${cfg.siteUrl}/for-loan-officers/${prospect.unsub_token}?utm_source=cold-email&utm_medium=email&utm_campaign=${batch.id}&utm_content=${batch.angle}-${touch}`;
 
-const approveBatch = async (db, batchId, { approvedBy, cfg }) => {
-  const { data: batch } = await db.from('cold_email_batches').select('*').eq('id', batchId).single();
+const approveBatch = async (db, owner, batchId, { approvedBy, cfg }) => {
+  needOwner(owner);
+  const { data: batch } = await db.from('cold_email_batches').select('*').eq('id', batchId).eq('owner_id', owner).maybeSingle();
   if (!batch || batch.status !== 'draft') throw new Error('batch_not_draft');
   const { data: drafts } = await db.from('cold_email_sends').select('*, lo_prospects(*)').eq('batch_id', batchId).eq('touch', 1).eq('status', 'draft');
   const clean = (drafts || []).filter((d) => !(d.check_failures || []).length);
   const blocked = (drafts || []).length - clean.length;
 
-  const { count: everSent } = await db.from('cold_email_sends').select('id', { count: 'exact', head: true }).eq('status', 'sent');
+  const { count: everSent } = await db.from('cold_email_sends').select('id', { count: 'exact', head: true }).eq('owner_id', owner).eq('status', 'sent');
   const capped = !everSent ? clean.slice(0, FIRST_SEND_LIMIT) : clean;
   const heldBack = clean.length - capped.length;
 
@@ -184,41 +204,43 @@ const approveBatch = async (db, batchId, { approvedBy, cfg }) => {
       const body_text = fill(t.body, values(touch));
       const check = rules.checkColdEmail({ touch, subject, body: body_text });
       if (!check.ok) { sequenceOk = false; break; }
-      laterRows.push({ batch_id: batch.id, prospect_id: p.id, touch, angle: batch.angle, opener: batch.opener, variant_id: batch.variant_id, subject, body_text, check_failures: [], status: 'approved', scheduled_for: times[touch - 1].toISOString() });
+      laterRows.push({ owner_id: owner, batch_id: batch.id, prospect_id: p.id, touch, angle: batch.angle, opener: batch.opener, variant_id: batch.variant_id, subject, body_text, check_failures: [], status: 'approved', scheduled_for: times[touch - 1].toISOString() });
     }
     if (!sequenceOk) continue;
     await db.from('cold_email_sends').update({ status: 'approved', scheduled_for: times[0].toISOString() }).eq('id', d.id);
     await db.from('cold_email_sends').upsert(laterRows, { onConflict: 'prospect_id,touch', ignoreDuplicates: true });
     approved += 1;
   }
-  if (approved) await db.from('cold_email_batches').update({ status: 'approved', approved_at: new Date().toISOString(), approved_by: approvedBy || null }).eq('id', batchId);
+  if (approved) await db.from('cold_email_batches').update({ status: 'approved', approved_at: new Date().toISOString(), approved_by: approvedBy || null }).eq('id', batchId).eq('owner_id', owner);
   return { approved, blocked, heldBack, firstSendCap: !everSent ? FIRST_SEND_LIMIT : null };
 };
 
 // ---- sending ---------------------------------------------------------------
-const sweep = async (db, { cfg, now = new Date(), send = sender.sendColdEmail, mx = mxLookup } = {}) => {
+// One customer's sending pass. Mailbox caps, the bounce brake and the first-send date are all counted from THEIR sends only.
+const sweepOwner = async (db, owner, { cfg, now = new Date(), send = sender.sendColdEmail, mx = mxLookup } = {}) => {
+  needOwner(owner);
   const out = { sent: 0, skipped: 0, failed: 0, paused: null, blockers: sender.blockers(cfg) };
   if (out.blockers.length) return out;
 
   const since = new Date(now.getTime() - 30 * 86400000).toISOString();
-  const { data: recent } = await db.from('cold_email_sends').select('status,bounced_at,complained_at,sent_at,mailbox').gte('created_at', since);
+  const { data: recent } = await db.from('cold_email_sends').select('status,bounced_at,complained_at,sent_at,mailbox').eq('owner_id', owner).gte('created_at', since);
   const sentRows = (recent || []).filter((r) => r.status === 'sent');
   const pause = seq.shouldPause({ sent: sentRows.length, bounced: sentRows.filter((r) => r.bounced_at).length, complained: sentRows.filter((r) => r.complained_at).length });
   if (pause.pause) {
-    await db.from('cold_email_batches').update({ status: 'paused', paused_reason: pause.reason }).eq('status', 'approved');
+    await db.from('cold_email_batches').update({ status: 'paused', paused_reason: pause.reason }).eq('owner_id', owner).eq('status', 'approved');
     out.paused = pause.reason;
     return out;
   }
 
   const { data: due } = await db.from('cold_email_sends')
     .select('*, lo_prospects(*), cold_email_batches(status,send_window,reply_only,angle,id)')
-    .eq('status', 'approved').lte('scheduled_for', now.toISOString()).order('scheduled_for', { ascending: true }).limit(SWEEP_LIMIT);
+    .eq('owner_id', owner).eq('status', 'approved').lte('scheduled_for', now.toISOString()).order('scheduled_for', { ascending: true }).limit(SWEEP_LIMIT);
 
   const suppressed = await loadSuppression(db);
   const dayAgo = now.getTime() - 86400000;
   const sentToday = {};
   for (const r of sentRows) if (r.mailbox && new Date(r.sent_at).getTime() > dayAgo) sentToday[r.mailbox] = (sentToday[r.mailbox] || 0) + 1;
-  const { data: firstEver } = await db.from('cold_email_sends').select('sent_at').eq('status', 'sent').order('sent_at', { ascending: true }).limit(1);
+  const { data: firstEver } = await db.from('cold_email_sends').select('sent_at').eq('owner_id', owner).eq('status', 'sent').order('sent_at', { ascending: true }).limit(1);
   const firstSendAt = firstEver?.[0]?.sent_at || null;
   const capEach = seq.dailyCapForMailbox({ firstSendAt, now: now.getTime(), max: cfg.maxPerMailbox });
   const caps = Object.fromEntries(cfg.mailboxes.map((m) => [m, capEach]));
@@ -271,19 +293,35 @@ const sweep = async (db, { cfg, now = new Date(), send = sender.sendColdEmail, m
   return out;
 };
 
+// The background pass: each customer who switched sending on is served on their own.
+const sweep = async (db, { owners = [], ...opts } = {}) => {
+  const total = { sent: 0, skipped: 0, failed: 0, paused: null, blockers: [] };
+  for (const owner of owners) {
+    const r = await sweepOwner(db, owner, opts);
+    total.sent += r.sent; total.skipped += r.skipped; total.failed += r.failed;
+    total.paused = total.paused || r.paused; total.blockers = r.blockers;
+  }
+  return total;
+};
+
 // ---- replies, bounces, unsubscribes ------------------------------------------
 const stopSequence = async (db, prospectId) => {
   await db.from('cold_email_sends').update({ status: 'cancelled', skip_reason: 'sequence_stopped' }).eq('prospect_id', prospectId).in('status', ['approved', 'draft', 'pending']);
 };
 
-const handleReply = async (db, { fromEmail, subject, body, notify, createLead }) => {
+// `owner` is set when a customer logs a reply by hand (only their own prospects match). The signed Mailgun webhook has no
+// customer, so it matches the most recently contacted prospect with that address.
+const handleReply = async (db, { fromEmail, subject, body, notify, createLead, owner = null }) => {
   const email = emailKey(fromEmail);
-  const { data: prospect } = await db.from('lo_prospects').select('*').eq('email', email).maybeSingle();
+  let lookup = db.from('lo_prospects').select('*').eq('email', email);
+  if (owner) lookup = lookup.eq('owner_id', owner);
+  const { data: matches } = await lookup.order('last_contacted_at', { ascending: false, nullsFirst: false }).limit(1);
+  const prospect = matches?.[0] || null;
   const label = classifyReply(body);
   if (!prospect) return { matched: false, label };
   const { data: lastSend } = await db.from('cold_email_sends').select('id,touch,angle,opener').eq('prospect_id', prospect.id).eq('status', 'sent').order('sent_at', { ascending: false }).limit(1).maybeSingle();
   const drafted = draftReply({ label, firstName: prospect.first_name });
-  await db.from('cold_email_replies').insert({ prospect_id: prospect.id, send_id: lastSend?.id || null, from_email: email, subject: String(subject || '').slice(0, 300), body_text: String(body || '').slice(0, 8000), class: label, drafted_reply: drafted || null });
+  await db.from('cold_email_replies').insert({ owner_id: prospect.owner_id, prospect_id: prospect.id, send_id: lastSend?.id || null, from_email: email, subject: String(subject || '').slice(0, 300), body_text: String(body || '').slice(0, 8000), class: label, drafted_reply: drafted || null });
   if (lastSend) await db.from('cold_email_sends').update({ replied_at: new Date().toISOString(), reply_class: label }).eq('id', lastSend.id);
   if (STOPS_SEQUENCE.has(label)) await stopSequence(db, prospect.id);
   if (label === 'out_of_office') {
@@ -301,13 +339,16 @@ const handleReply = async (db, { fromEmail, subject, body, notify, createLead })
 
 const handleBounce = async (db, { email, kind = 'bounce' }) => {
   const key = emailKey(email);
-  const { data: prospect } = await db.from('lo_prospects').select('id').eq('email', key).maybeSingle();
+  // A bounce or complaint is about the address, so it stops every customer's sequence to that address.
+  const { data: found } = await db.from('lo_prospects').select('id').eq('email', key);
   await suppress(db, key, kind === 'complaint' ? 'cold_email_complaint' : 'cold_email_bounce');
-  if (!prospect) return false;
+  if (!found?.length) return false;
   const col = kind === 'complaint' ? 'complained_at' : 'bounced_at';
-  await db.from('cold_email_sends').update({ [col]: new Date().toISOString() }).eq('prospect_id', prospect.id).eq('status', 'sent');
-  await db.from('lo_prospects').update({ status: kind === 'complaint' ? 'complained' : 'bounced' }).eq('id', prospect.id);
-  await stopSequence(db, prospect.id);
+  for (const prospect of found) {
+    await db.from('cold_email_sends').update({ [col]: new Date().toISOString() }).eq('prospect_id', prospect.id).eq('status', 'sent');
+    await db.from('lo_prospects').update({ status: kind === 'complaint' ? 'complained' : 'bounced' }).eq('id', prospect.id);
+    await stopSequence(db, prospect.id);
+  }
   return true;
 };
 
@@ -328,9 +369,10 @@ const recordClick = async (db, token) => {
 };
 
 // ---- dashboard ----------------------------------------------------------------
-const loadResults = async (db) => {
-  const { data: sends } = await db.from('cold_email_sends').select('status,touch,angle,opener,variant_id,sent_at,clicked_at,replied_at,reply_class,bounced_at,complained_at').eq('status', 'sent').limit(50000);
-  const { data: prospects } = await db.from('lo_prospects').select('email,status').in('status', ['in_sequence', 'replied', 'demo_booked']).limit(20000);
+const loadResults = async (db, owner) => {
+  needOwner(owner);
+  const { data: sends } = await db.from('cold_email_sends').select('status,touch,angle,opener,variant_id,sent_at,clicked_at,replied_at,reply_class,bounced_at,complained_at').eq('owner_id', owner).eq('status', 'sent').limit(50000);
+  const { data: prospects } = await db.from('lo_prospects').select('email,status').eq('owner_id', owner).in('status', ['in_sequence', 'replied', 'demo_booked']).limit(20000);
   let trialsStarted = 0;
   const emails = (prospects || []).map((p) => p.email);
   for (let i = 0; i < emails.length; i += 200) {
@@ -343,5 +385,5 @@ const loadResults = async (db) => {
 
 module.exports = {
   TABLE_MISSING, tablesReady, importProspects, promoteFromFinder, verifyProspects, createBatch, generateDrafts, editSend, approveBatch,
-  sweep, handleReply, handleBounce, unsubscribeByToken, recordClick, loadResults, loadSuppression, mxLookup, FIRST_SEND_LIMIT
+  sweep, sweepOwner, handleReply, handleBounce, unsubscribeByToken, recordClick, loadResults, loadSuppression, mxLookup, FIRST_SEND_LIMIT
 };

@@ -32,15 +32,18 @@ const TEXT_FIELD = { facebook: 'facebook', instagram: 'instagram', linkedin: 'li
 function createMarketingPoster({ db, publish = publishToPlatform, now = () => new Date(), decrypt = decryptToken, encrypt = encryptToken } = {}) {
   const iso = () => now().toISOString();
 
-  async function loadCampaign(id) {
-    const { data, error } = await db.from('admin_marketing_campaigns').select('id, status, brief, outputs').eq('id', id).maybeSingle();
+  // `owner` is the customer asking. A campaign that belongs to someone else looks like it does not exist.
+  async function loadCampaign(id, owner) {
+    const { data, error } = await db.from('admin_marketing_campaigns').select('id, owner_id, status, brief, outputs').eq('id', id).maybeSingle();
     if (error) throw new PostError('Could not load this campaign', 503);
-    if (!data) throw new PostError('Campaign not found', 404);
+    if (!data || (owner !== undefined && data.owner_id !== owner)) throw new PostError('Campaign not found', 404);
     return data;
   }
 
-  async function connectionFor(channel) {
-    const { data } = await db.from('house_social_connections').select('*').eq('platform', channel).maybeSingle();
+  // Each customer posts only to their own connected accounts.
+  async function connectionFor(owner, channel) {
+    if (!owner) return null;
+    const { data } = await db.from('house_social_connections').select('*').eq('owner_id', owner).eq('platform', channel).maybeSingle();
     return data && data.status === 'connected' ? data : null;
   }
 
@@ -55,42 +58,44 @@ function createMarketingPoster({ db, publish = publishToPlatform, now = () => ne
     return out;
   }
 
-  const list = async (campaignId) => {
+  const list = async (campaignId, owner) => {
+    await loadCampaign(campaignId, owner);
     const { data, error } = await db.from('admin_marketing_posts').select('id, channel, status, scheduled_for, posted_at, url, error').eq('campaign_id', campaignId).order('channel');
     if (error) throw new PostError('Could not load the posting list', 503);
     return data || [];
   };
 
   // Put an approved campaign on the schedule for the channels picked. `at` null means right away (the next sweep or Post now).
-  async function schedule({ campaignId, channels, at, by }) {
+  async function schedule({ owner, campaignId, channels, at, by }) {
     const picked = [...new Set((channels || []).filter((c) => CHANNELS.includes(c)))];
     if (!picked.length) throw new PostError('Pick at least one account to post to.');
-    const campaign = await loadCampaign(campaignId);
+    const campaign = await loadCampaign(campaignId, owner);
     if (campaign.status !== 'approved') throw new PostError('Approve the campaign first, then choose where it goes.');
     let when = at ? new Date(at) : now();
     if (Number.isNaN(when.getTime())) throw new PostError('Choose a real date and time.');
     if (when.getTime() > now().getTime() + 365 * 86400000) throw new PostError('Choose a time within the next year.');
     for (const channel of picked) {
-      if (!(await connectionFor(channel))) throw new PostError('Connect that account first, on the Connected accounts tab.', 400, { needsConnection: channel });
+      if (!(await connectionFor(owner, channel))) throw new PostError('Connect that account first, on the Connected accounts tab.', 400, { needsConnection: channel });
       if (!String(campaign.outputs?.[TEXT_FIELD[channel]] || '').trim()) throw new PostError(`This campaign has no ${channel} text.`);
     }
     const { data: existing } = await db.from('admin_marketing_posts').select('channel, status').eq('campaign_id', campaignId);
     const done = new Set((existing || []).filter((r) => r.status === 'published' || r.status === 'posting').map((r) => r.channel));
     const rows = picked.filter((c) => !done.has(c)).map((channel) => ({
-      campaign_id: campaignId, channel, status: 'scheduled', scheduled_for: when.toISOString(),
+      campaign_id: campaignId, owner_id: owner, channel, status: 'scheduled', scheduled_for: when.toISOString(),
       posted_at: null, url: null, error: null, container_id: null, created_by: by || null, updated_at: iso()
     }));
     if (rows.length) {
       const { error } = await db.from('admin_marketing_posts').upsert(rows, { onConflict: 'campaign_id,channel' });
       if (error) throw new PostError('Could not save the schedule', 503);
     }
-    return list(campaignId);
+    return list(campaignId, owner);
   }
 
-  async function cancel(campaignId, channel) {
+  async function cancel(owner, campaignId, channel) {
+    await loadCampaign(campaignId, owner);
     const { error } = await db.from('admin_marketing_posts').delete().eq('campaign_id', campaignId).eq('channel', channel).in('status', ['scheduled', 'failed']);
     if (error) throw new PostError('Could not cancel that', 503);
-    return list(campaignId);
+    return list(campaignId, owner);
   }
 
   // Post one row now. Returns the row's final state.
@@ -106,11 +111,13 @@ function createMarketingPoster({ db, publish = publishToPlatform, now = () => ne
       await db.from('admin_marketing_posts').update({ status: 'failed', error: String(message).slice(0, 300), updated_at: iso(), ...extra }).eq('id', post.id);
     };
     let connection = null;
+    let owner = post.owner_id || undefined;
     try {
       const campaign = await loadCampaign(post.campaign_id);
-      if (campaign.status !== 'approved') { await fail('The campaign is no longer approved, so it was not posted.'); return list(post.campaign_id); }
-      connection = await connectionFor(post.channel);
-      if (!connection) { await fail('Connect this account first, on the Connected accounts tab.'); return list(post.campaign_id); }
+      owner = campaign.owner_id;
+      if (campaign.status !== 'approved') { await fail('The campaign is no longer approved, so it was not posted.'); return list(post.campaign_id, owner); }
+      connection = await connectionFor(owner, post.channel);
+      if (!connection) { await fail('Connect this account first, on the Connected accounts tab.'); return list(post.campaign_id, owner); }
 
       const raw = String(campaign.outputs?.[TEXT_FIELD[post.channel]] || '').trim();
       const text = tagLinks(raw, { source: post.channel, campaign: String(campaign.id).slice(0, 8) });
@@ -135,7 +142,7 @@ function createMarketingPoster({ db, publish = publishToPlatform, now = () => ne
         await db.from('house_social_connections').update({
           access_token_encrypted: encrypt(result.refreshedToken.token),
           token_expires_at: new Date(now().getTime() + result.refreshedToken.expiresIn * 1000).toISOString(), updated_at: iso()
-        }).eq('platform', post.channel);
+        }).eq('owner_id', owner).eq('platform', post.channel);
       }
       if (result.pending) {
         // Instagram is still processing: try the same upload again in two minutes.
@@ -143,30 +150,33 @@ function createMarketingPoster({ db, publish = publishToPlatform, now = () => ne
           status: 'scheduled', container_id: result.instagramContainerId || null,
           scheduled_for: new Date(now().getTime() + 120000).toISOString(), updated_at: iso()
         }).eq('id', post.id);
-        return list(post.campaign_id);
+        return list(post.campaign_id, owner);
       }
       await db.from('admin_marketing_posts').update({ status: 'published', url: result.url || null, posted_at: iso(), error: null, container_id: null, updated_at: iso() }).eq('id', post.id);
     } catch (error) {
       const message = String(error?.message || 'Posting failed');
       if (error instanceof ReconnectError && connection) {
-        await db.from('house_social_connections').update({ status: 'needs_reconnect', last_error: message.slice(0, 240), updated_at: iso() }).eq('platform', post.channel);
+        await db.from('house_social_connections').update({ status: 'needs_reconnect', last_error: message.slice(0, 240), updated_at: iso() }).eq('owner_id', owner).eq('platform', post.channel);
         await fail('That account needs to be reconnected on the Connected accounts tab.');
       } else {
         await fail(message);
       }
     }
-    return list(post.campaign_id);
+    return list(post.campaign_id, owner);
   }
 
-  async function postNow(campaignId, channel) {
+  async function postNow(owner, campaignId, channel) {
+    await loadCampaign(campaignId, owner);
     const { data: post } = await db.from('admin_marketing_posts').select('id, status').eq('campaign_id', campaignId).eq('channel', channel).maybeSingle();
     if (!post) throw new PostError('Choose this account first, then post.', 404);
     return run(post.id);
   }
 
   // The 5-minute pass: send what is due. Never more than PER_SWEEP at a time.
-  async function sweep() {
-    const { data: due } = await db.from('admin_marketing_posts').select('id').eq('status', 'scheduled')
+  // Only for customers who have switched auto-posting on (`owners`).
+  async function sweep(owners = []) {
+    if (!owners.length) return { due: 0, posted: 0 };
+    const { data: due } = await db.from('admin_marketing_posts').select('id').eq('status', 'scheduled').in('owner_id', owners)
       .lte('scheduled_for', iso()).order('scheduled_for', { ascending: true }).limit(PER_SWEEP);
     let posted = 0;
     for (const row of due || []) {

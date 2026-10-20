@@ -45,8 +45,10 @@ function fakeDb(seed) {
 }
 
 const NOW = new Date('2026-10-10T12:00:00Z');
-const campaign = (over = {}) => ({ id: 'c1c1c1c1-0000-0000-0000-000000000000', status: 'approved', brief: {}, outputs: { title: 'T', linkedin: 'Read https://homelistingai.com/blog/x.', facebook: 'FB text', instagram: 'IG text' }, ...over });
-const conn = (platform, over = {}) => ({ platform, status: 'connected', access_token_encrypted: 'enc', refresh_token_encrypted: null, ...over });
+const O1 = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const O2 = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+const campaign = (over = {}) => ({ owner_id: O1, id: 'c1c1c1c1-0000-0000-0000-000000000000', status: 'approved', brief: {}, outputs: { title: 'T', linkedin: 'Read https://homelistingai.com/blog/x.', facebook: 'FB text', instagram: 'IG text' }, ...over });
+const conn = (platform, over = {}) => ({ owner_id: O1, platform, status: 'connected', access_token_encrypted: 'enc', refresh_token_encrypted: null, ...over });
 const make = (seed, publish) => {
   const db = fakeDb(seed);
   return { db, poster: createMarketingPoster({ db, publish, now: () => NOW, decrypt: (v) => `dec-${v}`, encrypt: (v) => `enc-${v}` }) };
@@ -62,19 +64,19 @@ test('links to our site get tracking tags, other links do not, and punctuation s
 
 test('only an approved campaign can be scheduled', async () => {
   const { poster } = make({ admin_marketing_campaigns: [campaign({ status: 'draft' })], house_social_connections: [conn('linkedin')] });
-  await assert.rejects(poster.schedule({ campaignId: campaign().id, channels: ['linkedin'] }), /Approve the campaign first/);
+  await assert.rejects(poster.schedule({ owner: O1, campaignId: campaign().id, channels: ['linkedin'] }), /Approve the campaign first/);
 });
 
 test('an account that is not connected is refused and named', async () => {
   const { poster } = make({ admin_marketing_campaigns: [campaign()] });
-  await assert.rejects(poster.schedule({ campaignId: campaign().id, channels: ['linkedin'] }), (e) => e instanceof PostError && e.needsConnection === 'linkedin');
+  await assert.rejects(poster.schedule({ owner: O1, campaignId: campaign().id, channels: ['linkedin'] }), (e) => e instanceof PostError && e.needsConnection === 'linkedin');
 });
 
 test('post now sends the tagged text, marks it published and keeps the link', async () => {
   let seen;
   const { db, poster } = make({ admin_marketing_campaigns: [campaign()], house_social_connections: [conn('linkedin')] }, async (channel, args) => { seen = { channel, args }; return { url: 'https://li/post/1' }; });
-  await poster.schedule({ campaignId: campaign().id, channels: ['linkedin'] });
-  const posts = await poster.postNow(campaign().id, 'linkedin');
+  await poster.schedule({ owner: O1, campaignId: campaign().id, channels: ['linkedin'] });
+  const posts = await poster.postNow(O1, campaign().id, 'linkedin');
   assert.equal(seen.channel, 'linkedin');
   assert.match(seen.args.payload.caption, /utm_source=linkedin/);
   assert.equal(seen.args.connection.accessToken, 'dec-enc');
@@ -85,18 +87,18 @@ test('post now sends the tagged text, marks it published and keeps the link', as
 
 test('a failed post waits for a person and says why', async () => {
   const { poster } = make({ admin_marketing_campaigns: [campaign()], house_social_connections: [conn('facebook')] }, async () => { throw new Error('Page is restricted'); });
-  await poster.schedule({ campaignId: campaign().id, channels: ['facebook'] });
-  const posts = await poster.postNow(campaign().id, 'facebook');
+  await poster.schedule({ owner: O1, campaignId: campaign().id, channels: ['facebook'] });
+  const posts = await poster.postNow(O1, campaign().id, 'facebook');
   assert.equal(posts[0].status, 'failed');
   assert.match(posts[0].error, /Page is restricted/);
-  const swept = await poster.sweep();
+  const swept = await poster.sweep([O1]);
   assert.equal(swept.due, 0); // never retried by itself
 });
 
 test('a rejected token marks the account for reconnecting', async () => {
   const { db, poster } = make({ admin_marketing_campaigns: [campaign()], house_social_connections: [conn('linkedin')] }, async () => { throw new ReconnectError('bad token'); });
-  await poster.schedule({ campaignId: campaign().id, channels: ['linkedin'] });
-  const posts = await poster.postNow(campaign().id, 'linkedin');
+  await poster.schedule({ owner: O1, campaignId: campaign().id, channels: ['linkedin'] });
+  const posts = await poster.postNow(O1, campaign().id, 'linkedin');
   assert.match(posts[0].error, /reconnected/);
   assert.equal(db.tables.house_social_connections[0].status, 'needs_reconnect');
 });
@@ -104,13 +106,13 @@ test('a rejected token marks the account for reconnecting', async () => {
 test('the sweep posts only what is due and approval can be pulled back', async () => {
   const calls = [];
   const { db, poster } = make({ admin_marketing_campaigns: [campaign()], house_social_connections: [conn('linkedin'), conn('facebook')] }, async (channel) => { calls.push(channel); return { url: 'u' }; });
-  await poster.schedule({ campaignId: campaign().id, channels: ['linkedin'], at: '2026-10-10T11:00:00Z' });
-  await poster.schedule({ campaignId: campaign().id, channels: ['facebook'], at: '2026-10-20T11:00:00Z' });
-  assert.equal((await poster.sweep()).posted, 1);
+  await poster.schedule({ owner: O1, campaignId: campaign().id, channels: ['linkedin'], at: '2026-10-10T11:00:00Z' });
+  await poster.schedule({ owner: O1, campaignId: campaign().id, channels: ['facebook'], at: '2026-10-20T11:00:00Z' });
+  assert.equal((await poster.sweep([O1])).posted, 1);
   assert.deepEqual(calls, ['linkedin']);
   db.tables.admin_marketing_campaigns[0].status = 'draft';
   db.tables.admin_marketing_posts.find((p) => p.channel === 'facebook').scheduled_for = '2026-10-10T11:30:00Z';
-  await poster.sweep();
+  await poster.sweep([O1]);
   assert.deepEqual(calls, ['linkedin']); // approval removed, so nothing went out
   assert.match(db.tables.admin_marketing_posts.find((p) => p.channel === 'facebook').error, /no longer approved/);
 });
@@ -119,8 +121,8 @@ test('YouTube gets the video, Instagram prefers the video, and the picture goes 
   const seen = {};
   const media = [{ campaign_id: campaign().id, kind: 'image', path: 'a.png', status: 'ready' }, { campaign_id: campaign().id, kind: 'video', path: 'b.mp4', status: 'ready' }];
   const { poster } = make({ admin_marketing_campaigns: [campaign()], admin_marketing_media: media, house_social_connections: [conn('youtube'), conn('instagram'), conn('facebook')] }, async (channel, args) => { seen[channel] = args; return { url: 'u' }; });
-  await poster.schedule({ campaignId: campaign().id, channels: ['youtube', 'instagram', 'facebook'] });
-  for (const c of ['youtube', 'instagram', 'facebook']) await poster.postNow(campaign().id, c);
+  await poster.schedule({ owner: O1, campaignId: campaign().id, channels: ['youtube', 'instagram', 'facebook'] });
+  for (const c of ['youtube', 'instagram', 'facebook']) await poster.postNow(O1, campaign().id, c);
   assert.equal(seen.youtube.payload.videoUrl, 'https://signed/b.mp4');
   assert.equal(seen.instagram.payload.videoUrl, 'https://signed/b.mp4');
   assert.equal(seen.facebook.imageUrl, 'https://signed/a.png');
@@ -146,4 +148,45 @@ test('LinkedIn pictures: ask for an address, send the picture, attach it to the 
   calls.length = 0;
   await postLinkedIn({ connection: { accessToken: 't', external_account_id: 'abc' }, payload: { caption: 'Hello' }, imageUrl: '', fetchImpl });
   assert.equal(JSON.parse(calls[0].body).specificContent['com.linkedin.ugc.ShareContent'].shareMediaCategory, 'NONE');
+});
+
+test('one customer can never see, schedule or post another customer\'s campaign', async () => {
+  const { poster } = make({ admin_marketing_campaigns: [campaign()], house_social_connections: [conn('linkedin')] }, async () => ({ url: 'u' }));
+  await assert.rejects(poster.schedule({ owner: O2, campaignId: campaign().id, channels: ['linkedin'] }), (e) => e.status === 404);
+  await assert.rejects(poster.list(campaign().id, O2), (e) => e.status === 404);
+  await assert.rejects(poster.cancel(O2, campaign().id, 'linkedin'), (e) => e.status === 404);
+  await assert.rejects(poster.postNow(O2, campaign().id, 'linkedin'), (e) => e.status === 404);
+});
+
+test('each customer posts only to their own connected accounts, and a token refresh touches only their row', async () => {
+  const seen = [];
+  const refreshed = { token: 'new', expiresIn: 3600 };
+  const { db, poster } = make({
+    admin_marketing_campaigns: [campaign(), campaign({ id: 'c2c2c2c2-0000-0000-0000-000000000000', owner_id: O2 })],
+    house_social_connections: [conn('linkedin', { access_token_encrypted: 'one' }), conn('linkedin', { owner_id: O2, access_token_encrypted: 'two' })]
+  }, async (channel, args) => { seen.push(args.connection.accessToken); return { url: 'u', refreshedToken: refreshed }; });
+  await poster.schedule({ owner: O2, campaignId: 'c2c2c2c2-0000-0000-0000-000000000000', channels: ['linkedin'] });
+  await poster.postNow(O2, 'c2c2c2c2-0000-0000-0000-000000000000', 'linkedin');
+  assert.deepEqual(seen, ['dec-two']);
+  const rows = db.tables.house_social_connections;
+  assert.equal(rows.find((r) => r.owner_id === O1).access_token_encrypted, 'one', 'the other customer token is untouched');
+  assert.equal(rows.find((r) => r.owner_id === O2).access_token_encrypted, 'enc-new');
+});
+
+test('a customer with no connection of their own cannot post through someone else\'s', async () => {
+  const { poster } = make({ admin_marketing_campaigns: [campaign({ owner_id: O2 })], house_social_connections: [conn('linkedin')] });
+  await assert.rejects(poster.schedule({ owner: O2, campaignId: campaign().id, channels: ['linkedin'] }), (e) => e.needsConnection === 'linkedin');
+});
+
+test('the sweep posts only for customers who switched auto-posting on', async () => {
+  const calls = [];
+  const { db, poster } = make({
+    admin_marketing_campaigns: [campaign(), campaign({ id: 'c2c2c2c2-0000-0000-0000-000000000000', owner_id: O2 })],
+    house_social_connections: [conn('linkedin'), conn('linkedin', { owner_id: O2 })]
+  }, async (channel, args) => { calls.push(args.connection.accessToken); return { url: 'u' }; });
+  await poster.schedule({ owner: O1, campaignId: campaign().id, channels: ['linkedin'], at: '2026-10-10T11:00:00Z' });
+  await poster.schedule({ owner: O2, campaignId: 'c2c2c2c2-0000-0000-0000-000000000000', channels: ['linkedin'], at: '2026-10-10T11:00:00Z' });
+  assert.deepEqual(await poster.sweep([]), { due: 0, posted: 0 });
+  assert.equal((await poster.sweep([O2])).posted, 1);
+  assert.equal(db.tables.admin_marketing_posts.find((p) => p.owner_id === O1).status, 'scheduled');
 });

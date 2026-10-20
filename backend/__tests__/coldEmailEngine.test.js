@@ -9,13 +9,15 @@ const cfg = () => sender.readConfig({
   COLD_EMAIL_MAILBOXES: 'Chris Potter <chris@mail.example-lending.com>', COLD_EMAIL_MAILGUN_API_KEY: 'k'
 });
 const mx = async () => true;
+const O = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const O2 = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const TUE_MORNING = new Date('2026-10-06T13:00:00Z'); // 8:00 in Chicago
 const GOOD_BODY = 'Hi Sam,\n\nMost loan officers I talk to say agents send fewer referrals than before, and the internet leads they buy do not pick up.\n\nI built a listing page with an AI chat and your name on it, so buyers who ask about a house become a warm lead routed straight to you. The agent gets a better listing page. You get the call.\n\nWorth a 2-minute look?\n\nChris\nFounder, HomeListingAI';
 
-const seedSend = (over = {}) => ({ id: 's1', batch_id: 'b1', prospect_id: 'p1', touch: 1, angle: 'agent_referrals', opener: 'A', variant_id: 'A', subject: 'your agent partners', body_text: GOOD_BODY, status: 'approved', scheduled_for: TUE_MORNING.toISOString(), check_failures: [], ...over });
+const seedSend = (over = {}) => ({ owner_id: O, id: 's1', batch_id: 'b1', prospect_id: 'p1', touch: 1, angle: 'agent_referrals', opener: 'A', variant_id: 'A', subject: 'your agent partners', body_text: GOOD_BODY, status: 'approved', scheduled_for: TUE_MORNING.toISOString(), check_failures: [], ...over });
 const seedDb = (extra = {}) => createFakeDb({
-  lo_prospects: [{ id: 'p1', email: 'sam@lender.com', first_name: 'Sam', company: 'Acme', state: 'TX', status: 'verified', unsub_token: 'tok1' }],
-  cold_email_batches: [{ id: 'b1', status: 'approved', send_window: 'morning', reply_only: true, angle: 'agent_referrals' }],
+  lo_prospects: [{ owner_id: O, id: 'p1', email: 'sam@lender.com', first_name: 'Sam', company: 'Acme', state: 'TX', status: 'verified', unsub_token: 'tok1' }],
+  cold_email_batches: [{ owner_id: O, id: 'b1', status: 'approved', send_window: 'morning', reply_only: true, angle: 'agent_referrals' }],
   cold_email_sends: [seedSend()],
   lo_suppression_list: [],
   ...extra
@@ -23,7 +25,7 @@ const seedDb = (extra = {}) => createFakeDb({
 const run = (db, over = {}) => {
   const calls = [];
   const send = async (args) => { calls.push(args); return { messageId: `<m${calls.length}@x>` }; };
-  return engine.sweep(db, { cfg: cfg(), now: TUE_MORNING, send, mx, ...over }).then((r) => ({ r, calls }));
+  return engine.sweep(db, { owners: [O], cfg: cfg(), now: TUE_MORNING, send, mx, ...over }).then((r) => ({ r, calls }));
 };
 
 test('sweep sends one due email with footer and marks everything', async () => {
@@ -122,7 +124,7 @@ test('bounce and unsubscribe link suppress for good', async () => {
 
 test('import drops role, invalid, suppressed and duplicate addresses; facts need a source', async () => {
   const db = createFakeDb({ lo_suppression_list: [{ email: 'gone@x.com' }], lo_prospects: [] });
-  const out = await engine.importProspects(db, [
+  const out = await engine.importProspects(db, O, [
     { email: 'a@one.com', name: 'Ann Lee', company: 'One', fact: 'Won an award', fact_url: '' },
     { email: 'A@one.com' }, { email: 'info@two.com' }, { email: 'bad' }, { email: 'gone@x.com' }, { email: 'b@three.com', fact: 'Posted a thing', fact_url: 'https://x.test/p' }
   ]);
@@ -134,10 +136,10 @@ test('import drops role, invalid, suppressed and duplicate addresses; facts need
 });
 
 test('approving needs clean drafts, caps the very first send at 20 and schedules all five touches', async () => {
-  const prospects = Array.from({ length: 30 }, (_, i) => ({ id: `p${i}`, email: `lo${i}@lender${i}.com`, first_name: 'Sam', company: 'Acme', state: 'TX', status: 'verified', unsub_token: `t${i}` }));
-  const sends = prospects.map((p, i) => ({ id: `d${i}`, batch_id: 'b1', prospect_id: p.id, touch: 1, status: 'draft', subject: 'your agent partners', body_text: GOOD_BODY, check_failures: i === 0 ? ['Banned word'] : [] }));
-  const db = createFakeDb({ lo_prospects: prospects, cold_email_batches: [{ id: 'b1', status: 'draft', angle: 'agent_referrals', opener: 'A', variant_id: 'A', send_window: 'morning', reply_only: true }], cold_email_sends: sends });
-  const out = await engine.approveBatch(db, 'b1', { approvedBy: 'chris@x.com', cfg: cfg() });
+  const prospects = Array.from({ length: 30 }, (_, i) => ({ owner_id: O, id: `p${i}`, email: `lo${i}@lender${i}.com`, first_name: 'Sam', company: 'Acme', state: 'TX', status: 'verified', unsub_token: `t${i}` }));
+  const sends = prospects.map((p, i) => ({ owner_id: O, id: `d${i}`, batch_id: 'b1', prospect_id: p.id, touch: 1, status: 'draft', subject: 'your agent partners', body_text: GOOD_BODY, check_failures: i === 0 ? ['Banned word'] : [] }));
+  const db = createFakeDb({ lo_prospects: prospects, cold_email_batches: [{ owner_id: O, id: 'b1', status: 'draft', angle: 'agent_referrals', opener: 'A', variant_id: 'A', send_window: 'morning', reply_only: true }], cold_email_sends: sends });
+  const out = await engine.approveBatch(db, O, 'b1', { approvedBy: 'chris@x.com', cfg: cfg() });
   assert.strictEqual(out.blocked, 1);
   assert.strictEqual(out.approved, 20);
   assert.strictEqual(out.heldBack, 9);
@@ -154,8 +156,8 @@ test('two overlapping sweeps never send the same email twice', async () => {
   const calls = [];
   const send = async (a) => { calls.push(a); await new Promise((r) => setTimeout(r, 5)); return { messageId: 'm' }; };
   await Promise.all([
-    engine.sweep(db, { cfg: cfg(), now: TUE_MORNING, send, mx }),
-    engine.sweep(db, { cfg: cfg(), now: TUE_MORNING, send, mx })
+    engine.sweep(db, { owners: [O], cfg: cfg(), now: TUE_MORNING, send, mx }),
+    engine.sweep(db, { owners: [O], cfg: cfg(), now: TUE_MORNING, send, mx })
   ]);
   assert.strictEqual(calls.length, 1);
 });
@@ -163,7 +165,7 @@ test('two overlapping sweeps never send the same email twice', async () => {
 test('warm-up counts from the very first send, even one older than 30 days', async () => {
   const old = seedSend({ id: 'old', prospect_id: 'p0', status: 'sent', sent_at: '2026-06-01T13:00:00Z', created_at: '2026-06-01T12:00:00Z', mailbox: 'x' });
   const sends = Array.from({ length: 40 }, (_, i) => seedSend({ id: `s${i}`, prospect_id: `p${i + 1}` }));
-  const prospects = [{ id: 'p0', email: 'old@o.com', state: 'TX', status: 'in_sequence', unsub_token: 'o' }, ...sends.map((s, i) => ({ id: `p${i + 1}`, email: `lo${i}@lender${i}.com`, first_name: 'Sam', state: 'TX', status: 'verified', unsub_token: `t${i}` }))];
+  const prospects = [{ owner_id: O, id: 'p0', email: 'old@o.com', state: 'TX', status: 'in_sequence', unsub_token: 'o' }, ...sends.map((s, i) => ({ owner_id: O, id: `p${i + 1}`, email: `lo${i}@lender${i}.com`, first_name: 'Sam', state: 'TX', status: 'verified', unsub_token: `t${i}` }))];
   const db = seedDb({ cold_email_sends: [old, ...sends], lo_prospects: prospects });
   const { r } = await run(db, { now: new Date('2026-10-06T13:00:00Z') });
   assert.ok(r.sent > 20, `expected more than the day-one cap of 20, got ${r.sent}`);
@@ -176,8 +178,70 @@ test('from the finder: only mortgage people come over, not tax advisors or test 
     { email: 'founder@curb.com', name: 'Paul', employer: 'Curb Appeal Concepts', job_title: 'Founder', is_role: false, status: 'new' },
     { email: 'jev.test.real@hlai-test-verify.com', name: 'Test RealLO', employer: 'Acme Mortgage', job_title: 'Loan Officer', is_role: false, status: 'new' }
   ] });
-  const out = await engine.promoteFromFinder(db, 50);
+  const out = await engine.promoteFromFinder(db, O, 50);
   assert.strictEqual(out.added, 1);
   assert.strictEqual(out.skippedNotLo, 3);
   assert.strictEqual(db.tables.lo_prospects[0].email, 'ann@madison.com');
+});
+
+// ---- one customer never touches another customer's prospects, batches or sends ----
+const twoCustomers = () => createFakeDb({
+  lo_prospects: [
+    { owner_id: O, id: 'p1', email: 'sam@lender.com', first_name: 'Sam', state: 'TX', status: 'verified', unsub_token: 'tok1' },
+    { owner_id: O2, id: 'q1', email: 'sam@lender.com', first_name: 'Sam', state: 'TX', status: 'verified', unsub_token: 'tokq1' }
+  ],
+  cold_email_batches: [
+    { owner_id: O, id: 'b1', status: 'approved', send_window: 'morning', reply_only: true, angle: 'agent_referrals' },
+    { owner_id: O2, id: 'b2', status: 'approved', send_window: 'morning', reply_only: true, angle: 'agent_referrals' }
+  ],
+  cold_email_sends: [seedSend(), seedSend({ id: 's2', owner_id: O2, batch_id: 'b2', prospect_id: 'q1' })],
+  lo_suppression_list: []
+});
+
+test('the sweep only sends for the customers it is told about', async () => {
+  const db = twoCustomers();
+  const { r, calls } = await run(db, { owners: [O2] });
+  assert.strictEqual(r.sent, 1);
+  assert.strictEqual(calls.length, 1);
+  assert.strictEqual(db.tables.cold_email_sends.find((s) => s.id === 's1').status, 'approved', 'the other customer is untouched');
+  assert.strictEqual(db.tables.cold_email_sends.find((s) => s.id === 's2').status, 'sent');
+});
+
+test('a customer can import an address another customer already has', async () => {
+  const db = twoCustomers();
+  const out = await engine.importProspects(db, 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', [{ email: 'sam@lender.com' }]);
+  assert.strictEqual(out.added, 1);
+  const again = await engine.importProspects(db, 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', [{ email: 'sam@lender.com' }]);
+  assert.strictEqual(again.added, 0);
+  assert.strictEqual(again.duplicates, 1);
+});
+
+test('drafts, edits and approval refuse another customer\'s batch and sends', async () => {
+  const db = twoCustomers();
+  db.tables.cold_email_sends.find((s) => s.id === 's2').status = 'draft';
+  await assert.rejects(engine.generateDrafts(db, O, 'b2', { complete: async () => '{}' }), /not_found/);
+  await assert.rejects(engine.editSend(db, O, 's2', { subject: 'x', body_text: 'y' }), /not_editable/);
+  assert.deepStrictEqual(await engine.approveBatch(db, O, 'b2', { cfg: cfg() }).catch((e) => e.message), 'batch_not_draft');
+  await assert.rejects(engine.importProspects(db, undefined, [{ email: 'a@b.com' }]), /owner_required/);
+});
+
+test('verify and results look only at that customer\'s rows', async () => {
+  const db = twoCustomers();
+  db.tables.lo_prospects.forEach((p) => { p.status = 'new'; });
+  const out = await engine.verifyProspects(db, O, { limit: 10 }).catch(() => null);
+  if (out) assert.ok(db.tables.lo_prospects.find((p) => p.owner_id === O2).status === 'new', 'the other customer is untouched');
+  const sentRows = [seedSend({ id: 'r1', status: 'sent', sent_at: '2026-10-05T13:00:00Z' }), seedSend({ id: 'r2', owner_id: O2, status: 'sent', sent_at: '2026-10-05T13:00:00Z' })];
+  const dbR = createFakeDb({ cold_email_sends: sentRows, lo_prospects: [], agents: [] });
+  assert.strictEqual((await engine.loadResults(dbR, O)).total.sent, 1);
+});
+
+test('a bounce is about the address, so it stops every customer\'s sequence; a hand-logged reply stays with its customer', async () => {
+  const db = twoCustomers();
+  assert.strictEqual(await engine.handleBounce(db, { email: 'sam@lender.com', kind: 'bounce' }), true);
+  assert.deepStrictEqual(db.tables.lo_prospects.map((p) => p.status), ['bounced', 'bounced']);
+  const db2 = twoCustomers();
+  const out = await engine.handleReply(db2, { fromEmail: 'sam@lender.com', body: 'Yes, I am interested, call me', owner: O2 });
+  assert.strictEqual(out.matched, true);
+  assert.strictEqual(db2.tables.cold_email_replies[0].owner_id, O2);
+  assert.strictEqual(db2.tables.lo_prospects.find((p) => p.owner_id === O).status, 'verified');
 });

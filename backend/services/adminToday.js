@@ -28,12 +28,12 @@ async function buildToday({ db, owner, days = 7, now = Date.now() }) {
   const mine = new Map((campaigns.value || []).map((c) => [c.id, c]));
 
   const posts = await part('Posts', notes, () => rows(
-    db.from('admin_marketing_posts').select('id,campaign_id,channel,status,posted_at,scheduled_for,url,error').gte('created_at', since).limit(500)));
+    db.from('admin_marketing_posts').select('id,campaign_id,channel,status,posted_at,scheduled_for,url,error').eq('owner_id', owner).gte('created_at', since).limit(500)));
   const ownPosts = (posts.value || []).filter((p) => mine.has(p.campaign_id));
 
-  const connections = await part('Connected accounts', notes, () => rows(db.from('house_social_connections').select('platform,status')));
+  const connections = await part('Connected accounts', notes, () => rows(db.from('house_social_connections').select('platform,status').eq('owner_id', owner)));
   const cold = await part('Cold email', notes, () => rows(
-    db.from('cold_email_sends').select('sent_at,replied_at,reply_class').gte('sent_at', since).limit(5000)));
+    db.from('cold_email_sends').select('sent_at,replied_at,reply_class').eq('owner_id', owner).gte('sent_at', since).limit(5000)));
 
   // What went out
   const published = ownPosts.filter((p) => p.status === 'published').sort((a, b) => String(b.posted_at).localeCompare(String(a.posted_at)));
@@ -64,7 +64,7 @@ async function buildToday({ db, owner, days = 7, now = Date.now() }) {
   const needsMe = { available: campaigns.ok && posts.ok, items: needs };
 
   // What worked: only counts we can really see (see marketingAnalytics for what is not tracked)
-  const analytics = await part('Results', notes, () => buildAnalytics({ db, days, now }));
+  const analytics = await part('Results', notes, () => buildAnalytics({ db, owner, days, now }));
   const worked = analytics.ok
     ? { available: true, verdicts: analytics.value.verdicts, gaps: analytics.value.gaps, signups: analytics.value.signups.total, taggedSignups: analytics.value.signups.tagged, leads: analytics.value.leads.total }
     : { available: false, verdicts: [], gaps: [], signups: null, taggedSignups: null, leads: null };

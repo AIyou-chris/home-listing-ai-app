@@ -5,7 +5,7 @@
 const crypto = require('node:crypto');
 const { TOPICS, LAUNCH, GOALS, LO } = require('./topics');
 const { checkPost } = require('./safety');
-const { getSwitch, setSwitch } = require('../adminSwitches');
+const { getSwitch, setSwitch, ownersWithSwitchOn } = require('../adminSwitches');
 const { factsText, tokensFor } = require('./facts');
 const { business } = require('../../config/business');
 const { offerEndsAt, setOfferEndsAt } = require('../foundingOffer');
@@ -46,42 +46,39 @@ function upcomingSlots(now, days = 2) {
 
 function createAutopilot({ db, studioFor, media, getPoster, getConnections, sendMail, loadArticles, blog = null, now = () => new Date(), log = console }) {
   let busy = false;
-  const ownerOf = async () => {
-    const { data } = await db.from('admin_switches').select('updated_by').eq('key', 'autopilot_on').maybeSingle();
-    return /^[0-9a-f-]{36}$/i.test(data?.updated_by || '') ? data.updated_by : null;
-  };
-
-  async function recent(limit = 60) {
+  // Everything below belongs to ONE customer (owner): their switches, their posts, their direction.
+  async function recent(owner, limit = 60) {
     const { data } = await db.from('admin_marketing_campaigns').select('id, status, brief, outputs, created_at, updated_at, generation_error')
-      .eq('brief->>source', 'autopilot').order('created_at', { ascending: false }).limit(limit);
+      .eq('owner_id', owner).eq('brief->>source', 'autopilot').order('created_at', { ascending: false }).limit(limit);
     return data || [];
   }
 
   // Chris's standing instructions for every post not written yet (Autopilot tab, "New direction").
-  async function direction() {
-    try { const { data } = await db.from('platform_brain').select('config').eq('id', 'autopilot-direction').maybeSingle(); return String(data?.config?.text || '').slice(0, 1000); }
+  const directionId = (owner) => `autopilot-direction:${owner}`;
+  async function direction(owner) {
+    try { const { data } = await db.from('platform_brain').select('config').eq('id', directionId(owner)).maybeSingle(); return String(data?.config?.text || '').slice(0, 1000); }
     catch { return ''; }
   }
-  async function setDirection(text) {
-    const { error } = await db.from('platform_brain').upsert({ id: 'autopilot-direction', config: { text: String(text || '').trim().slice(0, 1000) }, updated_at: now().toISOString() }, { onConflict: 'id' });
+  async function setDirection(owner, text) {
+    const { error } = await db.from('platform_brain').upsert({ id: directionId(owner), config: { text: String(text || '').trim().slice(0, 1000) }, updated_at: now().toISOString() }, { onConflict: 'id' });
     if (error) throw error;
     return { direction: String(text || '').trim().slice(0, 1000) };
   }
   const monthDay = (d) => d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', timeZone: TZ });
 
   // The 30-day launch plan: started with Autopilot, runs for 30 days, then everyday posts take over.
-  async function launchPlan() {
-    const { data } = await db.from('admin_switches').select('enabled, updated_at').eq('key', 'autopilot_plan_launch30').maybeSingle();
+  async function launchPlan(owner) {
+    const { data } = await db.from('admin_switches').select('enabled, updated_at').eq('owner_id', owner).eq('key', 'autopilot_plan_launch30').maybeSingle();
     if (!data || data.enabled !== true) return null;
     const day = Math.floor((now().getTime() - Date.parse(data.updated_at)) / 86400000);
     if (!(day >= 0 && day < business.schedule.planDays)) return null;
     return { name: '30-day launch', day: day + 1, week: Math.min(4, Math.floor(day / 7) + 1), offerOpen: day + 1 >= 17 };
   }
 
-  async function pickTopic(slot, rows) {
+  async function pickTopic(owner, slot, rows) {
     const used = new Set(rows.slice(0, 30).map((r) => r.brief?.topicKey));
-    const plan = await launchPlan();
-    const standing = await direction();
+    const plan = await launchPlan(owner);
+    const standing = await direction(owner);
     const endsAt = plan ? await offerEndsAt(db) : null;
     const withHistory = (topic) => {
       const before = rows.filter((r) => r.brief?.topicKey === topic.key && r.outputs?.title).slice(0, 4).map((r) => `"${r.outputs.title}"`);
@@ -172,10 +169,10 @@ function createAutopilot({ db, studioFor, media, getPoster, getConnections, send
       } catch (err) { log.warn?.('[Autopilot] video skipped:', err?.message || err); }
       row = (await db.from('admin_marketing_campaigns').select('*').eq('id', id).maybeSingle()).data;
       row = await studio.approve(owner, id, { version: row.updated_at });
-      const connected = await getConnections();
+      const connected = await getConnections(owner);
       const channels = CHANNELS.filter((c) => connected[c] && (hasVideo || (c !== 'instagram' && c !== 'youtube')));
       if (!channels.length) return { ok: false, reason: 'no connected account to post to', campaignId: id };
-      await getPoster().schedule({ campaignId: id, channels, at: slot.at.toISOString(), by: owner });
+      await getPoster().schedule({ owner, campaignId: id, channels, at: slot.at.toISOString(), by: owner });
       return { ok: true, campaignId: id, channels, hasVideo };
     } catch (err) {
       await cleanup(owner, id);
@@ -184,15 +181,15 @@ function createAutopilot({ db, studioFor, media, getPoster, getConnections, send
   }
 
   async function writeSlot(owner, slot) {
-    const rows = await recent();
+    const rows = await recent(owner);
     if (rows.some((r) => r.brief?.slot === slot.key && (r.status !== 'failed' || r.brief?.skipped))) return { skipped: true };
     // After a failed try at this time, wait before trying again so one bad stretch does not burn through attempts.
     const lastTry = rows.filter((r) => r.brief?.slot === slot.key && r.brief?.failed).map((r) => Date.parse(r.created_at)).sort((a, b) => b - a)[0];
     if (lastTry && now().getTime() - lastTry < RETRY_AFTER_MS) return { skipped: true, waiting: true };
-    const topic = await pickTopic(slot, rows);
+    const topic = await pickTopic(owner, slot, rows);
     let result = await build(owner, slot, topic);
     if (!result.ok) {
-      const second = await pickTopic({ ...slot, index: 0 }, [...rows, { brief: { topicKey: topic.key } }]);
+      const second = await pickTopic(owner, { ...slot, index: 0 }, [...rows, { brief: { topicKey: topic.key } }]);
       result = await build(owner, slot, second);
     }
     if (!result.ok) {
@@ -203,18 +200,29 @@ function createAutopilot({ db, studioFor, media, getPoster, getConnections, send
     return result;
   }
 
-  async function tick({ force = false } = {}) {
+  // The timer: each customer who has Autopilot on is served on their own. "Write the next one now" serves just that customer.
+  async function tick({ force = false, owner: only = null } = {}) {
     if (busy) return { busy: true };
     busy = true;
     try {
-      if (!(await getSwitch(db, 'autopilot_on'))) return { off: true };
-      const owner = await ownerOf();
-      if (!owner) return { error: 'no owner' };
+      const owners = only ? ((await getSwitch(db, 'autopilot_on', only)) ? [only] : []) : await ownersWithSwitchOn(db, 'autopilot_on');
+      if (!owners.length) return { off: true };
+      const outcomes = [];
+      for (const owner of owners) outcomes.push(await tickOwner(owner, { force }));
+      return outcomes.length === 1 ? outcomes[0] : { owners: outcomes };
+    } catch (err) {
+      log.warn?.('[Autopilot] tick failed:', err?.message || err);
+      return { error: String(err?.message || err) };
+    } finally { busy = false; }
+  }
+
+  async function tickOwner(owner, { force = false } = {}) {
+    try {
       const current = now();
       let slots = upcomingSlots(current, force ? 3 : 2).filter((s) => s.at.getTime() - current.getTime() >= MIN_AHEAD_MS);
       if (force) {
         // "Write the next one now": the first upcoming slot that has no post yet, however far away.
-        const have = new Set((await recent()).filter((r) => r.status !== 'failed').map((r) => r.brief?.slot));
+        const have = new Set((await recent(owner)).filter((r) => r.status !== 'failed').map((r) => r.brief?.slot));
         slots = slots.filter((s) => !have.has(s.key)).slice(0, 1);
       } else {
         slots = slots.filter((s) => s.at.getTime() - current.getTime() <= LEAD_HOURS * 3600000);
@@ -225,12 +233,12 @@ function createAutopilot({ db, studioFor, media, getPoster, getConnections, send
         results.push({ slot: slot.key, ...r });
         if (!r.skipped && force) break;
         if (!r.skipped && !r.ok) {
-          const recentRows = await recent(40);
+          const recentRows = await recent(owner, 40);
           const bySlot = new Map();
           for (const x of recentRows) { const k = x.brief?.slot; if (!k) continue; const e = bySlot.get(k) || { ok: false, failed: false }; if (x.brief?.failed) { if (!x.brief?.skipped) e.failed = true; } else e.ok = true; bySlot.set(k, e); }
           const lastSlots = [...bySlot.entries()].sort((a, b) => String(b[0]).localeCompare(String(a[0]))).slice(0, MAX_FAILS_IN_ROW).map(([, e]) => e);
           if (lastSlots.length >= MAX_FAILS_IN_ROW && lastSlots.every((e) => e.failed && !e.ok)) {
-            await setSwitch(db, 'autopilot_on', false, owner);
+            await setSwitch(db, 'autopilot_on', false, owner, owner);
             await sendMail?.({ subject: 'Autopilot paused itself', text: `Three posts in a row did not pass. Autopilot switched itself OFF so nothing odd goes out. Last reason: ${r.reason}` });
             return { paused: true, results };
           }
@@ -243,23 +251,23 @@ function createAutopilot({ db, studioFor, media, getPoster, getConnections, send
     } catch (err) {
       log.warn?.('[Autopilot] tick failed:', err?.message || err);
       return { error: String(err?.message || err) };
-    } finally { busy = false; }
+    }
   }
 
   // Twice a week: the next planned article on the blog list is written by the blog writer and left as a DRAFT.
   // Autopilot never publishes: Chris reads it and presses Publish. Each try is marked first, so a failure is not retried in a loop.
   async function maybeBlogDraft(owner, { force = false } = {}) {
     if (!blog) return { skipped: 'blog not connected' };
-    const { data: marks } = await db.from('admin_switches').select('key, updated_at').like('key', 'autopilot_blog_%').order('updated_at', { ascending: false }).limit(10);
+    const { data: marks } = await db.from('admin_switches').select('key, updated_at').eq('owner_id', owner).like('key', 'autopilot_blog_%').order('updated_at', { ascending: false }).limit(10);
     const times = (marks || []).map((m) => Date.parse(m.updated_at)).filter(Number.isFinite);
     const weekAgo = now().getTime() - 7 * 86400000;
     if (!force) {
       if (times.filter((t) => t > weekAgo).length >= BLOG_PER_WEEK) return { skipped: 'two this week already' };
       if (times.some((t) => now().getTime() - t < BLOG_MIN_GAP_MS)) return { skipped: 'too soon after the last one' };
     }
-    const next = await blog.nextBrief();
+    const next = await blog.nextBrief(owner);
     if (!next) return { skipped: 'no planned article left' };
-    await setSwitch(db, `autopilot_blog_${next.id}`, true, owner);
+    await setSwitch(db, `autopilot_blog_${next.id}`, true, owner, owner);
     try {
       await blog.write(owner, next.id);
       let picture = false;
@@ -269,18 +277,18 @@ function createAutopilot({ db, studioFor, media, getPoster, getConnections, send
     catch (err) { log.warn?.('[Autopilot] blog draft failed:', err?.message || err); return { id: next.id, title: next.title, failed: String(err?.message || err).slice(0, 160) }; }
   }
 
-  async function blogDrafts() {
-    const { data: marks } = await db.from('admin_switches').select('key, updated_at').like('key', 'autopilot_blog_%').order('updated_at', { ascending: false }).limit(6);
+  async function blogDrafts(owner) {
+    const { data: marks } = await db.from('admin_switches').select('key, updated_at').eq('owner_id', owner).like('key', 'autopilot_blog_%').order('updated_at', { ascending: false }).limit(6);
     const ids = (marks || []).map((m) => m.key.replace('autopilot_blog_', '')).filter((id) => /^[0-9a-f-]{36}$/i.test(id));
     if (!ids.length) return [];
-    const { data } = await db.from('blog_posts').select('id, title, status, review_errors, generation_attempts, updated_at').in('id', ids);
+    const { data } = await db.from('blog_posts').select('id, title, status, review_errors, generation_attempts, updated_at').eq('owner_id', owner).in('id', ids);
     return ids.map((id) => (data || []).find((p) => p.id === id)).filter(Boolean).map((p) => ({ id: p.id, title: p.title, status: p.status, updatedAt: p.updated_at, problems: Array.isArray(p.review_errors) ? p.review_errors.length : 0, written: p.status !== 'brief' }));
   }
 
   // Old autopilot pictures and videos are removed after a while; the post records stay.
   async function housekeeping(owner) {
     const cutoff = new Date(now().getTime() - KEEP_MEDIA_DAYS * 86400000).toISOString();
-    const { data } = await db.from('admin_marketing_campaigns').select('id, brief, updated_at').eq('brief->>source', 'autopilot').lt('created_at', cutoff).limit(10);
+    const { data } = await db.from('admin_marketing_campaigns').select('id, brief, updated_at').eq('owner_id', owner).eq('brief->>source', 'autopilot').lt('created_at', cutoff).limit(10);
     for (const row of data || []) {
       if (row.brief?.pruned) continue;
       try {
@@ -292,13 +300,13 @@ function createAutopilot({ db, studioFor, media, getPoster, getConnections, send
   }
 
   async function summary(owner, days = 1) {
-    const all = (await recent(60)).filter((r) => r.brief?.slot);
+    const all = (await recent(owner, 60)).filter((r) => r.brief?.slot);
     // A failed try is hidden once the same time has a post that worked, so the list shows what matters.
     const worked = new Set(all.filter((r) => !r.brief.failed).map((r) => r.brief.slot));
     const rows = all.filter((r) => !r.brief.failed || r.brief.skipped || !worked.has(r.brief.slot));
     const ids = rows.map((r) => r.id);
     const posts = ids.length ? ((await db.from('admin_marketing_posts').select('campaign_id, channel, status, scheduled_for, posted_at, url, error').in('campaign_id', ids)).data || []) : [];
-    const who = owner || await ownerOf();
+    const who = owner;
     const pictures = {};
     if (who && media?.list) {
       for (const r of rows.filter((x) => !x.brief.failed).slice(0, 6)) {
@@ -318,28 +326,28 @@ function createAutopilot({ db, studioFor, media, getPoster, getConnections, send
     const p = ptParts(now());
     if (p.h < 19) return;
     const key = `autopilot_digest_${p.y}-${pad(p.mo)}-${pad(p.d)}`;
-    if (await getSwitch(db, key)) return;
+    if (await getSwitch(db, key, owner)) return;
     const today = `${p.y}-${pad(p.mo)}-${pad(p.d)}`;
     const items = (await summary(owner)).filter((s) => s.slot.startsWith(today));
     const lines = items.map((s) => s.failed ? `${s.slot}: did not go out (${s.reason})` : `${s.slot}: ${s.title}\n` + s.posts.map((x) => `   ${x.channel}: ${x.status}${x.url ? ' ' + x.url : ''}${x.error ? ' (' + x.error + ')' : ''}`).join('\n'));
-    const drafts = (await blogDrafts()).filter((d) => d.written);
+    const drafts = (await blogDrafts(owner)).filter((d) => d.written);
     if (drafts.length) lines.push(`Blog drafts waiting for you to read and publish (Marketing Funnels, Manage blog posts):\n` + drafts.map((d) => `   ${d.title}${d.problems ? ` (${d.problems} things to fix before it can publish)` : ''}`).join('\n'));
     await sendMail({ subject: `Autopilot: ${items.filter((s) => !s.failed).length} of 3 posts today`, text: lines.length ? lines.join('\n\n') : 'No posts were written today.' });
-    await setSwitch(db, key, true, owner);
+    await setSwitch(db, key, true, owner, owner);
   }
 
   async function start(owner, { plan = true } = {}) {
-    await setSwitch(db, 'autopilot_on', true, owner);
-    await setSwitch(db, 'autopilot_plan_launch30', plan === true, owner);
+    await setSwitch(db, 'autopilot_on', true, owner, owner);
+    await setSwitch(db, 'autopilot_plan_launch30', plan === true, owner, owner);
     if (plan === true) { try { await setOfferEndsAt(db, new Date(now().getTime() + 30 * 86400000)); } catch (err) { log.warn?.('[Autopilot] could not set the offer end date:', err?.message || err); } }
-    await setSwitch(db, 'social_auto_post', true, owner);
+    await setSwitch(db, 'social_auto_post', true, owner, owner);
     return { on: true };
   }
 
   // Stop turns it off AND takes back everything scheduled but not yet posted.
   async function stop(owner) {
-    await setSwitch(db, 'autopilot_on', false, owner);
-    const { data } = await db.from('admin_marketing_campaigns').select('id').eq('brief->>source', 'autopilot').limit(200);
+    await setSwitch(db, 'autopilot_on', false, owner, owner);
+    const { data } = await db.from('admin_marketing_campaigns').select('id').eq('owner_id', owner).eq('brief->>source', 'autopilot').limit(200);
     const ids = (data || []).map((r) => r.id);
     if (ids.length) await db.from('admin_marketing_posts').delete().in('campaign_id', ids).in('status', ['scheduled']);
     return { on: false, cancelled: ids.length };
@@ -347,7 +355,7 @@ function createAutopilot({ db, studioFor, media, getPoster, getConnections, send
 
   // New picture for a waiting post: another scene, the video made again from it, approved again. The scheduled times stay.
   async function redoPicture(owner, campaignId) {
-    const { data: row } = await db.from('admin_marketing_campaigns').select('*').eq('id', campaignId).maybeSingle();
+    const { data: row } = await db.from('admin_marketing_campaigns').select('*').eq('id', campaignId).eq('owner_id', owner).maybeSingle();
     if (!row || row.brief?.source !== 'autopilot' || row.brief?.failed) return { error: 'not an Autopilot post', status: 404 };
     const { data: posts } = await db.from('admin_marketing_posts').select('status').eq('campaign_id', campaignId);
     if ((posts || []).some((p) => p.status === 'published' || p.status === 'posting')) return { error: 'This post is already out or going out.', status: 409 };
@@ -371,7 +379,7 @@ function createAutopilot({ db, studioFor, media, getPoster, getConnections, send
 
   // Take one waiting post back. "skip" leaves the time empty; otherwise the next tick writes a replacement.
   async function removeUpcoming(owner, campaignId, { skip = false } = {}) {
-    const { data: row } = await db.from('admin_marketing_campaigns').select('id, brief, updated_at, owner_id').eq('id', campaignId).maybeSingle();
+    const { data: row } = await db.from('admin_marketing_campaigns').select('id, brief, updated_at, owner_id').eq('id', campaignId).eq('owner_id', owner).maybeSingle();
     if (!row || row.brief?.source !== 'autopilot') return { error: 'not an Autopilot post', status: 404 };
     const { data: posts } = await db.from('admin_marketing_posts').select('status').eq('campaign_id', campaignId);
     if ((posts || []).some((p) => p.status === 'published' || p.status === 'posting')) return { error: 'This post is already out or going out.', status: 409 };
@@ -385,14 +393,13 @@ function createAutopilot({ db, studioFor, media, getPoster, getConnections, send
     return { removed: true, skipped: skip };
   }
 
-  async function status() {
-    const on = await getSwitch(db, 'autopilot_on');
-    const autoPost = await getSwitch(db, 'social_auto_post');
-    const owner = await ownerOf();
-    const plan = on ? await launchPlan() : null;
+  async function status(owner) {
+    const on = await getSwitch(db, 'autopilot_on', owner);
+    const autoPost = await getSwitch(db, 'social_auto_post', owner);
+    const plan = on ? await launchPlan(owner) : null;
     const endsAt = plan ? await offerEndsAt(db) : null;
-    const lastBad = (await recent(20)).find((r) => r.brief?.failed && !r.brief?.skipped && now().getTime() - Date.parse(r.created_at) < 36 * 3600000);
-    return { on, autoPost, lastIssue: lastBad ? { slot: lastBad.brief.slot, reason: lastBad.generation_error || 'did not pass the check' } : null, plan: plan ? { ...plan, offerEnds: endsAt ? monthDay(endsAt) : null } : null, direction: await direction(), blogDrafts: await blogDrafts(), slots: owner || !on ? await summary(owner) : [], times: SLOTS.map((s) => `${s.h > 12 ? s.h - 12 : s.h}:${pad(s.m)} ${s.h >= 12 ? 'PM' : 'AM'} Pacific`) };
+    const lastBad = (await recent(owner, 20)).find((r) => r.brief?.failed && !r.brief?.skipped && now().getTime() - Date.parse(r.created_at) < 36 * 3600000);
+    return { on, autoPost, lastIssue: lastBad ? { slot: lastBad.brief.slot, reason: lastBad.generation_error || 'did not pass the check' } : null, plan: plan ? { ...plan, offerEnds: endsAt ? monthDay(endsAt) : null } : null, direction: await direction(owner), blogDrafts: await blogDrafts(owner), slots: await summary(owner), times: SLOTS.map((s) => `${s.h > 12 ? s.h - 12 : s.h}:${pad(s.m)} ${s.h >= 12 ? 'PM' : 'AM'} Pacific`) };
   }
 
   return { tick, start, stop, status, setDirection, removeUpcoming, redoPicture, maybeBlogDraft, upcomingSlots, ptToUtc };

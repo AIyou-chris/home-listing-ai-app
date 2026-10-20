@@ -6,7 +6,8 @@ const { buildAnalytics } = require('../services/marketingAnalytics');
 const fakeDb = (tables) => ({
   from: (name) => {
     let rows = tables[name];
-    const q = { select: () => q, gte: () => q, limit: () => q, then: (ok) => ok(rows instanceof Error ? { data: null, error: rows } : { data: rows || [], error: null }) };
+    const q = { select: () => q, gte: () => q, limit: () => q, in: () => q,
+      eq: (k, v) => { if (Array.isArray(rows)) rows = rows.filter((r) => r[k] === undefined || r[k] === v); return q; }, then: (ok) => ok(rows instanceof Error ? { data: null, error: rows } : { data: rows || [], error: null }) };
     return q;
   }
 });
@@ -17,9 +18,10 @@ test('counts posts, tagged signups and blog events, and says when it is too earl
     agents: [{ id: 1, metadata: { signup_source: { source: 'linkedin', campaign: 'abcd1234' } } }, { id: 2, metadata: {} }],
     admin_marketing_campaigns: [{ id: 'abcd1234-0000', outputs: { title: 'Referral post' } }],
     leads: [{ source_type: 'blog' }, { source_type: 'blog' }],
+    blog_posts: [{ slug: 'a', owner_id: 'o1' }],
     blog_events: [{ slug: 'a', event: 'article_view' }, { slug: 'a', event: 'cta_click' }],
     cold_email_sends: []
-  }), days: 30 });
+  }), owner: 'o1', days: 30 });
   assert.equal(out.posts.published, 2);
   assert.equal(out.posts.failed, 1);
   assert.equal(out.signups.tagged, 1);
@@ -30,7 +32,19 @@ test('counts posts, tagged signups and blog events, and says when it is too earl
   assert.ok(out.verdicts.some((v) => /failed/.test(v)));
 });
 test('one broken table does not break the page', async () => {
-  const out = await buildAnalytics({ db: fakeDb({ admin_marketing_posts: new Error('boom') }) });
+  const out = await buildAnalytics({ db: fakeDb({ admin_marketing_posts: new Error('boom') }), owner: 'o1' });
   assert.ok(out.notes.some((n) => /Posts/.test(n)));
   assert.equal(out.posts.published, 0);
+});
+
+test('another customer\'s posts and articles are never counted', async () => {
+  const db = fakeDb({
+    admin_marketing_posts: [{ channel: 'linkedin', status: 'published', owner_id: 'o1' }, { channel: 'linkedin', status: 'published', owner_id: 'o2' }],
+    blog_posts: [{ slug: 'mine', owner_id: 'o1' }, { slug: 'theirs', owner_id: 'o2' }],
+    cold_email_sends: [{ status: 'sent', owner_id: 'o2', touch: 1 }]
+  });
+  const out = await buildAnalytics({ db, owner: 'o1', days: 30 });
+  assert.equal(out.posts.published, 1);
+  assert.equal(out.cold.sent || 0, 0);
+  await assert.rejects(buildAnalytics({ db, days: 30 }), /owner_required/);
 });

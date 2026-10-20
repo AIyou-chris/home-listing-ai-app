@@ -24,8 +24,9 @@ function createBlogService({db,openai,env=process.env,fetchImpl=fetch,now=()=>ne
  const downloadSecret=env.BLOG_DOWNLOAD_SECRET || (env.SUPABASE_SERVICE_ROLE_KEY ? crypto.createHmac('sha256',env.SUPABASE_SERVICE_ROLE_KEY).update('hlai-blog-download-v1').digest('hex') : null);
  const table=()=>{if(!db)throw new BlogError(503,'Article storage is unavailable.');return db.from('blog_posts');};
  let scheduling=false;
- async function get(id){const p=result(await table().select('*').eq('id',requireId(id)).maybeSingle());if(!p)throw new BlogError(404,'Article not found.');return p;}
- async function preview(owner,id){const post=await get(id);const image=imageId(post.featured_image);if(image){const chosen=result(await db.from('admin_marketing_images').select('path').eq('id',image).eq('owner_id',owner).eq('approved',true).maybeSingle());if(!chosen)throw new BlogError(404,'Checked picture unavailable.');const signed=result(await db.storage.from('admin-marketing').createSignedUrl(chosen.path,3600));post.featured_image=signed.signedUrl;}return render.article(post,await all(),{preview:true});}
+ // `owner` is the customer asking. An article that belongs to someone else looks like it does not exist.
+ async function get(id,owner){const p=result(await table().select('*').eq('id',requireId(id)).maybeSingle());if(!p||(owner&&p.owner_id!==owner))throw new BlogError(404,'Article not found.');return p;}
+ async function preview(owner,id){const post=await get(id,owner);const image=imageId(post.featured_image);if(image){const chosen=result(await db.from('admin_marketing_images').select('path').eq('id',image).eq('owner_id',owner).eq('approved',true).maybeSingle());if(!chosen)throw new BlogError(404,'Checked picture unavailable.');const signed=result(await db.storage.from('admin-marketing').createSignedUrl(chosen.path,3600));post.featured_image=signed.signedUrl;}return render.article(post,await all(),{preview:true});}
  async function all(){return result(await table().select('*').order('published_at',{ascending:false,nullsFirst:false}).limit(500))||[];}
  async function publicPosts(){return result(await table().select('*').eq('status','published').lte('published_at',now()).order('published_at',{ascending:false}).limit(500))||[];}
  async function ping(post){
@@ -51,7 +52,7 @@ function createBlogService({db,openai,env=process.env,fetchImpl=fetch,now=()=>ne
  async function afterPublish(post){const distribution=await ping(post);try{await recordBlogUse(db,post);distribution.image='tagged';}catch{distribution.image='retry_needed';}try{await socialDrafts(post);distribution.sharing='ready';}catch{distribution.sharing='retry_needed';}try{await linkOlderPosts(post);distribution.links='updated';}catch{distribution.links='retry_needed';}return distribution;}
  async function save(owner,body){
   if(!UUID.test(owner||''))throw new BlogError(401,'Sign in as an admin.');
-  const existing=body.id?await get(body.id):null;if(existing&&body.updated_at!==existing.updated_at)throw new BlogError(409,'This article changed. Reload before saving.');
+  const existing=body.id?await get(body.id,owner):null;if(existing&&body.updated_at!==existing.updated_at)throw new BlogError(409,'This article changed. Reload before saving.');
   const patch={};for(const key of fields)if(body[key]!==undefined)patch[key]=body[key];
   // The writer sometimes sends keyword and link lists as one comma-separated string; the columns want lists.
   for(const key of ['seo_keywords','related_slugs','planned_links'])if(typeof patch[key]==='string')patch[key]=patch[key].split(/[,\n]/).map(v=>v.trim()).filter(Boolean);
@@ -63,7 +64,7 @@ function createBlogService({db,openai,env=process.env,fetchImpl=fetch,now=()=>ne
   const review=checks(p);if(['published','scheduled'].includes(p.status)&&!review.ok)throw new BlogError(422,'Fix these items before publishing.',review.errors);
   if(['published','scheduled'].includes(p.status)){try{await validateBlogImage(db,p,owner);}catch(e){throw new BlogError(422,e.message,[e.message]);}}
   if(p.status==='scheduled'&&(!p.scheduled_at||!Number.isFinite(Date.parse(p.scheduled_at))||Date.parse(p.scheduled_at)<=Date.parse(now())))throw new BlogError(400,'Choose a future date and time.');
-  Object.assign(patch,{slug:p.slug,status:p.status||'draft',content:review.content,review_errors:review.errors,reading_minutes:review.reading_minutes,author:'Chris Potter',author_id:existing?.author_id||owner,updated_at:now(),published_at:p.status==='published'?(existing?.published_at||now()):null});
+  Object.assign(patch,{slug:p.slug,status:p.status||'draft',content:review.content,review_errors:review.errors,reading_minutes:review.reading_minutes,author:'Chris Potter',owner_id:existing?.owner_id||owner,author_id:existing?.author_id||owner,updated_at:now(),published_at:p.status==='published'?(existing?.published_at||now()):null});
   if(existing)patch.updated_at=new Date(Math.max(Date.parse(now()),Date.parse(existing.updated_at)+1)).toISOString();
   const q=existing?table().update(patch).eq('id',existing.id).eq('updated_at',existing.updated_at):table().insert(patch);
   const post=result(await q.select('*').maybeSingle());if(!post)throw new BlogError(409,'Article changed. Reload before saving.');
@@ -88,13 +89,13 @@ function createBlogService({db,openai,env=process.env,fetchImpl=fetch,now=()=>ne
  }
  // Re-run the repair on an article that is already saved as a draft (keeps its slug and picture).
  async function repair(owner,id){
-  const existing=await get(id);if(!existing||existing.status==='published')throw new BlogError(409,'Only drafts can be repaired.');
+  const existing=await get(id,owner);if(!existing||existing.status==='published')throw new BlogError(409,'Only drafts can be repaired.');
   const start={title:existing.title,seo_title:existing.seo_title,seo_description:existing.seo_description,excerpt:existing.excerpt,seo_keywords:existing.seo_keywords,short_answer:existing.short_answer,content:existing.content,faq:existing.faq};
   const raw=await repairDraft(existing,start);
   return save(owner,{...existing,...raw,id:existing.id,updated_at:existing.updated_at});
  }
  async function generate(owner,body){
-  const existing=body.id?await get(body.id):null;
+  const existing=body.id?await get(body.id,owner):null;
   if(existing?.status==='published')throw new BlogError(409,'Save a reviewed draft before replacing a live article.');
   if(existing?.generation_attempts>=3)throw new BlogError(409,'This brief has used its three writing attempts. Edit it by hand.');
   if(existing?.generation_started_at&&Date.parse(now())-Date.parse(existing.generation_started_at)<180000)throw new BlogError(409,'This article is still being written.');
@@ -127,7 +128,7 @@ function createBlogService({db,openai,env=process.env,fetchImpl=fetch,now=()=>ne
   result(await db.from('leads').insert({user_id:settings.lead_owner_id,name:body.name.trim(),email:body.email.trim().toLowerCase(),source:'blog',status:'New',source_type:'blog',source_key:String(body.slug).slice(0,180),source_meta:{article_slug:body.slug,magnet:body.magnet,download_consent:true,consent_at:now(),newsletter_consent:false},consent_sms:false}));
   return {download:'/api/public/blog/download/'+token};
  }
- async function seed(){const posts=await all(),known=new Set(posts.map(p=>p.slug));let count=0;for(const brief of plan.posts){if(known.has(brief.slug))continue;let p={...brief,content:'',excerpt:'Editorial brief: '+brief.title,featured_image:'/blog/assets/'+brief.pillar+'.webp',featured_image_alt:brief.title};try{p={...p,...JSON.parse(await fs.readFile(path.join(__dirname,'content',brief.slug+'.json'),'utf8'))};}catch{}const review=p.content?checks(p):null;if(review&&!review.ok)throw new BlogError(422,'Seed article needs review: '+p.slug,review.errors);delete p.planned_links_dummy;if(review){p.content=review.content;p.reading_minutes=review.reading_minutes;}const inserted=await table().upsert({...p,published_at:null,updated_at:now()},{onConflict:'slug',ignoreDuplicates:true});result(inserted);count++;}return {added:count};}
+ async function seed(owner){if(!UUID.test(owner||''))throw new BlogError(401,'Sign in as an admin.');const posts=await all(),known=new Set(posts.map(p=>p.slug));let count=0;for(const brief of plan.posts){if(known.has(brief.slug))continue;let p={...brief,content:'',excerpt:'Editorial brief: '+brief.title,featured_image:'/blog/assets/'+brief.pillar+'.webp',featured_image_alt:brief.title};try{p={...p,...JSON.parse(await fs.readFile(path.join(__dirname,'content',brief.slug+'.json'),'utf8'))};}catch{}const review=p.content?checks(p):null;if(review&&!review.ok)throw new BlogError(422,'Seed article needs review: '+p.slug,review.errors);delete p.planned_links_dummy;if(review){p.content=review.content;p.reading_minutes=review.reading_minutes;}const inserted=await table().upsert({...p,owner_id:owner,published_at:null,updated_at:now()},{onConflict:'slug',ignoreDuplicates:true});result(inserted);count++;}return {added:count};}
  return {get,preview,all,publicPosts,save,generate,repair,publishDue,ping,afterPublish,lead,download,recordEvent,seed};
 }
 module.exports={createBlogService,BlogError,pdf,WORKSHEETS};
