@@ -45,7 +45,6 @@ export type DashboardView =
   | 'lo-platform';
 
 import AdminBroadcastPage from './components/AdminBroadcastPage';
-import AdminTodayPage from './components/AdminTodayPage';
 import BlogEditor from './Blog/BlogEditor';
 import { AdminLOPage } from './components/AdminLOPage';
 
@@ -345,7 +344,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab = 'today' })
   const renderMainContent = () => {
     switch (activeView) {
       case 'today':
-        return <AdminTodayPage onGo={(to) => handleSetView(to === 'marketing' ? 'marketing-funnels' : 'settings')} />;
       case 'dashboard':
         return <AdminCommandCenter />;
       case 'leads':

@@ -1,6 +1,7 @@
 
 import React from 'react';
-import { Mail, Activity, AlertTriangle, Send, MousePointerClick, Eye, UserMinus } from 'lucide-react';
+import { Mail, Activity, AlertTriangle, MousePointerClick, Eye, UserMinus } from 'lucide-react';
+import Collapsible from '../../components/admin/Collapsible';
 
 interface CampaignStats {
     emailsSent: number;
@@ -25,25 +26,14 @@ export const CampaignStatsWidget: React.FC<CampaignStatsWidgetProps> = ({ stats,
     if (!stats) return null;
 
     return (
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 mb-6 relative overflow-hidden">
-            {/* Background decoration */}
-            <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-50 rounded-full opacity-20 -mr-16 -mt-16 pointer-events-none"></div>
-
-            <div className="flex items-center justify-between mb-4 relative z-10">
-                <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-                    <Send className="w-5 h-5 text-indigo-600" />
-                    Campaign Command
-                </h2>
-                <span className="text-xs font-medium px-2 py-1 bg-green-100 text-green-700 rounded-full flex items-center gap-1">
-                    <span className="relative flex h-2 w-2">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-                    </span>
-                    Live Feed
-                </span>
-            </div>
-
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 relative z-10">
+        <Collapsible
+            title="Campaign Command"
+            hint="Email results, last 30 days"
+            badge={
+                <span className="text-xs font-medium px-2 py-1 bg-green-100 text-green-700 rounded-full">Live Feed</span>
+            }
+        >
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
 
                 {/* Emails Sent */}
                 <div className="p-4 bg-indigo-50/50 rounded-xl border border-indigo-100">
@@ -113,6 +103,6 @@ export const CampaignStatsWidget: React.FC<CampaignStatsWidgetProps> = ({ stats,
                 </div>
 
             </div>
-        </div>
+        </Collapsible>
     );
 };

@@ -48,7 +48,7 @@ const NavItem: React.FC<{
   const isLeadsActive = viewName === 'leads' && activeView === 'leads';
   const isAiCardActive = viewName === 'ai-card' && activeView === 'ai-card';
 
-  const isActive = activeView === viewName || isListingsActive || isLeadsActive || isAiCardActive;
+  const isActive = activeView === viewName || (viewName === 'today' && activeView === 'dashboard') || isListingsActive || isLeadsActive || isAiCardActive;
 
   return (
     <button
@@ -73,7 +73,6 @@ const NavItem: React.FC<{
 const AdminDashboardSidebar: React.FC<AdminDashboardSidebarProps> = ({ activeView, setView, isOpen, onClose, isDesktop, badgeCounts }) => {
   const navItems = [
     { view: 'today', icon: 'home', label: 'Today' },
-    { view: 'dashboard', icon: 'monitor_heart', label: 'System Health' },
     { view: 'leads', icon: 'groups', label: 'Leads & Appointments' },
     { view: 'ai-conversations', icon: 'chat_bubble', label: 'AI Conversations' },
     { view: 'inbox', icon: 'inbox', label: 'Inbox' },

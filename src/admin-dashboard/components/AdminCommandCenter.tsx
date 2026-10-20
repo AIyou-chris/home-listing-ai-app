@@ -1,7 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CampaignStatsWidget } from './CampaignStatsWidget'
 import { AuthService } from '../../services/authService'
+import Collapsible from '../../components/admin/Collapsible'
+import { setAllOpen } from '../../components/admin/collapsibleAll'
+import { TodayView, TodayData } from './TodayView'
 
 
 
@@ -126,22 +129,27 @@ const AdminCommandCenter: React.FC = () => {
   const [support, setSupport] = useState<SupportResponse | null>(null)
   const [metrics, setMetrics] = useState<MetricsResponse | null>(null)
   const [loading, setLoading] = useState(false)
+  const [today, setToday] = useState<TodayData | null>(null)
+  const [todayError, setTodayError] = useState(false)
+  const pageRef = useRef<HTMLDivElement>(null)
   const [selectedLogView, setSelectedLogView] = useState<'failures' | null>(null)
 
   const loadAll = useCallback(async () => {
     setLoading(true)
     try {
-      const [h, s, sp, m] = await Promise.all([
+      const [h, s, sp, m, td] = await Promise.all([
         auth.makeAuthenticatedRequest('/api/admin/system/health').catch(() => null),
         auth.makeAuthenticatedRequest('/api/admin/security/monitor').catch(() => null),
         auth.makeAuthenticatedRequest('/api/admin/support/summary').catch(() => null),
-        auth.makeAuthenticatedRequest('/api/admin/analytics/overview').catch(() => null)
+        auth.makeAuthenticatedRequest('/api/admin/analytics/overview').catch(() => null),
+        auth.makeAuthenticatedRequest('/api/admin/today').catch(() => null)
       ])
 
       if (h?.ok) setHealth(await h.json())
       if (s?.ok) setSecurity(await s.json())
       if (sp?.ok) setSupport(await sp.json())
       if (m?.ok) setMetrics(await m.json())
+      if (td?.ok) { setToday(await td.json()); setTodayError(false) } else setTodayError(true)
     } catch (error) {
       console.warn('Admin command center load failed', error)
     } finally {
@@ -158,16 +166,19 @@ const AdminCommandCenter: React.FC = () => {
   const anyAlert = health?.alerts && health.alerts.length > 0
 
   return (
-    <div className='space-y-6'>
+    <div className='space-y-6' ref={pageRef}>
       <div className='flex items-center justify-between'>
         <div>
           <p className='inline-flex items-center gap-2 rounded-full bg-primary-50 px-3 py-1 text-xs font-semibold text-primary-700'>
             <span className='material-symbols-outlined text-base'>dashboard</span>
             Admin Command Center
           </p>
-          <h1 className='text-3xl font-bold text-slate-900 mt-2'>Admin System Overview</h1>
-          <p className='text-sm text-slate-500'>Live health, security, support, and operations for admins.</p>
+          <h1 className='text-3xl font-bold text-slate-900 mt-2'>Today</h1>
+          <p className='text-sm text-slate-500'>What went out, what needs you, and how the system is doing.</p>
         </div>
+        <div className='flex gap-2'>
+        <button type='button' onClick={() => setAllOpen(pageRef.current, true)} className='rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50'>Open all</button>
+        <button type='button' onClick={() => setAllOpen(pageRef.current, false)} className='rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50'>Close all</button>
         <button
           onClick={loadAll}
           className='inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50'
@@ -176,20 +187,17 @@ const AdminCommandCenter: React.FC = () => {
           <span className='material-symbols-outlined text-sm'>refresh</span>
           {loading ? 'Refreshing…' : 'Refresh'}
         </button>
+        </div>
       </div>
+
+      <TodayView data={today} error={todayError} onGo={(to) => navigate(to === 'marketing' ? '/admin/marketing-funnels' : '/admin/settings')} />
 
       <CampaignStatsWidget stats={metrics?.campaignStats ?? null} loading={loading} />
 
 
       {/* System Health */}
-      <section className='rounded-2xl border border-slate-200 bg-white shadow-sm p-5 space-y-4'>
-        <div className='flex items-center justify-between'>
-          <div>
-            <h3 className='text-lg font-semibold text-slate-900'>System Health</h3>
-            <p className='text-sm text-slate-500'>API calls, failures, latency, uptime</p>
-          </div>
-          {anyAlert && <Badge tone='error'>Alert</Badge>}
-        </div>
+      <Collapsible title='System Health' hint='API calls, failures, latency, uptime' badge={<>{anyAlert && <Badge tone='error'>Alert</Badge>}</>}>
+        <div className='space-y-3'>
         <div className='grid grid-cols-1 sm:grid-cols-4 gap-3'>
           <Card title='API Calls (Since Deploy)' value={health?.totalApiCalls ?? '—'} />
           <Card
@@ -209,19 +217,14 @@ const AdminCommandCenter: React.FC = () => {
             </ul>
           </div>
         )}
-      </section>
+        </div>
+      </Collapsible>
 
       {/* Security */}
-      <section className='rounded-2xl border border-slate-200 bg-white shadow-sm p-5 space-y-3'>
-        <div className='flex items-center justify-between'>
-          <div>
-            <h3 className='text-lg font-semibold text-slate-900'>Security Monitor</h3>
-            <p className='text-sm text-slate-500'>Open risks, last login, anomalies</p>
-          </div>
-          <Badge tone={(security?.openRisks?.length ?? 0) > 0 ? 'warn' : 'success'}>
+      <Collapsible title='Security Monitor' hint='Open risks, last login, anomalies' badge={<><Badge tone={(security?.openRisks?.length ?? 0) > 0 ? 'warn' : 'success'}>
             {(security?.openRisks?.length ?? 0) > 0 ? 'Action Needed' : 'Secure'}
-          </Badge>
-        </div>
+          </Badge></>}>
+        <div className='space-y-3'>
         <div className='grid grid-cols-1 sm:grid-cols-3 gap-3'>
           <Card title='Open Risks' value={security?.openRisks?.length ?? 0} />
           <Card
@@ -238,19 +241,14 @@ const AdminCommandCenter: React.FC = () => {
         ) : (
           <p className='text-sm text-slate-500'>No known risks.</p>
         )}
-      </section>
+        </div>
+      </Collapsible>
 
       {/* Support */}
-      <section className='rounded-2xl border border-slate-200 bg-white shadow-sm p-5 space-y-3'>
-        <div className='flex items-center justify-between'>
-          <div>
-            <h3 className='text-lg font-semibold text-slate-900'>Support Snapshot</h3>
-            <p className='text-sm text-slate-500'>Chats, tickets, and errors needing attention</p>
-          </div>
-          <Badge tone={(support?.openTickets ?? 0) + (support?.openErrors ?? 0) > 0 ? 'warn' : 'success'}>
+      <Collapsible title='Support Snapshot' hint='Chats, tickets, and errors needing attention' badge={<><Badge tone={(support?.openTickets ?? 0) + (support?.openErrors ?? 0) > 0 ? 'warn' : 'success'}>
             {support ? `${support.openChats + support.openTickets + support.openErrors} open` : '—'}
-          </Badge>
-        </div>
+          </Badge></>}>
+        <div className='space-y-3'>
         <div className='grid grid-cols-1 sm:grid-cols-3 gap-3'>
           <Card title='Open Chats' value={support?.openChats ?? 0} />
           <Card title='Tickets' value={support?.openTickets ?? 0} />
@@ -267,20 +265,16 @@ const AdminCommandCenter: React.FC = () => {
           ))}
           {!support?.items?.length && <p className='text-sm text-slate-500'>No open support items.</p>}
         </div>
-      </section>
+        </div>
+      </Collapsible>
 
       {/* Operational Metrics */}
-      <section className='rounded-2xl border border-slate-200 bg-white shadow-sm p-5 space-y-3'>
-        <div className='flex items-center justify-between'>
-          <div>
-            <h3 className='text-lg font-semibold text-slate-900'>Operational Metrics</h3>
-            <p className='text-sm text-slate-500'>Lead & appointment KPIs</p>
-          </div>
-          <div className='flex gap-2 text-xs text-slate-500'>
-              <button type='button' className='text-blue-600 hover:underline' onClick={() => navigate('/admin/leads')}>Leads</button>
-              <span>·</span>
-              <button type='button' className='text-blue-600 hover:underline' onClick={() => navigate('/admin/leads')}>Appointments</button>
-            </div>
+      <Collapsible title='Operational Metrics' hint='Lead & appointment KPIs'>
+        <div className='space-y-3'>
+        <div className='flex gap-2 text-xs text-slate-500'>
+          <button type='button' className='text-blue-600 hover:underline' onClick={() => navigate('/admin/leads')}>Leads</button>
+          <span>·</span>
+          <button type='button' className='text-blue-600 hover:underline' onClick={() => navigate('/admin/leads')}>Appointments</button>
         </div>
         <div className='grid grid-cols-1 sm:grid-cols-4 gap-3'>
           <Card title='Leads Today' value={metrics?.leadsToday ?? 0} />
@@ -312,7 +306,8 @@ const AdminCommandCenter: React.FC = () => {
             {!metrics?.recentLeads?.length && <p className='text-sm text-slate-500'>No recent leads.</p>}
           </div>
         </div>
-      </section>
+        </div>
+      </Collapsible>
 
       {/* Failure Log Modal */}
       {selectedLogView === 'failures' && (
