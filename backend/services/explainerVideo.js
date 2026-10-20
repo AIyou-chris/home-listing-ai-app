@@ -1,0 +1,60 @@
+'use strict';
+// Animated explainer videos, drawn in code (backend/tools/code-video): free, no paid video AI.
+// The scenes and every word in them live in config/business.json under "video", so another business only needs its own file.
+const fs = require('fs/promises');
+const os = require('os');
+const path = require('path');
+// Loaded only when a video is made or checked, so the server starts even if the drawing library is missing.
+const loadCodeVideo = () => require('../tools/code-video/src/index.cjs');
+const { business } = require('../config/business');
+
+const WIDTH = 540; // small and fast; the same size as the picture videos
+
+const sceneNames = (cfg = business) => Object.keys(cfg.video?.scenes || {});
+
+// The scene's template and its words with the business's brand (name, site, colour, button) filled in.
+function sceneConfig(name, cfg = business) {
+  const scene = cfg.video?.scenes?.[name];
+  if (!scene) throw new Error(`There is no explainer video called "${name}".`);
+  const template = loadCodeVideo().templates[scene.template];
+  if (!template) throw new Error(`Explainer "${name}" uses an unknown template "${scene.template}".`);
+  return { template: scene.template, config: { ...(cfg.video.base || {}), ...scene.config } };
+}
+
+// Throws a plain error if a scene's words are the wrong shape (used by the settings check and the tests).
+function checkScene(name, cfg = business) {
+  const { template, config } = sceneConfig(name, cfg);
+  const t = loadCodeVideo().templates[template];
+  if (typeof t.normalizeConfig === 'function') t.normalizeConfig(config);
+  return t.createScene(config).duration;
+}
+
+// Every piece of text on screen, for the safety checks.
+function sceneText(name, cfg = business) {
+  const { config } = sceneConfig(name, cfg);
+  const out = [];
+  const walk = (v) => { if (typeof v === 'string') out.push(v); else if (Array.isArray(v)) v.forEach(walk); else if (v && typeof v === 'object') Object.values(v).forEach(walk); };
+  walk(config);
+  return out;
+}
+
+async function available() {
+  try {
+    const { spawnSync } = require('child_process');
+    const ffmpeg = process.env.FFMPEG_PATH || process.env.FFMPEG_BIN || 'ffmpeg';
+    return spawnSync(ffmpeg, ['-version'], { timeout: 5000 }).status === 0;
+  } catch { return false; }
+}
+
+// Makes the video and returns the MP4 bytes.
+async function render(name, { width = WIDTH, music = true, cfg = business } = {}) {
+  const { template, config } = sceneConfig(name, cfg);
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'hlai-explainer-'));
+  try {
+    const out = path.join(dir, 'explainer.mp4');
+    await loadCodeVideo().renderTemplate({ template, config, out, width, preset: 'veryfast', ...(music && cfg.video?.music ? { audio: { music: cfg.video.music } } : {}) });
+    return await fs.readFile(out);
+  } finally { await fs.rm(dir, { recursive: true, force: true }); }
+}
+
+module.exports = { render, available, sceneNames, sceneConfig, sceneText, checkScene, WIDTH };

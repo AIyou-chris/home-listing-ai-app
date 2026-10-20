@@ -360,3 +360,54 @@ test('a customer cannot replace or redo another customer\'s post', async () => {
   assert.strictEqual((await h.ap.removeUpcoming(OTHER, row.id)).status, 404);
   assert.strictEqual((await h.ap.redoPicture(OTHER, row.id)).status, 404);
 });
+
+// Runs Autopilot with a studio that records the video settings each post asked for.
+async function videoSettingsFor(patchTopics) {
+  const { TOPICS } = require('../services/autopilot/topics');
+  const db = fakeDb();
+  db.tables.admin_switches.push({ key: 'autopilot_on', enabled: true, owner_id: OWNER, updated_by: OWNER });
+  const asked = [];
+  const row = (id) => db.tables.admin_marketing_campaigns.find((x) => x.id === id);
+  const ap = createAutopilot({
+    db, log: { warn() {} }, now: () => new Date('2026-10-13T20:00:00Z'), sendMail: async () => {},
+    studioFor: () => ({
+      async generate(owner, id) { Object.assign(row(id), { status: 'draft', outputs: { ...GOOD }, updated_at: 'v1' }); return row(id); },
+      async edit(owner, id, body) { row(id).outputs = body.outputs; row(id).updated_at = 'v2'; return row(id); },
+      async settings(owner, id, body) { asked.push({ topic: row(id).brief.topicKey, options: body.videoOptions }); row(id).updated_at = 'v3'; return row(id); },
+      async approve(owner, id) { row(id).status = 'approved'; return row(id); },
+      async remove() {}
+    }),
+    media: { async picture() {}, async render() {}, async list() { return [{ kind: 'video', status: 'ready' }]; }, async cleanup() { return []; }, async removeFiles() {} },
+    getPoster: () => ({ async schedule() {} }), getConnections: async () => ({ facebook: true, instagram: true, linkedin: true, youtube: true })
+  });
+  const before = TOPICS.map((t) => t.explainer);
+  patchTopics(TOPICS);
+  try { await ap.tick(); await ap.tick({ force: true }); } finally { TOPICS.forEach((t, i) => { if (before[i]) t.explainer = before[i]; else delete t.explainer; }); }
+  return { asked, keysWithScene: new Set(TOPICS.filter((t, i) => i % 2 === 0).map((t) => t.key)) };
+}
+const everyOther = (topics) => topics.forEach((t, i) => { if (i % 2 === 0) t.explainer = 'wow-link'; else delete t.explainer; });
+
+test('with the setting on, topics with an explainer get that video and the rest keep the moving picture', async () => {
+  const { business } = require('../config/business');
+  business.video.useInAutopilot = true;
+  try {
+    const { asked, keysWithScene } = await videoSettingsFor(everyOther);
+    const product = asked.filter((a) => TOPICS_KEYS().has(a.topic));
+    assert.ok(product.length >= 2, 'at least two product topics were written');
+    for (const a of product) {
+      const expected = keysWithScene.has(a.topic) ? ['explainer', 'wow-link'] : ['picture', undefined];
+      assert.deepStrictEqual([a.options.layout, a.options.explainer], expected, a.topic);
+    }
+    assert.ok(product.some((a) => a.options.layout === 'explainer') && product.some((a) => a.options.layout === 'picture'));
+  } finally { business.video.useInAutopilot = false; }
+});
+
+test('with the setting off (the default) no post uses an explainer, even if topics name one', async () => {
+  const { business } = require('../config/business');
+  assert.strictEqual(business.video.useInAutopilot, false);
+  const { asked } = await videoSettingsFor((topics) => topics.forEach((t) => { t.explainer = 'wow-link'; }));
+  assert.ok(asked.length >= 2);
+  assert.ok(asked.every((a) => a.options.layout === 'picture' && a.options.explainer === undefined));
+});
+
+const TOPICS_KEYS = () => new Set(require('../services/autopilot/topics').TOPICS.map((t) => t.key));

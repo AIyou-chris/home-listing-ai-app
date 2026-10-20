@@ -1,0 +1,14 @@
+{
+  "name": "code-video",
+  "version": "1.0.0",
+  "description": "Animated explainer videos drawn in code: a scene is a function of time, drawn frame by frame and encoded with FFmpeg. No browser, no paid video AI.",
+  "main": "src/index.cjs",
+  "scripts": { "test": "node --test test/selftest.cjs" },
+  "bin": { "code-video": "cli.cjs" },
+  "license": "MIT",
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "@napi-rs/canvas": "^1.0.11",
+    "ffmpeg-static": "^5.2.0"
+  }
+}

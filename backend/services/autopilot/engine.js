@@ -155,7 +155,10 @@ function createAutopilot({ db, studioFor, media, getPoster, getConnections, send
         await media.picture(owner, id, { version: row.updated_at });
       }
       row = (await db.from('admin_marketing_campaigns').select('*').eq('id', id).maybeSingle()).data;
-      row = await studio.settings(owner, id, { version: row.updated_at, videoFormat: 'vertical', videoDuration: '15', videoOptions: { layout: 'picture', music: 'calm', musicVolume: 'low', endCard: 'wow', narration: 'none' } });
+      row = await studio.settings(owner, id, { version: row.updated_at, videoFormat: 'vertical', videoDuration: '15', videoOptions: (topic.explainer && business.video?.useInAutopilot === true)
+        // Topics with an animated explainer get that video (drawn in code, free) once the owner has turned it on in the business settings; the rest keep the moving picture.
+        ? { layout: 'explainer', explainer: topic.explainer, music: 'calm', musicVolume: 'low', endCard: 'wow', narration: 'none' }
+        : { layout: 'picture', music: 'calm', musicVolume: 'low', endCard: 'wow', narration: 'none' } });
       let hasVideo = false;
       try {
         await media.render(owner, id, { version: row.updated_at });

@@ -85,13 +85,15 @@
       "key": "wow-link-intro",
       "pillar": "agent-partners",
       "link": "/for-loan-officers",
-      "idea": "A WOW Link is a free listing page you send an agent. It answers buyer questions all day and the warm lead comes to you. Show a loan officer the simplest way to give an agent something useful this week."
+      "idea": "A WOW Link is a free listing page you send an agent. It answers buyer questions all day and the warm lead comes to you. Show a loan officer the simplest way to give an agent something useful this week.",
+      "explainer": "wow-link"
     },
     {
       "key": "agent-gets-free-page",
       "pillar": "agent-partners",
       "link": "/for-loan-officers",
-      "idea": "Agents love free help that makes their listing look better. A WOW Link gives them a page with an AI chat on it, at no cost to them. Frame it as what a loan officer can bring to an agent that is not a rate sheet."
+      "idea": "Agents love free help that makes their listing look better. A WOW Link gives them a page with an AI chat on it, at no cost to them. Frame it as what a loan officer can bring to an agent that is not a rate sheet.",
+      "explainer": "wow-link"
     },
     {
       "key": "not-a-rate-sheet",
@@ -103,7 +105,8 @@
       "key": "night-buyers",
       "pillar": "warm-leads",
       "link": "/for-loan-officers",
-      "idea": "Buyers browse listings at night and on weekends, when nobody answers. The listing page chat answers them and captures a name and phone number for the loan officer."
+      "idea": "Buyers browse listings at night and on weekends, when nobody answers. The listing page chat answers them and captures a name and phone number for the loan officer.",
+      "explainer": "buyer-chat"
     },
     {
       "key": "warm-vs-cold",
@@ -127,7 +130,8 @@
       "key": "ai-answers-calls",
       "pillar": "ai",
       "link": "/for-loan-officers",
-      "idea": "The AI phone line answers when the loan officer cannot, gets a name and number, and passes it along. It works beside the loan officer, not instead of them. The AI tells callers it is an AI."
+      "idea": "The AI phone line answers when the loan officer cannot, gets a name and number, and passes it along. It works beside the loan officer, not instead of them. The AI tells callers it is an AI.",
+      "explainer": "ai-phone"
     },
     {
       "key": "ai-brain-once",
@@ -163,7 +167,8 @@
       "key": "one-link-this-week",
       "pillar": "agent-partners",
       "link": "/for-loan-officers",
-      "idea": "Challenge: send one WOW Link to one agent. Just one. Small actions beat big plans."
+      "idea": "Challenge: send one WOW Link to one agent. Just one. Small actions beat big plans.",
+      "explainer": "wow-link"
     },
     {
       "key": "condo-check",
@@ -205,7 +210,8 @@
       "key": "time-back",
       "pillar": "ai",
       "link": "/for-loan-officers",
-      "idea": "Loan officers lose hours to repeat questions: what documents, how long, what costs. Let the AI handle the repeat questions so the loan officer spends time on real conversations."
+      "idea": "Loan officers lose hours to repeat questions: what documents, how long, what costs. Let the AI handle the repeat questions so the loan officer spends time on real conversations.",
+      "explainer": "ai-phone"
     },
     {
       "key": "compliance-built-in",
@@ -217,7 +223,8 @@
       "key": "buyers-want-answers",
       "pillar": "warm-leads",
       "link": "/for-loan-officers",
-      "idea": "Buyers want answers before they want to talk to anyone. Give them answers first, then a human. That is how a buyer becomes a conversation."
+      "idea": "Buyers want answers before they want to talk to anyone. Give them answers first, then a human. That is how a buyer becomes a conversation.",
+      "explainer": "buyer-chat"
     },
     {
       "key": "slow-market",
@@ -324,7 +331,8 @@
       "headline": "Send one WOW Link. Start the conversation.",
       "campaign": 3,
       "link": "/for-loan-officers",
-      "idea": "Explain a WOW Link in three plain steps: you send it, the agent previews a page for their listing, buyers chat with it and the warm lead comes to you. Real steps only. {{RULES}}"
+      "idea": "Explain a WOW Link in three plain steps: you send it, the agent previews a page for their listing, buyers chat with it and the warm lead comes to you. Real steps only. {{RULES}}",
+      "explainer": "wow-link"
     },
     {
       "week": 3,
@@ -374,5 +382,122 @@
       "link": "/lo-signup",
       "idea": "The market changed. It is time you did too. Build your network. Build your pipeline. Build your future. A confident closing post that ends with the free trial. {{RULES}}"
     }
-  ]
+  ],
+  "video": {
+    "note": "Animated explainer videos (backend/tools/code-video). Free to make: drawn in code, no paid video AI. Words are cut to fit; keep them plain and true. useInAutopilot stays false until the owner has watched the sample videos and said yes.",
+    "base": {
+      "brand": "HOMELISTINGAI",
+      "url": "homelistingai.com",
+      "accent": "#ED1C24",
+      "cta": "TRY IT FREE FOR 7 DAYS",
+      "small": "No card. Send one WOW Link to one agent."
+    },
+    "scenes": {
+      "buyer-chat": {
+        "template": "chat-answer",
+        "config": {
+          "timeLabel": "11:38",
+          "timeSuffix": "PM",
+          "closedLabel": "AFTER 5",
+          "business": "Sample listing page",
+          "closedLine": "The office is closed. Buyers still browse.",
+          "assistantLabel": "AI assistant \u00b7 online",
+          "avatarLetter": "A",
+          "question": "What do I need to start the loan process?",
+          "answer": "I am an AI. Usually pay stubs and bank statements.",
+          "options": [
+            "Call me",
+            "Text me"
+          ],
+          "booked": "Done. A loan officer will reach out.",
+          "leadTitle": "Warm lead sent to the loan officer",
+          "leadLines": [
+            "Name and phone captured",
+            "Question: what to bring",
+            "Follow-up task created"
+          ],
+          "sampleLabel": "SAMPLE LISTING SHOWN",
+          "endHeadline": [
+            "A buyer asked",
+            "at 11:38 PM."
+          ],
+          "endAccent": "at 11:38 PM.",
+          "endLine": "A WOW Link listing page answers buyers and sends the warm lead to the loan officer."
+        }
+      },
+      "ai-phone": {
+        "template": "phone-call",
+        "config": {
+          "hook": [
+            "Who answers",
+            "when you are busy?"
+          ],
+          "hookAccent": "you are busy?",
+          "business": "Sample loan officer",
+          "callerLabel": "Unknown caller",
+          "callerSays1": "Hi, I saw a home on Palm Ave. Can I talk to someone about financing?",
+          "aiSays1": "I am an AI assistant. Can I get your name and best number for the loan officer?",
+          "callerSays2": "Sam, at 555-0142.",
+          "aiSays2": "Thanks Sam. A loan officer will call you soon.",
+          "leadTitle": "Warm lead sent to the loan officer",
+          "leadLines": [
+            "Sam, interested in Palm Ave",
+            "Wants to talk about financing",
+            "Callback task created"
+          ],
+          "endHeadline": [
+            "Never miss",
+            "the next call."
+          ],
+          "endAccent": "the next call.",
+          "endLine": "The AI phone line answers when you cannot, gets a name and number, and passes it along.",
+          "answeredLabel": "AI assistant answered"
+        }
+      },
+      "wow-link": {
+        "template": "walkthrough",
+        "config": {
+          "hook": [
+            "Send one",
+            "WOW Link."
+          ],
+          "hookAccent": "WOW Link.",
+          "guideName": "WOW Link guide",
+          "guideLetter": "W",
+          "sampleLabel": "SAMPLE SCREEN SHOWN",
+          "steps": [
+            {
+              "guideSays": "Which agent do you want to help?",
+              "label": "THE AGENT",
+              "value": "Jordan Lee, Palm Realty",
+              "result": "Agent added"
+            },
+            {
+              "guideSays": "Pick one of their listings.",
+              "label": "THE LISTING",
+              "value": "123 Palm Ave",
+              "result": "Listing page created"
+            },
+            {
+              "guideSays": "Send it. They get a live preview.",
+              "label": "SEND IT",
+              "value": "Email and text",
+              "result": "WOW Link sent"
+            }
+          ],
+          "endHeadline": [
+            "One link.",
+            "One new partner."
+          ],
+          "endAccent": "One new partner.",
+          "endLine": "Send a free listing page to an agent. Buyers chat with it and warm leads come to you."
+        }
+      }
+    },
+    "music": {
+      "mood": "warm",
+      "gain": 0.6
+    },
+    "useInAutopilot": false
+  }
 }

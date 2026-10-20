@@ -140,6 +140,8 @@ function musicWav(style, seconds) {
 }
 async function render(campaign, photo, audio={}) {
   const options=videoOptions(campaign.brief);
+  // An animated explainer is drawn in code from the business settings: no picture, voice or captions are used.
+  if(options.layout==='explainer')return require('./explainerVideo').render(options.explainer,{music:options.music!=='none'});
   const vertical=campaign.brief.videoFormat==='vertical'; const width=vertical?540:960; const height=vertical?960:540;
   const large=options.captionSize==='large';
   const scenes=captionScenes(spokenScript(campaign.outputs.videoScript),vertical?(large?23:27):(large?43:52),vertical?(large?6:7):(large?4:5));
