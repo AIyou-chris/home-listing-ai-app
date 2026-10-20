@@ -1,3 +1,4 @@
+const { sumMailgunStats } = require('./services/mailgunStatTotals');
 const path = require('path');
 const dotenv = require('dotenv');
 
@@ -26499,16 +26500,7 @@ app.get('/api/admin/analytics/overview', verifyAdmin, async (req, res) => {
         });
 
         if (statsRes?.data?.stats) {
-          const totals = statsRes.data.stats.reduce((acc, day) => {
-            acc.accepted += day.accepted?.total ?? day.accepted ?? 0;
-            acc.delivered += day.delivered?.total ?? day.delivered ?? 0;
-            acc.failed += day.failed?.total ?? day.failed ?? 0;
-            acc.opened += day.opened?.total ?? day.opened ?? 0;
-            acc.clicked += day.clicked?.total ?? day.clicked ?? 0;
-            acc.unsubscribed += day.unsubscribed?.total ?? day.unsubscribed ?? 0;
-            acc.complained += day.complained?.total ?? day.complained ?? 0;
-            return acc;
-          }, { accepted: 0, delivered: 0, failed: 0, opened: 0, clicked: 0, unsubscribed: 0, complained: 0 });
+          const totals = sumMailgunStats(statsRes.data.stats);
 
           campaignStats.emailsSent = totals.accepted;
           campaignStats.bounced = totals.failed;
