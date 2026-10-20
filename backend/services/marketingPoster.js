@@ -4,10 +4,11 @@
 // sweep and a click together cannot post twice. A post that fails waits for a person; it is never retried by itself.
 const { CHANNELS, ReconnectError, publishToPlatform } = require('./socialPublish');
 const { encryptToken, decryptToken } = require('./tokenCrypto');
+const { business, hostPattern } = require('../config/business');
 
 const BUCKET = 'admin-marketing';
 const PER_SWEEP = 5;
-const HOME = /^https?:\/\/(?:www\.)?homelistingai\.com(?:[/?#]|$)/i;
+const HOME = hostPattern(business);
 
 class PostError extends Error {
   constructor(message, status = 400, extra = {}) { super(message); this.status = status; Object.assign(this, extra); }
@@ -115,7 +116,7 @@ function createMarketingPoster({ db, publish = publishToPlatform, now = () => ne
       const text = tagLinks(raw, { source: post.channel, campaign: String(campaign.id).slice(0, 8) });
       const media = await mediaUrls(campaign.id);
       const payload = post.channel === 'youtube'
-        ? { title: campaign.outputs?.title || 'HomeListingAI', description: text, videoStatus: media.video ? 'ready' : '', videoUrl: media.video || '' }
+        ? { title: campaign.outputs?.title || business.name, description: text, videoStatus: media.video ? 'ready' : '', videoUrl: media.video || '' }
         : post.channel === 'instagram'
           ? { captionText: text, hashtags: [], videoStatus: media.video ? 'ready' : '', videoUrl: media.video || '', instagramContainerId: post.container_id || '' }
           : { caption: text, videoStatus: media.video ? 'ready' : '', videoUrl: media.video || '' };

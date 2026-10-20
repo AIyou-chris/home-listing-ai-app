@@ -1,4 +1,5 @@
 const { sumMailgunStats } = require('./services/mailgunStatTotals');
+const BUSINESS = require('./config/business').business;
 const path = require('path');
 const dotenv = require('dotenv');
 
@@ -28,7 +29,7 @@ spendGuardModule.guard.setAlertSender(({ kind, detail }) => {
   spendGuardModule.guard.runBypassed(async () => {
     try {
       await require('./services/emailService').sendEmail({
-        to: process.env.OWNER_ALERT_EMAIL || 'homelistingai@gmail.com',
+        to: process.env.OWNER_ALERT_EMAIL || BUSINESS.alertEmail,
         subject: `Safety stop tripped: ${detail}`,
         html: `<p>A spending safety stop just tripped on HomeListingAI.</p><p><strong>${String(detail).replace(/[<>&]/g, '')}</strong></p><p>Nothing more of that kind will go out until tomorrow (UTC), unless you raise the limit in Render (the SPEND_* settings). If you did not expect this, look for a bug or abuse before raising it.</p>`
       });
@@ -1832,7 +1833,7 @@ async function notifyOwnerOfSignup({ firstName, lastName, email, accountType, ph
   const type = accountType || 'agent';
   const when = new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles' });
 
-  const ownerEmail = process.env.OWNER_ALERT_EMAIL || 'homelistingai@gmail.com';
+  const ownerEmail = process.env.OWNER_ALERT_EMAIL || BUSINESS.alertEmail;
   const ownerPhone = process.env.OWNER_ALERT_PHONE || '';
 
   // --- Email alert ---
@@ -21013,7 +21014,7 @@ app.post('/api/account/delete', async (req, res) => {
     if (!result.ok) {
       console.error('[AccountDelete] Could not remove the account row; login kept so this can be retried:', JSON.stringify(result.errors));
       spendGuardModule.guard.runBypassed(() => emailService.sendEmail({
-        to: process.env.OWNER_ALERT_EMAIL || 'homelistingai@gmail.com',
+        to: process.env.OWNER_ALERT_EMAIL || BUSINESS.alertEmail,
         subject: 'Account deletion did not finish',
         html: `<p>Someone asked to delete their account (${String(accountEmail).replace(/[<>&]/g, '')}) and the last step failed. Their login was kept so it can be retried.</p><pre>${JSON.stringify(result.errors, null, 2).replace(/[<>&]/g, '')}</pre>`
       }).catch(() => null));
@@ -21038,7 +21039,7 @@ app.post('/api/account/delete', async (req, res) => {
     // A bought phone number keeps costing money and is never released automatically. Tell the owner.
     if (result.phoneNumbers.length > 0) {
       spendGuardModule.guard.runBypassed(() => emailService.sendEmail({
-        to: process.env.OWNER_ALERT_EMAIL || 'homelistingai@gmail.com',
+        to: process.env.OWNER_ALERT_EMAIL || BUSINESS.alertEmail,
         subject: 'Release this phone number: account deleted',
         html: `<p>${String(accountEmail).replace(/[<>&]/g, '')} deleted their account. Their AI phone number(s) are still bought and billing until you release them in Telnyx:</p><p>${result.phoneNumbers.join(', ')}</p>`
       }).catch(() => null));
@@ -31723,7 +31724,7 @@ coldEmailRoutes.register(app, {
   signingKeyIsSet: Boolean(MAILGUN_WEBHOOK_SIGNING_KEY) && MAILGUN_WEBHOOK_SIGNING_KEY !== MAILGUN_API_KEY,
   defaultLeadUserId: DEFAULT_LEAD_USER_ID,
   upload,
-  ownerAlertEmail: process.env.OWNER_ALERT_EMAIL || 'homelistingai@gmail.com'
+  ownerAlertEmail: process.env.OWNER_ALERT_EMAIL || BUSINESS.alertEmail
 });
 
 // ── GET /api/public/lo-unsubscribe/:token — CAN-SPAM opt-out (public) ──────────
@@ -33397,7 +33398,7 @@ app.post('/api/lo/testimonial', requireAuth, async (req, res) => {
     if (upsertErr) throw upsertErr;
 
     // Tell the founder — a real quote from a real LO is marketing gold.
-    const ownerEmail = process.env.OWNER_ALERT_EMAIL || 'homelistingai@gmail.com';
+    const ownerEmail = process.env.OWNER_ALERT_EMAIL || BUSINESS.alertEmail;
     emailService.sendEmail({
       to: ownerEmail,
       subject: `💬 New LO testimonial — ${displayName}`,
@@ -36145,7 +36146,7 @@ const getAutopilot = () => {
         }
       },
       sendMail: async ({ subject, text }) => {
-        const to = process.env.OWNER_ALERT_EMAIL || 'homelistingai@gmail.com';
+        const to = process.env.OWNER_ALERT_EMAIL || BUSINESS.alertEmail;
         const html = `<pre style="font-family:inherit;white-space:pre-wrap">${String(text).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))}</pre>`;
         await emailService.sendEmail({ to, subject, html, tags: { template: 'autopilot', type: 'internal' } });
       }

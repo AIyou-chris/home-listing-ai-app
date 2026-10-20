@@ -1,6 +1,7 @@
 'use strict';
 const { findVoiceViolations } = require('../brandVoice');
 const { PLATFORM_BANNED_PHRASES } = require('../loBrainService');
+const { business, hostPattern } = require('../../config/business');
 
 const FIELDS = ['title', 'facebook', 'linkedin', 'instagram', 'bluesky', 'videoScript'];
 const PROMISES = /\b(guarantee[sd]?|lowest rate|best rate|no credit check|risk[- ]free|pre-?approved? in|approved in|instant approval|zero fees|free money)\b/i;
@@ -10,7 +11,9 @@ const INVENTED = /\b(thousands|hundreds|millions) of\b|\b(testimonial|case study
 // The product gives a loan officer something to bring to an agent. It does not find, match or supply agents.
 const MASS_EXIT = /\b(all|every|most|nearly all|so many|millions? of)\s+(the\s+)?(realtors?|agents?)\b[^.!?]{0,30}\b(are|is|have|has)?\s*(quit(?:ting)?|leav(?:e|ing)|left|gone|disappear(?:ing)?|abandon(?:ing)?)\b/i;
 const FINDS_AGENTS = /\b(we|it|homelistingai|this app|the app|our ai|ai)\s+(finds?|locates?|matches|connects you (?:with|to)|sources?|supplies|delivers)\b[^.!?]{0,40}\b(realtors?|agents?|partners?|referrals?)\b|\b(database|directory|list) of (realtors?|agents)\b|\bguaranteed? (referrals?|closings?|deals?)\b/i;
-const ALLOWED_MONEY = /^\$(49|79)(\/mo(nth)?)?$/;
+const esc = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const ALLOWED_MONEY = new RegExp(`^(${business.prices.allowed.map(esc).join('|')})(\\/mo(nth)?)?$`);
+const OWN_SITE = hostPattern(business);
 
 // The last gate before anything posts on its own. Returns a list of plain-words problems; empty means it may go.
 function checkPost(outputs = {}, { allowed = [] } = {}) {
@@ -36,7 +39,7 @@ function checkPost(outputs = {}, { allowed = [] } = {}) {
     for (const money of text.match(/\$\s?\d[\d,]*(?:\.\d+)?(?:\/mo(?:nth)?)?/g) || []) if (!ALLOWED_MONEY.test(money.replace(/\s/g, ''))) problems.push(`${key} has a money amount (${money})`);
     if ((text.match(/#\w+/g) || []).length > 4) problems.push(`${key} has too many hashtags`);
     if (/\b[A-Z]{4,}(?:\s+[A-Z]{4,}){2,}\b/.test(text)) problems.push(`${key} is shouting in capitals`);
-    for (const url of text.match(/https?:\/\/[^\s)]+/g) || []) if (!/^https:\/\/(www\.)?homelistingai\.com(\/|$)/i.test(url)) problems.push(`${key} links outside the site (${url})`);
+    for (const url of text.match(/https?:\/\/[^\s)]+/g) || []) if (!(/^https:/i.test(url) && OWN_SITE.test(url))) problems.push(`${key} links outside the site (${url})`);
   }
   if (String(outputs.facebook || '').length < 60) problems.push('facebook post is too short');
   if (String(outputs.linkedin || '').length < 80) problems.push('linkedin post is too short');

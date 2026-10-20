@@ -7,17 +7,18 @@ const { TOPICS, LAUNCH, GOALS, LO } = require('./topics');
 const { checkPost } = require('./safety');
 const { getSwitch, setSwitch } = require('../adminSwitches');
 const { factsText, tokensFor } = require('./facts');
+const { business } = require('../../config/business');
 const { offerEndsAt, setOfferEndsAt } = require('../foundingOffer');
 
-const TZ = 'America/Los_Angeles';
-const SLOTS = [{ h: 8, m: 0 }, { h: 12, m: 0 }, { h: 17, m: 0 }];
+const TZ = business.schedule.timezone;
+const SLOTS = business.schedule.slots;
 const CHANNELS = ['linkedin', 'facebook', 'instagram', 'youtube'];
-const LEAD_HOURS = 18;           // a post is written about 18 hours before it goes out
+const LEAD_HOURS = business.schedule.leadHours;           // a post is written about 18 hours before it goes out
 const MIN_AHEAD_MS = 25 * 60000; // never write a post for a time that is almost here
 const MAX_FAILS_IN_ROW = 3;
 const KEEP_MEDIA_DAYS = 10;
-const BLOG_PER_WEEK = 2;          // at most two blog drafts a week
-const BLOG_MIN_GAP_MS = 3 * 86400000; // and at least three days apart
+const BLOG_PER_WEEK = business.schedule.blogPerWeek;          // at most two blog drafts a week
+const BLOG_MIN_GAP_MS = business.schedule.blogMinGapDays * 86400000; // and at least three days apart
 const RETRY_AFTER_MS = 30 * 60000; // wait this long before trying a failed time again
 
 const pad = (n) => String(n).padStart(2, '0');
@@ -73,7 +74,7 @@ function createAutopilot({ db, studioFor, media, getPoster, getConnections, send
     const { data } = await db.from('admin_switches').select('enabled, updated_at').eq('key', 'autopilot_plan_launch30').maybeSingle();
     if (!data || data.enabled !== true) return null;
     const day = Math.floor((now().getTime() - Date.parse(data.updated_at)) / 86400000);
-    if (!(day >= 0 && day < 30)) return null;
+    if (!(day >= 0 && day < business.schedule.planDays)) return null;
     return { name: '30-day launch', day: day + 1, week: Math.min(4, Math.floor(day / 7) + 1), offerOpen: day + 1 >= 17 };
   }
 
@@ -95,7 +96,7 @@ function createAutopilot({ db, studioFor, media, getPoster, getConnections, send
       if (!loadArticles) return null;
       try {
         const found = ((await loadArticles()) || []).find((a) => !rows.some((r) => r.brief?.topicKey === `blog:${a.slug}`));
-        return found ? { key: `blog:${found.slug}`, pillar: 'blog', link: `https://homelistingai.com/blog/${found.slug}`,
+        return found ? { key: `blog:${found.slug}`, pillar: 'blog', link: `${business.siteUrl}/blog/${found.slug}`,
           idea: `Share this real article with loan officers: "${found.title}". Say in plain words why it is worth ten minutes, using only what the title and summary say: ${String(found.excerpt || found.short_answer || '').slice(0, 300)} Do not add facts or numbers that are not here.` } : null;
       } catch { return null; }
     };
