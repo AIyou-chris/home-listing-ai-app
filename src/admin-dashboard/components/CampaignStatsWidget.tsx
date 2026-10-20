@@ -5,7 +5,7 @@ import Collapsible from '../../components/admin/Collapsible';
 
 interface CampaignStats {
     emailsSent: number;
-    deliveryRate: number;
+    deliveryRate: number | null;
     activeLeads: number;
     bounced: number;
     opens: number;
@@ -23,7 +23,13 @@ export const CampaignStatsWidget: React.FC<CampaignStatsWidgetProps> = ({ stats,
         return <div className="animate-pulse h-64 bg-gray-100 rounded-lg mb-6"></div>;
     }
 
-    if (!stats) return null;
+    if (!stats) {
+        return (
+            <Collapsible title="Campaign Command" hint="Email results, last 30 days">
+                <p className="text-sm text-slate-700">Not available right now.</p>
+            </Collapsible>
+        );
+    }
 
     return (
         <Collapsible
@@ -50,7 +56,7 @@ export const CampaignStatsWidget: React.FC<CampaignStatsWidgetProps> = ({ stats,
                         <Activity className="w-4 h-4 text-emerald-500" />
                         <span className="text-xs font-medium text-emerald-600 uppercase tracking-wider">Delivery Rate</span>
                     </div>
-                    <div className="text-2xl font-bold text-gray-900">{stats.deliveryRate}%</div>
+                    <div className="text-2xl font-bold text-gray-900">{stats.deliveryRate === null ? 'Not available' : `${stats.deliveryRate}%`}</div>
                 </div>
 
                 {/* Opens */}

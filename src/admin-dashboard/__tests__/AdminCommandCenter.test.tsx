@@ -31,4 +31,16 @@ describe('Admin Today page', () => {
     fireEvent.click(screen.getByText('Open all'));
     expect(container.querySelectorAll('details[data-collapsible]:not([open])').length).toBe(0);
   });
+
+  it('says "Not available" instead of showing zeros when the data could not be loaded', async () => {
+    render(<MemoryRouter><AdminCommandCenter /></MemoryRouter>);
+    await waitFor(() => expect(screen.getByText('What went out')).toBeTruthy());
+    await waitFor(() => expect(screen.queryByText('Loading…')).toBeNull());
+    // security, support, metrics and health all failed in this test: no invented numbers, no "Secure" badge
+    expect(screen.getAllByText('Not available').length).toBeGreaterThan(8);
+    expect(screen.queryByText('Secure')).toBeNull();
+    expect(screen.getByText('Security data is not available right now.')).toBeTruthy();
+    expect(screen.getByText('Support data is not available right now.')).toBeTruthy();
+    expect(screen.getByText('Lead data is not available right now.')).toBeTruthy();
+  });
 });

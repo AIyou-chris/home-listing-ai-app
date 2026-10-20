@@ -16237,7 +16237,7 @@ app.get('/api/admin/dashboard-metrics', verifyAdmin, async (req, res) => {
     // --- CAMPAIGN COMMAND STATS ---
     let campaignStats = {
       emailsSent: 0,
-      deliveryRate: 100,
+      deliveryRate: null, // unknown until there are emails to measure
       activeLeads: 0,
       bounced: 0
     };
@@ -17092,28 +17092,10 @@ app.get('/api/admin/broadcast-history', verifyAdmin, async (req, res) => {
   }
 });
 
-// System Performance Metrics endpoint - REAL DATA
-app.get('/api/admin/performance', verifyAdmin, async (req, res) => {
-  try {
-    const performanceMetrics = {
-      responseTime: { average: 200, p95: 500, p99: 1000 },
-      errorRate: 0.1,
-      throughput: { requestsPerMinute: 100, requestsPerHour: 6000 },
-      resourceUsage: { cpu: 45, memory: 60, storage: 30 },
-      functionPerformance: [
-        { name: 'continueConversation', executionTime: 150, errorRate: 0.05, invocationCount: 500 },
-        { name: 'generateSpeech', executionTime: 800, errorRate: 0.02, invocationCount: 200 },
-        { name: 'adminMetrics', executionTime: 50, errorRate: 0.01, invocationCount: 50 }
-      ],
-      uptime: 99.9,
-      lastUpdated: new Date().toISOString()
-    };
-
-    res.json(performanceMetrics);
-  } catch (error) {
-    console.error('Performance metrics error:', error);
-    res.status(500).json({ error: error.message });
-  }
+// System performance. We do not measure this, so we say so instead of returning made-up numbers.
+// (Real API calls, failures, latency and uptime are on /api/admin/system/health.)
+app.get('/api/admin/performance', verifyAdmin, (_req, res) => {
+  res.status(501).json({ available: false, error: 'Performance numbers are not available. See /api/admin/system/health for the real API figures.' });
 });
 
 // Get System Settings endpoint
@@ -26459,7 +26441,7 @@ app.get('/api/admin/analytics/overview', verifyAdmin, async (req, res) => {
     // --- CAMPAIGN COMMAND STATS ---
     let campaignStats = {
       emailsSent: 0,
-      deliveryRate: 0,
+      deliveryRate: null,
       activeLeads: 0,
       bounced: 0,
       opens: 0,
@@ -26590,9 +26572,10 @@ app.get('/api/admin/analytics/overview', verifyAdmin, async (req, res) => {
       leadsSpark,
       apptSpark,
       statuses: {
-        aiLatencyMs: 0,
-        emailBounceRate: 0,
-        fileQueueStuck: 0
+        // Only what we really measure. Latency and the file queue are not measured here, so they are null ("not available"), never 0.
+        aiLatencyMs: null,
+        emailBounceRate: campaignStats.emailsSent > 0 ? Math.round((campaignStats.bounced / campaignStats.emailsSent) * 1000) / 10 : null,
+        fileQueueStuck: null
       },
       recentLeads: formattedLeads
     });

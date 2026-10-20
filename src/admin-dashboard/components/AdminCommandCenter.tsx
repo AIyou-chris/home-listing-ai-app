@@ -41,14 +41,14 @@ type MetricsResponse = {
   leadsSpark: number[]
   apptSpark: number[]
   statuses: {
-    aiLatencyMs: number
-    emailBounceRate: number
-    fileQueueStuck: number
+    aiLatencyMs: number | null
+    emailBounceRate: number | null
+    fileQueueStuck: number | null
   }
   recentLeads: Array<{ id: string; name: string; status: string; source: string; at: string }>
   campaignStats?: {
     emailsSent: number
-    deliveryRate: number
+    deliveryRate: number | null
     activeLeads: number
     bounced: number
     opens: number
@@ -56,6 +56,9 @@ type MetricsResponse = {
     unsubscribed: number
   }
 }
+
+// When we do not have a number we say so. We never show a made-up zero.
+const NOT_AVAILABLE = 'Not available'
 
 const Card: React.FC<{ title: string; value: React.ReactNode; subtitle?: string; tone?: 'default' | 'warn' | 'error'; sparkline?: number[]; onClick?: () => void }> = ({ title, value, subtitle, tone = 'default', sparkline, onClick }) => {
   const toneClass = tone === 'error' ? 'border-rose-200 bg-rose-50' : tone === 'warn' ? 'border-amber-200 bg-amber-50' : 'border-slate-200 bg-white'
@@ -129,6 +132,9 @@ const AdminCommandCenter: React.FC = () => {
   const [support, setSupport] = useState<SupportResponse | null>(null)
   const [metrics, setMetrics] = useState<MetricsResponse | null>(null)
   const [loading, setLoading] = useState(false)
+  // While the first answer is still on its way we say so, instead of flashing "Not available".
+  const NA = loading ? 'Loading…' : NOT_AVAILABLE
+  const num = (value: number | null | undefined, suffix = ''): React.ReactNode => (value === null || value === undefined ? NA : `${value}${suffix}`)
   const [today, setToday] = useState<TodayData | null>(null)
   const [todayError, setTodayError] = useState(false)
   const pageRef = useRef<HTMLDivElement>(null)
@@ -199,15 +205,15 @@ const AdminCommandCenter: React.FC = () => {
       <Collapsible title='System Health' hint='API calls, failures, latency, uptime' badge={<>{anyAlert && <Badge tone='error'>Alert</Badge>}</>}>
         <div className='space-y-3'>
         <div className='grid grid-cols-1 sm:grid-cols-4 gap-3'>
-          <Card title='API Calls (Since Deploy)' value={health?.totalApiCalls ?? '—'} />
+          <Card title='API Calls (Since Deploy)' value={num(health?.totalApiCalls)} />
           <Card
             title='Failed (Since Deploy)'
-            value={health?.failedApiCalls ?? '—'}
+            value={num(health?.failedApiCalls)}
             tone={(health?.failedApiCalls ?? 0) > 20 ? 'warn' : 'default'}
             onClick={() => setSelectedLogView('failures')}
           />
-          <Card title='Avg Response Time' value={health ? `${health.avgResponseTimeMs} ms` : '—'} tone={(health?.avgResponseTimeMs ?? 0) > 1000 ? 'warn' : 'default'} />
-          <Card title='Process Uptime' value={health ? `${health.uptimePercent}%` : '—'} subtitle={formatUptimeSubtitle(health?.uptimeSeconds)} />
+          <Card title='Avg Response Time' value={num(health?.avgResponseTimeMs, ' ms')} tone={(health?.avgResponseTimeMs ?? 0) > 1000 ? 'warn' : 'default'} />
+          <Card title='Process Uptime' value={num(health?.uptimePercent, '%')} subtitle={formatUptimeSubtitle(health?.uptimeSeconds)} />
         </div>
         {health?.alerts && health.alerts.length > 0 && (
           <div className='rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800'>
@@ -221,38 +227,42 @@ const AdminCommandCenter: React.FC = () => {
       </Collapsible>
 
       {/* Security */}
-      <Collapsible title='Security Monitor' hint='Open risks, last login, anomalies' badge={<><Badge tone={(security?.openRisks?.length ?? 0) > 0 ? 'warn' : 'success'}>
-            {(security?.openRisks?.length ?? 0) > 0 ? 'Action Needed' : 'Secure'}
-          </Badge></>}>
+      <Collapsible title='Security Monitor' hint='Open risks, last login, anomalies' badge={security ? (
+        <Badge tone={security.openRisks.length > 0 ? 'warn' : 'success'}>
+          {security.openRisks.length > 0 ? 'Action Needed' : 'Secure'}
+        </Badge>
+      ) : <Badge tone='neutral'>{NA}</Badge>}>
         <div className='space-y-3'>
         <div className='grid grid-cols-1 sm:grid-cols-3 gap-3'>
-          <Card title='Open Risks' value={security?.openRisks?.length ?? 0} />
+          <Card title='Open Risks' value={num(security?.openRisks?.length)} />
           <Card
             title='Last Login'
-            value={security?.lastLogin?.at ? new Date(security.lastLogin.at).toLocaleString() : 'Not tracked yet'}
+            value={security ? (security.lastLogin?.at ? new Date(security.lastLogin.at).toLocaleString() : 'Not tracked yet') : NA}
             subtitle={security?.lastLogin ? `${security.lastLogin.ip} · ${security.lastLogin.device}` : 'No real login event found yet'}
           />
-          <Card title='Anomalies' value={security?.anomalies?.length ?? 0} tone={(security?.anomalies?.length ?? 0) > 0 ? 'warn' : 'default'} />
+          <Card title='Anomalies' value={num(security?.anomalies?.length)} tone={(security?.anomalies?.length ?? 0) > 0 ? 'warn' : 'default'} />
         </div>
         {security?.openRisks?.length ? (
           <ul className='list-disc list-inside text-sm text-slate-700'>
             {security.openRisks.map((risk, idx) => <li key={idx}>{risk}</li>)}
           </ul>
         ) : (
-          <p className='text-sm text-slate-500'>No known risks.</p>
+          <p className='text-sm text-slate-500'>{security ? 'No known risks.' : 'Security data is not available right now.'}</p>
         )}
         </div>
       </Collapsible>
 
       {/* Support */}
-      <Collapsible title='Support Snapshot' hint='Chats, tickets, and errors needing attention' badge={<><Badge tone={(support?.openTickets ?? 0) + (support?.openErrors ?? 0) > 0 ? 'warn' : 'success'}>
-            {support ? `${support.openChats + support.openTickets + support.openErrors} open` : '—'}
-          </Badge></>}>
+      <Collapsible title='Support Snapshot' hint='Chats, tickets, and errors needing attention' badge={support ? (
+        <Badge tone={support.openTickets + support.openErrors > 0 ? 'warn' : 'success'}>
+          {`${support.openChats + support.openTickets + support.openErrors} open`}
+        </Badge>
+      ) : <Badge tone='neutral'>{NA}</Badge>}>
         <div className='space-y-3'>
         <div className='grid grid-cols-1 sm:grid-cols-3 gap-3'>
-          <Card title='Open Chats' value={support?.openChats ?? 0} />
-          <Card title='Tickets' value={support?.openTickets ?? 0} />
-          <Card title='Recent API Errors' value={support?.openErrors ?? 0} tone={(support?.openErrors ?? 0) > 0 ? 'warn' : 'default'} />
+          <Card title='Open Chats' value={num(support?.openChats)} />
+          <Card title='Tickets' value={num(support?.openTickets)} />
+          <Card title='Recent API Errors' value={num(support?.openErrors)} tone={(support?.openErrors ?? 0) > 0 ? 'warn' : 'default'} />
         </div>
         <div className='space-y-2'>
           {support?.items?.map((item) => (
@@ -263,7 +273,7 @@ const AdminCommandCenter: React.FC = () => {
               </Badge>
             </div>
           ))}
-          {!support?.items?.length && <p className='text-sm text-slate-500'>No open support items.</p>}
+          {!support?.items?.length && <p className='text-sm text-slate-500'>{support ? 'No open support items.' : 'Support data is not available right now.'}</p>}
         </div>
         </div>
       </Collapsible>
@@ -277,15 +287,15 @@ const AdminCommandCenter: React.FC = () => {
           <button type='button' className='text-blue-600 hover:underline' onClick={() => navigate('/admin/leads')}>Appointments</button>
         </div>
         <div className='grid grid-cols-1 sm:grid-cols-4 gap-3'>
-          <Card title='Leads Today' value={metrics?.leadsToday ?? 0} />
-          <Card title='Leads This Week' value={metrics?.leadsThisWeek ?? 0} sparkline={metrics?.leadsSpark} />
-          <Card title='Appointments (7d)' value={metrics?.appointmentsNext7 ?? 0} sparkline={metrics?.apptSpark} />
-          <Card title='Messages Sent' value={metrics?.messagesSent ?? 0} />
+          <Card title='Leads Today' value={num(metrics?.leadsToday)} />
+          <Card title='Leads This Week' value={num(metrics?.leadsThisWeek)} sparkline={metrics?.leadsSpark} />
+          <Card title='Appointments (7d)' value={num(metrics?.appointmentsNext7)} sparkline={metrics?.apptSpark} />
+          <Card title='Messages Sent' value={num(metrics?.messagesSent)} />
         </div>
         <div className='grid grid-cols-1 sm:grid-cols-3 gap-3'>
-          <Card title='AI Latency' value={metrics ? `${metrics.statuses.aiLatencyMs} ms` : '—'} tone={(metrics?.statuses.aiLatencyMs ?? 0) > 900 ? 'warn' : 'default'} />
-          <Card title='Email Bounce Rate' value={metrics ? `${metrics.statuses.emailBounceRate}%` : '—'} tone={(metrics?.statuses.emailBounceRate ?? 0) > 5 ? 'warn' : 'default'} />
-          <Card title='File Queue Stuck' value={metrics?.statuses.fileQueueStuck ?? 0} tone={(metrics?.statuses.fileQueueStuck ?? 0) > 0 ? 'warn' : 'default'} />
+          <Card title='AI Latency' value={num(metrics?.statuses.aiLatencyMs, ' ms')} tone={(metrics?.statuses.aiLatencyMs ?? 0) > 900 ? 'warn' : 'default'} />
+          <Card title='Email Bounce Rate' value={num(metrics?.statuses.emailBounceRate, '%')} tone={(metrics?.statuses.emailBounceRate ?? 0) > 5 ? 'warn' : 'default'} />
+          <Card title='File Queue Stuck' value={num(metrics?.statuses.fileQueueStuck)} tone={(metrics?.statuses.fileQueueStuck ?? 0) > 0 ? 'warn' : 'default'} />
         </div>
         <div className='mt-3'>
           <div className='flex items-center justify-between mb-2'>
@@ -303,7 +313,7 @@ const AdminCommandCenter: React.FC = () => {
                 </div>
               </div>
             ))}
-            {!metrics?.recentLeads?.length && <p className='text-sm text-slate-500'>No recent leads.</p>}
+            {!metrics?.recentLeads?.length && <p className='text-sm text-slate-500'>{metrics ? 'No recent leads.' : 'Lead data is not available right now.'}</p>}
           </div>
         </div>
         </div>
