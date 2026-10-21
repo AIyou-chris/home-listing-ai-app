@@ -33161,6 +33161,9 @@ app.post('/api/lo/listings/:listingId/reel', requireLoAgent, async (req, res) =>
   }
 });
 
+// "Ask the AI" video for one listing: free, drawn in code (no voiceover, no paid AI).
+require('./routes/listingExplainerRoutes').register(app, { requireLoAgent, supabaseAdmin, isListingPublished, toTrimmedOrNull });
+
 app.get('/api/lo/listings/:listingId/reel/:jobId', requireLoAgent, (req, res) => {
   const reels = getListingReelService();
   const job = reels ? reels.get(req.params.jobId, req.loAgentId) : null;

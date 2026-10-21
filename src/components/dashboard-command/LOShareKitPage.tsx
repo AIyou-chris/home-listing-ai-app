@@ -6,6 +6,7 @@ import { showToast } from '../../utils/toastService';
 import { buildDashboardPath, useDemoMode } from '../../demo/useDemoMode';
 import HoaDocsCard from './HoaDocsCard';
 import ListingReelCard from './ListingReelCard';
+import ListingExplainerCard from './ListingExplainerCard';
 import ShareKitCards, { type KitListing, type KitLo, type KitRealtor, type Toggles } from './ShareKitCards';
 
 // The LO's co-branded kit for a listing they're on: link, QR, flyer, social caption.
@@ -84,6 +85,8 @@ const LOShareKitPage: React.FC = () => {
       </div>
 
       <ShareKitCards listing={listing} lo={lo} realtor={realtor} toggles={toggles} onToggle={(piece, v) => void setToggle(piece, v)} utmSource="lo_share_kit" />
+
+      <ListingExplainerCard listingId={listingId} demo={demo} />
 
       <ListingReelCard listingId={listingId} photoCount={listing.photos.length} demo={demo} />
 

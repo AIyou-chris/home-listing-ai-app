@@ -9,6 +9,7 @@ const crypto = require('node:crypto');
 const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
 const { findVoiceViolations } = require('./brandVoice');
+const { resolveFfmpeg } = require('./ffmpegPath');
 
 const run = promisify(execFile);
 const FPS = 30;
@@ -77,11 +78,7 @@ function slideDurations(voiceSeconds, photoCount) {
   return { photoDur, total: photoDur * photoCount + END_CARD_SECONDS };
 }
 
-function resolveFfmpeg() {
-  if (process.env.FFMPEG_BIN) return process.env.FFMPEG_BIN;
-  try { return require('ffmpeg-static') || 'ffmpeg'; } catch { return 'ffmpeg'; }
-}
-function createListingReelService({ supabaseAdmin, safeFetch, openaiApiKey, bucket = 'ai-card-assets', width = Number(process.env.REEL_WIDTH) || 720, logoPath = null, musicDir = null, fetchImpl = fetch } = {}) {
+function createListingReelService({ supabaseAdmin, safeFetch, openaiApiKey, bucket = 'ai-card-assets', width = Number(process.env.REEL_WIDTH) || 540, logoPath = null, musicDir = null, fetchImpl = fetch } = {}) {
   const W = width % 2 ? width + 1 : width;
   const H = Math.round((W * 16) / 9 / 2) * 2;
   const k = W / 1080; // font and layout scale
