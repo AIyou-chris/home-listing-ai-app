@@ -46,16 +46,31 @@ async function available() {
   } catch { return false; }
 }
 
+const withVoiceDisclosure = (config) => ({ ...config, small: `AI voice. ${config.small || ''}`.trim().slice(0, 80) });
+
 // Makes the video and returns the MP4 bytes.
-// `post` ({ outputs, brief }) makes the video follow its campaign: the post's title and first sentence become the opening and closing words.
-async function render(name, { width = WIDTH, music = true, post = null, cfg = business } = {}) {
+// `post` ({ outputs, brief }) makes it follow its campaign: the post's title and first sentence become the opening and closing words.
+// `voice` adds a spoken voice (about a cent): if the voice cannot be made, the video is made with music only.
+async function render(name, { width = WIDTH, music = true, voice = false, post = null, record, cfg = business } = {}) {
   const scene = sceneConfig(name, cfg);
   const { template } = scene;
-  const config = post ? { ...scene.config, ...require('./explainerMatch').matchPost({ template, post }) } : scene.config;
+  let config = post ? { ...scene.config, ...require('./explainerMatch').matchPost({ template, post }) } : scene.config;
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'hlai-explainer-'));
   try {
+    const cv = loadCodeVideo();
+    const audio = {};
+    if (music && cfg.video?.music) audio.music = cfg.video.music;
+    if (voice) {
+      const lines = cv.templates[template].narration(config);
+      const cues = await require('./explainerVoice').recordLines({ lines, dir, ...(record ? { record } : {}) });
+      if (cues.length) {
+        audio.cues = cues;
+        // The spoken voice is AI, and the video says so.
+        config = withVoiceDisclosure(config);
+      }
+    }
     const out = path.join(dir, 'explainer.mp4');
-    await loadCodeVideo().renderTemplate({ template, config, out, width, preset: 'veryfast', ...(music && cfg.video?.music ? { audio: { music: cfg.video.music } } : {}) });
+    await cv.renderTemplate({ template, config, out, width, preset: 'veryfast', ...(audio.music || audio.cues ? { audio } : {}) });
     return await fs.readFile(out);
   } finally { await fs.rm(dir, { recursive: true, force: true }); }
 }
@@ -83,4 +98,4 @@ async function selfCheck({ force = false, now = Date.now() } = {}) {
   return result;
 }
 
-module.exports = { render, available, selfCheck, sceneNames, sceneConfig, sceneText, checkScene, WIDTH };
+module.exports = { render, available, selfCheck, withVoiceDisclosure, sceneNames, sceneConfig, sceneText, checkScene, WIDTH };

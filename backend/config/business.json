@@ -384,7 +384,7 @@
     }
   ],
   "video": {
-    "note": "Animated explainer videos (backend/tools/code-video). Free to make: drawn in code, no paid video AI. Words are cut to fit; keep them plain and true. useInAutopilot stays false until the owner has watched the sample videos and said yes.",
+    "note": "Animated explainer videos (backend/tools/code-video). Drawn in code, no paid video AI. Words are cut to fit and checked like a post. useInAutopilot: Autopilot uses them for topics that name a scene (turned on by the owner on 2026-10-20 after watching the samples). voiceInAutopilot: adds an AI voice, about 1 cent a video; if the voice cannot be made the video still goes out with music only.",
     "base": {
       "brand": "HOMELISTINGAI",
       "url": "homelistingai.com",
@@ -498,6 +498,7 @@
       "mood": "warm",
       "gain": 0.6
     },
-    "useInAutopilot": false
+    "useInAutopilot": true,
+    "voiceInAutopilot": true
   }
 }

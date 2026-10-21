@@ -17,6 +17,8 @@ describe('MarketingVideoControls explainers', () => {
     const which = screen.getByLabelText('Which explainer');
     expect(which.querySelectorAll('option')).toHaveLength(4);
     fireEvent.change(which, { target: { value: 'wow-link' } });
+    fireEvent.change(screen.getByLabelText('Explainer voice'), { target: { value: 'on' } });
+    expect(q.setOptions).toHaveBeenCalledWith({ ...defaultVideoOptions, layout: 'explainer', explainerVoice: 'on' });
     expect(q.setOptions).toHaveBeenCalledWith({ ...defaultVideoOptions, layout: 'explainer', explainer: 'wow-link' });
   });
 });

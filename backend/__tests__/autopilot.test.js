@@ -387,9 +387,10 @@ async function videoSettingsFor(patchTopics) {
 }
 const everyOther = (topics) => topics.forEach((t, i) => { if (i % 2 === 0) t.explainer = 'wow-link'; else delete t.explainer; });
 
-test('with the setting on, topics with an explainer get that video and the rest keep the moving picture', async () => {
+test('with the setting on, topics with an explainer get that video (with the AI voice) and the rest keep the moving picture', async () => {
   const { business } = require('../config/business');
-  business.video.useInAutopilot = true;
+  const was = business.video.useInAutopilot; const wasVoice = business.video.voiceInAutopilot;
+  business.video.useInAutopilot = true; business.video.voiceInAutopilot = true;
   try {
     const { asked, keysWithScene } = await videoSettingsFor(everyOther);
     const product = asked.filter((a) => TOPICS_KEYS().has(a.topic));
@@ -397,17 +398,21 @@ test('with the setting on, topics with an explainer get that video and the rest 
     for (const a of product) {
       const expected = keysWithScene.has(a.topic) ? ['explainer', 'wow-link'] : ['picture', undefined];
       assert.deepStrictEqual([a.options.layout, a.options.explainer], expected, a.topic);
+      if (expected[0] === 'explainer') assert.strictEqual(a.options.explainerVoice, 'on');
     }
     assert.ok(product.some((a) => a.options.layout === 'explainer') && product.some((a) => a.options.layout === 'picture'));
-  } finally { business.video.useInAutopilot = false; }
+  } finally { business.video.useInAutopilot = was; business.video.voiceInAutopilot = wasVoice; }
 });
 
-test('with the setting off (the default) no post uses an explainer, even if topics name one', async () => {
+test('with the setting off no post uses an explainer, even if topics name one', async () => {
   const { business } = require('../config/business');
-  assert.strictEqual(business.video.useInAutopilot, false);
+  const was = business.video.useInAutopilot;
+  try {
+  business.video.useInAutopilot = false;
   const { asked } = await videoSettingsFor((topics) => topics.forEach((t) => { t.explainer = 'wow-link'; }));
   assert.ok(asked.length >= 2);
   assert.ok(asked.every((a) => a.options.layout === 'picture' && a.options.explainer === undefined));
+  } finally { business.video.useInAutopilot = was; }
 });
 
 const TOPICS_KEYS = () => new Set(require('../services/autopilot/topics').TOPICS.map((t) => t.key));
