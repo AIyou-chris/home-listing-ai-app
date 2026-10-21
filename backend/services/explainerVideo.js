@@ -47,8 +47,11 @@ async function available() {
 }
 
 // Makes the video and returns the MP4 bytes.
-async function render(name, { width = WIDTH, music = true, cfg = business } = {}) {
-  const { template, config } = sceneConfig(name, cfg);
+// `post` ({ outputs, brief }) makes the video follow its campaign: the post's title and first sentence become the opening and closing words.
+async function render(name, { width = WIDTH, music = true, post = null, cfg = business } = {}) {
+  const scene = sceneConfig(name, cfg);
+  const { template } = scene;
+  const config = post ? { ...scene.config, ...require('./explainerMatch').matchPost({ template, post }) } : scene.config;
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'hlai-explainer-'));
   try {
     const out = path.join(dir, 'explainer.mp4');
