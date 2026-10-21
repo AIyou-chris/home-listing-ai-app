@@ -17,7 +17,6 @@ interface FilledTemplate {
 const EmailTemplateModal: React.FC<EmailTemplateModalProps> = ({ onClose, onSelectTemplate, templates = EMAIL_TEMPLATES }) => {
     const [selectedCategory, setSelectedCategory] = useState<string>('all');
     const [searchTerm, setSearchTerm] = useState('');
-    const [previewTemplate, setPreviewTemplate] = useState<EmailTemplate | null>(null);
     const [showVariableForm, setShowVariableForm] = useState<EmailTemplate | null>(null);
 
     const filteredTemplates = templates.filter(template => {
@@ -111,7 +110,7 @@ const EmailTemplateModal: React.FC<EmailTemplateModalProps> = ({ onClose, onSele
                                     <div
                                         key={template.id}
                                         className="bg-white border border-slate-200 rounded-lg p-4 hover:border-primary-300 hover:shadow-sm transition-all cursor-pointer"
-                                        onClick={() => setPreviewTemplate(template)}
+                                        onClick={() => handleSelectTemplate(template)}
                                     >
                                         <div className="flex items-start justify-between mb-2">
                                             <h3 className="font-semibold text-slate-800 text-sm">{template.name}</h3>
@@ -153,67 +152,6 @@ const EmailTemplateModal: React.FC<EmailTemplateModalProps> = ({ onClose, onSele
                         )}
                     </div>
                 </div>
-
-                {/* Preview Panel */}
-                {previewTemplate && (
-                    <div className="w-96 border-l border-slate-200 bg-slate-50 flex flex-col">
-                        <div className="p-4 border-b border-slate-200 bg-white">
-                            <div className="flex items-center justify-between">
-                                <h3 className="font-semibold text-slate-800">{previewTemplate.name}</h3>
-                                <button
-                                    onClick={() => setPreviewTemplate(null)}
-                                    className="p-1 hover:bg-slate-100 rounded"
-                                >
-                                    <span className="material-symbols-outlined w-4 h-4 text-slate-500">close</span>
-                                </button>
-                            </div>
-                        </div>
-
-                        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                            {/* Subject Preview */}
-                            <div>
-                                <label className="block text-xs font-medium text-slate-600 mb-1">Subject Line</label>
-                                <div className="bg-white border border-slate-200 rounded p-2 text-sm">
-                                    {previewTemplate.subject}
-                                </div>
-                            </div>
-
-                            {/* Content Preview */}
-                            <div>
-                                <label className="block text-xs font-medium text-slate-600 mb-1">Email Content</label>
-                                <div className="bg-white border border-slate-200 rounded p-3 text-sm whitespace-pre-wrap max-h-64 overflow-y-auto">
-                                    {previewTemplate.content}
-                                </div>
-                            </div>
-
-                            {/* Use Case */}
-                            <div>
-                                <label className="block text-xs font-medium text-slate-600 mb-1">Best Used For</label>
-                                <p className="text-sm text-slate-700">{previewTemplate.useCase}</p>
-                            </div>
-
-                            {/* Variables Info */}
-                            <div>
-                                <label className="block text-xs font-medium text-slate-600 mb-1">Template Variables</label>
-                                <div className="text-xs text-slate-500 space-y-1">
-                                    <p>• {`{{lead.name}}`} - Lead's name</p>
-                                    <p>• {`{{property.address}}`} - Property address</p>
-                                    <p>• {`{{agent.name}}`} - Your name</p>
-                                    <p className="text-blue-600">+ many more variables available</p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="p-4 border-t border-slate-200 bg-white">
-                            <button
-                                onClick={() => handleSelectTemplate(previewTemplate)}
-                                className="w-full px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
-                            >
-                                {/\{\{[^}]+\}\}/.test(previewTemplate.subject + previewTemplate.content) ? 'Customize Template' : 'Use This Template'}
-                            </button>
-                        </div>
-                    </div>
-                )}
             </div>
 
             {/* Template Variable Form */}
