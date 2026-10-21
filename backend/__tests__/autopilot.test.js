@@ -416,3 +416,17 @@ test('with the setting off no post uses an explainer, even if topics name one', 
 });
 
 const TOPICS_KEYS = () => new Set(require('../services/autopilot/topics').TOPICS.map((t) => t.key));
+
+test('a failed try is not shown as the last problem once the same time has a post that worked', async () => {
+  const h = harness();
+  const stamp = new Date('2026-10-13T19:00:00Z').toISOString();
+  h.db.tables.admin_marketing_campaigns.push(
+    { id: 'f1', owner_id: OWNER, status: 'failed', generation_error: 'no credits', brief: { source: 'autopilot', slot: '2026-10-14@08:00', failed: true }, created_at: stamp, updated_at: stamp },
+    { id: 'f2', owner_id: OWNER, status: 'failed', generation_error: 'still failing', brief: { source: 'autopilot', slot: '2026-10-14@12:00', failed: true }, created_at: stamp, updated_at: stamp },
+    { id: 'ok1', owner_id: OWNER, status: 'approved', outputs: {}, brief: { source: 'autopilot', slot: '2026-10-14@08:00' }, created_at: stamp, updated_at: stamp }
+  );
+  const status = await h.ap.status(OWNER);
+  assert.strictEqual(status.lastIssue.slot, '2026-10-14@12:00', 'only the time that still has no post is a problem');
+  h.db.tables.admin_marketing_campaigns.push({ id: 'ok2', owner_id: OWNER, status: 'approved', outputs: {}, brief: { source: 'autopilot', slot: '2026-10-14@12:00' }, created_at: stamp, updated_at: stamp });
+  assert.strictEqual((await h.ap.status(OWNER)).lastIssue, null);
+});

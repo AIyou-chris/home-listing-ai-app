@@ -14,6 +14,28 @@ export interface EmailTemplate {
 export const EMAIL_TEMPLATES: EmailTemplate[] = [
     // --- ADMIN RECRUITMENT TEMPLATES ---
     {
+        id: 'admin_dm_link',
+        name: 'The Link You Asked For',
+        category: 'recruitment',
+        subject: 'Here is the link you asked for',
+        content: `Hi {{lead.firstName}},
+
+Thanks for the message. Here is the link:
+
+See how it works (a live demo, 2 minutes): https://homelistingai.com/partner-invite/demo
+
+If you want to try it on your own listing, the free trial is 7 days and needs no card: https://homelistingai.com/lo-signup
+
+It gives you a free listing page to send an agent. Buyers chat with it, and the warm lead comes to you.
+
+If you get stuck, just reply to this email and I will help.
+
+{{agent.signature}}`,
+        description: 'Send the demo and trial links to someone who asked for them in a DM',
+        tags: ['recruitment', 'dm', 'link', 'demo'],
+        useCase: 'Reply to a DM that says "send me the link"'
+    },
+    {
         id: 'admin_reality_check',
         name: 'The Reality Check',
         category: 'recruitment',

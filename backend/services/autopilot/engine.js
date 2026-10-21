@@ -401,7 +401,10 @@ function createAutopilot({ db, studioFor, media, getPoster, getConnections, send
     const autoPost = await getSwitch(db, 'social_auto_post', owner);
     const plan = on ? await launchPlan(owner) : null;
     const endsAt = plan ? await offerEndsAt(db) : null;
-    const lastBad = (await recent(owner, 20)).find((r) => r.brief?.failed && !r.brief?.skipped && now().getTime() - Date.parse(r.created_at) < 36 * 3600000);
+    const recentRows = await recent(owner, 20);
+    // A failed try is not a problem any more once the same time has a post that worked.
+    const worked = new Set(recentRows.filter((r) => !r.brief?.failed).map((r) => r.brief?.slot));
+    const lastBad = recentRows.find((r) => r.brief?.failed && !r.brief?.skipped && !worked.has(r.brief?.slot) && now().getTime() - Date.parse(r.created_at) < 36 * 3600000);
     return { on, autoPost, lastIssue: lastBad ? { slot: lastBad.brief.slot, reason: lastBad.generation_error || 'did not pass the check' } : null, plan: plan ? { ...plan, offerEnds: endsAt ? monthDay(endsAt) : null } : null, direction: await direction(owner), blogDrafts: await blogDrafts(owner), slots: await summary(owner), times: SLOTS.map((s) => `${s.h > 12 ? s.h - 12 : s.h}:${pad(s.m)} ${s.h >= 12 ? 'PM' : 'AM'} Pacific`) };
   }
 
