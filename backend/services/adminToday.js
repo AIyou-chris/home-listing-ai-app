@@ -19,7 +19,7 @@ async function part(label, notes, run) {
   try { return { ok: true, value: await run() }; } catch { notes.push(`${label} is not available right now.`); return { ok: false, value: null }; }
 }
 
-async function buildToday({ db, owner, days = 7, now = Date.now() }) {
+async function buildToday({ db, owner, days = 7, now = Date.now(), videoCheck = null }) {
   const since = new Date(now - days * DAY).toISOString();
   const notes = [];
 
@@ -60,6 +60,10 @@ async function buildToday({ db, owner, days = 7, now = Date.now() }) {
   if (cold.ok) {
     const replies = cold.value.filter((s) => s.replied_at && !['unsubscribe', 'out_of_office', 'angry'].includes(s.reply_class));
     if (replies.length) needs.push({ kind: 'replies', text: `${replies.length} cold email repl${replies.length === 1 ? 'y' : 'ies'} to read`, count: replies.length, to: 'marketing' });
+  }
+  if (videoCheck) {
+    const video = await videoCheck().catch(() => null);
+    if (video && video.ok === false) needs.push({ kind: 'video-maker', text: `The video maker is not working on the server (${video.error || 'unknown reason'})`, count: 1, to: 'settings' });
   }
   const needsMe = { available: campaigns.ok && posts.ok, items: needs };
 

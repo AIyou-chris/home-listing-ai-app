@@ -45,3 +45,12 @@ test('says not available instead of showing zero when a table cannot be read', a
   assert.strictEqual(t.needsMe.available, false);
   assert.ok(t.notes.some((n) => n.startsWith('Posts')));
 });
+
+test('tells the owner when the video maker is not working, and stays quiet when it is', async () => {
+  const bad = await buildToday({ db: fakeDb(base), owner: 'me', now, videoCheck: async () => ({ ok: false, error: 'FFmpeg is not installed on this server.' }) });
+  assert.ok(bad.needsMe.items.some((i) => i.kind === 'video-maker' && /FFmpeg is not installed/.test(i.text)));
+  const good = await buildToday({ db: fakeDb(base), owner: 'me', now, videoCheck: async () => ({ ok: true }) });
+  assert.ok(!good.needsMe.items.some((i) => i.kind === 'video-maker'));
+  const broken = await buildToday({ db: fakeDb(base), owner: 'me', now, videoCheck: async () => { throw new Error('x'); } });
+  assert.ok(!broken.needsMe.items.some((i) => i.kind === 'video-maker'), 'a failed check does not invent a problem');
+});

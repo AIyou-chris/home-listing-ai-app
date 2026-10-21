@@ -36143,11 +36143,16 @@ const getAutopilot = () => {
 app.get('/api/admin/today', verifyAdmin, async (req, res) => {
   try {
     const { buildToday } = require('./services/adminToday');
-    res.json(await buildToday({ db: supabaseAdmin, owner: req.user.id, days: 7 }));
+    res.json(await buildToday({ db: supabaseAdmin, owner: req.user.id, days: 7, videoCheck: () => require('./services/explainerVideo').selfCheck() }));
   } catch (err) {
     console.error('[Admin today] failed:', err?.message || err);
     res.status(500).json({ error: 'Could not load Today.' });
   }
+});
+// Is the animated video maker really working on this server? (draws and encodes one second)
+app.get('/api/admin/video-check', verifyAdmin, async (req, res) => {
+  try { res.json(await require('./services/explainerVideo').selfCheck({ force: req.query.fresh === '1' })); }
+  catch (err) { res.status(500).json({ ok: false, error: 'Could not run the video check.' }); }
 });
 app.get('/api/admin/marketing-analytics', verifyAdmin, async (req, res) => {
   try {

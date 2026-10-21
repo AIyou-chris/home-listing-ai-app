@@ -57,4 +57,27 @@ async function render(name, { width = WIDTH, music = true, cfg = business } = {}
   } finally { await fs.rm(dir, { recursive: true, force: true }); }
 }
 
-module.exports = { render, available, sceneNames, sceneConfig, sceneText, checkScene, WIDTH };
+// A real, tiny end-to-end test: draw one second, encode it, check it is an MP4. Cached for ten minutes so it is cheap to ask.
+let lastCheck = null;
+async function selfCheck({ force = false, now = Date.now() } = {}) {
+  if (!force && lastCheck && now - lastCheck.at < 10 * 60000) return lastCheck.result;
+  const result = { ok: false, ffmpeg: false, drawing: false, error: null };
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'hlai-explainer-check-'));
+  try {
+    result.ffmpeg = await available();
+    if (!result.ffmpeg) throw new Error('FFmpeg is not installed on this server.');
+    const cv = loadCodeVideo();
+    result.drawing = true;
+    const out = path.join(dir, 'check.mp4');
+    await cv.renderVideo({ duration: 1, out, width: 180, draw(ctx) { ctx.fillStyle = '#123'; ctx.fillRect(0, 0, 720, 1280); } });
+    const head = (await fs.readFile(out)).subarray(4, 8).toString();
+    if (head !== 'ftyp') throw new Error('The test video was not a real MP4.');
+    result.ok = true;
+  } catch (error) {
+    result.error = String(error?.message || error).slice(0, 200);
+  } finally { await fs.rm(dir, { recursive: true, force: true }); }
+  lastCheck = { at: now, result };
+  return result;
+}
+
+module.exports = { render, available, selfCheck, sceneNames, sceneConfig, sceneText, checkScene, WIDTH };

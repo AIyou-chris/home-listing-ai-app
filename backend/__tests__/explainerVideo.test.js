@@ -58,3 +58,16 @@ test('it makes a real MP4 through the Studio renderer, and the old layouts still
   assert.strictEqual(bytes.slice(4, 8).toString(), 'ftyp');
   assert.ok(bytes.length > 100000);
 });
+
+test('the video check passes here, is cached, and says plainly when FFmpeg is missing', async () => {
+  const first = await explainer.selfCheck({ force: true });
+  assert.deepStrictEqual([first.ok, first.ffmpeg, first.drawing], [true, true, true]);
+  assert.strictEqual(await explainer.selfCheck(), (await explainer.selfCheck()), 'the second answer is the saved one');
+  const saved = process.env.FFMPEG_PATH;
+  process.env.FFMPEG_PATH = '/nowhere/ffmpeg';
+  try {
+    const broken = await explainer.selfCheck({ force: true });
+    assert.strictEqual(broken.ok, false);
+    assert.match(broken.error, /FFmpeg is not installed/);
+  } finally { if (saved === undefined) delete process.env.FFMPEG_PATH; else process.env.FFMPEG_PATH = saved; await explainer.selfCheck({ force: true }); }
+});
