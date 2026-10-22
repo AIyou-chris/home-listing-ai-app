@@ -79,7 +79,7 @@ function mixAudio({ audio, duration, ffmpeg, dir }) {
   cues.forEach((cue, i) => {
     inputs.push('-i', cue.file);
     const len = audioSeconds(cue.file, ffmpeg);
-    const fit = cue.maxSeconds && len > cue.maxSeconds ? Math.min(1.3, len / cue.maxSeconds) : 1;
+    const fit = cue.maxSeconds && len > cue.maxSeconds ? Math.min(cue.maxSpeedup ?? 1.3, len / cue.maxSeconds) : 1;
     const ms = Math.round(cue.at * 1000);
     parts.push(`[${next}:a]aformat=sample_rates=44100:channel_layouts=stereo,${fit > 1.01 ? `atempo=${fit.toFixed(3)},` : ''}volume=${cue.gain ?? 1},adelay=${ms}|${ms}[v${i}]`);
     voiceLabels.push(`[v${i}]`);

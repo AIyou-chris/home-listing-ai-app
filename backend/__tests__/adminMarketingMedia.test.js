@@ -9,7 +9,7 @@ function setup(opts={}){
  const db={from:name=>new Query(name),storage:{from:()=>({upload:async(path,bytes)=>{if(rejectUpload)return {error:{message:'offline'}};files.set(path,bytes);return {data:{path},error:null};},remove:async paths=>{paths.forEach(p=>files.delete(p));return {data:[],error:null};},createSignedUrl:async path=>({data:{signedUrl:'https://private.example/'+path},error:null}),download:async path=>({data:new Blob([files.get(path)]),error:null})})}};
  const video={available:async()=>true,picture:async()=>Buffer.from('picture'),normalizePhoto:async()=>Buffer.from('normalized'),normalizeAudio:async bytes=>{if(bytes.toString()==='bad')throw Error('bad audio');return Buffer.from('normalized audio');},render:async()=>{calls++;await new Promise(resolve=>{release=resolve;});return Buffer.from('mp4');}};
  const openai={audio:{speech:{create:async()=>{voiceCalls++;return new Response('spoken script');}}},images:{generate:async()=>({data:[{b64_json:Buffer.from('ai').toString('base64')}]})}};
- return {service:createMediaService({db,video:opts.video||video,openai}),campaigns,media,files,calls:()=>calls,voiceCalls:()=>voiceCalls,release:()=>release(),rejectUpload:()=>{rejectUpload=true;}};
+ return {service:createMediaService({db,video:opts.video||video,openai:('openai' in opts)?opts.openai:openai}),campaigns,media,files,calls:()=>calls,voiceCalls:()=>voiceCalls,release:()=>release(),rejectUpload:()=>{rejectUpload=true;}};
 }
 const body={version:'2026-10-04T00:00:00Z'};
 test('media ownership, saved edits and input validation are enforced',async()=>{const t=setup();await assert.rejects(t.service.picture(OTHER,ID,body),/not found/);await assert.rejects(t.service.picture(OWNER,ID,{version:'old'}),/latest edits/);await assert.rejects(t.service.picture(OWNER,ID,{...body,data:'data:text/html;base64,WA=='}),/Choose/);assert.equal(t.files.size,0);});
@@ -81,4 +81,25 @@ test('an animated explainer goes through the real Studio path: no picture or voi
  y.campaigns[0].brief={...y.campaigns[0].brief,layout:'explainer'};
  y.campaigns[0].outputs={...outputs,videoScript:'Words.'};
  await assert.rejects(y.service.render(OWNER,ID,body),/Choose which animated explainer/);
+});
+
+test('"Check the video says what the post says": only for an animated explainer, only for the owner, and it makes and posts nothing',async()=>{
+ const reply={post_main_message:'Send a WOW Link.',video_main_message:'Send a WOW Link.',matches:true,score:5,problems:[],fix:''};
+ const writer={must_keep:['x'],endLine:'They get a free listing page and you get the warm lead.',cta:'LEARN MORE',small:'Visit homelistingai.com'};
+ const calls=[];
+ const openai={chat:{completions:{create:async(a)=>{calls.push(a);return {choices:[{message:{content:JSON.stringify(/closing words/.test(a.messages[0].content)?writer:reply)}}]};}}}};
+ const x=setup({openai});
+ x.campaigns[0].outputs={...outputs,title:'Send one WOW Link',facebook:'Send one WOW Link to one agent this week. They get a free listing page and you get the warm lead.'};
+ await assert.rejects(x.service.videoReview(OWNER,ID),/Choose an animated explainer first/);
+ x.campaigns[0].brief={...x.campaigns[0].brief,layout:'explainer',explainer:'wow-link',explainerVoice:'on'};
+ await assert.rejects(x.service.videoReview(OTHER,ID),/not found/);
+ const r=await x.service.videoReview(OWNER,ID);
+ assert.deepStrictEqual([r.matches,r.reviewed,r.score],[true,true,5]);
+ assert.strictEqual(r.words.cta,'LEARN MORE');
+ assert.ok(calls.length>=2,'the writer and the reviewer were both asked');
+ assert.strictEqual(x.media.length,0,'nothing was made');
+ assert.strictEqual(x.campaigns[0].status,'draft','nothing was approved or posted');
+ // no reviewer available
+ const y=setup({openai:null});y.campaigns[0].brief={...y.campaigns[0].brief,layout:'explainer',explainer:'wow-link'};
+ await assert.rejects(y.service.videoReview(OWNER,ID),/not available/);
 });

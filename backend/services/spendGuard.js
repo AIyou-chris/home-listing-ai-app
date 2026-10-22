@@ -186,4 +186,25 @@ const installFetchGuard = (guard, baseFetch = globalThis.fetch) => {
 
 const guard = createSpendGuard();
 
-module.exports = { createSpendGuard, installFetchGuard, guard, buildLimits };
+
+// What each paid thing has used today against its daily stop, for the admin front page.
+// Counters are in memory, so they restart at zero when the server restarts.
+const spendToday = (g) => {
+  const l = g.limits;
+  const row = (key, label, kind, scope, limit, divide = 1) => ({
+    key, label, used: Math.round(g.used('day', kind, scope) / divide), limit: Math.round(limit / divide),
+  });
+  return [
+    row('ai', 'AI answers', 'openai', 'all', l.openai_units_day),
+    row('pictures', 'AI pictures', 'openai', 'images', l.openai_images_day * 20, 20),
+    row('translate', 'Translations', 'translate', 'all', l.translate_calls_day),
+    row('sms', 'Texts', 'sms', 'all', l.sms_day),
+    row('email', 'Emails', 'email', 'all', l.email_day),
+    row('ai_call', 'AI phone calls', 'ai_call', 'all', l.ai_calls_day),
+    row('reels', 'Reels', 'reel', 'all', l.reels_day),
+    row('hoa', 'Document reads', 'hoa_read', 'all', l.hoa_reads_day),
+    row('numbers', 'Phone numbers bought', 'number_purchase', 'all', l.number_purchases_day),
+  ];
+};
+
+module.exports = { spendToday, createSpendGuard, installFetchGuard, guard, buildLimits };

@@ -4,7 +4,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const cp = require('child_process');
-const { recordLines, speak, VOICES } = require('../services/explainerVoice');
+const { recordLines, speak, fitToTimeline, VOICES, WARMTH, MAX_SPEEDUP } = require('../services/explainerVoice');
 const explainer = require('../services/explainerVideo');
 const { videoOptions } = require('../services/studioVideoOptions');
 
@@ -19,7 +19,8 @@ test('each line is recorded in its own speaker voice and placed at its time', as
   const asked = [];
   const cues = await recordLines({ lines, dir: tmp(), record: async (a) => { asked.push(a.role); return Buffer.from('mp3'); } });
   assert.deepStrictEqual(asked, ['narrator', 'customer', 'assistant']);
-  assert.deepStrictEqual(cues.map((c) => [c.at, c.maxSeconds]), [[1, 2], [4, 2], [7, 3]]);
+  assert.deepStrictEqual(cues.map((c) => c.id), ['a', 'b', 'c']);
+  assert.deepStrictEqual(cues.map((c) => c.at), [1, 4, 7], 'a line that already fits stays exactly where the scene wants it');
   assert.ok(cues.every((c) => fs.existsSync(c.file)));
   assert.strictEqual(new Set(Object.values(VOICES)).size, 3, 'three different voices');
 });
@@ -74,4 +75,44 @@ test('the video says it has an AI voice, and still fits the small line', () => {
   assert.strictEqual(explainer.withVoiceDisclosure({ small: 'No card. Send one WOW Link to one agent.' }).small, 'AI voice. No card. Send one WOW Link to one agent.');
   assert.ok(explainer.withVoiceDisclosure({ small: 'x'.repeat(200) }).small.length <= 80);
   assert.strictEqual(explainer.withVoiceDisclosure({}).small, 'AI voice.');
+});
+
+// ---- making it sound like a person ----
+const clip = (id, at, seconds, maxSeconds) => ({ id, at, seconds, maxSeconds });
+
+test('a line that fits is never sped up and never moved', () => {
+  const [a] = fitToTimeline([clip('a', 1, 2, 2.5), clip('b', 5, 1, 2)]);
+  assert.deepStrictEqual([a.at, a.maxSpeedup, a.playing, a.overflow], [1, MAX_SPEEDUP, 2, 0]);
+});
+
+test('a long line starts a little early, rushes only a little, and never runs over the line before it', () => {
+  const out = fitToTimeline([clip('a', 1, 2, 3), clip('b', 6, 5.2, 3)]);
+  const b = out[1];
+  assert.ok(b.at < 6 && b.at >= 5.55, 'starts at most 0.45s early');
+  assert.ok(b.playing >= 5.2 / MAX_SPEEDUP - 0.001, 'rushed by no more than the cap');
+  assert.ok(out[0].at + out[0].playing <= b.at, 'the earlier line has finished');
+  const tight = fitToTimeline([clip('a', 1, 3.6, 3), clip('b', 4.2, 1, 2)]);
+  assert.ok(tight[1].at === 4.2 && tight[0].at >= 0.55, 'the first line may start early, the second stays put');
+});
+
+test('the rush cap is gentle (the old setting sped lines up by 30 percent, which is what made it sound robotic)', () => {
+  assert.ok(MAX_SPEEDUP <= 1.1);
+});
+
+test('the voice treatment trims the silence at both ends and warms the sound', () => {
+  assert.match(WARMTH, /silenceremove[^,]*,areverse,silenceremove[^,]*,areverse/);
+  assert.match(WARMTH, /equalizer=f=180[^,]*g=2\.5/, 'more body in the low voice');
+  assert.match(WARMTH, /equalizer=f=3800[^,]*g=-2\.5/, 'less edge in the upper voice');
+  assert.match(WARMTH, /acompressor/);
+});
+
+test('the speech request asks for lossless audio, a natural voice and a relaxed, human way of speaking', async () => {
+  let body;
+  const fetchImpl = async (url, init) => { body = JSON.parse(init.body); return { ok: true, arrayBuffer: async () => new Uint8Array([1]).buffer }; };
+  await speak({ text: 'Hi.', role: 'assistant', apiKey: 'k', fetchImpl });
+  assert.strictEqual(body.response_format, 'wav');
+  assert.deepStrictEqual(Object.values(VOICES).sort(), ['ash', 'cedar', 'marin']);
+  assert.match(body.instructions, /real person/);
+  assert.match(body.instructions, /not like an announcer/);
+  assert.match(body.instructions, /a little slower/);
 });

@@ -48,13 +48,23 @@ async function available() {
 
 const withVoiceDisclosure = (config) => ({ ...config, small: `AI voice. ${config.small || ''}`.trim().slice(0, 80) });
 
+// What the video will say, without drawing it: the final words (following the post, if given) and every spoken line.
+function plan(name, { post = null, words = null, cfg = business } = {}) {
+  const scene = sceneConfig(name, cfg);
+  const matched = post ? { ...scene.config, ...require('./explainerMatch').matchPost({ template: scene.template, post }) } : scene.config;
+  const config = words ? { ...matched, ...words } : matched;
+  const spoken = loadCodeVideo().templates[scene.template].narration(config);
+  return { template: scene.template, config, spoken };
+}
+
 // Makes the video and returns the MP4 bytes.
 // `post` ({ outputs, brief }) makes it follow its campaign: the post's title and first sentence become the opening and closing words.
 // `voice` adds a spoken voice (about a cent): if the voice cannot be made, the video is made with music only.
-async function render(name, { width = WIDTH, music = true, voice = false, post = null, record, cfg = business } = {}) {
+async function render(name, { width = WIDTH, music = true, voice = false, post = null, words = null, record, cfg = business } = {}) {
   const scene = sceneConfig(name, cfg);
   const { template } = scene;
   let config = post ? { ...scene.config, ...require('./explainerMatch').matchPost({ template, post }) } : scene.config;
+  if (words) config = { ...config, ...words };
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'hlai-explainer-'));
   try {
     const cv = loadCodeVideo();
@@ -98,4 +108,4 @@ async function selfCheck({ force = false, now = Date.now() } = {}) {
   return result;
 }
 
-module.exports = { render, available, selfCheck, withVoiceDisclosure, sceneNames, sceneConfig, sceneText, checkScene, WIDTH };
+module.exports = { render, plan, available, selfCheck, withVoiceDisclosure, sceneNames, sceneConfig, sceneText, checkScene, WIDTH };

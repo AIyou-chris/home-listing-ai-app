@@ -44,7 +44,7 @@ function upcomingSlots(now, days = 2) {
   return out.filter((s) => s.at.getTime() > now.getTime());
 }
 
-function createAutopilot({ db, studioFor, media, getPoster, getConnections, sendMail, loadArticles, blog = null, now = () => new Date(), log = console }) {
+function createAutopilot({ db, studioFor, media, getPoster, getConnections, sendMail, loadArticles, blog = null, directExplainer = null, now = () => new Date(), log = console }) {
   let busy = false;
   // Everything below belongs to ONE customer (owner): their switches, their posts, their direction.
   async function recent(owner, limit = 60) {
@@ -155,9 +155,27 @@ function createAutopilot({ db, studioFor, media, getPoster, getConnections, send
         await media.picture(owner, id, { version: row.updated_at });
       }
       row = (await db.from('admin_marketing_campaigns').select('*').eq('id', id).maybeSingle()).data;
-      row = await studio.settings(owner, id, { version: row.updated_at, videoFormat: 'vertical', videoDuration: '15', videoOptions: (topic.explainer && business.video?.useInAutopilot === true)
-        // Topics with an animated explainer get that video (drawn in code, free) once the owner has turned it on in the business settings; the rest keep the moving picture.
-        ? { layout: 'explainer', explainer: topic.explainer, explainerVoice: business.video?.voiceInAutopilot === true ? 'on' : 'off', music: 'calm', musicVolume: 'low', endCard: 'wow', narration: 'none' }
+      // Topics with an animated explainer get that video (drawn in code, free) once the owner has turned it on in the business settings;
+      // the rest keep the moving picture. A second AI reviewer checks the video says what the post says: if it does not, the moving picture is used instead.
+      let useExplainer = Boolean(topic.explainer && business.video?.useInAutopilot === true);
+      const wantsVoice = business.video?.voiceInAutopilot === true;
+      if (useExplainer && directExplainer) {
+        try {
+          const direction = await directExplainer({ name: topic.explainer, post: { title: outputs.title, text: outputs.facebook || outputs.linkedin || '', facts: topic.facts || [] }, voice: wantsVoice });
+          const verdict = direction.review ? { score: direction.review.score, matches: direction.review.matches, post: direction.review.post_main_message, video: direction.review.video_main_message, problems: direction.review.problems } : null;
+          if (direction.ok) {
+            await db.from('admin_marketing_campaigns').update({ brief: { ...row.brief, explainerWords: direction.words, explainerReview: verdict } }).eq('id', id).eq('owner_id', owner);
+            row = (await db.from('admin_marketing_campaigns').select('*').eq('id', id).maybeSingle()).data;
+          } else {
+            useExplainer = false;
+            log.warn?.(`[Autopilot] explainer video did not match its post, using the picture video instead: ${(verdict?.problems || []).join('; ')}`);
+            await db.from('admin_marketing_campaigns').update({ brief: { ...row.brief, explainerRejected: verdict } }).eq('id', id).eq('owner_id', owner);
+            row = (await db.from('admin_marketing_campaigns').select('*').eq('id', id).maybeSingle()).data;
+          }
+        } catch (err) { log.warn?.('[Autopilot] explainer check failed, using the moving picture:', err?.message || err); useExplainer = false; }
+      }
+      row = await studio.settings(owner, id, { version: row.updated_at, videoFormat: 'vertical', videoDuration: '15', videoOptions: useExplainer
+        ? { layout: 'explainer', explainer: topic.explainer, explainerVoice: wantsVoice ? 'on' : 'off', music: 'calm', musicVolume: 'low', endCard: 'wow', narration: 'none' }
         : { layout: 'picture', music: 'calm', musicVolume: 'low', endCard: 'wow', narration: 'none' } });
       let hasVideo = false;
       try {

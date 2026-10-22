@@ -13,6 +13,18 @@ function voiceHash(campaign,source) {return crypto.createHash('sha256').update(J
 function renderHash(row,rows) {const options=videoOptions(row.brief);return crypto.createHash('sha256').update(hash(row)+(rows.find(r=>r.kind==='image')?.token||'')+(options.narration==='saved'?(rows.find(r=>r.kind==='voice')?.token||''):'')+(options.music==='upload'?(rows.find(r=>r.kind==='music')?.token||''):'')).digest('hex');}
 function result(res) { if(res.error) throw new StudioError(503,'Could not confirm your media was saved. Please reload.');return res.data; }
 function createMediaService({db, openai, jev, imageInspector, video=renderer}) {
+
+  // For an animated explainer: a writer drafts the closing words from the post and a second AI reviewer checks the video says what the post says.
+  // Never blocks the render: if the helpers are not available the video is made with its own words.
+  const postFor=row=>({title:row.outputs?.title||'',text:row.outputs?.facebook||row.outputs?.linkedin||'',facts:row.brief?.facts||[]});
+  async function directExplainer(row) {
+    const options=videoOptions(row.brief);
+    if(options.layout!=='explainer'||!options.explainer||!openai)return null;
+    return require('./explainerDirector').directVideo({name:options.explainer,post:postFor(row),openai,voice:options.explainerVoice==='on'});
+  }
+  async function withExplainerWords(row) {
+    try {const direction=await directExplainer(row);return direction?{...row,brief:{...row.brief,explainerWords:direction.words}}:row;} catch {return row;}
+  }
   let rendering=false; // One FFmpeg process per server to keep the web app responsive.
   function table(owner) { if(!UUID.test(owner||''))throw new StudioError(401,'Sign in as an admin first.');if(!db)throw new StudioError(503,'Media storage is unavailable.');return db.from(TABLE); }
   async function campaign(owner,id,allowBrief=false) { table(owner);if(!UUID.test(id||''))throw new StudioError(400,'Invalid campaign ID.');const row=result(await db.from('admin_marketing_campaigns').select('*').eq('owner_id',owner).eq('id',id).maybeSingle());if(!row)throw new StudioError(404,'Campaign not found.');if(!allowBrief){if(!['draft','approved'].includes(row.status))throw new StudioError(409,'Create and save your campaign drafts first.');validateOutputs(row.outputs,true);}return row; }
@@ -137,9 +149,18 @@ function createMediaService({db, openai, jev, imageInspector, video=renderer}) {
         await clearApproval(owner,row);
         const claimed=await claim(owner,row,'video','render',mediaHash);
         started=true;
-        Promise.resolve().then(async()=>{try {await finish(owner,claimed,await video.render(row,photo,audio),'video/mp4');}catch(error) {await fail(owner,claimed,error);}finally {rendering=false;}}).catch(()=>{rendering=false;});
+        Promise.resolve().then(async()=>{try {await finish(owner,claimed,await video.render(await withExplainerWords(row),photo,audio),'video/mp4');}catch(error) {await fail(owner,claimed,error);}finally {rendering=false;}}).catch(()=>{rendering=false;});
         return list(owner,id);
       } finally {if(!started)rendering=false;}
+    },
+    // "Does this video say what the post says?" Asks the writer and the reviewer, and returns their answer. Makes nothing and posts nothing.
+    async videoReview(owner,id) {
+      const row=await campaign(owner,id);
+      const options=videoOptions(row.brief);
+      if(options.layout!=='explainer'||!options.explainer)throw new StudioError(409,'Choose an animated explainer first.');
+      if(!openai)throw new StudioError(503,'The video reviewer is not available right now.');
+      const direction=await directExplainer(row);
+      return {matches:direction.ok&&direction.reviewed,reviewed:direction.reviewed,score:direction.review?.score??null,postMessage:direction.review?.post_main_message||'',videoMessage:direction.review?.video_main_message||'',problems:direction.review?.problems||[],fix:direction.review?.fix||'',words:direction.words};
     },
     async remove(owner,id,kind,version) {
       if(!['image','video','voice','music'].includes(kind))throw new StudioError(400,'Choose a valid media type.');
@@ -164,6 +185,6 @@ function createMediaService({db, openai, jev, imageInspector, video=renderer}) {
 }
 function createMediaHandlers(service) {
   const handle=action=>async(req,res)=>{try {res.json(await action(req));}catch(e){res.status(e.status||500).json({error:e.status?e.message:'Media creation failed. Your campaign is still saved.'});}};
-  return {remove:handle(async req=>({media:await service.remove(req.user?.id,req.params.id,req.params.kind,req.body?.version)})),list:handle(async req=>({media:await service.list(req.user?.id,req.params.id)})),capabilities:handle(req=>service.capabilities(req.user?.id)),picture:handle(async req=>({media:await service.picture(req.user?.id,req.params.id,req.body)})),audio:handle(async req=>({media:await service.audio(req.user?.id,req.params.id,req.body)})),render:handle(async req=>({media:await service.render(req.user?.id,req.params.id,req.body)}))};
+  return {videoReview:handle(async req=>({review:await service.videoReview(req.user?.id,req.params.id)})),remove:handle(async req=>({media:await service.remove(req.user?.id,req.params.id,req.params.kind,req.body?.version)})),list:handle(async req=>({media:await service.list(req.user?.id,req.params.id)})),capabilities:handle(req=>service.capabilities(req.user?.id)),picture:handle(async req=>({media:await service.picture(req.user?.id,req.params.id,req.body)})),audio:handle(async req=>({media:await service.audio(req.user?.id,req.params.id,req.body)})),render:handle(async req=>({media:await service.render(req.user?.id,req.params.id,req.body)}))};
 }
 module.exports={createMediaService,createMediaHandlers,hash};

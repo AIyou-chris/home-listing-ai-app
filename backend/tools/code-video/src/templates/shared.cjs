@@ -24,8 +24,8 @@ const BASE_DEFAULTS = {
 function cleanBase(c) {
   for (const [key, max] of Object.entries(BASE_LIMITS)) c[key] = String(c[key]).trim().slice(0, max);
   if (!Array.isArray(c.endHeadline) || c.endHeadline.length < 1 || c.endHeadline.length > 3) throw new Error('endHeadline must be one to three short lines');
-  c.endHeadline = c.endHeadline.map(l => String(l).trim().slice(0, 22));
-  c.endAccent = String(c.endAccent || '').slice(0, 22);
+  c.endHeadline = c.endHeadline.map(l => String(l).trim().slice(0, 24));
+  c.endAccent = String(c.endAccent || '').slice(0, 24);
   if (!/^#[0-9a-f]{6}$/i.test(c.accent)) throw new Error('accent must be a hex colour like #ff5a36');
   return c;
 }

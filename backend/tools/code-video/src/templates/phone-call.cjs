@@ -35,7 +35,7 @@ function normalizeConfig(input = {}) {
   const c = { ...DEFAULTS, ...Object.fromEntries(Object.entries(input).filter(([, v]) => v !== undefined && v !== null)) };
   for (const [key, max] of Object.entries(LIMITS)) c[key] = String(c[key]).trim().slice(0, max);
   if (!Array.isArray(c.hook) || c.hook.length < 1 || c.hook.length > 3) throw new Error('hook must be one to three short lines');
-  c.hook = c.hook.map(l => String(l).trim().slice(0, 22));
+  c.hook = c.hook.map(l => String(l).trim().slice(0, 24));
   if (!Array.isArray(c.leadLines) || c.leadLines.length < 1 || c.leadLines.length > 3) throw new Error('leadLines must be one to three short lines');
   c.leadLines = c.leadLines.map(l => String(l).trim().slice(0, 36));
   return cleanBase(c);

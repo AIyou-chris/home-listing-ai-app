@@ -26307,6 +26307,10 @@ app.get('/api/admin/security/monitor', verifyAdmin, async (req, res) => {
   }
 });
 
+app.get('/api/admin/spend-today', verifyAdmin, (_req, res) => {
+  res.json({ rows: spendGuardModule.spendToday(spendGuardModule.guard), since: 'last server restart' });
+});
+
 app.get('/api/admin/support/summary', verifyAdmin, async (_req, res) => {
   try {
     // 1. New Leads
@@ -27203,6 +27207,7 @@ app.delete('/api/admin/marketing-studio/campaigns/:id/media/:kind', verifyAdmin,
 app.post('/api/admin/marketing-studio/campaigns/:id/picture', verifyAdmin, express.json({ limit: '12mb' }), marketingMediaHandlers.picture);
 app.post('/api/admin/marketing-studio/campaigns/:id/audio', verifyAdmin, marketingMediaHandlers.audio);
 app.post('/api/admin/marketing-studio/campaigns/:id/video', verifyAdmin, marketingMediaHandlers.render);
+app.post('/api/admin/marketing-studio/campaigns/:id/video-review', verifyAdmin, marketingMediaHandlers.videoReview);
 
 // Email sending (Mailgun)
 // Email sending (Unified Service)
@@ -36113,6 +36118,7 @@ const getAutopilot = () => {
       db: supabaseAdmin,
       studioFor: () => createStudioService({ db: supabaseAdmin, openai, loadBrain: loadBusinessBrain, media: marketingMediaService }),
       media: marketingMediaService,
+      directExplainer: (args) => require('./services/explainerDirector').directVideo({ ...args, openai }),
       getPoster: () => getMarketingPoster(),
       getConnections: async (owner) => {
         const { data } = await supabaseAdmin.from('house_social_connections').select('platform, status').eq('owner_id', owner);

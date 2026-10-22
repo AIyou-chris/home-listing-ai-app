@@ -11,7 +11,9 @@ async function request(path: string, method = 'GET', body?: unknown) {
 export type MarketingImage = { id: string; campaign_id: string; group_id: string; recipe_id: string; format: string; text_zone: string; variant: number; mood: string; alt_text: string; url: string; approved: boolean; cost: number; width: number; height: number; headline?: string; settings?: { headline: string; subline: string; finishedArtwork?: boolean }; checks: { problems: string[]; contrast: number; bytes: number }; used_in: { campaign_id: string; use: string }[] };
 export type ImageCatalog = { recipes: { id: string; use: string; pillar: string; subject: string; mood: string }[]; formats: Record<string, { label: string; width: number; height: number }>; costs: Record<string, { set: number; one: number; final: number }> };
 export type ImagePerformance = { recipe_id: string; mood: string; text_zone: string; views: number; clicks: number; engagement: number; ctr: number | null };
+export type VideoReview = { matches: boolean; reviewed: boolean; score: number | null; postMessage: string; videoMessage: string; problems: string[]; fix: string; words: Record<string, unknown> };
 export const adminMarketingMediaService = {
+  async videoReview(campaign: StudioCampaign): Promise<VideoReview> { return (await request(`campaigns/${encodeURIComponent(campaign.id)}/video-review`, 'POST', {})).review; },
   async imageCatalog(): Promise<ImageCatalog> { return request('image-catalog'); },
   async imageLibrary(): Promise<MarketingImage[]> { return (await request('image-library')).images; },
   async removeImage(id: string): Promise<void> { await request(`image-library/${encodeURIComponent(id)}`, 'DELETE'); },

@@ -6,6 +6,7 @@ import Collapsible from '../../components/admin/Collapsible'
 import { setAllOpen } from '../../components/admin/collapsibleAll'
 import { TodayView, TodayData } from './TodayView'
 import { SiteAnalyticsCard } from './SiteAnalyticsCard'
+import { SpendTodayCard } from './SpendTodayCard'
 
 
 
@@ -203,6 +204,8 @@ const AdminCommandCenter: React.FC = () => {
 
       <CampaignStatsWidget stats={metrics?.campaignStats ?? null} loading={loading} />
 
+
+      <SpendTodayCard />
 
       {/* System Health */}
       <Collapsible title='System Health' hint='API calls, failures, latency, uptime' badge={<>{anyAlert && <Badge tone='error'>Alert</Badge>}</>}>

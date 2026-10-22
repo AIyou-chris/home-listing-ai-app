@@ -7,8 +7,8 @@ const post = (over = {}) => ({ outputs: { title: 'Send one WOW Link to one agent
 
 test('the post title becomes the closing headline, and the opening one on scenes that have it', () => {
   const chat = matchPost({ template: 'chat-answer', post: post() });
-  assert.deepStrictEqual(chat.endHeadline, ['Send one WOW Link to', 'one agent']);
-  assert.strictEqual(chat.endAccent, 'one agent');
+  assert.deepStrictEqual(chat.endHeadline, ['Send one WOW Link', 'to one agent']);
+  assert.strictEqual(chat.endAccent, 'to one agent');
   assert.strictEqual(chat.hook, undefined, 'the chat scene has no opening words');
   const walk = matchPost({ template: 'walkthrough', post: post() });
   assert.deepStrictEqual(walk.hook, walk.endHeadline);
@@ -32,7 +32,7 @@ test('words that fail the post safety check are never drawn', () => {
   const bad = matchPost({ template: 'chat-answer', post: post({ title: 'We guarantee 40% more leads for you', facebook: 'We guarantee more leads every single time. Lowest rate around, no risk at all, sign up today.' }) });
   assert.deepStrictEqual(bad, {});
   const ok = matchPost({ template: 'chat-answer', post: { outputs: { title: 'About 10% fewer Realtors', facebook: '' }, brief: { facts: ['nar-members-now'] } } });
-  assert.deepStrictEqual(ok.endHeadline, ['About 10% fewer', 'Realtors'], 'a verified number from the post\'s facts is allowed');
+  assert.deepStrictEqual(ok.endHeadline, ['About 10% fewer Realtors'], 'a verified number from the post\'s facts is allowed');
 });
 
 test('a post with nothing usable leaves the scene exactly as it was', () => {
@@ -52,4 +52,10 @@ test('a question stays a question, and the closing line does not just repeat the
   assert.deepStrictEqual(m.endHeadline, ['Your competition is', 'building. Are you?']);
   assert.strictEqual(m.endAccent, 'building. Are you?');
   assert.strictEqual(m.endLine, 'Loan officers who keep adding agent partners have more opportunities.');
+});
+
+test('headlines are wrapped evenly, never leaving one word alone on the last line', () => {
+  assert.deepStrictEqual(wrapHeadline('Your competition is busy building new relationships. Are you?'), ['Your competition is', 'busy building new', 'relationships. Are you?']);
+  assert.deepStrictEqual(wrapHeadline('Send one WOW Link to one agent'), ['Send one WOW Link', 'to one agent']);
+  assert.deepStrictEqual(wrapHeadline('Hello there'), ['Hello there']);
 });

@@ -430,3 +430,55 @@ test('a failed try is not shown as the last problem once the same time has a pos
   h.db.tables.admin_marketing_campaigns.push({ id: 'ok2', owner_id: OWNER, status: 'approved', outputs: {}, brief: { source: 'autopilot', slot: '2026-10-14@12:00' }, created_at: stamp, updated_at: stamp });
   assert.strictEqual((await h.ap.status(OWNER)).lastIssue, null);
 });
+
+// ---- the second AI reviewer gates the animated videos ----
+async function runWithDirector(directExplainer) {
+  const { TOPICS } = require('../services/autopilot/topics');
+  const { business } = require('../config/business');
+  const was = [business.video.useInAutopilot, business.video.voiceInAutopilot];
+  business.video.useInAutopilot = true; business.video.voiceInAutopilot = true;
+  const before = TOPICS.map((t) => t.explainer);
+  TOPICS.forEach((t) => { t.explainer = 'wow-link'; });
+  const db = fakeDb();
+  db.tables.admin_switches.push({ key: 'autopilot_on', enabled: true, owner_id: OWNER, updated_by: OWNER });
+  const asked = []; const row = (id) => db.tables.admin_marketing_campaigns.find((x) => x.id === id);
+  const warnings = [];
+  const ap = createAutopilot({
+    db, log: { warn: (m) => warnings.push(String(m)) }, now: () => new Date('2026-10-13T20:00:00Z'), sendMail: async () => {}, directExplainer,
+    studioFor: () => ({
+      async generate(owner, id) { Object.assign(row(id), { status: 'draft', outputs: { ...GOOD }, updated_at: 'v1' }); return row(id); },
+      async edit(owner, id, body) { row(id).outputs = body.outputs; row(id).updated_at = 'v2'; return row(id); },
+      async settings(owner, id, body) { asked.push({ options: body.videoOptions, brief: { ...row(id).brief } }); row(id).updated_at = 'v3'; return row(id); },
+      async approve(owner, id) { row(id).status = 'approved'; return row(id); }, async remove() {}
+    }),
+    media: { async picture() {}, async render() {}, async list() { return [{ kind: 'video', status: 'ready' }]; }, async cleanup() { return []; }, async removeFiles() {} },
+    getPoster: () => ({ async schedule() {} }), getConnections: async () => ({ facebook: true, instagram: true, linkedin: true, youtube: true })
+  });
+  try { await ap.tick(); } finally { TOPICS.forEach((t, i) => { if (before[i]) t.explainer = before[i]; else delete t.explainer; }); [business.video.useInAutopilot, business.video.voiceInAutopilot] = was; }
+  return { asked, warnings };
+}
+
+test('a video the reviewer passes is used, with the reviewed words and the reviewer\'s verdict saved on the post', async () => {
+  const seen = [];
+  const { asked } = await runWithDirector(async (args) => { seen.push(args); return { ok: true, words: { cta: 'LEARN MORE', endLine: 'Reviewed words here.' }, review: { score: 5, matches: true, post_main_message: 'a', video_main_message: 'a', problems: [] } }; });
+  assert.ok(asked.length >= 1);
+  assert.ok(asked.every((a) => a.options.layout === 'explainer' && a.options.explainerVoice === 'on'));
+  assert.deepStrictEqual(asked[0].brief.explainerWords, { cta: 'LEARN MORE', endLine: 'Reviewed words here.' });
+  assert.strictEqual(asked[0].brief.explainerReview.score, 5);
+  assert.strictEqual(seen[0].name, 'wow-link');
+  assert.ok(seen[0].post.title && seen[0].post.text, 'the reviewer gets the real post');
+  assert.strictEqual(seen[0].voice, true);
+});
+
+test('a video the reviewer rejects is NOT used: the moving picture goes out instead, and the reason is saved', async () => {
+  const { asked, warnings } = await runWithDirector(async () => ({ ok: false, words: {}, review: { score: 2, matches: false, problems: ['changes the offer'] } }));
+  assert.ok(asked.length >= 1);
+  assert.ok(asked.every((a) => a.options.layout === 'picture' && a.options.explainer === undefined));
+  assert.deepStrictEqual(asked[0].brief.explainerRejected.problems, ['changes the offer']);
+  assert.ok(warnings.some((w) => /did not match/.test(w)));
+});
+
+test('if the reviewer helper itself breaks, the post still goes out with the moving picture', async () => {
+  const { asked } = await runWithDirector(async () => { throw new Error('boom'); });
+  assert.ok(asked.length >= 1 && asked.every((a) => a.options.layout === 'picture'));
+});

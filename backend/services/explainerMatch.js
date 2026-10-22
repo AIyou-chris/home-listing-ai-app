@@ -5,7 +5,7 @@
 const { textProblems } = require('./autopilot/safety');
 const { tokensFor } = require('./autopilot/facts');
 
-const LINE_MAX = 22; // the scenes cut every headline line at 22 letters
+const LINE_MAX = 24; // the scenes cut every headline line at 24 letters (the big letters shrink to fit)
 const HOOK_TEMPLATES = new Set(['phone-call', 'walkthrough', 'website-edit']);
 
 const clean = (text) => String(text || '')
@@ -16,20 +16,34 @@ const clean = (text) => String(text || '')
 const sentences = (text) => (clean(text).match(/[^.!?]+[.!?]+(?=\s|$)|[^.!?]+$/g) || []).map((x) => x.trim()).filter(Boolean);
 const firstSentence = (text) => sentences(text)[0] || '';
 
-// Wraps words into at most three lines of at most 22 letters. Returns null when it will not fit.
-function wrapHeadline(text) {
-  const words = clean(text).split(' ').filter(Boolean);
-  if (!words.length) return null;
+// Greedy wrap at a given width.
+function wrapAt(words, width) {
   const lines = [];
   let line = '';
   for (const word of words) {
-    if (word.length > LINE_MAX) return null;
     if (!line) line = word;
-    else if (`${line} ${word}`.length <= LINE_MAX) line = `${line} ${word}`;
+    else if (`${line} ${word}`.length <= width) line = `${line} ${word}`;
     else { lines.push(line); line = word; }
   }
   if (line) lines.push(line);
-  return lines.length <= 3 ? lines : null;
+  return lines;
+}
+
+// Wraps words into at most three lines of at most 24 letters, as even as it can (no single word left alone on the last line).
+// Returns null when it will not fit.
+function wrapHeadline(text) {
+  const words = clean(text).split(' ').filter(Boolean);
+  if (!words.length || words.some((w) => w.length > LINE_MAX)) return null;
+  const widest = wrapAt(words, LINE_MAX);
+  if (widest.length > 3) return null;
+  // The narrowest width that still gives the same number of lines.
+  let best = widest;
+  for (let width = LINE_MAX - 1; width >= Math.max(...words.map((w) => w.length)); width -= 1) {
+    const tried = wrapAt(words, width);
+    if (tried.length !== widest.length) break;
+    best = tried;
+  }
+  return best;
 }
 
 // True when two lines open with the same three words (so the closing line would just repeat the headline).
