@@ -31697,6 +31697,7 @@ app.post('/api/admin/lo-leads/:id/skip', verifyAdmin, async (req, res) => {
 });
 
 // ── Cold email to loan officers (own sending domain, checker, 5-touch sequence) ──
+require('./routes/siteAnalyticsRoutes').register(app, { verifyAdmin, supabaseAdmin, limiter: makeLimiter(60 * 1000, 120, 'Too many requests.') });
 const coldEmailRoutes = require('./routes/coldEmailRoutes');
 coldEmailRoutes.register(app, {
   verifyAdmin,

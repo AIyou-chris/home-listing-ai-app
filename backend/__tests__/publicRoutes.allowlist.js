@@ -102,6 +102,8 @@ module.exports = [
   'POST /api/webhooks/mailgun/inbound',
   // Cold email: Mailgun-signed reply webhook, and the unsubscribe link/one-click POST (token-based, no login by design)
   'POST /api/webhooks/mailgun/cold-reply',
+  // Own site analytics: anonymous page-view/click beacon (path only, rate limited, no personal data)
+  'POST /api/track',
   'GET /api/public/cold-unsubscribe/:token',
   'POST /api/public/cold-unsubscribe/:token',
   'POST /api/webhooks/openai/realtime',

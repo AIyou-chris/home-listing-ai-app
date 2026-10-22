@@ -15,7 +15,7 @@ const GUARD_CALL = /(requireAuth|requireLoAgent|requireOffice|verifyAdmin)\(/;
 const SAFE_INSIDE = /resolveDashboardOwnerId|resolveRequesterUserId|resolveLoAgentId|resolveBillingAgentId|appointmentOwnerIds|resolveOfficeContext|ownedAppointment|ownsNotificationSettings|resolveAgentIdForRequesterUser|auth\.getUser|authorization/i;
 
 function findUnguardedRoutes() {
-  const src = ['server.cjs','blog/routes.cjs','routes/coldEmailRoutes.js'].map(file => '{\n'+fs.readFileSync(path.join(__dirname, '..', file), 'utf8')+'\n}').join('\n');
+  const src = ['server.cjs','blog/routes.cjs','routes/coldEmailRoutes.js','routes/siteAnalyticsRoutes.js'].map(file => '{\n'+fs.readFileSync(path.join(__dirname, '..', file), 'utf8')+'\n}').join('\n');
   const ast = acorn.parse(src, { ecmaVersion: 'latest', allowHashBang: true, allowReturnOutsideFunction: true });
   const found = new Set();
   const all = new Set();

@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
+import { trackView, trackClick, clickLabel } from '../services/siteTracker'
 
 const GA_MEASUREMENT_ID = 'G-3STYDX7KN6'
 
@@ -28,6 +29,14 @@ const isPublicAnalyticsRoute = (pathname: string) => {
 
 const RouteAnalyticsTracker = () => {
   const location = useLocation()
+
+  useEffect(() => {
+    if (!isPublicAnalyticsRoute(location.pathname)) return
+    trackView(location.pathname)
+    const onClick = (e: MouseEvent) => trackClick(window.location.pathname, clickLabel(e.target))
+    document.addEventListener('click', onClick, true)
+    return () => document.removeEventListener('click', onClick, true)
+  }, [location.pathname])
 
   useEffect(() => {
     const analyticsWindow = window as typeof window & { gtag?: (...args: unknown[]) => void }

@@ -5,6 +5,7 @@ import { AuthService } from '../../services/authService'
 import Collapsible from '../../components/admin/Collapsible'
 import { setAllOpen } from '../../components/admin/collapsibleAll'
 import { TodayView, TodayData } from './TodayView'
+import { SiteAnalyticsCard } from './SiteAnalyticsCard'
 
 
 
@@ -197,6 +198,8 @@ const AdminCommandCenter: React.FC = () => {
       </div>
 
       <TodayView data={today} error={todayError} onGo={(to) => navigate(to === 'marketing' ? '/admin/marketing-funnels' : '/admin/settings')} />
+
+      <SiteAnalyticsCard />
 
       <CampaignStatsWidget stats={metrics?.campaignStats ?? null} loading={loading} />
 
