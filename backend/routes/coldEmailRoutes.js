@@ -244,7 +244,12 @@ const register = (app, deps) => {
   });
 
   // ---- signed Mailgun inbound: replies to the cold-email mailboxes ----
-  app.post('/api/webhooks/mailgun/cold-reply', upload ? upload.none() : (req, res, next) => next(), async (req, res) => {
+  // Replies can carry attachments (extra file fields); accept them, then drop the temp files.
+  const acceptInbound = upload ? [upload.any(), (req, res, next) => {
+    for (const f of (Array.isArray(req.files) ? req.files : [])) { if (f && f.path) require('fs').unlink(f.path, () => {}); }
+    next();
+  }] : [(req, res, next) => next()];
+  app.post('/api/webhooks/mailgun/cold-reply', ...acceptInbound, async (req, res) => {
     try {
       const body = req.body || {};
       const sig = body.signature && typeof body.signature === 'object' ? body.signature : { timestamp: body.timestamp, token: body.token, signature: body.signature };

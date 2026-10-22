@@ -1,3 +1,5 @@
+Daily check 2026-10-21: Sentry NODE-EXPRESS-D (Mailgun cold-reply with attachment threw MulterError) fixed locally in coldEmailRoutes.js (upload.any + temp-file cleanup) + test; NOT pushed. NODE-EXPRESS-5 (scoring_rules table missing) still open, 3 events, 0 users.
+
 ## 2026-10-17 — Codex: video choices now save, make missing narration and rebuild in one action
 
 - Reproduced Chris's report on the imported AI Brain campaign (`68ba0568-41c8-4347-8e93-304207859278`): saved brief had `narration:saved`, `music:upbeat`, `motion:gentle`, but no voice media row and the existing video was stale. Saving settings never regenerated the artifact; rendering was disabled until the separate voice step, so users kept seeing the old silent preview.

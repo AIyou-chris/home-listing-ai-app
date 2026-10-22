@@ -186,3 +186,9 @@ test('DNS checker reads SPF, DMARC and DKIM records', () => {
   assert.strictEqual(dnsCheck.checkDkim(['k=rsa; p=MIGfMA0GCSqGSIb3DQEBAQUAA4']).ok, true);
   assert.strictEqual(dnsCheck.checkDkim([]).ok, false);
 });
+
+test('cold-reply inbound accepts attachment file fields (no MulterError)', () => {
+  const src = require('fs').readFileSync(require('path').join(__dirname, '../routes/coldEmailRoutes.js'), 'utf8');
+  assert.ok(src.includes('upload.any()'));
+  assert.ok(!/cold-reply'[^\n]*upload\.none\(\)/.test(src));
+});
