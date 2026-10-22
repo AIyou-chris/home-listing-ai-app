@@ -18,7 +18,7 @@ const firstSentence = (text) => sentences(text)[0] || '';
 
 // Wraps words into at most three lines of at most 22 letters. Returns null when it will not fit.
 function wrapHeadline(text) {
-  const words = clean(text).replace(/[.!?]+$/, '.').split(' ').filter(Boolean);
+  const words = clean(text).split(' ').filter(Boolean);
   if (!words.length) return null;
   const lines = [];
   let line = '';
@@ -31,6 +31,9 @@ function wrapHeadline(text) {
   if (line) lines.push(line);
   return lines.length <= 3 ? lines : null;
 }
+
+// True when two lines open with the same three words (so the closing line would just repeat the headline).
+const sameStart = (a, b) => { const w = (t) => clean(t).toLowerCase().split(' ').slice(0, 3).join(' '); return w(a).length > 0 && w(a) === w(b); };
 
 // What to change in the scene's words so it follows the post. `post` is { outputs, brief }.
 function matchPost({ template, post }) {
@@ -49,7 +52,7 @@ function matchPost({ template, post }) {
 
   // The first sentence of the post that is not just the title again.
   const seen = title.toLowerCase();
-  const sentence = [...sentences(outputs.facebook), ...sentences(outputs.linkedin)].find((x) => x.length >= 20 && x.length <= 110 && !seen.includes(x.toLowerCase().replace(/[.!?]+$/, '')) && !(seen && x.toLowerCase().includes(seen.replace(/[.!?]+$/, ''))) && passes(x, 'line'));
+  const sentence = [...sentences(outputs.facebook), ...sentences(outputs.linkedin)].find((x) => x.length >= 20 && x.length <= 110 && !seen.includes(x.toLowerCase().replace(/[.!?]+$/, '')) && !(seen && x.toLowerCase().includes(seen.replace(/[.!?]+$/, ''))) && !sameStart(x, title) && passes(x, 'line'));
   if (sentence) out.endLine = sentence;
   return out;
 }

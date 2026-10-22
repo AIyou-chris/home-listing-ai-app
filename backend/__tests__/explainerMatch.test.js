@@ -46,3 +46,10 @@ test('the finished video follows the post: a real MP4 is made with the post word
   assert.strictEqual(bytes.slice(4, 8).toString(), 'ftyp');
   assert.ok(bytes.length > 100000);
 });
+
+test('a question stays a question, and the closing line does not just repeat the headline', () => {
+  const m = matchPost({ template: 'walkthrough', post: post({ title: 'Your competition is building. Are you?', facebook: 'Your competition is busy building new relationships. Are you? Loan officers who keep adding agent partners have more opportunities. Visit https://homelistingai.com/for-loan-officers to learn more!' }) });
+  assert.deepStrictEqual(m.endHeadline, ['Your competition is', 'building. Are you?']);
+  assert.strictEqual(m.endAccent, 'building. Are you?');
+  assert.strictEqual(m.endLine, 'Loan officers who keep adding agent partners have more opportunities.');
+});
