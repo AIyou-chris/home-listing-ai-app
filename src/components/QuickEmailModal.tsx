@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react';
+import { authedFetch } from '../services/authedFetch';
+import { messageToHtml, messageToText } from '../utils/emailText';
 import Modal from './Modal';
 import EmailTemplateModal from './EmailTemplateModal';
 import { EmailTemplate } from '../constants/emailTemplates';
@@ -72,7 +74,8 @@ const QuickEmailModal: React.FC<QuickEmailModalProps> = ({ onClose, isDemoMode =
                 return;
             }
 
-            const response = await fetch('/api/admin/email/quick-send', {
+            // The admin route needs the signed-in token; a bare fetch() was refused with "Missing token".
+            const response = await authedFetch('/api/admin/email/quick-send', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -80,7 +83,8 @@ const QuickEmailModal: React.FC<QuickEmailModalProps> = ({ onClose, isDemoMode =
                 body: JSON.stringify({
                     to: recipientEmail.trim(),
                     subject: subject.trim(),
-                    html: body,
+                    html: messageToHtml(body),
+                    text: messageToText(body),
                     from: fromEmail.trim() || undefined,
                     metadata: {
                         recipientName: recipientName.trim() || undefined,
