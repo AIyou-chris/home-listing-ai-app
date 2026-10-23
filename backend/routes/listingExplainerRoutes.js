@@ -7,7 +7,7 @@ const explainer = require('../services/listingExplainer');
 
 const PER_HOUR = 5;
 
-function register(app, { requireLoAgent, supabaseAdmin, isListingPublished, toTrimmedOrNull, available = () => require('../services/explainerVideo').available(), make = explainer.makeAndStore }) {
+function register(app, { requireLoAgent, supabaseAdmin, isListingPublished, toTrimmedOrNull, available = () => require('../marketing-engine/services/explainerVideo').available(), make = explainer.makeAndStore }) {
   const log = new Map(); // loAgentId -> [timestamps]
   app.post('/api/lo/listings/:listingId/explainer', requireLoAgent, express.json({ limit: '2kb' }), async (req, res) => {
     try {

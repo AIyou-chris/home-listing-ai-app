@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { getSwitch, setSwitch, ownersWithSwitchOn } = require('../adminSwitches');
+const { getSwitch, setSwitch, ownersWithSwitchOn } = require('../../marketing-engine/services/adminSwitches');
 const { buildWriterPrompt } = require('../coldEmail/writer');
 const sender = require('../coldEmail/sender');
 

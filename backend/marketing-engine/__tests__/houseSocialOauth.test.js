@@ -1,9 +1,9 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { providerStatus, authorizeUrl, newVerifier, callbackUri, PLATFORMS } = require('../houseSocialOauth');
-const { encryptToken, decryptToken } = require('../tokenCrypto');
-const { studioReturn } = require('../houseSocialStore');
+const { providerStatus, authorizeUrl, newVerifier, callbackUri, PLATFORMS } = require('../services/houseSocialOauth');
+const { encryptToken, decryptToken } = require('../services/tokenCrypto');
+const { studioReturn } = require('../services/houseSocialStore');
 
 const env = {
   PUBLIC_SITE_ORIGIN: 'https://homelistingai.com/', MARKETING_TOKEN_ENCRYPTION_KEY: 'a'.repeat(64),

@@ -2,7 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 process.env.MARKETING_TOKEN_ENCRYPTION_KEY = process.env.MARKETING_TOKEN_ENCRYPTION_KEY || 'a'.repeat(64);
-const { createHouseSocialStore } = require('../houseSocialStore');
+const { createHouseSocialStore } = require('../services/houseSocialStore');
 
 const A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const B = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';

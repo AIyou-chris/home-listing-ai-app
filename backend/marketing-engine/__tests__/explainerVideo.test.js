@@ -3,8 +3,8 @@ const assert = require('node:assert');
 const explainer = require('../services/explainerVideo');
 const { business } = require('../config/business');
 const { videoOptions } = require('../services/studioVideoOptions');
-const { findVoiceViolations } = require('../services/brandVoice');
-const { PLATFORM_BANNED_PHRASES } = require('../services/loBrainService');
+const { findVoiceViolations } = require('../host.cjs');
+const { PLATFORM_BANNED_PHRASES } = require('../host.cjs');
 const { TOPICS, LAUNCH } = require('../services/autopilot/topics');
 
 test('the settings file names three explainer videos and each one is valid', () => {

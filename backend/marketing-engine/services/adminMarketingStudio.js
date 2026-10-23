@@ -1,9 +1,9 @@
 'use strict';
 
-const { withDefaults, buildBrainPrompt } = require('./businessBrain');
-const { MARKETING_VOICE_RULES } = require('./brandVoice');
-const { PLATFORM_GUARDRAILS, PLATFORM_BANNED_PHRASES } = require('./loBrainService');
-const { scrubVoice } = require('./brandVoice');
+const { withDefaults, buildBrainPrompt } = require('../host.cjs');
+const { MARKETING_VOICE_RULES } = require('../host.cjs');
+const { PLATFORM_GUARDRAILS, PLATFORM_BANNED_PHRASES } = require('../host.cjs');
+const { scrubVoice } = require('../host.cjs');
 const { videoOptions } = require('./studioVideoOptions');
 const TABLE = 'admin_marketing_campaigns';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

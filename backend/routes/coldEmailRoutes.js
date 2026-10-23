@@ -9,7 +9,7 @@ const templates = require('../services/coldEmail/templates');
 const writer = require('../services/coldEmail/writer');
 const seq = require('../services/coldEmail/sequence');
 const { appendFooter, listUnsubscribeHeaders, postalAddress } = require('../services/coldEmail/compliance');
-const switches = require('../services/adminSwitches');
+const switches = require('../marketing-engine/services/adminSwitches');
 
 const page = (title, message) => `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><body style="font-family:-apple-system,Segoe UI,sans-serif;max-width:420px;margin:15vh auto;padding:0 20px;color:#0f172a"><h2>${title}</h2><p style="line-height:1.6;color:#334155">${message}</p></body>`;
 

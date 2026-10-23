@@ -46,7 +46,7 @@ async function inspectBackground(buffer,zone,{readWords=ocr,uploaded=false}={}) 
   if(count&&edges/count>.20)problems.push('The headline space is too busy. Try “less busy” or move the subject.');
   return {problems,emptySpace:!problems.some(p=>p.includes('busy')),ocrPassed:uploaded||!problems.some(p=>p.includes('word')||p.includes('Words'))};
 }
-async function compose(buffer,{format='blog',brand='homelistingai',text_zone='left',headline='',subline='',cta='Start your free 7-day trial',style='brand',maxWords=8,alt_text='',requiresLending=false,nmls='',lendingAsset,logoPath=path.resolve(__dirname,'../../../public/newlogo.png'),encoding}={}) {
+async function compose(buffer,{format='blog',brand='homelistingai',text_zone='left',headline='',subline='',cta='Start your free 7-day trial',style='brand',maxWords=8,alt_text='',requiresLending=false,nmls='',lendingAsset,logoPath=path.resolve(__dirname,'../../assets/logo.png'),encoding}={}) {
   const f=Object.hasOwn(FORMATS,format)?FORMATS[format]:null;if(!f)throw new Error('Choose a supported size.');
   validateCopy(headline,subline,maxWords);
   if(!alt_text.trim())throw new Error('Add a short picture description first.');

@@ -56,7 +56,7 @@ These figures use the existing GPT Image 1 Mini model. [OpenAI image documentati
 
 **Load sample ideas · free** adds six ideas with three choices each: two blog heroes, two LinkedIn pictures, one email header and one landing hero. They are already made; loading them makes no AI calls. All wait for your review. Repeated loading does not duplicate them.
 
-The original private files are saved in `backend/assets/marketing-images-review/`. They are not exposed as public website assets. The local review page is http://127.0.0.1:5177/tmp/marketing-images/index.html; the phone review is http://127.0.0.1:5177/tmp/marketing-images/mobile.html. These links work on this computer while its preview server is running.
+The original private files are saved in `backend/marketing-engine/assets/marketing-images-review/`. They are not exposed as public website assets. The local review page is http://127.0.0.1:5177/tmp/marketing-images/index.html; the phone review is http://127.0.0.1:5177/tmp/marketing-images/mobile.html. These links work on this computer while its preview server is running.
 
 ## Results
 

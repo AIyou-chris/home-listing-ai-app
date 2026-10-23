@@ -2,7 +2,7 @@
 // One quick answer to "what is working in our marketing?" Counts only what we can really see:
 // posts we sent, signups and leads that carry a source tag, blog article events and cold email results.
 // We do NOT see visits per social post (the platforms keep those), and the page says so.
-const { computeResults } = require('./coldEmail/results');
+const { computeResults } = require('../host.cjs');
 
 const DAY = 24 * 60 * 60 * 1000;
 const tally = (rows, keyOf) => {

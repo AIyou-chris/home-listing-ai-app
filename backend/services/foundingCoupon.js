@@ -10,7 +10,7 @@ const pickFoundingDiscount = async ({ stripe, couponId, db = null, now = () => n
   if (!stripe || !id) return [];
   try {
     // A real end date, when one was set (see foundingOffer.js): after it, no discount.
-    if (db) { const endsAt = await require('./foundingOffer').offerEndsAt(db); if (endsAt && now().getTime() > endsAt.getTime()) return []; }
+    if (db) { const endsAt = await require('../marketing-engine/services/foundingOffer').offerEndsAt(db); if (endsAt && now().getTime() > endsAt.getTime()) return []; }
     const coupon = await stripe.coupons.retrieve(id);
     if (!coupon || coupon.valid !== true) return [];
     return [{ coupon: id }];

@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
-const { postFacebook, postLinkedIn } = require('../services/socialPublish');
+const { postFacebook, postLinkedIn } = require('../marketing-engine/services/socialPublish');
 
 const json = (body, ok = true, status = 200) => ({ ok, status, headers: { get: () => 'video/mp4' }, json: async () => body, arrayBuffer: async () => new ArrayBuffer(8) });
 

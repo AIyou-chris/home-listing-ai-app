@@ -1,6 +1,6 @@
 'use strict';
-const { findVoiceViolations } = require('../brandVoice');
-const { PLATFORM_BANNED_PHRASES } = require('../loBrainService');
+const { findVoiceViolations } = require('../../host.cjs');
+const { PLATFORM_BANNED_PHRASES } = require('../../host.cjs');
 const { business, hostPattern } = require('../../config/business');
 
 const FIELDS = ['title', 'facebook', 'linkedin', 'instagram', 'bluesky', 'videoScript'];

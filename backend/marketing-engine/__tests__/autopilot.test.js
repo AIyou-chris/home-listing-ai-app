@@ -184,7 +184,7 @@ test('a saved direction and the founding-price end date go into the posts that a
 });
 
 test('the founding discount stops being applied after its end date', async () => {
-  const { pickFoundingDiscount } = require('../services/foundingCoupon');
+  const { pickFoundingDiscount } = require('../../services/foundingCoupon');
   const stripe = { coupons: { retrieve: async () => ({ valid: true }) } };
   const db = fakeDb(); db.tables.platform_brain.push({ id: 'founding-offer', config: { endsAt: '2026-11-02T00:00:00.000Z' } });
   assert.deepStrictEqual(await pickFoundingDiscount({ stripe, couponId: 'C', db, now: () => new Date('2026-10-20T00:00:00Z') }), [{ coupon: 'C' }]);

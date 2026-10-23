@@ -7,7 +7,8 @@ const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
 
-const src = fs.readFileSync(path.join(__dirname, '..', 'server.cjs'), 'utf8');
+// The server and the marketing engine's routes (moved out of the server) are both checked.
+const src = ['server.cjs', 'marketing-engine/routes.cjs'].map((f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8')).join('\n');
 
 test('no .catch() directly on a supabase query builder', () => {
   const offenders = [];

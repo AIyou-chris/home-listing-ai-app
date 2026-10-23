@@ -9,9 +9,9 @@ const path = require('path');
 const crypto = require('crypto');
 const { findVoiceViolations } = require('./brandVoice');
 const { PLATFORM_BANNED_PHRASES } = require('./loBrainService');
-const { business } = require('../config/business');
+const { business } = require('../marketing-engine/config/business');
 
-const loadCodeVideo = () => require('../tools/code-video/src/index.cjs');
+const loadCodeVideo = () => require('../marketing-engine/tools/code-video/src/index.cjs');
 const WIDTH = 540;
 
 const clip = (text, max) => String(text || '').trim().slice(0, max);

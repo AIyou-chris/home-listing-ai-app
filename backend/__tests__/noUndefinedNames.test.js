@@ -28,10 +28,11 @@ test('server.cjs uses no undefined names beyond the known harmless ones', async 
       rules: { 'no-undef': 'error' }
     }
   });
-  const [result] = await eslint.lintFiles([path.join(__dirname, '..', 'server.cjs')]);
-  const unexpected = result.messages
+  // The server, and the marketing engine's own code (its routes and services; the video tool and tests have their own checks).
+  const results = await eslint.lintFiles([path.join(__dirname, '..', 'server.cjs'), path.join(__dirname, '..', 'marketing-engine', 'routes.cjs'), path.join(__dirname, '..', 'marketing-engine', 'host.cjs'), path.join(__dirname, '..', 'marketing-engine', 'services', '**', '*.{js,cjs}'), path.join(__dirname, '..', 'marketing-engine', 'config', '*.js')]);
+  const unexpected = results.flatMap((result) => result.messages
     .filter((m) => m.ruleId === 'no-undef')
-    .map((m) => ({ name: /'([^']+)'/.exec(m.message)?.[1], line: m.line }))
+    .map((m) => ({ name: /'([^']+)'/.exec(m.message)?.[1], line: m.line, file: path.relative(path.join(__dirname, '..'), result.filePath) })))
     .filter((m) => !KNOWN_HARMLESS.has(m.name));
-  assert.deepEqual(unexpected, [], `These names are used but never defined (typo or removed variable):\n${unexpected.map((u) => `  ${u.name} at server.cjs:${u.line}`).join('\n')}`);
+  assert.deepEqual(unexpected, [], `These names are used but never defined (typo or removed variable):\n${unexpected.map((u) => `  ${u.name} at ${u.file}:${u.line}`).join('\n')}`);
 });

@@ -1,8 +1,8 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createMarketingPoster, tagLinks, PostError } = require('../marketingPoster');
-const { ReconnectError } = require('../socialPublish');
+const { createMarketingPoster, tagLinks, PostError } = require('../services/marketingPoster');
+const { ReconnectError } = require('../services/socialPublish');
 
 // A tiny in-memory stand-in for the tables the poster touches.
 function fakeDb(seed) {
@@ -129,7 +129,7 @@ test('YouTube gets the video, Instagram prefers the video, and the picture goes 
 });
 
 test('LinkedIn pictures: ask for an address, send the picture, attach it to the post', async () => {
-  const { postLinkedIn } = require('../socialPublish');
+  const { postLinkedIn } = require('../services/socialPublish');
   const calls = [];
   const fetchImpl = async (url, opts = {}) => {
     calls.push({ url: String(url), method: opts.method || 'GET', body: opts.body });

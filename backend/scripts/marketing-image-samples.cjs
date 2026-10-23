@@ -4,7 +4,7 @@
 const path=require('node:path');const fs=require('node:fs/promises');const crypto=require('node:crypto');
 require('dotenv').config({path:path.resolve(__dirname,'../.env'),quiet:true});
 require('dotenv').config({path:path.resolve(__dirname,'../../.env'),quiet:true});
-const OpenAI=require('openai');const {writePrompt}=require('../services/marketingImages/writer.cjs');const {FORMATS,SCENES,estimate}=require('../services/marketingImages/scenes.cjs');const {compose,inspectBackground,readArtwork}=require('../services/marketingImages/compositor.cjs');
+const OpenAI=require('openai');const {writePrompt}=require('../marketing-engine/services/marketingImages/writer.cjs');const {FORMATS,SCENES,estimate}=require('../marketing-engine/services/marketingImages/scenes.cjs');const {compose,inspectBackground,readArtwork}=require('../marketing-engine/services/marketingImages/compositor.cjs');
 const specs=[
  {title:'When an agent stops calling',format:'blog',recipeId:'scene-01',headline:'When the calls go quiet'},
  {title:'The Sunday evening buyer text',format:'blog',recipeId:'scene-04',headline:'The lead that arrives after dinner'},

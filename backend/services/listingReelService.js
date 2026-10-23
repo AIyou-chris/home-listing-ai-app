@@ -9,7 +9,7 @@ const crypto = require('node:crypto');
 const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
 const { findVoiceViolations } = require('./brandVoice');
-const { resolveFfmpeg } = require('./ffmpegPath');
+const { resolveFfmpeg } = require('../marketing-engine/services/ffmpegPath');
 
 const run = promisify(execFile);
 const FPS = 30;

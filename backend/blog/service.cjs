@@ -2,7 +2,7 @@
 const crypto=require('node:crypto'),fs=require('node:fs/promises'),path=require('node:path');
 const {checks,sanitize,slugify,plain,writerPrompt,COMPLIANCE}=require('./rules.cjs');
 const render=require('./render.cjs');const {submitUrl}=require('./indexnow.cjs');const plan=require('./plan.json');
-const {validateBlogImage,recordBlogUse,imageId}=require('../services/marketingImages/blog.cjs');
+const {validateBlogImage,recordBlogUse,imageId}=require('../marketing-engine/services/marketingImages/blog.cjs');
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const fields=['title','slug','content','excerpt','featured_image','featured_image_alt','status','seo_title','seo_description','seo_keywords','short_answer','faq','pillar','role','target_keyword','search_intent','hub_slug','related_slugs','planned_links','author','compliance_note','scheduled_at','lead_magnet'];
 class BlogError extends Error{constructor(status,message,errors=[]){super(message);this.status=status;this.errors=errors;}}
