@@ -79,3 +79,10 @@ it('thumbs down asks what was wrong and sends the rating; a post that is out has
     expect(JSON.parse(call[1].body)).toEqual({ rating: 'down', reason: 'too fast' });
   });
 });
+
+it('a scheduled post says it is approved, with no Approve button', async () => {
+  mocked.mockImplementation(async () => reply(status({ slots: [{ campaignId: 'c5', slot: '2026-10-25@17:00', topic: 't', title: 'Sched', failed: false, reason: '', posts: [{ channel: 'linkedin', status: 'scheduled', scheduled_for: '', posted_at: null, url: null, error: null }] }] })));
+  render(<AutopilotPanel />);
+  expect(await screen.findByText('Approved · goes out at its time')).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
+});

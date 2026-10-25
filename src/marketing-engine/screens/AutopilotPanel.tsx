@@ -161,6 +161,7 @@ export default function AutopilotPanel() {
               {!s.failed && s.pictureUrl && <a href={s.pictureUrl} target="_blank" rel="noreferrer" className="mt-2 block w-40"><img src={s.pictureUrl} alt={`Picture for ${s.title || 'this post'}`} className="w-40 rounded-lg border border-slate-200" /></a>}
               {!s.failed && <AutopilotVideo post={s} scenes={status?.scenes || []} busy={busy !== ''} canMake={!s.posts.some((p) => p.status === 'published' || p.status === 'posting')} onMake={makeVideo} onRate={rateVideo} />}
               {!s.failed && s.preview && <details className="mt-1"><summary className="cursor-pointer text-xs font-semibold text-slate-600">Read the post</summary><p className="mt-1 whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-sm text-slate-800">{s.preview}</p></details>}
+              {!s.failed && !s.awaitingApproval && s.posts.length > 0 && s.posts.every((p) => p.status === 'scheduled') && <p className="mt-1"><span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">Approved · goes out at its time</span></p>}
               {!s.failed && s.awaitingApproval && (
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">Waiting for your OK</span>
