@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Mail, Activity, AlertTriangle, MousePointerClick, Eye, UserMinus } from 'lucide-react';
-import Collapsible from '../../components/admin/Collapsible';
+import Collapsible from '../../marketing-engine/screens/Collapsible';
 
 interface CampaignStats {
     emailsSent: number;

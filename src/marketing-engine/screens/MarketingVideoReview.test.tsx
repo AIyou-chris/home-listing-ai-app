@@ -1,10 +1,10 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import MarketingVideoReview from './MarketingVideoReview';
-import { adminMarketingMediaService } from '../../services/adminMarketingMediaService';
-import type { StudioCampaign } from '../../services/adminMarketingStudioService';
+import { adminMarketingMediaService } from '../services/adminMarketingMediaService';
+import type { StudioCampaign } from '../services/adminMarketingStudioService';
 
-jest.mock('../../services/adminMarketingMediaService', () => ({ adminMarketingMediaService: { videoReview: jest.fn() } }));
+jest.mock('../services/adminMarketingMediaService', () => ({ adminMarketingMediaService: { videoReview: jest.fn() } }));
 const campaign = { id: 'c1', version: 'v1' } as unknown as StudioCampaign;
 const review = jest.mocked(adminMarketingMediaService.videoReview);
 

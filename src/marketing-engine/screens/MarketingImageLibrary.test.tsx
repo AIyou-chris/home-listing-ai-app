@@ -1,10 +1,10 @@
 import React from 'react';
 import {fireEvent,render,screen,waitFor} from '@testing-library/react';
 import MarketingImageLibrary from './MarketingImageLibrary';
-import {adminMarketingMediaService as api,type MarketingImage} from '../../services/adminMarketingMediaService';
-import type {StudioCampaign} from '../../services/adminMarketingStudioService';
-jest.mock('../../services/adminMarketingMediaService',()=>({adminMarketingMediaService:{removeImage:jest.fn(),imageCatalog:jest.fn(),imageLibrary:jest.fn(),imageResults:jest.fn(),chooseImage:jest.fn(),imageOptions:jest.fn(),imageLayout:jest.fn()}}));
-jest.mock('../../services/adminMarketingStudioService',()=>({adminMarketingStudioService:{list:jest.fn().mockResolvedValue([])}}));
+import {adminMarketingMediaService as api,type MarketingImage} from '../services/adminMarketingMediaService';
+import type {StudioCampaign} from '../services/adminMarketingStudioService';
+jest.mock('../services/adminMarketingMediaService',()=>({adminMarketingMediaService:{removeImage:jest.fn(),imageCatalog:jest.fn(),imageLibrary:jest.fn(),imageResults:jest.fn(),chooseImage:jest.fn(),imageOptions:jest.fn(),imageLayout:jest.fn()}}));
+jest.mock('../services/adminMarketingStudioService',()=>({adminMarketingStudioService:{list:jest.fn().mockResolvedValue([])}}));
 const mocked=api as jest.Mocked<typeof api>;
 const campaign={id:'campaign',version:'v1',pictureMode:'auto'} as StudioCampaign;
 const photo={id:'photo',campaign_id:'campaign',group_id:'group',recipe_id:'scene-01',format:'blog',variant:0,alt_text:'A quiet coffee table',url:'https://private.example/photo.webp',width:1536,height:1024,approved:false,checks:{problems:[],contrast:12,bytes:20000},used_in:[]} as MarketingImage;

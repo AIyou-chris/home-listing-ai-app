@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import AnalyticsPage from '../../AnalyticsPage';
 import SequenceFeedbackPanel from '../../SequenceFeedbackPanel';
-import MarketingAnalyticsPanel from '../MarketingAnalyticsPanel';
+import MarketingAnalyticsPanel from '../../../marketing-engine/screens/MarketingAnalyticsPanel';
 
 interface Props { isDemoMode: boolean; userId: string; isBlueprintMode: boolean }
 

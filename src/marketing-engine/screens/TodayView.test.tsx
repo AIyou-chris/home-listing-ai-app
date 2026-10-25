@@ -1,6 +1,6 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { TodayView, TodayData } from '../components/TodayView';
+import { TodayView, TodayData } from './TodayView';
 
 const full: TodayData = {
   wentOut: { available: true, postCount: 2, emailsSent: 5, posts: [{ channel: 'LinkedIn', title: 'Open house tips', postedAt: '2026-10-19T10:00:00Z', url: null }] },

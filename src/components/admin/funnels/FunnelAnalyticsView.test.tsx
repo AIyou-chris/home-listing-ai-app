@@ -2,7 +2,7 @@ import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import FunnelAnalyticsView from './FunnelAnalyticsView';
 
-jest.mock('../MarketingAnalyticsPanel', () => ({ __esModule: true, default: () => <div>what-is-working</div> }));
+jest.mock('../../../marketing-engine/screens/MarketingAnalyticsPanel', () => ({ __esModule: true, default: () => <div>what-is-working</div> }));
 jest.mock('../../AnalyticsPage', () => ({ __esModule: true, default: () => <div>scoring-body</div> }));
 jest.mock('../../SequenceFeedbackPanel', () => ({ __esModule: true, default: () => <div>feedback-body</div> }));
 

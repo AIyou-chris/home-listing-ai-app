@@ -2,8 +2,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 import Collapsible from './Collapsible';
 import { Check, Clipboard, ExternalLink, Pencil, Plus, Sparkles, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { supabase } from '../../services/supabase';
-import { buildApiUrl } from '../../lib/api';
+import { supabase } from '../host/supabase';
+import { buildApiUrl } from '../host/api';
 
 // Facebook does not allow apps to post into groups. So: keep your groups and their rules here,
 // let the AI write the post, copy it, paste it in the group yourself, then tap "I posted this".

@@ -7,7 +7,7 @@ const path = require('path');
 //  1. nothing inside it (except host.cjs, the one seam) reaches out to the rest of the app, and
 //  2. the only outside packages it needs are the ones listed in README.md.
 const ENGINE = path.join(__dirname, '..');
-const PACKAGES_ALLOWED = new Set(['express', 'openai', 'sharp', '@napi-rs/canvas', 'ffmpeg-static']);
+const PACKAGES_ALLOWED = new Set(['express', 'openai', 'sharp', '@napi-rs/canvas', 'ffmpeg-static', '@supabase/supabase-js']);
 
 const walk = (dir, out = []) => {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {

@@ -49,10 +49,11 @@ const GOOD = {
   instagram: 'One link. One agent. #LoanOfficers', bluesky: 'Send one WOW Link.', videoScript: 'Send one WOW Link to one agent today.'
 };
 
-function harness({ outputs = GOOD, now = new Date('2026-10-13T20:00:00Z'), blog = null, mediaExtra = {} } = {}) {
+function harness({ outputs = GOOD, now = new Date('2026-10-13T20:00:00Z'), blog = null, mediaExtra = {}, autoPublish = true } = {}) {
   let current = now;
   const db = fakeDb();
   db.tables.admin_switches.push({ key: 'autopilot_on', enabled: true, owner_id: OWNER, updated_by: OWNER });
+  if (autoPublish) db.tables.admin_switches.push({ key: 'autopilot_auto_publish', enabled: true, owner_id: OWNER, updated_by: OWNER });
   const scheduled = []; const mails = []; const pictureCalls = [];
   const studio = {
     async generate(owner, id) { const r = db.tables.admin_marketing_campaigns.find((x) => x.id === id); Object.assign(r, { status: 'draft', outputs: { ...outputs }, updated_at: 'v1' }); return r; },
@@ -481,4 +482,41 @@ test('a video the reviewer rejects is NOT used: the moving picture goes out inst
 test('if the reviewer helper itself breaks, the post still goes out with the moving picture', async () => {
   const { asked } = await runWithDirector(async () => { throw new Error('boom'); });
   assert.ok(asked.length >= 1 && asked.every((a) => a.options.layout === 'picture'));
+});
+
+test('by default every post waits for the owner: nothing is approved or scheduled until they say OK', async () => {
+  const h = harness({ autoPublish: false });
+  await h.ap.tick({ force: true });
+  const rows = h.db.tables.admin_marketing_campaigns.filter((r) => r.brief?.source === 'autopilot' && !r.brief.failed);
+  assert.ok(rows.length > 0);
+  for (const r of rows) { assert.strictEqual(r.status, 'draft'); assert.strictEqual(r.brief.awaitingApproval, true); }
+  assert.strictEqual(h.scheduled.length, 0);
+  assert.ok((await h.ap.status(OWNER)).slots.every((x) => x.awaitingApproval));
+  assert.strictEqual((await h.ap.status(OWNER)).autoPublish, false);
+});
+
+test('approving a waiting post schedules it once; a stale, unknown or other customer\'s post is refused', async () => {
+  const h = harness({ autoPublish: false });
+  await h.ap.tick({ force: true });
+  const row = h.db.tables.admin_marketing_campaigns.find((r) => r.brief?.awaitingApproval);
+  assert.strictEqual((await h.ap.approvePost(OTHER, row.id)).status, 404);
+  assert.strictEqual((await h.ap.approvePost(OWNER, 'nope')).status, 404);
+  const out = await h.ap.approvePost(OWNER, row.id);
+  assert.strictEqual(out.approved, true);
+  assert.strictEqual(h.scheduled.length, 1);
+  assert.strictEqual(row.status, 'approved');
+  assert.strictEqual(row.brief.awaitingApproval, false);
+  assert.strictEqual((await h.ap.approvePost(OWNER, row.id)).status, 404); // cannot be approved twice
+  const old = row; row.status = 'draft'; row.brief = { ...row.brief, awaitingApproval: true };
+  h.setNow(new Date('2026-10-20T20:00:00Z'));
+  assert.strictEqual((await h.ap.approvePost(OWNER, old.id)).status, 409);
+  assert.strictEqual(h.scheduled.length, 1);
+});
+
+test('turning "post by itself" on is a separate, per-customer choice and is off until set', async () => {
+  const h = harness({ autoPublish: false });
+  assert.strictEqual((await h.ap.status(OTHER)).autoPublish, false);
+  await h.ap.setAutoPublish(OWNER, true);
+  assert.strictEqual((await h.ap.status(OWNER)).autoPublish, true);
+  assert.strictEqual((await h.ap.status(OTHER)).autoPublish, false);
 });

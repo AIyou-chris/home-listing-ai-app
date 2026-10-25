@@ -1,6 +1,6 @@
 import React from 'react';
-import type { StudioMedia } from '../../services/adminMarketingMediaService';
-import { EXPLAINERS, type StudioVideoOptions } from '../../services/studioVideoOptions';
+import type { StudioMedia } from '../services/adminMarketingMediaService';
+import { EXPLAINERS, type StudioVideoOptions } from '../services/studioVideoOptions';
 type Props = { options: StudioVideoOptions; setOptions: (options: StudioVideoOptions) => void; disabled: boolean; aiVoice: boolean; voice?: StudioMedia; music?: StudioMedia; makeVoice: () => void; upload: (kind: 'voice' | 'music', file?: File) => void };
 const field = 'mt-1 w-full rounded-lg border border-slate-300 bg-white p-2 text-sm';
 export default function MarketingVideoControls({ options, setOptions, disabled, aiVoice, voice, music, makeVoice, upload }: Props) {

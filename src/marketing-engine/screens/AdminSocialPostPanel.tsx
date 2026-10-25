@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { AuthService } from '../../services/authService';
-import { supabase } from '../../services/supabase';
-import { buildApiUrl } from '../../lib/api';
+import { AuthService } from '../host/authService';
+import { supabase } from '../host/supabase';
+import { buildApiUrl } from '../host/api';
 
 type Channel = {
   id: string;

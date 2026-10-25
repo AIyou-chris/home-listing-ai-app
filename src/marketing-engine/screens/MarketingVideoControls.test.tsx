@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import MarketingVideoControls from './MarketingVideoControls';
-import { defaultVideoOptions } from '../../services/studioVideoOptions';
+import { defaultVideoOptions } from '../services/studioVideoOptions';
 
 const props = (over = {}) => ({ options: defaultVideoOptions, setOptions: jest.fn(), disabled: false, aiVoice: true, makeVoice: jest.fn(), upload: jest.fn(), ...over });
 

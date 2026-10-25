@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { adminMarketingMediaService, type MarketingImage } from '../../services/adminMarketingMediaService';
+import { adminMarketingMediaService, type MarketingImage } from '../services/adminMarketingMediaService';
 export default function ApprovedMarketingImagePicker({onPick}:{onPick:(image:MarketingImage)=>void}) {
  const [rows,setRows]=useState<MarketingImage[]>([]);const [open,setOpen]=useState(false);const [error,setError]=useState('');
  async function load(){setOpen(!open);if(open)return;setError('');try{setRows((await adminMarketingMediaService.imageLibrary()).filter(r=>r.approved&&!r.checks.problems.length&&['blog','og','landing','email'].includes(r.format)));}catch(e){setError(e instanceof Error?e.message:'Could not load checked pictures.');}}

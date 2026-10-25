@@ -4,7 +4,7 @@ import Collapsible from './Collapsible';
 import { setAllOpen } from './collapsibleAll';
 import MarketingCampaignPosting from './MarketingCampaignPosting';
 import { Copy } from 'lucide-react';
-import { adminMarketingStudioService, type CampaignOutputs, type StudioCampaign } from '../../services/adminMarketingStudioService';
+import { adminMarketingStudioService, type CampaignOutputs, type StudioCampaign } from '../services/adminMarketingStudioService';
 
 const FIELDS: { key: keyof CampaignOutputs; label: string; max: number }[] = [
   { key: 'title', label: 'Campaign title', max: 160 }, { key: 'blog', label: 'Blog article', max: 12000 },

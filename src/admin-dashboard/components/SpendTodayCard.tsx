@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react'
-import Collapsible from '../../components/admin/Collapsible'
+import Collapsible from '../../marketing-engine/screens/Collapsible'
 import { AuthService } from '../../services/authService'
 
 export type SpendRow = { key: string; label: string; used: number; limit: number }

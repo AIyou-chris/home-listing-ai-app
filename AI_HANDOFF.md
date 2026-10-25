@@ -1,3 +1,13 @@
+## 2026-10-24 — Claude: Autopilot approve-first, add-on switch, picture look in settings, screens packaged (checks green, pushed)
+
+- **Approve first (default).** Autopilot now writes each post and leaves it as a draft (`brief.awaitingApproval`); owner presses **Approve** on the Autopilot screen (`POST /api/admin/autopilot/posts/:id/approve`). Separate per-customer switch **Post by itself** (`autopilot_auto_publish`, OFF by default, `POST /api/admin/autopilot/auto-publish`) restores the old self-posting. A draft more than 12h past its slot cannot be approved (remove it, Autopilot writes a new one). Posts already scheduled before this change are unaffected. NOTE: this changes live behaviour for the owner too: nothing posts until approved or the switch is turned on.
+- **Add-on.** `business.json > addon.required` (false here). When true, every marketing route + Autopilot + posting timer only serves customers with the `marketing_addon` switch ON (402 ADDON_OFF otherwise). `backend/marketing-engine/scripts/setup-customer.cjs [--enable|--disable <id>]` checks settings/env/tables; README has the new-customer checklist.
+- **Look in settings.** Palette, art-director voice, lighting, banned content, wordmark, scene ideas moved to `business.json > look`; `lookInSettings.test.js` blocks business words in picture code. Blog hero URL now uses `siteUrl`.
+- **Isolation.** Engine queries now filter `owner_id` on campaign/post re-reads; `customerIsolation.test.js` fails on any customer-table query without `owner_id`.
+- **Screens packaged.** `src/marketing-engine/` (screens, services, `host/` = only seam, `index.ts`, README, boundary test). Moved with git mv: Studio, Autopilot, Connected accounts, FB groups, analytics, Collapsible, Today view. Importers updated.
+- Not done: first animated Autopilot post not yet watched live (needs OpenAI cents + owner OK); `typecheck:admin` shows a pre-existing `jest` name error in `funnels/testKit.ts`.
+- Validation: lint, typecheck, 254 frontend + 596 backend tests, build all green.
+
 Daily check 2026-10-21: Sentry NODE-EXPRESS-D (Mailgun cold-reply with attachment threw MulterError) fixed locally in coldEmailRoutes.js (upload.any + temp-file cleanup) + test; NOT pushed. NODE-EXPRESS-5 (scoring_rules table missing) still open, 3 events, 0 users.
 
 ## 2026-10-22 — Claude: admin rebuild (Today, 4-item menu), per-customer data, animated video maker, AI reviewer, natural voice (all pushed)

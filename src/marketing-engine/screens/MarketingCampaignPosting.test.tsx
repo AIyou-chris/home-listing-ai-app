@@ -1,8 +1,8 @@
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import MarketingCampaignPosting from './MarketingCampaignPosting';
-import { authedFetch } from '../../services/authedFetch';
-jest.mock('../../services/authedFetch', () => ({ authedFetch: jest.fn() }));
+import { authedFetch } from '../host/authedFetch';
+jest.mock('../host/authedFetch', () => ({ authedFetch: jest.fn() }));
 const api = authedFetch as jest.Mock;
 const published = {id:'posted',channel:'linkedin',status:'published',scheduled_for:'2026-10-12',posted_at:'2026-10-12',url:'https://example.com/published',error:null};
 const scheduled = {...published,id:'scheduled',channel:'facebook',status:'scheduled',url:null};

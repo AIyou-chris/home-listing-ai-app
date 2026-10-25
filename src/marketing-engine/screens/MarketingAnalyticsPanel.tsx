@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { buildApiUrl } from '../../lib/api';
-import { authedFetch } from '../../services/authedFetch';
+import { buildApiUrl } from '../host/api';
+import { authedFetch } from '../host/authedFetch';
 
 // One quick page: what is working in our marketing, in plain words, with the numbers underneath.
 

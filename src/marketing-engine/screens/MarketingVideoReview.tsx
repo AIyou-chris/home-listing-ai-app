@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { adminMarketingMediaService, type VideoReview } from '../../services/adminMarketingMediaService';
-import type { StudioCampaign } from '../../services/adminMarketingStudioService';
+import { adminMarketingMediaService, type VideoReview } from '../services/adminMarketingMediaService';
+import type { StudioCampaign } from '../services/adminMarketingStudioService';
 
 type Props = { campaign: StudioCampaign; explainerChosen: boolean; unsavedChoices: boolean; disabled: boolean };
 

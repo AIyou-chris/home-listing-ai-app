@@ -37,7 +37,7 @@ is in one file, `config/business.json`. Everything is kept **per customer** (eac
 
 ## Outside packages it needs
 
-`express`, `openai` (writing, pictures, voice, the video reviewer), `sharp` (pictures and the picture video), `@napi-rs/canvas` (the explainer videos), `ffmpeg-static` (optional: the server's own `ffmpeg` is used when the bundled one is missing).
+`express`, `openai` (writing, pictures, voice, the video reviewer), `sharp` (pictures and the picture video), `@napi-rs/canvas` (the explainer videos), `ffmpeg-static` (optional: the server's own `ffmpeg` is used when the bundled one is missing), `@supabase/supabase-js` (only the `scripts/setup-customer.cjs` helper).
 The server also needs the `ffmpeg` program for any video. `GET /api/admin/video-check` proves it works (and Today warns when it does not).
 
 ## Environment
@@ -55,7 +55,7 @@ The server also needs the `ffmpeg` program for any video. `GET /api/admin/video-
 
 ## Rules the engine keeps (do not break them in a copy)
 
-- **Nothing posts without a person's OK**, except Autopilot, which only runs while its switch is ON for that customer, and checks every post first.
+- **Nothing posts without a person's OK.** Autopilot writes each post and leaves it as a draft ("Waiting for your OK"); the owner presses Approve. Only if the owner also turns on the separate **Post by itself** switch (`autopilot_auto_publish`, OFF by default, per customer) does Autopilot approve and schedule its own posts. Every post is checked first either way.
 - **Never invent a number.** Only the `facts` in the settings file may be quoted; any other statistic, price, promise or outside link is blocked by `services/autopilot/safety.js`.
 - **Say "Not available" when there is no data.**
 - **Every row belongs to one customer** (`owner_id`). Code never relies on an upsert key; it updates, then inserts.
@@ -64,3 +64,27 @@ The server also needs the `ffmpeg` program for any video. `GET /api/admin/video-
 ## Tests
 
 `npm run test:backend` runs everything, including this folder's `__tests__/`. The tests use fake databases, so they need no keys.
+
+
+## Sell it as an add-on
+
+- `config/business.json > addon.required`: `false` (this business's own copy: every admin login has it) or `true` (a sold copy).
+- When `true`, every marketing route and every background job (Autopilot, the posting timer) only serves a customer whose `marketing_addon` switch is ON. Anyone else gets `402 ADDON_OFF`.
+- Turn it on or off for a customer: `node backend/marketing-engine/scripts/setup-customer.cjs --enable <customer login id>` (`--disable` to turn it off).
+- Running the script with no flag only checks the settings file, the logo, the environment and the database tables, and prints what is still to do. It writes nothing.
+- Proof the customers stay apart: `__tests__/customerIsolation.test.js` (fails if any query on a customer table forgets `owner_id`) and `__tests__/addon.test.js`.
+
+## Set up a new customer: checklist
+
+1. Copy the folder and edit `config/business.json` (see "Copy it to a new business"). Set `addon.required` to `true`. Fill in `look` (colours, art-director voice, scene ideas, wordmark) and `video`. Put their logo at `assets/logo.png`.
+2. Replace `host.cjs` with their wording rules and business brain.
+3. Run the SQL migrations in the order in step 5 above.
+4. Set the environment names in the table below on the server.
+5. `node backend/marketing-engine/scripts/setup-customer.cjs --enable <their login id>` and fix every `TODO` it prints.
+6. Copy `src/marketing-engine/` (the screens, see its README) into their front end and place the screens in their admin.
+7. They connect their social accounts on the Connected accounts screen. Autopilot stays OFF and "Post by itself" stays OFF until they turn them on.
+8. Run `npm run test:backend` and the front end tests. Do not hand it over until both pass.
+
+## The look of the pictures
+
+Palette, the art-director voice, lighting, banned content, the wordmark and the fallback scene ideas are all in `config/business.json > look`. `__tests__/lookInSettings.test.js` fails if a business name or a loan-officer word creeps back into the picture code.

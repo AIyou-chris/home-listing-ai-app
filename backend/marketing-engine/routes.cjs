@@ -4,10 +4,13 @@
 // needs from the host app. A copy of the engine for another business mounts the same way.
 const express = require('express');
 
-function mount(app, deps) {
+function mount(hostApp, deps) {
   const {
     verifyAdmin, supabaseAdmin, openai, loadBusinessBrain, createJevClient, blogService, emailService, APP_RUNTIME_MODE
   } = deps;
+  const addon = require('./services/addon');
+  // Every route behind the login guard also checks that this customer has the add-on (only when the settings say it is sold).
+  const app = addon.withAddonGuard(hostApp, verifyAdmin, supabaseAdmin);
 // Marketing Studio: drafts only; all ownership comes from the verified admin.
 const marketingMediaService = require('./services/adminMarketingMedia').createMediaService({ db: supabaseAdmin, openai, jev: createJevClient({ apiKey: process.env.TYPESAFE_API_KEY }) });
 const marketingMediaHandlers = require('./services/adminMarketingMedia').createMediaHandlers(marketingMediaService);
@@ -188,7 +191,7 @@ async function runMarketingPostSweep() {
   if (marketingPostSweepBusy || !supabaseAdmin) return;
   marketingPostSweepBusy = true;
   try {
-    const owners = await require('./services/adminSwitches').ownersWithSwitchOn(supabaseAdmin, 'social_auto_post');
+    const owners = await addon.entitledOwners(supabaseAdmin, await require('./services/adminSwitches').ownersWithSwitchOn(supabaseAdmin, 'social_auto_post'));
     if (!owners.length) return;
     const poster = getMarketingPoster();
     const result = poster ? await poster.sweep(owners) : null;
@@ -211,6 +214,7 @@ const getAutopilot = () => {
     const { createStudioService } = require('./services/adminMarketingStudio');
     autopilotInstance = require('./services/autopilot/engine').createAutopilot({
       db: supabaseAdmin,
+      isEntitled: (owner) => addon.isEntitled(supabaseAdmin, owner),
       studioFor: () => createStudioService({ db: supabaseAdmin, openai, loadBrain: loadBusinessBrain, media: marketingMediaService }),
       media: marketingMediaService,
       directExplainer: (args) => require('./services/explainerDirector').directVideo({ ...args, openai }),
@@ -232,7 +236,7 @@ const getAutopilot = () => {
           if (!post || post.status === 'published') return null;
           const made = await marketingMediaService.images.blogHero(owner, { postId: id, title: post.title, excerpt: post.excerpt || post.short_answer || '', count: 1 });
           if (!made[0]) return null;
-          await supabaseAdmin.from('blog_posts').update({ featured_image: `https://homelistingai.com/api/public/marketing-images/${made[0].id}`, featured_image_alt: String(made[0].alt_text || post.title).slice(0, 300) }).eq('id', id).neq('status', 'published');
+          await supabaseAdmin.from('blog_posts').update({ featured_image: `${require('./config/business').business.siteUrl}/api/public/marketing-images/${made[0].id}`, featured_image_alt: String(made[0].alt_text || post.title).slice(0, 300) }).eq('id', id).neq('status', 'published');
           return made[0];
         }
       },
@@ -279,6 +283,21 @@ app.post('/api/admin/autopilot', verifyAdmin, async (req, res) => {
     if (typeof req.body?.enabled !== 'boolean') return res.status(400).json({ error: 'enabled must be true or false' });
     res.json(req.body.enabled ? await autopilot.start(req.user.id, { plan: req.body.plan !== false }) : await autopilot.stop(req.user.id));
   } catch (err) { console.error('[Autopilot] switch failed:', err?.message || err); res.status(500).json({ error: 'Could not change Autopilot' }); }
+});
+app.post('/api/admin/autopilot/auto-publish', verifyAdmin, async (req, res) => {
+  try {
+    const autopilot = getAutopilot(); if (!autopilot) return res.status(503).json({ error: 'Autopilot is not available right now' });
+    if (typeof req.body?.enabled !== 'boolean') return res.status(400).json({ error: 'enabled must be true or false' });
+    res.json(await autopilot.setAutoPublish(req.user.id, req.body.enabled));
+  } catch (err) { console.error('[Autopilot] auto-publish switch failed:', err?.message || err); res.status(500).json({ error: 'Could not change the setting' }); }
+});
+app.post('/api/admin/autopilot/posts/:campaignId/approve', verifyAdmin, async (req, res) => {
+  try {
+    const autopilot = getAutopilot(); if (!autopilot) return res.status(503).json({ error: 'Autopilot is not available right now' });
+    const out = await autopilot.approvePost(req.user.id, req.params.campaignId);
+    if (out.error) return res.status(out.status || 400).json({ error: out.error });
+    res.json(out);
+  } catch (err) { console.error('[Autopilot] approve failed:', err?.message || err); res.status(500).json({ error: 'Could not approve this post' }); }
 });
 // "New picture": another scene for one waiting post (the video is made again from it). Runs after the reply.
 app.post('/api/admin/autopilot/posts/:campaignId/new-picture', verifyAdmin, async (req, res) => {

@@ -3,8 +3,8 @@ import { CalendarDays, ChevronLeft, ChevronRight, Copy, Download, Film, Image as
 import QRCode from 'qrcode';
 import { briefAsText, loadStudioBriefs, type StudioBrief, type PictureMode } from './marketingStudioDrafts';
 
-import { adminMarketingStudioService, type StudioCampaign } from '../../services/adminMarketingStudioService';
-import { adminMarketingMediaService } from '../../services/adminMarketingMediaService';
+import { adminMarketingStudioService, type StudioCampaign } from '../services/adminMarketingStudioService';
+import { adminMarketingMediaService } from '../services/adminMarketingMediaService';
 import MarketingCampaignReview from './MarketingCampaignReview';
 import MarketingImageLibrary from './MarketingImageLibrary';
 import Collapsible from './Collapsible';
@@ -12,7 +12,7 @@ import ConnectedAccountsPanel from './ConnectedAccountsPanel';
 import AutopilotPanel from './AutopilotPanel';
 import FbGroupsPanel from './FbGroupsPanel';
 
-const BlogEditor = React.lazy(() => import('../../admin-dashboard/Blog/BlogEditor'));
+const BlogEditor = React.lazy(() => import('../host/BlogEditor'));
 
 type Tab = 'autopilot' | 'create' | 'campaigns' | 'video' | 'calendar' | 'qr' | 'accounts' | 'images' | 'groups' | 'content';
 const TABS: { id: Tab; label: string }[] = [

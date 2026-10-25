@@ -1,5 +1,5 @@
 import React from 'react';
-import Collapsible from '../../components/admin/Collapsible';
+import Collapsible from './Collapsible';
 
 export type TodayData = {
   wentOut: { available: boolean; postCount: number; emailsSent: number | null; posts: Array<{ channel: string; title: string; postedAt: string; url: string | null }> };

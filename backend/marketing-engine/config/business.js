@@ -5,7 +5,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const REQUIRED = ['name', 'siteUrl', 'alertEmail', 'prices', 'schedule', 'links', 'rules', 'facts', 'topics', 'launch'];
+const REQUIRED = ['name', 'siteUrl', 'alertEmail', 'prices', 'schedule', 'links', 'rules', 'facts', 'topics', 'launch', 'look'];
 
 function validate(cfg) {
   const missing = REQUIRED.filter((k) => cfg[k] === undefined);
@@ -14,6 +14,8 @@ function validate(cfg) {
   if (!Array.isArray(cfg.schedule.slots) || !cfg.schedule.slots.length) throw new Error('business settings: schedule.slots needs at least one time');
   for (const s of cfg.schedule.slots) if (!(s.h >= 0 && s.h < 24 && s.m >= 0 && s.m < 60)) throw new Error('business settings: a slot time is not a real time');
   if (!Array.isArray(cfg.prices.allowed)) throw new Error('business settings: prices.allowed must be a list');
+  for (const k of ['palette', 'wordmark', 'writerPersona', 'writerMetaphors', 'sceneTopics', 'director', 'lighting', 'negative', 'editorialStyle', 'launchLook', 'brightLook', 'extraRules', 'fallbackScenes']) if (!cfg.look[k]) throw new Error(`business settings: look.${k} is missing`);
+  if (!Array.isArray(cfg.look.fallbackScenes) || !cfg.look.fallbackScenes.length) throw new Error('business settings: look.fallbackScenes needs at least one scene');
   const keys = new Set();
   for (const t of [...cfg.topics, ...cfg.launch]) {
     if (!t.key || !t.idea) throw new Error('business settings: every topic needs a key and an idea');

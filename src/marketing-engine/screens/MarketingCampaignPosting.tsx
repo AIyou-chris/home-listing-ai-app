@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { buildApiUrl } from '../../lib/api';
-import { authedFetch } from '../../services/authedFetch';
+import { buildApiUrl } from '../host/api';
+import { authedFetch } from '../host/authedFetch';
 
 // After a campaign is approved: pick the accounts, pick the time, and it posts for you with tracking tags.
 // Nothing posts until a person picks accounts here. Scheduled posts also need the Auto-posting switch ON.

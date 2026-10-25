@@ -19,6 +19,9 @@ const MAX_FAILS_IN_ROW = 3;
 const KEEP_MEDIA_DAYS = 10;
 const BLOG_PER_WEEK = business.schedule.blogPerWeek;          // at most two blog drafts a week
 const BLOG_MIN_GAP_MS = business.schedule.blogMinGapDays * 86400000; // and at least three days apart
+// Off (the default) = every post waits for the owner's OK. On = Autopilot approves and schedules its own posts.
+const AUTO_PUBLISH = 'autopilot_auto_publish';
+const STALE_DRAFT_MS = 12 * 3600000;
 const RETRY_AFTER_MS = 30 * 60000; // wait this long before trying a failed time again
 
 const pad = (n) => String(n).padStart(2, '0');
@@ -44,7 +47,7 @@ function upcomingSlots(now, days = 2) {
   return out.filter((s) => s.at.getTime() > now.getTime());
 }
 
-function createAutopilot({ db, studioFor, media, getPoster, getConnections, sendMail, loadArticles, blog = null, directExplainer = null, now = () => new Date(), log = console }) {
+function createAutopilot({ db, isEntitled = async () => true, studioFor, media, getPoster, getConnections, sendMail, loadArticles, blog = null, directExplainer = null, now = () => new Date(), log = console }) {
   let busy = false;
   // Everything below belongs to ONE customer (owner): their switches, their posts, their direction.
   async function recent(owner, limit = 60) {
@@ -151,10 +154,10 @@ function createAutopilot({ db, studioFor, media, getPoster, getConnections, send
         catch (err) { log.warn?.('[Autopilot] AI picture skipped, using the free card:', err?.message || err); }
       }
       if (!aiPicture) {
-        row = (await db.from('admin_marketing_campaigns').select('*').eq('id', id).maybeSingle()).data;
+        row = (await db.from('admin_marketing_campaigns').select('*').eq('id', id).eq('owner_id', owner).maybeSingle()).data;
         await media.picture(owner, id, { version: row.updated_at });
       }
-      row = (await db.from('admin_marketing_campaigns').select('*').eq('id', id).maybeSingle()).data;
+      row = (await db.from('admin_marketing_campaigns').select('*').eq('id', id).eq('owner_id', owner).maybeSingle()).data;
       // Topics with an animated explainer get that video (drawn in code, free) once the owner has turned it on in the business settings;
       // the rest keep the moving picture. A second AI reviewer checks the video says what the post says: if it does not, the moving picture is used instead.
       let useExplainer = Boolean(topic.explainer && business.video?.useInAutopilot === true);
@@ -165,12 +168,12 @@ function createAutopilot({ db, studioFor, media, getPoster, getConnections, send
           const verdict = direction.review ? { score: direction.review.score, matches: direction.review.matches, post: direction.review.post_main_message, video: direction.review.video_main_message, problems: direction.review.problems } : null;
           if (direction.ok) {
             await db.from('admin_marketing_campaigns').update({ brief: { ...row.brief, explainerWords: direction.words, explainerReview: verdict } }).eq('id', id).eq('owner_id', owner);
-            row = (await db.from('admin_marketing_campaigns').select('*').eq('id', id).maybeSingle()).data;
+            row = (await db.from('admin_marketing_campaigns').select('*').eq('id', id).eq('owner_id', owner).maybeSingle()).data;
           } else {
             useExplainer = false;
             log.warn?.(`[Autopilot] explainer video did not match its post, using the picture video instead: ${(verdict?.problems || []).join('; ')}`);
             await db.from('admin_marketing_campaigns').update({ brief: { ...row.brief, explainerRejected: verdict } }).eq('id', id).eq('owner_id', owner);
-            row = (await db.from('admin_marketing_campaigns').select('*').eq('id', id).maybeSingle()).data;
+            row = (await db.from('admin_marketing_campaigns').select('*').eq('id', id).eq('owner_id', owner).maybeSingle()).data;
           }
         } catch (err) { log.warn?.('[Autopilot] explainer check failed, using the moving picture:', err?.message || err); useExplainer = false; }
       }
@@ -188,11 +191,16 @@ function createAutopilot({ db, studioFor, media, getPoster, getConnections, send
           if (v && v.status === 'failed') break;
         }
       } catch (err) { log.warn?.('[Autopilot] video skipped:', err?.message || err); }
-      row = (await db.from('admin_marketing_campaigns').select('*').eq('id', id).maybeSingle()).data;
-      row = await studio.approve(owner, id, { version: row.updated_at });
+      row = (await db.from('admin_marketing_campaigns').select('*').eq('id', id).eq('owner_id', owner).maybeSingle()).data;
       const connected = await getConnections(owner);
       const channels = CHANNELS.filter((c) => connected[c] && (hasVideo || (c !== 'instagram' && c !== 'youtube')));
       if (!channels.length) return { ok: false, reason: 'no connected account to post to', campaignId: id };
+      // Approve first (the default): the post waits as a draft until the owner says OK. Nothing is approved or scheduled here.
+      if (!(await getSwitch(db, AUTO_PUBLISH, owner))) {
+        await db.from('admin_marketing_campaigns').update({ brief: { ...row.brief, awaitingApproval: true, channels, slotAt: slot.at.toISOString() } }).eq('id', id).eq('owner_id', owner);
+        return { ok: true, campaignId: id, channels, hasVideo, awaiting: true };
+      }
+      row = await studio.approve(owner, id, { version: row.updated_at });
       await getPoster().schedule({ owner, campaignId: id, channels, at: slot.at.toISOString(), by: owner });
       return { ok: true, campaignId: id, channels, hasVideo };
     } catch (err) {
@@ -226,7 +234,8 @@ function createAutopilot({ db, studioFor, media, getPoster, getConnections, send
     if (busy) return { busy: true };
     busy = true;
     try {
-      const owners = only ? ((await getSwitch(db, 'autopilot_on', only)) ? [only] : []) : await ownersWithSwitchOn(db, 'autopilot_on');
+      let owners = only ? ((await getSwitch(db, 'autopilot_on', only)) ? [only] : []) : await ownersWithSwitchOn(db, 'autopilot_on');
+      owners = (await Promise.all(owners.map(async (o) => ((await isEntitled(o)) ? o : null)))).filter(Boolean);
       if (!owners.length) return { off: true };
       const outcomes = [];
       for (const owner of owners) outcomes.push(await tickOwner(owner, { force }));
@@ -326,7 +335,7 @@ function createAutopilot({ db, studioFor, media, getPoster, getConnections, send
     const worked = new Set(all.filter((r) => !r.brief.failed).map((r) => r.brief.slot));
     const rows = all.filter((r) => !r.brief.failed || r.brief.skipped || !worked.has(r.brief.slot));
     const ids = rows.map((r) => r.id);
-    const posts = ids.length ? ((await db.from('admin_marketing_posts').select('campaign_id, channel, status, scheduled_for, posted_at, url, error').in('campaign_id', ids)).data || []) : [];
+    const posts = ids.length ? ((await db.from('admin_marketing_posts').select('campaign_id, channel, status, scheduled_for, posted_at, url, error').in('campaign_id', ids).eq('owner_id', owner)).data || []) : [];
     const who = owner;
     const pictures = {};
     if (who && media?.list) {
@@ -335,7 +344,7 @@ function createAutopilot({ db, studioFor, media, getPoster, getConnections, send
       }
     }
     return rows.map((r) => ({
-      campaignId: r.id, slot: r.brief.slot, topic: r.brief.topicKey, title: r.outputs?.title || '', failed: Boolean(r.brief.failed), skipped: Boolean(r.brief.skipped), reason: r.generation_error || '',
+      campaignId: r.id, slot: r.brief.slot, topic: r.brief.topicKey, title: r.outputs?.title || '', awaitingApproval: r.brief.awaitingApproval === true, failed: Boolean(r.brief.failed), skipped: Boolean(r.brief.skipped), reason: r.generation_error || '',
       pictureUrl: pictures[r.id] || '',
       preview: String(r.outputs?.facebook || r.outputs?.linkedin || '').slice(0, 600),
       posts: posts.filter((p) => p.campaign_id === r.id)
@@ -384,7 +393,7 @@ function createAutopilot({ db, studioFor, media, getPoster, getConnections, send
     const redo = (row.brief.redo || 0) + 1;
     const result = await media.images.auto(owner, campaignId, { headline: row.brief.cardHeadline || row.outputs?.title, idea: row.brief.idea, variant: redo, avoid: row.brief.sceneAlt || '' });
     await db.from('admin_marketing_campaigns').update({ brief: { ...row.brief, redo, sceneAlt: result.altText || '' } }).eq('id', campaignId);
-    let fresh = (await db.from('admin_marketing_campaigns').select('*').eq('id', campaignId).maybeSingle()).data;
+    let fresh = (await db.from('admin_marketing_campaigns').select('*').eq('id', campaignId).eq('owner_id', owner).maybeSingle()).data;
     try {
       await media.render(owner, campaignId, { version: fresh.updated_at });
       for (let i = 0; i < 40; i += 1) {
@@ -393,8 +402,8 @@ function createAutopilot({ db, studioFor, media, getPoster, getConnections, send
         if (v && (v.status === 'ready' || v.status === 'failed')) break;
       }
     } catch (err) { log.warn?.('[Autopilot] video after new picture skipped:', err?.message || err); }
-    fresh = (await db.from('admin_marketing_campaigns').select('*').eq('id', campaignId).maybeSingle()).data;
-    await studioFor().approve(owner, campaignId, { version: fresh.updated_at });
+    fresh = (await db.from('admin_marketing_campaigns').select('*').eq('id', campaignId).eq('owner_id', owner).maybeSingle()).data;
+    if (!row.brief.awaitingApproval) await studioFor().approve(owner, campaignId, { version: fresh.updated_at });
     return { redone: true, redo };
   }
 
@@ -414,6 +423,27 @@ function createAutopilot({ db, studioFor, media, getPoster, getConnections, send
     return { removed: true, skipped: skip };
   }
 
+  // The owner's OK for one waiting post: approve it and schedule it for its time (or in 5 minutes if that time has gone by).
+  async function approvePost(owner, campaignId) {
+    const { data: row } = await db.from('admin_marketing_campaigns').select('*').eq('id', campaignId).eq('owner_id', owner).maybeSingle();
+    if (!row || row.brief?.source !== 'autopilot' || !row.brief?.awaitingApproval) return { error: 'This post is not waiting for approval.', status: 404 };
+    const wanted = Date.parse(row.brief.slotAt || '');
+    if (!Number.isFinite(wanted) || now().getTime() - wanted > STALE_DRAFT_MS) return { error: 'This post is too old to send. Remove it and Autopilot will write a new one.', status: 409 };
+    const connected = await getConnections(owner);
+    const channels = (row.brief.channels || []).filter((c) => connected[c]);
+    if (!channels.length) return { error: 'No connected account to post to.', status: 409 };
+    const approved = await studioFor().approve(owner, campaignId, { version: row.updated_at });
+    const at = new Date(Math.max(wanted, now().getTime() + 5 * 60000)).toISOString();
+    await getPoster().schedule({ owner, campaignId, channels, at, by: owner });
+    await db.from('admin_marketing_campaigns').update({ brief: { ...(approved?.brief || row.brief), awaitingApproval: false } }).eq('id', campaignId).eq('owner_id', owner);
+    return { approved: true, at };
+  }
+
+  async function setAutoPublish(owner, enabled) {
+    await setSwitch(db, AUTO_PUBLISH, enabled === true, owner, owner);
+    return { autoPublish: enabled === true };
+  }
+
   async function status(owner) {
     const on = await getSwitch(db, 'autopilot_on', owner);
     const autoPost = await getSwitch(db, 'social_auto_post', owner);
@@ -423,10 +453,10 @@ function createAutopilot({ db, studioFor, media, getPoster, getConnections, send
     // A failed try is not a problem any more once the same time has a post that worked.
     const worked = new Set(recentRows.filter((r) => !r.brief?.failed).map((r) => r.brief?.slot));
     const lastBad = recentRows.find((r) => r.brief?.failed && !r.brief?.skipped && !worked.has(r.brief?.slot) && now().getTime() - Date.parse(r.created_at) < 36 * 3600000);
-    return { on, autoPost, lastIssue: lastBad ? { slot: lastBad.brief.slot, reason: lastBad.generation_error || 'did not pass the check' } : null, plan: plan ? { ...plan, offerEnds: endsAt ? monthDay(endsAt) : null } : null, direction: await direction(owner), blogDrafts: await blogDrafts(owner), slots: await summary(owner), times: SLOTS.map((s) => `${s.h > 12 ? s.h - 12 : s.h}:${pad(s.m)} ${s.h >= 12 ? 'PM' : 'AM'} Pacific`) };
+    return { on, autoPost, autoPublish: await getSwitch(db, AUTO_PUBLISH, owner), lastIssue: lastBad ? { slot: lastBad.brief.slot, reason: lastBad.generation_error || 'did not pass the check' } : null, plan: plan ? { ...plan, offerEnds: endsAt ? monthDay(endsAt) : null } : null, direction: await direction(owner), blogDrafts: await blogDrafts(owner), slots: await summary(owner), times: SLOTS.map((s) => `${s.h > 12 ? s.h - 12 : s.h}:${pad(s.m)} ${s.h >= 12 ? 'PM' : 'AM'} Pacific`) };
   }
 
-  return { tick, start, stop, status, setDirection, removeUpcoming, redoPicture, maybeBlogDraft, upcomingSlots, ptToUtc };
+  return { tick, start, stop, status, approvePost, setAutoPublish, setDirection, removeUpcoming, redoPicture, maybeBlogDraft, upcomingSlots, ptToUtc };
 }
 
 module.exports = { createAutopilot, upcomingSlots, ptToUtc, SLOTS, CHANNELS };

@@ -1,10 +1,10 @@
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import MarketingCampaignMedia from './MarketingCampaignMedia';
-import { adminMarketingMediaService as api } from '../../services/adminMarketingMediaService';
-import { adminMarketingStudioService as campaignApi, type StudioCampaign } from '../../services/adminMarketingStudioService';
-jest.mock('../../services/adminMarketingMediaService', () => ({ adminMarketingMediaService: { imageCatalog: jest.fn().mockResolvedValue({ recipes: [], formats: { blog: {label: 'Blog hero',width:1536,height:1024} }, costs: { blog: {set:0.045,one:0.015,final:0.052} } }), imageResults: jest.fn().mockResolvedValue([]), imageLibrary: jest.fn().mockResolvedValue([]), imageOptions: jest.fn(), imageLayout: jest.fn(), chooseImage: jest.fn(), list: jest.fn(), capabilities: jest.fn(), remove: jest.fn(), picture: jest.fn(), video: jest.fn(), audio: jest.fn() } }));
-jest.mock('../../services/adminMarketingStudioService', () => ({ adminMarketingStudioService: { settings: jest.fn(), list: jest.fn() } }));
+import { adminMarketingMediaService as api } from '../services/adminMarketingMediaService';
+import { adminMarketingStudioService as campaignApi, type StudioCampaign } from '../services/adminMarketingStudioService';
+jest.mock('../services/adminMarketingMediaService', () => ({ adminMarketingMediaService: { imageCatalog: jest.fn().mockResolvedValue({ recipes: [], formats: { blog: {label: 'Blog hero',width:1536,height:1024} }, costs: { blog: {set:0.045,one:0.015,final:0.052} } }), imageResults: jest.fn().mockResolvedValue([]), imageLibrary: jest.fn().mockResolvedValue([]), imageOptions: jest.fn(), imageLayout: jest.fn(), chooseImage: jest.fn(), list: jest.fn(), capabilities: jest.fn(), remove: jest.fn(), picture: jest.fn(), video: jest.fn(), audio: jest.fn() } }));
+jest.mock('../services/adminMarketingStudioService', () => ({ adminMarketingStudioService: { settings: jest.fn(), list: jest.fn() } }));
 const mocked = api as jest.Mocked<typeof api>;
 const campaign: StudioCampaign = { id: '33333333-3333-4333-8333-333333333333', idea: 'New market', kind: 'video', goal: 'Warm leads', audience: 'Loan officers', tone: 'Helpful', pictureMode: 'auto', pictureDescription: '', photoName: '', videoFormat: 'vertical', videoDuration: '30', plannedAt: '', createdAt: '2026-10-04', status: 'draft', version: '2026-10-04', outputs: { title: 'New market', videoScript: 'Saved script' } };
 beforeEach(() => { jest.clearAllMocks(); mocked.list.mockResolvedValue([]); mocked.capabilities.mockResolvedValue({ video: true, picture: true, aiPicture: true, aiVoice: true }); mocked.picture.mockResolvedValue([]); mocked.video.mockResolvedValue([]); });

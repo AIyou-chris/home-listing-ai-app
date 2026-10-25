@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
-import { adminMarketingStudioService, type StudioCampaign } from '../../services/adminMarketingStudioService';
+import { adminMarketingStudioService, type StudioCampaign } from '../../marketing-engine/services/adminMarketingStudioService';
 import {
   adminColdEmailService as api, parseProspectCsv,
   type SendSwitch, type ColdBatch, type ColdDraft, type ColdExamples, type ColdOverview, type ColdProspect, type ColdReply, type ColdResults, type ColdSend

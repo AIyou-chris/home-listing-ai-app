@@ -1,7 +1,7 @@
-import { buildApiUrl } from '../lib/api';
-import { authedFetch } from './authedFetch';
+import { buildApiUrl } from '../host/api';
+import { authedFetch } from '../host/authedFetch';
 import type { StudioVideoOptions } from './studioVideoOptions';
-import type { StudioBrief } from '../components/admin/marketingStudioDrafts';
+import type { StudioBrief } from '../screens/marketingStudioDrafts';
 
 export type CampaignOutputs = Record<'title' | 'blog' | 'emailSubject' | 'email' | 'linkedin' | 'facebook' | 'instagram' | 'bluesky' | 'videoScript' | 'imagePrompt', string>;
 export type StudioCampaign = StudioBrief & Partial<StudioVideoOptions> & {

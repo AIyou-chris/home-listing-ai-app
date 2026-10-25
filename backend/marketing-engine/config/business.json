@@ -401,7 +401,7 @@
           "closedLabel": "AFTER 5",
           "business": "Sample listing page",
           "closedLine": "The office is closed. Buyers still browse.",
-          "assistantLabel": "AI assistant \u00b7 online",
+          "assistantLabel": "AI assistant · online",
           "avatarLetter": "A",
           "question": "What do I need to start the loan process?",
           "answer": "I am an AI. Usually pay stubs and bank statements.",
@@ -500,5 +500,73 @@
     },
     "useInAutopilot": true,
     "voiceInAutopilot": true
+  },
+  "look": {
+    "note": "The look of every picture. Palette, art-director voice, lighting, banned content, scene ideas. A copy for another business edits this section (and logo.png).",
+    "palette": {
+      "black": "#08090D",
+      "charcoal": "#1A1D24",
+      "white": "#FFFFFF",
+      "red": "#ED1C24",
+      "orange": "#FF7A18"
+    },
+    "director": "You are the visual creative director for HomeListingAI, a business-growth platform marketed to mortgage loan officers and brokers. Make premium, high-contrast, cinematic images. One concept per image. Dark charcoal composition, selective cyan/lime, violet/coral, cobalt/pink, blue/yellow or turquoise/magenta accents, detailed homes, conceptual sculptures and professionals, legible on a phone. Lead with loan officer growth and building new Realtor relationships. Never show a fake dashboard, robot, invented logo or readable text. Never say all or most Realtors are leaving.",
+    "lighting": "Dramatic, lifelike lighting: deep navy shadows, saturated topic-specific cyan, lime, violet, coral, cobalt, pink or yellow edge light, a confident optimistic finish. Modern American real-estate and mortgage business setting, believable, precise focus, restrained sophistication, premium commercial photography.",
+    "negative": "No embedded text, no logos, no fabricated interface screenshots, no watermarks, no stock-art look, no unrealistic anatomy, no robots, no handshake clichés.",
+    "editorialStyle": "Premium editorial advertising artwork, realistic architecture or tactile conceptual 3D miniatures. Topic-relevant glass brains, bridges, connected homes and chess pieces are welcome. Deep navy background with selective cyan/lime, violet/coral, cobalt/pink, blue/yellow or turquoise/magenta accents. Clear subject, visible detail. Avoid repeated orange doorways and silhouettes.",
+    "launchLook": "Premium editorial advertising artwork: tactile 3D miniature homes or realistic architecture, deep navy background, saturated selective accent lighting, one clear visual metaphor related to the headline. Square frame: hero subject in the lower half, upper 40 percent calm and dark for a large headline. Never muddy or underexposed. No repeated orange doorway or lonely silhouette.",
+    "brightLook": "Bright editorial photograph, natural golden-hour light, welcoming modern real-estate setting, clear subject related to the article, uncluttered space on the left.",
+    "extraRules": "No readable text, letters, numbers or logos anywhere. No signs, house numbers, labels or writing. No screens showing an interface, invented results, rates, charts or customer claims. No identifiable faces. Conceptual glass brains are allowed for AI topics; miniature homes, bridges and chess pieces are allowed when relevant. Do not imply these illustrations show actual listings.",
+    "fallbackScenes": [
+      [
+        "Detailed miniature homes connected by cyan and lime illuminated cables, an active referral network",
+        "Miniature homes connected by cyan and lime cables"
+      ],
+      [
+        "A violet glass chess knight beside a miniature modern home and a curved coral path",
+        "A glass chess knight beside a home and curved path"
+      ],
+      [
+        "Two hands building a bridge between miniature homes in cobalt and pink light",
+        "Hands building a bridge between miniature homes"
+      ],
+      [
+        "A welcoming modern home at blue hour with a yellow ribbon leading to its entrance",
+        "A home with a yellow ribbon leading to its entrance"
+      ],
+      [
+        "A turquoise glass brain sculpture supporting miniature homes on magenta tracks",
+        "A glass brain sculpture surrounded by miniature homes"
+      ]
+    ],
+    "wordmark": "HomeListingAI",
+    "writerPersona": "loan officers",
+    "writerMetaphors": "connected miniature homes for referrals, a bridge for partnerships, a chess piece for strategy, a glass brain for AI",
+    "sceneTopics": [
+      {
+        "pattern": "brain|\\bai\\b",
+        "index": 4
+      },
+      {
+        "pattern": "open house",
+        "index": 3
+      },
+      {
+        "pattern": "partner",
+        "index": 2
+      },
+      {
+        "pattern": "strateg|mortgage",
+        "index": 1
+      },
+      {
+        "pattern": "referral|network",
+        "index": 0
+      }
+    ]
+  },
+  "addon": {
+    "note": "required: false = this business's own copy (everyone who can log in has it). A copy that is SOLD sets required: true; then each customer needs the marketing_addon switch turned on (node scripts/setup-customer.cjs --enable <owner id>).",
+    "required": false
   }
 }

@@ -1,15 +1,15 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { buildApiUrl } from '../../lib/api';
-import { authedFetch } from '../../services/authedFetch';
+import { buildApiUrl } from '../host/api';
+import { authedFetch } from '../host/authedFetch';
 import Collapsible from './Collapsible';
 
-// Autopilot: three posts a day, written the day before, checked, then posted by themselves. One big Stop.
+// Autopilot: three posts a day, written the day before and checked. By default each post waits for your OK; "Post by itself" is a separate switch. One big Stop.
 
 type PostRow = { channel: string; status: 'scheduled' | 'posting' | 'published' | 'failed'; scheduled_for: string; posted_at: string | null; url: string | null; error: string | null };
-type Slot = { campaignId: string; slot: string; topic: string; title: string; failed: boolean; skipped?: boolean; reason: string; preview?: string; pictureUrl?: string; posts: PostRow[] };
+type Slot = { campaignId: string; slot: string; topic: string; title: string; failed: boolean; skipped?: boolean; awaitingApproval?: boolean; reason: string; preview?: string; pictureUrl?: string; posts: PostRow[] };
 type Plan = { name: string; day: number; week: number; offerOpen?: boolean; offerEnds?: string | null } | null;
 type BlogDraft = { id: string; title: string; status: string; updatedAt?: string; problems: number; written: boolean };
-type Status = { on: boolean; blogDrafts?: BlogDraft[]; autoPost: boolean; lastIssue?: { slot: string; reason: string } | null; plan?: Plan; direction?: string; slots: Slot[]; times: string[] };
+type Status = { on: boolean; autoPublish?: boolean; blogDrafts?: BlogDraft[]; autoPost: boolean; lastIssue?: { slot: string; reason: string } | null; plan?: Plan; direction?: string; slots: Slot[]; times: string[] };
 
 const LABEL: Record<string, string> = { facebook: 'Facebook', instagram: 'Instagram', linkedin: 'LinkedIn', youtube: 'YouTube' };
 const btn = 'rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50';
@@ -72,6 +72,11 @@ export default function AutopilotPanel() {
     if (!window.confirm('Make a new picture for this post? It takes about 2 minutes (a new scene, and the video is made again). The posting times stay the same.')) return;
     return act(`pic-${campaignId}`, async () => { await call(`/api/admin/autopilot/posts/${campaignId}/new-picture`, { method: 'POST', body: '{}' }); setNote('Making a new picture and video for this post. Press Refresh in about 2 minutes.'); });
   };
+  const approve = (campaignId: string) => act(`approve-${campaignId}`, async () => { await call(`/api/admin/autopilot/posts/${campaignId}/approve`, { method: 'POST', body: '{}' }); setNote('Approved. It goes out at its time.'); });
+  const setAutoPublish = (enabled: boolean) => {
+    if (enabled && !window.confirm('Let Autopilot post by itself?\n\nPosts will go out to your real accounts without waiting for you. Every post is still checked first. You can turn this off any time.')) return;
+    return act('autopublish', async () => { await call('/api/admin/autopilot/auto-publish', { method: 'POST', body: JSON.stringify({ enabled }) }); setNote(enabled ? 'Autopilot will now post by itself.' : 'Posts now wait for your OK.'); });
+  };
   const runNow = () => act('run', async () => { await call('/api/admin/autopilot/run-now', { method: 'POST', body: '{}' }); setNote('Writing the next post now. It takes about 2 minutes. This page updates by itself.'); });
 
   const on = status?.on === true;
@@ -79,7 +84,7 @@ export default function AutopilotPanel() {
     <section className="space-y-4">
       <div>
         <h3 className="text-xl font-bold text-slate-900">Autopilot</h3>
-        <p className="mt-1 max-w-2xl text-sm text-slate-600">Three posts a day, written for you, checked, and posted by themselves. Press Stop any time.</p>
+        <p className="mt-1 max-w-2xl text-sm text-slate-600">Three posts a day, written for you and checked. {status?.autoPublish ? 'They post by themselves.' : 'Each one waits for your OK before it goes out.'} Press Stop any time.</p>
       </div>
 
       <div className={`rounded-2xl border p-5 ${on ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 bg-slate-50'}`}>
@@ -95,6 +100,7 @@ export default function AutopilotPanel() {
           {updatedAt && <span className="self-center text-xs text-slate-500">Updated {updatedAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' })}</span>}
         </div>
         {status?.lastIssue && <p role="status" className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Last problem ({slotLabel(status.lastIssue.slot)}): {status.lastIssue.reason}. {on ? 'It will try again on its own.' : 'If Autopilot switched itself off, it did that on purpose after repeated problems. Turn it back on when you are ready.'}</p>}
+        {status && <label className="mt-3 flex items-start gap-2 text-sm text-slate-800"><input type="checkbox" className="mt-1" checked={status.autoPublish === true} disabled={busy !== ''} onChange={(e) => void setAutoPublish(e.target.checked)} /><span><strong>Post by itself</strong> (no OK needed). Off is safer: every post waits for you to press Approve.</span></label>}
         {error && <p role="alert" className="mt-3 text-sm text-red-700">{error}</p>}
         {note && <p role="status" className="mt-3 text-sm text-emerald-800">{note}</p>}
       </div>
@@ -138,6 +144,15 @@ export default function AutopilotPanel() {
               <p className="text-slate-700">{s.skipped ? <span className="text-slate-500">Skipped by you</span> : s.failed ? <span className="text-red-700">Did not go out: {s.reason || 'did not pass the check'}</span> : (s.title || 'Writing…')}</p>
               {!s.failed && s.pictureUrl && <a href={s.pictureUrl} target="_blank" rel="noreferrer" className="mt-2 block w-40"><img src={s.pictureUrl} alt={`Picture for ${s.title || 'this post'}`} className="w-40 rounded-lg border border-slate-200" /></a>}
               {!s.failed && s.preview && <details className="mt-1"><summary className="cursor-pointer text-xs font-semibold text-slate-600">Read the post</summary><p className="mt-1 whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-sm text-slate-800">{s.preview}</p></details>}
+              {!s.failed && s.awaitingApproval && (
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">Waiting for your OK</span>
+                  <button type="button" className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50" disabled={busy !== ''} onClick={() => void approve(s.campaignId)}>{busy === `approve-${s.campaignId}` ? 'Approving…' : 'Approve'}</button>
+                  <button type="button" className={btn} disabled={busy !== ''} onClick={() => void newPicture(s.campaignId)}>New picture</button>
+                  <button type="button" className={btn} disabled={busy !== ''} onClick={() => void takeBack(s.campaignId, false)}>Replace</button>
+                  <button type="button" className={btn} disabled={busy !== ''} onClick={() => void takeBack(s.campaignId, true)}>Skip</button>
+                </div>
+              )}
               {!s.failed && s.posts.length > 0 && !s.posts.some((p) => p.status === 'published' || p.status === 'posting') && (
                 <div className="mt-2 flex gap-2">
                   <button type="button" className={btn} disabled={busy !== ''} onClick={() => void newPicture(s.campaignId)}>{busy === `pic-${s.campaignId}` ? 'Starting…' : 'New picture'}</button>
@@ -147,7 +162,7 @@ export default function AutopilotPanel() {
               )}
               {!s.failed && (
                 <div className="mt-1 flex flex-wrap gap-2">
-                  {s.posts.length === 0 && <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">Being written</span>}
+                  {s.posts.length === 0 && !s.awaitingApproval && <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">Being written</span>}
                   {s.posts.map((p) => (
                     <span key={p.channel} className={`rounded-full px-2.5 py-1 text-xs font-semibold ${p.status === 'published' ? 'bg-emerald-100 text-emerald-800' : p.status === 'failed' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'}`}>
                       {LABEL[p.channel] || p.channel}: {p.status === 'published' ? 'posted' : p.status === 'failed' ? `failed${p.error ? ` (${p.error})` : ''}` : p.status === 'posting' ? 'posting…' : 'waiting'}

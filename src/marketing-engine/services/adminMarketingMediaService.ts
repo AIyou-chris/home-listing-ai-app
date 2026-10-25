@@ -1,5 +1,5 @@
-import { buildApiUrl } from '../lib/api';
-import { authedFetch } from './authedFetch';
+import { buildApiUrl } from '../host/api';
+import { authedFetch } from '../host/authedFetch';
 import type { StudioCampaign } from './adminMarketingStudioService';
 export type StudioMedia = { kind: 'image' | 'video' | 'voice' | 'music'; status: 'processing' | 'ready' | 'failed'; source: 'upload' | 'template' | 'ai' | 'render'; url: string | null; stale: boolean; error?: string; updatedAt: string };
 async function request(path: string, method = 'GET', body?: unknown) {

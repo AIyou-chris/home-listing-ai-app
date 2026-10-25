@@ -23,7 +23,7 @@ function safeDirection(value) {
 function heroImagePrompt(askedFor, written, brand = 'homelistingai') {
   const b = brandFor(brand);
   const body = safeDirection(askedFor || written);
-  if (brand === 'homelistingai') return `${body}\n\n${BRAND_DIRECTION.replace('Premium editorial photography, real working adults in real settings, candid moments, natural textures, subtle film color, natural light and shallow depth of field.', 'Premium editorial advertising artwork, realistic architecture or tactile conceptual 3D miniatures. Topic-relevant glass brains, bridges, connected homes and chess pieces are welcome. Deep navy background with selective cyan/lime, violet/coral, cobalt/pink, blue/yellow or turquoise/magenta accents. Clear subject, visible detail. Avoid repeated orange doorways and silhouettes.')}`;
+  if (brand === 'homelistingai') return `${body}\n\n${BRAND_DIRECTION.replace('Premium editorial photography, real working adults in real settings, candid moments, natural textures, subtle film color, natural light and shallow depth of field.', require('../../config/business').business.look.editorialStyle)}`;
   return `${body}\n\n${BRAND_DIRECTION} Use deep blue ${b.blue}, blue ${b.light}, indigo ${b.violet} shadows and warm amber ${b.amber} light as subtle environmental tones.`;
 }
 module.exports = { BRANDS, FORBIDDEN, BRAND_DIRECTION, brandFor, safeDirection, heroImagePrompt };

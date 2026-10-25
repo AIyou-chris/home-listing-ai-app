@@ -1,5 +1,5 @@
 'use strict';
-const PREFIX='https://homelistingai.com/api/public/marketing-images/';
+const PREFIX=`${require('../../config/business').business.siteUrl}/api/public/marketing-images/`;
 const imageId=url=>typeof url==='string'&&url.startsWith(PREFIX)&&/^[0-9a-f-]{36}$/i.test(url.slice(PREFIX.length))?url.slice(PREFIX.length):null;
 async function publishedImage(db,id,now=new Date().toISOString()) {
  if(!/^[0-9a-f-]{36}$/i.test(id||''))return null;

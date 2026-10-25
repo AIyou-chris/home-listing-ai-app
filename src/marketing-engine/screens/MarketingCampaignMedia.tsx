@@ -1,12 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Download, Film, Image as Picture, RefreshCw } from 'lucide-react';
-import { adminMarketingMediaService, type StudioMedia } from '../../services/adminMarketingMediaService';
-import { adminMarketingStudioService, type StudioCampaign } from '../../services/adminMarketingStudioService';
+import { adminMarketingMediaService, type StudioMedia } from '../services/adminMarketingMediaService';
+import { adminMarketingStudioService, type StudioCampaign } from '../services/adminMarketingStudioService';
 import MarketingVideoControls from './MarketingVideoControls';
 import MarketingVideoReview from './MarketingVideoReview';
 import Collapsible from './Collapsible';
 import MarketingImageLibrary from './MarketingImageLibrary';
-import { videoOptions } from '../../services/studioVideoOptions';
+import { videoOptions } from '../services/studioVideoOptions';
 const button = 'inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-primary-500';
 const primary = 'inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-primary-500';
 export default function MarketingCampaignMedia({ campaign, dirty, onChange }: { campaign: StudioCampaign; dirty: boolean; onChange: (campaign: StudioCampaign) => void }) {

@@ -2,8 +2,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 import Collapsible from './Collapsible';
 import { Briefcase, Camera, Link2, Play, RefreshCw, Share2, Unplug } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { supabase } from '../../services/supabase';
-import { buildApiUrl } from '../../lib/api';
+import { supabase } from '../host/supabase';
+import { buildApiUrl } from '../host/api';
 
 // HomeListingAI's own social accounts. Everyone on the team shares these: connect once for the company.
 // Same connect flow as the An AI You admin. Connecting never posts anything.

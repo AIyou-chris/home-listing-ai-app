@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { adminMarketingMediaService as api, type ImageCatalog, type MarketingImage, type ImagePerformance } from '../../services/adminMarketingMediaService';
-import { adminMarketingStudioService, type StudioCampaign } from '../../services/adminMarketingStudioService';
+import { adminMarketingMediaService as api, type ImageCatalog, type MarketingImage, type ImagePerformance } from '../services/adminMarketingMediaService';
+import { adminMarketingStudioService, type StudioCampaign } from '../services/adminMarketingStudioService';
 const button='min-h-11 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50';
 const primary='min-h-11 rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50';
 const input='mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800';

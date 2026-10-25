@@ -4,7 +4,7 @@ import 'react-quill/dist/quill.snow.css';
 import { supabase } from '../../services/supabase';
 import { toast } from 'react-hot-toast';
 import { Trash2, ArrowLeft, Sparkles, Globe, Copy, Check, RefreshCw, Search, X } from 'lucide-react';
-import ApprovedMarketingImagePicker from '../../components/admin/ApprovedMarketingImagePicker';
+import ApprovedMarketingImagePicker from '../../marketing-engine/screens/ApprovedMarketingImagePicker';
 
 const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3002';
 

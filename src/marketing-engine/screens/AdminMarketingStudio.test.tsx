@@ -1,15 +1,15 @@
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import AdminMarketingStudio from './AdminMarketingStudio';
-import { adminMarketingStudioService as api, type StudioCampaign } from '../../services/adminMarketingStudioService';
-import { adminMarketingMediaService as mediaApi } from '../../services/adminMarketingMediaService';
+import { adminMarketingStudioService as api, type StudioCampaign } from '../services/adminMarketingStudioService';
+import { adminMarketingMediaService as mediaApi } from '../services/adminMarketingMediaService';
 import { loadStudioBriefs, saveStudioBriefs, type StudioBrief } from './marketingStudioDrafts';
 
-jest.mock('../../services/adminMarketingMediaService', () => ({ adminMarketingMediaService: { imageCatalog: jest.fn().mockResolvedValue({ recipes: [], formats: { blog: {label: 'Blog hero',width:1536,height:1024} }, costs: { blog: {set:0.045,one:0.015,final:0.052} } }), imageResults: jest.fn().mockResolvedValue([]), imageLibrary: jest.fn().mockResolvedValue([]), imageOptions: jest.fn(), imageLayout: jest.fn(), chooseImage: jest.fn(), list: jest.fn().mockResolvedValue([]), capabilities: jest.fn().mockResolvedValue({ video: true, picture: true, aiPicture: true, aiVoice: true }), audio: jest.fn(), picture: jest.fn().mockResolvedValue([]), video: jest.fn().mockResolvedValue([]) } }));
-jest.mock('../../admin-dashboard/Blog/BlogEditor', () => ({ __esModule: true, default: () => <p>Existing blog management</p> }));
+jest.mock('../services/adminMarketingMediaService', () => ({ adminMarketingMediaService: { imageCatalog: jest.fn().mockResolvedValue({ recipes: [], formats: { blog: {label: 'Blog hero',width:1536,height:1024} }, costs: { blog: {set:0.045,one:0.015,final:0.052} } }), imageResults: jest.fn().mockResolvedValue([]), imageLibrary: jest.fn().mockResolvedValue([]), imageOptions: jest.fn(), imageLayout: jest.fn(), chooseImage: jest.fn(), list: jest.fn().mockResolvedValue([]), capabilities: jest.fn().mockResolvedValue({ video: true, picture: true, aiPicture: true, aiVoice: true }), audio: jest.fn(), picture: jest.fn().mockResolvedValue([]), video: jest.fn().mockResolvedValue([]) } }));
+jest.mock('../host/BlogEditor', () => ({ __esModule: true, default: () => <p>Existing blog management</p> }));
 jest.mock('./MarketingCampaignPosting', () => ({ __esModule: true, default: () => <p>Publishing history</p> }));
 jest.mock('qrcode', () => ({ __esModule: true, default: { toDataURL: jest.fn() } }));
-jest.mock('../../services/adminMarketingStudioService', () => ({ adminMarketingStudioService: { list: jest.fn(), save: jest.fn(), generate: jest.fn(), remove: jest.fn(), edit: jest.fn(), approve: jest.fn(), settings: jest.fn() } }));
+jest.mock('../services/adminMarketingStudioService', () => ({ adminMarketingStudioService: { list: jest.fn(), save: jest.fn(), generate: jest.fn(), remove: jest.fn(), edit: jest.fn(), approve: jest.fn(), settings: jest.fn() } }));
 const mocked = api as jest.Mocked<typeof api>;
 const owner = '11111111-1111-4111-8111-111111111111';
 const localBrief: StudioBrief = { id: '22222222-2222-4222-8222-222222222222', kind: 'campaign', idea: 'New market idea', goal: 'Warm leads', tone: 'Helpful', audience: 'Loan officers', pictureMode: 'auto', pictureDescription: '', photoName: '', videoFormat: 'vertical', videoDuration: '30', plannedAt: '', createdAt: '2026-10-04T00:00:00.000Z' };
