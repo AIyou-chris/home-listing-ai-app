@@ -499,7 +499,26 @@
       "gain": 0.6
     },
     "useInAutopilot": true,
-    "voiceInAutopilot": true
+    "voiceInAutopilot": true,
+    "autoScene": {
+      "note": "Full-auto video: a post whose topic names no scene still gets an animated explainer. The first rule whose words appear in the topic (key, pillar, headline, idea) picks the scene; otherwise `fallback`. The AI video reviewer still checks the video says what the post says, and Autopilot uses the moving-picture video if it does not. enabled: false = only topics that name a scene get an explainer.",
+      "enabled": true,
+      "fallback": "wow-link",
+      "rules": [
+        {
+          "pattern": "phone|call|answer|voicemail|after.?hours|ai teammate|busy",
+          "scene": "ai-phone"
+        },
+        {
+          "pattern": "buyer|chat|question|follow.?up|warm lead|lead|midnight|after 5|brain",
+          "scene": "buyer-chat"
+        },
+        {
+          "pattern": "agent|partner|referral|share kit|qr|listing|wow link|invoice|dashboard|network",
+          "scene": "wow-link"
+        }
+      ]
+    }
   },
   "look": {
     "note": "The look of every picture. Palette, art-director voice, lighting, banned content, scene ideas. A copy for another business edits this section (and logo.png).",

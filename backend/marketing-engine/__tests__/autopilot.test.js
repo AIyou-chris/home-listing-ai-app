@@ -388,10 +388,10 @@ async function videoSettingsFor(patchTopics) {
 }
 const everyOther = (topics) => topics.forEach((t, i) => { if (i % 2 === 0) t.explainer = 'wow-link'; else delete t.explainer; });
 
-test('with the setting on, topics with an explainer get that video (with the AI voice) and the rest keep the moving picture', async () => {
+test('with auto-scene off, topics with an explainer get that video (with the AI voice) and the rest keep the moving picture', async () => {
   const { business } = require('../config/business');
-  const was = business.video.useInAutopilot; const wasVoice = business.video.voiceInAutopilot;
-  business.video.useInAutopilot = true; business.video.voiceInAutopilot = true;
+  const was = business.video.useInAutopilot; const wasVoice = business.video.voiceInAutopilot; const wasAuto = business.video.autoScene.enabled;
+  business.video.useInAutopilot = true; business.video.voiceInAutopilot = true; business.video.autoScene.enabled = false;
   try {
     const { asked, keysWithScene } = await videoSettingsFor(everyOther);
     const product = asked.filter((a) => TOPICS_KEYS().has(a.topic));
@@ -402,7 +402,22 @@ test('with the setting on, topics with an explainer get that video (with the AI 
       if (expected[0] === 'explainer') assert.strictEqual(a.options.explainerVoice, 'on');
     }
     assert.ok(product.some((a) => a.options.layout === 'explainer') && product.some((a) => a.options.layout === 'picture'));
-  } finally { business.video.useInAutopilot = was; business.video.voiceInAutopilot = wasVoice; }
+  } finally { business.video.useInAutopilot = was; business.video.voiceInAutopilot = wasVoice; business.video.autoScene.enabled = wasAuto; }
+});
+
+test('full auto: a topic that names no scene still gets an animated explainer, picked by its words; auto-scene off keeps the picture video', async () => {
+  const { business } = require('../config/business');
+  const was = [business.video.useInAutopilot, business.video.voiceInAutopilot, business.video.autoScene.enabled];
+  business.video.useInAutopilot = true; business.video.voiceInAutopilot = false;
+  try {
+    business.video.autoScene.enabled = true;
+    const on = await videoSettingsFor((topics) => topics.forEach((t) => { delete t.explainer; }));
+    assert.ok(on.asked.length >= 2);
+    assert.ok(on.asked.every((a) => a.options.layout === 'explainer' && ['buyer-chat', 'ai-phone', 'wow-link'].includes(a.options.explainer)));
+    business.video.autoScene.enabled = false;
+    const off = await videoSettingsFor((topics) => topics.forEach((t) => { delete t.explainer; }));
+    assert.ok(off.asked.every((a) => a.options.layout === 'picture'));
+  } finally { [business.video.useInAutopilot, business.video.voiceInAutopilot, business.video.autoScene.enabled] = was; }
 });
 
 test('with the setting off no post uses an explainer, even if topics name one', async () => {

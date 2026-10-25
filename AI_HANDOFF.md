@@ -1,3 +1,9 @@
+## 2026-10-25 — Claude: audit + full-auto video + picture-model fallback (pushed)
+
+- Audit found: YouTube token revoked (needs reconnect by owner), "Post by itself" OFF (my approve-first default), and since 2026-10-23 every Autopilot picture was the free template card because the account is refused `gpt-image-1` (`gpt-image-1-mini` works). Fix: `brand.generateImage` falls back to the draft model when the final one is refused (`marketingBrand.test.js`).
+- **Full-auto video:** `services/autopilot/scenePick.js` + `business.json > video.autoScene` give EVERY Autopilot post an animated explainer (named scene kept; otherwise first matching rule; else `wow-link`). Reviewer fallback to the picture video unchanged. Before this only 8 of 41 topics had a scene (1 explainer in a week).
+- Owner approved one live draft written locally with `tmp/draft-one.cjs` (slot 2026-10-25@17:00, not posted).
+
 ## 2026-10-24 — Claude: Autopilot approve-first, add-on switch, picture look in settings, screens packaged (checks green, pushed)
 
 - **Approve first (default).** Autopilot now writes each post and leaves it as a draft (`brief.awaitingApproval`); owner presses **Approve** on the Autopilot screen (`POST /api/admin/autopilot/posts/:id/approve`). Separate per-customer switch **Post by itself** (`autopilot_auto_publish`, OFF by default, `POST /api/admin/autopilot/auto-publish`) restores the old self-posting. A draft more than 12h past its slot cannot be approved (remove it, Autopilot writes a new one). Posts already scheduled before this change are unaffected. NOTE: this changes live behaviour for the owner too: nothing posts until approved or the switch is turned on.

@@ -16,6 +16,15 @@ function validate(cfg) {
   if (!Array.isArray(cfg.prices.allowed)) throw new Error('business settings: prices.allowed must be a list');
   for (const k of ['palette', 'wordmark', 'writerPersona', 'writerMetaphors', 'sceneTopics', 'director', 'lighting', 'negative', 'editorialStyle', 'launchLook', 'brightLook', 'extraRules', 'fallbackScenes']) if (!cfg.look[k]) throw new Error(`business settings: look.${k} is missing`);
   if (!Array.isArray(cfg.look.fallbackScenes) || !cfg.look.fallbackScenes.length) throw new Error('business settings: look.fallbackScenes needs at least one scene');
+  const auto = cfg.video?.autoScene;
+  if (auto?.enabled) {
+    const scenes = Object.keys(cfg.video.scenes || {});
+    if (!scenes.includes(auto.fallback)) throw new Error('business settings: video.autoScene.fallback is not one of the video scenes');
+    for (const r of auto.rules || []) {
+      if (!scenes.includes(r.scene)) throw new Error(`business settings: video.autoScene rule names a scene that does not exist (${r.scene})`);
+      try { new RegExp(r.pattern, 'i'); } catch { throw new Error(`business settings: video.autoScene pattern is not valid (${r.pattern})`); }
+    }
+  }
   const keys = new Set();
   for (const t of [...cfg.topics, ...cfg.launch]) {
     if (!t.key || !t.idea) throw new Error('business settings: every topic needs a key and an idea');

@@ -88,3 +88,7 @@ The server also needs the `ffmpeg` program for any video. `GET /api/admin/video-
 ## The look of the pictures
 
 Palette, the art-director voice, lighting, banned content, the wordmark and the fallback scene ideas are all in `config/business.json > look`. `__tests__/lookInSettings.test.js` fails if a business name or a loan-officer word creeps back into the picture code.
+
+## Full-auto video
+
+Every Autopilot post gets an animated explainer video. A topic that names a scene (`explainer` in `business.json`) keeps it; any other topic gets a scene picked by the words in `video.autoScene.rules` (else `video.autoScene.fallback`). The second AI reviewer still checks the video says what the post says; if not, that post uses the moving-picture video. `video.autoScene.enabled: false` goes back to explainers only for topics that name a scene. A copy for another business edits the `scenes` and `autoScene` rules.
