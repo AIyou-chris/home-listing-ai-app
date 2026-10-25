@@ -525,6 +525,40 @@
           "endAccent": "More agents.",
           "endLine": "One plan gives you the tools to win agent partnerships and warm buyer leads."
         }
+      },
+      "listing-chat": {
+        "template": "chat-answer",
+        "config": {
+          "timeLabel": "11:38",
+          "timeSuffix": "PM",
+          "closedLabel": "AFTER 5",
+          "business": "Sample listing page",
+          "closedLine": "The office is closed. Buyers still browse.",
+          "assistantLabel": "AI assistant · online",
+          "avatarLetter": "A",
+          "question": "What do I need to start the loan process?",
+          "answer": "I am an AI. Usually pay stubs and bank statements.",
+          "options": [
+            "Call me",
+            "Text me"
+          ],
+          "booked": "Done. A loan officer will reach out.",
+          "leadTitle": "Warm lead sent to the loan officer",
+          "leadLines": [
+            "Name and phone captured",
+            "Question: what to bring",
+            "Follow-up task created"
+          ],
+          "sampleLabel": "SAMPLE LISTING SHOWN",
+          "endHeadline": [
+            "A buyer asked",
+            "at 11:38 PM."
+          ],
+          "endAccent": "at 11:38 PM.",
+          "endLine": "A WOW Link listing page answers buyers and sends the warm lead to the loan officer."
+        },
+        "label": "Ask the AI about a listing",
+        "hidden": true
       }
     },
     "music": {},
@@ -625,6 +659,26 @@
         },
         "plan": {
           "prompt": "Scene: a plan card on a phone. The plan name and its price appear, then four things it includes are ticked off one at a time, then up to two small promises. It must say what the post says. Fields: hook1 and hook2 (an opening line in two parts, each under 22 characters, that fits the post); hookAccent (the last words of hook2); planName (under 24 characters, like \"Loan officer plan\"); price (exactly as on the approved price list, like \"$79/month\" or \"$49/month\"); item1 to item4 (what the plan includes, each under 30 characters, only approved abilities, in the order the post gives them); perk1 and perk2 (small promises the post makes, like \"7-day free trial\" and \"No card to start\", each under 24 characters, only if the post says them, otherwise leave perk2 empty)."
+        },
+        "listing-chat": {
+          "vary": "listings",
+          "varyTime": true,
+          "businessFormat": "{business}",
+          "skipFields": [
+            "business",
+            "booked",
+            "leadTitle",
+            "leadLine1",
+            "leadLine2",
+            "leadLine3",
+            "endHeadline1",
+            "endHeadline2",
+            "endAccent",
+            "endLine",
+            "cta",
+            "small"
+          ],
+          "prompt": "Scene: a buyer asks the AI assistant on ONE real home's listing page, late in the evening after the loan officer's office has closed. The POST TEXT lists the only facts that exist about this home. The question must be about one of those facts, or about how to ask about the home. The answer must say \"I am an AI.\" first and then use ONLY those facts (bedrooms, baths, price, address). Never mention the neighborhood, schools, taxes, condition, rates or what the buyer can afford. Fields: closedLine (under 50 characters, why the office is closed at that time); timeLabel and timeSuffix (the given time, like \"9:15\" and \"PM\"); question (under 70 characters); answer (under 85 characters, starts with \"I am an AI.\" and uses only the given facts); optionA and optionB (follow-up choices under 12 characters, like \"Call me\" and \"Text me\")."
         }
       }
     }

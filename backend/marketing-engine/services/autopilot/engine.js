@@ -461,7 +461,7 @@ function createAutopilot({ db, isEntitled = async () => true, studioFor, media, 
   // ---- "Make the explainer video": write every word of a fresh animated video for one waiting post, with voice, and make it ----
   const inProgress = new Set();
   const sceneLabel = (name) => business.video?.scenes?.[name]?.label || name || '';
-  const scenes = () => Object.entries(business.video?.scenes || {}).map(([name, sc]) => ({ name, label: sc.label || name }));
+  const scenes = () => Object.entries(business.video?.scenes || {}).filter(([, sc]) => !sc.hidden).map(([name, sc]) => ({ name, label: sc.label || name }));
   const MIN_REDO_MS = 12 * 60000; // re-making takes a few minutes and un-approves the post meanwhile, so never this close to its time
 
   async function makeExplainer(owner, campaignId, { scene = '', note = '' } = {}) {

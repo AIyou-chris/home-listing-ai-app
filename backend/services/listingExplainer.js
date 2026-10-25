@@ -69,14 +69,62 @@ function buildListingConfig({ listing, lo, variant = 0 }) {
   };
 }
 
-// Makes the video and returns the MP4 bytes.
-async function renderListingExplainer({ listing, lo, variant = 0, width = WIDTH }) {
-  const config = buildListingConfig({ listing, lo, variant });
+// ---- the AI brain: the buyer's question and the AI's answer are written fresh for this home, from the home's real facts only ----
+const digitsIn = (text) => (String(text || '').match(/\d[\d,]*/g) || []).map((d) => d.replace(/,/g, ''));
+function allowedNumbers(listing) {
+  const out = new Set();
+  const add = (v) => { if (v !== undefined && v !== null && String(v) !== '') out.add(String(v).replace(/,/g, '')); };
+  add(Math.round(Number(listing.price) || 0)); add(Number(listing.bedrooms) || 0); add(Number(listing.bathrooms) || 0);
+  digitsIn(listing.address).forEach(add);
+  out.add('1'); out.add('2'); // "one of", "two ways"
+  return out;
+}
+const factsText = (listing) => [
+  listing.address && `Address: ${streetOf(listing.address)}`,
+  Number(listing.price) && `Price: ${money(listing.price)}`,
+  Number(listing.bedrooms) && `Bedrooms: ${Number(listing.bedrooms)}`,
+  Number(listing.bathrooms) && `Bathrooms: ${Number(listing.bathrooms)}`
+].filter(Boolean).join('. ');
+
+// Returns the AI-written pieces (time of day, why the office is closed, the question, the answer, the two follow-up choices), or null.
+// Every number the AI uses must be one of the home's own facts; anything else and the plain built-in question is used instead.
+async function writeListingWords({ listing, openai, write = require('../marketing-engine/services/explainerSceneWriter').writeScene, seed = '' }) {
+  if (!openai) return null;
+  try {
+    const facts = factsText(listing);
+    if (!facts) return null;
+    const post = { title: `Ask about ${streetOf(listing.address) || 'this home'}`, text: `The only facts about this home. ${facts}.`, facts: [] };
+    const out = await write({ name: 'listing-chat', post, openai, seed: `${listing.id}:${seed}` });
+    if (!out?.ok) return null;
+    const w = out.words;
+    const allowed = allowedNumbers(listing);
+    const used = digitsIn([w.question, w.answer, w.closedLine].join(' '));
+    if (used.some((d) => !allowed.has(d))) return null;
+    if (/\b(rate|rates|afford|approved|pre-?approv\w*|neighborhood|school|schools|tax|taxes)\b/i.test([w.question, w.answer].join(' '))) return null;
+    const picked = {};
+    for (const k of ['closedLine', 'timeLabel', 'timeSuffix', 'question', 'answer', 'options']) if (w[k]) picked[k] = w[k];
+    return picked;
+  } catch { return null; }
+}
+
+// Makes the video and returns the MP4 bytes. With an AI client the buyer's question and the answer are written for this home and the video has a
+// voice; without one (or if the AI's words fail the checks) the built-in question is used. The name, NMLS and the "not a commitment" line are always ours.
+async function renderListingExplainer({ listing, lo, variant = 0, width = WIDTH, openai = null, write, record }) {
+  let config = buildListingConfig({ listing, lo, variant });
+  const written = await writeListingWords({ listing, openai, write, seed: String(variant) });
+  if (written) config = { ...config, ...written };
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'hlai-listing-explainer-'));
   try {
+    const cv = loadCodeVideo();
+    const audio = {};
+    if (business.video?.music) audio.music = business.video.music;
+    if (openai || record) {
+      const lines = cv.templates['chat-answer'].narration(config);
+      const cues = await require('../marketing-engine/services/explainerVoice').recordLines({ lines, dir, ...(record ? { record } : {}) });
+      if (cues.length) { audio.cues = cues; config = require('../marketing-engine/services/explainerVideo').withVoiceDisclosure(config); }
+    }
     const out = path.join(dir, 'explainer.mp4');
-    const music = business.video?.music;
-    await loadCodeVideo().renderTemplate({ template: 'chat-answer', config, out, width, preset: 'veryfast', ...(music ? { audio: { music } } : {}) });
+    await cv.renderTemplate({ template: 'chat-answer', config, out, width, preset: 'veryfast', ...(audio.music || audio.cues ? { audio } : {}) });
     return await fs.readFile(out);
   } finally { await fs.rm(dir, { recursive: true, force: true }); }
 }
@@ -86,8 +134,10 @@ let chain = Promise.resolve();
 const renderOneAtATime = (args) => { const run = chain.then(() => renderListingExplainer(args)); chain = run.catch(() => {}); return run; };
 
 // Makes it and saves it where the loan officer can play and share it. Returns { url, path }.
-async function makeAndStore({ supabaseAdmin, bucket = 'ai-card-assets', listing, lo, variant, render = renderOneAtATime }) {
-  const bytes = await render({ listing, lo, variant });
+// The bucket must accept video files. (The card-picture bucket only accepts images, which is why the first videos could not be saved.)
+const VIDEO_BUCKET = process.env.LISTING_VIDEO_BUCKET || 'property-images';
+async function makeAndStore({ supabaseAdmin, bucket = VIDEO_BUCKET, listing, lo, variant, openai = null, render = renderOneAtATime }) {
+  const bytes = await render({ listing, lo, variant, openai });
   const storagePath = `explainers/${listing.id}/${crypto.randomUUID()}.mp4`;
   const { error } = await supabaseAdmin.storage.from(bucket).upload(storagePath, bytes, { contentType: 'video/mp4', upsert: false });
   if (error) throw new Error(`upload_failed:${error.message}`);
@@ -95,4 +145,4 @@ async function makeAndStore({ supabaseAdmin, bucket = 'ai-card-assets', listing,
   return { url: data?.publicUrl || null, path: storagePath, bytes: bytes.length };
 }
 
-module.exports = { buildListingConfig, renderListingExplainer, makeAndStore, questionsFor, streetOf, safeText };
+module.exports = { writeListingWords, allowedNumbers, VIDEO_BUCKET, buildListingConfig, renderListingExplainer, makeAndStore, questionsFor, streetOf, safeText };

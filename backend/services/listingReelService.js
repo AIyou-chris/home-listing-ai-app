@@ -78,7 +78,7 @@ function slideDurations(voiceSeconds, photoCount) {
   return { photoDur, total: photoDur * photoCount + END_CARD_SECONDS };
 }
 
-function createListingReelService({ supabaseAdmin, safeFetch, openaiApiKey, bucket = 'ai-card-assets', width = Number(process.env.REEL_WIDTH) || 540, logoPath = null, musicDir = null, fetchImpl = fetch } = {}) {
+function createListingReelService({ supabaseAdmin, safeFetch, openaiApiKey, bucket = process.env.LISTING_VIDEO_BUCKET || 'property-images', width = Number(process.env.REEL_WIDTH) || 540, logoPath = null, musicDir = null, fetchImpl = fetch } = {}) {
   const W = width % 2 ? width + 1 : width;
   const H = Math.round((W * 16) / 9 / 2) * 2;
   const k = W / 1080; // font and layout scale

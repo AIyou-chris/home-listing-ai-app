@@ -94,3 +94,34 @@ test('route: five an hour per loan officer, then it says so', async () => {
   assert.strictEqual((await call(app)).status, 429);
   assert.strictEqual((await call(app, { loAgentId: 'lo1' })).json.error, 'video_rate_limited');
 });
+
+// ---- the video is saved in a bucket that accepts video, and the AI's words are held to the home's own facts ----
+const { writeListingWords, VIDEO_BUCKET } = require('../services/listingExplainer');
+
+test('the video is saved in a bucket that accepts video files (the card-picture bucket only takes images)', async () => {
+  assert.notStrictEqual(VIDEO_BUCKET, 'ai-card-assets');
+  const buckets = [];
+  const supabaseAdmin = { storage: { from: (b) => { buckets.push(b); return { upload: async () => ({ error: null }), getPublicUrl: (p) => ({ data: { publicUrl: `https://cdn/${p}` } }) }; } } };
+  await makeAndStore({ supabaseAdmin, listing, lo, render: async () => Buffer.from('mp4') });
+  assert.ok(buckets.every((b) => b === VIDEO_BUCKET));
+});
+
+const aiWords = (over = {}) => async () => ({ ok: true, words: { closedLine: 'The office is closed for the night.', timeLabel: '9:15', timeSuffix: 'PM', question: 'How many bedrooms?', answer: 'I am an AI. It has 3 bedrooms.', options: ['Call me', 'Text me'], ...over } });
+
+test('AI-written words are used when they only use the home\'s own facts, and the time of day is not counted as a fact', async () => {
+  const w = await writeListingWords({ listing, openai: {}, write: aiWords() });
+  assert.strictEqual(w.question, 'How many bedrooms?');
+  assert.strictEqual(w.timeLabel, '9:15');
+  const price = await writeListingWords({ listing, openai: {}, write: aiWords({ answer: 'I am an AI. It is listed at $489,000.' }) });
+  assert.match(price.answer, /489,000/);
+});
+
+test('invented numbers, neighborhood, school, rate or affordability talk are refused, so the built-in question is used', async () => {
+  for (const answer of ['I am an AI. It has 4 bedrooms.', 'I am an AI. It is listed at $450,000.', 'I am an AI. The schools nearby are great.', 'I am an AI. Rates are low today.', 'I am an AI. You can afford it.']) {
+    assert.strictEqual(await writeListingWords({ listing, openai: {}, write: aiWords({ answer }) }), null, answer);
+  }
+  assert.strictEqual(await writeListingWords({ listing, openai: null, write: aiWords() }), null);
+  assert.strictEqual(await writeListingWords({ listing: {}, openai: {}, write: aiWords() }), null);
+  assert.strictEqual(await writeListingWords({ listing, openai: {}, write: async () => ({ ok: false }) }), null);
+  assert.strictEqual(await writeListingWords({ listing, openai: {}, write: async () => { throw new Error('down'); } }), null);
+});

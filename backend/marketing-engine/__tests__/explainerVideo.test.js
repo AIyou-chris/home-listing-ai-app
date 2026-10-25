@@ -7,8 +7,8 @@ const { findVoiceViolations } = require('../host.cjs');
 const { PLATFORM_BANNED_PHRASES } = require('../host.cjs');
 const { TOPICS, LAUNCH } = require('../services/autopilot/topics');
 
-test('the settings file names four explainer videos and each one is valid', () => {
-  assert.deepStrictEqual(explainer.sceneNames().sort(), ['ai-phone', 'buyer-chat', 'plan', 'wow-link']);
+test('the settings file names five explainer videos and each one is valid', () => {
+  assert.deepStrictEqual(explainer.sceneNames().sort(), ['ai-phone', 'buyer-chat', 'listing-chat', 'plan', 'wow-link']);
   for (const name of explainer.sceneNames()) assert.ok(explainer.checkScene(name) > 10, `${name} has a real length`);
 });
 

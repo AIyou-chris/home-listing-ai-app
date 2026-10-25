@@ -2,7 +2,7 @@
 // Which animated scene a post gets. A topic that names a scene keeps it. Otherwise, when the settings turn on
 // video.autoScene, the first rule whose words appear in the topic picks one, else the fallback scene.
 function pickScene(topic, video) {
-  const scenes = Object.keys(video?.scenes || {});
+  const scenes = Object.keys(video?.scenes || {}).filter((n) => !video.scenes[n].hidden);
   if (topic?.explainer && scenes.includes(topic.explainer)) return topic.explainer;
   const auto = video?.autoScene;
   if (!auto?.enabled) return null;

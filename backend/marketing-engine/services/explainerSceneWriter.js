@@ -58,7 +58,7 @@ function promptFor({ setup, post, script, note, feedback, recent, taste, seed, c
     note ? `The owner's instruction for this video. Follow it: ${note}` : '',
     feedback ? `A checker said the last try had these problems. Fix them: ${feedback}` : '',
     setup.writer.prompt,
-    'End fields: endHeadline1 and endHeadline2 (two short closing lines, under 20 characters each, that sum up the post); endAccent (the last words of endHeadline2); endLine (one or two plain sentences, 110 characters at most, that carry the post\'s main point and name its offer exactly as the post does); cta (the button in capital letters, 30 characters at most, matching the post\'s own call to action: LEARN MORE when the post says visit or learn more, and TRY IT FREE FOR 7 DAYS only when the post itself offers a free trial); small (one short line, 80 characters at most, saying where to go, no promises).',
+    setup.fields.includes('endLine') ? 'End fields: endHeadline1 and endHeadline2 (two short closing lines, under 20 characters each, that sum up the post); endAccent (the last words of endHeadline2); endLine (one or two plain sentences, 110 characters at most, that carry the post\'s main point and name its offer exactly as the post does); cta (the button in capital letters, 30 characters at most, matching the post\'s own call to action: LEARN MORE when the post says visit or learn more, and TRY IT FREE FOR 7 DAYS only when the post itself offers a free trial); small (one short line, 80 characters at most, saying where to go, no promises).' : '',
     'Plain words, short sentences, no hype, no em dashes, no semicolons. No real people or brands. Return JSON only.'
   ].filter((x) => x !== undefined && x !== null).join('\n');
 }
@@ -77,7 +77,7 @@ function problemsWith({ setup, config, post, cfg, raw }) {
   if (config.price && !(cfg.prices?.allowed || []).some((p) => String(config.price).replace(/\s/g, '').startsWith(p))) problems.push(`the price must be one of ${(cfg.prices?.allowed || []).join(', ')}`);
   const TRIAL = /\btrial\b|try it free|free for \d/i;
   if (TRIAL.test(String(config.cta || '')) && !TRIAL.test(`${post?.title || ''} ${post?.text || ''}`)) problems.push('the button offers a free trial but the post does not');
-  for (const f of ['endLine', 'cta', 'small']) if (!clean(raw[f])) problems.push(`${f} is empty`);
+  for (const f of ['endLine', 'cta', 'small']) if (setup.fields.includes(f) && !clean(raw[f])) problems.push(`${f} is empty`);
   return [...new Set(problems)];
 }
 
@@ -105,8 +105,9 @@ async function writeScene({ name, post, openai, note = '', feedback = '', recent
     try { raw = await ask(openai, model, promptFor({ setup, post, script: post?.script, note: clean(note).slice(0, 300), feedback: fb, recent, taste, seed, cfg }), setup.fields); }
     catch { return last ? { ...last, ok: false, problems: lastProblems, tries: attempt - 1 } : null; }
     for (const key of setup.fields) raw[key] = clean(raw[key]);
-    raw.cta = raw.cta.toUpperCase();
-    const built = setup.shape.build(raw, setup.writer.businessFormat);
+    raw.cta = (raw.cta || '').toUpperCase();
+    // Fields the scene does not ask the writer for are left out, so the scene's own words stay.
+    const built = Object.fromEntries(Object.entries(setup.shape.build(raw, setup.writer.businessFormat)).filter(([, v]) => !(v === undefined || v === '' || (Array.isArray(v) && v.every((x) => !x)))));
     let problems = [];
     try { tool.normalizeConfig({ ...cfg.video.base, ...setup.scene.config, ...built }); } catch (e) { problems.push(String(e.message).slice(0, 120)); }
     problems = problems.concat(problemsWith({ setup, config: built, post, cfg, raw }));

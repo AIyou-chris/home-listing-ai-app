@@ -7,7 +7,7 @@ const explainer = require('../services/listingExplainer');
 
 const PER_HOUR = 5;
 
-function register(app, { requireLoAgent, supabaseAdmin, isListingPublished, toTrimmedOrNull, available = () => require('../marketing-engine/services/explainerVideo').available(), make = explainer.makeAndStore }) {
+function register(app, { requireLoAgent, supabaseAdmin, isListingPublished, toTrimmedOrNull, openai = null, available = () => require('../marketing-engine/services/explainerVideo').available(), make = explainer.makeAndStore }) {
   const log = new Map(); // loAgentId -> [timestamps]
   app.post('/api/lo/listings/:listingId/explainer', requireLoAgent, express.json({ limit: '2kb' }), async (req, res) => {
     try {
@@ -33,7 +33,7 @@ function register(app, { requireLoAgent, supabaseAdmin, isListingPublished, toTr
       log.set(loAgentId, [...recent, now]);
       const variant = Number.isInteger(req.body?.variant) ? req.body.variant : 0;
       const made = await make({
-        supabaseAdmin, variant,
+        supabaseAdmin, variant, openai,
         listing: { id: listing.id, address: listing.address || listing.title || '', price: Number(listing.price) || 0, bedrooms: Number(listing.bedrooms) || 0, bathrooms: Number(listing.bathrooms) || 0 },
         lo: { name: `${lo.first_name || ''} ${lo.last_name || ''}`.trim(), company: lo.company || null, nmls_number: lo.nmls_number }
       });
