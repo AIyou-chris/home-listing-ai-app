@@ -11,6 +11,7 @@
  */
 const { clamp, seg, outC, outB, inOut, lerp, typed } = require('../easing.cjs');
 const { fillRoundRect, strokeRoundRect, roundRectPath, wrapText, setFont, drawLines, withMotion } = require('../kit.cjs');
+const { backdrop } = require('./shared.cjs');
 
 const DEFAULTS = {
   brand: 'AN AI YOU',
@@ -237,12 +238,7 @@ function createScene(input) {
   }
 
   function draw(ctx, t) {
-    // background
-    ctx.fillStyle = '#0b0d12'; ctx.fillRect(0, 0, 720, 1280);
-    ctx.save(); ctx.translate(360, 1408); ctx.scale(1, 0.95);
-    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 800);
-    g.addColorStop(0, 'rgba(255,90,54,.28)'); g.addColorStop(0.6, 'rgba(255,90,54,0)');
-    ctx.fillStyle = g; ctx.fillRect(-360, -1408, 720, 1280 * 1.1 + 128); ctx.restore();
+    backdrop(ctx, t, cfg);
     withMotion(ctx, { alpha: seg(t, 0, 0.5) * (1 - seg(t, 12.6, 13.0)) }, () => {
       setFont(ctx, { weight: 800, size: 30, spacing: 3 }); ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.fillText(cfg.brand, 50, 88);
     });

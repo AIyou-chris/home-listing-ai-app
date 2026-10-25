@@ -284,6 +284,24 @@ app.post('/api/admin/autopilot', verifyAdmin, async (req, res) => {
     res.json(req.body.enabled ? await autopilot.start(req.user.id, { plan: req.body.plan !== false }) : await autopilot.stop(req.user.id));
   } catch (err) { console.error('[Autopilot] switch failed:', err?.message || err); res.status(500).json({ error: 'Could not change Autopilot' }); }
 });
+// "Make the explainer video": a fresh animated video (new words, with voice) for one waiting post. Spends on paid AI, so one at a time per post.
+app.post('/api/admin/autopilot/posts/:campaignId/explainer', verifyAdmin, async (req, res) => {
+  try {
+    const autopilot = getAutopilot(); if (!autopilot) return res.status(503).json({ error: 'Autopilot is not available right now' });
+    const out = await autopilot.makeExplainer(req.user.id, req.params.campaignId, { scene: String(req.body?.scene || ''), note: String(req.body?.note || '') });
+    if (out.error) return res.status(out.status || 400).json({ error: out.error });
+    out.done.catch(() => {});
+    res.json({ queued: true, scene: out.scene });
+  } catch (err) { console.error('[Autopilot] explainer failed:', err?.message || err); res.status(500).json({ error: 'Could not start the video' }); }
+});
+app.post('/api/admin/autopilot/posts/:campaignId/video-rating', verifyAdmin, async (req, res) => {
+  try {
+    const autopilot = getAutopilot(); if (!autopilot) return res.status(503).json({ error: 'Autopilot is not available right now' });
+    const out = await autopilot.rateVideo(req.user.id, req.params.campaignId, { rating: req.body?.rating, reason: req.body?.reason });
+    if (out.error) return res.status(out.status || 400).json({ error: out.error });
+    res.json(out);
+  } catch (err) { console.error('[Autopilot] rating failed:', err?.message || err); res.status(500).json({ error: 'Could not save that' }); }
+});
 app.post('/api/admin/autopilot/auto-publish', verifyAdmin, async (req, res) => {
   try {
     const autopilot = getAutopilot(); if (!autopilot) return res.status(503).json({ error: 'Autopilot is not available right now' });

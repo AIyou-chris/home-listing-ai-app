@@ -6,6 +6,7 @@
 // the caller is told, and it falls back (Autopilot uses the moving-picture video instead of posting a video that does not match).
 const explainer = require('./explainerVideo');
 const { writeClosingWords } = require('./explainerWriter');
+const { writeScene } = require('./explainerSceneWriter');
 const { reviewWithConsensus } = require('./videoReview');
 
 // post: { title, text, facts? }. Returns { ok, words, review, tries, reviewed }.
@@ -22,24 +23,34 @@ function toSceneWords(written, template) {
   return out;
 }
 
-async function directVideo({ name, post, openai, voice = false, maxTries = 2, writer = writeClosingWords, reviewer = reviewWithConsensus }) {
+// The full-scene writer comes first (every word of the scene, from the post and its video script). If it cannot run or cannot pass
+// the code checks, the older closing-words writer is used so a video still follows its post.
+async function fullWriter(args) {
+  const out = await writeScene({ name: args.name, post: args.post, openai: args.openai, note: args.note, feedback: args.feedback, recent: args.recent, taste: args.taste, seed: args.seed });
+  return out && out.ok ? { _full: out } : null;
+}
+
+async function directVideo({ name, post, openai, voice = false, maxTries = 2, writer = fullWriter, reviewer = reviewWithConsensus, note = '', recent = [], taste = { liked: [], disliked: [] }, seed }) {
   const asPost = { outputs: { title: post.title, facebook: post.text }, brief: { facts: post.facts || [] } };
   const base = explainer.plan(name, { post: asPost });
   const history = []; // every try, with the reviewer's answer
   let feedback = '';
   for (let tries = 1; tries <= maxTries; tries += 1) {
-    const written = await writer({ post, headline: (base.config.endHeadline || []).join(' '), openai, feedback, facts: post.facts || [] });
-    const words = toSceneWords(written, base.template);
+    let words; let scene = null;
+    const headline = (base.config.endHeadline || []).join(' ');
+    const wrote = await writer({ name, post, headline, openai, feedback, note, recent, taste, seed: `${seed || ''}:${tries}`, facts: post.facts || [] });
+    if (wrote?._full) { words = wrote._full.words; scene = { scene: name, subject: wrote._full.subject, line: wrote._full.line }; }
+    else words = toSceneWords(wrote || await writeClosingWords({ post, headline, openai, feedback, facts: post.facts || [] }), base.template);
     const planned = explainer.plan(name, { post: asPost, words });
     const review = await reviewer({ post, config: planned.config, spoken: voice ? planned.spoken : [], openai });
-    if (!review.ok) return { ok: true, words, review, tries, reviewed: false, history }; // no reviewer available: not a reason to block
-    history.push({ words, review });
-    if (review.matches) return { ok: true, words, review, tries, reviewed: true, history };
+    if (!review.ok) return { ok: true, words, review, tries, reviewed: false, history, scene }; // no reviewer available: not a reason to block
+    history.push({ words, review, scene });
+    if (review.matches) return { ok: true, words, review, tries, reviewed: true, history, scene };
     feedback = [review.problems?.join('; '), review.fix].filter(Boolean).join(' | ');
   }
   // Nothing passed. Keep the best try (a later try is not always a better one).
   const best = history.reduce((a, b) => (b.review.score > a.review.score ? b : a), history[0]);
-  return { ok: false, words: best.words, review: best.review, tries: history.length, reviewed: true, history };
+  return { ok: false, words: best.words, review: best.review, tries: history.length, reviewed: true, history, scene: best.scene };
 }
 
 module.exports = { directVideo, toSceneWords };

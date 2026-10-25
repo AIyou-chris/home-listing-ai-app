@@ -31,3 +31,10 @@ test('picture code holds no business name: a copy only edits business.json', () 
     assert.ok(!/HomeListingAI|loan officer|mortgage/i.test(text.replace(/homelistingai/g, 'brandkey').replace(/\/\/[^\n]*/g, '').replace(/\[[^\]]*'(?:blog|social|landing|paid_ad)'[^\]]*\]/g, '')), `${f} still has business words`);
   }
 });
+
+test('the video writer code holds no business words: scene wording, abilities and variety are in business.json', () => {
+  for (const f of ['explainerScenes.js', 'explainerSceneWriter.js', 'explainerMemory.js', 'explainerWordsKey.js', 'autopilot/scenePick.js']) {
+    const text = fs.readFileSync(path.join(__dirname, '..', 'services', f), 'utf8').replace(/\/\/[^\n]*/g, '');
+    assert.ok(!/HomeListingAI|loan officer|mortgage|WOW Link|realtor|homelistingai/i.test(text), `${f} still has business words`);
+  }
+});

@@ -14,16 +14,27 @@ function renderHash(row,rows) {const options=videoOptions(row.brief);return cryp
 function result(res) { if(res.error) throw new StudioError(503,'Could not confirm your media was saved. Please reload.');return res.data; }
 function createMediaService({db, openai, jev, imageInspector, video=renderer}) {
 
-  // For an animated explainer: a writer drafts the closing words from the post and a second AI reviewer checks the video says what the post says.
-  // Never blocks the render: if the helpers are not available the video is made with its own words.
-  const postFor=row=>({title:row.outputs?.title||'',text:row.outputs?.facebook||row.outputs?.linkedin||'',facts:row.brief?.facts||[]});
-  async function directExplainer(row) {
+  // For an animated explainer: the AI writer writes every word of the scene from the post and its video script, and a second AI reviewer checks
+  // the video says what the post says. Never blocks the render: if the helpers are not available the video is made with its own words.
+  // Words already written for this exact post and scene (by Autopilot or "Make the explainer video") are reused, so one video is not paid for twice.
+  const {wordsKey,postFor}=require('./explainerWordsKey');
+  async function directExplainer(row,{note=''}={}) {
     const options=videoOptions(row.brief);
     if(options.layout!=='explainer'||!options.explainer||!openai)return null;
-    return require('./explainerDirector').directVideo({name:options.explainer,post:postFor(row),openai,voice:options.explainerVoice==='on'});
+    const memory=require('./explainerMemory');
+    const [recent,taste]=await Promise.all([memory.recentScenes(db,row.owner_id),memory.tasteFor(db,row.owner_id,options.explainer)]);
+    return require('./explainerDirector').directVideo({name:options.explainer,post:postFor(row),openai,voice:options.explainerVoice==='on',note,recent,taste,seed:row.id});
   }
+  const sceneRecord=(row,direction)=>direction.scene?{...direction.scene,summary:String(direction.words?.endLine||direction.scene.line||'').slice(0,200)}:undefined;
   async function withExplainerWords(row) {
-    try {const direction=await directExplainer(row);return direction?{...row,brief:{...row.brief,explainerWords:direction.words}}:row;} catch {return row;}
+    try {
+      if(row.brief?.explainerWords&&row.brief.explainerWordsFor===wordsKey(row))return row;
+      const direction=await directExplainer(row);
+      if(!direction)return row;
+      const brief={...row.brief,explainerWords:direction.words,explainerWordsFor:wordsKey(row),explainerReview:direction.review?{score:direction.review.score,matches:direction.review.matches,problems:direction.review.problems}:undefined,explainerScene:sceneRecord(row,direction)};
+      try {await db.from('admin_marketing_campaigns').update({brief}).eq('id',row.id).eq('owner_id',row.owner_id);} catch {/* the video is still made */}
+      return {...row,brief};
+    } catch {return row;}
   }
   let rendering=false; // One FFmpeg process per server to keep the web app responsive.
   function table(owner) { if(!UUID.test(owner||''))throw new StudioError(401,'Sign in as an admin first.');if(!db)throw new StudioError(503,'Media storage is unavailable.');return db.from(TABLE); }

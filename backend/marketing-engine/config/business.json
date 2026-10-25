@@ -423,7 +423,8 @@
           ],
           "endAccent": "at 11:38 PM.",
           "endLine": "A WOW Link listing page answers buyers and sends the warm lead to the loan officer."
-        }
+        },
+        "label": "Buyer chat on a listing"
       },
       "ai-phone": {
         "template": "phone-call",
@@ -452,7 +453,8 @@
           "endAccent": "the next call.",
           "endLine": "The AI phone line answers when you cannot, gets a name and number, and passes it along.",
           "answeredLabel": "AI assistant answered"
-        }
+        },
+        "label": "AI phone line"
       },
       "wow-link": {
         "template": "walkthrough",
@@ -491,13 +493,41 @@
           ],
           "endAccent": "One new partner.",
           "endLine": "Send a free listing page to an agent. Buyers chat with it and warm leads come to you."
+        },
+        "label": "WOW Link walkthrough"
+      },
+      "plan": {
+        "label": "Plan and price",
+        "template": "plan",
+        "config": {
+          "hook": [
+            "One plan.",
+            "Everything in it."
+          ],
+          "hookAccent": "Everything in it.",
+          "planName": "Loan officer plan",
+          "price": "$79/month",
+          "items": [
+            "Free listing pages for agents",
+            "WOW Links to send agents",
+            "Buyer chat that finds leads",
+            "AI phone line that answers"
+          ],
+          "perks": [
+            "7-day free trial",
+            "No card to start"
+          ],
+          "sampleLabel": "PLAN SHOWN",
+          "endHeadline": [
+            "One plan.",
+            "More agents."
+          ],
+          "endAccent": "More agents.",
+          "endLine": "One plan gives you the tools to win agent partnerships and warm buyer leads."
         }
       }
     },
-    "music": {
-      "mood": "warm",
-      "gain": 0.6
-    },
+    "music": {},
     "useInAutopilot": true,
     "voiceInAutopilot": true,
     "autoScene": {
@@ -505,6 +535,10 @@
       "enabled": true,
       "fallback": "wow-link",
       "rules": [
+        {
+          "pattern": "price|pricing|\\$79|\\$49|founding|cost|what.?s included|the plan|per month|trial",
+          "scene": "plan"
+        },
         {
           "pattern": "phone|call|answer|voicemail|after.?hours|ai teammate|busy",
           "scene": "ai-phone"
@@ -518,6 +552,81 @@
           "scene": "wow-link"
         }
       ]
+    },
+    "writer": {
+      "note": "What the AI video writer is told. A copy for another business rewrites this section: intro, abilities, the variety lists and each scene's prompt.",
+      "intro": "You write the words for a short animated explainer video for HomeListingAI, a tool that helps loan officers win agent partnerships and get warm buyer leads. The viewer is a loan officer. Plain words, no hype. Never quote or hint at rates, approvals, pre-approvals or guarantees. Never promise results. No statistics unless they are in the verified list. No real people, banks or brands.",
+      "abilities": [
+        "A WOW Link is a free listing page the loan officer sends to a real estate agent. Buyers chat with it and warm leads come to the loan officer.",
+        "The buyer chat on a listing page answers questions, says plainly it is an AI, and sends the buyer's name and number to the loan officer.",
+        "The AI phone line answers calls for the loan officer, says plainly it is an AI, takes a name and number and passes them along.",
+        "The AI Brain is where the loan officer teaches the AI once and every listing uses it.",
+        "The Share Kit gives a listing a link, a QR code, a flyer and a social post.",
+        "The partner dashboard shows the loan officer which agents opened their WOW Link.",
+        "The plan has a 7-day free trial with no card. It is $79 a month, and $49 a month founding price for the first 25 loan officers."
+      ],
+      "variety": {
+        "listings": [
+          "Palm Ave condo",
+          "Maple Street starter home",
+          "Lakeview townhouse",
+          "Oak Hill family home",
+          "Downtown loft",
+          "Harbor Point condo",
+          "Cedar Lane new build",
+          "Willow Creek ranch",
+          "Riverside duplex",
+          "Sunset Park bungalow"
+        ],
+        "callers": [
+          "a first-time buyer",
+          "a buyer relocating for work",
+          "a self-employed buyer",
+          "a buyer saving for a down payment",
+          "a veteran buyer",
+          "a buyer who saw a yard sign"
+        ],
+        "features": [
+          "sending a WOW Link to an agent",
+          "building a Share Kit for a listing",
+          "teaching the AI Brain",
+          "checking the partner dashboard"
+        ],
+        "times": [
+          "11:38 PM",
+          "9:15 PM",
+          "6:50 AM",
+          "7:42 PM",
+          "10:05 PM",
+          "5:30 AM",
+          "8:20 PM",
+          "12:10 AM",
+          "6:15 PM"
+        ]
+      },
+      "scenes": {
+        "buyer-chat": {
+          "vary": "listings",
+          "varyTime": true,
+          "businessFormat": "Sample: {business}",
+          "prompt": "Scene: a buyer browses a SAMPLE home listing page at the given time, after the loan officer's office has closed. The listing page's AI assistant answers a believable question that fits the post, and says plainly that it is an AI. It offers two ways to follow up, the buyer picks the first, and a warm lead goes to the loan officer. Fields: business (the sample listing, like \"Palm Ave condo\", under 18 characters, no word Sample); closedLine (under 50 characters, why the office is closed at that time); timeLabel and timeSuffix (the given time, like \"11:38\" and \"PM\"); question (under 70 characters, a real question a buyer asks that fits the post, no rates); answer (under 85 characters, starts with \"I am an AI.\" and answers plainly, no numbers); optionA and optionB (follow-up choices under 12 characters, like \"Call me\" and \"Text me\"); booked (under 38 characters, says a loan officer will reach out); leadTitle (under 34 characters, like \"Warm lead sent to the loan officer\"); leadLine1 to leadLine3 (under 34 characters each, what was captured)."
+        },
+        "ai-phone": {
+          "vary": "callers",
+          "businessFormat": "Sample loan officer",
+          "skipFields": [
+            "business"
+          ],
+          "prompt": "Scene: a SAMPLE loan officer's AI phone line answers a call while the loan officer is busy. The caller is the given kind of buyer and asks something that fits the post. The AI says plainly it is an AI, takes a name and number for the loan officer, and a warm lead is saved. Fields: callerLabel (\"Unknown caller\" or similar, under 20 characters); hook1 and hook2 (an opening line in two parts, each under 22 characters, that fits the post); hookAccent (the last words of hook2); callerSays1 (under 65 characters, a believable request, no rates); aiSays1 (under 75 characters, starts with \"I am an AI\" and asks for a name and number); callerSays2 (under 30 characters, gives a first name and a number like \"Sam, 555-0142\"); aiSays2 (under 50 characters, says a loan officer will call soon); leadTitle (under 34 characters, like \"Warm lead sent to the loan officer\"); leadLine1 to leadLine3 (under 34 characters each)."
+        },
+        "wow-link": {
+          "vary": "features",
+          "prompt": "Scene: a guided walkthrough of ONE real feature, the given one. An app on a phone takes a loan officer through three steps. In each step the guide says what to do, a sample value is typed into a field, and a green result appears. Fields: hook1 and hook2 (an opening line in two parts, each under 22 characters, that fits the post); hookAccent (the last words of hook2); guideName (the feature's name, under 26 characters, like \"WOW Link guide\"); for each of step1, step2 and step3: Says (what the guide says, under 60 characters), Label (the field name in capitals, under 20 characters), Value (a sample value typed in, under 38 characters, no real people or brands), Result (what appears when it is done, under 34 characters). The three steps must be real steps of that feature and use only the approved abilities."
+        },
+        "plan": {
+          "prompt": "Scene: a plan card on a phone. The plan name and its price appear, then four things it includes are ticked off one at a time, then up to two small promises. It must say what the post says. Fields: hook1 and hook2 (an opening line in two parts, each under 22 characters, that fits the post); hookAccent (the last words of hook2); planName (under 24 characters, like \"Loan officer plan\"); price (exactly as on the approved price list, like \"$79/month\" or \"$49/month\"); item1 to item4 (what the plan includes, each under 30 characters, only approved abilities, in the order the post gives them); perk1 and perk2 (small promises the post makes, like \"7-day free trial\" and \"No card to start\", each under 24 characters, only if the post says them, otherwise leave perk2 empty)."
+        }
+      }
     }
   },
   "look": {

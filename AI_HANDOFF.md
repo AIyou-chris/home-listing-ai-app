@@ -1,3 +1,12 @@
+## 2026-10-25 (later) — Claude: the AI You video brain and interface ported (script-first, voice, lively backgrounds) (pushed)
+
+- Chris: HLAI videos were the same three fixed demos with only the closing words changed. Now `services/explainerSceneWriter.js` writes every word of the scene from the post + `outputs.videoScript` (strict JSON), checked in code (wording rules, "I am an AI", no rates/approvals, approved prices, trial button only if the post offers a trial); falls back to the older closing-words writer if it cannot pass. Reviewer is still HLAI's 3-review middle-score gate; `videoWords` now also reads the plan card. Prompts, abilities and variety lists: `business.json > video.writer`.
+- New scene `plan` (plan and price card, `tools/code-video/src/templates/plan.cjs`), autoScene rule sends price/founding/trial topics to it. Tool now has AI You's moving colourful backgrounds (`shared.cjs`), upbeat random music and the music-cutoff fix. HLAI's own voice code (`explainerVoice.js`) and ffmpeg path logic were kept.
+- Words written by Autopilot or the button are saved with `explainerWordsFor` and reused by the renderer (it used to write them a second time at render). Memory of recent scenes and thumbs lives in each post's `brief` (`explainerScene`, `videoFeedback`), no new table.
+- Autopilot screen per post: scene picker, "What should it show?", **Make the explainer video** (`POST /api/admin/autopilot/posts/:id/explainer`), match score, player, script, thumbs (`.../video-rating`). Re-making un-approves the post while it renders, then approves again; refused within 12 min of its time, if already out, or while a video is processing.
+- Posts already written keep their old video; press the button on them to redo (e.g. today's 5pm one before ~4:45pm Pacific).
+- Checked on this machine with real OpenAI: all four scenes written, voiced and drawn (20 to 26 s, h264+aac), frames looked at. Render took 7 to 17 s normally, one 180 s outlier. Not yet tried on Render.
+
 ## 2026-10-25 — Claude: audit + full-auto video + picture-model fallback (pushed)
 
 - Audit found: YouTube token revoked (needs reconnect by owner), "Post by itself" OFF (my approve-first default), and since 2026-10-23 every Autopilot picture was the free template card because the account is refused `gpt-image-1` (`gpt-image-1-mini` works). Fix: `brand.generateImage` falls back to the draft model when the final one is refused (`marketingBrand.test.js`).

@@ -12,8 +12,14 @@ const RATE = 44100;
 // Chords as MIDI note numbers: Am, F, C, G (a warm, hopeful loop).
 const PROGRESSIONS = {
   warm: { bpm: 92, chords: [[57, 60, 64], [53, 57, 60], [48, 52, 55], [55, 59, 62]] },
-  bright: { bpm: 104, chords: [[48, 52, 55], [55, 59, 62], [57, 60, 64], [53, 57, 60]] }
+  bright: { bpm: 104, chords: [[48, 52, 55], [55, 59, 62], [57, 60, 64], [53, 57, 60]] },
+  // Upbeat and bouncy: a kick on every beat, claps on 2 and 4, a bass that hops on the off-beats,
+  // chord stabs, and a pad that ducks on each beat so the whole thing pumps.
+  pop: { bpm: 118, bounce: true, chords: [[48, 52, 55], [55, 59, 62], [57, 60, 64], [53, 57, 60]] },
+  sunny: { bpm: 126, bounce: true, chords: [[53, 57, 60], [48, 52, 55], [55, 59, 62], [57, 60, 64]] }
 };
+/** The moods that bounce, used when nothing asks for a particular one. */
+const UPBEAT_MOODS = ['pop', 'sunny'];
 
 const midi = n => 440 * Math.pow(2, (n - 69) / 12);
 
@@ -25,7 +31,7 @@ function rng(seed) {
 
 function makeMusicWav({ duration = 20, mood = 'warm', seed = 7, gain = 0.8 } = {}) {
   if (!(duration > 0 && duration <= 180)) throw new Error('duration must be between 0 and 180 seconds');
-  const { bpm, chords } = PROGRESSIONS[mood] || PROGRESSIONS.warm;
+  const { bpm, chords, bounce = false } = PROGRESSIONS[mood] || PROGRESSIONS.warm;
   const total = Math.round(duration * RATE);
   const left = new Float32Array(total);
   const right = new Float32Array(total);
@@ -47,7 +53,8 @@ function makeMusicWav({ duration = 20, mood = 'warm', seed = 7, gain = 0.8 } = {
         for (let i = from; i < to; i += 1) {
           const t = i / RATE - start;
           const env = Math.min(1, t / 0.7) * Math.min(1, Math.max(0, (chordLen + 0.9 - t) / 0.9));
-          const s = Math.sin(2 * Math.PI * f * (i / RATE)) * env * 0.035;
+          const pump = bounce ? 0.3 + 0.7 * Math.min(1, ((i / RATE) % beat) / (beat * 0.45)) : 1;
+          const s = Math.sin(2 * Math.PI * f * (i / RATE)) * env * (bounce ? 0.028 : 0.035) * pump;
           left[i] += s * (1 - pan); right[i] += s * pan;
         }
       }
@@ -55,7 +62,7 @@ function makeMusicWav({ duration = 20, mood = 'warm', seed = 7, gain = 0.8 } = {
     // Bass: the root, an octave down, long and soft.
     const bf = midi(notes[0] - 12);
     const from = Math.max(0, Math.floor(start * RATE));
-    const to = Math.min(total, Math.floor((start + chordLen) * RATE));
+    const to = bounce ? from : Math.min(total, Math.floor((start + chordLen) * RATE));
     for (let i = from; i < to; i += 1) {
       const t = i / RATE - start;
       const env = Math.min(1, t / 0.2) * Math.min(1, (chordLen - t) / 0.4);
@@ -65,7 +72,7 @@ function makeMusicWav({ duration = 20, mood = 'warm', seed = 7, gain = 0.8 } = {
   }
 
   // Arpeggio: eighth-note plucks through the chord, each decaying quickly.
-  const eighth = beat / 2;
+  const eighth = bounce ? beat / 4 : beat / 2;
   for (let k = 0; k * eighth < duration; k += 1) {
     const t0 = k * eighth;
     const chord = chords[Math.floor(t0 / chordLen) % chords.length];
@@ -77,31 +84,73 @@ function makeMusicWav({ duration = 20, mood = 'warm', seed = 7, gain = 0.8 } = {
     const pan = 0.3 + 0.4 * ((k % 4) / 3);
     for (let i = from; i < to; i += 1) {
       const t = (i - from) / RATE;
-      const env = Math.exp(-t / 0.16) * Math.min(1, t / 0.004);
-      const x = (Math.sin(2 * Math.PI * f * t) + 0.35 * Math.sin(4 * Math.PI * f * t)) * env * 0.05;
+      const env = Math.exp(-t / (bounce ? 0.11 : 0.16)) * Math.min(1, t / 0.004);
+      const x = (Math.sin(2 * Math.PI * f * t) + (bounce ? 0.6 : 0.35) * Math.sin(4 * Math.PI * f * t)) * env * (bounce ? 0.042 : 0.05);
       left[i] += x * (1 - pan); right[i] += x * pan;
     }
   }
 
-  // Kick on beats 1 and 3, a faint hat on the off beats.
+  // Kick on beats 1 and 3 (every beat when it bounces), a faint hat on the off beats.
   for (let b = 0; b * beat < duration; b += 1) {
     const t0 = b * beat;
     const from = Math.floor(t0 * RATE);
-    if (b % 2 === 0) {
+    if (bounce || b % 2 === 0) {
       const to = Math.min(total, from + Math.floor(0.3 * RATE));
       for (let i = from; i < to; i += 1) {
         const t = (i - from) / RATE;
         const f = 48 + 60 * Math.exp(-t / 0.045);
-        const s = Math.sin(2 * Math.PI * f * t) * Math.exp(-t / 0.11) * 0.22;
+        const s = Math.sin(2 * Math.PI * f * t) * Math.exp(-t / 0.11) * (bounce ? 0.26 : 0.22);
         left[i] += s; right[i] += s;
       }
-    } else {
+    }
+    if (bounce && b % 2 === 1) {
+      // a clap on 2 and 4
+      const to = Math.min(total, from + Math.floor(0.14 * RATE));
+      for (let i = from; i < to; i += 1) {
+        const t = (i - from) / RATE;
+        const s = (random() * 2 - 1) * Math.exp(-t / 0.045) * 0.07;
+        left[i] += s; right[i] += s;
+      }
+    }
+    if (bounce || b % 2 === 1) {
       const hatFrom = Math.floor((t0 + beat / 2) * RATE);
       const to = Math.min(total, hatFrom + Math.floor(0.05 * RATE));
       for (let i = hatFrom; i < to; i += 1) {
         const t = (i - hatFrom) / RATE;
-        const s = (random() * 2 - 1) * Math.exp(-t / 0.012) * 0.018;
+        const s = (random() * 2 - 1) * Math.exp(-t / 0.012) * (bounce ? 0.03 : 0.018);
         left[i] += s; right[i] += s;
+      }
+    }
+  }
+
+  if (bounce) {
+    // A bass that hops on the off-beats, and short chord stabs on the "and" of 2 and 4.
+    const e8 = beat / 2;
+    for (let k = 0; k * e8 < duration; k += 1) {
+      const t0 = k * e8;
+      const chord = chords[Math.floor(t0 / chordLen) % chords.length];
+      const hop = [0, 12, 0, 7][k % 4];
+      const f = midi(chord[0] - 12 + (k % 2 === 1 ? hop : 0));
+      const from = Math.floor(t0 * RATE);
+      const to = Math.min(total, from + Math.floor(0.32 * RATE));
+      for (let i = from; i < to; i += 1) {
+        const t = (i - from) / RATE;
+        const env = Math.exp(-t / 0.13) * Math.min(1, t / 0.006);
+        const s = (Math.sin(2 * Math.PI * f * t) + 0.45 * Math.sin(4 * Math.PI * f * t)) * env * 0.12;
+        left[i] += s; right[i] += s;
+      }
+      if (k % 4 === 3) {
+        for (const n of chord) {
+          const sf = midi(n + 12);
+          const sFrom = from;
+          const sTo = Math.min(total, sFrom + Math.floor(0.16 * RATE));
+          for (let i = sFrom; i < sTo; i += 1) {
+            const t = (i - sFrom) / RATE;
+            const env = Math.exp(-t / 0.07) * Math.min(1, t / 0.004);
+            const s = (Math.sin(2 * Math.PI * sf * t) + 0.5 * Math.sin(6 * Math.PI * sf * t)) * env * 0.04;
+            left[i] += s * 0.8; right[i] += s * 1.1;
+          }
+        }
       }
     }
   }
@@ -132,4 +181,4 @@ function makeMusicWav({ duration = 20, mood = 'warm', seed = 7, gain = 0.8 } = {
   return data;
 }
 
-module.exports = { makeMusicWav, PROGRESSIONS };
+module.exports = { makeMusicWav, PROGRESSIONS, UPBEAT_MOODS };

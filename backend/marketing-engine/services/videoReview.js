@@ -28,6 +28,7 @@ function videoWords({ config = {}, spoken = [] }) {
     config.question && `Chat, buyer asks: ${config.question}`,
     config.answer && `Chat, AI answers: ${config.answer}`,
     Array.isArray(config.steps) && config.steps.length && `Steps: ${config.steps.map((s) => `${s.guideSays} (${s.label}: ${s.value}) -> ${s.result}`).join(' | ')}`,
+    config.planName && `Plan card: ${config.planName}, ${config.price}. Includes: ${flat(config.items)}. Promises: ${flat(config.perks)}`,
     config.callerSays1 && `Call, caller: ${config.callerSays1}`,
     config.aiSays1 && `Call, AI: ${config.aiSays1}`,
     config.leadTitle && `Result card: ${config.leadTitle}`,

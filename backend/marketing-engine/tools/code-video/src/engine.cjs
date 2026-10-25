@@ -15,7 +15,7 @@ const vm = require('node:vm');
 const os = require('node:os');
 const { spawnSync } = require('node:child_process');
 const { createCanvas, GlobalFonts } = require('@napi-rs/canvas');
-const { makeMusicWav } = require('./music.cjs');
+const { makeMusicWav, UPBEAT_MOODS, PROGRESSIONS } = require('./music.cjs');
 
 /**
  * Every frame's pixels are a few megabytes of native memory that V8 only
@@ -92,15 +92,18 @@ function mixAudio({ audio, duration, ffmpeg, dir }) {
   if (audio.music) {
     const opts = audio.music === true ? {} : audio.music;
     const wav = path.join(dir, 'music.wav');
-    fs.writeFileSync(wav, makeMusicWav({ duration, mood: opts.mood, seed: opts.seed }));
+    // A different upbeat tune each time, unless one was asked for.
+    const mood = opts.mood || UPBEAT_MOODS[Math.floor(Math.random() * UPBEAT_MOODS.length)];
+    fs.writeFileSync(wav, makeMusicWav({ duration, mood, seed: opts.seed ?? Math.floor(Math.random() * 1e6) }));
     inputs.push('-i', wav);
-    parts.push(`[${next}:a]volume=${opts.gain ?? 0.32},afade=t=out:st=${Math.max(0, duration - 1.6).toFixed(2)}:d=1.6[music]`);
+    parts.push(`[${next}:a]volume=${opts.gain ?? (PROGRESSIONS[mood]?.bounce ? 0.15 : 0.32)},afade=t=out:st=${Math.max(0, duration - 1.6).toFixed(2)}:d=1.6[music]`);
     music = 'music';
   }
   if (!voice && !music) return null;
   if (voice && music) {
-    parts.push('[voice]asplit=2[vsc][vout]');
-    parts.push('[music][vsc]sidechaincompress=threshold=0.03:ratio=9:attack=15:release=450:makeup=1[ducked]');
+    // The voice track is padded to the full length: the compressor stops when its control input ends, which cut the music off after the last spoken line.
+    parts.push(`[voice]apad=whole_dur=${duration},asplit=2[vsc][vout]`);
+    parts.push('[music][vsc]sidechaincompress=threshold=0.012:ratio=10:attack=15:release=450:makeup=1[ducked]');
     parts.push('[ducked][vout]amix=inputs=2:normalize=0:duration=longest[mix]');
   } else parts.push(`[${voice || music}]anull[mix]`);
   // Brought to a normal loudness for social video (about -15 LUFS) and kept from clipping.

@@ -2,14 +2,15 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { buildApiUrl } from '../host/api';
 import { authedFetch } from '../host/authedFetch';
 import Collapsible from './Collapsible';
+import AutopilotVideo, { type SceneChoice, type VideoInfo } from './AutopilotVideo';
 
 // Autopilot: three posts a day, written the day before and checked. By default each post waits for your OK; "Post by itself" is a separate switch. One big Stop.
 
 type PostRow = { channel: string; status: 'scheduled' | 'posting' | 'published' | 'failed'; scheduled_for: string; posted_at: string | null; url: string | null; error: string | null };
-type Slot = { campaignId: string; slot: string; topic: string; title: string; failed: boolean; skipped?: boolean; awaitingApproval?: boolean; reason: string; preview?: string; pictureUrl?: string; videoUrl?: string; posts: PostRow[] };
+type Slot = { campaignId: string; slot: string; topic: string; title: string; failed: boolean; skipped?: boolean; awaitingApproval?: boolean; reason: string; preview?: string; pictureUrl?: string; videoUrl?: string; makingVideo?: boolean; script?: string; video?: VideoInfo | null; posts: PostRow[] };
 type Plan = { name: string; day: number; week: number; offerOpen?: boolean; offerEnds?: string | null } | null;
 type BlogDraft = { id: string; title: string; status: string; updatedAt?: string; problems: number; written: boolean };
-type Status = { on: boolean; autoPublish?: boolean; blogDrafts?: BlogDraft[]; autoPost: boolean; lastIssue?: { slot: string; reason: string } | null; plan?: Plan; direction?: string; slots: Slot[]; times: string[] };
+type Status = { on: boolean; autoPublish?: boolean; scenes?: SceneChoice[]; blogDrafts?: BlogDraft[]; autoPost: boolean; lastIssue?: { slot: string; reason: string } | null; plan?: Plan; direction?: string; slots: Slot[]; times: string[] };
 
 const LABEL: Record<string, string> = { facebook: 'Facebook', instagram: 'Instagram', linkedin: 'LinkedIn', youtube: 'YouTube' };
 const btn = 'rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50';
@@ -44,6 +45,12 @@ export default function AutopilotPanel() {
     catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not load Autopilot'); }
   }, [directionLoaded]);
   useEffect(() => { void load(); }, [load]);
+  const makingNow = status?.slots?.some((x) => x.makingVideo) === true;
+  useEffect(() => {
+    if (!makingNow) return undefined;
+    const timer = window.setInterval(() => { void load(); }, 8000);
+    return () => window.clearInterval(timer);
+  }, [makingNow, load]);
   useEffect(() => {
     if (!status?.on) return undefined;
     const timer = window.setInterval(() => { void load(); }, 20000);
@@ -77,6 +84,14 @@ export default function AutopilotPanel() {
     if (enabled && !window.confirm('Let Autopilot post by itself?\n\nPosts will go out to your real accounts without waiting for you. Every post is still checked first. You can turn this off any time.')) return;
     return act('autopublish', async () => { await call('/api/admin/autopilot/auto-publish', { method: 'POST', body: JSON.stringify({ enabled }) }); setNote(enabled ? 'Autopilot will now post by itself.' : 'Posts now wait for your OK.'); });
   };
+  const makeVideo = (campaignId: string, scene: string, note: string) => act(`video-${campaignId}`, async () => {
+    await call(`/api/admin/autopilot/posts/${campaignId}/explainer`, { method: 'POST', body: JSON.stringify({ scene, note }) });
+    setNote('Writing the video and recording the voice. This takes about 2 minutes. The page refreshes by itself.');
+  });
+  const rateVideo = (campaignId: string, rating: 'up' | 'down', reason: string) => act(`rate-${campaignId}`, async () => {
+    await call(`/api/admin/autopilot/posts/${campaignId}/video-rating`, { method: 'POST', body: JSON.stringify({ rating, reason }) });
+    setNote(rating === 'up' ? 'Thanks. The writer will lean toward videos like this.' : 'Thanks. The writer will steer away from this.');
+  });
   const runNow = () => act('run', async () => { await call('/api/admin/autopilot/run-now', { method: 'POST', body: '{}' }); setNote('Writing the next post now. It takes about 2 minutes. This page updates by itself.'); });
 
   const on = status?.on === true;
@@ -144,7 +159,7 @@ export default function AutopilotPanel() {
               <p className="font-semibold text-slate-900">{slotLabel(s.slot)}</p>
               <p className="text-slate-700">{s.skipped ? <span className="text-slate-500">Skipped by you</span> : s.failed ? <span className="text-red-700">Did not go out: {s.reason || 'did not pass the check'}</span> : (s.title || 'Writing…')}</p>
               {!s.failed && s.pictureUrl && <a href={s.pictureUrl} target="_blank" rel="noreferrer" className="mt-2 block w-40"><img src={s.pictureUrl} alt={`Picture for ${s.title || 'this post'}`} className="w-40 rounded-lg border border-slate-200" /></a>}
-              {!s.failed && s.videoUrl && <details className="mt-1"><summary className="cursor-pointer text-xs font-semibold text-slate-600">Watch the video</summary><video src={s.videoUrl} controls preload="none" className="mt-2 w-48 rounded-lg border border-slate-200" /></details>}
+              {!s.failed && <AutopilotVideo post={s} scenes={status?.scenes || []} busy={busy !== ''} canMake={!s.posts.some((p) => p.status === 'published' || p.status === 'posting')} onMake={makeVideo} onRate={rateVideo} />}
               {!s.failed && s.preview && <details className="mt-1"><summary className="cursor-pointer text-xs font-semibold text-slate-600">Read the post</summary><p className="mt-1 whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-sm text-slate-800">{s.preview}</p></details>}
               {!s.failed && s.awaitingApproval && (
                 <div className="mt-2 flex flex-wrap items-center gap-2">

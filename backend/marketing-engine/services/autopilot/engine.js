@@ -9,6 +9,8 @@ const { getSwitch, setSwitch, ownersWithSwitchOn } = require('../adminSwitches')
 const { factsText, tokensFor } = require('./facts');
 const { business } = require('../../config/business');
 const { pickScene } = require('./scenePick');
+const { wordsKey } = require('../explainerWordsKey');
+const memory = require('../explainerMemory');
 const { offerEndsAt, setOfferEndsAt } = require('../foundingOffer');
 
 const TZ = business.schedule.timezone;
@@ -47,6 +49,8 @@ function upcomingSlots(now, days = 2) {
   }
   return out.filter((s) => s.at.getTime() > now.getTime());
 }
+
+const sceneRecord = (name, direction) => ({ scene: name, subject: direction.scene?.subject || '', line: direction.scene?.line || '', summary: String(direction.words?.endLine || direction.scene?.line || '').slice(0, 200) });
 
 function createAutopilot({ db, isEntitled = async () => true, studioFor, media, getPoster, getConnections, sendMail, loadArticles, blog = null, directExplainer = null, now = () => new Date(), log = console }) {
   let busy = false;
@@ -166,10 +170,11 @@ function createAutopilot({ db, isEntitled = async () => true, studioFor, media, 
       const wantsVoice = business.video?.voiceInAutopilot === true;
       if (useExplainer && directExplainer) {
         try {
-          const direction = await directExplainer({ name: sceneName, post: { title: outputs.title, text: outputs.facebook || outputs.linkedin || '', facts: topic.facts || [] }, voice: wantsVoice });
+          const [recent, taste] = await Promise.all([memory.recentScenes(db, owner), memory.tasteFor(db, owner, sceneName)]);
+          const direction = await directExplainer({ name: sceneName, post: { title: outputs.title, text: outputs.facebook || outputs.linkedin || '', script: outputs.videoScript || '', facts: topic.facts || [] }, voice: wantsVoice, recent, taste, seed: id });
           const verdict = direction.review ? { score: direction.review.score, matches: direction.review.matches, post: direction.review.post_main_message, video: direction.review.video_main_message, problems: direction.review.problems } : null;
           if (direction.ok) {
-            await db.from('admin_marketing_campaigns').update({ brief: { ...row.brief, explainerWords: direction.words, explainerReview: verdict } }).eq('id', id).eq('owner_id', owner);
+            await db.from('admin_marketing_campaigns').update({ brief: { ...row.brief, explainerWords: direction.words, explainerReview: verdict, explainerScene: sceneRecord(sceneName, direction) } }).eq('id', id).eq('owner_id', owner);
             row = (await db.from('admin_marketing_campaigns').select('*').eq('id', id).eq('owner_id', owner).maybeSingle()).data;
           } else {
             useExplainer = false;
@@ -182,10 +187,15 @@ function createAutopilot({ db, isEntitled = async () => true, studioFor, media, 
       row = await studio.settings(owner, id, { version: row.updated_at, videoFormat: 'vertical', videoDuration: '15', videoOptions: useExplainer
         ? { layout: 'explainer', explainer: sceneName, explainerVoice: wantsVoice ? 'on' : 'off', music: 'calm', musicVolume: 'low', endCard: 'wow', narration: 'none' }
         : { layout: 'picture', music: 'calm', musicVolume: 'low', endCard: 'wow', narration: 'none' } });
+      // Mark the saved words as belonging to exactly this scene, voice setting and post, so the renderer reuses them (and does not pay for a second writing).
+      if (useExplainer && row.brief?.explainerWords) {
+        await db.from('admin_marketing_campaigns').update({ brief: { ...row.brief, explainerWordsFor: wordsKey(row) } }).eq('id', id).eq('owner_id', owner);
+        row = (await db.from('admin_marketing_campaigns').select('*').eq('id', id).eq('owner_id', owner).maybeSingle()).data;
+      }
       let hasVideo = false;
       try {
         await media.render(owner, id, { version: row.updated_at });
-        for (let i = 0; i < 40; i += 1) {
+        for (let i = 0; i < 60; i += 1) {
           await new Promise((r) => setTimeout(r, i === 0 ? 5000 : 8000));
           const rows = await media.list(owner, id);
           const v = rows.find((m) => m.kind === 'video');
@@ -339,15 +349,17 @@ function createAutopilot({ db, isEntitled = async () => true, studioFor, media, 
     const ids = rows.map((r) => r.id);
     const posts = ids.length ? ((await db.from('admin_marketing_posts').select('campaign_id, channel, status, scheduled_for, posted_at, url, error').in('campaign_id', ids).eq('owner_id', owner)).data || []) : [];
     const who = owner;
-    const pictures = {}; const videos = {};
+    const pictures = {}; const videos = {}; const makingVideo = {};
     if (who && media?.list) {
       for (const r of rows.filter((x) => !x.brief.failed).slice(0, 6)) {
-        try { const list = await media.list(who, r.id); pictures[r.id] = list.find((m) => m.kind === 'image' && m.url)?.url || ''; videos[r.id] = list.find((m) => m.kind === 'video' && m.status === 'ready' && m.url)?.url || ''; } catch { /* no preview */ }
+        try { const list = await media.list(who, r.id); pictures[r.id] = list.find((m) => m.kind === 'image' && m.url)?.url || ''; const v = list.find((m) => m.kind === 'video'); videos[r.id] = v && v.status === 'ready' && v.url ? v.url : ''; makingVideo[r.id] = v?.status === 'processing'; } catch { /* no preview */ }
       }
     }
     return rows.map((r) => ({
       campaignId: r.id, slot: r.brief.slot, topic: r.brief.topicKey, title: r.outputs?.title || '', awaitingApproval: r.brief.awaitingApproval === true, failed: Boolean(r.brief.failed), skipped: Boolean(r.brief.skipped), reason: r.generation_error || '',
-      pictureUrl: pictures[r.id] || '', videoUrl: videos[r.id] || '', videoKind: r.brief.videoOptions?.layout || r.brief.explainer || '',
+      pictureUrl: pictures[r.id] || '', videoUrl: videos[r.id] || '', makingVideo: makingVideo[r.id] === true || (inProgress.has(r.id)),
+      script: String(r.outputs?.videoScript || '').slice(0, 900),
+      video: r.brief.explainerScene ? { scene: r.brief.explainerScene.scene, sceneLabel: sceneLabel(r.brief.explainerScene.scene), subject: r.brief.explainerScene.subject || '', review: r.brief.explainerReview || null, rating: r.brief.videoFeedback?.rating || '', reason: r.brief.videoFeedback?.reason || '', error: r.brief.explainerError || '' } : (r.brief.explainerError ? { error: r.brief.explainerError } : null),
       preview: String(r.outputs?.facebook || r.outputs?.linkedin || '').slice(0, 600),
       posts: posts.filter((p) => p.campaign_id === r.id)
     })).sort((a, b) => String(b.slot).localeCompare(String(a.slot)));
@@ -398,7 +410,7 @@ function createAutopilot({ db, isEntitled = async () => true, studioFor, media, 
     let fresh = (await db.from('admin_marketing_campaigns').select('*').eq('id', campaignId).eq('owner_id', owner).maybeSingle()).data;
     try {
       await media.render(owner, campaignId, { version: fresh.updated_at });
-      for (let i = 0; i < 40; i += 1) {
+      for (let i = 0; i < 60; i += 1) {
         await new Promise((r) => setTimeout(r, i === 0 ? 5000 : 8000));
         const v = (await media.list(owner, campaignId)).find((m) => m.kind === 'video');
         if (v && (v.status === 'ready' || v.status === 'failed')) break;
@@ -446,6 +458,71 @@ function createAutopilot({ db, isEntitled = async () => true, studioFor, media, 
     return { autoPublish: enabled === true };
   }
 
+  // ---- "Make the explainer video": write every word of a fresh animated video for one waiting post, with voice, and make it ----
+  const inProgress = new Set();
+  const sceneLabel = (name) => business.video?.scenes?.[name]?.label || name || '';
+  const scenes = () => Object.entries(business.video?.scenes || {}).map(([name, sc]) => ({ name, label: sc.label || name }));
+  const MIN_REDO_MS = 12 * 60000; // re-making takes a few minutes and un-approves the post meanwhile, so never this close to its time
+
+  async function makeExplainer(owner, campaignId, { scene = '', note = '' } = {}) {
+    if (!directExplainer) return { error: 'The video writer is not available right now.', status: 503 };
+    if (scene && !business.video?.scenes?.[scene]) return { error: 'Choose one of the scenes in the list.', status: 400 };
+    const { data: row } = await db.from('admin_marketing_campaigns').select('*').eq('id', campaignId).eq('owner_id', owner).maybeSingle();
+    if (!row || row.brief?.source !== 'autopilot' || row.brief?.failed || !row.outputs) return { error: 'not an Autopilot post', status: 404 };
+    if (inProgress.has(campaignId)) return { error: 'A video is already being made. Give it a minute.', status: 409 };
+    const { data: posts } = await db.from('admin_marketing_posts').select('status, scheduled_for').eq('campaign_id', campaignId).eq('owner_id', owner);
+    if ((posts || []).some((p) => p.status === 'published' || p.status === 'posting')) return { error: 'This post is already out or going out.', status: 409 };
+    if ((posts || []).some((p) => p.status === 'scheduled' && Date.parse(p.scheduled_for) - now().getTime() < MIN_REDO_MS)) return { error: 'This post goes out in a few minutes. Make the video for the next one, or press Replace.', status: 409 };
+    const existing = (await media.list(owner, campaignId)).find((m) => m.kind === 'video');
+    if (existing?.status === 'processing') return { error: 'A video is already being made. Give it a minute.', status: 409 };
+    const topic = { key: row.brief.topicKey, pillar: row.brief.pillar, headline: row.brief.cardHeadline || row.outputs.title, idea: row.brief.idea };
+    const sceneName = scene || pickScene(topic, business.video) || business.video?.autoScene?.fallback || Object.keys(business.video?.scenes || {})[0];
+    inProgress.add(campaignId);
+    const done = (async () => {
+      const wasApproved = row.status === 'approved';
+      try {
+        const post = { title: row.outputs.title, text: row.outputs.facebook || row.outputs.linkedin || '', script: row.outputs.videoScript || '', facts: row.brief.facts || [] };
+        const [recent, taste] = await Promise.all([memory.recentScenes(db, owner), memory.tasteFor(db, owner, sceneName)]);
+        const direction = await directExplainer({ name: sceneName, post, voice: true, note: String(note || '').slice(0, 300), recent, taste, seed: `${campaignId}:${Date.now()}` });
+        if (!direction) throw new Error('The video writer is not available right now.');
+        const r = direction.review;
+        const verdict = r ? { score: r.score, matches: r.matches, post: r.post_main_message, video: r.video_main_message, problems: r.problems } : null;
+        const fresh = (await db.from('admin_marketing_campaigns').select('*').eq('id', campaignId).eq('owner_id', owner).maybeSingle()).data;
+        const { explainerRejected, explainerError, ...kept } = fresh.brief;
+        await db.from('admin_marketing_campaigns').update({ brief: { ...kept, explainerWords: direction.words, explainerReview: verdict, explainerScene: sceneRecord(sceneName, direction), explainerNote: String(note || '').slice(0, 300), videoFeedback: undefined } }).eq('id', campaignId).eq('owner_id', owner);
+        let cur = (await db.from('admin_marketing_campaigns').select('*').eq('id', campaignId).eq('owner_id', owner).maybeSingle()).data;
+        cur = await studioFor().settings(owner, campaignId, { version: cur.updated_at, videoFormat: 'vertical', videoDuration: '15', videoOptions: { layout: 'explainer', explainer: sceneName, explainerVoice: 'on', music: 'calm', musicVolume: 'low', endCard: 'wow', narration: 'none' } });
+        await db.from('admin_marketing_campaigns').update({ brief: { ...cur.brief, explainerWordsFor: wordsKey(cur) } }).eq('id', campaignId).eq('owner_id', owner);
+        cur = (await db.from('admin_marketing_campaigns').select('*').eq('id', campaignId).eq('owner_id', owner).maybeSingle()).data;
+        await media.render(owner, campaignId, { version: cur.updated_at });
+        for (let i = 0; i < 60; i += 1) {
+          await new Promise((res) => setTimeout(res, i === 0 ? 5000 : 8000));
+          const v = (await media.list(owner, campaignId)).find((m) => m.kind === 'video');
+          if (v && (v.status === 'ready' || v.status === 'failed')) { if (v.status === 'failed') throw new Error(v.error || 'The video could not be made.'); break; }
+        }
+      } catch (err) {
+        log.warn?.('[Autopilot] make explainer failed:', err?.message || err);
+        try { const cur = (await db.from('admin_marketing_campaigns').select('brief').eq('id', campaignId).eq('owner_id', owner).maybeSingle()).data; await db.from('admin_marketing_campaigns').update({ brief: { ...cur.brief, explainerError: String(err?.message || err).slice(0, 200) } }).eq('id', campaignId).eq('owner_id', owner); } catch { /* shown next refresh */ }
+      } finally {
+        // The post was approved before: approve it again so it still goes out at its time.
+        if (wasApproved) { try { const cur = (await db.from('admin_marketing_campaigns').select('*').eq('id', campaignId).eq('owner_id', owner).maybeSingle()).data; if (cur?.status === 'draft') await studioFor().approve(owner, campaignId, { version: cur.updated_at }); } catch (e) { log.warn?.('[Autopilot] could not approve again after the new video:', e?.message || e); } }
+        inProgress.delete(campaignId);
+      }
+    })();
+    return { queued: true, scene: sceneName, done };
+  }
+
+  // Thumbs up or down on a finished video. Kept on the post and shown to the writer next time.
+  async function rateVideo(owner, campaignId, { rating, reason = '' } = {}) {
+    if (rating !== 'up' && rating !== 'down') return { error: 'Choose a thumbs up or a thumbs down.', status: 400 };
+    const { data: row } = await db.from('admin_marketing_campaigns').select('id, brief').eq('id', campaignId).eq('owner_id', owner).maybeSingle();
+    if (!row || row.brief?.source !== 'autopilot') return { error: 'not an Autopilot post', status: 404 };
+    if (!row.brief.explainerScene) return { error: 'There is no animated video to rate on this post.', status: 404 };
+    const feedback = { rating, reason: String(reason || '').replace(/\s+/g, ' ').trim().slice(0, 300), at: now().toISOString() };
+    await db.from('admin_marketing_campaigns').update({ brief: { ...row.brief, videoFeedback: feedback } }).eq('id', campaignId).eq('owner_id', owner);
+    return { ok: true, rating };
+  }
+
   async function status(owner) {
     const on = await getSwitch(db, 'autopilot_on', owner);
     const autoPost = await getSwitch(db, 'social_auto_post', owner);
@@ -455,10 +532,10 @@ function createAutopilot({ db, isEntitled = async () => true, studioFor, media, 
     // A failed try is not a problem any more once the same time has a post that worked.
     const worked = new Set(recentRows.filter((r) => !r.brief?.failed).map((r) => r.brief?.slot));
     const lastBad = recentRows.find((r) => r.brief?.failed && !r.brief?.skipped && !worked.has(r.brief?.slot) && now().getTime() - Date.parse(r.created_at) < 36 * 3600000);
-    return { on, autoPost, autoPublish: await getSwitch(db, AUTO_PUBLISH, owner), lastIssue: lastBad ? { slot: lastBad.brief.slot, reason: lastBad.generation_error || 'did not pass the check' } : null, plan: plan ? { ...plan, offerEnds: endsAt ? monthDay(endsAt) : null } : null, direction: await direction(owner), blogDrafts: await blogDrafts(owner), slots: await summary(owner), times: SLOTS.map((s) => `${s.h > 12 ? s.h - 12 : s.h}:${pad(s.m)} ${s.h >= 12 ? 'PM' : 'AM'} Pacific`) };
+    return { on, autoPost, scenes: scenes(), autoPublish: await getSwitch(db, AUTO_PUBLISH, owner), lastIssue: lastBad ? { slot: lastBad.brief.slot, reason: lastBad.generation_error || 'did not pass the check' } : null, plan: plan ? { ...plan, offerEnds: endsAt ? monthDay(endsAt) : null } : null, direction: await direction(owner), blogDrafts: await blogDrafts(owner), slots: await summary(owner), times: SLOTS.map((s) => `${s.h > 12 ? s.h - 12 : s.h}:${pad(s.m)} ${s.h >= 12 ? 'PM' : 'AM'} Pacific`) };
   }
 
-  return { tick, start, stop, status, approvePost, setAutoPublish, setDirection, removeUpcoming, redoPicture, maybeBlogDraft, upcomingSlots, ptToUtc };
+  return { tick, start, stop, status, makeExplainer, rateVideo, approvePost, setAutoPublish, setDirection, removeUpcoming, redoPicture, maybeBlogDraft, upcomingSlots, ptToUtc };
 }
 
 module.exports = { createAutopilot, upcomingSlots, ptToUtc, SLOTS, CHANNELS };

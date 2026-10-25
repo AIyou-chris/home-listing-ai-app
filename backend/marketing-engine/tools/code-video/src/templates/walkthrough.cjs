@@ -133,7 +133,7 @@ function createScene(input) {
   }
 
   function draw(ctx, t) {
-    backdrop(ctx);
+    backdrop(ctx, t, cfg);
     brandMark(ctx, cfg, seg(t, 0, 0.5) * (1 - seg(t, CLOSE_AT - 0.4, CLOSE_AT)));
     hookCard(ctx, t, cfg, { lines: cfg.hook, accent: cfg.hookAccent, from: 0.2, to: 3.0 });
     phone(ctx, t);

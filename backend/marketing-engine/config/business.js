@@ -25,6 +25,9 @@ function validate(cfg) {
       try { new RegExp(r.pattern, 'i'); } catch { throw new Error(`business settings: video.autoScene pattern is not valid (${r.pattern})`); }
     }
   }
+  for (const name of Object.keys(cfg.video?.scenes || {})) {
+    if (!cfg.video.writer?.scenes?.[name]?.prompt) throw new Error(`business settings: video.writer.scenes.${name}.prompt is missing`);
+  }
   const keys = new Set();
   for (const t of [...cfg.topics, ...cfg.launch]) {
     if (!t.key || !t.idea) throw new Error('business settings: every topic needs a key and an idea');

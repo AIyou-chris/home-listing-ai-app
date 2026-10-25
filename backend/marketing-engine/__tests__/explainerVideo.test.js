@@ -7,8 +7,8 @@ const { findVoiceViolations } = require('../host.cjs');
 const { PLATFORM_BANNED_PHRASES } = require('../host.cjs');
 const { TOPICS, LAUNCH } = require('../services/autopilot/topics');
 
-test('the settings file names three explainer videos and each one is valid', () => {
-  assert.deepStrictEqual(explainer.sceneNames().sort(), ['ai-phone', 'buyer-chat', 'wow-link']);
+test('the settings file names four explainer videos and each one is valid', () => {
+  assert.deepStrictEqual(explainer.sceneNames().sort(), ['ai-phone', 'buyer-chat', 'plan', 'wow-link']);
   for (const name of explainer.sceneNames()) assert.ok(explainer.checkScene(name) > 10, `${name} has a real length`);
 });
 
@@ -18,7 +18,7 @@ test('every word on screen passes the same safety rules as a post', () => {
       if (/^#[0-9a-f]{6}$/i.test(text)) continue;
       assert.deepStrictEqual(findVoiceViolations(text), [], `${name}: ${text}`);
       assert.ok(!PLATFORM_BANNED_PHRASES.some((p) => text.toLowerCase().includes(p)), `${name}: banned claim in "${text}"`);
-      assert.ok(!/guarantee|lowest rate|best rate|approved in|\$\s?\d|\d+\s?%/i.test(text.replace(/555-0142/, '')), `${name}: promise, price or statistic in "${text}"`);
+      assert.ok(!/guarantee|lowest rate|best rate|approved in|\$\s?\d|\d+\s?%/i.test(text.replace(/555-0142/, '').replace(/\$(49|79)(\/month)?/g, '')), `${name}: promise, price or statistic in "${text}"`);
     }
   }
 });

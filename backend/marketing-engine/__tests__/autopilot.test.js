@@ -413,7 +413,7 @@ test('full auto: a topic that names no scene still gets an animated explainer, p
     business.video.autoScene.enabled = true;
     const on = await videoSettingsFor((topics) => topics.forEach((t) => { delete t.explainer; }));
     assert.ok(on.asked.length >= 2);
-    assert.ok(on.asked.every((a) => a.options.layout === 'explainer' && ['buyer-chat', 'ai-phone', 'wow-link'].includes(a.options.explainer)));
+    assert.ok(on.asked.every((a) => a.options.layout === 'explainer' && ['buyer-chat', 'ai-phone', 'wow-link', 'plan'].includes(a.options.explainer)));
     business.video.autoScene.enabled = false;
     const off = await videoSettingsFor((topics) => topics.forEach((t) => { delete t.explainer; }));
     assert.ok(off.asked.every((a) => a.options.layout === 'picture'));
@@ -534,4 +534,71 @@ test('turning "post by itself" on is a separate, per-customer choice and is off 
   await h.ap.setAutoPublish(OWNER, true);
   assert.strictEqual((await h.ap.status(OWNER)).autoPublish, true);
   assert.strictEqual((await h.ap.status(OTHER)).autoPublish, false);
+});
+
+// ---- "Make the explainer video" and thumbs, on a post that is already approved and scheduled ----
+function explainerRig({ status = 'approved', slotInMs = 3 * 3600000, posted = false } = {}) {
+  const now = new Date('2026-10-25T20:00:00Z');
+  const db = fakeDb();
+  const row = { id: 'c1', owner_id: OWNER, status, updated_at: 'v1', outputs: { ...GOOD }, brief: { source: 'autopilot', slot: '2026-10-25@17:00', topicKey: 'warm-leads', idea: 'warm leads from buyers', facts: [] }, created_at: now.toISOString() };
+  db.tables.admin_marketing_campaigns.push(row);
+  db.tables.admin_marketing_posts.push({ id: 'p1', campaign_id: 'c1', owner_id: OWNER, channel: 'linkedin', status: posted ? 'published' : 'scheduled', scheduled_for: new Date(now.getTime() + slotInMs).toISOString() });
+  const calls = []; let video = { kind: 'video', status: 'ready', url: 'https://example.com/v.mp4' };
+  const studio = {
+    async settings(owner, id, body) { calls.push(['settings', body.videoOptions]); row.status = 'draft'; row.brief = { ...row.brief, ...body.videoOptions }; row.updated_at = 'v2'; return row; },
+    async approve() { calls.push(['approve']); row.status = 'approved'; return row; }
+  };
+  const media = { async list() { return [video]; }, async render() { calls.push(['render', row.brief.explainerWords, row.brief.explainerWordsFor]); video = { kind: 'video', status: 'processing' }; setTimeout(() => { video = { kind: 'video', status: 'ready', url: 'https://example.com/new.mp4' }; }, 10); }, async picture() {}, async cleanup() { return []; }, async removeFiles() {} };
+  const directed = [];
+  const directExplainer = async (args) => { directed.push(args); return { ok: true, words: { endLine: 'Fresh words.' }, review: { score: 5, matches: true, problems: [], post_main_message: 'a', video_main_message: 'a' }, scene: { scene: args.name, subject: 'Palm Ave condo', line: 'q' } }; };
+  const ap = createAutopilot({ db, studioFor: () => studio, media, directExplainer, getPoster: () => ({ async schedule() {} }), getConnections: async () => ({}), now: () => now, log: { warn() {} }, sendMail: async () => {} });
+  return { ap, db, row, calls, directed };
+}
+
+test('"Make the explainer video" on an approved, scheduled post writes new words, makes the video, and approves the post again', async () => {
+  const r = explainerRig();
+  const out = await r.ap.makeExplainer(OWNER, 'c1', { scene: 'ai-phone', note: 'talk about busy days' });
+  assert.strictEqual(out.queued, true); assert.strictEqual(out.scene, 'ai-phone');
+  await out.done;
+  assert.strictEqual(r.row.status, 'approved', 'the post is approved again so it still goes out');
+  assert.strictEqual(r.db.tables.admin_marketing_posts[0].status, 'scheduled', 'its schedule was never touched');
+  assert.deepStrictEqual(r.calls.map((c) => c[0]), ['settings', 'render', 'approve']);
+  assert.strictEqual(r.directed[0].voice, true); assert.strictEqual(r.directed[0].note, 'talk about busy days');
+  assert.strictEqual(r.row.brief.explainerScene.scene, 'ai-phone');
+  assert.deepStrictEqual(r.calls[1][1], { endLine: 'Fresh words.' }, 'the render uses the words just written');
+  assert.ok(r.calls[1][2], 'and they are marked as belonging to this post, so the renderer does not pay to write them again');
+});
+
+test('making a video is refused when the post is out, going out within minutes, already being made, or not the owner\'s; a double click does not pay twice', async () => {
+  assert.strictEqual((await explainerRig({ posted: true }).ap.makeExplainer(OWNER, 'c1')).status, 409);
+  assert.strictEqual((await explainerRig({ slotInMs: 5 * 60000 }).ap.makeExplainer(OWNER, 'c1')).status, 409);
+  assert.strictEqual((await explainerRig().ap.makeExplainer(OTHER, 'c1')).status, 404);
+  assert.strictEqual((await explainerRig().ap.makeExplainer(OWNER, 'c1', { scene: 'nope' })).status, 400);
+  const r = explainerRig();
+  const first = await r.ap.makeExplainer(OWNER, 'c1');
+  assert.strictEqual((await r.ap.makeExplainer(OWNER, 'c1')).status, 409);
+  await first.done;
+  assert.strictEqual(r.directed.length, 1);
+});
+
+test('if the video cannot be made the post is still approved again and the reason is shown', async () => {
+  const r = explainerRig();
+  r.directed.length = 0;
+  const bad = createAutopilot({ db: r.db, studioFor: () => ({ async settings() { throw new Error('boom'); }, async approve() { r.row.status = 'approved'; return r.row; } }), media: { async list() { return []; } }, directExplainer: async () => ({ ok: true, words: {}, review: null, scene: { scene: 'wow-link' } }), getPoster: () => ({}), getConnections: async () => ({}), now: () => new Date('2026-10-25T20:00:00Z'), log: { warn() {} } });
+  r.row.status = 'draft';
+  const out = await bad.makeExplainer(OWNER, 'c1');
+  await out.done;
+  assert.match(r.row.brief.explainerError, /boom/);
+});
+
+test('thumbs are saved on the post, only for the owner and only when there is an animated video', async () => {
+  const r = explainerRig();
+  assert.strictEqual((await r.ap.rateVideo(OWNER, 'c1', { rating: 'up' })).status, 404, 'no animated video yet');
+  r.row.brief.explainerScene = { scene: 'buyer-chat', subject: 'x', line: 'y', summary: 'z' };
+  assert.strictEqual((await r.ap.rateVideo(OTHER, 'c1', { rating: 'up' })).status, 404);
+  assert.strictEqual((await r.ap.rateVideo(OWNER, 'c1', { rating: 'meh' })).status, 400);
+  assert.strictEqual((await r.ap.rateVideo(OWNER, 'c1', { rating: 'down', reason: '  too fast  ' })).ok, true);
+  assert.deepStrictEqual([r.row.brief.videoFeedback.rating, r.row.brief.videoFeedback.reason], ['down', 'too fast']);
+  const status = await r.ap.status(OWNER);
+  assert.ok(status.scenes.some((s) => s.name === 'plan' && s.label));
 });
