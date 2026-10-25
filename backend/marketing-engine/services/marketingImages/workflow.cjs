@@ -119,7 +119,7 @@ function createImageWorkflow({db,openai,jev,campaign,clearApproval,claim,finish,
       try{
         const scene=await writeLaunchScene({openai,headline,idea:body.idea||row.brief?.idea||'',variant:Number(body.variant)||0,avoid:body.avoid||''});
         const direction={prompt:scene.prompt,alt_text:scene.alt_text,text_zone:'left',recipe_id:'launch-auto',mood:'cinematic',variant:Number(body.variant)||0,brand:'homelistingai',format};
-        const generated=await openai.images.generate({model:models.final,prompt:direction.prompt,size:FORMATS[format].native,quality:'medium',output_format:'jpeg',n:1},{timeout:180000,maxRetries:0});
+        const generated=await brand.generateImage(openai,{model:models.final,prompt:direction.prompt,size:FORMATS[format].native,quality:'medium',output_format:'jpeg',n:1},{timeout:180000,maxRetries:0});
         const data=generated.data?.[0]?.b64_json;if(!data)throw new Error('No image returned');
         const saved=await saveOption(owner,row,direction,Buffer.from(data,'base64'),{headline,subline:'',cta,style:'pop',maxWords:14},crypto.randomUUID(),estimate(format,'medium',1));
         if(saved.problems.length)throw new StudioError(400,saved.problems[0]);
@@ -153,7 +153,7 @@ function createImageWorkflow({db,openai,jev,campaign,clearApproval,claim,finish,
         // The picture checks (no lettering in the scene, calm space for words) sometimes reject an attempt: try again, up to three times.
         let saved=null;
         for(let attempt=0;attempt<3&&!saved;attempt++){
-          let generated;try{generated=await openai.images.generate({model:require('./brand.cjs').imageModels().final,prompt:direction.prompt,size:FORMATS.blog.native,quality:'medium',output_format:'jpeg',n:1},{timeout:180000,maxRetries:0});}catch{continue;}
+          let generated;try{generated=await require('./brand.cjs').generateImage(openai,{model:require('./brand.cjs').imageModels().final,prompt:direction.prompt,size:FORMATS.blog.native,quality:'medium',output_format:'jpeg',n:1},{timeout:180000,maxRetries:0});}catch{continue;}
           const data=generated.data?.[0]?.b64_json;if(!data)continue;
           let candidate;try{candidate=await saveOption(owner,fakeCampaign,direction,Buffer.from(data,'base64'),{...copy,blog_post_id:postId},groupId,estimate('blog','medium',1));}catch{continue;}
           // A picture with no words on it does not need calm space for words.

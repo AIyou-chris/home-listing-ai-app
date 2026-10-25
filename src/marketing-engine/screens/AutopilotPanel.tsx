@@ -55,7 +55,7 @@ export default function AutopilotPanel() {
     try { await fn(); await load(); } catch (cause) { setError(cause instanceof Error ? cause.message : 'Something went wrong'); } finally { setBusy(''); }
   };
   const turnOn = () => {
-    if (!window.confirm('Turn Autopilot ON?\n\nIt will write and post 3 times a day to your real LinkedIn, Facebook, Instagram and YouTube until you press Stop. Every post is checked first.')) return;
+    if (!window.confirm('Turn Autopilot ON?\n\nIt will write 3 posts a day for your real LinkedIn, Facebook, Instagram and YouTube until you press Stop. Every post is checked first. Each one waits for your Approve unless "Post by itself" is on.')) return;
     return act('on', async () => { await call('/api/admin/autopilot', { method: 'POST', body: JSON.stringify({ enabled: true, plan: launch }) }); setNote('Autopilot is ON. The next posts are being written now.'); });
   };
   const stop = () => {
@@ -115,6 +115,7 @@ export default function AutopilotPanel() {
           <li>About 18 hours before each time, it picks a topic, writes the posts in your voice, and makes the picture and a 15-second video.</li>
           <li>Every post goes through a safety check first: no banned words, no promises, no made-up results, no numbers except your two prices, links only to your own site.</li>
           <li>A post that fails the check is thrown away and a different one is written. If three in a row fail, Autopilot switches itself OFF and emails you.</li>
+          <li>By default each post waits as a draft until you press Approve. Turn on "Post by itself" and it approves and schedules its own posts.</li>
           <li>You get one email each evening listing what went out, with links.</li>
           <li>Topics rotate and do not repeat. One post a day shares a real article from your blog.</li>
           <li>Stop takes back anything scheduled but not yet posted. Posts already out stay out.</li>

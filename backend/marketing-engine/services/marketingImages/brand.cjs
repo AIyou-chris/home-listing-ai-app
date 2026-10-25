@@ -31,4 +31,16 @@ const DIRECTOR = look.director;
 const LIGHTING = look.lighting;
 const NEGATIVE = look.negative;
 
-module.exports = { PALETTE, imageModels, estimateCents, budget, promptHash, DIRECTOR, LIGHTING, NEGATIVE };
+// The "final" picture model can be refused by the account (400/403/404 "model does not exist" / "must be verified").
+// Then the cheaper draft model, which the account does accept, makes the picture instead of dropping to the plain template card.
+const modelRefused = (err) => [400, 403, 404].includes(err?.status) && /model|verif|access/i.test(String(err?.message || ''));
+async function generateImage(openai, params, options, env = process.env) {
+  try { return await openai.images.generate(params, options); }
+  catch (err) {
+    const { draft, final } = imageModels(env);
+    if (params.model !== final || final === draft || !modelRefused(err)) throw err;
+    return openai.images.generate({ ...params, model: draft }, options);
+  }
+}
+
+module.exports = { generateImage, modelRefused, PALETTE, imageModels, estimateCents, budget, promptHash, DIRECTOR, LIGHTING, NEGATIVE };
