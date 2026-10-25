@@ -5,18 +5,21 @@ import { showToast } from '../../utils/toastService';
 
 // One tap: "Make my Ask-the-AI video" draws a 20-second chat video for this home
 // (a buyer asks, the AI answers from the listing's facts, the lead goes to the loan officer).
-// Free to make: drawn in code, no voiceover and no paid AI.
+// Free to make for the loan officer. The AI writes the chat from the home's real facts and a voice reads it.
 
 interface Props {
   listingId: string;
   demo?: boolean;
 }
 
+const POLL_MS = 3000;
+
 const EXPLAINER_ERRORS: Record<string, string> = {
   NEED_NMLS: 'Add your NMLS number in Settings first. It goes on the video.',
   NEED_LO_NAME: 'Add your name in Settings first. It goes on the video.',
   NOT_PUBLISHED: "This home isn't published yet.",
   NO_SHARE_LINK: "This home doesn't have a public link yet.",
+  video_in_progress: 'Your video is still being made. Give it a minute.',
   video_rate_limited: 'You can make 5 of these an hour. Try again soon.',
   video_unavailable: 'This video is not available right now.',
   listing_access_denied: 'This home is not assigned to you.'
@@ -36,8 +39,16 @@ const ListingExplainerCard: React.FC<Props> = ({ listingId, demo }) => {
         method: 'POST', headers: { ...(await authHeaders(null)), 'Content-Type': 'application/json' }, body: JSON.stringify({ variant: nextVariant })
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.url) { setMessage(EXPLAINER_ERRORS[data.error] || 'Could not make your video. Try again.'); return; }
-      setUrl(data.url); setVariant(nextVariant);
+      if (!res.ok || !data.jobId) { setMessage(EXPLAINER_ERRORS[data.error] || 'Could not make your video. Try again.'); return; }
+      // The video takes a minute, longer than the web proxy waits, so it is made in the background and asked for every few seconds.
+      for (let i = 0; i < 60; i += 1) {
+        await new Promise((r) => setTimeout(r, POLL_MS));
+        const poll = await fetch(buildApiUrl(`/api/lo/listings/${listingId}/explainer/${data.jobId}`), { headers: await authHeaders(null) });
+        const job = await poll.json().catch(() => ({}));
+        if (poll.ok && job.status === 'ready' && job.url) { setUrl(job.url); setVariant(nextVariant); return; }
+        if (!poll.ok || job.status === 'failed') { setMessage(EXPLAINER_ERRORS[job.error] || 'Could not make your video. Try again.'); return; }
+      }
+      setMessage('This is taking longer than usual. Try again in a minute.');
     } catch { setMessage('Could not make your video. Try again.'); } finally { setBusy(false); }
   };
 

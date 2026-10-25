@@ -50,8 +50,14 @@ test('it makes a real MP4 and stores it', async () => {
 // ---- the route ----
 function fakeApp() {
   const routes = {};
-  return { post: (path, ...handlers) => { routes[path] = handlers; }, routes };
+  return { post: (path, ...handlers) => { routes[path] = handlers; }, get: (path, ...handlers) => { routes[`GET ${path}`] = handlers; }, routes };
 }
+const poll = async (app, { loAgentId = 'lo1', listingId = 'L1', jobId } = {}) => {
+  const handlers = app.routes['GET /api/lo/listings/:listingId/explainer/:jobId'];
+  let status = 200; let json;
+  await handlers[handlers.length - 1]({ loAgentId, params: { listingId, jobId } }, { status(c) { status = c; return this; }, json(j) { json = j; return this; } });
+  return { status, json };
+};
 const call = async (app, { loAgentId = 'lo1', listingId = 'L1', body = {} } = {}) => {
   const handlers = app.routes['/api/lo/listings/:listingId/explainer'];
   const handler = handlers[handlers.length - 1];
@@ -67,17 +73,32 @@ function tables(over = {}) {
 }
 const setup = (over = {}, deps = {}) => {
   const app = fakeApp(); const made = [];
-  register(app, { requireLoAgent: () => {}, supabaseAdmin: tables(over), isListingPublished: (l) => l.is_published === true, toTrimmedOrNull: (v) => (String(v || '').trim() || null), available: async () => true, make: async (a) => { made.push(a); return { url: 'https://cdn/v.mp4' }; }, ...deps });
-  return { app, made };
+  const ctl = register(app, { requireLoAgent: () => {}, supabaseAdmin: tables(over), isListingPublished: (l) => l.is_published === true, toTrimmedOrNull: (v) => (String(v || '').trim() || null), available: async () => true, make: async (a) => { made.push(a); return { url: 'https://cdn/v.mp4' }; }, ...deps });
+  return { app, made, ctl };
 };
 
-test('route: a loan officer assigned to a published home gets a video, with the right details passed in', async () => {
-  const { app, made } = setup();
+test('route: a loan officer assigned to a published home starts a video, which is ready a moment later, with the right details passed in', async () => {
+  const { app, made, ctl } = setup();
   const r = await call(app, { body: { variant: 1 } });
-  assert.deepStrictEqual([r.status, r.json.url], [200, 'https://cdn/v.mp4']);
+  assert.deepStrictEqual([r.status, r.json.success], [202, true], 'it answers at once; the web proxy would time out if it waited');
+  assert.strictEqual((await poll(app, { jobId: r.json.jobId })).json.status, 'making');
+  await ctl.finished(r.json.jobId);
+  const done = await poll(app, { jobId: r.json.jobId });
+  assert.deepStrictEqual([done.status, done.json.status, done.json.url], [200, 'ready', 'https://cdn/v.mp4']);
   assert.strictEqual(made[0].variant, 1);
   assert.strictEqual(made[0].lo.nmls_number, '123456');
   assert.strictEqual(made[0].listing.id, 'L1');
+});
+
+test('route: a failed video says so, another loan officer cannot read the job, and a second press while one is being made is refused', async () => {
+  const { app, ctl } = setup({}, { make: () => new Promise((_, reject) => setTimeout(() => reject(new Error('boom')), 20)) });
+  const r = await call(app);
+  assert.strictEqual((await call(app)).json.error, 'video_in_progress');
+  await ctl.finished(r.json.jobId);
+  assert.deepStrictEqual((await poll(app, { jobId: r.json.jobId })).json, { status: 'failed', url: null, error: 'video_failed' });
+  assert.strictEqual((await poll(app, { loAgentId: 'someone-else', jobId: r.json.jobId })).status, 404);
+  assert.strictEqual((await poll(app, { listingId: 'other', jobId: r.json.jobId })).status, 404);
+  assert.strictEqual((await poll(app, { jobId: 'nope' })).status, 404);
 });
 
 test('route: refuses another loan officer, an unpublished home, a missing link and a missing NMLS', async () => {
@@ -89,8 +110,8 @@ test('route: refuses another loan officer, an unpublished home, a missing link a
 });
 
 test('route: five an hour per loan officer, then it says so', async () => {
-  const { app } = setup();
-  for (let i = 0; i < PER_HOUR; i++) assert.strictEqual((await call(app)).status, 200);
+  const { app, ctl } = setup();
+  for (let i = 0; i < PER_HOUR; i++) { const r = await call(app); assert.strictEqual(r.status, 202); await ctl.finished(r.json.jobId); }
   assert.strictEqual((await call(app)).status, 429);
   assert.strictEqual((await call(app, { loAgentId: 'lo1' })).json.error, 'video_rate_limited');
 });
