@@ -42,3 +42,10 @@ it('turning "Post by itself" on asks first and does nothing if the owner says no
   expect(mocked.mock.calls.some(([u]) => String(u).includes('auto-publish'))).toBe(false);
   confirm.mockRestore();
 });
+
+it('a post with a ready video shows a "Watch the video" player', async () => {
+  mocked.mockImplementation(async () => reply(status({ slots: [{ campaignId: 'c2', slot: '2026-10-25@08:00', topic: 't', title: 'T', failed: false, reason: '', videoUrl: 'https://example.com/v.mp4', posts: [] }] })));
+  render(<AutopilotPanel />);
+  fireEvent.click(await screen.findByText(/Coming up and recent posts/));
+  expect(await screen.findByText('Watch the video')).toBeInTheDocument();
+});

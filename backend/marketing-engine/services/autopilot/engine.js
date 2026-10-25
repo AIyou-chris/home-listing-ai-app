@@ -339,15 +339,15 @@ function createAutopilot({ db, isEntitled = async () => true, studioFor, media, 
     const ids = rows.map((r) => r.id);
     const posts = ids.length ? ((await db.from('admin_marketing_posts').select('campaign_id, channel, status, scheduled_for, posted_at, url, error').in('campaign_id', ids).eq('owner_id', owner)).data || []) : [];
     const who = owner;
-    const pictures = {};
+    const pictures = {}; const videos = {};
     if (who && media?.list) {
       for (const r of rows.filter((x) => !x.brief.failed).slice(0, 6)) {
-        try { pictures[r.id] = (await media.list(who, r.id)).find((m) => m.kind === 'image' && m.url)?.url || ''; } catch { /* no preview */ }
+        try { const list = await media.list(who, r.id); pictures[r.id] = list.find((m) => m.kind === 'image' && m.url)?.url || ''; videos[r.id] = list.find((m) => m.kind === 'video' && m.status === 'ready' && m.url)?.url || ''; } catch { /* no preview */ }
       }
     }
     return rows.map((r) => ({
       campaignId: r.id, slot: r.brief.slot, topic: r.brief.topicKey, title: r.outputs?.title || '', awaitingApproval: r.brief.awaitingApproval === true, failed: Boolean(r.brief.failed), skipped: Boolean(r.brief.skipped), reason: r.generation_error || '',
-      pictureUrl: pictures[r.id] || '',
+      pictureUrl: pictures[r.id] || '', videoUrl: videos[r.id] || '', videoKind: r.brief.videoOptions?.layout || r.brief.explainer || '',
       preview: String(r.outputs?.facebook || r.outputs?.linkedin || '').slice(0, 600),
       posts: posts.filter((p) => p.campaign_id === r.id)
     })).sort((a, b) => String(b.slot).localeCompare(String(a.slot)));
