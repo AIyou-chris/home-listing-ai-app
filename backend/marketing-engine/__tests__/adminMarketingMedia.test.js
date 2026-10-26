@@ -103,3 +103,57 @@ test('"Check the video says what the post says": only for an animated explainer,
  const y=setup({openai:null});y.campaigns[0].brief={...y.campaigns[0].brief,layout:'explainer',explainer:'wow-link'};
  await assert.rejects(y.service.videoReview(OWNER,ID),/not available/);
 });
+
+// ---- "Make the explainer video" in Marketing Studio: the new video brain on a manual campaign ----
+const CHATWORDS={business:'Palm Ave condo',closedLine:'The office is closed for the night.',timeLabel:'9:15',timeSuffix:'PM',question:'What should I bring to start?',answer:'I am an AI. Usually pay stubs and bank statements.',optionA:'Call me',optionB:'Text me',booked:'A loan officer will reach out.',leadTitle:'Warm lead sent to the loan officer',leadLine1:'Name and phone captured',leadLine2:'Question: what to bring',leadLine3:'Follow-up task created',endHeadline1:'One link.',endHeadline2:'One warm lead.',endAccent:'One warm lead.',endLine:'Send a free WOW Link to an agent and the warm lead comes to you.',cta:'LEARN MORE',small:'Visit homelistingai.com'};
+const explainerAI=()=>({chat:{completions:{create:async(a)=>{const first=a.messages[0];const text=first.content||'';const body=first.role==='user'?CHATWORDS:/strict but fair/.test(text)?{post_main_message:'a',video_main_message:'a',matches:true,score:5,problems:[],fix:''}:{endLine:'Send a free WOW Link to one agent and get the warm lead.',cta:'LEARN MORE',small:'Visit homelistingai.com'};return {choices:[{message:{content:JSON.stringify(body)}}]};}}},audio:{speech:{create:async()=>new Response('spoken')}}});
+const settle=async(t)=>{for(let i=0;i<60;i++){await new Promise(r=>setTimeout(r,20));if(t.media[0]&&t.media[0].status!=='processing'&&t.campaigns[0].brief.explainerWords)return;if(t.campaigns[0].brief.explainerError)return;}};
+const readyCampaign=(t)=>{t.campaigns[0].outputs={...outputs,title:'Send one WOW Link',facebook:'Send one free WOW Link listing page to an agent. Buyers chat with it and warm leads come to you.',videoScript:'Send one link. Get the lead.'};};
+
+test('Make the explainer video writes the words from the post and script, saves them on the campaign, and makes the video',async()=>{
+ const t=setup({openai:explainerAI()});readyCampaign(t);
+ const out=await t.service.makeExplainer(OWNER,ID,{...body,scene:'buyer-chat',note:'busy Fridays'});
+ assert.deepEqual([out.queued,out.scene],[true,'buyer-chat']);
+ await settle(t);t.release();await new Promise(r=>setTimeout(r,60));
+ const b=t.campaigns[0].brief;
+ assert.equal(b.layout,'explainer');assert.equal(b.explainer,'buyer-chat');assert.equal(b.explainerVoice,'on');
+ assert.equal(b.explainerWords.question,'What should I bring to start?');
+ assert.ok(b.explainerWordsFor&&b.explainerReview.score===5&&b.explainerScene.scene==='buyer-chat'&&b.explainerNote==='busy Fridays');
+ assert.equal(t.media.find(m=>m.kind==='video').status,'ready');
+ assert.equal(t.campaigns[0].status,'draft','the owner approves it again, as with any new video');
+});
+
+test('making an explainer is refused for the wrong version, another owner, an unknown scene, no script, and a double click',async()=>{
+ const t=setup({openai:explainerAI()});readyCampaign(t);
+ await assert.rejects(t.service.makeExplainer(OWNER,ID,{version:'old'}),/Save your latest edits/);
+ await assert.rejects(t.service.makeExplainer(OTHER,ID,body),/not found/);
+ await assert.rejects(t.service.makeExplainer(OWNER,ID,{...body,scene:'listing-chat'}),/Choose one of the scenes/);
+ await assert.rejects(t.service.makeExplainer(OWNER,ID,{...body,scene:'nope'}),/Choose one of the scenes/);
+ await t.service.makeExplainer(OWNER,ID,body);
+ await assert.rejects(t.service.makeExplainer(OWNER,ID,body),/already being made/);
+ await settle(t);
+ const none=setup({openai:explainerAI()});none.campaigns[0].outputs={...outputs,videoScript:''};
+ await assert.rejects(none.service.makeExplainer(OWNER,ID,body),/video script/);
+ const noAi=setup({openai:null});readyCampaign(noAi);
+ await assert.rejects(noAi.service.makeExplainer(OWNER,ID,body),/not available/);
+});
+
+test('if the video cannot be made the reason is saved on the campaign; the picker lists only the scenes people may choose',async()=>{
+ const t=setup({openai:explainerAI(),video:{available:async()=>false}});readyCampaign(t);
+ await t.service.makeExplainer(OWNER,ID,body);
+ await settle(t);
+ assert.match(t.campaigns[0].brief.explainerError,/not installed/);
+ const caps=await t.service.capabilities(OWNER);
+ assert.deepEqual(caps.scenes.map(s=>s.name).sort(),['ai-phone','buyer-chat','plan','wow-link']);
+ assert.ok(caps.scenes.every(s=>s.label));
+});
+
+test('thumbs are saved on the campaign, only for the owner and only once an animated video exists',async()=>{
+ const t=setup({openai:explainerAI()});readyCampaign(t);
+ await assert.rejects(t.service.rateVideo(OWNER,ID,{rating:'up'}),/no animated video/);
+ t.campaigns[0].brief.explainerScene={scene:'buyer-chat',subject:'x',line:'y',summary:'z'};
+ await assert.rejects(t.service.rateVideo(OTHER,ID,{rating:'up'}),/not found/);
+ await assert.rejects(t.service.rateVideo(OWNER,ID,{rating:'meh'}),/thumbs/);
+ await t.service.rateVideo(OWNER,ID,{rating:'down',reason:'  too fast  '});
+ assert.deepEqual([t.campaigns[0].brief.videoFeedback.rating,t.campaigns[0].brief.videoFeedback.reason],['down','too fast']);
+});

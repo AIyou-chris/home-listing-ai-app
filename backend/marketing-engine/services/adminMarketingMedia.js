@@ -36,6 +36,7 @@ function createMediaService({db, openai, jev, imageInspector, video=renderer}) {
       return {...row,brief};
     } catch {return row;}
   }
+  const makingNow=new Set(); // campaigns whose explainer is being written or drawn right now (a double click never pays twice)
   let rendering=false; // One FFmpeg process per server to keep the web app responsive.
   function table(owner) { if(!UUID.test(owner||''))throw new StudioError(401,'Sign in as an admin first.');if(!db)throw new StudioError(503,'Media storage is unavailable.');return db.from(TABLE); }
   async function campaign(owner,id,allowBrief=false) { table(owner);if(!UUID.test(id||''))throw new StudioError(400,'Invalid campaign ID.');const row=result(await db.from('admin_marketing_campaigns').select('*').eq('owner_id',owner).eq('id',id).maybeSingle());if(!row)throw new StudioError(404,'Campaign not found.');if(!allowBrief){if(!['draft','approved'].includes(row.status))throw new StudioError(409,'Create and save your campaign drafts first.');validateOutputs(row.outputs,true);}return row; }
@@ -75,11 +76,11 @@ function createMediaService({db, openai, jev, imageInspector, video=renderer}) {
     }));
   }
   const images=require('./marketingImages/workflow.cjs').createImageWorkflow({db,openai,jev,campaign,clearApproval,claim,finish,fail,pictureHash:pictureDirectionHash,...(imageInspector?{inspect:imageInspector}:{})});
-  return {
+  const api = {
     images,
     list,
     async reviewable(owner,id) {const row=await campaign(owner,id);const options=videoOptions(row.brief);const rows=(await list(owner,id)).filter(item=>item.kind!=='voice'&&item.kind!=='music'||item.kind==='voice'&&options.narration==='saved'||item.kind==='music'&&options.music==='upload');if((options.narration==='saved'&&!rows.some(item=>item.kind==='voice'))||(options.music==='upload'&&!rows.some(item=>item.kind==='music'))||rows.some(item=>item.status!=='ready'||item.stale))throw new StudioError(409,'Finish creating and refresh any outdated pictures or videos before approving.');},
-    async capabilities(owner) {table(owner);return {video:await video.available(),picture:true,aiPicture:Boolean(openai),aiVoice:Boolean(openai)};},
+    async capabilities(owner) {table(owner);return {video:await video.available(),picture:true,aiPicture:Boolean(openai),aiVoice:Boolean(openai),scenes:require('./explainerVideo').pickableSceneNames().map(name=>({name,label:require('../config/business').business.video.scenes[name].label||name}))};},
     async picture(owner,id,body={}) {
       const row=await campaign(owner,id,Boolean(body.data));
       if(row.status==='generating')throw new StudioError(409,'Wait for campaign creation to finish before uploading a photo.');
@@ -164,6 +165,50 @@ function createMediaService({db, openai, jev, imageInspector, video=renderer}) {
         return list(owner,id);
       } finally {if(!started)rendering=false;}
     },
+    // "Make the explainer video": the AI writes every word of a fresh animated video from this campaign's post and video script (in the scene picked, or
+    // the one that fits), records the voice, and makes it. The reply comes at once; the writing and drawing go on in the background and the page asks for the
+    // media list until the video is ready. A problem is saved on the campaign (explainerError) so the page can show it.
+    async makeExplainer(owner,id,body={}) {
+      const row=await campaign(owner,id);
+      if(body.version!==row.updated_at)throw new StudioError(409,'Save your latest edits before making a video.');
+      if(!row.outputs?.videoScript?.trim())throw new StudioError(409,'Add and save a video script before making a video.');
+      if(!openai)throw new StudioError(503,'The video writer is not available right now.');
+      const scenes=require('./explainerVideo').pickableSceneNames();
+      if(body.scene&&!scenes.includes(body.scene))throw new StudioError(400,'Choose one of the scenes in the list.');
+      if(makingNow.has(id))throw new StudioError(409,'A video is already being made. Give it a minute.');
+      const current=await existing(owner,id,'video');
+      if(current?.status==='processing'&&Date.now()-Date.parse(current.updated_at)<240000)throw new StudioError(409,'A video is already being made. Give it a minute.');
+      const {business}=require('../config/business');
+      const sceneName=body.scene||require('./autopilot/scenePick').pickScene({key:row.brief?.topicKey||'',pillar:row.brief?.pillar||'',headline:row.outputs?.title||'',idea:row.brief?.idea||''},business.video)||business.video?.autoScene?.fallback||scenes[0];
+      const note=String(body.note||'').replace(/\s+/g,' ').trim().slice(0,300);
+      makingNow.add(id);
+      Promise.resolve().then(async()=>{
+        try {
+          const base={...row.brief,...videoOptions({...row.brief,layout:'explainer',explainer:sceneName,explainerVoice:'on',music:'upbeat',narration:'none'}),videoFormat:'vertical',videoDuration:row.brief?.videoDuration||'15'};
+          const asRow={...row,brief:base};
+          const direction=await directExplainer(asRow,{note});
+          if(!direction)throw new Error('The video writer is not available right now.');
+          const r=direction.review;
+          const {explainerError,videoFeedback,...kept}=base;
+          const brief={...kept,explainerWords:direction.words,explainerWordsFor:wordsKey(asRow),explainerReview:r?{score:r.score,matches:r.matches,post:r.post_main_message,video:r.video_main_message,problems:r.problems}:null,explainerScene:sceneRecord(row,direction),explainerNote:note};
+          const saved=result(await db.from('admin_marketing_campaigns').update({brief,status:row.status==='approved'?'draft':row.status,updated_at:new Date(Math.max(Date.now(),Date.parse(row.updated_at)+1)).toISOString()}).eq('owner_id',owner).eq('id',id).eq('updated_at',row.updated_at).select('*').maybeSingle());
+          if(!saved)throw new Error('This campaign changed while the video was being written. Press the button again.');
+          await api.render(owner,id,{version:saved.updated_at});
+        } catch(error) {
+          try {const latest=await campaign(owner,id,true);await db.from('admin_marketing_campaigns').update({brief:{...latest.brief,explainerError:String(error?.message||error).slice(0,200)}}).eq('owner_id',owner).eq('id',id);} catch {/* shown on the next reload */}
+        } finally {makingNow.delete(id);}
+      }).catch(()=>{makingNow.delete(id);});
+      return {queued:true,scene:sceneName};
+    },
+    // Thumbs up or down on the animated video. Kept on the campaign and shown to the writer next time.
+    async rateVideo(owner,id,body={}) {
+      if(body.rating!=='up'&&body.rating!=='down')throw new StudioError(400,'Choose a thumbs up or a thumbs down.');
+      const row=await campaign(owner,id);
+      if(!row.brief?.explainerScene)throw new StudioError(404,'There is no animated video to rate on this campaign.');
+      const feedback={rating:body.rating,reason:String(body.reason||'').replace(/\s+/g,' ').trim().slice(0,300),at:new Date().toISOString()};
+      result(await db.from('admin_marketing_campaigns').update({brief:{...row.brief,videoFeedback:feedback}}).eq('owner_id',owner).eq('id',id).select('id').maybeSingle());
+      return {ok:true,rating:body.rating};
+    },
     // "Does this video say what the post says?" Asks the writer and the reviewer, and returns their answer. Makes nothing and posts nothing.
     async videoReview(owner,id) {
       const row=await campaign(owner,id);
@@ -193,9 +238,10 @@ function createMediaService({db, openai, jev, imageInspector, video=renderer}) {
     },
     async removeFiles(paths) {if(paths.length)await db.storage.from(BUCKET).remove(paths);}
   };
+  return api;
 }
 function createMediaHandlers(service) {
   const handle=action=>async(req,res)=>{try {res.json(await action(req));}catch(e){res.status(e.status||500).json({error:e.status?e.message:'Media creation failed. Your campaign is still saved.'});}};
-  return {videoReview:handle(async req=>({review:await service.videoReview(req.user?.id,req.params.id)})),remove:handle(async req=>({media:await service.remove(req.user?.id,req.params.id,req.params.kind,req.body?.version)})),list:handle(async req=>({media:await service.list(req.user?.id,req.params.id)})),capabilities:handle(req=>service.capabilities(req.user?.id)),picture:handle(async req=>({media:await service.picture(req.user?.id,req.params.id,req.body)})),audio:handle(async req=>({media:await service.audio(req.user?.id,req.params.id,req.body)})),render:handle(async req=>({media:await service.render(req.user?.id,req.params.id,req.body)}))};
+  return {videoReview:handle(async req=>({review:await service.videoReview(req.user?.id,req.params.id)})),remove:handle(async req=>({media:await service.remove(req.user?.id,req.params.id,req.params.kind,req.body?.version)})),list:handle(async req=>({media:await service.list(req.user?.id,req.params.id)})),capabilities:handle(req=>service.capabilities(req.user?.id)),picture:handle(async req=>({media:await service.picture(req.user?.id,req.params.id,req.body)})),audio:handle(async req=>({media:await service.audio(req.user?.id,req.params.id,req.body)})),render:handle(async req=>({media:await service.render(req.user?.id,req.params.id,req.body)})),makeExplainer:handle(async req=>service.makeExplainer(req.user?.id,req.params.id,req.body||{})),rateVideo:handle(async req=>service.rateVideo(req.user?.id,req.params.id,req.body||{}))};
 }
 module.exports={createMediaService,createMediaHandlers,hash};

@@ -33054,6 +33054,7 @@ const getListingReelService = () => {
       supabaseAdmin,
       safeFetch: require('./services/safeUrl').safeFetch,
       openaiApiKey: process.env.OPENAI_API_KEY,
+      openai,
       logoPath: path.join(__dirname, '../public/newlogo.png'),
       musicDir: path.join(__dirname, '../public/reel-music')
     });

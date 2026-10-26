@@ -1,5 +1,5 @@
 'use strict';
-const { sceneNames } = require('./explainerVideo');
+const { pickableSceneNames: sceneNames } = require('./explainerVideo');
 const DEFAULTS={narration:'none',voice:'nova',voiceSpeed:'1',music:'none',musicVolume:'low',captionSize:'normal',videoStyle:'blue',motion:'gentle',transition:'fade',endCard:'wow',layout:'cards',explainer:'',explainerVoice:'off'};
 const CHOICES={narration:['none','saved'],voice:['nova','alloy','onyx'],voiceSpeed:['0.9','1','1.1'],music:['none','calm','upbeat','upload'],musicVolume:['low','medium'],captionSize:['normal','large'],videoStyle:['blue','dark'],motion:['gentle','still'],transition:['fade','cut'],endCard:['wow','none'],layout:['cards','picture','explainer'],explainer:['',...sceneNames()],explainerVoice:['off','on']};
 function videoOptions(raw={}) {

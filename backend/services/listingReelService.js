@@ -11,6 +11,45 @@ const { promisify } = require('node:util');
 const { findVoiceViolations } = require('./brandVoice');
 const { resolveFfmpeg } = require('../marketing-engine/services/ffmpegPath');
 
+// ---- the AI writes the spoken script from the home's real facts, held to them by code ----
+const REEL_MODEL = process.env.VIDEO_WRITER_MODEL || 'gpt-4o';
+// Words a home video must never use: rates and approvals, and anything that describes the people or the area (fair housing), or facts we do not have.
+const REEL_BLOCKED = /\b(rate|rates|afford\w*|approved|pre-?approv\w*|guarantee\w*|apr|neighborhood|neighbourhood|school|schools|tax|taxes|crime|safe|safest|family|families|kids|children|church|walkable|walking distance|quiet|perfect for|ideal for|bachelor|couple|singles?|retire\w*|master|exclusive|investment|appreciat\w*|deal|steal|bargain)\b/i;
+
+async function writeReelScript({ listing, openai, model = REEL_MODEL, tries = 2 }) {
+  if (!openai?.chat?.completions?.create) return null;
+  for (let attempt = 0; attempt < tries; attempt += 1) {
+    const out = await writeReelScriptOnce({ listing, openai, model });
+    if (out) return out;
+  }
+  return null;
+}
+
+async function writeReelScriptOnce({ listing, openai, model }) {
+  try {
+    const { allowedNumbers, factsText, digitsIn } = require('./listingExplainer');
+    const facts = factsText(listing);
+    if (!facts) return null;
+    const response = await openai.chat.completions.create({
+      model, temperature: 0.8, response_format: { type: 'json_object' },
+      messages: [{ role: 'user', content: [
+        'You write the spoken script for a short vertical video of one home for sale, shown over its photos. A friendly voice reads it.',
+        `The ONLY facts that exist about this home: ${facts}.`,
+        'Open with a short hook that makes someone stop scrolling, using only those facts. Then the facts that matter, in plain spoken words. Then one line telling the viewer to tap the link to see every photo and ask the AI anything about the home.',
+        'Four or five short sentences, 60 to 70 words at most. Plain words, no hype, no adjectives about the home you cannot know (no "beautiful", "stunning", "cozy"). Never mention the neighborhood, schools, taxes, rates, payments, what someone can afford, or who the home is for. Do not use any number that is not in the facts.',
+        'Return JSON only: {"script": "..."}'
+      ].join('\n') }]
+    });
+    const script = String(JSON.parse(response.choices?.[0]?.message?.content || '{}').script || '').replace(/\s+/g, ' ').trim();
+    if (script.length < 60 || script.length > 460) return null;
+    if (findVoiceViolations(script).length || REEL_BLOCKED.test(script)) return null;
+    const allowed = allowedNumbers(listing);
+    if (digitsIn(script).some((d) => !allowed.has(d))) return null;
+    if (!/\b(tap|link)\b/i.test(script)) return null;
+    return script;
+  } catch { return null; }
+}
+
 const run = promisify(execFile);
 const FPS = 30;
 const XFADE = 0.5;
@@ -78,7 +117,7 @@ function slideDurations(voiceSeconds, photoCount) {
   return { photoDur, total: photoDur * photoCount + END_CARD_SECONDS };
 }
 
-function createListingReelService({ supabaseAdmin, safeFetch, openaiApiKey, bucket = process.env.LISTING_VIDEO_BUCKET || 'property-images', width = Number(process.env.REEL_WIDTH) || 540, logoPath = null, musicDir = null, fetchImpl = fetch } = {}) {
+function createListingReelService({ supabaseAdmin, safeFetch, openaiApiKey, openai = null, bucket = process.env.LISTING_VIDEO_BUCKET || 'property-images', width = Number(process.env.REEL_WIDTH) || 540, logoPath = null, musicDir = null, fetchImpl = fetch } = {}) {
   const W = width % 2 ? width + 1 : width;
   const H = Math.round((W * 16) / 9 / 2) * 2;
   const k = W / 1080; // font and layout scale
@@ -101,15 +140,13 @@ function createListingReelService({ supabaseAdmin, safeFetch, openaiApiKey, buck
     throw new Error('Could not read the voiceover length.');
   }
 
-  async function speak(text, voice) {
+  // The same natural voice as the animated videos: lossless audio, a warm friendly guide, silence trimmed, a little warmth added.
+  async function speak(text, dir) {
     if (!openaiApiKey) throw new Error('voice_not_configured');
-    const res = await fetchImpl('https://api.openai.com/v1/audio/speech', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${openaiApiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: 'gpt-4o-mini-tts', voice: voice || 'ash', input: text, instructions: 'Warm, friendly, natural pace. Real estate walkthrough. Calm, not salesy.' })
-    });
-    if (!res.ok) throw new Error(`voice_failed_${res.status}`);
-    return Buffer.from(await res.arrayBuffer());
+    const voiceMod = require('../marketing-engine/services/explainerVoice');
+    const raw = path.join(dir, 'voice.raw');
+    await fs.writeFile(raw, await voiceMod.speak({ text, role: 'guide', apiKey: openaiApiKey, fetchImpl }));
+    return voiceMod.polish(raw, path.join(dir, 'voice.wav'), ffmpegBin);
   }
 
   async function loadPhoto(url) {
@@ -141,11 +178,10 @@ function createListingReelService({ supabaseAdmin, safeFetch, openaiApiKey, buck
       if (photos.length < MIN_PHOTOS) throw new Error('not_enough_photos');
       onProgress?.(10);
 
-      const script = buildReelScript({ listing });
+      const script = (await writeReelScript({ listing, openai })) || buildReelScript({ listing });
       const violations = findVoiceViolations(script);
       if (violations.length) throw new Error(`script_blocked:${violations.join(',')}`);
-      const voiceFile = path.join(dir, 'voice.mp3');
-      await fs.writeFile(voiceFile, await speak(script, voice));
+      const voiceFile = await speak(script, dir);
       const T = await audioSeconds(voiceFile);
       if (!(T > 1 && T < 60)) throw new Error('voice_length');
       onProgress?.(30);
@@ -240,11 +276,19 @@ function createListingReelService({ supabaseAdmin, safeFetch, openaiApiKey, buck
       });
       inputs.push('-i', voiceFile);
       const voiceIdx = idx++;
-      const music = await pickMusic();
+      let music = await pickMusic();
+      if (!music) {
+        // No music folder: make an upbeat tune in code (a different one each time), the same as the animated videos.
+        try {
+          const { makeMusicWav, UPBEAT_MOODS } = require('../marketing-engine/tools/code-video/src/music.cjs');
+          music = path.join(dir, 'music.wav');
+          await fs.writeFile(music, makeMusicWav({ duration: Math.ceil(total) + 1, mood: UPBEAT_MOODS[crypto.randomInt(UPBEAT_MOODS.length)], seed: crypto.randomInt(1e6) }));
+        } catch { music = null; }
+      }
       let audioFilter;
       if (music) {
         inputs.push('-stream_loop', '-1', '-i', music);
-        audioFilter = `[${voiceIdx}:a]apad[v];[${idx}:a]volume=0.12,afade=t=out:st=${(total - 3).toFixed(2)}:d=3[m];[v][m]amix=inputs=2:duration=first:normalize=0[a]`;
+        audioFilter = `[${voiceIdx}:a]apad[v];[${idx}:a]volume=0.10,afade=t=out:st=${(total - 3).toFixed(2)}:d=3[m];[v][m]amix=inputs=2:duration=first:normalize=0[a]`;
       } else {
         audioFilter = `[${voiceIdx}:a]apad[a]`;
       }
@@ -302,4 +346,4 @@ function createListingReelService({ supabaseAdmin, safeFetch, openaiApiKey, buck
   return { start, get, available, render };
 }
 
-module.exports = { createListingReelService, buildReelScript, splitCues, cueTimings, slideDurations, wrapLines };
+module.exports = { createListingReelService, buildReelScript, writeReelScript, splitCues, cueTimings, slideDurations, wrapLines };

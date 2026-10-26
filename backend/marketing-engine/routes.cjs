@@ -43,6 +43,8 @@ app.delete('/api/admin/marketing-studio/campaigns/:id/media/:kind', verifyAdmin,
 app.post('/api/admin/marketing-studio/campaigns/:id/picture', verifyAdmin, express.json({ limit: '12mb' }), marketingMediaHandlers.picture);
 app.post('/api/admin/marketing-studio/campaigns/:id/audio', verifyAdmin, marketingMediaHandlers.audio);
 app.post('/api/admin/marketing-studio/campaigns/:id/video', verifyAdmin, marketingMediaHandlers.render);
+app.post('/api/admin/marketing-studio/campaigns/:id/explainer', verifyAdmin, marketingMediaHandlers.makeExplainer);
+app.post('/api/admin/marketing-studio/campaigns/:id/video-rating', verifyAdmin, marketingMediaHandlers.rateVideo);
 app.post('/api/admin/marketing-studio/campaigns/:id/video-review', verifyAdmin, marketingMediaHandlers.videoReview);
 
 // ---- HomeListingAI's own social accounts: direct connections (Facebook, Instagram, YouTube, LinkedIn). ----
@@ -202,7 +204,7 @@ async function runMarketingPostSweep() {
     marketingPostSweepBusy = false;
   }
 }
-if (APP_RUNTIME_MODE !== 'worker') {
+if (APP_RUNTIME_MODE === 'all') { // timers only on the full server; a 'web' server (for example on a laptop) never posts or writes on a timer
   setInterval(() => { runMarketingPostSweep().catch(() => {}); }, 5 * 60 * 1000);
 }
 
@@ -376,7 +378,7 @@ app.post('/api/admin/autopilot/run-now', verifyAdmin, async (req, res) => {
     autopilot.tick({ force: true, owner: req.user.id }).catch(() => {});
   } catch (err) { console.error('[Autopilot] run-now failed:', err?.message || err); res.status(500).json({ error: 'Could not start the next post' }); }
 });
-if (APP_RUNTIME_MODE !== 'worker') {
+if (APP_RUNTIME_MODE === 'all') { // timers only on the full server; a 'web' server (for example on a laptop) never posts or writes on a timer
   setInterval(() => { try { getAutopilot()?.tick().catch(() => {}); } catch { /* never break the server */ } }, 10 * 60 * 1000);
 }
 

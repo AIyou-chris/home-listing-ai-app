@@ -3,6 +3,7 @@ import { Download, Film, Image as Picture, RefreshCw } from 'lucide-react';
 import { adminMarketingMediaService, type StudioMedia } from '../services/adminMarketingMediaService';
 import { adminMarketingStudioService, type StudioCampaign } from '../services/adminMarketingStudioService';
 import MarketingVideoControls from './MarketingVideoControls';
+import StudioExplainer from './StudioExplainer';
 import MarketingVideoReview from './MarketingVideoReview';
 import Collapsible from './Collapsible';
 import MarketingImageLibrary from './MarketingImageLibrary';
@@ -18,13 +19,14 @@ export default function MarketingCampaignMedia({ campaign, dirty, onChange }: { 
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState('');
-  const [capabilities, setCapabilities] = useState({ video: false, aiPicture: false, aiVoice: false });
+  const [capabilities, setCapabilities] = useState<{ video: boolean; aiPicture: boolean; aiVoice: boolean; scenes: Array<{ name: string; label: string }> }>({ video: false, aiPicture: false, aiVoice: false, scenes: [] });
+  const [making, setMaking] = useState(0); // when "Make the explainer video" was pressed (0 = not making one)
   const [reload, setReload] = useState(0);
   const voiceForVideo = useRef<StudioCampaign>();
   const activeCampaign = useRef<string | undefined>(campaign.id);
   useEffect(() => {
     let active = true;
-    Promise.all([adminMarketingMediaService.list(campaign.id), adminMarketingMediaService.capabilities()]).then(([rows, caps]) => { if (active) { setMedia(rows); setCapabilities({ ...caps, aiVoice: Boolean(caps.aiVoice) }); setLoaded(true); setError(''); } }).catch(cause => { if (active) setError(cause instanceof Error ? cause.message : 'Could not load your media.'); });
+    Promise.all([adminMarketingMediaService.list(campaign.id), adminMarketingMediaService.capabilities()]).then(([rows, caps]) => { if (active) { setMedia(rows); setCapabilities({ ...caps, aiVoice: Boolean(caps.aiVoice), scenes: caps.scenes || [] }); setLoaded(true); setError(''); } }).catch(cause => { if (active) setError(cause instanceof Error ? cause.message : 'Could not load your media.'); });
     return () => { active = false; };
   }, [campaign.id, campaign.version, reload]);
   const processing = media.some(item => item.status === 'processing' && Date.now() - Date.parse(item.updatedAt) < 240000);
@@ -34,6 +36,37 @@ export default function MarketingCampaignMedia({ campaign, dirty, onChange }: { 
     const timer = window.setInterval(() => { adminMarketingMediaService.list(campaign.id).then(rows => { if (active) setMedia(rows); }).catch(cause => { if (active) { voiceForVideo.current = undefined; setBusy(false); setError(cause instanceof Error ? cause.message : 'Could not refresh your video.'); } }); }, 3000);
     return () => { active = false; window.clearInterval(timer); };
   }, [processing, campaign.id]);
+  // "Make the explainer video" answers at once; the AI writes and the video is drawn in the background. Ask for the campaign and its media every few
+  // seconds until the new video is ready (or failed, or the writer reported a problem), for at most six minutes.
+  useEffect(() => {
+    if (!making) return undefined;
+    let active = true;
+    const timer = window.setInterval(async () => {
+      try {
+        const [rows, latest] = await Promise.all([adminMarketingMediaService.list(campaign.id), adminMarketingStudioService.list().then(all => all.find(item => item.id === campaign.id))]);
+        if (!active) return;
+        setMedia(rows);
+        const video = rows.find(item => item.kind === 'video');
+        const finished = (video && video.status !== 'processing' && Date.parse(video.updatedAt) >= making - 1000) || (latest?.explainerError && latest.explainerError !== campaign.explainerError);
+        if (latest && latest.version !== campaign.version) onChange(latest);
+        if (finished || Date.now() - making > 6 * 60000) setMaking(0);
+      } catch { /* try again at the next tick */ }
+    }, 4000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [making, campaign.id, campaign.version, campaign.explainerError, onChange]);
+  async function makeExplainer(scene: string, note: string) {
+    setError('');
+    try { await adminMarketingMediaService.makeExplainer(campaign, { scene, note }); setMaking(Date.now()); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not start the video.'); }
+  }
+  async function rate(rating: 'up' | 'down', reason: string) {
+    setError('');
+    try {
+      await adminMarketingMediaService.rateVideo(campaign, rating, reason);
+      const latest = (await adminMarketingStudioService.list()).find(row => row.id === campaign.id);
+      if (latest) onChange(latest);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not save that.'); }
+  }
   const renderVideo = useCallback(async (row: StudioCampaign) => {
     setMedia(await adminMarketingMediaService.video(row));
     const latest = (await adminMarketingStudioService.list()).find(item => item.id === row.id);
@@ -143,8 +176,10 @@ export default function MarketingCampaignMedia({ campaign, dirty, onChange }: { 
       </div></Collapsible>
       <Collapsible nested title={<span className="flex items-center gap-2"><Film size={18} />Video</span>}><div>
         <div className="mt-3 flex min-h-48 items-center justify-center border border-slate-200 bg-black">{video?.url ? <video key={video.url} src={video.url} controls playsInline poster={picture?.url || undefined} preload="auto" className="max-h-96 w-full object-contain" aria-label="Finished campaign video" /> : <p className="p-5 text-center text-sm text-slate-500">{processing ? 'Making your media… Keep this page open to watch the result.' : 'Create a video to watch it here.'}</p>}</div>
+        <StudioExplainer campaign={campaign} video={video} scenes={capabilities.scenes} making={making > 0 || processing} disabled={dirty || !loaded || !capabilities.video} onMake={makeExplainer} onRate={rate} />
         {video?.stale && <p className="mt-2 text-sm text-amber-800">This is the old video. Click the video button below to apply your saved changes.</p>}
         {video?.error && <p className="mt-2 text-sm text-red-700">{video.error}</p>}
+        <Collapsible nested defaultOpen={false} title="Picture video (older style)" hint="Captions over a moving picture, with your own voice or music choices"><div>
         <div className="mt-3 grid gap-3"><label className="text-sm font-semibold text-slate-700">Video format<select aria-label="Video preview format" value={format} disabled={disabled} onChange={event => setFormat(event.target.value as StudioCampaign['videoFormat'])} className="mt-1 w-full rounded-lg border border-slate-300 bg-white p-2"><option value="vertical">Vertical</option><option value="landscape">Landscape</option></select></label><label className="text-sm font-semibold text-slate-700">Video length<select aria-label="Video preview length" value={duration} disabled={disabled} onChange={event => setDuration(event.target.value as StudioCampaign['videoDuration'])} className="mt-1 w-full rounded-lg border border-slate-300 bg-white p-2"><option value="15">15 seconds</option><option value="30">30 seconds</option><option value="60">60 seconds</option></select></label></div>
         <MarketingVideoControls options={options} setOptions={setOptions} disabled={disabled} aiVoice={Boolean(capabilities.aiVoice) && !optionsChanged} voice={voice} music={music} makeVoice={() => makeAudio('voice')} upload={(kind, file) => { if (optionsChanged) { setError('Save video settings before uploading audio.'); return; } uploadAudio(kind, file); }} />
         {optionsChanged && <button type="button" className={`${button} mt-2`} disabled={disabled} onClick={async () => { setBusy(true); setError(''); try { onChange(await adminMarketingStudioService.settings(campaign, format, duration, options)); } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not save video settings.'); } finally { setBusy(false); } }}>Save settings only</button>}
@@ -156,6 +191,7 @@ export default function MarketingCampaignMedia({ campaign, dirty, onChange }: { 
         {loaded && !capabilities.video && <p className="mt-2 text-sm text-amber-800">Video rendering needs to be enabled on this server. Your script is saved.</p>}
         {video?.url && !video.stale && !optionsChanged && <a href={video.url} target="_blank" rel="noreferrer" className={`${button} mt-3`}>Watch video</a>}
         {video?.url && !video.stale && !optionsChanged && <a href={video.url} target="_blank" rel="noreferrer" download="campaign-video.mp4" className={`${button} ml-2 mt-3`}><Download size={15} />Open / download MP4</a>}
+        </div></Collapsible>
       </div></Collapsible>
     </div>
   </section></Collapsible>;

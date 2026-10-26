@@ -12,6 +12,11 @@ export type StudioCampaign = StudioBrief & Partial<StudioVideoOptions> & {
   articleSlug?: string;
   blogPostId?: string | null;
   quoteCards?: string[];
+  // Kept by the animated video maker (see Make the explainer video).
+  explainerReview?: { score: number; matches: boolean; problems?: string[] } | null;
+  explainerScene?: { scene: string; subject?: string };
+  explainerError?: string;
+  videoFeedback?: { rating: 'up' | 'down'; reason?: string };
 };
 type CampaignRow = { blog_post_id?: string | null; id: string; brief: Omit<StudioBrief, 'id' | 'createdAt'>; status: StudioCampaign['status']; outputs: Partial<CampaignOutputs>; created_at: string; updated_at: string; generation_error?: string };
 const fromRow = (row: CampaignRow): StudioCampaign => ({ ...row.brief, blogPostId: row.blog_post_id ?? null, id: row.id, createdAt: row.created_at, status: row.status, outputs: row.outputs, version: row.updated_at, generationError: row.generation_error });

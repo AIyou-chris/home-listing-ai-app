@@ -18,10 +18,12 @@ const { resolveFfmpeg } = require('./ffmpegPath');
 const run = promisify(execFile);
 const MODEL = 'gpt-4o-mini-tts';
 const VOICES = { narrator: 'cedar', customer: 'ash', assistant: 'marin' };
+const OTHER_VOICES = { guide: 'coral' }; // for the home walkthrough reel, which is not one of the scene speakers
 const COMMON = 'Speak like a real person talking to one person, not like an announcer or a recording. Relaxed, warm, a little slower than normal, with natural pauses at commas and full stops. Vary the pitch the way people do. Do not sound cheerful or salesy.';
 const ROLE_STYLE = {
   narrator: `${COMMON} A friendly loan officer explaining something useful to a colleague over coffee.`,
   customer: `${COMMON} Casual and a little tired, like someone asking a quick question late at night.`,
+  guide: `${COMMON} A warm, friendly guide showing someone around a home, calm and unhurried, like a neighbour who is happy to help.`,
   assistant: `${COMMON} A helpful, friendly assistant who is plainly an AI but sounds natural and kind. Clear and unhurried.`
 };
 const MAX_LINES = 8;
@@ -46,7 +48,7 @@ async function speak({ text, role, apiKey, fetchImpl = fetch }) {
   const res = await fetchImpl('https://api.openai.com/v1/audio/speech', {
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: MODEL, voice: VOICES[role] || VOICES.narrator, input: text, instructions: ROLE_STYLE[role] || ROLE_STYLE.narrator, response_format: 'wav' })
+    body: JSON.stringify({ model: MODEL, voice: VOICES[role] || OTHER_VOICES[role] || VOICES.narrator, input: text, instructions: ROLE_STYLE[role] || ROLE_STYLE.narrator, response_format: 'wav' })
   });
   if (!res.ok) throw new Error(`voice_failed_${res.status}`);
   return Buffer.from(await res.arrayBuffer());

@@ -11,6 +11,8 @@ const { business } = require('../config/business');
 const WIDTH = 540; // small and fast; the same size as the picture videos
 
 const sceneNames = (cfg = business) => Object.keys(cfg.video?.scenes || {});
+// The scenes a person may pick (a hidden scene, like the listing video's, is used only by its own feature).
+const pickableSceneNames = (cfg = business) => sceneNames(cfg).filter((n) => !cfg.video.scenes[n].hidden);
 
 // The scene's template and its words with the business's brand (name, site, colour, button) filled in.
 function sceneConfig(name, cfg = business) {
@@ -108,4 +110,4 @@ async function selfCheck({ force = false, now = Date.now() } = {}) {
   return result;
 }
 
-module.exports = { render, plan, available, selfCheck, withVoiceDisclosure, sceneNames, sceneConfig, sceneText, checkScene, WIDTH };
+module.exports = { render, plan, available, selfCheck, withVoiceDisclosure, sceneNames, pickableSceneNames, sceneConfig, sceneText, checkScene, WIDTH };

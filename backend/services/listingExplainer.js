@@ -145,4 +145,4 @@ async function makeAndStore({ supabaseAdmin, bucket = VIDEO_BUCKET, listing, lo,
   return { url: data?.publicUrl || null, path: storagePath, bytes: bytes.length };
 }
 
-module.exports = { writeListingWords, allowedNumbers, VIDEO_BUCKET, buildListingConfig, renderListingExplainer, makeAndStore, questionsFor, streetOf, safeText };
+module.exports = { writeListingWords, allowedNumbers, factsText, digitsIn, VIDEO_BUCKET, buildListingConfig, renderListingExplainer, makeAndStore, questionsFor, streetOf, safeText };
