@@ -1,7 +1,6 @@
 'use strict';
 // "Ask the AI" video for one listing, made for a loan officer to share.
-// A short chat plays out on a phone: a buyer asks about the home, the AI (which says it is an AI) answers from the
-// listing's own facts, the lead goes to the loan officer. Drawn in code (backend/tools/code-video): no paid video AI.
+// The home's facts lead, followed by a buyer question and answer. Drawn in code: no paid video AI.
 // Only real listing facts and the loan officer's own name and NMLS go on screen. Nothing is invented: no rates, no promises.
 const fs = require('fs/promises');
 const os = require('os');
@@ -46,7 +45,6 @@ function buildListingConfig({ listing, lo, variant = 0 }) {
   const nmls = String(lo?.nmls_number || '').replace(/\D/g, '').slice(0, 10);
   if (!name) throw new Error('NEED_LO_NAME');
   if (!nmls) throw new Error('NEED_NMLS');
-  const first = safeText(name.split(' ')[0], 14) || 'Your loan officer';
   const street = streetOf(listing.address) || 'This home';
   const qa = questionsFor(listing);
   const pick = qa[((Number(variant) || 0) % qa.length + qa.length) % qa.length];
@@ -54,18 +52,12 @@ function buildListingConfig({ listing, lo, variant = 0 }) {
   return {
     ...base,
     brand: clip((safeText(lo?.company, 20) || name).toUpperCase(), 20),
-    timeLabel: '11:38', timeSuffix: 'PM', closedLabel: 'AFTER 5',
-    business: street, closedLine: 'The office is closed. Buyers still browse.',
-    assistantLabel: 'AI assistant · online', avatarLetter: street.replace(/[^A-Za-z]/g, '').slice(0, 1).toUpperCase() || 'A',
-    question: pick.question, answer: pick.answer, options: ['Call me', 'Text me'],
-    booked: clip(`Done. ${first} will reach out.`, 40),
-    leadTitle: clip(`Warm lead sent to ${first}`, 34),
-    leadLines: [street, 'Name and phone captured', 'Follow-up task created'].map((l) => clip(l, 36)),
-    sampleLabel: 'EXAMPLE CHAT SHOWN',
+    homeFacts: [Number(listing.price) > 0 && `Listed at ${money(listing.price)}.`, Number(listing.bedrooms) > 0 && `${plural(Number(listing.bedrooms), 'bedroom')}.`, Number(listing.bathrooms) > 0 && `${plural(Number(listing.bathrooms), 'bath')}.`].filter(Boolean).join(' '),
+    business: street, question: pick.question, answer: pick.answer,
     endHeadline: ['Ask about', 'this home.'], endAccent: 'this home.',
     endLine: clip(`${name} · NMLS ${nmls} · Equal Housing Opportunity`, 110),
     cta: 'ASK ABOUT THIS HOME', small: 'An AI assistant answers. Not a commitment to lend.',
-    url: base.url || 'homelistingai.com'
+    url: listing.share_url || 'homelistingai.com'
   };
 }
 
@@ -116,15 +108,17 @@ async function renderListingExplainer({ listing, lo, variant = 0, width = WIDTH,
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'hlai-listing-explainer-'));
   try {
     const cv = loadCodeVideo();
+    const scene = require('./listingVideoScene.cjs');
     const audio = {};
     if (business.video?.music) audio.music = business.video.music;
     if (openai || record) {
-      const lines = cv.templates['chat-answer'].narration(config);
+      const lines = scene.narration(config);
       const cues = await require('../marketing-engine/services/explainerVoice').recordLines({ lines, dir, ...(record ? { record } : {}) });
       if (cues.length) { audio.cues = cues; config = require('../marketing-engine/services/explainerVideo').withVoiceDisclosure(config); }
     }
     const out = path.join(dir, 'explainer.mp4');
-    await cv.renderTemplate({ template: 'chat-answer', config, out, width, preset: 'veryfast', ...(audio.music || audio.cues ? { audio } : {}) });
+    const drawn = scene.createScene(config);
+    await cv.renderVideo({ draw: drawn.draw, duration: drawn.duration, out, width, preset: 'veryfast', ...(audio.music || audio.cues ? { audio } : {}) });
     return await fs.readFile(out);
   } finally { await fs.rm(dir, { recursive: true, force: true }); }
 }

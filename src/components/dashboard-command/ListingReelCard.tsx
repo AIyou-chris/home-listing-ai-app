@@ -35,17 +35,23 @@ const ListingReelCard: React.FC<Props> = ({ listingId, photoCount, demo }) => {
 
   const poll = useCallback((jobId: string) => {
     stop();
-    let misses = 0;
+    const started = Date.now();
+    let checking = false;
     timer.current = window.setInterval(async () => {
+      if (checking) return;
+      if (Date.now() - started >= 6 * 60000) { stop(); setPhase('failed'); setMessage('Could not get your finished video after several minutes. Try again.'); return; }
+      checking = true;
       try {
-        const res = await fetch(buildApiUrl(`/api/lo/listings/${listingId}/reel/${jobId}`), { headers: await authHeaders(null) });
+        const res = await fetch(buildApiUrl(`/api/lo/listings/${listingId}/reel/${jobId}`), { headers: await authHeaders(null), signal: typeof AbortSignal.timeout === 'function' ? AbortSignal.timeout(15000) : undefined });
         const data = await res.json().catch(() => ({}));
         if (res.status === 404) { stop(); setPhase('failed'); setMessage('That video was lost. Tap to try again.'); return; }
-        if (!res.ok) { if (++misses > 5) { stop(); setPhase('failed'); setMessage('Could not check on your video. Try again.'); } return; }
+        if (res.status === 401 || res.status === 403) { stop(); setPhase('failed'); setMessage('Please sign in again, then try your video.'); return; }
+        if (!res.ok) return;
         setProgress(Number(data.progress) || 0);
         if (data.status === 'done' && data.url) { stop(); setUrl(data.url); setPhase('done'); }
         if (data.status === 'failed') { stop(); setPhase('failed'); setMessage('The video did not finish. Tap to try again.'); }
-      } catch { if (++misses > 5) { stop(); setPhase('failed'); setMessage('Could not check on your video. Try again.'); } }
+      } catch { /* A brief server/network interruption should not discard a running video. */ }
+      finally { checking = false; }
     }, 2500);
   }, [listingId]);
 

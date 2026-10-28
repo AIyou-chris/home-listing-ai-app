@@ -13,9 +13,10 @@ test('the words come only from the listing\'s real facts and the loan officer\'s
   assert.match(c.answer, /3 bedrooms and 2 baths/);
   assert.match(c.answer, /I am an AI/);
   assert.match(c.endLine, /Chris Potter · NMLS 123456 · Equal Housing Opportunity/);
-  assert.strictEqual(c.leadTitle, 'Warm lead sent to Chris');
+  assert.match(c.homeFacts, /489,000/);
+  assert.ok(!c.leadTitle);
   assert.match(c.small, /Not a commitment to lend/);
-  assert.deepStrictEqual(findVoiceViolations([c.question, c.answer, c.booked, c.endLine].join(' ')), []);
+  assert.deepStrictEqual(findVoiceViolations([c.question, c.answer, c.homeFacts, c.endLine].join(' ')), []);
 });
 
 test('questions rotate, and a home with no facts still gets a safe generic one', () => {
@@ -145,4 +146,15 @@ test('invented numbers, neighborhood, school, rate or affordability talk are ref
   assert.strictEqual(await writeListingWords({ listing: {}, openai: {}, write: aiWords() }), null);
   assert.strictEqual(await writeListingWords({ listing, openai: {}, write: async () => ({ ok: false }) }), null);
   assert.strictEqual(await writeListingWords({ listing, openai: {}, write: async () => { throw new Error('down'); } }), null);
+});
+
+test('listing scene promotes the home, never a software demo or a fictional captured lead', () => {
+  const scene = require('../services/listingVideoScene.cjs');
+  const c = buildListingConfig({ listing, lo });
+  const spoken = scene.narration(c).map(line => line.text).join(' ');
+  assert.match(spoken, /123 Palm Ave/);
+  assert.match(spoken, /489,000/);
+  assert.match(spoken, /3 bedrooms/);
+  assert.doesNotMatch(spoken, /office|closed|lead sent|captured|CRM|program/i);
+  assert.strictEqual(scene.createScene(c).duration, 20.5);
 });

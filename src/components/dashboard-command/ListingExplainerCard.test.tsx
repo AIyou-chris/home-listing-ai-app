@@ -35,6 +35,19 @@ describe('ListingExplainerCard', () => {
     jest.useRealTimers();
   });
 
+  it('keeps checking after a temporary server failure', async () => {
+    jest.useFakeTimers();
+    let polls = 0;
+    global.fetch = jest.fn((_url: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === 'POST') return reply(202, { jobId: 'retry' });
+      return ++polls === 1 ? reply(503, {}) : reply(200, { status: 'ready', url: 'https://cdn/recovered.mp4' });
+    }) as unknown as typeof fetch;
+    render(<ListingExplainerCard listingId="L1" />);
+    fireEvent.click(screen.getByText('Make my video'));
+    for (let i = 0; i < 4; i += 1) await act(async () => { jest.advanceTimersByTime(3000); });
+    expect(screen.getByLabelText('Your Ask the AI video').getAttribute('src')).toBe('https://cdn/recovered.mp4');
+  });
+
   it('says so when the video could not be made', async () => {
     jest.useFakeTimers();
     global.fetch = jest.fn((url: RequestInfo | URL, init?: RequestInit) => (init?.method === 'POST' ? reply(202, { jobId: 'J2' }) : reply(200, { status: 'failed', error: 'video_failed' }))) as unknown as typeof fetch;

@@ -43,7 +43,7 @@ function register(app, { requireLoAgent, supabaseAdmin, isListingPublished, toTr
       jobs.set(jobId, job);
       job.done = Promise.resolve().then(() => make({
         supabaseAdmin, variant, openai,
-        listing: { id: listing.id, address: listing.address || listing.title || '', price: Number(listing.price) || 0, bedrooms: Number(listing.bedrooms) || 0, bathrooms: Number(listing.bathrooms) || 0 },
+        listing: { id: listing.id, share_url: `homelistingai.com/l/${encodeURIComponent(listing.public_slug)}`, address: listing.address || listing.title || '', price: Number(listing.price) || 0, bedrooms: Number(listing.bedrooms) || 0, bathrooms: Number(listing.bathrooms) || 0 },
         lo: { name: `${lo.first_name || ''} ${lo.last_name || ''}`.trim(), company: lo.company || null, nmls_number: lo.nmls_number }
       })).then((made) => { job.status = made?.url ? 'ready' : 'failed'; job.url = made?.url || null; if (!made?.url) job.error = 'video_failed'; })
         .catch((err) => { job.status = 'failed'; job.error = err?.message === 'NEED_NMLS' || err?.message === 'NEED_LO_NAME' ? err.message : 'video_failed'; console.error('[LO Explainer] failed:', err?.message || err); });

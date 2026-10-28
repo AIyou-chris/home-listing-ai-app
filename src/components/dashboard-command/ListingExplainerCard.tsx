@@ -19,6 +19,7 @@ const EXPLAINER_ERRORS: Record<string, string> = {
   NEED_LO_NAME: 'Add your name in Settings first. It goes on the video.',
   NOT_PUBLISHED: "This home isn't published yet.",
   NO_SHARE_LINK: "This home doesn't have a public link yet.",
+  job_not_found: 'That video job is no longer available. Please try again.',
   video_in_progress: 'Your video is still being made. Give it a minute.',
   video_rate_limited: 'You can make 5 of these an hour. Try again soon.',
   video_unavailable: 'This video is not available right now.',
@@ -41,14 +42,17 @@ const ListingExplainerCard: React.FC<Props> = ({ listingId, demo }) => {
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.jobId) { setMessage(EXPLAINER_ERRORS[data.error] || 'Could not make your video. Try again.'); return; }
       // The video takes a minute, longer than the web proxy waits, so it is made in the background and asked for every few seconds.
-      for (let i = 0; i < 60; i += 1) {
+      const deadline = Date.now() + 6 * 60000;
+      while (Date.now() < deadline) {
         await new Promise((r) => setTimeout(r, POLL_MS));
-        const poll = await fetch(buildApiUrl(`/api/lo/listings/${listingId}/explainer/${data.jobId}`), { headers: await authHeaders(null) });
+        let poll: Response;
+        try { poll = await fetch(buildApiUrl(`/api/lo/listings/${listingId}/explainer/${data.jobId}`), { headers: await authHeaders(null), signal: typeof AbortSignal.timeout === 'function' ? AbortSignal.timeout(15000) : undefined }); } catch { continue; }
+        if (poll.status === 429 || poll.status >= 500) continue;
         const job = await poll.json().catch(() => ({}));
         if (poll.ok && job.status === 'ready' && job.url) { setUrl(job.url); setVariant(nextVariant); return; }
         if (!poll.ok || job.status === 'failed') { setMessage(EXPLAINER_ERRORS[job.error] || 'Could not make your video. Try again.'); return; }
       }
-      setMessage('This is taking longer than usual. Try again in a minute.');
+      setMessage('We could not get the finished video after several minutes. Please try again.');
     } catch { setMessage('Could not make your video. Try again.'); } finally { setBusy(false); }
   };
 
@@ -56,7 +60,7 @@ const ListingExplainerCard: React.FC<Props> = ({ listingId, demo }) => {
     <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="mb-3">
         <h2 className="text-base font-bold text-slate-900">💬 "Ask the AI" video</h2>
-        <p className="text-sm text-slate-500">A 20-second video of a buyer asking about this home and the AI answering, with your name and NMLS at the end. Free to make. Post it on Instagram, Facebook or TikTok.</p>
+        <p className="text-sm text-slate-500">A 20-second video about this home's price, bedrooms and bathrooms, plus a buyer question. Your name and NMLS appear at the end. Free to make. Post it on Instagram, Facebook or TikTok.</p>
       </div>
       {url ? (
         <div className="flex flex-wrap items-start gap-4">
@@ -64,7 +68,7 @@ const ListingExplainerCard: React.FC<Props> = ({ listingId, demo }) => {
           <div className="flex flex-col gap-2">
             <a href={url} download={`ask-the-ai-${listingId}.mp4`} target="_blank" rel="noreferrer" className="rounded-lg bg-primary-600 px-4 py-2 text-center text-sm font-bold text-white hover:bg-primary-700">Download</a>
             <button type="button" disabled={busy} onClick={() => void make(variant + 1)} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">{busy ? 'Making…' : 'Try a different question'}</button>
-            <p className="max-w-[16rem] text-xs text-slate-400">The chat is an example and the video says so. Posting it is up to you.</p>
+            <p className="max-w-[16rem] text-xs text-slate-400">The video uses this home’s listing facts. Posting it is up to you.</p>
             {message && <p className="text-sm text-amber-700">{message}</p>}
           </div>
         </div>

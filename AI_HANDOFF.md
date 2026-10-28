@@ -1,3 +1,17 @@
+## 2026-10-28 — Codex: listing-first video and resilient status checks
+
+- Chris confirmed a video eventually rendered, but it promoted the software; screenshot also showed explainer retry failure and reel status-check failure. Replaced the listing explainer phone/closed-office/fictional captured-lead scene with a dedicated 20.5-second home scene: address, actual price/beds/baths, buyer Q&A, listing URL and LO NMLS/disclosure. Reel remains its existing photo-based listing video. Shared marketing templates untouched.
+- Explainer retries temporary network/429/5xx checks for up to six minutes; reel no longer gives up after six failed polls, avoids overlapping checks, uses a six-minute deadline, and distinguishes lost jobs and expired login. No automatic paid re-render. Regression reproduced old explainer failure on one 503, then passed after fix; reel test recovers after seven 503s.
+- Validation: 7 frontend video tests, 12 backend explainer tests (including real local MP4 render and mocked upload), lint, main typecheck and frontend production build passed. Rendered another real local sample and inspected frame layout. No paid APIs, storage/DB writes or provider configuration changes. Existing bounded AI writer reused; no context middleware added.
+- Live deployment and real authenticated generation not verified. The pasted logs show server restarts but no video failure cause; retry changes address confirmed fragile client behavior, not proof of the production trigger. Jobs remain process-local and are lost on server restart; explicit errors remain. Unrelated CLAUDE.md and tooling changes excluded.
+
+## 2026-10-28 — Codex: listing video diagnosis in progress
+
+- Chris confirms both Share Kit buttons fail (Make my video and Make my reel): briefly looks busy, then no finished video. No fix claimed or pushed.
+- Real local renderListingExplainer, no OpenAI/network/storage writes, matched screenshot facts (test1234, 350000, 3 beds, 2 baths); produced 894953-byte MP4 in 10.446 s. property-images live bucket metadata: public, no MIME or size restriction. Supabase storage logs for last 24 h showed no explainers/, reels/, or video/mp4 attempts. This does not identify the live cause.
+- Need exact live request response or Render application log. No Render connector/token available; native Chrome session did not provide the app/server dashboard and navigation was interrupted by external UI changes. Avoid guessing a rendering/storage fix. Frontend cards hold jobs/results only in component state; backend jobs in process memory, a separate known resilience limit, not proven cause here.
+- User reports database password reset done; no password read, exposed, or changed by agent. Existing unrelated work preserved.
+
 ## 2026-10-27 — Codex: resumed and validated deep-audit fixes
 
 - Picked up the interrupted fixing chat in the original checkout. Eighteen audit items have code fixes; exposed-password rotation and remaining major-version dependency advisories still need follow-up. Full original audit + numbered status: `docs/audits/2026-10-27-deep-audit.md` and `2026-10-27-fix-status.md`.
