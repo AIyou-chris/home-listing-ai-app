@@ -15,12 +15,14 @@ const buildAppointmentReminder = (appt, now = new Date()) => {
   } catch (_e) { when = new Date(appt.start_iso).toUTCString(); }
   const place = String(appt.location || appt.property_address || '').trim();
   const isShowing = /showing/i.test(String(appt.kind || '')) || Boolean(place);
-  const subject = isShowing ? `Reminder: your showing${place ? ` at ${place}` : ''} is in about 1 hour` : `Reminder: your appointment is in about 1 hour`;
+  const minutes = Number(appt.client_reminder_minutes_before ?? 60);
+  const timing = minutes === 60 ? 'about 1 hour' : `${minutes} minutes`;
+  const subject = isShowing ? `Reminder: your showing${place ? ` at ${place}` : ''} is in ${timing}` : `Reminder: your appointment is in ${timing}`;
   const link = appt.meet_link && /^https?:\/\//i.test(appt.meet_link) ? appt.meet_link : null;
   const html = `<div style="font-family: sans-serif; padding: 20px; max-width: 520px;">
     <h2 style="margin:0 0 12px;">${isShowing ? 'Showing reminder' : 'Appointment reminder'}</h2>
     <p>Hi ${escapeHtml(appt.name || 'there')},</p>
-    <p>This is a friendly reminder: ${isShowing ? 'your showing' : 'your appointment'}${place ? ` at <strong>${escapeHtml(place)}</strong>` : ''} is in about <strong>1 hour</strong> (${escapeHtml(when)}).</p>
+    <p>This is a friendly reminder: ${isShowing ? 'your showing' : 'your appointment'}${place ? ` at <strong>${escapeHtml(place)}</strong>` : ''} is in <strong>${timing}</strong> (${escapeHtml(when)}).</p>
     ${link ? `<p><a href="${escapeHtml(link)}" style="background:#4f46e5;color:#fff;padding:10px 20px;text-decoration:none;border-radius:6px;display:inline-block;">Join the meeting</a></p>` : ''}
     <p style="margin-top: 20px; color: #666; font-size: 12px;">Need to change the time? Reply to the confirmation email or contact your agent.</p>
   </div>`;
@@ -33,7 +35,7 @@ const buildAppointmentReminder = (appt, now = new Date()) => {
  */
 const startScheduler = (supabaseAdmin, emailService) => {
 
-    // 1. Appointment Reminders (Every Minute)
+    // Client email reminders; phone/SMS reminders use the server queue.
     cron.schedule('* * * * *', async () => {
         try {
             if (!supabaseAdmin) {
@@ -46,16 +48,16 @@ const startScheduler = (supabaseAdmin, emailService) => {
             }
 
             const now = new Date();
-            // Look for appointments starting in exactly 60 minutes
-            // We check a 1-minute window to avoid duplicates (assuming cron runs reliably once per minute)
-            const startRange = addMinutes(now, 60);
-            const endRange = addMinutes(now, 61);
+            // Each appointment uses its own reminder offset; only send in its due minute.
+            const startRange = now;
+            const endRange = addMinutes(now, 7 * 24 * 60);
 
             const { data: appointments, error } = await supabaseAdmin
                 .from('appointments')
-                .select('id, start_iso, user_id, email, name, meet_link, kind, timezone, location, property_address, last_reminder_at')
+                .select('id, start_iso, user_id, email, name, meet_link, kind, timezone, location, property_address, last_reminder_at, remind_client, client_reminder_minutes_before')
                 .gte('start_iso', startRange.toISOString())
                 .lt('start_iso', endRange.toISOString())
+                .eq('remind_client', true)
                 // Public bookings are saved as "scheduled" and need no further confirmation to be real.
                 .in('status', ['scheduled', 'confirmed']);
 
@@ -69,7 +71,10 @@ const startScheduler = (supabaseAdmin, emailService) => {
 
                 for (const appt of appointments) {
                     const { email } = appt;
-                    if (!email) continue;
+                    if (!email || appt.remind_client === false) continue;
+                    const offset = Number(appt.client_reminder_minutes_before ?? 60);
+                    const dueAt = new Date(appt.start_iso).getTime() - offset * 60000;
+                    if (!Number.isFinite(offset) || offset < 0 || !Number.isFinite(dueAt) || dueAt > now.getTime() || dueAt <= now.getTime() - 60000) continue;
                     // Already reminded in the last 90 minutes (a restart or overlapping run): do not email twice.
                     if (appt.last_reminder_at && (Date.now() - new Date(appt.last_reminder_at).getTime()) < 90 * 60 * 1000) continue;
 
@@ -334,7 +339,7 @@ const startScheduler = (supabaseAdmin, emailService) => {
     const checkTelnyxBalance = createTelnyxBalanceWatch({ sendEmail: emailService ? (m) => emailService.sendEmail(m) : null });
     cron.schedule('0 */6 * * *', () => { checkTelnyxBalance().catch(() => {}); });
 
-    console.log('⏰ Scheduler Service Initialized (Job: 1h Reminders)');
+    console.log('⏰ Scheduler Service Initialized');
 };
 
 module.exports = startScheduler;

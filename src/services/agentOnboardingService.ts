@@ -8,6 +8,7 @@ export interface AgentRegistrationPayload {
   accountType?: 'lo' | 'agent' | 'realtor' | 'office';
   phone?: string;
   nmls?: string;
+  password?: string;
 }
 
 export interface AgentRecord {
@@ -32,6 +33,7 @@ export interface AgentRegistrationResponse {
     password: string | null;
   } | null;
   agent: AgentRecord;
+  confirmationRequired?: boolean;
 }
 
 export interface CheckoutSessionResponse {

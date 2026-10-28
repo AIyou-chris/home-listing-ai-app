@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { agentOnboardingService } from '../services/agentOnboardingService';
-import { supabase } from '../services/supabase';
 import { buildApiUrl } from '../lib/api';
 import { PublicHeader } from './layout/PublicHeader';
 import { PublicFooter } from './layout/PublicFooter';
@@ -43,6 +42,7 @@ const LOSignupPage: React.FC = () => {
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState('');
+    const [success, setSuccess] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -66,30 +66,15 @@ const LOSignupPage: React.FC = () => {
 
         try {
             // 1. Register the agent with account_type = 'lo'
-            const data = await agentOnboardingService.registerAgent({
+            await agentOnboardingService.registerAgent({
                 firstName,
                 lastName,
                 email: email.trim().toLowerCase(),
                 accountType: 'lo',
                 phone,
                 nmls,
+                password,
             });
-
-            // 2. Sign them in using Supabase with the temp password from registration,
-            //    then immediately update to their chosen password
-            const tempPassword = data.credentials?.password;
-            if (!tempPassword) {
-                throw new Error('Account created but auto-login failed. Check your email for login details.');
-            }
-
-            const { error: signInError } = await supabase.auth.signInWithPassword({
-                email: email.trim().toLowerCase(),
-                password: tempPassword,
-            });
-            if (signInError) throw signInError;
-
-            // Update to their chosen password
-            await supabase.auth.updateUser({ password });
 
             const blogSlug = sessionStorage.getItem('blog_trial_slug');
             if (blogSlug) {
@@ -104,7 +89,7 @@ const LOSignupPage: React.FC = () => {
             try { localStorage.setItem('hlai_preferred_plan', selectedPlan); } catch { /* private mode */ }
             // Land on LO Today — the setup checklist there walks them to their
             // first WOW link (activation), which lo-listings' empty table doesn't.
-            navigate('/dashboard/lo-today', { replace: true });
+            setSuccess(true);
         } catch (err) {
             const msg = err instanceof Error ? err.message : 'Something went wrong. Please try again.';
             if (msg.toLowerCase().includes('already exists') || msg.toLowerCase().includes('duplicate')) {
@@ -173,7 +158,7 @@ const LOSignupPage: React.FC = () => {
                             </div>
                         )}
 
-                        <form onSubmit={handleSubmit} className="space-y-4">
+                        {success ? <div className="text-cyan-100" role="status">Check your email. Click the confirmation link, then sign in with the password you chose. <button type="button" onClick={() => navigate('/signin')} className="underline">Go to sign in</button></div> : <form onSubmit={handleSubmit} className="space-y-4">
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
                                     <label className="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">First Name <span className="text-red-400">*</span></label>
@@ -294,7 +279,7 @@ const LOSignupPage: React.FC = () => {
                                 <a href="/privacy" className="text-slate-400 hover:text-white underline">Privacy Policy</a>.
                                 No charge for 7 days.
                             </p>
-                        </form>
+                        </form>}
 
                         <div className="mt-6 pt-6 border-t border-slate-700/50 text-center">
                             <p className="text-sm text-slate-400">

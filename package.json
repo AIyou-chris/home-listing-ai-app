@@ -118,5 +118,8 @@
     "src/**/*.{ts,tsx}": [
       "eslint --fix --max-warnings=0"
     ]
+  },
+  "overrides": {
+    "body-parser": "^2.4.0"
   }
 }

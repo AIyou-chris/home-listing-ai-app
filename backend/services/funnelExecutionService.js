@@ -273,6 +273,14 @@ module.exports = ({ supabaseAdmin, emailService, smsService, voiceService }) => 
                 result_details: result.details
             });
 
+            // Stop on an uncertain send so a failed action is not silently lost.
+            if (result.status === 'failed') {
+                await supabaseAdmin.from('funnel_enrollments')
+                    .update({ status: 'failed', updated_at: new Date().toISOString() })
+                    .eq('id', enrollment.id);
+                continue;
+            }
+
             // Determine Next State
             let nextIndex = currentIndex + 1; // Default linear
 

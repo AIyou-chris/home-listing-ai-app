@@ -563,6 +563,8 @@ const allowedCorsOrigins = buildAllowedCorsOrigins();
 const rejectDisallowedOrigins = (req, res, next) => {
   const origin = toTrimmedOrNull(req.headers.origin);
   if (!origin) return next();
+  // Only the authenticated extension API accepts extension origins.
+  if (/^chrome-extension:\/\/[a-p]{32}$/.test(origin) && req.path === '/api/linkedin/assistant') return next();
   if (allowedCorsOrigins.has(origin)) return next();
   return res.status(403).json({ error: 'cors_origin_not_allowed' });
 };
@@ -570,6 +572,7 @@ const rejectDisallowedOrigins = (req, res, next) => {
 const corsOptions = {
   origin(origin, callback) {
     if (!origin) return callback(null, true);
+    if (/^chrome-extension:\/\/[a-p]{32}$/.test(origin)) return callback(null, true);
     if (allowedCorsOrigins.has(origin)) return callback(null, true);
     return callback(null, false);
   },
@@ -688,6 +691,7 @@ app.use('/api/language/detect', leadLimiter);
 app.use('/api/leads/capture', leadLimiter);
 app.use('/api/leads/public', leadLimiter);
 app.use('/api/leads/pre-qual', leadLimiter);
+app.use('/api/leads/email-forward', leadLimiter);
 app.use('/api/public/listing-alerts/subscribe', leadLimiter);
 // Signup
 app.use('/api/agents/register', signupLimiter);
@@ -1686,7 +1690,6 @@ const enrollLeadWithFunnelKey = async ({ agentId, leadId, funnelKey }) => {
     agentId,
     leadId,
     funnelKey,
-    defaultAgentId: DEFAULT_LEAD_USER_ID
   });
 };
 
@@ -1788,8 +1791,8 @@ if (APP_RUNTIME_MODE !== 'worker') {
 // Agent Onboarding Endpoints
 app.post('/api/agents/register', async (req, res) => {
   try {
-    const { firstName, lastName, email, accountType, phone, nmls } = req.body;
-    const result = await agentOnboardingService.registerAgent({ firstName, lastName, email, accountType, phone, nmls });
+    const { firstName, lastName, email, accountType, phone, nmls, password } = req.body;
+    const result = await agentOnboardingService.registerAgent({ firstName, lastName, email, accountType, phone, nmls, password });
     res.json(result);
 
     // Where did they come from? Saved on the account so the owner can see which post or link worked.
@@ -10809,6 +10812,11 @@ const scheduleAppointmentReminders = async ({ appointmentRow, source = 'appointm
     return { scheduled: [], skipped: true, reason: 'appointment_terminal_status' };
   }
 
+  if (appointmentRow.remind_client === false) {
+    await cancelPendingRemindersForAppointment({ appointmentId: appointmentRow.id, leadId: appointmentRow.lead_id, reason: 'client_reminders_disabled', source });
+    return { scheduled: [], skipped: true, reason: 'client_reminders_disabled' };
+  }
+
   const startsAt = resolveAppointmentStart(appointmentRow);
   const leadId = appointmentRow.lead_id || appointmentRow.leadId || null;
   const listingId = resolveAppointmentListingId(appointmentRow);
@@ -11221,6 +11229,10 @@ const dispatchAppointmentReminder = async (reminder) => {
   }
 
   const leadId = appointment.lead_id || reminder.payload?.lead_id || null;
+  if (appointment.remind_client === false) {
+    await markReminderAsSuppressed({ reminder, reason: 'client_reminders_disabled', leadId });
+    return { status: 'suppressed', reason: 'client_reminders_disabled' };
+  }
   const agentId = resolveAppointmentAgentId(appointment);
   const listingId = resolveAppointmentListingId(appointment);
   const flags = await resolveAppointmentReminderFlags(agentId).catch(() => ({
@@ -14656,7 +14668,7 @@ app.post('/api/continue-conversation', async (req, res) => {
     }
 
     // Convert messages to OpenAI format
-    let system = effectiveSystemPrompt || 'You are a helpful AI assistant for a real estate app.';
+    let system = `${require('./services/goldenRules').GOLDEN_RULES_PROMPT}\n\n${effectiveSystemPrompt || 'You are a helpful AI assistant for a real estate app.'}`;
 
     // The admin's Business Brain (what HomeListingAI knows + how it sells/serves) is added to
     // the public landing/help chat. Skipped when a custom blueprint prompt took over.
@@ -14710,25 +14722,7 @@ app.post('/api/continue-conversation', async (req, res) => {
     } catch (openaiError) {
       console.log('OpenAI error, using fallback with training context:', openaiError.message);
 
-      // Fallback response that shows training context is working
-      const userMessage = messages[messages.length - 1]?.text || '';
-      const trainingContext = sidekick ? getTrainingContext(sidekick) : '';
-
-      if (sidekick === 'marketing' && userMessage.toLowerCase().includes('facebook ad')) {
-        response = `🏡 PERFECT FAMILY HOME! 🌟 Spacious 4BR/3BA with 2-car garage in a fantastic neighborhood! 👨‍👩‍👧‍👦 Great schools nearby and plenty of room for the kids to play! 🎒📚 Ready to make memories? Call us today! 📞✨ #FamilyHome #DreamHome #GreatSchools`;
-      } else if (sidekick === 'marketing' && userMessage.toLowerCase().includes('social media')) {
-        response = `✨ STUNNING PROPERTY ALERT! ✨ This amazing home is everything you've been looking for! 🏠💕 Beautiful features, prime location, and move-in ready! Don't let this one slip away! 📞 DM for details! #RealEstate #DreamHome #NewListing`;
-      } else if (sidekick === 'sales' && userMessage.toLowerCase().includes('objection')) {
-        response = `I completely understand your concern about the price. Let me share some valuable information with you - this property is actually priced competitively based on recent sales in the area. Plus, when you consider the quality and location, you're getting excellent value. Would you like me to show you some comparable properties that have sold recently?`;
-      } else if (sidekick === 'agent' && userMessage.toLowerCase().includes('mortgage')) {
-        response = `I understand that mortgage rates are a big concern right now. The good news is that rates are still historically reasonable, and there are many programs available to help buyers. I work with several excellent lenders who can find the best options for your situation. Would you like me to connect you with one of them to explore your options?`;
-      } else {
-        response = `I'd be happy to help you with that! ${trainingContext ? '(Using learned preferences from previous feedback)' : ''} Let me provide you with a helpful response based on what I know works well.`;
-      }
-
-      if (trainingContext) {
-        console.log(`📚 Applied training context for ${sidekick}:`, trainingContext.substring(0, 100) + '...');
-      }
+      response = 'I cannot answer that right now. Please try again in a moment.';
     }
 
     const usage = (typeof completion !== 'undefined' && completion.usage) || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 };
@@ -15408,8 +15402,19 @@ app.post('/api/track/sms/status', async (req, res) => {
 
 // --- EMAIL FORWARDING FOR LEADS ---
 
-app.post('/api/leads/email-forward', async (req, res) => {
+app.post('/api/leads/email-forward', multer({ limits: { fields: 50, fieldSize: 2 * 1024 * 1024, files: 0 } }).none(), async (req, res) => {
   try {
+    const signature = req.body?.signature && typeof req.body.signature === 'object'
+      ? req.body.signature : req.body;
+    if (!MAILGUN_WEBHOOK_SIGNING_KEY || MAILGUN_WEBHOOK_SIGNING_KEY === MAILGUN_API_KEY) {
+      return res.status(503).json({ error: 'mailgun_signing_key_required' });
+    }
+    const signedAt = Number(signature?.timestamp);
+    if (!Number.isFinite(signedAt) || Math.abs(Date.now() - signedAt * 1000) > 5 * 60 * 1000 ||
+        !signature?.token || !signature?.signature ||
+        !verifyMailgunSignature(MAILGUN_WEBHOOK_SIGNING_KEY, String(signature.timestamp), signature.token, signature.signature)) {
+      return res.status(401).json({ error: 'invalid_mailgun_signature' });
+    }
     // Accept both a generic shape (to/from/text) and Mailgun's native inbound POST
     // fields (recipient/sender/body-plain), so a Mailgun Route forwarding to this
     // endpoint works without a field-mapping shim.
@@ -15678,9 +15683,7 @@ async function verifyAdmin(req, res, next) {
       }
     }
 
-    // 2FA enforcement (opt-in). If this admin enrolled a TOTP factor but the
-    // session hasn't passed it (token AAL is 'aal1'), block. Fails OPEN on any
-    // error/uncertainty so an API hiccup can never lock an admin out.
+    // Enrolled admins must pass MFA. A factor lookup failure must not bypass it.
     try {
       const parts = String(token).split('.');
       let aal = null;
@@ -15688,8 +15691,9 @@ async function verifyAdmin(req, res, next) {
         const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
         aal = payload && payload.aal;
       }
-      if (aal === 'aal1') {
-        const { data: factorData } = await supabaseAdmin.auth.admin.mfa.listFactors({ userId: user.id });
+      if (aal !== 'aal2') {
+        const { data: factorData, error: factorError } = await supabaseAdmin.auth.admin.mfa.listFactors({ userId: user.id });
+        if (factorError || !factorData) throw factorError || new Error('mfa_factor_lookup_failed');
         const hasVerifiedTotp = (factorData?.factors || [])
           .some((f) => f.factor_type === 'totp' && f.status === 'verified');
         if (hasVerifiedTotp) {
@@ -15697,7 +15701,8 @@ async function verifyAdmin(req, res, next) {
         }
       }
     } catch (mfaErr) {
-      console.warn('[verifyAdmin] 2FA check skipped (non-fatal):', mfaErr?.message);
+      console.warn('[verifyAdmin] 2FA check unavailable:', mfaErr?.message);
+      return res.status(503).json({ error: 'mfa_check_unavailable' });
     }
 
     let adminAgentId = user.id;
@@ -19795,7 +19800,7 @@ app.post('/api/public/conversations/start', async (req, res) => {
       .from('ai_conversation_messages')
       .select('id, sender, content, created_at')
       .eq('conversation_id', conversation.id)
-      .order('created_at', { ascending: true })
+      .order('created_at', { ascending: false })
       .limit(PUBLIC_CHAT_HISTORY_LIMIT);
     if (messageError) throw messageError;
 
@@ -19805,7 +19810,7 @@ app.post('/api/public/conversations/start', async (req, res) => {
       visitor_id: visitorId,
       lead_id: conversation.lead_id || null,
       listing_id: listingId,
-      messages: (messageRows || []).map((row) => ({
+      messages: (messageRows || []).reverse().map((row) => ({
         id: row.id,
         sender: dbMsg.fromDbSender(row),
         text: row.content,
@@ -19914,13 +19919,13 @@ app.post('/api/public/conversations/:conversationId/message', async (req, res) =
       .from('ai_conversation_messages')
       .select('sender, content, created_at')
       .eq('conversation_id', conversationId)
-      .order('created_at', { ascending: true })
+      .order('created_at', { ascending: false })
       .limit(PUBLIC_CHAT_HISTORY_LIMIT);
     if (historyError) throw historyError;
 
     const aiText = await generatePublicChatAnswer({
       listingContext,
-      recentMessages: historyRows || [],
+      recentMessages: (historyRows || []).reverse(),
       question: text
     });
 
@@ -20956,34 +20961,37 @@ app.post('/api/account/delete', async (req, res) => {
       )
     );
 
-    // Best-effort Stripe subscription cancellation to prevent future billing.
-    try {
-      const { data: subRows, error: subLookupError } = await supabaseAdmin
-        .from('subscriptions')
-        .select('stripe_subscription_id')
-        .in('agent_id', agentIdentifiers);
-      if (subLookupError && !isIgnorableCleanupError(subLookupError)) throw subLookupError;
-
-      const stripeSubscriptionIds = Array.from(
-        new Set((subRows || []).map((row) => String(row?.stripe_subscription_id || '').trim()).filter(Boolean))
-      );
-      for (const subscriptionId of stripeSubscriptionIds) {
-        try {
-          await stripe.subscriptions.cancel(subscriptionId);
-        } catch (stripeError) {
-          console.warn('[AccountDelete] Stripe cancel failed for subscription:', subscriptionId, stripeError?.message || stripeError);
-        }
-      }
-    } catch (stripeLookupError) {
-      console.warn('[AccountDelete] Stripe cleanup lookup failed:', stripeLookupError?.message || stripeLookupError);
-    }
-
     // Never let this route delete a platform admin.
     const { data: adminCheck } = await supabaseAdmin.auth.admin.getUserById(canonicalAuthUserId).catch(() => ({ data: null }));
     const accountEmail = String(adminCheck?.user?.email || '').toLowerCase();
     const protectedEmails = ['cdipotter@me.com', String(process.env.ADMIN_EMAIL || '').toLowerCase()].filter(Boolean);
     if (accountEmail && protectedEmails.includes(accountEmail)) {
       return res.status(403).json({ error: 'admin_account_cannot_be_deleted_here' });
+    }
+
+    // Keep the login and billing records until every subscription is cancelled.
+    try {
+      const { data: subRows, error: subLookupError } = await supabaseAdmin
+        .from('subscriptions')
+        .select('stripe_subscription_id')
+        .in('agent_id', agentIdentifiers);
+      if (subLookupError) throw subLookupError;
+
+      const stripeSubscriptionIds = new Set((subRows || []).map((row) => String(row?.stripe_subscription_id || '').trim()).filter(Boolean));
+      if (agentRow?.stripe_customer_id) {
+        if (!stripe) throw new Error('stripe_not_configured');
+        const live = await stripe.subscriptions.list({ customer: agentRow.stripe_customer_id, status: 'all', limit: 100 });
+        if (live.has_more) throw new Error('stripe_subscription_list_incomplete');
+        for (const subscription of live.data || []) {
+          if (!['canceled', 'incomplete_expired'].includes(subscription.status)) stripeSubscriptionIds.add(subscription.id);
+        }
+      }
+      for (const subscriptionId of stripeSubscriptionIds) {
+        await stripe.subscriptions.cancel(subscriptionId);
+      }
+    } catch (stripeError) {
+      console.error('[AccountDelete] Billing cancellation failed:', stripeError?.message || stripeError);
+      return res.status(503).json({ error: 'billing_cancellation_pending', message: 'We could not stop billing yet. Your account is still open; please try again.' });
     }
 
     // Remove everything that belongs to this person (see services/accountDeletion.js), then the login.
@@ -26654,16 +26662,33 @@ app.post('/api/fair-housing-scan', (req, res) => {
 app.post('/api/ai/property-chat', async (req, res) => {
   const { property, question, history } = req.body;
 
-  if (!property || !question) {
+  if (!property?.id || !question) {
     return res.status(400).json({ success: false, error: 'Property and question are required' });
+  }
+  if (typeof question !== 'string' || question.length > 2000 || (history != null && !Array.isArray(history))) {
+    return res.status(400).json({ success: false, error: 'invalid_chat_input' });
   }
 
   try {
+    // The WOW-link example has no private uploads. Real listing facts come from the server.
+    let publicProperty = property;
+    if (property.id !== 'demo') {
+      const { data: row, error: propertyError } = await supabaseAdmin
+        .from('properties')
+        .select('id, user_id, agent_id, status, is_published, address, price, bedrooms, bathrooms, sqft, description, features')
+        .eq('id', property.id)
+        .maybeSingle();
+      if (propertyError) throw propertyError;
+      if (!row || !isListingPublished(row)) return res.status(404).json({ success: false, error: 'listing_not_found' });
+      publicProperty = { ...row, squareFeet: row.sqft };
+    }
     // 1. Fetch Knowledge Base for this property
-    const { data: kbEntries } = await supabaseAdmin
+    const { data: kbEntries } = property.id === 'demo' ? { data: [] } : await supabaseAdmin
       .from('ai_kb')
       .select('type, title, content, file_path')
-      .eq('property_id', property.id);
+      .eq('property_id', publicProperty.id)
+      .eq('user_id', publicProperty.user_id || publicProperty.agent_id)
+      .eq('sidekick', 'listing');
 
     let kbContext = '';
     if (kbEntries && kbEntries.length > 0) {
@@ -26679,11 +26704,11 @@ app.post('/api/ai/property-chat', async (req, res) => {
 You are an expert real estate assistant helping a potential buyer or agent with questions about a specific property.
     
 PROPERTY DETAILS:
-Address: ${property.address}
-Price: $${property.price?.toLocaleString()}
-Beds: ${property.bedrooms} | Baths: ${property.bathrooms} | SqFt: ${property.squareFeet?.toLocaleString()}
-Description: ${typeof property.description === 'string' ? property.description : property.description?.paragraphs?.join('\n')}
-Features: ${property.features?.join(', ')}
+Address: ${publicProperty.address}
+Price: $${publicProperty.price?.toLocaleString()}
+Beds: ${publicProperty.bedrooms} | Baths: ${publicProperty.bathrooms} | SqFt: ${publicProperty.squareFeet?.toLocaleString()}
+Description: ${typeof publicProperty.description === 'string' ? publicProperty.description : publicProperty.description?.paragraphs?.join('\n')}
+Features: ${publicProperty.features?.join(', ')}
 
 ${kbContext}
 
@@ -26698,7 +26723,7 @@ INSTRUCTIONS:
     // 3. Call OpenAI
     const messages = [
       { role: 'system', content: systemPrompt },
-      ...(history || []).map(m => ({ role: m.sender === 'user' ? 'user' : 'assistant', content: m.text })),
+      ...(history || []).slice(-8).filter(m => m && typeof m.text === 'string').map(m => ({ role: m.sender === 'user' ? 'user' : 'assistant', content: m.text.slice(0, 2000) })),
       { role: 'user', content: question }
     ];
 
@@ -26720,6 +26745,26 @@ INSTRUCTIONS:
 });
 
 // AI Agent Chat Endpoint (for Business Card)
+app.post('/api/linkedin/assistant', requireAuth, aiChatLimiter, async (req, res) => {
+  const { threadText, goal, tone, context, agentProfile } = req.body || {};
+  if (typeof threadText !== 'string' || !threadText.trim() || threadText.length > 12000) {
+    return res.status(400).json({ error: 'conversation_text_required_max_12000' });
+  }
+  if ([goal, tone, context].some(value => value != null && (typeof value !== 'string' || value.length > 2000))) {
+    return res.status(400).json({ error: 'invalid_assistant_context' });
+  }
+  try {
+    const result = await require('./services/linkedinAutomationService').generateLinkedInAssistantPayload({
+      openai, model: process.env.OPENAI_CHAT_MODEL || 'gpt-4o', threadText,
+      goal, tone, context, agentProfile: agentProfile && typeof agentProfile === 'object' ? agentProfile : {}
+    });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    console.warn('[LinkedIn Assistant] Could not draft reply:', error?.message);
+    return res.status(error?.status === 429 ? 429 : 503).json({ error: 'Could not draft a reply. Please try again.' });
+  }
+});
+
 app.post('/api/ai/agent-chat', requireAuth, async (req, res) => {
   const { agentProfile, messages } = req.body;
 
@@ -29241,9 +29286,10 @@ app.post('/api/appointments', async (req, res) => {
       }
       const { data: listingOwnerRow } = await supabaseAdmin
         .from('properties')
-        .select('id, agent_id, user_id')
+        .select('id, agent_id, user_id, status, is_published')
         .eq('id', requestedListingIdForOwner)
         .maybeSingle();
+      if (!listingOwnerRow || !isListingPublished(listingOwnerRow)) return res.status(404).json({ error: 'listing_not_found' });
       ownerId = listingOwnerRow?.agent_id || listingOwnerRow?.user_id || null;
       if (!ownerId) return res.status(401).json({ error: 'agent_auth_required' });
       publicBooking = true;
@@ -29277,13 +29323,15 @@ app.post('/api/appointments', async (req, res) => {
     if (resolvedListingId) {
       const { data, error } = await supabaseAdmin
         .from('properties')
-        .select('id, user_id, address')
+        .select('id, user_id, address, status, is_published')
         .eq('id', resolvedListingId)
         .single();
 
       if (error || !data) {
         return res.status(404).json({ error: 'listing_not_found' });
       }
+
+      if (publicBooking && !isListingPublished(data)) return res.status(404).json({ error: 'listing_not_found' });
 
       if (data.user_id && data.user_id !== ownerId) {
         return res.status(403).json({ error: 'forbidden_listing_scope' });
@@ -34522,32 +34570,6 @@ app.post('/api/listings/photo-upload', requireAuth, async (req, res) => {
   }
 });
 
-
-// Update listing
-app.put('/api/listings/:listingId', requireAuth, (req, res) => {
-  try {
-    const { listingId } = req.params;
-    const updates = req.body;
-
-    const listingIndex = listings.findIndex(listing => listing.id === listingId);
-    if (listingIndex === -1) {
-      return res.status(404).json({ error: 'Listing not found' });
-    }
-
-    // Update listing data
-    listings[listingIndex] = {
-      ...listings[listingIndex],
-      ...updates,
-      updated_at: new Date().toISOString()
-    };
-
-    console.log(`🏠 Updated listing: ${listingId}`);
-    res.json(listings[listingIndex]);
-  } catch (error) {
-    console.error('Error updating listing:', error);
-    res.status(500).json({ error: 'Failed to update listing' });
-  }
-});
 
 // Delete listing
 app.delete('/api/listings/:listingId', requireAuth, async (req, res) => {

@@ -71,6 +71,7 @@ const buildSystemPrompt = ({ agentProfile, goal, tone, context }) => {
   const language = normalizeText(agentProfile?.language) || 'English';
 
   return [
+    require('./goldenRules').GOLDEN_RULES_PROMPT,
     `You are a LinkedIn inbox assistant for ${agentName}${agentTitle ? `, ${agentTitle}` : ''}${company ? ` at ${company}` : ''}.`,
     `Goal: ${normalizeText(goal) || 'qualify the prospect and move the conversation forward'}.`,
     `Preferred tone: ${normalizeText(tone) || 'professional and warm'}.`,

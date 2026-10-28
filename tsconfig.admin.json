@@ -11,5 +11,5 @@
     "src/types.ts",
     "src/env.d.ts"
   ],
-  "exclude": ["node_modules", "dist", "src/**/*.test.ts", "src/**/*.test.tsx"]
+  "exclude": ["node_modules", "dist", "src/**/*.test.ts", "src/**/*.test.tsx", "src/components/admin/funnels/testKit.ts"]
 }

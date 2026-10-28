@@ -76,8 +76,10 @@ export const AgentSidekickModal: React.FC<AgentSidekickModalProps> = ({ agentPro
             if (speech.audioUrl) {
                 const audio = new Audio(speech.audioUrl)
                 voiceAudioRef.current = audio
-                audio.onended = () => setIsPlaying(false)
+                audio.onended = () => { URL.revokeObjectURL(speech.audioUrl); setIsPlaying(false) }
                 await audio.play()
+            } else {
+                setIsPlaying(false)
             }
         } catch (e) {
             console.error('TTS failed', e)

@@ -36,6 +36,7 @@ const SignUpPage = ({ onNavigateToSignIn, onNavigateToLanding: _onNavigateToLand
     const [email, setEmail] = useState('');
     const [error, setError] = useState<React.ReactNode>('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [success, setSuccess] = useState(false);
     const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
     const handleGoogleSignUp = async () => {
@@ -84,27 +85,13 @@ const SignUpPage = ({ onNavigateToSignIn, onNavigateToLanding: _onNavigateToLand
         }
 
         try {
-            const data = await agentOnboardingService.registerAgent({
+            await agentOnboardingService.registerAgent({
                 firstName,
                 lastName,
                 email: email.trim().toLowerCase()
             });
 
-            const tempPassword = data.credentials?.password;
-            if (!tempPassword) {
-                throw new Error('Your account was created, but auto-login failed. Please check your email for login details.');
-            }
-
-            const { error: signInError } = await supabase.auth.signInWithPassword({
-                email: email.trim().toLowerCase(),
-                password: tempPassword
-            });
-
-            if (signInError) {
-                throw signInError;
-            }
-
-            navigate('/dashboard/today', { replace: true });
+            setSuccess(true);
         } catch (error) {
             console.error('Signup error:', error);
             const message = error instanceof Error ? error.message : 'An error occurred during sign up. Please try again.';
@@ -191,7 +178,7 @@ const SignUpPage = ({ onNavigateToSignIn, onNavigateToLanding: _onNavigateToLand
                             <h2 className="text-2xl font-bold text-white tracking-tight">Create Free Account</h2>
                             <p className="text-sm text-slate-400 mt-1 font-light">Get your dashboard instantly. Upgrade later only if you want to.</p>
 
-                            <form className="mt-8 space-y-6" onSubmit={handleSignUp}>
+                            {success ? <div className="mt-8 text-cyan-100" role="status">Check your email. Click the confirmation link, then sign in with the temporary password in that email. <button type="button" onClick={onNavigateToSignIn} className="underline">Go to sign in</button></div> : <form className="mt-8 space-y-6" onSubmit={handleSignUp}>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div>
                                         <label htmlFor="first-name" className="block text-sm font-semibold text-slate-300 mb-2">First Name</label>
@@ -226,7 +213,7 @@ const SignUpPage = ({ onNavigateToSignIn, onNavigateToLanding: _onNavigateToLand
                                     </button>
                                     {isSubmitting && (
                                         <div className="mt-4 text-center animate-pulse">
-                                            <p className="text-sm text-slate-400 font-light">Signing you in...</p>
+                                            <p className="text-sm text-slate-400 font-light">Preparing your confirmation email...</p>
                                         </div>
                                     )}
                                     <div className="flex items-center gap-3">
@@ -244,7 +231,7 @@ const SignUpPage = ({ onNavigateToSignIn, onNavigateToLanding: _onNavigateToLand
                                         {isGoogleLoading ? 'Redirecting...' : 'Continue with Google'}
                                     </button>
                                 </div>
-                            </form>
+                            </form>}
 
                             <p className="text-center text-sm text-slate-500 mt-8 font-medium">
                                 Already have an account?{' '}

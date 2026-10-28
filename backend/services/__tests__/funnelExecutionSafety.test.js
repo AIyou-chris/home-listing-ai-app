@@ -1,10 +1,10 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const createService=require('../funnelExecutionService');
-function fixture(enrollments) {
+function fixture(enrollments, sendResult = { sent: true }) {
   let sends=0;
   const db={from(name){let op='select',patch,id;const q={select(){return q;},eq(col,value){if(col==='id')id=value;return q;},lte(){return q;},limit(){return q;},update(value){op='update';patch=value;return q;},insert(){op='insert';return q;},then(resolve){if(op==='update')Object.assign(enrollments.find(e=>e.id===id)||{},patch);return Promise.resolve({data:op==='select'&&name==='funnel_enrollments'?enrollments:[],error:null}).then(resolve);}};return q;}};
-  const service=createService({supabaseAdmin:db,emailService:{sendEmail:async()=>{sends++;return {sent:true};}},smsService:{},voiceService:{}});
+  const service=createService({supabaseAdmin:db,emailService:{sendEmail:async()=>{sends++;return sendResult;}},smsService:{},voiceService:{}});
   return {service,sends:()=>sends};
 }
 function row(id,status='New') {return {id,current_step_index:0,leads:{id:'lead-'+id,status,name:'Buyer',email:'buyer@example.com'},agents:{id:'agent'},funnels:{steps:[{type:'email',subject:'Hello',content:'Test'}]}};}
@@ -15,6 +15,21 @@ test('unsubscribed buyer receives no further funnel messages',async()=>{
 test('an orphan enrollment cannot prevent the next buyer being processed',async()=>{
   const broken={...row('broken'),leads:null};const healthy=row('healthy');const f=fixture([broken,healthy]);
   await f.service.processBatch();assert.equal(f.sends(),1);assert.equal(broken.status,'failed');
+});
+
+test('failed delivery stops at the same step instead of falsely completing the funnel',async()=>{
+  const enrollment=row('failed-send'); const f=fixture([enrollment],{sent:false,queued:false});
+  await f.service.processBatch();
+  assert.equal(enrollment.status,'failed');
+  assert.equal(enrollment.current_step_index,0);
+});
+
+test('missing own funnel never uses another customer templates, including is_default rows',async()=>{
+  const {createFakeDb}=require('../../__tests__/helpers/fakeDb');
+  const {resolveFunnelForEnrollment}=require('../funnelEnrollmentService');
+  const db=createFakeDb({funnels:[{id:'other',agent_id:'other-owner',funnel_key:'realtor_funnel',type:'realtor_funnel',is_default:true}]});
+  const result=await resolveFunnelForEnrollment({supabaseAdmin:db,agentId:'me',funnelKey:'realtor_funnel',defaultAgentId:'other-owner'});
+  assert.equal(result.funnel,null);
 });
 
 

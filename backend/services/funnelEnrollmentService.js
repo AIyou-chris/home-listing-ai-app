@@ -64,7 +64,7 @@ const buildFunnelJsonSteps = (steps = []) => {
     });
 };
 
-const resolveFunnelForEnrollment = async ({ supabaseAdmin, agentId, funnelKey, defaultAgentId }) => {
+const resolveFunnelForEnrollment = async ({ supabaseAdmin, agentId, funnelKey }) => {
     const normalizedKey = normalizeFunnelKey(funnelKey);
     const candidates = buildFunnelCandidates(normalizedKey);
 
@@ -87,38 +87,6 @@ const resolveFunnelForEnrollment = async ({ supabaseAdmin, agentId, funnelKey, d
             .limit(1);
         if (byAgentType && byAgentType[0]) return { funnel: byAgentType[0], normalizedKey };
     }
-
-    if (defaultAgentId) {
-        const { data: byDefaultAgent } = await supabaseAdmin
-            .from('funnels')
-            .select(selectCols)
-            .eq('agent_id', defaultAgentId)
-            .in('funnel_key', candidates)
-            .limit(1);
-        if (byDefaultAgent && byDefaultAgent[0]) return { funnel: byDefaultAgent[0], normalizedKey };
-    }
-
-    const { data: byGlobalDefault } = await supabaseAdmin
-        .from('funnels')
-        .select(selectCols)
-        .eq('is_default', true)
-        .in('funnel_key', candidates)
-        .limit(1);
-    if (byGlobalDefault && byGlobalDefault[0]) return { funnel: byGlobalDefault[0], normalizedKey };
-
-    const { data: byAnyKey } = await supabaseAdmin
-        .from('funnels')
-        .select(selectCols)
-        .in('funnel_key', candidates)
-        .limit(1);
-    if (byAnyKey && byAnyKey[0]) return { funnel: byAnyKey[0], normalizedKey };
-
-    const { data: byAnyType } = await supabaseAdmin
-        .from('funnels')
-        .select(selectCols)
-        .in('type', candidates)
-        .limit(1);
-    if (byAnyType && byAnyType[0]) return { funnel: byAnyType[0], normalizedKey };
 
     return { funnel: null, normalizedKey };
 };
@@ -170,8 +138,7 @@ const enrollLeadInFunnel = async ({
     funnelService,
     agentId,
     leadId,
-    funnelKey,
-    defaultAgentId
+    funnelKey
 }) => {
     if (!agentId || !leadId || !funnelKey) {
         throw new Error('Missing required enrollment params');
@@ -180,8 +147,7 @@ const enrollLeadInFunnel = async ({
     const { funnel, normalizedKey } = await resolveFunnelForEnrollment({
         supabaseAdmin,
         agentId,
-        funnelKey,
-        defaultAgentId
+        funnelKey
     });
 
     if (!funnel) {

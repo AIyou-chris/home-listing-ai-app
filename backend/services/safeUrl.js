@@ -25,12 +25,18 @@ function isPrivateIpv4(ip) {
 }
 
 function isPrivateIp(ip) {
-  const addr = String(ip || '').toLowerCase().replace(/^\[|\]$/g, '');
+  let addr = String(ip || '').toLowerCase().replace(/^\[|\]$/g, '');
   if (net.isIPv4(addr)) return isPrivateIpv4(addr);
   if (net.isIPv6(addr)) {
+    addr = new URL(`http://[${addr}]/`).hostname.slice(1, -1);
     if (addr === '::' || addr === '::1') return true;
     const mapped = addr.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
     if (mapped) return isPrivateIpv4(mapped[1]);
+    const mappedHex = addr.match(/^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/);
+    if (mappedHex) {
+      const value = (parseInt(mappedHex[1], 16) << 16) | parseInt(mappedHex[2], 16);
+      return isPrivateIpv4([value >>> 24, (value >>> 16) & 255, (value >>> 8) & 255, value & 255].join('.'));
+    }
     const first = parseInt(addr.split(':')[0] || '0', 16);
     if ((first & 0xfe00) === 0xfc00) return true; // fc00::/7 unique local
     if ((first & 0xffc0) === 0xfe80) return true; // fe80::/10 link local

@@ -354,44 +354,39 @@ const ensureFunnels = async (client, agentId, funnels = DEFAULT_FUNNELS) => {
   return data;
 };
 
-const ensureAuthUser = async (adminClient, agent) => {
-  // Attempt to create the user directly.
-  const password = createTempPassword();
-  const { data, error } = await adminClient.auth.admin.createUser({
-    email: agent.email,
-    password,
-    email_confirm: true,
-    user_metadata: {
-      first_name: agent.first_name,
-      last_name: agent.last_name,
-      slug: agent.slug,
-      role: 'agent'
+const ensureAuthUser = async (adminClient, agent, chosenPassword, redirectTo) => {
+  if (agent.auth_user_id) {
+    const { data, error } = await adminClient.auth.admin.getUserById(agent.auth_user_id);
+    if (error) throw error;
+    if (data?.user?.email_confirmed_at) {
+      return { isNew: false, userId: data.user.id, email: agent.email, confirmationRequired: false };
     }
-  });
-
-  if (error) {
-    // If user already exists, we must find their ID to link them
-    if (error.message?.toLowerCase().includes('already') || error.status === 422) {
-      console.warn(`[Onboarding] User ${agent.email} already exists. Searching via listUsers.`);
-
-      // Fallback: List users to find by email (since getUserByEmail is deprecated/removed in v2)
-      const { data: listData, error: listErr } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 });
-      if (listErr) throw listErr;
-
-      const existingUser = listData.users.find(u => u.email?.toLowerCase() === agent.email.toLowerCase());
-      if (existingUser) {
-        return { isNew: false, userId: existingUser.id, email: agent.email };
-      }
-      throw new Error(`User ${agent.email} exists but could not be found in user list.`);
-    }
-    throw error;
   }
+  const password = chosenPassword || createTempPassword();
+  const options = { redirectTo, data: { first_name: agent.first_name, last_name: agent.last_name, slug: agent.slug } };
+  let { data, error } = await adminClient.auth.admin.generateLink({
+    type: agent.auth_user_id ? 'magiclink' : 'signup',
+    email: agent.email,
+    ...(agent.auth_user_id ? {} : { password }),
+    options
+  });
+  let resumed = Boolean(agent.auth_user_id);
+  // A previous attempt may have created the login before its profile link was saved.
+  if (error && (['email_exists', 'user_already_exists'].includes(error.code) || /already.*registered|already.*exists/i.test(error.message || ''))) {
+    ({ data, error } = await adminClient.auth.admin.generateLink({ type: 'magiclink', email: agent.email, options }));
+    resumed = true;
+  }
+  if (error) throw error;
+  if (data?.user?.email_confirmed_at) throw new Error('Account already exists for this email. Please sign in.');
+  if (!data?.user?.id || !data?.properties?.action_link) throw new Error('signup_confirmation_link_missing');
 
   return {
-    isNew: true,
+    isNew: !resumed,
     userId: data.user.id,
     email: agent.email,
-    password
+    password: chosenPassword || resumed ? null : password,
+    confirmationUrl: data.properties.action_link,
+    confirmationRequired: true
   };
 };
 
@@ -445,6 +440,17 @@ module.exports = ({ supabaseAdmin, emailService, dashboardBaseUrl }) => {
   const dashboardTodayUrl = `${appBaseUrl}/dashboard/today`;
   const billingSettingsUrl = `${appBaseUrl}/dashboard/settings/billing`;
 
+  const sendConfirmationEmail = async (agent, credentials) => {
+    const confirmUrl = credentials.confirmationUrl.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+    const message = await emailService.sendEmail({
+      to: agent.email,
+      subject: 'Confirm your HomeListingAI email',
+      html: `<p>Use this link to confirm your email and open your account:</p><p><a href="${confirmUrl}">Confirm my email</a></p>${credentials.password ? `<p>Your temporary password is: <strong>${credentials.password}</strong>. Change it after signing in.</p>` : '<p>If you need a new password, use Reset password on the sign-in page.</p>'}`,
+      tags: { template: 'signup-confirmation' }
+    });
+    if (!message?.sent && !message?.queued) throw new Error('We could not send your confirmation email. Please try signing up again.');
+  };
+
   const getAgentBySlug = async (slug) => {
     const { data, error } = await supabaseAdmin.from('agents').select('*').eq('slug', slug).limit(1);
     if (error) throw error;
@@ -484,59 +490,63 @@ module.exports = ({ supabaseAdmin, emailService, dashboardBaseUrl }) => {
     };
   };
 
-  const registerAgent = async ({ firstName, lastName, email, accountType, phone, nmls }) => {
-    if (!firstName || !lastName || !email) {
+  const registerAgent = async ({ firstName, lastName, email, accountType, phone, nmls, password }) => {
+    if (![firstName, lastName, email].every(value => typeof value === 'string' && value.trim())) {
       throw new Error('Missing required fields for agent registration');
     }
+    if (password !== undefined && (typeof password !== 'string' || password.length < 8 || password.length > 128)) throw new Error('Password must be 8 to 128 characters.');
 
     const normalizedEmail = email.trim().toLowerCase();
+    if (normalizedEmail.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) throw new Error('Please enter a valid email address.');
+    if (accountType && !['lo', 'agent', 'realtor', 'office'].includes(accountType)) throw new Error('Invalid account type.');
 
     const { data: existingAgentByEmail, error: existingAgentLookupError } = await supabaseAdmin
       .from('agents')
-      .select('id, email, status')
+      .select('*')
       .eq('email', normalizedEmail)
       .neq('status', 'deleted')
       .limit(1);
 
     if (existingAgentLookupError) throw existingAgentLookupError;
-    if (existingAgentByEmail && existingAgentByEmail.length > 0) {
-      throw new Error('Account already exists for this email. Please sign in.');
+    let agent = existingAgentByEmail?.[0] || null;
+    if (agent?.auth_user_id) {
+      const { data, error: userError } = await supabaseAdmin.auth.admin.getUserById(agent.auth_user_id);
+      if (userError) throw userError;
+      if (data?.user?.email_confirmed_at) throw new Error('Account already exists for this email. Please sign in.');
     }
 
-    const slug = await generateUniqueSlug(supabaseAdmin, firstName, lastName);
-
-    const insertPayload = {
-      first_name: firstName.trim(),
-      last_name: lastName.trim(),
-      email: normalizedEmail,
-      slug,
-      status: 'active',
-      payment_status: 'awaiting_payment',
-      activated_at: new Date().toISOString()
-    };
-
-    if (accountType) insertPayload.account_type = accountType;
-    if (phone) insertPayload.phone = phone.trim();
-    if (nmls) insertPayload.nmls_number = nmls.trim();
-
-    const { data, error } = await supabaseAdmin
-      .from('agents')
-      .insert(insertPayload)
-      .select('*')
-      .limit(1);
-
-    if (error) throw error;
-
-    const agent = data?.[0];
     if (!agent) {
-      throw new Error('Failed to create account record.');
+      const slug = await generateUniqueSlug(supabaseAdmin, firstName, lastName);
+
+      const insertPayload = {
+        first_name: firstName.trim(),
+        last_name: lastName.trim(),
+        email: normalizedEmail,
+        slug,
+        status: 'active',
+        payment_status: 'awaiting_payment',
+        activated_at: new Date().toISOString()
+      };
+
+      if (accountType) insertPayload.account_type = accountType;
+      if (phone) insertPayload.phone = phone.trim();
+      if (nmls) insertPayload.nmls_number = nmls.trim();
+
+      const { data, error } = await supabaseAdmin
+        .from('agents')
+        .insert(insertPayload)
+        .select('*')
+        .limit(1);
+
+      if (error) throw error;
+
+      agent = data?.[0];
+      if (!agent) {
+        throw new Error('Failed to create account record.');
+      }
     }
-
-    const dashboard = await ensureDashboardRecord(supabaseAdmin, agent);
-    await ensureTemplates(supabaseAdmin, agent.id);
-    await ensureFunnels(supabaseAdmin, agent.id);
-
-    const credentials = await ensureAuthUser(supabaseAdmin, agent);
+    const credentials = await ensureAuthUser(supabaseAdmin, agent, password, `${appBaseUrl}/signin`);
+    if (!credentials.confirmationRequired) throw new Error('Account already exists for this email. Please sign in.');
 
     let finalAgent = agent;
     if (credentials.userId && agent.auth_user_id !== credentials.userId) {
@@ -550,22 +560,10 @@ module.exports = ({ supabaseAdmin, emailService, dashboardBaseUrl }) => {
       finalAgent = updatedAgentRows?.[0] || agent;
     }
 
-    await emailService.sendWelcomeEmail({
-      to: finalAgent.email,
-      firstName: finalAgent.first_name,
-      dashboardUrl: dashboardTodayUrl,
-      billingUrl: billingSettingsUrl
-    });
-
-    if (credentials.isNew && credentials.password) {
-      await emailService.sendCredentialsEmail({
-        to: finalAgent.email,
-        firstName: finalAgent.first_name,
-        password: credentials.password,
-        dashboardUrl: dashboardTodayUrl,
-        billingUrl: billingSettingsUrl
-      });
-    }
+    const dashboard = await ensureDashboardRecord(supabaseAdmin, finalAgent);
+    await ensureTemplates(supabaseAdmin, finalAgent.id);
+    await ensureFunnels(supabaseAdmin, finalAgent.id);
+    await sendConfirmationEmail(finalAgent, credentials);
 
     return {
       agent: finalAgent,
@@ -574,9 +572,8 @@ module.exports = ({ supabaseAdmin, emailService, dashboardBaseUrl }) => {
       dashboardUrl: dashboardTodayUrl,
       billingUrl: billingSettingsUrl,
       checkoutUrl: null,
-      credentials: credentials.password
-        ? { email: finalAgent.email, password: credentials.password }
-        : { email: finalAgent.email, password: null }
+      credentials: null,
+      confirmationRequired: true
     };
   };
 
@@ -613,7 +610,7 @@ module.exports = ({ supabaseAdmin, emailService, dashboardBaseUrl }) => {
     await ensureTemplates(supabaseAdmin, updatedAgent.id);
     await ensureFunnels(supabaseAdmin, updatedAgent.id);
 
-    const credentials = await ensureAuthUser(supabaseAdmin, updatedAgent);
+    const credentials = await ensureAuthUser(supabaseAdmin, updatedAgent, undefined, `${appBaseUrl}/signin`);
 
     // [NEW] Seed the AI Card Profile immediately
     try {
@@ -659,27 +656,19 @@ module.exports = ({ supabaseAdmin, emailService, dashboardBaseUrl }) => {
     }
     const dashboardUrl = dashboardTodayUrl;
 
-    await emailService.sendWelcomeEmail({
+    if (credentials.confirmationRequired) {
+      await sendConfirmationEmail(updatedAgent, credentials);
+    } else await emailService.sendWelcomeEmail({
       to: updatedAgent.email,
       firstName: updatedAgent.first_name,
       dashboardUrl,
       billingUrl: billingSettingsUrl
     });
 
-    if (credentials.isNew && credentials.password) {
-      await emailService.sendCredentialsEmail({
-        to: updatedAgent.email,
-        firstName: updatedAgent.first_name,
-        password: credentials.password,
-        dashboardUrl,
-        billingUrl: billingSettingsUrl
-      });
-    }
-
     return {
       agent: updatedAgent,
       dashboard,
-      credentials: credentials.isNew ? { email: credentials.email, password: credentials.password } : null
+      credentials: null
     };
   };
 

@@ -23,7 +23,7 @@ const isAppTabUrl = (url) => {
   const value = String(url || '');
   return (
     /^http:\/\/(localhost|127\.0\.0\.1):(5173|5175)\//i.test(value) ||
-    /^https:\/\/([a-z0-9-]+\.)?homelistingai\.com\//i.test(value)
+    /^https:\/\/([a-z0-9-]+\.)?homelistingai\.com(?:\/|$)/i.test(value)
   );
 };
 
@@ -55,6 +55,8 @@ const detectUserFromAppTab = async () => {
             const parsed = JSON.parse(raw);
             return {
               userId: parsed?.user?.id || '',
+              accessToken: parsed?.access_token || '',
+              expiresAt: parsed?.expires_at || 0,
               email: parsed?.user?.email || '',
               origin: window.location.origin || ''
             };
@@ -90,7 +92,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         }
 
         await chrome.storage.local.set(nextSettings);
-        sendResponse({ ok: true, data: detected });
+        sendResponse({ ok: true, data: { userId: detected.userId, email: detected.email, origin: detected.origin } });
       } catch (error) {
         sendResponse({
           ok: false,
@@ -117,11 +119,16 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           throw new Error('No app user ID found yet. Click Auto find my user first.');
         }
 
+        const session = await detectUserFromAppTab();
+        if (!session?.accessToken || session.userId !== userId || session.expiresAt * 1000 <= Date.now()) {
+          throw new Error('Open HomeListingAI, sign in, then click Auto find my user again.');
+        }
+
         const response = await fetch(`${apiBaseUrl}/api/linkedin/assistant`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'x-user-id': userId
+            'Authorization': `Bearer ${session.accessToken}`
           },
           body: JSON.stringify({
             threadText: message.payload?.threadText || '',

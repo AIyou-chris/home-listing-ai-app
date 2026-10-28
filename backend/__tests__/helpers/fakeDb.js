@@ -75,6 +75,8 @@ const createFakeDb = (seed = {}) => {
       update(p) { op = 'update'; patch = p; return api; },
       delete() { op = 'delete'; return api; },
       eq(c, v) { filters.push((r) => r[c] === v); return api; },
+      neq(c, v) { filters.push((r) => r[c] !== v); return api; },
+      ilike(c, v) { const re = new RegExp('^' + v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/%/g, '.*').replace(/_/g, '.') + '$', 'i'); filters.push((r) => re.test(String(r[c] || ''))); return api; },
       in(c, vs) { filters.push((r) => vs.includes(r[c])); return api; },
       lt(c, v) { filters.push((r) => r[c] < v); return api; },
       lte(c, v) { filters.push((r) => String(r[c]) <= String(v)); return api; },
