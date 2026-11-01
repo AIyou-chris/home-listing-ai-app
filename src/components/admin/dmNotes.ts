@@ -1,11 +1,10 @@
-// LinkedIn notes written to read like a person typed them: plain words, no emoji,
-// no dashes, no link in the connection note. Uses only facts we really have.
+// LinkedIn notes in Chris's voice: friendly, plain, no emoji, no dashes, no link or
+// pitch in the connection note. Uses only facts we really have.
 export type DmLead = { id: string; name: string | null; employer: string | null; city: string | null };
 
 const PITCH_URL = 'homelistingai.com/for-loan-officers';
 
 const first = (l: DmLead) => (l.name || '').trim().split(/\s+/)[0] || '';
-const hello = (l: DmLead) => (first(l) ? `Hi ${first(l)},` : 'Hi,');
 // A long or messy business name reads badly in a sentence, so skip it.
 const company = (l: DmLead) => {
   const c = (l.employer || '').trim();
@@ -14,19 +13,20 @@ const company = (l: DmLead) => {
 const town = (l: DmLead) => (l.city || '').split(',')[0].trim();
 const pickVariant = (l: DmLead) => (l.id.charCodeAt(l.id.length - 1) % 2 === 0 ? 0 : 1);
 
-// LinkedIn caps the connection note at 300 characters.
+// LinkedIn caps the connection note at 300 characters. Written in Chris's voice
+// (docs/brand/CHRIS_POTTER_VOICE.md): one person to another, no pitch yet.
 export function connectNote(l: DmLead): string {
   const co = company(l);
   const tn = town(l);
-  const tail = `I've been in mortgage 15 years and built a small tool that helps loan officers get agents sending them listings. Would be glad to connect.`;
-  let lead: string;
-  if (co && tn) lead = pickVariant(l) === 0 ? `I came across ${co} while looking at loan officers in ${tn}.` : `Saw ${co} in ${tn} and wanted to reach out.`;
-  else if (co) lead = pickVariant(l) === 0 ? `I came across ${co} and wanted to reach out.` : `Saw ${co} and wanted to say hello.`;
-  else if (tn) lead = `I'm connecting with loan officers in ${tn}.`;
-  else lead = `I'm connecting with other loan officers.`;
-  return `${hello(l)} ${lead} ${tail}`.slice(0, 300);
+  const intro = `${first(l) ? `Hey ${first(l)}` : 'Hey'}, Chris here.`;
+  const about = `I've been in mortgage 15 years and I like meeting other loan officers.`;
+  let saw = '';
+  if (co && tn) saw = pickVariant(l) === 0 ? `Saw you're with ${co} in ${tn}.` : `Noticed ${co} in ${tn}.`;
+  else if (co) saw = `Noticed ${co}.`;
+  else if (tn) saw = `Saw you're in ${tn}.`;
+  return [intro, about, saw, 'Would love to connect.'].filter(Boolean).join(' ').slice(0, 300);
 }
 
 export function followupNote(l: DmLead): string {
-  return `${first(l) ? `Thanks for connecting, ${first(l)}.` : 'Thanks for connecting.'} I run HomeListingAI. It gives a loan officer one link to hand agents so they send you their listings, and it catches buyer leads for you. There is a 7 day trial, no card: ${PITCH_URL}. Happy to answer any questions.`;
+  return `${first(l) ? `Thanks for connecting, ${first(l)}.` : 'Thanks for connecting.'} I built a tool that gives a loan officer one link to hand agents, so the agents send you their listings and you get the buyer leads. It's free for 7 days, no card. Here's the link if you want a look: ${PITCH_URL}. No pressure.`;
 }
