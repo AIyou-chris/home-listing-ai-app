@@ -504,8 +504,30 @@ function createLoLeadScraperService(deps) {
 
   // Import leads from parsed CSV rows (array of objects keyed by header). Uses the
   // same flexible mapping + dedup/suppression as the Apify import.
+  // The free Google Maps scraper (gosom) writes its own columns: `title` is the
+  // BUSINESS name (not a job title), emails are comma-separated in `emails`, and
+  // the town sits inside a JSON `complete_address`. Sniff by place_id/cid.
+  function isMapsRow(r) {
+    return !!(r && typeof r === 'object' && (r.place_id || r.cid) && 'emails' in r);
+  }
+  function mapsRowToContact(r) {
+    const first = String(r.emails || '').split(/[,;\s]+/).map(e => e.trim()).filter(Boolean)[0];
+    const c = makeContact(first, r.title ? String(r.title).trim() : null);
+    if (!c) return null;
+    c.name = null;
+    c.job_title = r.category ? String(r.category).trim() : null;
+    c.phone = r.phone ? String(r.phone).trim() : null;
+    c.linkedin = null;
+    c.source_url = r.website ? String(r.website).trim() : (r.link || null);
+    let addr = {};
+    try { addr = JSON.parse(r.complete_address || '{}') || {}; } catch (_e) { addr = {}; }
+    c.city = [addr.city, addr.state].filter(Boolean).join(', ') || null;
+    return c;
+  }
+
   async function importCsvRows(rows) {
-    const contacts = (Array.isArray(rows) ? rows : []).map(leadRowToContact).filter(Boolean);
+    const contacts = (Array.isArray(rows) ? rows : [])
+      .map(r => (isMapsRow(r) ? mapsRowToContact(r) : leadRowToContact(r))).filter(Boolean);
     const seen = new Set();
     const counters = { leadsAdded: 0, dupesSkipped: 0, roleFiltered: 0 };
     await storeBatch(contacts, { seen, counters });

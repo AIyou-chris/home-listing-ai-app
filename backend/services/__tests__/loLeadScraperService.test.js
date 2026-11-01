@@ -497,3 +497,24 @@ test('role classification: contacts with no job_title are never sent to Jev', as
   assert.strictEqual(r.leadsAdded, 1);
   assert.strictEqual(evaluateCalls, 0);
 });
+
+test('CSV import: reads the free Google Maps scraper file (business name, emails, town)', async () => {
+  const supa = makeFakeSupabase();
+  const svc = require('../loLeadScraperService').createLoLeadScraperService({
+    supabaseAdmin: supa, fetchImpl: async () => { throw new Error('no'); }, env: {},
+    typesafeClient: { isConfigured: () => false },
+  });
+  const r = await svc.importCsvRows([
+    { place_id: 'p1', title: 'Florida State Mortgage Group', category: 'Mortgage broker', phone: '(954) 686-1883',
+      website: 'https://floridastatemortgagegroup.com/', emails: 'smcwilliam@floridastatemortgagegroup.com,second@x.com',
+      complete_address: '{"city":"Fort Lauderdale","state":"Florida"}' },
+    { place_id: 'p2', title: 'No Email Co', phone: '(954) 000-0000', emails: '', complete_address: '' },
+  ]);
+  assert.strictEqual(r.leadsAdded, 1);
+  const row = supa.inserted[0];
+  assert.strictEqual(row.email, 'smcwilliam@floridastatemortgagegroup.com');
+  assert.strictEqual(row.employer, 'Florida State Mortgage Group');
+  assert.strictEqual(row.job_title, 'Mortgage broker');
+  assert.strictEqual(row.city, 'Fort Lauderdale, Florida');
+  assert.strictEqual(row.phone, '(954) 686-1883');
+});

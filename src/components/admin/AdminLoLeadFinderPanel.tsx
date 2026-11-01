@@ -361,7 +361,7 @@ const AdminLoLeadFinderPanel: React.FC = () => {
               onChange={e => { const f = e.target.files?.[0]; if (f) void importCsv(f); e.target.value = ''; }} />
           </label>
         </div>
-        <p className="mt-2 text-xs text-slate-400">CSV columns auto-detected (email, name, company, phone, LinkedIn, city/state). Rows need an email or a LinkedIn URL; dupes are skipped.</p>
+        <p className="mt-2 text-xs text-slate-400">CSV columns auto-detected (email, name, company, phone, LinkedIn, city/state). Free Google Maps files from maps-lead-finder.cjs work too. Rows need an email or a LinkedIn URL; dupes are skipped.</p>
         {msg && <p className="mt-3 text-sm font-semibold text-slate-700">{msg}</p>}
       </div>
 
