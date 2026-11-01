@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { AuthService } from '../../services/authService';
+import { filterMapsRows, REVIEW_OPTIONS } from './mapsFilters';
 
 // ── Outreach message templates — EDIT THESE FREELY ─────────────────────────
 // Tokens: {{first}} = first name, {{company}} = employer. Keep it short + human.
@@ -97,6 +98,8 @@ const AdminLoLeadFinderPanel: React.FC = () => {
   const [msg, setMsg] = useState('');
   const [poolOpen, setPoolOpen] = useState(true);
   const [finding, setFinding] = useState(false);
+  const [maxReviews, setMaxReviews] = useState('');
+  const [websiteFilter, setWebsiteFilter] = useState<'any' | 'has'>('any');
   const [dmQueue, setDmQueue] = useState<Lead[] | null>(null); // null = closed
 
   const auth = useMemo(() => AuthService.getInstance(), []);
@@ -122,8 +125,10 @@ const AdminLoLeadFinderPanel: React.FC = () => {
     setImporting(true);
     setMsg('');
     try {
-      const rows = parseCsv(await file.text());
-      if (!rows.length) { setMsg('❌ No rows found in that CSV.'); return; }
+      const allRows = parseCsv(await file.text());
+      const rows = filterMapsRows(allRows, { maxReviews: maxReviews ? Number(maxReviews) : null, website: websiteFilter });
+      if (!allRows.length) { setMsg('❌ No rows found in that CSV.'); return; }
+      if (!rows.length) { setMsg(`⚠️ All ${allRows.length} rows were removed by your filters. Loosen them and try again.`); return; }
       // Longer timeout than the 15s default: every row with a job_title now gets
       // a TypeSafe classification call (see ADR-0003), and Render's free-tier
       // instance can add 50+ seconds of its own cold-start delay on top of that.
@@ -386,6 +391,13 @@ const AdminLoLeadFinderPanel: React.FC = () => {
           >
             {importing ? 'Importing…' : '⬇️ Import from Apify'}
           </button>
+          <select aria-label="Reviews filter" value={maxReviews} onChange={e => setMaxReviews(e.target.value)} className="rounded-xl border border-slate-300 px-3 py-3 text-sm text-slate-700">
+            {REVIEW_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+          <select aria-label="Website filter" value={websiteFilter} onChange={e => setWebsiteFilter(e.target.value as 'any' | 'has')} className="rounded-xl border border-slate-300 px-3 py-3 text-sm text-slate-700">
+            <option value="any">Website or not</option>
+            <option value="has">Has a website</option>
+          </select>
           <label className={`rounded-xl border border-slate-300 px-6 py-3 text-center text-sm font-bold text-slate-700 transition-all hover:bg-slate-50 ${importing ? 'pointer-events-none opacity-50' : 'cursor-pointer'}`}>
             📄 Import CSV
             <input type="file" accept=".csv,text/csv" className="hidden"
