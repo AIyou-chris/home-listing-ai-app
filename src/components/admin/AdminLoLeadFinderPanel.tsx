@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { AuthService } from '../../services/authService';
+import { connectNote, followupNote } from './dmNotes';
 import { filterMapsRows, REVIEW_OPTIONS } from './mapsFilters';
 
 // ── Outreach message templates — EDIT THESE FREELY ─────────────────────────
@@ -9,14 +10,6 @@ import { filterMapsRows, REVIEW_OPTIONS } from './mapsFilters';
 const PITCH_URL = 'https://homelistingai.com/for-loan-officers';
 const SMS_TEMPLATE =
   `Hey {{first}} — it's looking like 2006 out there. I built HomeListingAI for loan officers like you: warm leads, agent partners who actually stick, and your time back. 7 days free, no card. 👉 ${PITCH_URL}`;
-// Fits LinkedIn's 300-char connection-request note limit. The domain is plain
-// text (notes don't make links clickable) but readers can type/search it.
-const LINKEDIN_TEMPLATE =
-  `Hey {{first}} — it's looking like 2006 out there. I built HomeListingAI for loan officers like you: warm leads, agent partners who stick, your time back. 7 days free, no card. Open to a quick look? homelistingai.com`;
-
-// Second message, sent only after they ACCEPT the connection (DM stage 2).
-const FOLLOWUP_TEMPLATE =
-  `Thanks for connecting, {{first}}! Quick version: HomeListingAI gives loan officers warm buyer leads and a ready-made link to hand agents, so they send you their listings. 7 days free, no card: ${PITCH_URL}. Worth a look?`;
 
 // Minimal RFC-4180-ish CSV parser: handles quoted fields, embedded commas/newlines,
 // and escaped quotes. Returns an array of objects keyed by the header row.
@@ -228,7 +221,7 @@ const AdminLoLeadFinderPanel: React.FC = () => {
   };
 
   const dmLead = (l: Lead) => {
-    const body = fillTemplate(LINKEDIN_TEMPLATE, l);
+    const body = connectNote(l);
     void navigator.clipboard?.writeText(body).catch(() => {});
     const url = absUrl(l.linkedin);
     if (url) window.open(url, '_blank', 'noopener');
@@ -254,7 +247,7 @@ const AdminLoLeadFinderPanel: React.FC = () => {
   };
 
   const messageLead = (l: Lead) => {
-    void navigator.clipboard?.writeText(fillTemplate(FOLLOWUP_TEMPLATE, l)).catch(() => {});
+    void navigator.clipboard?.writeText(followupNote(l)).catch(() => {});
     const url = absUrl(l.linkedin);
     if (url) window.open(url, '_blank', 'noopener');
     toast.success('Message copied — paste it in LinkedIn Messages');
@@ -282,13 +275,13 @@ const AdminLoLeadFinderPanel: React.FC = () => {
     if (!queue.length) { toast.error('No new leads with a LinkedIn profile.'); return; }
     setDmQueue(queue);
     // Pre-copy the first note so the very first profile is paste-ready.
-    void navigator.clipboard?.writeText(fillTemplate(LINKEDIN_TEMPLATE, queue[0])).catch(() => {});
+    void navigator.clipboard?.writeText(connectNote(queue[0])).catch(() => {});
   };
 
   const dmQueueAdvance = () => {
     setDmQueue(prev => {
       const rest = prev && prev.length > 1 ? prev.slice(1) : null;
-      if (rest) void navigator.clipboard?.writeText(fillTemplate(LINKEDIN_TEMPLATE, rest[0])).catch(() => {});
+      if (rest) void navigator.clipboard?.writeText(connectNote(rest[0])).catch(() => {});
       else toast.success('DM queue finished 🎉');
       return rest;
     });
@@ -539,7 +532,7 @@ const AdminLoLeadFinderPanel: React.FC = () => {
             </p>
 
             <div className="mt-4 rounded-xl bg-slate-50 p-3 text-sm text-slate-700">
-              {fillTemplate(LINKEDIN_TEMPLATE, dmQueueCurrent)}
+              {connectNote(dmQueueCurrent)}
             </div>
             <p className="mt-2 text-xs text-slate-400">This note is already on your clipboard. On LinkedIn: Connect → Add a note → paste → Send.</p>
 
