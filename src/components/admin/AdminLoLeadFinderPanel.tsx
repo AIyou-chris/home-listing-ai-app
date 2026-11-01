@@ -466,7 +466,7 @@ const AdminLoLeadFinderPanel: React.FC = () => {
                       </td>
                     )}
                     <td className="px-4 py-3">
-                      <p className="font-semibold text-slate-900">{l.name || '—'}</p>
+                      <p className="font-semibold text-slate-900">{l.name || l.employer || '—'}</p>
                       <p className="text-xs text-slate-400">{l.job_title || ''}{l.is_role && <span className="ml-1 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">role</span>}</p>
                     </td>
                     <td className="px-4 py-3 text-slate-600">{l.email || <span className="text-slate-300">— DM only</span>}</td>
