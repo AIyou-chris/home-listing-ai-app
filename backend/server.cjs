@@ -31704,6 +31704,26 @@ app.post('/api/admin/lo-leads/:id/dm-sent', verifyAdmin, async (req, res) => {
   }
 });
 
+// ── POST /api/admin/lo-leads/:id/dm-stage — DM queue stage 2 (accepted / messaged) ─
+// Only moves a lead that is already past the connection note, in order.
+const DM_STAGE_FROM = { connected: 'dm_sent', messaged: 'connected' };
+app.post('/api/admin/lo-leads/:id/dm-stage', verifyAdmin, async (req, res) => {
+  try {
+    const stage = String(req.body?.stage || '');
+    const from = DM_STAGE_FROM[stage];
+    if (!from) return res.status(400).json({ error: 'bad_stage' });
+    const { data, error } = await supabaseAdmin
+      .from('lo_lead_pool').update({ status: stage, sent_at: nowIso() })
+      .eq('id', req.params.id).eq('status', from).select('id');
+    if (error) throw error;
+    if (!data || !data.length) return res.status(409).json({ error: 'wrong_stage' });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[LO Lead Finder] DM stage failed:', err);
+    res.status(500).json({ error: 'dm_stage_failed' });
+  }
+});
+
 // ── POST /api/admin/lo-leads/:id/skip — hide a junk lead from the pool ──────────
 app.post('/api/admin/lo-leads/:id/skip', verifyAdmin, async (req, res) => {
   try {

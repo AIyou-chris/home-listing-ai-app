@@ -13,6 +13,10 @@ const SMS_TEMPLATE =
 const LINKEDIN_TEMPLATE =
   `Hey {{first}} — it's looking like 2006 out there. I built HomeListingAI for loan officers like you: warm leads, agent partners who stick, your time back. 7 days free, no card. Open to a quick look? homelistingai.com`;
 
+// Second message, sent only after they ACCEPT the connection (DM stage 2).
+const FOLLOWUP_TEMPLATE =
+  `Thanks for connecting, {{first}}! Quick version: HomeListingAI gives loan officers warm buyer leads and a ready-made link to hand agents, so they send you their listings. 7 days free, no card: ${PITCH_URL}. Worth a look?`;
+
 // Minimal RFC-4180-ish CSV parser: handles quoted fields, embedded commas/newlines,
 // and escaped quotes. Returns an array of objects keyed by the header row.
 function parseCsv(text: string): Record<string, string>[] {
@@ -76,6 +80,8 @@ const STATUS_TABS: Array<{ key: string; label: string }> = [
   { key: 'new', label: 'New' },
   { key: 'sent', label: 'Emailed' },
   { key: 'dm_sent', label: "DM'd" },
+  { key: 'connected', label: 'Accepted' },
+  { key: 'messaged', label: 'Messaged' },
   { key: 'skipped', label: 'Skipped' },
 ];
 
@@ -222,6 +228,31 @@ const AdminLoLeadFinderPanel: React.FC = () => {
     const url = absUrl(l.linkedin);
     if (url) window.open(url, '_blank', 'noopener');
     toast.success('DM copied — paste it in LinkedIn');
+  };
+
+  // DM stage 2: they accepted -> message ready -> messaged. A human does every send.
+  const setDmStage = async (id: string, stage: 'connected' | 'messaged') => {
+    setRowBusy(id);
+    try {
+      const res = await auth.makeAuthenticatedRequest(`/api/admin/lo-leads/${id}/dm-stage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stage }),
+      });
+      if (!res.ok) throw new Error('failed');
+      setLeads(prev => prev.filter(l => l.id !== id));
+    } catch {
+      setMsg('❌ Could not save that — try again.');
+    } finally {
+      setRowBusy(null);
+    }
+  };
+
+  const messageLead = (l: Lead) => {
+    void navigator.clipboard?.writeText(fillTemplate(FOLLOWUP_TEMPLATE, l)).catch(() => {});
+    const url = absUrl(l.linkedin);
+    if (url) window.open(url, '_blank', 'noopener');
+    toast.success('Message copied — paste it in LinkedIn Messages');
   };
 
   const skip = async (id: string) => {
@@ -454,7 +485,18 @@ const AdminLoLeadFinderPanel: React.FC = () => {
                         </div>
                       </td>
                     ) : (
-                      <td className="px-4 py-3 text-xs text-slate-400">{fmt(l.sent_at || l.found_at)}</td>
+                      <td className="px-4 py-3 text-xs text-slate-400">
+                        <p>{fmt(l.sent_at || l.found_at)}</p>
+                        {l.status === 'dm_sent' && (
+                          <button onClick={() => setDmStage(l.id, 'connected')} disabled={rowBusy === l.id} title="Tap when LinkedIn shows they accepted your request" className="mt-1 rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-50">✅ They accepted</button>
+                        )}
+                        {l.status === 'connected' && (
+                          <div className="mt-1 flex flex-wrap gap-1.5">
+                            <button onClick={() => messageLead(l)} className="rounded-lg bg-sky-600 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-sky-700">💬 Copy message + open</button>
+                            <button onClick={() => setDmStage(l.id, 'messaged')} disabled={rowBusy === l.id} className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-100 disabled:opacity-50">Sent ✓</button>
+                          </div>
+                        )}
+                      </td>
                     )}
                   </tr>
                 ))}
