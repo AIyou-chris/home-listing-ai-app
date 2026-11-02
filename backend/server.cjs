@@ -34551,16 +34551,20 @@ const BORROWER_DOORS = {
 };
 
 const loadPublicLoBySlug = async (slug) => {
-  const clean = String(slug || '').trim().toLowerCase().slice(0, 80);
+  const clean = String(slug || '').trim().slice(0, 80);
   if (!clean || !supabaseAdmin) return null;
-  const { data } = await bestEffort(
-    supabaseAdmin.from('agents')
-      .select('id, slug, first_name, last_name, company, nmls_number, headshot_url, phone, email, account_type')
-      .eq('slug', clean)
-      .eq('account_type', 'lo')
-      .maybeSingle()
-  ) || {};
-  return data || null;
+  // Slugs can be mixed case (e.g. LoTest_One), so try exact first, then lower case.
+  for (const candidate of [...new Set([clean, clean.toLowerCase()])]) {
+    const { data } = await bestEffort(
+      supabaseAdmin.from('agents')
+        .select('id, slug, first_name, last_name, company, nmls_number, headshot_url, phone, email, account_type')
+        .eq('slug', candidate)
+        .eq('account_type', 'lo')
+        .maybeSingle()
+    ) || {};
+    if (data) return data;
+  }
+  return null;
 };
 
 app.get('/api/public/lo/:slug/profile', async (req, res) => {
