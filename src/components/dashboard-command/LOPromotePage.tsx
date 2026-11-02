@@ -5,6 +5,7 @@ import { authHeaders } from '../../services/dashboard/utils';
 import { useDemoMode } from '../../demo/useDemoMode';
 import { showToast } from '../../utils/toastService';
 import LOVideoMaker from './LOVideoMaker';
+import LOImageMaker from './LOImageMaker';
 
 interface MyLink { slug: string; url: string; name: string; company: string | null; nmls: string | null }
 interface Picture { name: string; url: string | null }
@@ -127,6 +128,15 @@ const LOPromotePage: React.FC = () => {
       setPictures((p) => [d.picture as Picture, ...p]);
     } catch { showToast.error('Could not upload that picture.'); } finally { setUploading(false); }
   };
+  const saveMade = async (dataUrl: string) => {
+    try {
+      const res = await api('/api/lo/pictures', { method: 'POST', body: JSON.stringify({ dataUrl }) });
+      const d = await res.json().catch(() => ({})) as { picture?: Picture };
+      if (res.status === 409) { showToast.error('Your library is full. Delete one first.'); return; }
+      if (!res.ok || !d.picture) throw new Error('failed');
+      setPictures((p) => [d.picture as Picture, ...p]); showToast.success('Saved to your pictures');
+    } catch { showToast.error('Could not save it.'); }
+  };
   const removePicture = async (name: string) => {
     if (!window.confirm('Delete this picture?')) return;
     const res = await api(`/api/lo/pictures/${encodeURIComponent(name)}`, { method: 'DELETE' });
@@ -201,6 +211,14 @@ const LOPromotePage: React.FC = () => {
           <h2 className="text-lg font-extrabold text-white">🎬 Create a video</h2>
           <p className="mb-4 mt-1 text-sm text-indigo-300">Pick a topic, edit every word, make it. Free. You download it and post it yourself.</p>
           <LOVideoMaker footer={footer} />
+        </section>
+
+        <section className={card} aria-label="Create an image">
+          <h2 className="text-lg font-extrabold text-white">🖼 Create an image</h2>
+          <p className="mb-4 mt-1 text-sm text-indigo-300">Big words on a clean background, or on one of your pictures. Free. Edit every word.</p>
+          <LOImageMaker footer={footer} headline={(text.split('\n')[0] || '').slice(0, 120)} pictures={pictures} canSave={!demo}
+            onUse={(u) => { setPic({ name: 'my-post-image.jpg', url: u }); showToast.success('Added to your post preview'); }}
+            onSave={(u) => void saveMade(u)} />
         </section>
 
         <div className="grid gap-5 lg:grid-cols-2">
