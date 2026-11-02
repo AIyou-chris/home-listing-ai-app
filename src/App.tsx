@@ -41,6 +41,8 @@ const LOBrainPage = lazy(() => import('./components/dashboard-command/LOBrainPag
 const AgentBrainPage = lazy(() => import('./components/dashboard-command/AgentBrainPage'));
 const LOLeadsPage = lazy(() => import('./components/dashboard-command/LOLeadsPage'));
 const LOAppointmentsPage = lazy(() => import('./components/dashboard-command/LOAppointmentsPage'));
+const LOPromotePage = lazy(() => import('./components/dashboard-command/LOPromotePage'));
+const BorrowerLinkPage = lazy(() => import('./pages/BorrowerLinkPage'));
 const LOTodayPage = lazy(() => import('./components/dashboard-command/LOTodayPage'));
 const AgentClaimPage = lazy(() => import('./pages/AgentClaimPage'))
 const PartnerInvitePage = lazy(() => import('./pages/PartnerInvitePage'))
@@ -1558,6 +1560,7 @@ const App: React.FC = () => {
                         <Route path="lo-listings" element={<LOListingsPage />} />
                         <Route path="lo-listings/:listingId/share-kit" element={<LOShareKitPage />} />
                         <Route path="lo-partners" element={<LOPartnersPage />} />
+                        <Route path="lo-promote" element={<LOPromotePage />} />
                         <Route path="lo-leads" element={<LOLeadsPage />} />
                         <Route path="lo-appointments" element={<LOAppointmentsPage />} />
                         <Route path="lo-chatbot" element={<LOBrainPage />} />
@@ -1583,6 +1586,7 @@ const App: React.FC = () => {
                         <Route path="lo-listings" element={<LOListingsPage />} />
                         <Route path="lo-listings/:listingId/share-kit" element={<LOShareKitPage />} />
                         <Route path="lo-partners" element={<LOPartnersPage />} />
+                        <Route path="lo-promote" element={<LOPromotePage />} />
                         <Route path="lo-leads" element={<LOLeadsPage />} />
                         <Route path="lo-appointments" element={<LOAppointmentsPage />} />
                         <Route path="lo-chatbot" element={<LOBrainPage />} />
@@ -1596,6 +1600,11 @@ const App: React.FC = () => {
                     <Route path="/listing/:id" element={
                         <Suspense fallback={<LoadingSpinner />}>
                             <PublicListingPage />
+                        </Suspense>
+                    } />
+                    <Route path="/ask/:slug" element={
+                        <Suspense fallback={<LoadingSpinner />}>
+                            <BorrowerLinkPage />
                         </Suspense>
                     } />
                     <Route path="/l/:publicSlug" element={
@@ -1697,6 +1706,7 @@ const App: React.FC = () => {
                         <Route path="/dashboard/lo-listings" element={<LOListingsPage />} />
                         <Route path="/dashboard/lo-listings/:listingId/share-kit" element={<LOShareKitPage />} />
                         <Route path="/dashboard/lo-partners" element={<LOPartnersPage />} />
+                        <Route path="/dashboard/lo-promote" element={<LOPromotePage />} />
                         <Route path="/dashboard/lo-chatbot" element={<LOBrainPage />} />
                         <Route path="/dashboard/agent-brain" element={<AgentBrainPage />} />
                         <Route path="/dashboard/lo-leads" element={<LOLeadsPage />} />

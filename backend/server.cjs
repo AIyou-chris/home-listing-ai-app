@@ -34541,6 +34541,143 @@ app.post('/api/public/lo-chat', async (req, res) => {
   }
 });
 
+// ── Personal borrower link (no agent, no listing) ───────────────────────────────
+// A borrower opens /ask/:slug and picks one of three doors. Every sign-up becomes a
+// normal lead on the LO's dashboard, tagged with the door it came through.
+const BORROWER_DOORS = {
+  buy: { label: 'Buying a home', sourceKey: 'borrower_link_buy' },
+  review: { label: 'Mortgage review', sourceKey: 'borrower_link_review' },
+  class: { label: 'Homebuyer class', sourceKey: 'borrower_link_class' },
+};
+
+const loadPublicLoBySlug = async (slug) => {
+  const clean = String(slug || '').trim().toLowerCase().slice(0, 80);
+  if (!clean || !supabaseAdmin) return null;
+  const { data } = await bestEffort(
+    supabaseAdmin.from('agents')
+      .select('id, slug, first_name, last_name, company, nmls_number, headshot_url, phone, email, account_type')
+      .eq('slug', clean)
+      .eq('account_type', 'lo')
+      .maybeSingle()
+  ) || {};
+  return data || null;
+};
+
+app.get('/api/public/lo/:slug/profile', async (req, res) => {
+  const lo = await loadPublicLoBySlug(req.params.slug);
+  if (!lo) return res.status(404).json({ error: 'lo_not_found' });
+  res.json({
+    lo: {
+      slug: lo.slug,
+      name: [lo.first_name, lo.last_name].filter(Boolean).join(' '),
+      company: lo.company || null,
+      nmls: lo.nmls_number || null,
+      photo: lo.headshot_url || null,
+      phone: lo.phone || null,
+    },
+    doors: Object.entries(BORROWER_DOORS).map(([key, d]) => ({ key, label: d.label })),
+  });
+});
+
+app.post('/api/public/lo/:slug/inquiry', async (req, res) => {
+  try {
+    const lo = await loadPublicLoBySlug(req.params.slug);
+    if (!lo) return res.status(404).json({ error: 'lo_not_found' });
+    const { door, full_name: fullName, phone, email, message, consent } = req.body || {};
+    const doorInfo = BORROWER_DOORS[door];
+    if (!doorInfo) return res.status(400).json({ error: 'invalid_door' });
+    if (consent !== true) return res.status(400).json({ error: 'consent_required' });
+    const phoneE164 = normalizePhoneE164(phone || '');
+    const emailLower = normalizeEmailLower(email || '');
+    if (!phoneE164 && !emailLower) return res.status(400).json({ error: 'phone_or_email_required' });
+
+    const rate = checkPublicLeadCaptureRateLimit(['borrower', req.ip, lo.id, phoneE164, emailLower].filter(Boolean).join('|'));
+    if (!rate.allowed) return res.status(429).json({ error: 'rate_limited', retry_after_seconds: rate.retry_after_seconds || 600 });
+
+    const name = String(fullName || '').trim().slice(0, 120) || null;
+    const note = String(message || '').trim().slice(0, 1000);
+    const timestamp = nowIso();
+    const loName = [lo.first_name, lo.last_name].filter(Boolean).join(' ');
+
+    // Same person asking again through the same link: keep one lead.
+    let existing = null;
+    if (phoneE164) {
+      const { data } = await supabaseAdmin.from('leads').select('id').eq('lo_agent_id', lo.id).is('listing_id', null).eq('phone_e164', phoneE164).limit(1);
+      existing = data?.[0] || null;
+    }
+    if (!existing && emailLower) {
+      const { data } = await supabaseAdmin.from('leads').select('id').eq('lo_agent_id', lo.id).is('listing_id', null).eq('email_lower', emailLower).limit(1);
+      existing = data?.[0] || null;
+    }
+
+    const notes = `${doorInfo.label}${note ? `: ${note}` : ''}`;
+    let leadId = existing?.id || null;
+    if (existing) {
+      await supabaseAdmin.from('leads').update({
+        updated_at: timestamp, last_message: notes, last_message_preview: notes.slice(0, 140),
+        last_message_at: timestamp, last_touch_at: timestamp, source_key: doorInfo.sourceKey,
+      }).eq('id', leadId);
+    } else {
+      const { data: created, error } = await supabaseAdmin.from('leads').insert({
+        user_id: lo.id, agent_id: lo.id, lo_agent_id: lo.id, listing_id: null,
+        full_name: name, name,
+        phone: phoneE164 || null, phone_e164: phoneE164 || null,
+        email: emailLower || null, email_lower: emailLower || null,
+        source_type: 'link', source: 'link', source_key: doorInfo.sourceKey,
+        source_meta: { door, landing_path: `/ask/${lo.slug}`, context: 'borrower_link' },
+        consent_sms: false, status: 'New', intent_level: 'Warm',
+        timeline: 'unknown', financing: 'unknown', working_with_agent: 'unknown',
+        last_message: notes, last_message_preview: notes.slice(0, 140), last_message_at: timestamp,
+        last_contact: timestamp, first_touch_at: timestamp, last_touch_at: timestamp,
+        notes, created_at: timestamp, updated_at: timestamp,
+      }).select('id').single();
+      if (error || !created) throw error || new Error('failed_to_create_lead');
+      leadId = created.id;
+      await recordLeadEvent({ leadId, type: 'LEAD_CREATED', payload: { door, source_key: doorInfo.sourceKey } });
+    }
+
+    if (!existing) {
+      const { data: bell } = await bestEffort(supabaseAdmin.from('agents').select('auth_user_id').eq('id', lo.id).maybeSingle()) || {};
+      const who = name || 'Someone';
+      if (bell?.auth_user_id) {
+        await bestEffort(supabaseAdmin.from('notifications').insert({
+          user_id: bell.auth_user_id, title: '🔥 New request on your personal link',
+          content: `${who} asked about: ${doorInfo.label}. Reach out now.`, type: 'lead', priority: 'high', is_read: false,
+        }));
+      }
+      if (lo.email) {
+        const safe = (v) => String(v || '').replace(/[<>&]/g, '');
+        const base = (process.env.APP_BASE_URL || process.env.DASHBOARD_BASE_URL || 'https://homelistingai.com').replace(/\/$/, '');
+        emailService.sendEmail({
+          to: lo.email,
+          subject: `New request on your personal link: ${safe(who)}`,
+          html: `<div style="font-family:Arial,sans-serif;line-height:1.5"><p><strong>${safe(who)}</strong> asked about <strong>${safe(doorInfo.label)}</strong> and agreed to be contacted.</p>${note ? `<p>"${safe(note)}"</p>` : ''}<p>Phone: ${safe(phoneE164) || 'not given'}<br>Email: ${safe(emailLower) || 'not given'}</p><p><a href="${base}/dashboard/lo-leads">Open the lead</a></p></div>`,
+        }).catch((err) => console.warn('[BorrowerLink] LO email failed:', err?.message || err));
+      }
+    }
+    res.json({ ok: true, lo_name: loName });
+  } catch (err) {
+    console.error('[BorrowerLink] inquiry failed:', err?.message || err);
+    res.status(500).json({ error: 'inquiry_failed' });
+  }
+});
+
+// The LO's own link, so the dashboard can show it with a QR code.
+app.get('/api/lo/my-link', requireAuth, async (req, res) => {
+  const loId = await resolveLoAgentId(req);
+  if (!loId) return res.status(401).json({ error: 'unauthorized' });
+  const { data } = await bestEffort(supabaseAdmin.from('agents').select('slug, first_name, last_name, company, nmls_number').eq('id', loId).maybeSingle()) || {};
+  if (!data?.slug) return res.status(404).json({ error: 'no_slug' });
+  const base = (process.env.APP_BASE_URL || process.env.DASHBOARD_BASE_URL || 'https://homelistingai.com').replace(/\/$/, '');
+  res.json({
+    slug: data.slug,
+    url: `${base}/ask/${data.slug}`,
+    name: [data.first_name, data.last_name].filter(Boolean).join(' '),
+    company: data.company || null,
+    nmls: data.nmls_number || null,
+  });
+});
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // END LO PLATFORM ENDPOINTS
 // ═══════════════════════════════════════════════════════════════════════════════

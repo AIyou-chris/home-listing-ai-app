@@ -558,6 +558,13 @@ const LOTodayPage: React.FC = () => {
       {/* ── Testimonial ask (once they're getting real leads) ─────────────────── */}
       {stats.totalLeads >= 2 && <LoTestimonialAsk />}
 
+      {!demoMode && (
+        <button type="button" onClick={() => navTo('/lo-promote')} className="flex w-full items-center justify-between rounded-2xl border border-slate-200 bg-white px-5 py-4 text-left shadow-sm hover:border-slate-400">
+          <span><span className="block text-sm font-bold text-slate-900">Your personal link</span><span className="block text-xs text-slate-600">Get requests without an agent. Copy it, share the QR, post it.</span></span>
+          <span className="text-xs font-semibold text-primary-600">Open →</span>
+        </button>
+      )}
+
       {/* ── Two column layout ─────────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
 
