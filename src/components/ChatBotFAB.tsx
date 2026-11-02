@@ -47,7 +47,8 @@ export const ChatBotFAB: React.FC<ChatBotFABProps> = ({
   launcherBlend = false
 }) => {
   const isHeadshot = launcher === 'headshot';
-  const [labelHidden, setLabelHidden] = useState(false);
+  // On phones the speech bubble covers working buttons, so start with just the face.
+  const [labelHidden, setLabelHidden] = useState(() => typeof window !== 'undefined' && window.innerWidth < 640);
   // Once someone has opened the guide, stop bobbing for the rest of the visit.
   const [guideSeen, setGuideSeen] = useState(() => { try { return sessionStorage.getItem('hl_guide_seen') === '1'; } catch { return false; } });
   const [internalIsOpen, setInternalIsOpen] = useState(initialOpen);

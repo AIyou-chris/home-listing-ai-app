@@ -187,7 +187,13 @@ const InviteModal: React.FC<{ onClose: () => void; onSent: () => void; usage: In
   const [limitMessage, setLimitMessage] = useState('')
 
   useEffect(() => {
-    if (demoMode) return
+    if (demoMode) {
+      setListings([
+        { id: 'l1', address: '4821 Ridgecrest Dr, Austin TX', status: 'published' },
+        { id: 'l2', address: '2203 Barton Hills Dr, Austin TX', status: 'published' },
+      ])
+      return
+    }
     getApiHeaders().then(headers => {
       fetch(buildApiUrl('/api/lo/listings'), { headers })
         .then(r => r.json())
@@ -298,11 +304,11 @@ const InviteModal: React.FC<{ onClose: () => void; onSent: () => void; usage: In
               <div>
                 <label htmlFor="invite-listing" className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-600">Show them this listing</label>
                 <select id="invite-listing" value={listingId} onChange={e => setListingId(e.target.value)} className={`${input} bg-white`}>
-                  <option value="">Use the demo listing (default)</option>
+                  <option value="">Use a sample listing (default)</option>
                   {listings.map(l => (<option key={l.id} value={l.id}>{l.address}</option>))}
                 </select>
                 <p className="mt-1.5 text-xs text-slate-600">
-                  {listings.length === 0 ? 'No live listings yet, so we show a polished demo home.' : 'Pick one of your live listings, or use the demo.'}
+                  {listings.length === 0 ? 'You have no live listings yet, so we show a sample home. A WOW Link is a live listing page with your loan help built in.' : 'Pick one of your live listings, or use the sample. A WOW Link is a live listing page with your loan help built in.'}
                 </p>
               </div>
             </div>
@@ -1026,6 +1032,9 @@ const LOPartnersPage: React.FC = () => {
                         <a href={`tel:${invite.phone}`} className={`${btn} border-slate-300 text-slate-800 hover:bg-slate-50`}>Call</a>
                       </>
                     )}
+                    <details className="w-full">
+                      <summary className={`${btn} inline-block cursor-pointer list-none border-slate-300 text-slate-700 hover:bg-slate-50`}>More ▾</summary>
+                      <div className="mt-2 flex flex-wrap gap-2">
                     {/* Nudge: only after 24h and still unopened */}
                     {!invite.openedAt && (Date.now() - new Date(invite.sentAt).getTime()) > 24 * 3600 * 1000 && (
                       <button
@@ -1083,6 +1092,8 @@ const LOPartnersPage: React.FC = () => {
                         Revoke
                       </button>
                     )}
+                      </div>
+                    </details>
                   </div>
                 </div>
               )

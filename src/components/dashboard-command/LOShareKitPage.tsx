@@ -28,6 +28,7 @@ const LOShareKitPage: React.FC = () => {
   const demoMode = useDemoMode();
   const demo = demoMode || listingId === 'demo';
 
+  const [videoKind, setVideoKind] = useState<'explainer' | 'reel'>('explainer');
   const [state, setState] = useState<'loading' | 'ready' | 'not_published' | 'no_link' | 'error'>('loading');
   const [listing, setListing] = useState<KitListing | null>(null);
   const [lo, setLo] = useState<KitLo | null>(null);
@@ -86,11 +87,28 @@ const LOShareKitPage: React.FC = () => {
 
       <ShareKitCards listing={listing} lo={lo} realtor={realtor} toggles={toggles} onToggle={(piece, v) => void setToggle(piece, v)} utmSource="lo_share_kit" />
 
-      <ListingExplainerCard listingId={listingId} demo={demo} />
+      <details className="rounded-xl border border-slate-200 bg-white p-4">
+        <summary className="cursor-pointer text-sm font-semibold text-slate-900">Create video</summary>
+        <p className="mt-1 text-xs text-slate-500">Pick a style. Optional — your link, QR and flyer above are all you need to start.</p>
+        <div className="mt-3 flex gap-2">
+          {([['explainer', 'Explainer video'], ['reel', 'Photo reel']] as const).map(([key, label]) => (
+            <button key={key} type="button" onClick={() => setVideoKind(key)}
+              className={`rounded-full px-3 py-1.5 text-xs font-semibold ${videoKind === key ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700'}`}>{label}</button>
+          ))}
+        </div>
+        <div className="mt-3">
+          {videoKind === 'explainer'
+            ? <ListingExplainerCard listingId={listingId} demo={demo} />
+            : <ListingReelCard listingId={listingId} photoCount={listing.photos.length} demo={demo} />}
+        </div>
+      </details>
 
-      <ListingReelCard listingId={listingId} photoCount={listing.photos.length} demo={demo} />
-
-      <HoaDocsCard listingId={listingId} address={listing.address} demo={demo} />
+      <details className="rounded-xl border border-slate-200 bg-white p-4">
+        <summary className="cursor-pointer text-sm font-semibold text-slate-900">Property documents (condo review)</summary>
+        <div className="mt-3">
+          <HoaDocsCard listingId={listingId} address={listing.address} demo={demo} />
+        </div>
+      </details>
 
       <p className="text-xs text-slate-400">Your name, photo, logo and NMLS come from your profile in Settings.</p>
     </div>
