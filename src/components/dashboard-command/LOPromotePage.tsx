@@ -26,6 +26,23 @@ const LOPromotePage: React.FC = () => {
     return () => { live = false; };
   }, []);
 
+  const [drafts, setDrafts] = useState<string[]>([]);
+  const [writing, setWriting] = useState(false);
+  const writeDrafts = async (topic: string) => {
+    setWriting(true);
+    try {
+      const res = await fetch(buildApiUrl('/api/lo/post-drafts'), {
+        method: 'POST',
+        headers: { ...(await authHeaders(null)), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic }),
+      });
+      const d = await res.json().catch(() => ({})) as { drafts?: string[]; error?: string };
+      if (res.status === 429) { showToast.error('That is enough for today. Try again tomorrow.'); return; }
+      if (!res.ok || !d.drafts) throw new Error('failed');
+      setDrafts(d.drafts);
+    } catch { showToast.error('Could not write drafts right now.'); } finally { setWriting(false); }
+  };
+
   const copy = (text: string) => {
     navigator.clipboard.writeText(text).then(() => showToast.success('Copied'), () => showToast.error('Could not copy'));
   };
@@ -65,6 +82,22 @@ const LOPromotePage: React.FC = () => {
             <p className="text-sm font-semibold text-slate-900">{p.title}</p>
             <p className="mt-1 whitespace-pre-line text-sm text-slate-700">{p.full}</p>
             <button type="button" onClick={() => copy(p.full)} className="mt-2 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700">Copy post</button>
+          </div>
+        ))}
+      </section>
+
+      <section className="rounded-xl border border-slate-200 bg-white p-4">
+        <p className="text-sm font-semibold text-slate-900">Write me new post drafts</p>
+        <p className="mt-1 text-xs text-slate-500">Drafts only. Nothing is posted for you. Read it, change it, then post it yourself.</p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {([['buy', 'Buying a home'], ['review', 'Mortgage review'], ['class', 'Homebuyer class']] as const).map(([k, label]) => (
+            <button key={k} type="button" disabled={writing} onClick={() => void writeDrafts(k)} className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 disabled:opacity-50">{writing ? 'Writing…' : label}</button>
+          ))}
+        </div>
+        {drafts.map((d, i) => (
+          <div key={i} className="mt-3 rounded-lg bg-slate-50 p-3">
+            <p className="whitespace-pre-line text-sm text-slate-800">{d}</p>
+            <button type="button" onClick={() => copy(d)} className="mt-2 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700">Copy draft</button>
           </div>
         ))}
       </section>

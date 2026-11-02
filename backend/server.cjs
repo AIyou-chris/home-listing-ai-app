@@ -34682,6 +34682,79 @@ app.get('/api/lo/my-link', requireAuth, async (req, res) => {
   });
 });
 
+// ── LO post drafts: write-only. Nothing is ever posted for the LO. ──────────────
+// Capped per LO per day (in memory), on top of the global spend guard.
+const LO_DRAFTS_PER_DAY = 5;
+const loDraftUsage = new Map();
+const LO_DRAFT_TOPICS = {
+  buy: 'helping first-time and move-up buyers know what to do first when buying a home',
+  review: 'offering a free review of someone\'s current mortgage, including adjustable rates that are about to change (never tell them to lock now or promise savings)',
+  class: 'inviting people to a homebuyer class that explains the steps and the programs that can help',
+};
+
+app.post('/api/lo/post-drafts', requireAuth, async (req, res) => {
+  try {
+    const loId = await resolveLoAgentId(req);
+    if (!loId) return res.status(401).json({ error: 'unauthorized' });
+    const topic = String(req.body?.topic || '');
+    if (!LO_DRAFT_TOPICS[topic]) return res.status(400).json({ error: 'invalid_topic' });
+
+    const dayKey = `${loId}:${new Date().toISOString().slice(0, 10)}`;
+    const used = loDraftUsage.get(dayKey) || 0;
+    if (used >= LO_DRAFTS_PER_DAY) return res.status(429).json({ error: 'daily_limit', limit: LO_DRAFTS_PER_DAY });
+    if (!process.env.OPENAI_API_KEY) return res.status(503).json({ error: 'writer_unavailable' });
+    loDraftUsage.set(dayKey, used + 1);
+    for (const k of loDraftUsage.keys()) if (!k.endsWith(dayKey.slice(-10))) loDraftUsage.delete(k);
+
+    const brain = getLoBrain();
+    const { config, lo } = await brain.loadBrain(loId);
+    const { data: linkRow } = await bestEffort(supabaseAdmin.from('agents').select('slug').eq('id', loId).maybeSingle()) || {};
+    const base = (process.env.APP_BASE_URL || process.env.DASHBOARD_BASE_URL || 'https://homelistingai.com').replace(/\/$/, '');
+    const link = linkRow?.slug ? `${base}/ask/${linkRow.slug}?door=${topic}&utm_source=social` : null;
+    const name = [lo.first_name, lo.last_name].filter(Boolean).join(' ') || 'the loan officer';
+
+    const system = [
+      `You write short social media post drafts for a mortgage loan officer named ${name}. Topic: ${LO_DRAFT_TOPICS[topic]}.`,
+      'Write 3 different drafts, each under 60 words, plain words a 10 year old understands, warm, no hype, no emojis spam (max 1).',
+      'Never mention a specific interest rate, savings, approval, or closing date. Never say "guaranteed". Never give legal or tax advice.',
+      config?.marketing_voice ? `The loan officer's voice notes:\n${String(config.marketing_voice).slice(0, 1500)}` : '',
+      'Reply with ONLY a JSON array of 3 strings.',
+    ].filter(Boolean).join('\n\n');
+
+    const aiRes = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+      body: JSON.stringify({
+        model: process.env.OPENAI_DRAFTS_MODEL || 'gpt-4o-mini',
+        messages: [{ role: 'system', content: system }, { role: 'user', content: 'Write the 3 drafts now.' }],
+        max_tokens: 600, temperature: 0.7,
+      }),
+    });
+    if (!aiRes.ok) return res.status(502).json({ error: 'writer_failed' });
+    const raw = (await aiRes.json()).choices?.[0]?.message?.content || '[]';
+    let parsed = [];
+    try { parsed = JSON.parse(raw.slice(raw.indexOf('['), raw.lastIndexOf(']') + 1)); } catch { parsed = []; }
+
+    const footer = [
+      lo.nmls_number ? `NMLS #${lo.nmls_number}` : null,
+      config?.equal_housing === false ? null : 'Equal Housing Lender',
+      config?.required_disclosure ? String(config.required_disclosure).trim() : null,
+    ].filter(Boolean).join(' · ');
+    const drafts = [];
+    for (const item of Array.isArray(parsed) ? parsed.slice(0, 3) : []) {
+      if (typeof item !== 'string' || !item.trim()) continue;
+      const checked = brain.checkReplyCompliance(item.trim(), { config: config || {}, lo });
+      if (checked.actions.some((a) => a.action === 'blocked')) continue;
+      drafts.push([checked.reply, link, footer].filter(Boolean).join('\n\n'));
+    }
+    if (!drafts.length) return res.status(502).json({ error: 'no_safe_drafts' });
+    res.json({ drafts, remaining_today: LO_DRAFTS_PER_DAY - used - 1 });
+  } catch (err) {
+    console.error('[LoDrafts] failed:', err?.message || err);
+    res.status(500).json({ error: 'drafts_failed' });
+  }
+});
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // END LO PLATFORM ENDPOINTS
 // ═══════════════════════════════════════════════════════════════════════════════
