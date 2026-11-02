@@ -34821,6 +34821,10 @@ app.get('/api/lo/link-stats', requireAuth, async (req, res) => {
     contacted: rows.filter((r) => r.status && r.status !== 'New').length,
     by_door: tally((r) => String(r.source_key).replace('borrower_link_', '')),
     by_source: tally((r) => r.source_meta?.utm_source || 'direct'),
+    by_day: Array.from({ length: 14 }, (_, i) => {
+      const d = new Date(Date.now() - (13 - i) * 86400000).toISOString().slice(0, 10);
+      return { date: d, count: rows.filter((r) => String(r.created_at).slice(0, 10) === d).length };
+    }),
     recent: rows.slice(0, 5).map((r) => ({ id: r.id, name: r.full_name || r.name || 'Someone', door: String(r.source_key).replace('borrower_link_', ''), status: r.status, created_at: r.created_at })),
   });
 });
