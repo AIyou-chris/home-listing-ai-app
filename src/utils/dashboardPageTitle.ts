@@ -4,6 +4,7 @@ export const resolveDashboardPageTitle = (pathname: string): string => {
   if (pathname.includes('/command-center')) return 'Command Center'
   if (/\/office(\/|$)/.test(pathname)) return 'Office'
   if (pathname.includes('/lo-chatbot')) return 'AI Brain'
+  if (pathname.includes('/lo-promote')) return 'Marketing'
   if (pathname.includes('/lo-partners')) return 'Partners'
   if (pathname.includes('/lo-invoices')) return 'Invoices'
   if (/\/(lo-)?listings(\/|$)/.test(pathname)) return 'Listings'

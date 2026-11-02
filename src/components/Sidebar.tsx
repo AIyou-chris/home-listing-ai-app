@@ -43,6 +43,7 @@ const LO_NAV_ITEMS = [
   { key: 'lo-listings', icon: 'storefront', label: 'Listings', path: '/lo-listings', testid: 'nav-lo-listings' },
   { key: 'lo-chatbot', icon: 'psychology', label: 'AI Brain', path: '/lo-chatbot', testid: 'nav-lo-chatbot' },
   { key: 'lo-leads', icon: 'person_search', label: 'Leads', path: '/lo-leads', testid: 'nav-lo-leads' },
+  { key: 'lo-promote', icon: 'campaign', label: 'Marketing', path: '/lo-promote', testid: 'nav-lo-promote' },
   { key: 'settings', icon: 'settings', label: 'Settings', path: '/settings', testid: 'nav-settings' }
 ] as const;
 
