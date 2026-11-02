@@ -51,7 +51,7 @@ const BorrowerLinkPage: React.FC = () => {
       const res = await fetch(buildApiUrl(`/api/public/lo/${encodeURIComponent(slug)}/inquiry`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ door, full_name: name || undefined, email: isEmail ? c : undefined, phone: isEmail ? undefined : c, message: message || undefined, consent: true }),
+        body: JSON.stringify({ door, full_name: name || undefined, utm_source: search.get('utm_source') || undefined, email: isEmail ? c : undefined, phone: isEmail ? undefined : c, message: message || undefined, consent: true }),
       });
       if (!res.ok) throw new Error('failed');
       setDone(true);

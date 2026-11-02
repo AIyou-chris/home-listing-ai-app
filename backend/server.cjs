@@ -34587,7 +34587,8 @@ app.post('/api/public/lo/:slug/inquiry', async (req, res) => {
   try {
     const lo = await loadPublicLoBySlug(req.params.slug);
     if (!lo) return res.status(404).json({ error: 'lo_not_found' });
-    const { door, full_name: fullName, phone, email, message, consent } = req.body || {};
+    const { door, full_name: fullName, phone, email, message, consent, utm_source: utmRaw } = req.body || {};
+    const utmSource = String(utmRaw || '').replace(/[^a-z0-9_-]/gi, '').slice(0, 30).toLowerCase() || 'direct';
     const doorInfo = BORROWER_DOORS[door];
     if (!doorInfo) return res.status(400).json({ error: 'invalid_door' });
     if (consent !== true) return res.status(400).json({ error: 'consent_required' });
@@ -34628,7 +34629,7 @@ app.post('/api/public/lo/:slug/inquiry', async (req, res) => {
         phone: phoneE164 || null, phone_e164: phoneE164 || null,
         email: emailLower || null, email_lower: emailLower || null,
         source_type: 'link', source: 'link', source_key: doorInfo.sourceKey,
-        source_meta: { door, landing_path: `/ask/${lo.slug}`, context: 'borrower_link' },
+        source_meta: { door, utm_source: utmSource, landing_path: `/ask/${lo.slug}`, context: 'borrower_link' },
         consent_sms: false, status: 'New', intent_level: 'Warm',
         timeline: 'unknown', financing: 'unknown', working_with_agent: 'unknown',
         last_message: notes, last_message_preview: notes.slice(0, 140), last_message_at: timestamp,
@@ -34753,6 +34754,75 @@ app.post('/api/lo/post-drafts', requireAuth, async (req, res) => {
     console.error('[LoDrafts] failed:', err?.message || err);
     res.status(500).json({ error: 'drafts_failed' });
   }
+});
+
+// ── LO picture library: the LO's own photos (headshot, team, open house). No paid AI. ──
+const LO_PICTURE_LIMIT = 30;
+const LO_PICTURE_BUCKET = 'ai-card-assets';
+const loPicturePrefix = (loId) => `lo-pictures/${loId}`;
+const toLoPicture = (loId, f) => ({
+  name: f.name,
+  url: supabaseAdmin.storage.from(LO_PICTURE_BUCKET).getPublicUrl(`${loPicturePrefix(loId)}/${f.name}`).data?.publicUrl || null,
+  created_at: f.created_at || null,
+});
+
+app.get('/api/lo/pictures', requireAuth, async (req, res) => {
+  const loId = await resolveLoAgentId(req);
+  if (!loId) return res.status(401).json({ error: 'unauthorized' });
+  const { data, error } = await supabaseAdmin.storage.from(LO_PICTURE_BUCKET).list(loPicturePrefix(loId), { limit: 100, sortBy: { column: 'created_at', order: 'desc' } });
+  if (error) return res.status(500).json({ error: 'list_failed' });
+  res.json({ pictures: (data || []).filter((f) => f.name && !f.name.startsWith('.')).map((f) => toLoPicture(loId, f)), limit: LO_PICTURE_LIMIT });
+});
+
+app.post('/api/lo/pictures', requireAuth, async (req, res) => {
+  try {
+    const loId = await resolveLoAgentId(req);
+    if (!loId) return res.status(401).json({ error: 'unauthorized' });
+    const dataUrl = String(req.body?.dataUrl || '');
+    const m = DATA_URL_IMAGE_REGEX.exec(dataUrl);
+    if (!m || !/^image\/(jpeg|png|webp)$/i.test(m[1])) return res.status(400).json({ error: 'jpeg_png_or_webp_only' });
+    if (dataUrl.length > 1800000) return res.status(413).json({ error: 'picture_too_big' });
+    const { data: existing } = await supabaseAdmin.storage.from(LO_PICTURE_BUCKET).list(loPicturePrefix(loId), { limit: 100 });
+    if ((existing || []).length >= LO_PICTURE_LIMIT) return res.status(409).json({ error: 'library_full', limit: LO_PICTURE_LIMIT });
+    const path = await uploadDataUrlToStorage(loPicturePrefix(loId), 'pic', dataUrl);
+    res.json({ picture: toLoPicture(loId, { name: path.split('/').pop() }) });
+  } catch (err) {
+    console.error('[LoPictures] upload failed:', err?.message || err);
+    res.status(500).json({ error: 'upload_failed' });
+  }
+});
+
+app.delete('/api/lo/pictures/:name', requireAuth, async (req, res) => {
+  const loId = await resolveLoAgentId(req);
+  if (!loId) return res.status(401).json({ error: 'unauthorized' });
+  const name = String(req.params.name || '');
+  if (!/^pic-\d+\.(jpeg|jpg|png|webp)$/i.test(name)) return res.status(400).json({ error: 'invalid_name' });
+  const { error } = await supabaseAdmin.storage.from(LO_PICTURE_BUCKET).remove([`${loPicturePrefix(loId)}/${name}`]);
+  if (error) return res.status(500).json({ error: 'delete_failed' });
+  res.json({ ok: true });
+});
+
+// ── Personal-link results: requests by button and by where the person came from ──
+app.get('/api/lo/link-stats', requireAuth, async (req, res) => {
+  const loId = await resolveLoAgentId(req);
+  if (!loId) return res.status(401).json({ error: 'unauthorized' });
+  const days = Math.min(Math.max(Number(req.query.days) || 30, 1), 365);
+  const since = new Date(Date.now() - days * 86400000).toISOString();
+  const { data, error } = await supabaseAdmin.from('leads')
+    .select('id, status, full_name, name, source_key, source_meta, created_at')
+    .eq('lo_agent_id', loId).is('listing_id', null).like('source_key', 'borrower_link_%')
+    .gte('created_at', since).order('created_at', { ascending: false }).limit(1000);
+  if (error) return res.status(500).json({ error: 'stats_failed' });
+  const rows = data || [];
+  const tally = (keyFn) => Object.entries(rows.reduce((acc, r) => { const k = keyFn(r); acc[k] = (acc[k] || 0) + 1; return acc; }, {})).map(([key, count]) => ({ key, count })).sort((a, b) => b.count - a.count);
+  res.json({
+    days,
+    total: rows.length,
+    contacted: rows.filter((r) => r.status && r.status !== 'New').length,
+    by_door: tally((r) => String(r.source_key).replace('borrower_link_', '')),
+    by_source: tally((r) => r.source_meta?.utm_source || 'direct'),
+    recent: rows.slice(0, 5).map((r) => ({ id: r.id, name: r.full_name || r.name || 'Someone', door: String(r.source_key).replace('borrower_link_', ''), status: r.status, created_at: r.created_at })),
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
