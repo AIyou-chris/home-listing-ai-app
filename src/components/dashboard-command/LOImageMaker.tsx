@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { drawBackdrop, drawIcon, drawPhoto, ICON_LABEL, type IconKind } from './promoArt';
 
 interface Pic { name: string; url: string | null }
 type Shape = 'square' | 'wide' | 'tall';
@@ -48,6 +49,7 @@ const LOImageMaker: React.FC<Props> = ({ footer, headline, pictures, canSave, on
   const [big, setBig] = useState(headline);
   const [small, setSmall] = useState('Free, no pressure.');
   const [photo, setPhoto] = useState<Pic | null>(null);
+  const [icon, setIcon] = useState<IconKind>('house');
   const [note, setNote] = useState('');
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const touched = useRef(false);
@@ -62,16 +64,13 @@ const LOImageMaker: React.FC<Props> = ({ footer, headline, pictures, canSave, on
       if (!canvas || !ctx) return;
       const { w, h } = SHAPES[shape]; const st = STYLES.find((s) => s.id === styleId) || STYLES[0];
       canvas.width = w; canvas.height = h;
-      const g = ctx.createLinearGradient(0, 0, w, h); g.addColorStop(0, st.a); g.addColorStop(1, st.b);
-      ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+      drawBackdrop(ctx, w, h, st.a, st.b, 1.5);
       let ink: string = st.ink;
       if (photo?.url) {
         try {
           const img = await loadImage(photo.url);
           if (!live) return;
-          const s = Math.max(w / img.width, h / img.height);
-          ctx.drawImage(img, (w - img.width * s) / 2, (h - img.height * s) / 2, img.width * s, img.height * s);
-          ctx.fillStyle = 'rgba(8,12,28,0.62)'; ctx.fillRect(0, 0, w, h);
+          drawPhoto(ctx, img, w, h, 0, 0.62);
           ink = '#ffffff'; setNote('');
         } catch { if (live) setNote('That picture would not load. Using the colors instead.'); }
       } else setNote('');
@@ -79,21 +78,25 @@ const LOImageMaker: React.FC<Props> = ({ footer, headline, pictures, canSave, on
       ctx.fillStyle = st.accent; ctx.fillRect(pad, pad, Math.round(w * 0.12), 10);
       const size = Math.round(w * (shape === 'wide' ? 0.065 : 0.075));
       ctx.font = `800 ${size}px system-ui, -apple-system, Segoe UI, sans-serif`; ctx.textBaseline = 'top'; ctx.fillStyle = ink;
-      const lines = wrap(ctx, big || ' ', w - pad * 2).slice(0, 6);
+      const wide = shape === 'wide';
+      const isz = Math.round(w * (wide ? 0.26 : 0.3));
+      const textW = wide && icon !== 'none' ? Math.round(w * 0.6) : w - pad * 2;
+      if (icon !== 'none') drawIcon(ctx, icon, wide ? w - pad - isz / 2 : w - pad - isz / 2, wide ? h / 2 : pad + isz / 2 + 10, isz, 1, 1.2, st.accent, ink);
+      const lines = wrap(ctx, big || ' ', textW).slice(0, 6);
       const lh = Math.round(size * 1.18);
       const blockH = lines.length * lh;
-      let y = Math.max(pad + 40, Math.round((h - blockH) / 2) - Math.round(h * 0.04));
+      let y = Math.max(wide || icon === 'none' ? pad + 40 : pad + isz + 40, Math.round((h - blockH) / 2) - Math.round(h * 0.04));
       lines.forEach((l) => { ctx.fillText(l, pad, y); y += lh; });
       if (small) {
         const ss = Math.round(size * 0.52);
         ctx.font = `600 ${ss}px system-ui, -apple-system, Segoe UI, sans-serif`; ctx.fillStyle = st.accent;
-        wrap(ctx, small, w - pad * 2).slice(0, 2).forEach((l) => { ctx.fillText(l, pad, y + Math.round(size * 0.3)); y += Math.round(ss * 1.25); });
+        wrap(ctx, small, textW).slice(0, 2).forEach((l) => { ctx.fillText(l, pad, y + Math.round(size * 0.3)); y += Math.round(ss * 1.25); });
       }
       ctx.font = `600 ${Math.round(w * 0.028)}px system-ui, -apple-system, Segoe UI, sans-serif`; ctx.fillStyle = ink; ctx.globalAlpha = 0.85;
       ctx.textBaseline = 'bottom'; ctx.fillText(footer, pad, h - pad * 0.7); ctx.globalAlpha = 1;
     })();
     return () => { live = false; };
-  }, [shape, styleId, big, small, photo, footer]);
+  }, [shape, styleId, big, small, photo, footer, icon]);
 
   const exportUrl = (type: 'image/png' | 'image/jpeg') => {
     try { return canvasRef.current?.toDataURL(type, 0.86) || ''; } catch { setNote('Could not export with that picture. Pick a color instead.'); return ''; }
@@ -116,6 +119,9 @@ const LOImageMaker: React.FC<Props> = ({ footer, headline, pictures, canSave, on
         </div>
         <div className="flex flex-wrap gap-2" role="group" aria-label="Color">
           {STYLES.map((s) => <button key={s.id} type="button" aria-pressed={styleId === s.id} className={chip(styleId === s.id)} onClick={() => setStyleId(s.id)}>{s.label}</button>)}
+        </div>
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Picture">
+          {(Object.keys(ICON_LABEL) as IconKind[]).map((k) => <button key={k} type="button" aria-pressed={icon === k} className={chip(icon === k)} onClick={() => setIcon(k)}>{ICON_LABEL[k]}</button>)}
         </div>
         <label className="block text-xs text-indigo-300">Big words
           <textarea value={big} rows={3} maxLength={140} onChange={(e) => { touched.current = true; setBig(e.target.value); }} className={`${field} mt-1`} />

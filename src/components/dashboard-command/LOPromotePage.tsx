@@ -210,7 +210,7 @@ const LOPromotePage: React.FC = () => {
         <section className={card} aria-label="Create a video">
           <h2 className="text-lg font-extrabold text-white">🎬 Create a video</h2>
           <p className="mb-4 mt-1 text-sm text-indigo-300">Pick a topic, edit every word, make it. Free. You download it and post it yourself.</p>
-          <LOVideoMaker footer={footer} />
+          <LOVideoMaker footer={footer} pictures={pictures} />
         </section>
 
         <section className={card} aria-label="Create an image">
