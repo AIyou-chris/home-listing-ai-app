@@ -20,7 +20,7 @@ const DEMO_QA: { q: string; a: string }[] = [
   },
   {
     q: "What's PMI?",
-    a: "PMI is private mortgage insurance — a monthly fee (usually 0.3–1.5% of the loan per year) when you put less than 20% down. It drops off once you hit 20% equity. A good LO can often structure the loan to minimize or avoid it — want me to connect you?"
+    a: "PMI is private mortgage insurance — a monthly fee (usually 0.3–1.5% of the loan per year) when you put less than 20% down. On a conventional loan you can ask to drop it at about 20% equity, and it ends on its own at about 22%. A loan officer can go over your options — want me to connect you?"
   }
 ];
 
@@ -104,9 +104,9 @@ export const InlineLoDemo: React.FC<{ theme?: 'light' | 'dark' }> = ({ theme = '
         )}
         {leadCaptured && (
           <div className={`rounded-xl border p-3 ${dark ? 'border-emerald-500/30 bg-emerald-500/10' : 'border-emerald-200 bg-emerald-50'}`}>
-            <p className={`text-[11px] font-extrabold uppercase tracking-wide ${dark ? 'text-emerald-400' : 'text-emerald-700'}`}>🔥 New warm lead — routed to YOU</p>
+            <p className={`text-[11px] font-extrabold uppercase tracking-wide ${dark ? 'text-emerald-400' : 'text-emerald-700'}`}>Example: how a lead reaches YOU</p>
             <p className={`mt-1 text-[12px] leading-relaxed ${dark ? 'text-emerald-200/90' : 'text-emerald-800'}`}>
-              That buyer just became <strong>your</strong> lead: name, phone, and what they asked — in your inbox before your competition wakes up. Never shared. Never resold.
+              This is a simulation. In real life, when a buyer chooses to share their name and phone, it lands in <strong>your</strong> inbox with what they asked. Never shared. Never resold.
             </p>
           </div>
         )}

@@ -75,22 +75,34 @@ const sourceLabel = (lead: Pick<Lead, 'source' | 'sourceType'>) => {
 
 const DEMO_LEADS: Lead[] = [
   {
-    id: 'demo-1', name: 'Sarah Mitchell', email: 'sarah.m@email.com', phone: '(512) 555-0142', source: 'chatbot', sourceType: null,
-    notes: 'Asked about monthly payments on FHA loan', status: 'New', intent_level: 'Hot', intent_reason: 'Asked for a payment estimate and wants to tour this weekend.',
-    listing_id: 'demo-listing-1', listing_address: '1280 Sunset Blvd, Santa Monica, CA', agent_name: 'Jennifer Walsh', isTest: false, callId: null,
-    created_at: new Date(Date.now() - 25 * 60000).toISOString(),
+    id: '1', name: 'Jordan Kim', email: 'jordan@email.com', phone: '(512) 900-4421', source: 'chatbot', sourceType: null,
+    notes: 'Asked about pre-approval', status: 'New', intent_level: 'Hot', intent_reason: 'Asked about pre-approval and wants to tour this weekend.',
+    listing_id: 'l1', listing_address: '4821 Ridgecrest Dr, Austin TX', agent_name: 'Jennifer Walsh', isTest: false, callId: null,
+    created_at: new Date(Date.now() - 12 * 60000).toISOString(),
   },
   {
-    id: 'demo-2', name: 'James Torres', email: 'jtorres@gmail.com', phone: '(310) 555-0187', source: 'chatbot', sourceType: 'phone',
-    notes: 'Interested in down payment assistance programs', status: 'Contacted', intent_level: 'Warm', intent_reason: 'Called the AI line and asked about down payment help.',
-    listing_id: 'demo-listing-1', listing_address: '1280 Sunset Blvd, Santa Monica, CA', agent_name: 'Jennifer Walsh', isTest: false, callId: 'demo-call',
-    created_at: new Date(Date.now() - 3 * 3600000).toISOString(),
+    id: '2', name: 'Maria Santos', email: 'maria@email.com', phone: '(737) 214-8830', source: 'chatbot', sourceType: null,
+    notes: 'Asked for a showing', status: 'New', intent_level: 'Warm', intent_reason: 'Asked to see the home.',
+    listing_id: 'l2', listing_address: '2203 Barton Hills Dr, Austin TX', agent_name: 'Jennifer Walsh', isTest: false, callId: null,
+    created_at: new Date(Date.now() - 45 * 60000).toISOString(),
   },
   {
-    id: 'demo-3', name: 'Priya Nair', email: 'priya.nair@work.com', phone: null, source: 'chatbot', sourceType: null,
-    notes: 'Wants to know about VA loan eligibility', status: 'Qualified', intent_level: 'Warm',
-    listing_id: 'demo-listing-2', listing_address: '742 Evergreen Terrace, Springfield, IL', agent_name: 'Marcus Lee', isTest: false, callId: null,
-    created_at: new Date(Date.now() - 2 * 86400000).toISOString(),
+    id: '3', name: 'Derek Okafor', email: 'derek@email.com', phone: null, source: 'chatbot', sourceType: null,
+    notes: 'Asked about pre-approval', status: 'Contacted', intent_level: 'Warm', intent_reason: 'Asked about pre-approval.',
+    listing_id: 'l1', listing_address: '4821 Ridgecrest Dr, Austin TX', agent_name: 'Jennifer Walsh', isTest: false, callId: null,
+    created_at: new Date(Date.now() - 180 * 60000).toISOString(),
+  },
+  {
+    id: '4', name: 'Ashley Chen', email: 'ashley@email.com', phone: '(512) 771-0033', source: 'chatbot', sourceType: null,
+    notes: 'Asked about pre-approval', status: 'New', intent_level: 'Hot', intent_reason: 'Asked about pre-approval and monthly payment.',
+    listing_id: 'l3', listing_address: '918 Zilker Park Ln, Austin TX', agent_name: 'Jennifer Walsh', isTest: false, callId: null,
+    created_at: new Date(Date.now() - 300 * 60000).toISOString(),
+  },
+  {
+    id: '5', name: 'Tom Rivera', email: 'tom@email.com', phone: null, source: 'chatbot', sourceType: null,
+    notes: 'General info', status: 'Contacted', intent_level: 'Cold', intent_reason: 'General questions about the area.',
+    listing_id: 'l2', listing_address: '2203 Barton Hills Dr, Austin TX', agent_name: 'Jennifer Walsh', isTest: false, callId: null,
+    created_at: new Date(Date.now() - 1440 * 60000).toISOString(),
   },
 ];
 

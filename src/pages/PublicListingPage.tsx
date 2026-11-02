@@ -200,6 +200,23 @@ const PublicListingPage: React.FC = () => {
                 setError(null);
                 let loaded: Property | null = null;
 
+                if (safePublicSlug === 'demo' || id === 'demo') {
+                    // Sample link shown in the demo Share Kit. Never touches the database.
+                    setProperty(toPropertyFromPublicPayload({
+                        id: 'demo',
+                        title: 'Sample listing',
+                        address: '123 Maple Street (sample listing)',
+                        price: 450000,
+                        bedrooms: 3,
+                        bathrooms: 2,
+                        squareFeet: 1850,
+                        description: 'This is a sample listing so you can see what your buyers see. Welcome to this beautifully updated home with an open floor plan, a gourmet kitchen and a private backyard.',
+                        features: ['Open floor plan', 'Gourmet kitchen', 'Private backyard']
+                    }));
+                    document.title = 'Sample listing | HomeListingAI';
+                    return;
+                }
+
                 if (safePublicSlug) {
                     const bootstrapUrl = buildApiUrl(`/api/public/listings/${encodeURIComponent(safePublicSlug)}/bootstrap`);
                     const response = await fetch(bootstrapUrl);

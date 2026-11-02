@@ -97,7 +97,7 @@ const DEMO_DATA: LODashboardData = {
     today: 2,
     week: 7,
     recent: [
-      { id: 'c1', name: 'Priya Nair', from: '(512) 555-0188', summary: 'Asked about VA loan eligibility and wants a call back about a $450k home.', intent: 'hot', leadId: '1', startedAt: new Date(Date.now() - 55 * 60000).toISOString() },
+      { id: 'c1', name: 'Priya Nair', from: '(512) 555-0188', summary: 'Asked about VA loan eligibility and wants a call back about a $450k home.', intent: 'hot', leadId: null, startedAt: new Date(Date.now() - 55 * 60000).toISOString() },
       { id: 'c2', name: null, from: '(737) 555-0114', summary: 'Wanted to know the down payment on the Barton Hills home.', intent: 'warm', leadId: null, startedAt: new Date(Date.now() - 4 * 3600000).toISOString() }
     ]
   },

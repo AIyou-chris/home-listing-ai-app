@@ -248,7 +248,7 @@ const LOSignupPage: React.FC = () => {
                             <div className="flex items-center justify-between bg-cyan-950/30 border border-cyan-800/30 rounded-lg px-4 py-3">
                                 <div>
                                     <p className="text-sm font-semibold text-white">{PLANS[selectedPlan].name} Plan</p>
-                                    <p className="text-xs text-slate-400">7-day free trial, then {PLANS[selectedPlan].price}/mo</p>
+                                    <p className="text-xs text-slate-400">7-day free trial, then $49/mo launch price (first 25 loan officers), {PLANS[selectedPlan].price}/mo after that</p>
                                 </div>
                             </div>
 
@@ -268,7 +268,7 @@ const LOSignupPage: React.FC = () => {
                                 ) : (
                                     <>
                                         <span className="material-symbols-outlined text-lg">rocket_launch</span>
-                                        Start 7-Day Free Trial — {PLANS[selectedPlan].price}/mo after
+                                        Start 7-Day Free Trial
                                     </>
                                 )}
                             </button>

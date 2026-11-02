@@ -171,7 +171,7 @@ const steps = [
     accentSolid: '#f86f1b',
     glow: 'rgba(248,111,27,0.15)',
     icon: '💰',
-    heading: 'Loan officer gets pre-qualified mortgage leads and closes loans',
+    heading: 'Loan officer gets interested home buyers and follows up',
     subheading: 'Warm leads. No cold calls.',
     body: 'When a buyer on that agent\'s listing shares their details, the lead comes straight to you with what they asked. Not a cold list — people who were already looking at a real home.',
     pill: 'Agent sees you as their unfair advantage',
