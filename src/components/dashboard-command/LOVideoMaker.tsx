@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { MOOD_LABEL, playMusic, type Mood } from './promoMusic';
 import { clamp01, drawBackdrop, drawIcon, drawPhoto, type IconKind } from './promoArt';
 
 // Makes a short captioned video right in the browser. Free, no upload, no server.
@@ -64,6 +65,8 @@ const LOVideoMaker: React.FC<{ footer: string; pictures?: { name: string; url: s
   const [scenes, setScenes] = useState<string[]>([...SCENES.review]);
   const [making, setMaking] = useState(false);
   const [result, setResult] = useState<{ url: string; ext: string } | null>(null);
+  const [mood, setMood] = useState<Mood>('calm');
+  const previewRef = useRef<{ ac: AudioContext; stop: () => void } | null>(null);
   const [bgName, setBgName] = useState('');
   const photoRef = useRef<HTMLImageElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -78,6 +81,13 @@ const LOVideoMaker: React.FC<{ footer: string; pictures?: { name: string; url: s
     img.onload = () => { photoRef.current = img; };
     img.onerror = () => { setBgName(''); setError('That picture would not load. Using colors instead.'); };
     img.src = pic.url;
+  };
+  const stopPreview = () => { previewRef.current?.stop(); const ac = previewRef.current?.ac; previewRef.current = null; window.setTimeout(() => { void ac?.close().catch(() => undefined); }, 300); };
+  useEffect(() => stopPreview, []);
+  const previewMusic = (m: Mood) => {
+    stopPreview();
+    if (m === 'none') return;
+    try { const ac = new AudioContext(); previewRef.current = { ac, stop: playMusic(ac, ac.destination, m, 8) }; } catch { /* no audio */ }
   };
   const pickTopic = (t: Topic) => { setTopic(t); setScenes([...SCENES[t]]); setResult(null); };
 
@@ -103,8 +113,18 @@ const LOVideoMaker: React.FC<{ footer: string; pictures?: { name: string; url: s
     if (!mime) return;
     setMaking(true); makingRef.current = true; setResult(null); setError('');
     try {
+      stopPreview();
       const chunks: Blob[] = [];
-      const rec = new MediaRecorder(canvas.captureStream(30), { mimeType: mime, videoBitsPerSecond: 3_500_000 });
+      const stream = canvas.captureStream(30);
+      let ac: AudioContext | null = null;
+      if (mood !== 'none') {
+        try {
+          ac = new AudioContext(); const md = ac.createMediaStreamDestination();
+          md.stream.getAudioTracks().forEach((tr) => stream.addTrack(tr));
+          playMusic(ac, md, mood, SECONDS_PER_SCENE * scenes.length);
+        } catch { ac = null; }
+      }
+      const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 3_500_000 });
       rec.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
       const done = new Promise<void>((resolve) => { rec.onstop = () => resolve(); });
       rec.start(250);
@@ -117,7 +137,7 @@ const LOVideoMaker: React.FC<{ footer: string; pictures?: { name: string; url: s
           if (t >= total) { window.clearInterval(timer); resolve(); }
         }, 33);
       });
-      rec.stop(); await done;
+      rec.stop(); await done; void ac?.close().catch(() => undefined);
       const blob = new Blob(chunks, { type: mime.split(';')[0] });
       if (blob.size < 1000) throw new Error('empty');
       setResult({ url: URL.createObjectURL(blob), ext: mime.startsWith('video/mp4') ? 'mp4' : 'webm' });
@@ -126,7 +146,7 @@ const LOVideoMaker: React.FC<{ footer: string; pictures?: { name: string; url: s
     } finally {
       makingRef.current = false; setMaking(false);
     }
-  }, [scenes, footer, supported, topic]);
+  }, [scenes, footer, supported, topic, mood]);
 
   const [w, h] = SIZE[shape];
   const chip = (on: boolean) => `rounded-full border px-3 py-1.5 text-xs font-bold ${on ? 'border-cyan-400 bg-cyan-400 text-slate-900' : 'border-indigo-800 bg-indigo-950 text-indigo-200'}`;
@@ -154,6 +174,9 @@ const LOVideoMaker: React.FC<{ footer: string; pictures?: { name: string; url: s
               {pictures.slice(0, 10).map((p) => <button key={p.name} type="button" aria-pressed={bgName === p.name} onClick={() => pickBg(bgName === p.name ? '' : p.name)} className={`h-12 w-12 shrink-0 overflow-hidden rounded-md border-2 ${bgName === p.name ? 'border-cyan-400' : 'border-transparent'}`}>{p.url && <img src={p.url} alt="" className="h-full w-full object-cover" />}</button>)}
             </div>
           )}
+          <div className="flex flex-wrap items-center gap-2"><span className="text-xs text-indigo-300">Music:</span>
+            {(Object.keys(MOOD_LABEL) as Mood[]).map((m) => <button key={m} type="button" aria-pressed={mood === m} className={chip(mood === m)} onClick={() => { setMood(m); setResult(null); previewMusic(m); }}>{MOOD_LABEL[m]}</button>)}
+          </div>
           <p className="text-xs text-indigo-300">{SECONDS_PER_SCENE * scenes.length} seconds. Your name and NMLS are added at the bottom. No promises about rates or approval.</p>
           <div className="flex flex-wrap gap-2">
             <button type="button" disabled={making || !supported} onClick={() => void create()} className="rounded-xl bg-cyan-400 px-5 py-2.5 text-sm font-extrabold text-slate-900 disabled:opacity-60">{making ? `Making your video… ${SECONDS_PER_SCENE * scenes.length}s` : result ? 'Make it again' : 'Create video'}</button>
