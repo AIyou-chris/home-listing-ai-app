@@ -28,3 +28,20 @@ export const deleteLoTestLead = async (leadId: string): Promise<boolean> => {
     return false;
   }
 };
+
+// "Check back with this person in N days" (null clears it). Only puts the lead back on Today when due;
+// nothing is sent to the buyer.
+export const setLoLeadFollowUp = async (leadId: string, days: number | null): Promise<string | null | false> => {
+  try {
+    const res = await fetch(buildApiUrl(`/api/lo/leads/${leadId}/follow-up`), {
+      method: 'POST',
+      headers: await authHeaders(null),
+      body: JSON.stringify({ days })
+    });
+    if (!res.ok) return false;
+    const d = await res.json().catch(() => ({})) as { follow_up_at?: string | null };
+    return d.follow_up_at ?? null;
+  } catch {
+    return false;
+  }
+};

@@ -6,7 +6,7 @@ import { authHeaders } from '../../services/dashboard/utils'
 import CallNowHero from './CallNowHero'
 import { CallTextButtons, WaitingBadge } from './LeadActions'
 import type { DashboardLeadItem } from '../../services/dashboardCommandService'
-import { markLoLeadContacted } from '../../services/loLeads'
+import { markLoLeadContacted, setLoLeadFollowUp } from '../../services/loLeads'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -63,7 +63,11 @@ interface AiCallSummary {
   startedAt: string
 }
 
+interface FollowUp { id: string; name: string; phone: string | null; dueAt: string | null }
+
 interface LODashboardData {
+  followUps?: FollowUp[]
+  followUpsUpcoming?: number
   stats: LOStats
   recentLeads: RecentLead[]
   assignedListings: AssignedListing[]
@@ -74,6 +78,8 @@ interface LODashboardData {
 // ─── Demo data ────────────────────────────────────────────────────────────────
 
 const DEMO_DATA: LODashboardData = {
+  followUps: [{ id: 'f1', name: 'Tom Rivera', phone: '(512) 555-0142', dueAt: new Date().toISOString() }],
+  followUpsUpcoming: 3,
   stats: {
     totalLeads: 24,
     newToday: 3,
@@ -458,6 +464,12 @@ const LOTodayPage: React.FC = () => {
     if (!demoMode) void markLoLeadContacted(leadId)
   }, [demoMode])
 
+  // "Time to check back" row: done or snooze 1 month. Updates the screen now, tells the server in the background.
+  const handleFollowUp = useCallback((leadId: string, days: number | null) => {
+    setData((prev) => prev ? { ...prev, followUps: (prev.followUps || []).filter((f) => f.id !== leadId), followUpsUpcoming: (prev.followUpsUpcoming || 0) + (days ? 1 : 0) } : prev)
+    if (!demoMode) void setLoLeadFollowUp(leadId, days)
+  }, [demoMode])
+
   useEffect(() => {
     mountedRef.current = true
     load()
@@ -563,6 +575,24 @@ const LOTodayPage: React.FC = () => {
           <span><span className="block text-sm font-bold text-slate-900">Your personal link</span><span className="block text-xs text-slate-600">Get requests without an agent. Copy it, share the QR, post it.</span></span>
           <span className="text-xs font-semibold text-primary-600">Open →</span>
         </button>
+      )}
+
+      {/* ── Buyers who said "not yet" and are due for a check-in ─────────────── */}
+      {(data.followUps || []).length > 0 && (
+        <div className="rounded-2xl border border-violet-200 bg-violet-50 p-4 shadow-sm">
+          <h2 className="text-sm font-bold text-violet-900">Time to check back ({(data.followUps || []).length})</h2>
+          <p className="mb-3 text-xs text-violet-800">You said you would follow up with these people.</p>
+          <div className="space-y-2">
+            {(data.followUps || []).map((f) => (
+              <div key={f.id} className="flex flex-wrap items-center gap-2 rounded-xl bg-white px-3 py-2">
+                <button type="button" onClick={() => navTo(`/lo-leads?lead=${f.id}`)} className="min-w-0 flex-1 truncate text-left text-sm font-bold text-slate-900 hover:underline">{f.name}</button>
+                <CallTextButtons phone={f.phone} onUsed={() => handleCalled(f.id)} />
+                <button type="button" onClick={() => handleFollowUp(f.id, 30)} className="min-h-[36px] rounded-lg border border-slate-300 bg-white px-3 text-xs font-bold text-slate-700 hover:bg-slate-50">Later</button>
+                <button type="button" onClick={() => handleFollowUp(f.id, null)} className="min-h-[36px] rounded-lg border border-slate-300 bg-white px-3 text-xs font-bold text-slate-700 hover:bg-slate-50">Done</button>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
 
       {/* ── Two column layout ─────────────────────────────────────────────────── */}

@@ -30092,7 +30092,7 @@ app.get('/api/lo/dashboard/today', requireAuth, async (req, res) => {
       let q = supabaseAdmin.from('leads').select('id', { count: 'exact', head: true }).eq('lo_agent_id', leadOwnerId).or('source_key.is.null,source_key.neq.lo_onboarding_test');
       return extra ? extra(q) : q;
     };
-    const [totalRes, todayRes, weekRes, monthRes, preApprovalRes, showingRes, recentRes, perListingRes, hotRes] = await Promise.all([
+    const [totalRes, todayRes, weekRes, monthRes, preApprovalRes, showingRes, recentRes, perListingRes, hotRes, dueRes, upcomingRes] = await Promise.all([
       leadCount(),
       leadCount(q => q.gte('created_at', startOfToday)),
       leadCount(q => q.gte('created_at', startOf7Days)),
@@ -30101,8 +30101,12 @@ app.get('/api/lo/dashboard/today', requireAuth, async (req, res) => {
       leadCount(q => q.eq('source_meta->>context', 'showing_request')),
       supabaseAdmin.from('leads').select('id, full_name, name, email, email_lower, phone, phone_e164, status, source_type, source_meta, created_at, listing_id, lo_agent_id, intent_level').eq('lo_agent_id', leadOwnerId).or('source_key.is.null,source_key.neq.lo_onboarding_test').order('created_at', { ascending: false }).limit(10),
       supabaseAdmin.from('leads').select('listing_id').eq('lo_agent_id', leadOwnerId).or('source_key.is.null,source_key.neq.lo_onboarding_test').not('listing_id', 'is', null).limit(5000),
-      leadCount(q => q.eq('intent_level', 'Hot'))
+      leadCount(q => q.eq('intent_level', 'Hot')),
+      bestEffort(supabaseAdmin.from('leads').select('id, full_name, name, phone, phone_e164, source_meta').eq('lo_agent_id', leadOwnerId).not('source_meta->>follow_up_at', 'is', null).lte('source_meta->>follow_up_at', now.toISOString()).order('source_meta->>follow_up_at', { ascending: true }).limit(10)),
+      bestEffort(supabaseAdmin.from('leads').select('id', { count: 'exact', head: true }).eq('lo_agent_id', leadOwnerId).gt('source_meta->>follow_up_at', now.toISOString()))
     ]);
+    const followUps = ((dueRes && dueRes.data) || []).map(l => ({ id: l.id, name: l.full_name || l.name || 'Unknown', phone: l.phone_e164 || l.phone || null, dueAt: l.source_meta?.follow_up_at || null }));
+    const followUpsUpcoming = (upcomingRes && upcomingRes.count) || 0;
     const leads = perListingRes.data || [];
     const hotLeads = hotRes.count || 0;
     const totalLeads = totalRes.count || 0;
@@ -30136,7 +30140,7 @@ app.get('/api/lo/dashboard/today', requireAuth, async (req, res) => {
     };
     const brainRow = brainRes && brainRes.data;
     const brain = { active: brainRow ? brainRow.is_active !== false : true, hasKnowledge: Boolean(String(brainRow?.knowledge_base || '').trim()) };
-    res.json({ success: true, aiCalls, brain, stats: { totalLeads, newToday, newThisWeek, newThisMonth, preApprovalLeads, showingLeads, assignedListings: assignedListings.length, partnersReached: partnerInviteCount || 0, partnersOpened: partnerOpenedCount || 0, hotLeads }, recentLeads, assignedListings, loProfileComplete, partnerInvited });
+    res.json({ success: true, followUps, followUpsUpcoming, aiCalls, brain, stats: { totalLeads, newToday, newThisWeek, newThisMonth, preApprovalLeads, showingLeads, assignedListings: assignedListings.length, partnersReached: partnerInviteCount || 0, partnersOpened: partnerOpenedCount || 0, hotLeads }, recentLeads, assignedListings, loProfileComplete, partnerInvited });
   } catch (err) {
     console.error('[LO Today] Failed:', err);
     res.status(500).json({ error: 'failed_to_load_lo_dashboard' });
@@ -30284,6 +30288,7 @@ app.get('/api/lo/leads', requireAuth, async (req, res) => {
         listingId: l.listing_id || null,
         listingAddress: addressMap[l.listing_id] || null,
         agentName: agentNameByListingId[l.listing_id] || null,
+        followUpAt: meta.follow_up_at || null,
         createdAt: l.created_at,
       };
     });
@@ -30410,6 +30415,32 @@ app.patch('/api/lo/leads/:leadId/status', requireAuth, async (req, res) => {
     return res.json({ success: true, id: found.row.id, status: newStatus });
   } catch (err) {
     console.error('[LO Lead Status] Failed:', err);
+    return res.status(500).json({ error: 'update_failed' });
+  }
+});
+
+// ── POST /api/lo/leads/:leadId/follow-up — "check back with this person in N days" ──
+// Stored inside leads.source_meta.follow_up_at (no new column). days: 1..365, or null to clear.
+// Nothing is ever sent to the buyer; it only puts the lead back on the LO's Today page when due.
+app.post('/api/lo/leads/:leadId/follow-up', requireAuth, async (req, res) => {
+  try {
+    const raw = req.body?.days;
+    const days = raw === null || raw === undefined ? null : Number(raw);
+    if (days !== null && (!Number.isFinite(days) || days < 1 || days > 365)) return res.status(400).json({ error: 'invalid_days' });
+    let loAgentId = req.authUserId;
+    try { loAgentId = (await resolveLoAgentId(req)) || loAgentId; } catch { /* fallback */ }
+    const found = await findOwnedLoLead(req.params.leadId, loAgentId);
+    if (!found) return res.status(404).json({ error: 'lead_not_found' });
+    const targetId = found.table === 'leads' ? found.row.id : found.row.lead_id;
+    if (!targetId) return res.status(409).json({ error: 'legacy_pre_qual_no_reminder' });
+    const { data: row } = await supabaseAdmin.from('leads').select('source_meta').eq('id', targetId).maybeSingle();
+    const meta = { ...((row && row.source_meta) || {}) };
+    if (days === null) delete meta.follow_up_at; else meta.follow_up_at = new Date(Date.now() + Math.round(days) * 86400000).toISOString();
+    const { error } = await supabaseAdmin.from('leads').update({ source_meta: meta, updated_at: nowIso() }).eq('id', targetId);
+    if (error) throw error;
+    return res.json({ success: true, id: found.row.id, follow_up_at: meta.follow_up_at || null });
+  } catch (err) {
+    console.error('[LO Lead FollowUp] Failed:', err);
     return res.status(500).json({ error: 'update_failed' });
   }
 });

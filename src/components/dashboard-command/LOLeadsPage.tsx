@@ -4,7 +4,7 @@ import PageGuide from './PageGuide';
 import { buildDashboardPath, useDemoMode } from '../../demo/useDemoMode';
 import { buildApiUrl } from '../../lib/api';
 import { authHeaders } from '../../services/dashboard/utils';
-import { deleteLoTestLead, markLoLeadContacted } from '../../services/loLeads';
+import { deleteLoTestLead, markLoLeadContacted, setLoLeadFollowUp } from '../../services/loLeads';
 import { CallTextButtons, WaitingBadge } from './LeadActions';
 import { showToast } from '../../utils/toastService';
 
@@ -27,6 +27,7 @@ interface Lead {
   agent_name: string | null;
   isTest: boolean;
   callId: string | null;
+  followUpAt?: string | null;
   created_at: string;
 }
 
@@ -141,6 +142,15 @@ const LeadCard: React.FC<{
 
   // Keep the badge honest when the list is refreshed from the server.
   useEffect(() => { setStatus(lead.status || 'New'); }, [lead.status]);
+
+  const [followUpAt, setFollowUpAt] = useState<string | null>(lead.followUpAt ?? null);
+  const chooseFollowUp = async (days: number | null) => {
+    if (demo) { setFollowUpAt(days ? new Date(Date.now() + days * 86400000).toISOString() : null); return; }
+    const r = await setLoLeadFollowUp(lead.id, days);
+    if (r === false) { showToast.error('Could not set the reminder.'); return; }
+    setFollowUpAt(r);
+    showToast.success(days ? 'Reminder set. It will show on Today.' : 'Reminder cleared.');
+  };
 
   const canShowConversation = !demo && lead.source !== 'pre_qual';
 
@@ -315,6 +325,17 @@ const LeadCard: React.FC<{
             </div>
           </div>
 
+          <div>
+            <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">Not ready yet? Remind me to check back</p>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {[{ d: 7, l: '1 week' }, { d: 30, l: '1 month' }, { d: 90, l: '3 months' }, { d: 180, l: '6 months' }].map((o) => (
+                <button key={o.d} type="button" onClick={() => void chooseFollowUp(o.d)} className="min-h-[36px] rounded-full border border-slate-200 bg-white px-3.5 text-xs font-bold text-slate-600 hover:bg-slate-100">{o.l}</button>
+              ))}
+              {followUpAt && <button type="button" onClick={() => void chooseFollowUp(null)} className="min-h-[36px] px-2 text-xs font-semibold text-slate-600 underline">Clear</button>}
+            </div>
+            {followUpAt && <p className="mt-1.5 text-xs font-semibold text-violet-800">Reminder: {new Date(followUpAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</p>}
+          </div>
+
           <div className="flex flex-wrap gap-2">
             {lead.email && (
               <a href={`mailto:${lead.email}`} className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">
@@ -457,6 +478,7 @@ const mapRow = (l: Record<string, unknown>, isPreQual: boolean): Lead => {
     agent_name: (l.agentName as string) || null,
     isTest: Boolean(l.isTest),
     callId: (l.callId as string) || null,
+    followUpAt: (l.followUpAt as string) || null,
     created_at: l.createdAt as string,
   };
 };
