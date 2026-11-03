@@ -60,7 +60,7 @@ const draw = (ctx: CanvasRenderingContext2D, w: number, h: number, scenes: strin
   ctx.fillStyle = '#22d3ee'; ctx.fillRect(0, h - 8, (w * tt) / total, 8);
 };
 
-const LOVideoMaker: React.FC<{ footer: string; pictures?: { name: string; url: string | null }[]; forceTopic?: { topic: Topic; n: number } }> = ({ footer, pictures = [], forceTopic }) => {
+const LOVideoMaker: React.FC<{ footer: string; pictures?: { name: string; url: string | null }[]; forceTopic?: { topic: Topic; n: number; scenes?: string[] } }> = ({ footer, pictures = [], forceTopic }) => {
   const [topic, setTopic] = useState<Topic>('review');
   const [shape, setShape] = useState<Shape>('vertical');
   const [scenes, setScenes] = useState<string[]>([...SCENES.review]);
@@ -91,7 +91,7 @@ const LOVideoMaker: React.FC<{ footer: string; pictures?: { name: string; url: s
     try { const ac = new AudioContext(); previewRef.current = { ac, stop: playMusic(ac, ac.destination, m, 8) }; } catch { /* no audio */ }
   };
   const pickTopic = (t: Topic) => { setTopic(t); setScenes([...SCENES[t]]); setResult(null); };
-  useEffect(() => { if (forceTopic) pickTopic(forceTopic.topic); }, [forceTopic?.n]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!forceTopic) return; pickTopic(forceTopic.topic); if (forceTopic.scenes?.length === 3) setScenes([...forceTopic.scenes]); }, [forceTopic?.n]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Looping preview (paused while recording so the two do not fight over the canvas).
   useEffect(() => {

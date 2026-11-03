@@ -44,6 +44,7 @@ const LOAppointmentsPage = lazy(() => import('./components/dashboard-command/LOA
 const LOPromotePage = lazy(() => import('./components/dashboard-command/LOPromotePage'));
 const BorrowerLinkPage = lazy(() => import('./pages/BorrowerLinkPage'));
 const HomebuyerClassPage = lazy(() => import('./pages/HomebuyerClassPage'));
+const ProgramPage = lazy(() => import('./pages/ProgramPage'));
 const LOTodayPage = lazy(() => import('./components/dashboard-command/LOTodayPage'));
 const AgentClaimPage = lazy(() => import('./pages/AgentClaimPage'))
 const PartnerInvitePage = lazy(() => import('./pages/PartnerInvitePage'))
@@ -1606,6 +1607,11 @@ const App: React.FC = () => {
                     <Route path="/ask/:slug" element={
                         <Suspense fallback={<LoadingSpinner />}>
                             <BorrowerLinkPage />
+                        </Suspense>
+                    } />
+                    <Route path="/program/:slug/:id" element={
+                        <Suspense fallback={<LoadingSpinner />}>
+                            <ProgramPage />
                         </Suspense>
                     } />
                     <Route path="/learn/:slug" element={

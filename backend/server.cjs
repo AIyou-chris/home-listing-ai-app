@@ -598,6 +598,7 @@ const LARGE_JSON_PATHS = [
   '/api/agent/profile',           // base64 logo/headshot
   '/api/lo/profile',              // base64 logo/headshot
   '/api/lo/chatbot-config',       // knowledge_base text from 25MB doc extracts
+  '/api/lo/programs',             // base64 program sheet (pdf or picture)
   '/api/ai-card',                 // base64 card imagery
   '/api/admin/lo-leads'           // bulk CSV row imports (admin-authed)
 ];
@@ -34579,6 +34580,7 @@ const BORROWER_DOORS = {
   buy: { label: 'Buying a home', sourceKey: 'borrower_link_buy' },
   review: { label: 'Mortgage review', sourceKey: 'borrower_link_review' },
   class: { label: 'Homebuyer class', sourceKey: 'borrower_link_class' },
+  program: { label: 'Loan program', sourceKey: 'borrower_link_program' },
 };
 
 const loadPublicLoBySlug = async (slug) => {
@@ -34620,8 +34622,16 @@ app.post('/api/public/lo/:slug/inquiry', async (req, res) => {
     if (!lo) return res.status(404).json({ error: 'lo_not_found' });
     const { door, full_name: fullName, phone, email, message, consent, utm_source: utmRaw } = req.body || {};
     const utmSource = String(utmRaw || '').replace(/[^a-z0-9_-]/gi, '').slice(0, 30).toLowerCase() || 'direct';
-    const doorInfo = BORROWER_DOORS[door];
-    if (!doorInfo) return res.status(400).json({ error: 'invalid_door' });
+    const baseDoor = BORROWER_DOORS[door];
+    if (!baseDoor) return res.status(400).json({ error: 'invalid_door' });
+    let doorInfo = baseDoor;
+    let programMeta = null;
+    if (door === 'program') {
+      const prog = (await loadLoPrograms(lo.id)).find((p) => p.id === String(req.body?.program_id || ''));
+      if (!prog) return res.status(404).json({ error: 'program_not_found' });
+      doorInfo = { ...baseDoor, label: `Program: ${prog.name}` };
+      programMeta = { program_id: prog.id, program_name: prog.name };
+    }
     if (consent !== true) return res.status(400).json({ error: 'consent_required' });
     const phoneE164 = normalizePhoneE164(phone || '');
     const emailLower = normalizeEmailLower(email || '');
@@ -34660,7 +34670,7 @@ app.post('/api/public/lo/:slug/inquiry', async (req, res) => {
         phone: phoneE164 || null, phone_e164: phoneE164 || null,
         email: emailLower || null, email_lower: emailLower || null,
         source_type: 'link', source: 'link', source_key: doorInfo.sourceKey,
-        source_meta: { door, utm_source: utmSource, landing_path: `/ask/${lo.slug}`, context: 'borrower_link' },
+        source_meta: { door, utm_source: utmSource, landing_path: programMeta ? `/program/${lo.slug}/${programMeta.program_id}` : `/ask/${lo.slug}`, context: 'borrower_link', ...(programMeta || {}) },
         consent_sms: false, status: 'New', intent_level: 'Warm',
         timeline: 'unknown', financing: 'unknown', working_with_agent: 'unknown',
         last_message: notes, last_message_preview: notes.slice(0, 140), last_message_at: timestamp,
@@ -34724,67 +34734,185 @@ const LO_DRAFT_TOPICS = {
   class: 'inviting people to a homebuyer class that explains the steps and the programs that can help',
 };
 
+// Shared by the topic drafts and the program-campaign drafts: daily cap, voice notes, compliance check, footer.
+const runLoDraftWriter = async (loId, { topicText, extraSystem, linkFor }) => {
+  const dayKey = `${loId}:${new Date().toISOString().slice(0, 10)}`;
+  const used = loDraftUsage.get(dayKey) || 0;
+  if (used >= LO_DRAFTS_PER_DAY) return { status: 429, body: { error: 'daily_limit', limit: LO_DRAFTS_PER_DAY } };
+  if (!process.env.OPENAI_API_KEY) return { status: 503, body: { error: 'writer_unavailable' } };
+  loDraftUsage.set(dayKey, used + 1);
+  for (const k of loDraftUsage.keys()) if (!k.endsWith(dayKey.slice(-10))) loDraftUsage.delete(k);
+
+  const brain = getLoBrain();
+  const { config, lo } = await brain.loadBrain(loId);
+  const { data: linkRow } = await bestEffort(supabaseAdmin.from('agents').select('slug').eq('id', loId).maybeSingle()) || {};
+  const base = (process.env.APP_BASE_URL || process.env.DASHBOARD_BASE_URL || 'https://homelistingai.com').replace(/\/$/, '');
+  const link = linkRow?.slug ? linkFor(base, linkRow.slug) : null;
+  const name = [lo.first_name, lo.last_name].filter(Boolean).join(' ') || 'the loan officer';
+
+  const system = [
+    `You write short social media post drafts for a mortgage loan officer named ${name}. Topic: ${topicText}.`,
+    'Write 3 different drafts, each under 60 words, plain words a 10 year old understands, warm, no hype, no emojis spam (max 1).',
+    'Never mention a specific interest rate, savings, approval, or closing date. Never say "guaranteed". Never give legal or tax advice.',
+    extraSystem || '',
+    config?.marketing_voice ? `The loan officer's voice notes:\n${String(config.marketing_voice).slice(0, 1500)}` : '',
+    'Reply with ONLY a JSON array of 3 strings.',
+  ].filter(Boolean).join('\n\n');
+
+  const aiRes = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+    body: JSON.stringify({
+      model: process.env.OPENAI_DRAFTS_MODEL || 'gpt-4o-mini',
+      messages: [{ role: 'system', content: system }, { role: 'user', content: 'Write the 3 drafts now.' }],
+      max_tokens: 600, temperature: 0.7,
+    }),
+  });
+  if (!aiRes.ok) return { status: 502, body: { error: 'writer_failed' } };
+  const raw = (await aiRes.json()).choices?.[0]?.message?.content || '[]';
+  let parsed = [];
+  try { parsed = JSON.parse(raw.slice(raw.indexOf('['), raw.lastIndexOf(']') + 1)); } catch { parsed = []; }
+
+  const footer = [
+    lo.nmls_number ? `NMLS #${lo.nmls_number}` : null,
+    config?.equal_housing === false ? null : 'Equal Housing Lender',
+    config?.required_disclosure ? String(config.required_disclosure).trim() : null,
+  ].filter(Boolean).join(' · ');
+  const drafts = [];
+  for (const item of Array.isArray(parsed) ? parsed.slice(0, 3) : []) {
+    if (typeof item !== 'string' || !item.trim()) continue;
+    const checked = brain.checkReplyCompliance(item.trim(), { config: config || {}, lo });
+    if (checked.actions.some((a) => a.action === 'blocked')) continue;
+    drafts.push([checked.reply, link, footer].filter(Boolean).join('\n\n'));
+  }
+  if (!drafts.length) return { status: 502, body: { error: 'no_safe_drafts' } };
+  return { status: 200, body: { drafts, remaining_today: LO_DRAFTS_PER_DAY - used - 1 } };
+};
+
 app.post('/api/lo/post-drafts', requireAuth, async (req, res) => {
   try {
     const loId = await resolveLoAgentId(req);
     if (!loId) return res.status(401).json({ error: 'unauthorized' });
     const topic = String(req.body?.topic || '');
     if (!LO_DRAFT_TOPICS[topic]) return res.status(400).json({ error: 'invalid_topic' });
-
-    const dayKey = `${loId}:${new Date().toISOString().slice(0, 10)}`;
-    const used = loDraftUsage.get(dayKey) || 0;
-    if (used >= LO_DRAFTS_PER_DAY) return res.status(429).json({ error: 'daily_limit', limit: LO_DRAFTS_PER_DAY });
-    if (!process.env.OPENAI_API_KEY) return res.status(503).json({ error: 'writer_unavailable' });
-    loDraftUsage.set(dayKey, used + 1);
-    for (const k of loDraftUsage.keys()) if (!k.endsWith(dayKey.slice(-10))) loDraftUsage.delete(k);
-
-    const brain = getLoBrain();
-    const { config, lo } = await brain.loadBrain(loId);
-    const { data: linkRow } = await bestEffort(supabaseAdmin.from('agents').select('slug').eq('id', loId).maybeSingle()) || {};
-    const base = (process.env.APP_BASE_URL || process.env.DASHBOARD_BASE_URL || 'https://homelistingai.com').replace(/\/$/, '');
-    const link = linkRow?.slug ? `${base}/ask/${linkRow.slug}?door=${topic}&utm_source=social` : null;
-    const name = [lo.first_name, lo.last_name].filter(Boolean).join(' ') || 'the loan officer';
-
-    const system = [
-      `You write short social media post drafts for a mortgage loan officer named ${name}. Topic: ${LO_DRAFT_TOPICS[topic]}.`,
-      'Write 3 different drafts, each under 60 words, plain words a 10 year old understands, warm, no hype, no emojis spam (max 1).',
-      'Never mention a specific interest rate, savings, approval, or closing date. Never say "guaranteed". Never give legal or tax advice.',
-      config?.marketing_voice ? `The loan officer's voice notes:\n${String(config.marketing_voice).slice(0, 1500)}` : '',
-      'Reply with ONLY a JSON array of 3 strings.',
-    ].filter(Boolean).join('\n\n');
-
-    const aiRes = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
-      body: JSON.stringify({
-        model: process.env.OPENAI_DRAFTS_MODEL || 'gpt-4o-mini',
-        messages: [{ role: 'system', content: system }, { role: 'user', content: 'Write the 3 drafts now.' }],
-        max_tokens: 600, temperature: 0.7,
-      }),
-    });
-    if (!aiRes.ok) return res.status(502).json({ error: 'writer_failed' });
-    const raw = (await aiRes.json()).choices?.[0]?.message?.content || '[]';
-    let parsed = [];
-    try { parsed = JSON.parse(raw.slice(raw.indexOf('['), raw.lastIndexOf(']') + 1)); } catch { parsed = []; }
-
-    const footer = [
-      lo.nmls_number ? `NMLS #${lo.nmls_number}` : null,
-      config?.equal_housing === false ? null : 'Equal Housing Lender',
-      config?.required_disclosure ? String(config.required_disclosure).trim() : null,
-    ].filter(Boolean).join(' · ');
-    const drafts = [];
-    for (const item of Array.isArray(parsed) ? parsed.slice(0, 3) : []) {
-      if (typeof item !== 'string' || !item.trim()) continue;
-      const checked = brain.checkReplyCompliance(item.trim(), { config: config || {}, lo });
-      if (checked.actions.some((a) => a.action === 'blocked')) continue;
-      drafts.push([checked.reply, link, footer].filter(Boolean).join('\n\n'));
-    }
-    if (!drafts.length) return res.status(502).json({ error: 'no_safe_drafts' });
-    res.json({ drafts, remaining_today: LO_DRAFTS_PER_DAY - used - 1 });
+    const out = await runLoDraftWriter(loId, { topicText: LO_DRAFT_TOPICS[topic], linkFor: (base, slug) => `${base}/ask/${slug}?door=${topic}&utm_source=social` });
+    res.status(out.status).json(out.body);
   } catch (err) {
     console.error('[LoDrafts] failed:', err?.message || err);
     res.status(500).json({ error: 'drafts_failed' });
   }
+});
+
+// ── LO loan programs: the LO uploads a program sheet and writes a few lines, then markets it. ──
+// Stored as one small JSON file per LO (no table). The sheet goes in the public ai-kb bucket: it is meant for borrowers.
+const LO_PROGRAM_BUCKET = 'ai-kb';
+const LO_PROGRAM_LIMIT = 12;
+const loProgramPrefix = (loId) => `lo-programs/${loId}`;
+const loadLoPrograms = async (loId) => {
+  const { data, error } = await supabaseAdmin.storage.from(LO_PROGRAM_BUCKET).download(`${loProgramPrefix(loId)}/programs.json`);
+  if (error || !data) return [];
+  try { const list = JSON.parse(await data.text()); return Array.isArray(list) ? list : []; } catch { return []; }
+};
+const saveLoPrograms = async (loId, list) => {
+  const { error } = await supabaseAdmin.storage.from(LO_PROGRAM_BUCKET)
+    .upload(`${loProgramPrefix(loId)}/programs.json`, Buffer.from(JSON.stringify(list)), { contentType: 'application/json', cacheControl: '0', upsert: true });
+  if (error) throw error;
+};
+const publicProgram = (p) => ({ id: p.id, name: p.name, summary: p.summary, points: p.points || [], doc: p.doc ? { url: p.doc.url, name: p.doc.name } : null });
+const PROGRAM_DOC_REGEX = /^data:(application\/pdf|image\/jpeg|image\/png|image\/webp);base64,(.+)$/i;
+const PROGRAM_DOC_EXT = { 'application/pdf': 'pdf', 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
+
+app.get('/api/lo/programs', requireAuth, async (req, res) => {
+  const loId = await resolveLoAgentId(req);
+  if (!loId) return res.status(401).json({ error: 'unauthorized' });
+  res.json({ programs: await loadLoPrograms(loId), limit: LO_PROGRAM_LIMIT });
+});
+
+app.post('/api/lo/programs', requireAuth, async (req, res) => {
+  try {
+    const loId = await resolveLoAgentId(req);
+    if (!loId) return res.status(401).json({ error: 'unauthorized' });
+    const name = String(req.body?.name || '').trim().slice(0, 80);
+    const summary = String(req.body?.summary || '').trim().slice(0, 600);
+    const points = (Array.isArray(req.body?.points) ? req.body.points : []).map((x) => String(x || '').trim().slice(0, 140)).filter(Boolean).slice(0, 5);
+    if (!name) return res.status(400).json({ error: 'name_required' });
+    const list = await loadLoPrograms(loId);
+    const id = String(req.body?.id || '');
+    let program = id ? list.find((p) => p.id === id) : null;
+    if (id && !program) return res.status(404).json({ error: 'program_not_found' });
+    if (!program && list.length >= LO_PROGRAM_LIMIT) return res.status(409).json({ error: 'programs_full', limit: LO_PROGRAM_LIMIT });
+    const now = nowIso();
+    if (!program) { program = { id: `prg${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, created_at: now, doc: null }; list.push(program); }
+    Object.assign(program, { name, summary, points, updated_at: now });
+
+    const dropDoc = async () => { if (program.doc?.path) await bestEffort(supabaseAdmin.storage.from(LO_PROGRAM_BUCKET).remove([program.doc.path])); program.doc = null; };
+    if (req.body?.removeDoc === true) await dropDoc();
+    const doc = req.body?.doc;
+    if (doc && doc.dataUrl) {
+      const m = PROGRAM_DOC_REGEX.exec(String(doc.dataUrl));
+      if (!m) return res.status(400).json({ error: 'pdf_or_picture_only' });
+      const buffer = Buffer.from(m[2], 'base64');
+      if (buffer.length > 4 * 1024 * 1024) return res.status(413).json({ error: 'file_too_big' });
+      await dropDoc();
+      const path = `${loProgramPrefix(loId)}/${program.id}-${Date.now()}.${PROGRAM_DOC_EXT[m[1].toLowerCase()]}`;
+      const { error: upErr } = await supabaseAdmin.storage.from(LO_PROGRAM_BUCKET).upload(path, buffer, { contentType: m[1].toLowerCase(), cacheControl: '3600', upsert: true });
+      if (upErr) throw upErr;
+      const safeName = String(doc.name || 'Program sheet').replace(/[^\w .()-]/g, '').slice(0, 80) || 'Program sheet';
+      program.doc = { path, url: supabaseAdmin.storage.from(LO_PROGRAM_BUCKET).getPublicUrl(path).data?.publicUrl || null, name: safeName };
+    }
+    await saveLoPrograms(loId, list);
+    res.json({ program, programs: list });
+  } catch (err) {
+    console.error('[LoPrograms] save failed:', err?.message || err);
+    res.status(500).json({ error: 'save_failed' });
+  }
+});
+
+app.delete('/api/lo/programs/:id', requireAuth, async (req, res) => {
+  try {
+    const loId = await resolveLoAgentId(req);
+    if (!loId) return res.status(401).json({ error: 'unauthorized' });
+    const list = await loadLoPrograms(loId);
+    const program = list.find((p) => p.id === String(req.params.id));
+    if (!program) return res.status(404).json({ error: 'program_not_found' });
+    if (program.doc?.path) await bestEffort(supabaseAdmin.storage.from(LO_PROGRAM_BUCKET).remove([program.doc.path]));
+    await saveLoPrograms(loId, list.filter((p) => p.id !== program.id));
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[LoPrograms] delete failed:', err?.message || err);
+    res.status(500).json({ error: 'delete_failed' });
+  }
+});
+
+// Three compliance-checked post drafts for one program. Trigger terms (rates, payments, down-payment percentages) are kept out.
+app.post('/api/lo/programs/:id/drafts', requireAuth, async (req, res) => {
+  try {
+    const loId = await resolveLoAgentId(req);
+    if (!loId) return res.status(401).json({ error: 'unauthorized' });
+    const program = (await loadLoPrograms(loId)).find((p) => p.id === String(req.params.id));
+    if (!program) return res.status(404).json({ error: 'program_not_found' });
+    const facts = [`Program name: ${program.name}`, program.summary ? `The loan officer says: ${program.summary}` : '', program.points?.length ? `Key points: ${program.points.join('; ')}` : ''].filter(Boolean).join('\n');
+    const out = await runLoDraftWriter(loId, {
+      topicText: `inviting people to learn whether the "${program.name}" loan program might fit them`,
+      extraSystem: `Use only these facts, nothing else:\n${facts}\nDo NOT write any interest rate, APR, payment amount, or down-payment percentage, even if the facts include one. Instead invite the reader to ask whether the program fits them. Each draft ends by inviting them to see the program page.`,
+      linkFor: (base, slug) => `${base}/program/${slug}/${program.id}?utm_source=social`,
+    });
+    res.status(out.status).json(out.body);
+  } catch (err) {
+    console.error('[LoPrograms] drafts failed:', err?.message || err);
+    res.status(500).json({ error: 'drafts_failed' });
+  }
+});
+
+app.get('/api/public/lo/:slug/program/:id', async (req, res) => {
+  const lo = await loadPublicLoBySlug(req.params.slug);
+  if (!lo) return res.status(404).json({ error: 'lo_not_found' });
+  const program = (await loadLoPrograms(lo.id)).find((p) => p.id === String(req.params.id));
+  if (!program) return res.status(404).json({ error: 'program_not_found' });
+  res.json({
+    lo: { slug: lo.slug, name: [lo.first_name, lo.last_name].filter(Boolean).join(' '), company: lo.company || null, nmls: lo.nmls_number || null, photo: lo.headshot_url || null },
+    program: publicProgram(program),
+  });
 });
 
 // ── LO picture library: the LO's own photos (headshot, team, open house). No paid AI. ──

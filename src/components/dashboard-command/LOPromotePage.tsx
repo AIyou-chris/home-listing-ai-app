@@ -5,6 +5,7 @@ import { authHeaders } from '../../services/dashboard/utils';
 import { useDemoMode } from '../../demo/useDemoMode';
 import { showToast } from '../../utils/toastService';
 import LOVideoMaker, { type VideoTopic } from './LOVideoMaker';
+import LOProgramsCard from './LOProgramsCard';
 import LOImageMaker from './LOImageMaker';
 
 interface MyLink { slug: string; url: string; name: string; company: string | null; nmls: string | null }
@@ -69,7 +70,7 @@ const LOPromotePage: React.FC = () => {
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [qr, setQr] = useState('');
   const [qrLearn, setQrLearn] = useState('');
-  const [videoReq, setVideoReq] = useState<{ topic: VideoTopic; n: number } | undefined>(undefined);
+  const [videoReq, setVideoReq] = useState<{ topic: VideoTopic; n: number; scenes?: string[] } | undefined>(undefined);
   const [pictures, setPictures] = useState<Picture[]>([]);
   const [uploading, setUploading] = useState(false);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -241,6 +242,10 @@ const LOPromotePage: React.FC = () => {
             {qrLearn && <a className={ghost} href={qrLearn} download="homebuyer-101-qr.png">Download QR</a>}
           </div>
         </section>
+
+        <LOProgramsCard demo={demo} api={api} slug={link.slug} origin={new URL(link.url).origin} copyText={(t) => void copyText(t)}
+          onDrafts={(d) => { setDrafts(d); setText(d[0]); setTitle('Program post'); document.getElementById('promote-write')?.scrollIntoView({ behavior: 'smooth' }); }}
+          onMakeVideo={(scenes) => { setVideoReq({ topic: 'buy', n: Date.now(), scenes }); document.getElementById('promote-video')?.scrollIntoView({ behavior: 'smooth' }); }} />
 
         <section id="promote-video" className={card} aria-label="Create a video">
           <h2 className="text-lg font-extrabold text-slate-900">🎬 Create a video</h2>

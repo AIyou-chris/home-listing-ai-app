@@ -78,6 +78,7 @@ module.exports = [
   'POST /api/language/detect',
   'POST /api/leads/capture',
   'POST /api/public/lo/:slug/inquiry',
+  'GET /api/public/lo/:slug/program/:id',
   'POST /api/leads/pre-qual',
   'POST /api/leads/public',
   'POST /api/realtime/handoff',
