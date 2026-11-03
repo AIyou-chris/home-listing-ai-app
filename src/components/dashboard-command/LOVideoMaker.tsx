@@ -149,42 +149,42 @@ const LOVideoMaker: React.FC<{ footer: string; pictures?: { name: string; url: s
   }, [scenes, footer, supported, topic, mood]);
 
   const [w, h] = SIZE[shape];
-  const chip = (on: boolean) => `rounded-full border px-3 py-1.5 text-xs font-bold ${on ? 'border-cyan-400 bg-cyan-400 text-slate-900' : 'border-indigo-800 bg-indigo-950 text-indigo-200'}`;
+  const chip = (on: boolean) => `rounded-full border px-3 py-1.5 text-xs font-bold ${on ? 'border-primary-600 bg-primary-600 text-white' : 'border-slate-200 bg-white text-slate-700'}`;
   return (
     <div>
       <div className="mb-3 flex flex-wrap gap-2">
         {(Object.keys(TOPIC_LABEL) as Topic[]).map((t) => <button key={t} type="button" className={chip(topic === t)} onClick={() => pickTopic(t)}>{TOPIC_LABEL[t]}</button>)}
-        <span className="mx-1 w-px bg-indigo-900" />
+        <span className="mx-1 w-px bg-slate-200" />
         {(['vertical', 'square'] as Shape[]).map((s) => <button key={s} type="button" className={chip(shape === s)} onClick={() => { setShape(s); setResult(null); }}>{s === 'vertical' ? 'Vertical' : 'Square'}</button>)}
       </div>
       <div className="grid gap-4 md:grid-cols-[minmax(0,260px)_1fr]">
-        <div className="mx-auto w-full max-w-[260px] overflow-hidden rounded-2xl bg-black ring-1 ring-indigo-900">
+        <div className="mx-auto w-full max-w-[260px] overflow-hidden rounded-2xl bg-black ring-1 ring-slate-200">
           {result && <video src={result.url} controls playsInline className="w-full" />}
           <canvas ref={canvasRef} width={w} height={h} className={result ? 'hidden' : 'w-full'} aria-label="Video preview" />
         </div>
         <div className="space-y-2">
           {scenes.map((s, i) => (
-            <label key={i} className="block text-xs font-semibold text-indigo-200">Scene {i + 1}
-              <textarea value={s} rows={2} maxLength={140} onChange={(e) => { setScenes(scenes.map((x, j) => j === i ? e.target.value : x)); setResult(null); }} className="mt-1 w-full rounded-lg border border-indigo-900 bg-[#0d1530] px-3 py-2 text-sm text-white" />
+            <label key={i} className="block text-xs font-semibold text-slate-700">Scene {i + 1}
+              <textarea value={s} rows={2} maxLength={140} onChange={(e) => { setScenes(scenes.map((x, j) => j === i ? e.target.value : x)); setResult(null); }} className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900" />
             </label>
           ))}
           {pictures.length > 0 && (
-            <div className="flex items-center gap-2 overflow-x-auto"><span className="text-xs text-indigo-300">Background:</span>
-              <button type="button" aria-pressed={!bgName} onClick={() => pickBg('')} className={`h-12 shrink-0 rounded-md border-2 px-2 text-xs font-bold text-indigo-200 ${!bgName ? 'border-cyan-400' : 'border-indigo-900'}`}>Color</button>
-              {pictures.slice(0, 10).map((p) => <button key={p.name} type="button" aria-pressed={bgName === p.name} onClick={() => pickBg(bgName === p.name ? '' : p.name)} className={`h-12 w-12 shrink-0 overflow-hidden rounded-md border-2 ${bgName === p.name ? 'border-cyan-400' : 'border-transparent'}`}>{p.url && <img src={p.url} alt="" className="h-full w-full object-cover" />}</button>)}
+            <div className="flex items-center gap-2 overflow-x-auto"><span className="text-xs text-slate-600">Background:</span>
+              <button type="button" aria-pressed={!bgName} onClick={() => pickBg('')} className={`h-12 shrink-0 rounded-md border-2 px-2 text-xs font-bold text-slate-700 ${!bgName ? 'border-primary-600' : 'border-slate-200'}`}>Color</button>
+              {pictures.slice(0, 10).map((p) => <button key={p.name} type="button" aria-pressed={bgName === p.name} onClick={() => pickBg(bgName === p.name ? '' : p.name)} className={`h-12 w-12 shrink-0 overflow-hidden rounded-md border-2 ${bgName === p.name ? 'border-primary-600' : 'border-transparent'}`}>{p.url && <img src={p.url} alt="" className="h-full w-full object-cover" />}</button>)}
             </div>
           )}
-          <div className="flex flex-wrap items-center gap-2"><span className="text-xs text-indigo-300">Music:</span>
+          <div className="flex flex-wrap items-center gap-2"><span className="text-xs text-slate-600">Music:</span>
             {(Object.keys(MOOD_LABEL) as Mood[]).map((m) => <button key={m} type="button" aria-pressed={mood === m} className={chip(mood === m)} onClick={() => { setMood(m); setResult(null); previewMusic(m); }}>{MOOD_LABEL[m]}</button>)}
           </div>
-          <p className="text-xs text-indigo-300">{SECONDS_PER_SCENE * scenes.length} seconds. Your name and NMLS are added at the bottom. No promises about rates or approval.</p>
+          <p className="text-xs text-slate-600">{SECONDS_PER_SCENE * scenes.length} seconds. Your name and NMLS are added at the bottom. No promises about rates or approval.</p>
           <div className="flex flex-wrap gap-2">
-            <button type="button" disabled={making || !supported} onClick={() => void create()} className="rounded-xl bg-cyan-400 px-5 py-2.5 text-sm font-extrabold text-slate-900 disabled:opacity-60">{making ? `Making your video… ${SECONDS_PER_SCENE * scenes.length}s` : result ? 'Make it again' : 'Create video'}</button>
-            {result && <a href={result.url} download={`my-video.${result.ext}`} className="rounded-xl border border-cyan-400 px-5 py-2.5 text-sm font-bold text-cyan-300">Download video</a>}
+            <button type="button" disabled={making || !supported} onClick={() => void create()} className="rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-extrabold text-white disabled:opacity-60">{making ? `Making your video… ${SECONDS_PER_SCENE * scenes.length}s` : result ? 'Make it again' : 'Create video'}</button>
+            {result && <a href={result.url} download={`my-video.${result.ext}`} className="rounded-xl border border-primary-600 px-5 py-2.5 text-sm font-bold text-primary-700">Download video</a>}
           </div>
-          {error && <p role="alert" className="text-xs text-amber-300">{error}</p>}
-          {!supported && <p className="text-xs text-amber-300">This browser cannot make videos. Try Chrome or Safari.</p>}
-          {result && <p className="text-xs text-indigo-300">Download it, then post it yourself. Nothing is posted for you.</p>}
+          {error && <p role="alert" className="text-xs text-amber-800">{error}</p>}
+          {!supported && <p className="text-xs text-amber-800">This browser cannot make videos. Try Chrome or Safari.</p>}
+          {result && <p className="text-xs text-slate-600">Download it, then post it yourself. Nothing is posted for you.</p>}
         </div>
       </div>
     </div>

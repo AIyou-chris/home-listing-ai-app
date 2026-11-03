@@ -31,10 +31,10 @@ const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const PLATFORMS: Record<Platform, string> = { linkedin: 'LinkedIn', facebook: 'Facebook', instagram: 'Instagram', email: 'Email' };
 const PLAN_KEY = 'lo_promote_plan_v1';
 
-const card = 'rounded-2xl border border-indigo-950 bg-[#111a33] p-5';
-const ghost = 'rounded-lg border border-indigo-800 bg-transparent px-3 py-1.5 text-xs font-bold text-indigo-200 hover:bg-indigo-950';
-const solid = 'rounded-xl bg-cyan-400 px-4 py-2 text-sm font-extrabold text-slate-900 hover:bg-cyan-300 disabled:opacity-60';
-const chipCls = (on: boolean) => `rounded-full border px-3 py-1.5 text-xs font-bold ${on ? 'border-cyan-400 bg-cyan-400 text-slate-900' : 'border-indigo-800 bg-indigo-950 text-indigo-200'}`;
+const card = 'rounded-2xl border border-slate-200 bg-white shadow-sm p-5';
+const ghost = 'rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50';
+const solid = 'rounded-xl bg-primary-600 px-4 py-2 text-sm font-extrabold text-white hover:bg-primary-700 disabled:opacity-60';
+const chipCls = (on: boolean) => `rounded-full border px-3 py-1.5 text-xs font-bold ${on ? 'border-primary-600 bg-primary-600 text-white' : 'border-slate-200 bg-white text-slate-700'}`;
 
 const api = async (path: string, init: RequestInit = {}) => {
   const headers = { ...(await authHeaders(null)), ...(init.body ? { 'Content-Type': 'application/json' } : {}) };
@@ -60,7 +60,7 @@ const savePlan = (items: PlanItem[]) => { try { localStorage.setItem(PLAN_KEY, J
 const todayIndex = () => (new Date().getDay() + 6) % 7;
 
 const Stat: React.FC<{ value: React.ReactNode; label: string; note?: string }> = ({ value, label, note }) => (
-  <div className={card}><p className="text-4xl font-extrabold tracking-tight text-white">{value}</p><p className="mt-1 text-sm text-indigo-300">{label}</p>{note && <p className="mt-1 text-xs font-bold text-emerald-400">{note}</p>}</div>
+  <div className={card}><p className="text-4xl font-extrabold tracking-tight text-slate-900">{value}</p><p className="mt-1 text-sm text-slate-600">{label}</p>{note && <p className="mt-1 text-xs font-bold text-emerald-700">{note}</p>}</div>
 );
 
 const LOPromotePage: React.FC = () => {
@@ -191,13 +191,13 @@ const LOPromotePage: React.FC = () => {
 
   return (
     <div className="mx-auto max-w-6xl px-3 py-4 md:px-6">
-      <div className="space-y-5 rounded-3xl bg-[#0a1020] p-4 text-indigo-50 md:p-7">
+      <div className="space-y-5 text-slate-800">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-3xl font-extrabold tracking-tight text-white">Promote yourself</h1>
-            <p className="mt-1 text-sm text-indigo-300">Your videos, your posts, your week, your results. Everything is yours to edit.</p>
+            <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">Promote yourself</h1>
+            <p className="mt-1 text-sm text-slate-600">Your videos, your posts, your week, your results. Everything is yours to edit.</p>
           </div>
-          <button type="button" className="rounded-full bg-gradient-to-r from-cyan-400 to-indigo-500 px-5 py-2.5 text-sm font-extrabold text-slate-900" onClick={() => { setText(''); setTitle('New post'); setPic(null); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>+ New post</button>
+          <button type="button" className="rounded-full bg-primary-600 px-5 py-2.5 text-sm font-extrabold text-white hover:bg-primary-700" onClick={() => { setText(''); setTitle('New post'); setPic(null); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>+ New post</button>
         </div>
 
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -208,14 +208,14 @@ const LOPromotePage: React.FC = () => {
         </div>
 
         <section className={card} aria-label="Create a video">
-          <h2 className="text-lg font-extrabold text-white">🎬 Create a video</h2>
-          <p className="mb-4 mt-1 text-sm text-indigo-300">Pick a topic, edit every word, make it. Free. You download it and post it yourself.</p>
+          <h2 className="text-lg font-extrabold text-slate-900">🎬 Create a video</h2>
+          <p className="mb-4 mt-1 text-sm text-slate-600">Pick a topic, edit every word, make it. Free. You download it and post it yourself.</p>
           <LOVideoMaker footer={footer} pictures={pictures} />
         </section>
 
         <section className={card} aria-label="Create an image">
-          <h2 className="text-lg font-extrabold text-white">🖼 Create an image</h2>
-          <p className="mb-4 mt-1 text-sm text-indigo-300">Big words on a clean background, or on one of your pictures. Free. Edit every word.</p>
+          <h2 className="text-lg font-extrabold text-slate-900">🖼 Create an image</h2>
+          <p className="mb-4 mt-1 text-sm text-slate-600">Big words on a clean background, or on one of your pictures. Free. Edit every word.</p>
           <LOImageMaker footer={footer} headline={(text.split('\n')[0] || '').slice(0, 120)} pictures={pictures} canSave={!demo}
             onUse={(u) => { setPic({ name: 'my-post-image.jpg', url: u }); showToast.success('Added to your post preview'); }}
             onSave={(u) => void saveMade(u)} />
@@ -223,27 +223,27 @@ const LOPromotePage: React.FC = () => {
 
         <div className="grid gap-5 lg:grid-cols-2">
           <section className={card} aria-label="Write a post">
-            <h2 className="text-lg font-extrabold text-white">✍️ Write a post</h2>
-            <p className="mb-3 mt-1 text-sm text-indigo-300">Start from an idea, edit it, then preview it.</p>
+            <h2 className="text-lg font-extrabold text-slate-900">✍️ Write a post</h2>
+            <p className="mb-3 mt-1 text-sm text-slate-600">Start from an idea, edit it, then preview it.</p>
             <div className="flex flex-wrap gap-2">
               {starters.map((s) => <button key={s.door} type="button" className={chipCls(false)} onClick={() => { setText(s.text); setTitle(s.label); }}>{s.label}</button>)}
               {Object.entries(DOORS).map(([k, l]) => <button key={k} type="button" disabled={writing} onClick={() => void writeDrafts(k)} className={`${chipCls(false)} disabled:opacity-50`}>{writing ? 'Writing…' : `✨ AI draft: ${l}`}</button>)}
             </div>
             {drafts.length > 0 && (
               <div className="mt-3 space-y-2">
-                {drafts.map((d, i) => <button key={i} type="button" onClick={() => { setText(d); setTitle(`Draft ${i + 1}`); }} className="block w-full rounded-lg border border-indigo-900 bg-[#0d1530] p-3 text-left text-xs text-indigo-100 hover:border-cyan-400"><strong className="text-cyan-300">Draft {i + 1} · tap to edit</strong><br />{d.split('\n')[0]}</button>)}
+                {drafts.map((d, i) => <button key={i} type="button" onClick={() => { setText(d); setTitle(`Draft ${i + 1}`); }} className="block w-full rounded-lg border border-slate-200 bg-slate-50 p-3 text-left text-xs text-slate-700 hover:border-primary-600"><strong className="text-primary-700">Draft {i + 1} · tap to edit</strong><br />{d.split('\n')[0]}</button>)}
               </div>
             )}
-            <textarea aria-label="Edit your post" value={text} onChange={(e) => setText(e.target.value)} rows={7} className="mt-3 w-full rounded-lg border border-indigo-900 bg-[#0d1530] px-3 py-2 text-sm text-white" />
+            <textarea aria-label="Edit your post" value={text} onChange={(e) => setText(e.target.value)} rows={7} className="mt-3 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900" />
             {pictures.length > 0 && (
-              <div className="mt-2 flex items-center gap-2 overflow-x-auto"><span className="text-xs text-indigo-300">Picture:</span>
-                {pictures.slice(0, 10).map((p) => <button key={p.name} type="button" aria-pressed={pic?.name === p.name} onClick={() => setPic(pic?.name === p.name ? null : p)} className={`h-12 w-12 shrink-0 overflow-hidden rounded-md border-2 ${pic?.name === p.name ? 'border-cyan-400' : 'border-transparent'}`}>{p.url && <img src={p.url} alt="" className="h-full w-full object-cover" />}</button>)}
+              <div className="mt-2 flex items-center gap-2 overflow-x-auto"><span className="text-xs text-slate-600">Picture:</span>
+                {pictures.slice(0, 10).map((p) => <button key={p.name} type="button" aria-pressed={pic?.name === p.name} onClick={() => setPic(pic?.name === p.name ? null : p)} className={`h-12 w-12 shrink-0 overflow-hidden rounded-md border-2 ${pic?.name === p.name ? 'border-primary-600' : 'border-transparent'}`}>{p.url && <img src={p.url} alt="" className="h-full w-full object-cover" />}</button>)}
               </div>
             )}
           </section>
 
           <section className={card} aria-label="Preview">
-            <h2 className="text-lg font-extrabold text-white">📱 Preview before you post</h2>
+            <h2 className="text-lg font-extrabold text-slate-900">📱 Preview before you post</h2>
             <div className="mb-3 mt-3 flex flex-wrap gap-2">
               {(Object.keys(PLATFORMS) as Platform[]).map((p) => <button key={p} type="button" className={chipCls(platform === p)} onClick={() => setPlatform(p)}>{PLATFORMS[p]}</button>)}
             </div>
@@ -258,29 +258,29 @@ const LOPromotePage: React.FC = () => {
               <button type="button" className={ghost} onClick={() => void share()}>Share…</button>
               {pic?.url && <a className={ghost} href={pic.url} download={pic.name} target="_blank" rel="noreferrer">Save picture</a>}
             </div>
-            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-indigo-300">
+            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-600">
               <span>Plan it for</span>
-              <select aria-label="Day" value={planDay} onChange={(e) => setPlanDay(Number(e.target.value))} className="rounded-lg border border-indigo-800 bg-[#0d1530] px-2 py-1 text-white">{DAYS.map((d, i) => <option key={d} value={i}>{d}</option>)}</select>
+              <select aria-label="Day" value={planDay} onChange={(e) => setPlanDay(Number(e.target.value))} className="rounded-lg border border-slate-300 bg-slate-50 px-2 py-1 text-slate-900">{DAYS.map((d, i) => <option key={d} value={i}>{d}</option>)}</select>
               <button type="button" className={ghost} onClick={addToPlan}>Add to my week</button>
             </div>
-            <p className="mt-2 text-xs text-indigo-400">Nothing is posted for you. LinkedIn and Facebook open in a new tab with your words copied.</p>
+            <p className="mt-2 text-xs text-slate-600">Nothing is posted for you. LinkedIn and Facebook open in a new tab with your words copied.</p>
           </section>
         </div>
 
         <section className={card} aria-label="Your week">
-          <h2 className="text-lg font-extrabold text-white">🗓 Your week</h2>
-          <p className="mb-4 mt-1 text-sm text-indigo-300">Plan it once. Tap a post to edit it. Saved on this device.</p>
+          <h2 className="text-lg font-extrabold text-slate-900">🗓 Your week</h2>
+          <p className="mb-4 mt-1 text-sm text-slate-600">Plan it once. Tap a post to edit it. Saved on this device.</p>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
             {DAYS.map((d, i) => (
-              <div key={d} className={`min-h-[110px] rounded-xl border p-2 ${i === today ? 'border-cyan-400 bg-[#0f1b3d]' : 'border-indigo-950 bg-[#0d1530]'}`}>
-                <p className="mb-1 text-xs font-bold text-white">{d}{i === today ? ' · today' : ''}</p>
+              <div key={d} className={`min-h-[110px] rounded-xl border p-2 ${i === today ? 'border-primary-600 bg-primary-50' : 'border-slate-200 bg-slate-50'}`}>
+                <p className="mb-1 text-xs font-bold text-slate-900">{d}{i === today ? ' · today' : ''}</p>
                 {plan.filter((p) => p.day === i).map((p) => (
-                  <div key={p.id} className="mb-1 rounded-lg bg-indigo-200 p-1.5 text-[11px] font-bold text-slate-900">
+                  <div key={p.id} className="mb-1 rounded-lg bg-slate-300 p-1.5 text-[11px] font-bold text-slate-900">
                     <button type="button" className="block w-full text-left" onClick={() => loadFromPlan(p)}>{PLATFORMS[p.platform]}<br />{p.title}</button>
                     <button type="button" aria-label="Remove from plan" onClick={() => removeFromPlan(p.id)} className="mt-0.5 text-[10px] font-semibold underline">remove</button>
                   </div>
                 ))}
-                {!plan.some((p) => p.day === i) && <p className="rounded-lg border border-dashed border-indigo-800 p-1.5 text-[11px] text-indigo-400">open</p>}
+                {!plan.some((p) => p.day === i) && <p className="rounded-lg border border-dashed border-slate-300 p-1.5 text-[11px] text-slate-600">open</p>}
               </div>
             ))}
           </div>
@@ -288,8 +288,8 @@ const LOPromotePage: React.FC = () => {
 
         <div className="grid gap-5 lg:grid-cols-3">
           <section className={card} aria-label="Your link">
-            <h2 className="text-lg font-extrabold text-white">🔗 Your link</h2>
-            <p className="mb-3 mt-1 break-all text-sm text-indigo-300">{link.url}</p>
+            <h2 className="text-lg font-extrabold text-slate-900">🔗 Your link</h2>
+            <p className="mb-3 mt-1 break-all text-sm text-slate-600">{link.url}</p>
             <div className="flex items-center gap-4">
               {qr && <img src={qr} alt="QR code for your link" className="h-28 w-28 rounded-xl bg-white p-2" />}
               <div className="space-y-2">
@@ -298,20 +298,20 @@ const LOPromotePage: React.FC = () => {
                 <a href={link.url} target="_blank" rel="noreferrer" className={`${ghost} block text-center`}>Preview</a>
               </div>
             </div>
-            <p className="mt-3 text-xs text-indigo-400">Email line: Questions about buying or your mortgage? Ask me here: {link.url}?utm_source=email <button type="button" className="underline" onClick={() => void copyText(`Questions about buying or your mortgage? Ask me here: ${link.url}?utm_source=email`)}>copy</button></p>
+            <p className="mt-3 text-xs text-slate-600">Email line: Questions about buying or your mortgage? Ask me here: {link.url}?utm_source=email <button type="button" className="underline" onClick={() => void copyText(`Questions about buying or your mortgage? Ask me here: ${link.url}?utm_source=email`)}>copy</button></p>
           </section>
 
           <section className={card} aria-label="My pictures">
-            <h2 className="text-lg font-extrabold text-white">📸 My pictures</h2>
-            <p className="mb-3 mt-1 text-sm text-indigo-300">Your headshot, team, open houses.</p>
+            <h2 className="text-lg font-extrabold text-slate-900">📸 My pictures</h2>
+            <p className="mb-3 mt-1 text-sm text-slate-600">Your headshot, team, open houses.</p>
             <div className="grid grid-cols-3 gap-2">
               {pictures.map((p) => (
-                <div key={p.name} className="relative overflow-hidden rounded-lg bg-indigo-950">
+                <div key={p.name} className="relative overflow-hidden rounded-lg bg-slate-100">
                   {p.url && <img src={p.url} alt="" className="aspect-square w-full object-cover" />}
-                  <button type="button" aria-label="Delete picture" onClick={() => void removePicture(p.name)} className="absolute right-1 top-1 flex h-7 w-7 items-center justify-center rounded-full bg-slate-900/80 text-sm text-white">×</button>
+                  <button type="button" aria-label="Delete picture" onClick={() => void removePicture(p.name)} className="absolute right-1 top-1 flex h-7 w-7 items-center justify-center rounded-full bg-slate-900/80 text-sm text-slate-900">×</button>
                 </div>
               ))}
-              <label className="flex aspect-square cursor-pointer items-center justify-center rounded-lg border border-dashed border-indigo-700 text-xs font-bold text-indigo-300">
+              <label className="flex aspect-square cursor-pointer items-center justify-center rounded-lg border border-dashed border-slate-300 text-xs font-bold text-slate-600">
                 {uploading ? '…' : '+ Add'}
                 <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" disabled={uploading} onChange={(e) => { void upload(e.target.files?.[0]); e.target.value = ''; }} />
               </label>
@@ -319,15 +319,15 @@ const LOPromotePage: React.FC = () => {
           </section>
 
           <section className={card} aria-label="Results">
-            <div className="flex items-center justify-between"><h2 className="text-lg font-extrabold text-white">📈 Results</h2>
-              <select aria-label="Time range" value={days} onChange={(e) => setDays(Number(e.target.value))} className="rounded-lg border border-indigo-800 bg-[#0d1530] px-2 py-1 text-xs text-white"><option value={7}>7 days</option><option value={30}>30 days</option><option value={90}>90 days</option></select></div>
+            <div className="flex items-center justify-between"><h2 className="text-lg font-extrabold text-slate-900">📈 Results</h2>
+              <select aria-label="Time range" value={days} onChange={(e) => setDays(Number(e.target.value))} className="rounded-lg border border-slate-300 bg-slate-50 px-2 py-1 text-xs text-slate-900"><option value={7}>7 days</option><option value={30}>30 days</option><option value={90}>90 days</option></select></div>
             <div className="mt-4 flex h-24 items-end gap-1.5" aria-label="Requests by day">
-              {(stats?.by_day || []).map((d, i) => <div key={`${d.date}-${i}`} title={`${d.date}: ${d.count}`} className="flex-1 rounded-t-md bg-gradient-to-b from-cyan-400 to-indigo-500" style={{ height: `${Math.max(6, (d.count / maxDay) * 100)}%` }} />)}
+              {(stats?.by_day || []).map((d, i) => <div key={`${d.date}-${i}`} title={`${d.date}: ${d.count}`} className="flex-1 rounded-t-md bg-primary-600" style={{ height: `${Math.max(6, (d.count / maxDay) * 100)}%` }} />)}
             </div>
-            <p className="mt-1 text-xs text-indigo-400">Last 14 days</p>
-            {stats && stats.by_door.length > 0 && <p className="mt-3 text-xs text-indigo-200">Best button: <strong>{DOORS[stats.by_door[0].key] || stats.by_door[0].key}</strong> ({stats.by_door[0].count})</p>}
-            {stats && stats.by_source.length > 0 && <p className="mt-1 text-xs text-indigo-200">Best channel: <strong>{stats.by_source[0].key}</strong> ({stats.by_source[0].count})</p>}
-            {stats && !stats.total && <p className="mt-3 text-xs text-indigo-300">Nothing yet. Share your link or QR to get your first request.</p>}
+            <p className="mt-1 text-xs text-slate-600">Last 14 days</p>
+            {stats && stats.by_door.length > 0 && <p className="mt-3 text-xs text-slate-700">Best button: <strong>{DOORS[stats.by_door[0].key] || stats.by_door[0].key}</strong> ({stats.by_door[0].count})</p>}
+            {stats && stats.by_source.length > 0 && <p className="mt-1 text-xs text-slate-700">Best channel: <strong>{stats.by_source[0].key}</strong> ({stats.by_source[0].count})</p>}
+            {stats && !stats.total && <p className="mt-3 text-xs text-slate-600">Nothing yet. Share your link or QR to get your first request.</p>}
           </section>
         </div>
       </div>

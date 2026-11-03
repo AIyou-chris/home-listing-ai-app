@@ -106,10 +106,10 @@ const LOImageMaker: React.FC<Props> = ({ footer, headline, pictures, canSave, on
     const a = document.createElement('a'); a.href = url; a.download = 'my-post-image.png'; a.click();
   };
 
-  const field = 'w-full rounded-lg border border-indigo-900 bg-[#0d1530] px-3 py-2 text-sm text-white';
-  const chip = (on: boolean) => `rounded-full border px-3 py-1.5 text-xs font-bold ${on ? 'border-cyan-400 bg-cyan-400 text-slate-900' : 'border-indigo-800 bg-indigo-950 text-indigo-200'}`;
-  const ghost = 'rounded-lg border border-indigo-800 bg-transparent px-3 py-1.5 text-xs font-bold text-indigo-200 hover:bg-indigo-950';
-  const solid = 'rounded-xl bg-cyan-400 px-4 py-2 text-sm font-extrabold text-slate-900 hover:bg-cyan-300';
+  const field = 'w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900';
+  const chip = (on: boolean) => `rounded-full border px-3 py-1.5 text-xs font-bold ${on ? 'border-primary-600 bg-primary-600 text-white' : 'border-slate-200 bg-white text-slate-700'}`;
+  const ghost = 'rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50';
+  const solid = 'rounded-xl bg-primary-600 px-4 py-2 text-sm font-extrabold text-white hover:bg-primary-700';
 
   return (
     <div className="grid gap-4 md:grid-cols-2">
@@ -123,22 +123,22 @@ const LOImageMaker: React.FC<Props> = ({ footer, headline, pictures, canSave, on
         <div className="flex flex-wrap gap-2" role="group" aria-label="Picture">
           {(Object.keys(ICON_LABEL) as IconKind[]).map((k) => <button key={k} type="button" aria-pressed={icon === k} className={chip(icon === k)} onClick={() => setIcon(k)}>{ICON_LABEL[k]}</button>)}
         </div>
-        <label className="block text-xs text-indigo-300">Big words
+        <label className="block text-xs text-slate-600">Big words
           <textarea value={big} rows={3} maxLength={140} onChange={(e) => { touched.current = true; setBig(e.target.value); }} className={`${field} mt-1`} />
         </label>
-        <label className="block text-xs text-indigo-300">Small line
+        <label className="block text-xs text-slate-600">Small line
           <input value={small} maxLength={80} onChange={(e) => setSmall(e.target.value)} className={`${field} mt-1`} />
         </label>
         {pictures.length > 0 && (
-          <div className="flex items-center gap-2 overflow-x-auto"><span className="text-xs text-indigo-300">Background:</span>
-            <button type="button" aria-pressed={!photo} onClick={() => setPhoto(null)} className={`h-12 shrink-0 rounded-md border-2 px-2 text-xs font-bold text-indigo-200 ${!photo ? 'border-cyan-400' : 'border-indigo-900'}`}>Color</button>
-            {pictures.slice(0, 10).map((p) => <button key={p.name} type="button" aria-pressed={photo?.name === p.name} onClick={() => setPhoto(photo?.name === p.name ? null : p)} className={`h-12 w-12 shrink-0 overflow-hidden rounded-md border-2 ${photo?.name === p.name ? 'border-cyan-400' : 'border-transparent'}`}>{p.url && <img src={p.url} alt="" className="h-full w-full object-cover" />}</button>)}
+          <div className="flex items-center gap-2 overflow-x-auto"><span className="text-xs text-slate-600">Background:</span>
+            <button type="button" aria-pressed={!photo} onClick={() => setPhoto(null)} className={`h-12 shrink-0 rounded-md border-2 px-2 text-xs font-bold text-slate-700 ${!photo ? 'border-primary-600' : 'border-slate-200'}`}>Color</button>
+            {pictures.slice(0, 10).map((p) => <button key={p.name} type="button" aria-pressed={photo?.name === p.name} onClick={() => setPhoto(photo?.name === p.name ? null : p)} className={`h-12 w-12 shrink-0 overflow-hidden rounded-md border-2 ${photo?.name === p.name ? 'border-primary-600' : 'border-transparent'}`}>{p.url && <img src={p.url} alt="" className="h-full w-full object-cover" />}</button>)}
           </div>
         )}
       </div>
       <div>
-        <canvas ref={canvasRef} aria-label="Your post image" className="mx-auto max-h-[420px] w-full rounded-xl border border-indigo-900 object-contain" style={{ aspectRatio: `${SHAPES[shape].w} / ${SHAPES[shape].h}` }} />
-        {note && <p className="mt-2 text-xs text-amber-300">{note}</p>}
+        <canvas ref={canvasRef} aria-label="Your post image" className="mx-auto max-h-[420px] w-full rounded-xl border border-slate-200 object-contain" style={{ aspectRatio: `${SHAPES[shape].w} / ${SHAPES[shape].h}` }} />
+        {note && <p className="mt-2 text-xs text-amber-800">{note}</p>}
         <div className="mt-3 flex flex-wrap gap-2">
           <button type="button" className={solid} onClick={() => { const u = exportUrl('image/jpeg'); if (u) onUse(u); }}>Use in my post</button>
           <button type="button" className={ghost} onClick={download}>Download</button>
