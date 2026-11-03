@@ -113,17 +113,22 @@ const LOProgramsCard: React.FC<{
         {loaded && programs.length === 0 && editing === null && <p className="rounded-xl border border-dashed border-slate-300 p-4 text-center text-sm text-slate-600">No programs yet. Add your first one.</p>}
         {programs.map((p) => (
           <div key={p.id} className="rounded-xl bg-white p-4 ring-1 ring-slate-200">
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <div className="min-w-0"><p className="font-bold text-slate-900">{p.name}</p>{p.doc && <p className="text-xs text-slate-600">📎 {p.doc.name}</p>}</div>
-              <div className="flex gap-2"><button type="button" className={ghost} onClick={() => open(p)}>Edit</button><button type="button" className={ghost} onClick={() => void remove(p)}>Delete</button></div>
+            <p className="break-words font-bold text-slate-900">{p.name}</p>
+            <div className="mt-3 grid grid-cols-2 gap-2 text-center">
+              <a className={`${ghost} flex min-h-[44px] items-center justify-center`} href={urlFor(p)} target="_blank" rel="noreferrer">Preview page</a>
+              <button type="button" className={`${solid} min-h-[44px]`} onClick={() => copyText(`${urlFor(p)}?utm_source=social`)}>Copy link</button>
             </div>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <button type="button" className={solid} disabled={writingId === p.id} onClick={() => void write(p)}>{writingId === p.id ? 'Writing…' : '✨ Write posts'}</button>
-              <button type="button" className={ghost} onClick={() => video(p)}>Make a video</button>
-              <button type="button" className={ghost} onClick={() => copyText(`${urlFor(p)}?utm_source=social`)}>Copy link</button>
-              <a className={ghost} href={urlFor(p)} target="_blank" rel="noreferrer">Preview page</a>
-              <a className={ghost} href={`sms:?&body=${encodeURIComponent(`${p.name}: ${urlFor(p)}?utm_source=text`)}`}>Text it</a>
-            </div>
+            <details className="mt-2">
+              <summary className="cursor-pointer py-2 text-sm font-semibold text-primary-700">Program tools</summary>
+              {p.doc && <p className="break-words text-xs text-slate-600">{p.doc.name}</p>}
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button type="button" className={ghost} disabled={writingId === p.id} onClick={() => void write(p)}>{writingId === p.id ? 'Writing…' : 'Write posts'}</button>
+                <button type="button" className={ghost} onClick={() => video(p)}>Make a video</button>
+                <a className={ghost} href={`sms:?&body=${encodeURIComponent(`${p.name}: ${urlFor(p)}?utm_source=text`)}`}>Text it</a>
+                <button type="button" className={ghost} onClick={() => open(p)}>Edit</button>
+                <button type="button" className={ghost} onClick={() => void remove(p)}>Delete</button>
+              </div>
+            </details>
           </div>
         ))}
       </div>
