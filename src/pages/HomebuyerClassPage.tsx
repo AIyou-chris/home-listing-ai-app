@@ -26,6 +26,16 @@ const TIMELINE = [
   { t: 'Closing Disclosure', d: 'You get it at least 3 business days before closing. Read it and ask questions.' },
   { t: 'Sign and get your keys', d: 'Final walk-through, sign, and the home is yours.' },
 ];
+const QUIZ: { q: string; fact: boolean; why: string }[] = [
+  { q: 'You need 20% down to buy a home.', fact: false, why: 'Myth. Many loan programs allow much less, and a few allow none for eligible buyers.' },
+  { q: 'Checking your own credit report lowers your score.', fact: false, why: 'Myth. Looking at your own report is a soft check and does not hurt your score.' },
+  { q: 'Closing costs are on top of your down payment.', fact: true, why: 'Fact. Plan for both. Ask for an estimate early so there are no surprises.' },
+  { q: 'Pre-qualified and pre-approved mean the same thing.', fact: false, why: 'Myth. Pre-approval means a lender actually reviewed your documents. It carries more weight.' },
+  { q: 'Your monthly payment is just the loan.', fact: false, why: 'Myth. Taxes, insurance and sometimes HOA dues are part of what you pay each month.' },
+  { q: 'You get your Closing Disclosure at least 3 business days before closing.', fact: true, why: 'Fact. Use those days to read it and ask every question you have.' },
+];
+const GOALS = ['My first home', 'Moving up', 'Just exploring'];
+const WHENS = ['Within 3 months', '3 to 12 months', 'Over a year'];
 const money = (n: number) => `$${Math.round(n).toLocaleString()}`;
 
 const CSS = `
@@ -70,6 +80,13 @@ const HomebuyerClassPage: React.FC = () => {
   const [price, setPrice] = useState(350000);
   const [downPct, setDownPct] = useState(5);
   const [open, setOpen] = useState<number | null>(null);
+  const [answers, setAnswers] = useState<Record<number, 'right' | 'wrong' | 'unsure'>>({});
+  const [goal, setGoal] = useState('');
+  const [when, setWhen] = useState('');
+  const [nudged, setNudged] = useState<number | null>(null);
+  const [askOpen, setAskOpen] = useState(false);
+  const [question, setQuestion] = useState('');
+  const [asked, setAsked] = useState(false);
   const [name, setName] = useState('');
   const [contact, setContact] = useState('');
   const [consent, setConsent] = useState(false);
@@ -91,8 +108,10 @@ const HomebuyerClassPage: React.FC = () => {
 
   const all = useMemo(() => (['start', 'credit', 'docs'] as const).flatMap((g) => CHECKS[g].map((label) => ({ key: `${g}:${label}`, label }))), []);
   const doneCount = all.filter((c) => ticks[c.key]).length;
-  const score = Math.round((doneCount / all.length) * 100);
+  const rightCount = Object.values(answers).filter((a) => a === 'right').length;
+  const score = Math.round(((doneCount * 5 + rightCount * 10) / (all.length * 5 + QUIZ.length * 10)) * 100);
   const missing = all.filter((c) => !ticks[c.key]);
+  const learn = QUIZ.map((x, i) => ({ ...x, i, a: answers[i] })).filter((x) => x.a !== 'right');
   const flip = (g: string, label: string) => setTicks((t) => ({ ...t, [`${g}:${label}`]: !t[`${g}:${label}`] }));
 
   const down = price * (downPct / 100);
@@ -101,13 +120,12 @@ const HomebuyerClassPage: React.FC = () => {
   const downShown = useCount(down);
   const ring = useCount(score);
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const profileLine = () => [goal && `Goal: ${goal}.`, when && `Timing: ${when}.`].filter(Boolean).join(' ');
+  const send = async (note: string, after: () => void) => {
     const c = contact.trim();
     if (!c) { setError('Enter an email or phone.'); return; }
     if (!consent) { setError('Please check the box so we know it is OK to contact you.'); return; }
     const isEmail = c.includes('@');
-    const note = `Finished Homebuyer 101. Readiness ${score}%.${missing.length ? ` Still to do: ${missing.slice(0, 5).map((m) => m.label).join('; ')}.` : ''} Thinking about a ${money(price)} home.`;
     setBusy(true); setError('');
     try {
       const res = await fetch(buildApiUrl(`/api/public/lo/${encodeURIComponent(slug)}/inquiry`), {
@@ -115,8 +133,22 @@ const HomebuyerClassPage: React.FC = () => {
         body: JSON.stringify({ door: 'class', full_name: name || undefined, utm_source: search.get('utm_source') || 'learn101', email: isEmail ? c : undefined, phone: isEmail ? undefined : c, message: note.slice(0, 500), consent: true }),
       });
       if (!res.ok) throw new Error('failed');
-      setDone(true);
+      after();
     } catch { setError('Something went wrong. Please try again in a minute.'); } finally { setBusy(false); }
+  };
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const unsure = learn.slice(0, 4).map((l) => l.q.replace(/\.$/, '')).join(' | ');
+    void send(`Finished Homebuyer 101. Readiness ${score}%. ${profileLine()} ${missing.length ? `Still to do: ${missing.slice(0, 4).map((m) => m.label).join('; ')}. ` : ''}${unsure ? `Missed or unsure about: ${unsure}. ` : ''}Thinking about a ${money(price)} home.`.replace(/\s+/g, ' ').trim(), () => setDone(true));
+  };
+  const submitAsk = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!question.trim()) { setError('Type your question first.'); return; }
+    void send(`Question during Homebuyer 101 (step ${step + 1}, ${STEP_TITLES[step]}): ${question.trim()} ${profileLine()}`.trim(), () => { setAsked(true); setAskOpen(false); setQuestion(''); });
+  };
+  const answer = (i: number, saysFact: boolean | null) => {
+    if (answers[i]) return;
+    setAnswers((a) => ({ ...a, [i]: saysFact === null ? 'unsure' : saysFact === QUIZ[i].fact ? 'right' : 'wrong' }));
   };
 
   if (state === 'loading') return <div className="flex min-h-screen items-center justify-center bg-[#070b1a] text-slate-300">Loading…</div>;
@@ -124,9 +156,58 @@ const HomebuyerClassPage: React.FC = () => {
 
   const first = lo.name.split(' ')[0];
   const inSteps = step >= 0 && step <= 5;
-  const next = () => { setOpen(null); setStep((s) => s + 1); window.scrollTo({ top: 0 }); };
-  const back = () => { setOpen(null); setStep((s) => Math.max(-1, s - 1)); };
+  const touched = (st: number) => st < 0 || answers[st] !== undefined || (st <= 1 && CHECKS[st === 0 ? 'start' : 'credit'].some((l) => ticks[`${st === 0 ? 'start' : 'credit'}:${l}`])) || (st === 3 && CHECKS.docs.some((l) => ticks[`docs:${l}`]));
+  const next = () => {
+    if (step >= 0 && step <= 5 && !touched(step) && nudged !== step) { setNudged(step); return; }
+    setOpen(null); setAskOpen(false); setNudged(null); setStep((s) => s + 1); window.scrollTo({ top: 0 });
+  };
+  const back = () => { setOpen(null); setAskOpen(false); setNudged(null); setStep((s) => Math.max(-1, s - 1)); };
   const tier = score >= 75 ? 'You are in great shape.' : score >= 40 ? 'You have a solid start.' : 'Everyone starts here.';
+
+  const quiz = (i: number) => {
+    const a = answers[i]; const item = QUIZ[i];
+    return (
+      <div className="rounded-2xl bg-gradient-to-br from-indigo-500/20 to-cyan-400/10 p-4 ring-1 ring-cyan-300/30">
+        <p className="text-xs font-bold uppercase tracking-widest text-cyan-200">Myth or fact?</p>
+        <p className="mt-2 text-lg font-bold leading-snug text-white">{item.q}</p>
+        {!a ? (
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            <button type="button" onClick={() => answer(i, false)} className="min-h-[48px] rounded-xl bg-white/10 text-sm font-extrabold text-white ring-1 ring-white/25 hover:bg-white/20">Myth</button>
+            <button type="button" onClick={() => answer(i, true)} className="min-h-[48px] rounded-xl bg-white/10 text-sm font-extrabold text-white ring-1 ring-white/25 hover:bg-white/20">Fact</button>
+            <button type="button" onClick={() => answer(i, null)} className="min-h-[48px] rounded-xl bg-transparent text-sm font-bold text-slate-300 ring-1 ring-white/15 hover:bg-white/10">Not sure</button>
+          </div>
+        ) : (
+          <div className="h1-up mt-3" role="status">
+            <p className={`text-sm font-black ${a === 'right' ? 'text-emerald-300' : a === 'wrong' ? 'text-amber-300' : 'text-cyan-200'}`}>{a === 'right' ? '✓ Nice. +10 points' : a === 'wrong' ? 'Good to know. Most people miss this one.' : 'No problem. Here is the answer.'}</p>
+            <p className="mt-1 text-sm text-slate-100">{item.why}</p>
+          </div>
+        )}
+      </div>
+    );
+  };
+  const askBox = step >= 0 && step <= 5 && (
+    <div className="space-y-2">
+      {nudged === step && <p className="h1-up rounded-xl bg-amber-300/15 px-4 py-3 text-sm font-semibold text-amber-100 ring-1 ring-amber-300/40" role="status">Tap an answer above. It helps {first} help you. Or tap Next again to skip.</p>}
+      {!askOpen ? (
+        <button type="button" onClick={() => setAskOpen(true)} className="flex min-h-[56px] w-full items-center gap-3 rounded-2xl bg-white/[0.06] px-4 text-left ring-1 ring-white/15 hover:bg-white/10">
+          {lo.photo ? <img src={lo.photo} alt="" className="h-9 w-9 rounded-full object-cover" /> : <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white/15 text-sm font-bold">{lo.name.charAt(0)}</span>}
+          <span className="text-sm font-bold text-white">{asked ? `Ask ${first} another question` : `Got a question? Ask ${first}`}<span className="block text-xs font-medium text-slate-300">A real person answers. No pressure.</span></span>
+        </button>
+      ) : (
+        <form onSubmit={submitAsk} className={`${glass} h1-up space-y-3 p-4`}>
+          <textarea aria-label="Your question" value={question} onChange={(e) => setQuestion(e.target.value)} rows={3} maxLength={400} placeholder={`Ask ${first} anything about this step…`} className="w-full rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-base text-white placeholder-slate-400" />
+          {!(contact && consent && asked) && (<>
+            <input aria-label="Your name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" className="w-full rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-base text-white placeholder-slate-400" />
+            <input aria-label="Email or phone" value={contact} onChange={(e) => setContact(e.target.value)} placeholder="Email or phone, so they can answer you" className="w-full rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-base text-white placeholder-slate-400" />
+            <label className="flex items-start gap-2 text-xs text-slate-300"><input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-0.5" />I agree that {lo.name} may contact me about my request. I can ask to stop at any time.</label>
+          </>)}
+          {error && <p className="text-sm font-semibold text-rose-300" role="alert">{error}</p>}
+          <div className="flex gap-2"><button type="submit" disabled={busy} className={`${primary} flex-1`}>{busy ? 'Sending…' : `Send to ${first}`}</button><button type="button" onClick={() => setAskOpen(false)} className="px-3 text-sm font-semibold text-slate-300">Cancel</button></div>
+        </form>
+      )}
+      {asked && !askOpen && <p className="text-center text-xs font-semibold text-emerald-300" role="status">Sent. {first} will get back to you.</p>}
+    </div>
+  );
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#070b1a] px-4 py-8 text-slate-100">
@@ -152,6 +233,12 @@ const HomebuyerClassPage: React.FC = () => {
               <p className="text-xs font-bold uppercase tracking-[0.3em] text-cyan-200">Free · 3 minutes</p>
               <h1 className="text-5xl font-black leading-[1.02] tracking-tight text-white">Homebuyer <span className="h1-sheen">101</span></h1>
               <p className="text-lg leading-relaxed text-slate-200">Six quick steps from credit to keys. Tap along, get your readiness score, and see exactly what to do next.</p>
+              <div className="space-y-3">
+                <p className="text-sm font-bold text-white">What brings you here?</p>
+                <div className="flex flex-wrap gap-2">{GOALS.map((g) => <button key={g} type="button" aria-pressed={goal === g} onClick={() => setGoal(goal === g ? '' : g)} className={`min-h-[44px] rounded-full px-4 text-sm font-bold ring-1 ${goal === g ? 'bg-cyan-300 text-slate-900 ring-cyan-300' : 'bg-white/[0.06] text-slate-100 ring-white/20'}`}>{g}</button>)}</div>
+                <p className="pt-1 text-sm font-bold text-white">When are you thinking?</p>
+                <div className="flex flex-wrap gap-2">{WHENS.map((g) => <button key={g} type="button" aria-pressed={when === g} onClick={() => setWhen(when === g ? '' : g)} className={`min-h-[44px] rounded-full px-4 text-sm font-bold ring-1 ${when === g ? 'bg-cyan-300 text-slate-900 ring-cyan-300' : 'bg-white/[0.06] text-slate-100 ring-white/20'}`}>{g}</button>)}</div>
+              </div>
               <button type="button" onClick={next} className={`${primary} w-full text-base`}>Start the lesson</button>
               <div className="grid grid-cols-3 gap-2 text-center text-xs text-slate-300">{['Interactive', 'Plain words', 'No pressure'].map((t) => <span key={t} className="rounded-xl bg-white/[0.06] py-2 ring-1 ring-white/10">{t}</span>)}</div>
             </div>
@@ -204,6 +291,9 @@ const HomebuyerClassPage: React.FC = () => {
             </div>
           )}
 
+          {step >= 0 && step <= 5 && quiz(step)}
+          {askBox}
+
           {step === 6 && (
             <div className="space-y-5">
               <div className={`${glass} text-center`}>
@@ -213,6 +303,7 @@ const HomebuyerClassPage: React.FC = () => {
                   <p className="absolute inset-0 flex items-center justify-center text-5xl font-black text-white">{Math.round(ring)}%</p>
                 </div>
                 <h1 className="text-2xl font-black text-white">{tier}</h1>
+                {learn.length > 0 && <div className="mt-4 text-left"><p className="text-xs font-bold uppercase tracking-widest text-cyan-200">Worth a second look</p><ul className="mt-2 space-y-2">{learn.slice(0, 3).map((l) => <li key={l.i}><button type="button" onClick={() => { setStep(l.i); window.scrollTo({ top: 0 }); }} className="min-h-[44px] w-full rounded-xl bg-white/[0.06] px-3 text-left text-sm font-semibold text-slate-100 ring-1 ring-white/15 hover:bg-white/10">{l.a ? '↻' : '○'} {l.q}</button></li>)}</ul></div>}
                 {missing.length > 0 ? <div className="mt-3 text-left"><p className="text-xs font-bold uppercase tracking-widest text-cyan-200">Your next moves</p><ul className="mt-2 space-y-1 text-sm text-slate-100">{missing.slice(0, 4).map((m) => <li key={m.key}>○ {m.label}</li>)}</ul></div> : <p className="mt-2 text-sm text-slate-200">You checked every box. You are ready to talk numbers.</p>}
               </div>
               {done ? (
