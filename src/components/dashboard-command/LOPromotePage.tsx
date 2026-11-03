@@ -4,7 +4,7 @@ import { buildApiUrl } from '../../lib/api';
 import { authHeaders } from '../../services/dashboard/utils';
 import { useDemoMode } from '../../demo/useDemoMode';
 import { showToast } from '../../utils/toastService';
-import LOVideoMaker from './LOVideoMaker';
+import LOVideoMaker, { type VideoTopic } from './LOVideoMaker';
 import LOImageMaker from './LOImageMaker';
 
 interface MyLink { slug: string; url: string; name: string; company: string | null; nmls: string | null }
@@ -68,6 +68,8 @@ const LOPromotePage: React.FC = () => {
   const [link, setLink] = useState<MyLink | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [qr, setQr] = useState('');
+  const [qrLearn, setQrLearn] = useState('');
+  const [videoReq, setVideoReq] = useState<{ topic: VideoTopic; n: number } | undefined>(undefined);
   const [pictures, setPictures] = useState<Picture[]>([]);
   const [uploading, setUploading] = useState(false);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -87,6 +89,7 @@ const LOPromotePage: React.FC = () => {
     if (demo) {
       setLink(DEMO_LINK); setState('ready'); setStats(DEMO_STATS);
       QRCode.toDataURL(DEMO_LINK.url, { width: 600, margin: 1 }).then((u) => live && setQr(u)).catch(() => undefined);
+      QRCode.toDataURL(DEMO_LINK.url.replace('/ask/', '/learn/'), { width: 600, margin: 1 }).then((u) => live && setQrLearn(u)).catch(() => undefined);
       return () => { live = false; };
     }
     (async () => {
@@ -97,6 +100,7 @@ const LOPromotePage: React.FC = () => {
         if (!live) return;
         setLink(d); setState('ready');
         QRCode.toDataURL(`${d.url}?utm_source=qr`, { width: 600, margin: 1 }).then((u) => live && setQr(u)).catch(() => undefined);
+        QRCode.toDataURL(`${d.url.replace('/ask/', '/learn/')}?utm_source=qr101`, { width: 600, margin: 1 }).then((u) => live && setQrLearn(u)).catch(() => undefined);
       } catch { if (live) setState('error'); }
     })();
     api('/api/lo/pictures').then((r) => r.ok ? r.json() : null).then((d: { pictures: Picture[] } | null) => { if (live && d) setPictures(d.pictures); }).catch(() => undefined);
@@ -116,6 +120,11 @@ const LOPromotePage: React.FC = () => {
     { door: 'buy', label: 'Buying a home', text: `Thinking about buying a home? Ask me anything, no pressure. I will tell you what to do first.${nmlsLine}\n${link.url}?door=buy&utm_source=social` },
     { door: 'learn', label: 'Free 101 lesson', text: `Free Homebuyer 101: six short steps from credit to closing, in plain words. Takes about 3 minutes.${nmlsLine}\n${learnUrl}?utm_source=social` },
     { door: 'class', label: 'Homebuyer class', text: `Want to learn the steps to buying a home and the programs that can help? Sign up for my homebuyer class.${nmlsLine}\n${link.url}?door=class&utm_source=social` },
+  ] : [], [link, nmlsLine, learnUrl]);
+  const learnPosts = useMemo(() => link ? [
+    { label: 'Myth: 20% down', text: `Myth: you need 20% down to buy a home. Not true. Play my free 3-minute Homebuyer 101 and see what is.${nmlsLine}\n${learnUrl}?utm_source=social` },
+    { label: 'Credit check myth', text: `Does checking your own credit hurt your score? Find out in my free Homebuyer 101. It is a quick game, not a form.${nmlsLine}\n${learnUrl}?utm_source=social` },
+    { label: 'Get your score', text: `Thinking about buying in the next year? Get your free readiness score in 3 minutes.${nmlsLine}\n${learnUrl}?utm_source=social` },
   ] : [], [link, nmlsLine, learnUrl]);
   useEffect(() => { if (starters.length && !text) { setText(starters[0].text); setTitle(starters[0].label); } }, [starters, text]);
 
@@ -209,10 +218,34 @@ const LOPromotePage: React.FC = () => {
           <Stat value={pictures.length || (demo ? 6 : 0)} label="pictures ready" />
         </div>
 
-        <section className={card} aria-label="Create a video">
+        <section className={`${card} border-primary-200 bg-primary-50`} aria-label="Homebuyer 101">
+          <h2 className="text-lg font-extrabold text-slate-900">🏠 Homebuyer 101: your fastest way to buyers</h2>
+          <p className="mt-1 text-sm text-slate-700">A free 3-minute game for buyers. Everyone who finishes lands in your Leads with their score and what they were unsure about.</p>
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            {learnPosts.map((lp) => (
+              <div key={lp.label} className="rounded-xl bg-white p-3 ring-1 ring-slate-200">
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-500">{lp.label}</p>
+                <p className="mt-1 whitespace-pre-line text-sm text-slate-800">{lp.text.split('\n')[0]}</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button type="button" className={solid} onClick={() => void copyText(lp.text)}>Copy</button>
+                  <button type="button" className={ghost} onClick={() => { setText(lp.text); setTitle(lp.label); window.scrollTo({ top: document.getElementById('promote-write')?.offsetTop ?? 0, behavior: 'smooth' }); }}>Edit in writer</button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <button type="button" className={solid} onClick={() => { setVideoReq({ topic: 'learn', n: Date.now() }); document.getElementById('promote-video')?.scrollIntoView({ behavior: 'smooth' }); }}>Make the 101 video</button>
+            <a className={ghost} href={`sms:?&body=${encodeURIComponent(`Free 3-minute Homebuyer 101 from ${link.name}: ${learnUrl}?utm_source=text`)}`}>Text it to someone</a>
+            <button type="button" className={ghost} onClick={() => void copyText(`${learnUrl}?utm_source=social`)}>Copy link</button>
+            <a className={ghost} href={learnUrl} target="_blank" rel="noreferrer">Preview</a>
+            {qrLearn && <a className={ghost} href={qrLearn} download="homebuyer-101-qr.png">Download QR</a>}
+          </div>
+        </section>
+
+        <section id="promote-video" className={card} aria-label="Create a video">
           <h2 className="text-lg font-extrabold text-slate-900">🎬 Create a video</h2>
           <p className="mb-4 mt-1 text-sm text-slate-600">Pick a topic, edit every word, make it. Free. You download it and post it yourself.</p>
-          <LOVideoMaker footer={footer} pictures={pictures} />
+          <LOVideoMaker footer={footer} pictures={pictures} forceTopic={videoReq} />
         </section>
 
         <section className={card} aria-label="Create an image">
@@ -224,7 +257,7 @@ const LOPromotePage: React.FC = () => {
         </section>
 
         <div className="grid gap-5 lg:grid-cols-2">
-          <section className={card} aria-label="Write a post">
+          <section id="promote-write" className={card} aria-label="Write a post">
             <h2 className="text-lg font-extrabold text-slate-900">✍️ Write a post</h2>
             <p className="mb-3 mt-1 text-sm text-slate-600">Start from an idea, edit it, then preview it.</p>
             <div className="flex flex-wrap gap-2">

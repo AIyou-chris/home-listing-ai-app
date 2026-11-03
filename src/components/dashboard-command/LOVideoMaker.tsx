@@ -5,18 +5,19 @@ import { clamp01, drawBackdrop, drawIcon, drawPhoto, type IconKind } from './pro
 // Makes a short captioned video right in the browser. Free, no upload, no server.
 // The loan officer edits every word, previews it, then downloads the file and posts it themselves.
 
-type Topic = 'review' | 'buy' | 'class';
+type Topic = 'review' | 'buy' | 'class' | 'learn';
 type Shape = 'vertical' | 'square';
 
 const SCENES: Record<Topic, [string, string, string]> = {
   review: ['Is your mortgage rate about to change?', 'An adjustable rate can reset. A quick review shows if your loan still fits your plans.', 'Ask me for a free review. Link in my profile.'],
   buy: ['Thinking about buying a home?', 'The first step is not a house. It is knowing what you can comfortably afford.', 'Ask me anything. No pressure. Link in my profile.'],
+  learn: ['Think you need 20% down to buy a home?', 'Take my free 3-minute Homebuyer 101. Play myth or fact, get your score.', 'Free. Tap the link in my profile.'],
   class: ['Want to learn how buying a home works?', 'My homebuyer class covers the steps and the programs that can help.', 'Save your seat. Link in my profile.'],
 };
-const TOPIC_LABEL: Record<Topic, string> = { review: 'Mortgage review', buy: 'Buying a home', class: 'Homebuyer class' };
+const TOPIC_LABEL: Record<Topic, string> = { review: 'Mortgage review', buy: 'Buying a home', class: 'Homebuyer class', learn: 'Free 101 lesson' };
 const SIZE: Record<Shape, [number, number]> = { vertical: [720, 1280], square: [720, 720] };
 const PALETTE: [string, string][] = [['#1d4ed8', '#0b1330'], ['#0f766e', '#052e2b'], ['#7c3aed', '#1e1040']];
-const ICONS: Record<Topic, IconKind[]> = { review: ['rate', 'check', 'cta'], buy: ['house', 'check', 'cta'], class: ['calendar', 'check', 'cta'] };
+const ICONS: Record<Topic, IconKind[]> = { review: ['rate', 'check', 'cta'], buy: ['house', 'check', 'cta'], class: ['calendar', 'check', 'cta'], learn: ['house', 'check', 'cta'] };
 const SECONDS_PER_SCENE = 4;
 const FONT = '-apple-system, Segoe UI, Helvetica, Arial, sans-serif';
 
@@ -59,7 +60,7 @@ const draw = (ctx: CanvasRenderingContext2D, w: number, h: number, scenes: strin
   ctx.fillStyle = '#22d3ee'; ctx.fillRect(0, h - 8, (w * tt) / total, 8);
 };
 
-const LOVideoMaker: React.FC<{ footer: string; pictures?: { name: string; url: string | null }[] }> = ({ footer, pictures = [] }) => {
+const LOVideoMaker: React.FC<{ footer: string; pictures?: { name: string; url: string | null }[]; forceTopic?: { topic: Topic; n: number } }> = ({ footer, pictures = [], forceTopic }) => {
   const [topic, setTopic] = useState<Topic>('review');
   const [shape, setShape] = useState<Shape>('vertical');
   const [scenes, setScenes] = useState<string[]>([...SCENES.review]);
@@ -90,6 +91,7 @@ const LOVideoMaker: React.FC<{ footer: string; pictures?: { name: string; url: s
     try { const ac = new AudioContext(); previewRef.current = { ac, stop: playMusic(ac, ac.destination, m, 8) }; } catch { /* no audio */ }
   };
   const pickTopic = (t: Topic) => { setTopic(t); setScenes([...SCENES[t]]); setResult(null); };
+  useEffect(() => { if (forceTopic) pickTopic(forceTopic.topic); }, [forceTopic?.n]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Looping preview (paused while recording so the two do not fight over the canvas).
   useEffect(() => {
@@ -191,4 +193,5 @@ const LOVideoMaker: React.FC<{ footer: string; pictures?: { name: string; url: s
   );
 };
 
+export type { Topic as VideoTopic };
 export default LOVideoMaker;
