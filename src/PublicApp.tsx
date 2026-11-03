@@ -5,6 +5,7 @@ import LoadingSpinner from './components/LoadingSpinner';
 import ErrorBoundary from './components/ErrorBoundary';
 
 const App = lazy(() => import('./App'));
+const HomePreviewPage = lazy(() => import('./pages/HomePreviewPage'));
 const LandingPage = lazy(() => import('./components/LandingPage'));
 const ConsultationModal = lazy(() => import('./components/ConsultationModal'));
 const Toaster = lazy(() => import('react-hot-toast').then((module) => ({ default: module.Toaster })));
@@ -125,6 +126,7 @@ const PublicApp: React.FC = () => {
               </ErrorBoundary>
             }
           />
+          <Route path="/home-preview" element={<HomePreviewPage />} />
           <Route path="/landing" element={<Navigate to="/" replace />} />
           <Route path="/blog" element={<BlogIndex />} />
           <Route path="/blog/:slug" element={<BlogPost />} />
