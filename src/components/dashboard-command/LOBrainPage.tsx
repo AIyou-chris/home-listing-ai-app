@@ -597,6 +597,22 @@ const LOBrainPage: React.FC = () => {
   const [previewing, setPreviewing] = useState(false);
   const [showTest, setShowTest] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  // Four separate checks: what you taught it, whether it is on, whether the phone line is live, whether you have tried it.
+  const TESTED_KEY = 'lo_brain_tested_v1';
+  const [tested, setTested] = useState<boolean>(() => { try { return localStorage.getItem(TESTED_KEY) === '1'; } catch { return false; } });
+  const [phoneLive, setPhoneLive] = useState<boolean | null>(demo ? true : null);
+  useEffect(() => {
+    if (demo) return;
+    let live = true;
+    (async () => {
+      try {
+        const res = await fetch(buildApiUrl('/api/lo/phone-line'), { headers: await getApiHeaders() });
+        const d = await res.json().catch(() => ({}));
+        if (live) setPhoneLive(res.ok ? Boolean(d.line?.phoneNumber && d.line?.status === 'active') : false);
+      } catch { if (live) setPhoneLive(false); }
+    })();
+    return () => { live = false; };
+  }, [demo]);
 
   const playVoice = async () => {
     if (demo) { toast('Voice samples are off in the demo — start your free trial to hear your AI.', { icon: '🔒' }); return; }
@@ -769,6 +785,8 @@ const LOBrainPage: React.FC = () => {
       const res = await fetch(buildApiUrl('/api/lo/brain/test'), { method: 'POST', headers: await getApiHeaders(), body: JSON.stringify({ message: q, history }) });
       const data = await res.json();
       if (!res.ok) throw new Error();
+      try { localStorage.setItem(TESTED_KEY, '1'); } catch { /* private mode */ }
+      setTested(true);
       setChat((c) => [...c, { role: 'assistant', content: data.reply, route: data.route, question: q, fixed: Array.isArray(data.actions) && data.actions.length > 0 }]);
     } catch {
       setChat((c) => [...c, { role: 'assistant', content: 'The test chat could not answer just now. Try again.' }]);
@@ -859,6 +877,16 @@ const LOBrainPage: React.FC = () => {
                   <div><dt className="lb-dim text-xs font-semibold uppercase tracking-wide">Listings using it</dt><dd className="text-2xl font-bold">{summary?.listings.length ?? '—'}</dd></div>
                   <div><dt className="lb-dim text-xs font-semibold uppercase tracking-wide">Readiness</dt><dd className={`pt-1.5 text-sm font-bold ${readiness.cls}`}>{readiness.text}</dd></div>
                 </dl>
+                <ul className="flex flex-wrap gap-2" aria-label="Setup checks">
+                  {[
+                    { ok: sources.length > 0, label: 'Taught it', hint: 'Add knowledge' },
+                    { ok: config.is_active, label: 'Chat is on', hint: 'Chat is off' },
+                    { ok: phoneLive === true, label: 'Phone line live', hint: phoneLive === null ? 'Checking phone…' : 'No phone line yet' },
+                    { ok: tested, label: 'Tried it', hint: 'Tap Test it' },
+                  ].map((c) => (
+                    <li key={c.label} className={`rounded-full border px-3 py-1 text-xs font-bold ${c.ok ? 'border-green-200 bg-green-50 text-green-800' : 'border-amber-200 bg-amber-50 text-amber-900'}`}>{c.ok ? '✓ ' : '○ '}{c.ok ? c.label : c.hint}</li>
+                  ))}
+                </ul>
               </div>
             </div>
             <div className="flex flex-col gap-2 md:w-[260px]">
