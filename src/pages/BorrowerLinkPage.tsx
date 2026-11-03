@@ -97,8 +97,8 @@ const BorrowerLinkPage: React.FC = () => {
         ) : (
           <form onSubmit={submit} className="space-y-3 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
             {demoPreview && <p className="text-sm font-semibold text-slate-700">{DEMO_PREVIEW_NOTICE}</p>}
+            <button type="button" onClick={() => setDoor(null)} className="text-sm font-semibold text-slate-500">← Back</button>
             <fieldset disabled={demoPreview} className="space-y-3">
-              <button type="button" onClick={() => setDoor(null)} className="text-sm font-semibold text-slate-500">← Back</button>
               <h2 className="text-lg font-bold text-slate-900">{picked.title}</h2>
               <input aria-label="Your name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm" />
               <input aria-label="Email or phone" value={contact} onChange={(e) => setContact(e.target.value)} placeholder="Email or phone" className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm" required />

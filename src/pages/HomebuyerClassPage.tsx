@@ -198,6 +198,7 @@ const HomebuyerClassPage: React.FC = () => {
           <span className="text-sm font-bold text-slate-900">{asked ? `Ask ${first} another question` : `Got a question? Ask ${first}`}<span className="block text-xs font-medium text-slate-600">A real person answers. No pressure.</span></span>
         </button>
       ) : (
+        demoPreview ? <div className={glass}><p>{DEMO_PREVIEW_NOTICE}</p><button type="button" onClick={() => setAskOpen(false)} className="mt-2 font-semibold text-primary-700">Close</button></div> :
         <form onSubmit={submitAsk} className={`${glass} h1-up space-y-3 p-4`}>
           {demoPreview && <p className="text-sm font-semibold text-slate-700">{DEMO_PREVIEW_NOTICE}</p>}
           <fieldset disabled={demoPreview} className="space-y-3">
