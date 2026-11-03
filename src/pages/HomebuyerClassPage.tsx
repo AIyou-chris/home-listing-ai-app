@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { buildApiUrl } from '../lib/api';
+import { DEMO_LO_PROFILE, DEMO_PREVIEW_NOTICE } from '../lib/loDemoPreview';
 
 // Free "Homebuyer 101" under a loan officer's own name. Six interactive steps, a readiness score, then a sign-up
 // that lands in their Leads as a "class" request. General education only: no rates, no promises about approval.
@@ -93,13 +94,15 @@ const HomebuyerClassPage: React.FC = () => {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
+  const demoPreview = lo === DEMO_LO_PROFILE;
 
   useEffect(() => {
     let live = true;
     fetch(buildApiUrl(`/api/public/lo/${encodeURIComponent(slug)}/profile`))
       .then(async (r) => {
-        if (!r.ok) throw new Error('missing');
-        const d = await r.json() as { lo: LoProfile };
+        const sample = r.status === 404 && slug === DEMO_LO_PROFILE.slug;
+        if (!r.ok && !sample) throw new Error('missing');
+        const d = sample ? { lo: DEMO_LO_PROFILE } : await r.json() as { lo: LoProfile };
         if (live) { setLo(d.lo); setState('ready'); document.title = `Homebuyer 101 with ${d.lo.name}`; }
       })
       .catch(() => { if (live) setState('missing'); });
@@ -122,6 +125,7 @@ const HomebuyerClassPage: React.FC = () => {
 
   const profileLine = () => [goal && `Goal: ${goal}.`, when && `Timing: ${when}.`].filter(Boolean).join(' ');
   const send = async (note: string, after: () => void) => {
+    if (demoPreview) return;
     const c = contact.trim();
     if (!c) { setError('Enter an email or phone.'); return; }
     if (!consent) { setError('Please check the box so we know it is OK to contact you.'); return; }
@@ -195,14 +199,17 @@ const HomebuyerClassPage: React.FC = () => {
         </button>
       ) : (
         <form onSubmit={submitAsk} className={`${glass} h1-up space-y-3 p-4`}>
-          <textarea aria-label="Your question" value={question} onChange={(e) => setQuestion(e.target.value)} rows={3} maxLength={400} placeholder={`Ask ${first} anything about this step…`} className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-900 placeholder-slate-500" />
-          {!(contact && consent && asked) && (<>
-            <input aria-label="Your name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-900 placeholder-slate-500" />
-            <input aria-label="Email or phone" value={contact} onChange={(e) => setContact(e.target.value)} placeholder="Email or phone, so they can answer you" className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-900 placeholder-slate-500" />
-            <label className="flex items-start gap-2 text-xs text-slate-600"><input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-0.5" />I agree that {lo.name} may contact me about my request. I can ask to stop at any time.</label>
-          </>)}
-          {error && <p className="text-sm font-semibold text-red-700" role="alert">{error}</p>}
-          <div className="flex gap-2"><button type="submit" disabled={busy} className={`${primary} flex-1`}>{busy ? 'Sending…' : `Send to ${first}`}</button><button type="button" onClick={() => setAskOpen(false)} className="px-3 text-sm font-semibold text-slate-600">Cancel</button></div>
+          {demoPreview && <p className="text-sm font-semibold text-slate-700">{DEMO_PREVIEW_NOTICE}</p>}
+          <fieldset disabled={demoPreview} className="space-y-3">
+            <textarea aria-label="Your question" value={question} onChange={(e) => setQuestion(e.target.value)} rows={3} maxLength={400} placeholder={`Ask ${first} anything about this step…`} className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-900 placeholder-slate-500" />
+            {!(contact && consent && asked) && (<>
+              <input aria-label="Your name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-900 placeholder-slate-500" />
+              <input aria-label="Email or phone" value={contact} onChange={(e) => setContact(e.target.value)} placeholder="Email or phone, so they can answer you" className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-900 placeholder-slate-500" />
+              <label className="flex items-start gap-2 text-xs text-slate-600"><input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-0.5" />I agree that {lo.name} may contact me about my request. I can ask to stop at any time.</label>
+            </>)}
+            {error && <p className="text-sm font-semibold text-red-700" role="alert">{error}</p>}
+            <div className="flex gap-2"><button type="submit" disabled={busy} className={`${primary} flex-1`}>{busy ? 'Sending…' : `Send to ${first}`}</button><button type="button" onClick={() => setAskOpen(false)} className="px-3 text-sm font-semibold text-slate-600">Cancel</button></div>
+          </fieldset>
         </form>
       )}
       {asked && !askOpen && <p className="text-center text-xs font-semibold text-emerald-700" role="status">Sent. {first} will get back to you.</p>}
@@ -308,13 +315,16 @@ const HomebuyerClassPage: React.FC = () => {
                 <div className={`${glass} text-center`} role="status"><p className="text-xl font-black text-slate-900">Thank you.</p><p className="mt-2 text-sm text-slate-700">{first} will reach out to you soon.</p></div>
               ) : (
                 <form onSubmit={submit} className={`${glass} space-y-3`}>
-                  <h2 className="text-xl font-black text-slate-900">Want {first} to map your next step?</h2>
-                  <p className="text-sm text-slate-600">Free, no pressure. {first} sees your score so you do not repeat yourself.</p>
-                  <input aria-label="Your name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-900 placeholder-slate-500" />
-                  <input aria-label="Email or phone" value={contact} onChange={(e) => setContact(e.target.value)} placeholder="Email or phone" className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-900 placeholder-slate-500" required />
-                  <label className="flex items-start gap-2 text-xs text-slate-600"><input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-0.5" />I agree that {lo.name} may contact me about my request. I can ask to stop at any time.</label>
-                  {error && <p className="text-sm font-semibold text-red-700" role="alert">{error}</p>}
-                  <button type="submit" disabled={busy} className={`${primary} w-full`}>{busy ? 'Sending…' : 'Yes, contact me'}</button>
+                  {demoPreview && <p className="text-sm font-semibold text-slate-700">{DEMO_PREVIEW_NOTICE}</p>}
+                  <fieldset disabled={demoPreview} className="space-y-3">
+                    <h2 className="text-xl font-black text-slate-900">Want {first} to map your next step?</h2>
+                    <p className="text-sm text-slate-600">Free, no pressure. {first} sees your score so you do not repeat yourself.</p>
+                    <input aria-label="Your name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-900 placeholder-slate-500" />
+                    <input aria-label="Email or phone" value={contact} onChange={(e) => setContact(e.target.value)} placeholder="Email or phone" className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-900 placeholder-slate-500" required />
+                    <label className="flex items-start gap-2 text-xs text-slate-600"><input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-0.5" />I agree that {lo.name} may contact me about my request. I can ask to stop at any time.</label>
+                    {error && <p className="text-sm font-semibold text-red-700" role="alert">{error}</p>}
+                    <button type="submit" disabled={busy} className={`${primary} w-full`}>{busy ? 'Sending…' : 'Yes, contact me'}</button>
+                  </fieldset>
                 </form>
               )}
             </div>

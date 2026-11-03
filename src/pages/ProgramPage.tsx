@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { buildApiUrl } from '../lib/api';
+import { DEMO_LO_PROFILE, DEMO_PREVIEW_NOTICE, DEMO_LO_PROGRAM } from '../lib/loDemoPreview';
 
 // One loan program from one loan officer: their words, their program sheet, and a "talk to me" form.
 
@@ -19,13 +20,15 @@ const ProgramPage: React.FC = () => {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
+  const demoPreview = data?.lo === DEMO_LO_PROFILE;
 
   useEffect(() => {
     let live = true;
     fetch(buildApiUrl(`/api/public/lo/${encodeURIComponent(slug)}/program/${encodeURIComponent(id)}`))
       .then(async (r) => {
-        if (!r.ok) throw new Error('missing');
-        const d = await r.json() as { lo: LoProfile; program: Program };
+        const sample = r.status === 404 && slug === DEMO_LO_PROFILE.slug && id === DEMO_LO_PROGRAM.id;
+        if (!r.ok && !sample) throw new Error('missing');
+        const d = sample ? { lo: DEMO_LO_PROFILE, program: DEMO_LO_PROGRAM } : await r.json() as { lo: LoProfile; program: Program };
         if (live) { setData(d); setState('ready'); document.title = `${d.program.name} | ${d.lo.name}`; }
       })
       .catch(() => { if (live) setState('missing'); });
@@ -34,6 +37,7 @@ const ProgramPage: React.FC = () => {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (demoPreview) return;
     const c = contact.trim();
     if (!c) { setError('Enter an email or phone.'); return; }
     if (!consent) { setError('Please check the box so we know it is OK to contact you.'); return; }
@@ -77,13 +81,16 @@ const ProgramPage: React.FC = () => {
           </div>
         ) : (
           <form onSubmit={submit} className="space-y-3 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
-            <h2 className="text-lg font-bold text-slate-900">Does this fit you? Ask {first}.</h2>
-            <input aria-label="Your name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm" />
-            <input aria-label="Email or phone" value={contact} onChange={(e) => setContact(e.target.value)} placeholder="Email or phone" className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm" required />
-            <textarea aria-label="Your question" value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Anything you want to know?" rows={3} className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm" />
-            <label className="flex items-start gap-2 text-xs text-slate-600"><input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-0.5" />I agree that {lo.name} may contact me about my request. I can ask to stop at any time.</label>
-            {error && <p className="text-sm font-semibold text-red-700" role="alert">{error}</p>}
-            <button type="submit" disabled={busy} className="w-full rounded-lg bg-primary-600 py-3 text-sm font-bold text-white hover:bg-primary-700 disabled:opacity-60">{busy ? 'Sending…' : 'Send'}</button>
+            {demoPreview && <p className="text-sm font-semibold text-slate-700">{DEMO_PREVIEW_NOTICE}</p>}
+            <fieldset disabled={demoPreview} className="space-y-3">
+              <h2 className="text-lg font-bold text-slate-900">Does this fit you? Ask {first}.</h2>
+              <input aria-label="Your name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm" />
+              <input aria-label="Email or phone" value={contact} onChange={(e) => setContact(e.target.value)} placeholder="Email or phone" className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm" required />
+              <textarea aria-label="Your question" value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Anything you want to know?" rows={3} className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm" />
+              <label className="flex items-start gap-2 text-xs text-slate-600"><input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-0.5" />I agree that {lo.name} may contact me about my request. I can ask to stop at any time.</label>
+              {error && <p className="text-sm font-semibold text-red-700" role="alert">{error}</p>}
+              <button type="submit" disabled={busy} className="w-full rounded-lg bg-primary-600 py-3 text-sm font-bold text-white hover:bg-primary-700 disabled:opacity-60">{busy ? 'Sending…' : 'Send'}</button>
+            </fieldset>
           </form>
         )}
         <p className="text-center text-xs text-slate-500">This is not a commitment to lend or an offer of credit. Eligibility, rates and terms depend on your situation and the program rules.{lo.nmls ? ` NMLS #${lo.nmls}.` : ''} Equal Housing Lender.</p>
