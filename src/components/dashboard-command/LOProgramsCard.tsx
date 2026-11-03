@@ -89,7 +89,7 @@ const LOProgramsCard: React.FC<{
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" aria-label="My programs">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div><h2 className="text-lg font-extrabold text-slate-900">📄 My programs</h2><p className="mt-1 text-sm text-slate-600">Upload a program sheet, write a few lines, and market it. Each program gets its own page, posts and video.</p></div>
+        <div><h2 className="text-lg font-extrabold text-slate-900">Promote a program</h2><p className="mt-1 text-sm text-slate-600">Upload a program sheet, write a few lines, and market it. Each program gets its own page, posts and video.</p></div>
         {editing === null && <button type="button" className={solid} onClick={() => open(null)}>+ Add a program</button>}
       </div>
 

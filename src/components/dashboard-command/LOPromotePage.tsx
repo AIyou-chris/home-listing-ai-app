@@ -66,6 +66,8 @@ const Stat: React.FC<{ value: React.ReactNode; label: string; note?: string }> =
 
 const LOPromotePage: React.FC = () => {
   const demo = useDemoMode();
+  const [shareTarget, setShareTarget] = useState<'borrower' | 'lesson'>('lesson');
+  const [shareOpen, setShareOpen] = useState(false);
   const [link, setLink] = useState<MyLink | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [qr, setQr] = useState('');
@@ -204,14 +206,45 @@ const LOPromotePage: React.FC = () => {
   return (
     <div className="mx-auto max-w-6xl px-3 py-4 md:px-6">
       <div className="space-y-5 text-slate-800">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">Promote yourself</h1>
-            <p className="mt-1 text-sm text-slate-600">Your videos, your posts, your week, your results. Everything is yours to edit.</p>
-          </div>
-          <button type="button" className="rounded-full bg-primary-600 px-5 py-2.5 text-sm font-extrabold text-white hover:bg-primary-700" onClick={() => { setText(''); setTitle('New post'); setPic(null); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>+ New post</button>
+        <div>
+          <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">Marketing</h1>
+          <p className="mt-1 text-sm text-slate-600">Get more homebuyer leads with ready-to-share links and lessons.</p>
+        </div>
+        <div className="grid items-start gap-4 xl:grid-cols-3">
+          {([
+            { key: 'borrower', icon: 'link', title: 'Share my borrower link', description: 'Give borrowers a direct way to ask you for help.', url: link.url },
+            { key: 'lesson', icon: 'menu_book', title: 'Share Homebuyer 101', description: 'Give buyers a short interactive lesson on buying a home.', url: learnUrl },
+          ] as const).map((item) => (
+            <section key={item.key} className={card} aria-label={item.title}>
+              <div className="flex items-start gap-3">
+                <span aria-hidden="true" className="material-symbols-outlined rounded-xl bg-primary-50 p-2 text-primary-700">{item.icon}</span>
+                <div>
+                  <h2 className="text-lg font-extrabold text-slate-900">{item.title}</h2>
+                  <p className="text-sm text-slate-600">{item.description}</p>
+                </div>
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-2 text-center">
+                <a className={`${ghost} flex min-h-[44px] items-center justify-center`} href={item.url} target="_blank" rel="noreferrer">Preview</a>
+                <button type="button" className={`${solid} min-h-[44px]`} onClick={() => void copyText(item.url)}>Copy link</button>
+              </div>
+              <button type="button" className="mt-2 min-h-[44px] text-sm font-semibold text-primary-700" onClick={() => { setShareTarget(item.key); setShareOpen(true); }}>More ways to share</button>
+            </section>
+          ))}
+        <LOProgramsCard demo={demo} api={api} slug={link.slug} origin={new URL(link.url).origin} copyText={(t) => void copyText(t)}
+          onDrafts={(d) => { setShareOpen(true); setDrafts(d); setText(d[0]); setTitle('Program post'); requestAnimationFrame(() => document.getElementById('promote-write')?.scrollIntoView({ behavior: 'smooth' })); }}
+          onMakeVideo={(scenes) => { setShareOpen(true); setVideoReq({ topic: 'buy', n: Date.now(), scenes }); requestAnimationFrame(() => document.getElementById('promote-video')?.scrollIntoView({ behavior: 'smooth' })); }} />
         </div>
 
+        <details open={shareOpen} onToggle={(e) => setShareOpen(e.currentTarget.open)} className={card}>
+          <summary className="cursor-pointer rounded-lg bg-primary-50 px-4 py-3 text-lg font-extrabold text-slate-900">More ways to share</summary>
+          <div className="mt-4 space-y-5">
+            <p className="font-bold text-primary-700">Sharing {shareTarget === 'lesson' ? 'Homebuyer 101' : 'your borrower link'}</p>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <a className={`${ghost} flex min-h-[110px] flex-col items-center justify-center gap-2 p-3 text-center`} href={(shareTarget === 'lesson' ? qrLearn : qr) || undefined} download={shareTarget === 'lesson' ? 'homebuyer-101-qr.png' : 'my-link-qr.png'}><span aria-hidden="true" className="material-symbols-outlined rounded-lg bg-primary-50 p-2 text-primary-700">qr_code_2</span><span className="font-extrabold text-slate-900">Download QR code</span><span className="font-normal text-slate-600">Give buyers a code they can scan.</span></a>
+              <button type="button" className={`${ghost} flex min-h-[110px] flex-col items-center justify-center gap-2 p-3 text-center`} onClick={() => { const draft = shareTarget === 'lesson' ? learnPosts[0] : starters[1]; setText(draft.text); setTitle(draft.label); document.getElementById('promote-write')?.scrollIntoView({ behavior: 'smooth' }); }}><span aria-hidden="true" className="material-symbols-outlined rounded-lg bg-primary-50 p-2 text-primary-700">edit</span><span className="font-extrabold text-slate-900">Write a post</span><span className="font-normal text-slate-600">Start with a draft you can edit.</span></button>
+              <button type="button" className={`${ghost} flex min-h-[110px] flex-col items-center justify-center gap-2 p-3 text-center`} onClick={() => { setText((shareTarget === 'lesson' ? learnPosts[0] : starters[1]).text); document.getElementById('promote-image')?.scrollIntoView({ behavior: 'smooth' }); }}><span aria-hidden="true" className="material-symbols-outlined rounded-lg bg-primary-50 p-2 text-primary-700">image</span><span className="font-extrabold text-slate-900">Create an image</span><span className="font-normal text-slate-600">Make a graphic to share with buyers.</span></button>
+              <button type="button" className={`${ghost} flex min-h-[110px] flex-col items-center justify-center gap-2 p-3 text-center`} onClick={() => { setVideoReq({ topic: shareTarget === 'lesson' ? 'learn' : 'buy', n: Date.now() }); document.getElementById('promote-video')?.scrollIntoView({ behavior: 'smooth' }); }}><span aria-hidden="true" className="material-symbols-outlined rounded-lg bg-primary-50 p-2 text-primary-700">play_circle</span><span className="font-extrabold text-slate-900">Create a video</span><span className="font-normal text-slate-600">Make a short branded video.</span></button>
+            </div>
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           <Stat value={stats?.total ?? 0} label={`requests, last ${days} days`} />
           <Stat value={stats?.contacted ?? 0} label="you followed up on" note={stats?.total ? `${answered}% answered` : undefined} />
@@ -221,7 +254,7 @@ const LOPromotePage: React.FC = () => {
 
         <section className={`${card} border-primary-200 bg-primary-50`} aria-label="Homebuyer 101">
           <h2 className="text-lg font-extrabold text-slate-900">🏠 Homebuyer 101: your fastest way to buyers</h2>
-          <p className="mt-1 text-sm text-slate-700">A free 3-minute game for buyers. Everyone who finishes lands in your Leads with their score and what they were unsure about.</p>
+          <p className="mt-1 text-sm text-slate-700">A free 3-minute game for buyers. Buyers who request follow-up can share their score and questions with you.</p>
           <div className="mt-4 grid gap-3 md:grid-cols-3">
             {learnPosts.map((lp) => (
               <div key={lp.label} className="rounded-xl bg-white p-3 ring-1 ring-slate-200">
@@ -243,9 +276,7 @@ const LOPromotePage: React.FC = () => {
           </div>
         </section>
 
-        <LOProgramsCard demo={demo} api={api} slug={link.slug} origin={new URL(link.url).origin} copyText={(t) => void copyText(t)}
-          onDrafts={(d) => { setDrafts(d); setText(d[0]); setTitle('Program post'); document.getElementById('promote-write')?.scrollIntoView({ behavior: 'smooth' }); }}
-          onMakeVideo={(scenes) => { setVideoReq({ topic: 'buy', n: Date.now(), scenes }); document.getElementById('promote-video')?.scrollIntoView({ behavior: 'smooth' }); }} />
+
 
         <section id="promote-video" className={card} aria-label="Create a video">
           <h2 className="text-lg font-extrabold text-slate-900">🎬 Create a video</h2>
@@ -253,7 +284,7 @@ const LOPromotePage: React.FC = () => {
           <LOVideoMaker footer={footer} pictures={pictures} forceTopic={videoReq} />
         </section>
 
-        <section className={card} aria-label="Create an image">
+        <section id="promote-image" className={card} aria-label="Create an image">
           <h2 className="text-lg font-extrabold text-slate-900">🖼 Create an image</h2>
           <p className="mb-4 mt-1 text-sm text-slate-600">Big words on a clean background, or on one of your pictures. Free. Edit every word.</p>
           <LOImageMaker footer={footer} headline={(text.split('\n')[0] || '').slice(0, 120)} pictures={pictures} canSave={!demo}
@@ -371,6 +402,8 @@ const LOPromotePage: React.FC = () => {
             {stats && !stats.total && <p className="mt-3 text-xs text-slate-600">Nothing yet. Share your link or QR to get your first request.</p>}
           </section>
         </div>
+          </div>
+        </details>
       </div>
     </div>
   );
