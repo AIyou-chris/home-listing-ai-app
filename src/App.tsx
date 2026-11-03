@@ -43,6 +43,7 @@ const LOLeadsPage = lazy(() => import('./components/dashboard-command/LOLeadsPag
 const LOAppointmentsPage = lazy(() => import('./components/dashboard-command/LOAppointmentsPage'));
 const LOPromotePage = lazy(() => import('./components/dashboard-command/LOPromotePage'));
 const BorrowerLinkPage = lazy(() => import('./pages/BorrowerLinkPage'));
+const HomebuyerClassPage = lazy(() => import('./pages/HomebuyerClassPage'));
 const LOTodayPage = lazy(() => import('./components/dashboard-command/LOTodayPage'));
 const AgentClaimPage = lazy(() => import('./pages/AgentClaimPage'))
 const PartnerInvitePage = lazy(() => import('./pages/PartnerInvitePage'))
@@ -1605,6 +1606,11 @@ const App: React.FC = () => {
                     <Route path="/ask/:slug" element={
                         <Suspense fallback={<LoadingSpinner />}>
                             <BorrowerLinkPage />
+                        </Suspense>
+                    } />
+                    <Route path="/learn/:slug" element={
+                        <Suspense fallback={<LoadingSpinner />}>
+                            <HomebuyerClassPage />
                         </Suspense>
                     } />
                     <Route path="/l/:publicSlug" element={

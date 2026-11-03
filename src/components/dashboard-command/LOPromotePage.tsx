@@ -110,11 +110,13 @@ const LOPromotePage: React.FC = () => {
   useEffect(() => { void loadStats(days); }, [days, loadStats]);
 
   const nmlsLine = link?.nmls ? ` NMLS #${link.nmls}` : '';
+  const learnUrl = link ? link.url.replace('/ask/', '/learn/') : '';
   const starters = useMemo(() => link ? [
     { door: 'review', label: 'Mortgage review', text: `Is your mortgage rate about to change? I will take a free look and tell you if it still fits your plans.${nmlsLine}\n${link.url}?door=review&utm_source=social` },
     { door: 'buy', label: 'Buying a home', text: `Thinking about buying a home? Ask me anything, no pressure. I will tell you what to do first.${nmlsLine}\n${link.url}?door=buy&utm_source=social` },
+    { door: 'learn', label: 'Free 101 lesson', text: `Free Homebuyer 101: six short steps from credit to closing, in plain words. Takes about 3 minutes.${nmlsLine}\n${learnUrl}?utm_source=social` },
     { door: 'class', label: 'Homebuyer class', text: `Want to learn the steps to buying a home and the programs that can help? Sign up for my homebuyer class.${nmlsLine}\n${link.url}?door=class&utm_source=social` },
-  ] : [], [link, nmlsLine]);
+  ] : [], [link, nmlsLine, learnUrl]);
   useEffect(() => { if (starters.length && !text) { setText(starters[0].text); setTitle(starters[0].label); } }, [starters, text]);
 
   const upload = async (file: File | undefined) => {
@@ -298,7 +300,8 @@ const LOPromotePage: React.FC = () => {
                 <a href={link.url} target="_blank" rel="noreferrer" className={`${ghost} block text-center`}>Preview</a>
               </div>
             </div>
-            <p className="mt-3 text-xs text-slate-600">Email line: Questions about buying or your mortgage? Ask me here: {link.url}?utm_source=email <button type="button" className="underline" onClick={() => void copyText(`Questions about buying or your mortgage? Ask me here: ${link.url}?utm_source=email`)}>copy</button></p>
+            <p className="mt-3 text-xs text-slate-600">Free Homebuyer 101 lesson: <span className="break-all">{learnUrl}</span> <button type="button" className="underline" onClick={() => void copyText(`${learnUrl}?utm_source=email`)}>copy</button> · <a className="underline" href={learnUrl} target="_blank" rel="noreferrer">preview</a></p>
+            <p className="mt-2 text-xs text-slate-600">Email line: Questions about buying or your mortgage? Ask me here: {link.url}?utm_source=email <button type="button" className="underline" onClick={() => void copyText(`Questions about buying or your mortgage? Ask me here: ${link.url}?utm_source=email`)}>copy</button></p>
           </section>
 
           <section className={card} aria-label="My pictures">
