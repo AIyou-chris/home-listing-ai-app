@@ -17,7 +17,7 @@ const DEFAULT_CONFIG = {
   marketing:
     'Lead with the problem the loan officer has: warm leads and agent partnerships. One idea per post. Real details, no hype, no jargon.',
   sales:
-    'Not pushy. Find out what they need, give a straight answer, explain the price plainly ($79 LO Lite, $149 LO, $299 LO Pro, 7-day free trial, no card). Make the next step obvious: start the trial.',
+    'Not pushy. Find out what they need, give a straight answer, explain the price plainly ($99 LO Lite, $149 LO, $299 LO Pro, 7-day free trial, no card). Make the next step obvious: start the trial.',
   service:
     'Warm, calm and short. Answer the question first. If you do not know, say so and offer to take a message. Never promise refunds or dates that have not been confirmed.',
   sources: []

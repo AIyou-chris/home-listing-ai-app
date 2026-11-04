@@ -19,9 +19,9 @@ type PlanStatus = {
 };
 
 const PLAN_LABELS: Record<string, string> = {
-  lo_lite: 'HomeListingAI — $79/mo',
-  lo: 'HomeListingAI — $79/mo',
-  lo_pro: 'HomeListingAI — $79/mo'
+  lo_lite: 'HomeListingAI — $99/mo',
+  lo: 'HomeListingAI — $99/mo',
+  lo_pro: 'HomeListingAI — $99/mo'
 };
 
 const preferredPlan = (): 'lo_lite' | 'lo' | 'lo_pro' => {

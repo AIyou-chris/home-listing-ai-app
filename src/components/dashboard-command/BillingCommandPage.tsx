@@ -31,7 +31,7 @@ const planMeta: Record<PlanId, { name: string; monthly: string; subtitle: string
   },
   lo_lite: {
     name: 'HomeListingAI',
-    monthly: '$79/mo',
+    monthly: '$99/mo',
     subtitle: '5 listings, 50 texts and 100 AI phone minutes a month, co-branded with your name.'
   },
   starter: {
@@ -196,7 +196,7 @@ const BillingCommandPage: React.FC = () => {
                   disabled={busy !== null}
                   className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                 >
-                  {busy === 'lo_lite' ? 'Loading…' : 'Start plan — $79/mo'}
+                  {busy === 'lo_lite' ? 'Loading…' : 'Start plan — $99/mo'}
                 </button>
               </>
             ) : (

@@ -4,10 +4,10 @@
   "alertEmail": "homelistingai@gmail.com",
   "prices": {
     "allowed": [
-      "$49",
-      "$79"
+      "$69",
+      "$99"
     ],
-    "note": "$79 a month; $49 founding price for the first 25 loan officers"
+    "note": "$99 a month; $69 founding price for the first 25 loan officers"
   },
   "schedule": {
     "timezone": "America/Los_Angeles",
@@ -353,10 +353,10 @@
     {
       "week": 4,
       "key": "l4-founding-price",
-      "headline": "Founding price: $49 a month. First 25 loan officers.",
+      "headline": "Founding price: $69 a month. First 25 loan officers.",
       "campaign": 4,
       "link": "/lo-signup",
-      "idea": "Founding loan officer launch price: $49 a month instead of $79 for the first 25 loan officers who join, with a 7-day free trial and no card. It ends when the 25 spots are gone. Do not invent a date. Call to action: claim your founding price. {{RULES}}"
+      "idea": "Founding loan officer launch price: $69 a month instead of $99 for the first 25 loan officers who join, with a 7-day free trial and no card. It ends when the 25 spots are gone. Do not invent a date. Call to action: claim your founding price. {{RULES}}"
     },
     {
       "week": 4,
@@ -506,7 +506,7 @@
           ],
           "hookAccent": "Everything in it.",
           "planName": "Loan officer plan",
-          "price": "$79/month",
+          "price": "$99/month",
           "items": [
             "Free listing pages for agents",
             "WOW Links to send agents",
@@ -570,7 +570,7 @@
       "fallback": "wow-link",
       "rules": [
         {
-          "pattern": "price|pricing|\\$79|\\$49|founding|cost|what.?s included|the plan|per month|trial",
+          "pattern": "price|pricing|\\$99|\\$69|founding|cost|what.?s included|the plan|per month|trial",
           "scene": "plan"
         },
         {
@@ -597,7 +597,7 @@
         "The AI Brain is where the loan officer teaches the AI once and every listing uses it.",
         "The Share Kit gives a listing a link, a QR code, a flyer and a social post.",
         "The partner dashboard shows the loan officer which agents opened their WOW Link.",
-        "The plan has a 7-day free trial with no card. It is $79 a month, and $49 a month founding price for the first 25 loan officers."
+        "The plan has a 7-day free trial with no card. It is $99 a month, and $69 a month founding price for the first 25 loan officers."
       ],
       "variety": {
         "listings": [
@@ -658,7 +658,7 @@
           "prompt": "Scene: a guided walkthrough of ONE real feature, the given one. An app on a phone takes a loan officer through three steps. In each step the guide says what to do, a sample value is typed into a field, and a green result appears. Fields: hook1 and hook2 (an opening line in two parts, each under 22 characters, that fits the post); hookAccent (the last words of hook2); guideName (the feature's name, under 26 characters, like \"WOW Link guide\"); for each of step1, step2 and step3: Says (what the guide says, under 60 characters), Label (the field name in capitals, under 20 characters), Value (a sample value typed in, under 38 characters, no real people or brands), Result (what appears when it is done, under 34 characters). The three steps must be real steps of that feature and use only the approved abilities."
         },
         "plan": {
-          "prompt": "Scene: a plan card on a phone. The plan name and its price appear, then four things it includes are ticked off one at a time, then up to two small promises. It must say what the post says. Fields: hook1 and hook2 (an opening line in two parts, each under 22 characters, that fits the post); hookAccent (the last words of hook2); planName (under 24 characters, like \"Loan officer plan\"); price (exactly as on the approved price list, like \"$79/month\" or \"$49/month\"); item1 to item4 (what the plan includes, each under 30 characters, only approved abilities, in the order the post gives them); perk1 and perk2 (small promises the post makes, like \"7-day free trial\" and \"No card to start\", each under 24 characters, only if the post says them, otherwise leave perk2 empty)."
+          "prompt": "Scene: a plan card on a phone. The plan name and its price appear, then four things it includes are ticked off one at a time, then up to two small promises. It must say what the post says. Fields: hook1 and hook2 (an opening line in two parts, each under 22 characters, that fits the post); hookAccent (the last words of hook2); planName (under 24 characters, like \"Loan officer plan\"); price (exactly as on the approved price list, like \"$99/month\" or \"$69/month\"); item1 to item4 (what the plan includes, each under 30 characters, only approved abilities, in the order the post gives them); perk1 and perk2 (small promises the post makes, like \"7-day free trial\" and \"No card to start\", each under 24 characters, only if the post says them, otherwise leave perk2 empty)."
         },
         "listing-chat": {
           "vary": "listings",

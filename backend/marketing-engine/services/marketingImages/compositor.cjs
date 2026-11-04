@@ -13,7 +13,7 @@ function validateCopy(headline='',subline='',maxWords=8) {
   if(typeof headline!=='string'||typeof subline!=='string')throw new Error('Add your words as plain text.');
   if(headline.length>120||headline.trim().split(/\s+/).filter(Boolean).length>maxWords)throw new Error(`Keep the headline to ${maxWords===8?'eight':maxWords} words or fewer.`);
   if(subline.length>90)throw new Error('Keep the small line under 90 characters.');
-  if(/\b(guaranteed?|approved|approval|lowest rate|risk.free|testimonial)\b|\d\s*%|\$\s*(?!(?:49|79)\b)\d/i.test(headline+' '+subline))throw new Error('Use a headline without approval promises, rates or claimed results.');
+  if(/\b(guaranteed?|approved|approval|lowest rate|risk.free|testimonial)\b|\d\s*%|\$\s*(?!(?:69|99)\b)\d/i.test(headline+' '+subline))throw new Error('Use a headline without approval promises, rates or claimed results.');
 }
 async function ocr(buffer) {
   const dir=await fs.mkdtemp(path.join(os.tmpdir(),'studio-ocr-'));

@@ -146,13 +146,13 @@ test('the 30-day launch plan uses the launch topics and the launch look, then st
   assert.ok(over.db.tables.admin_marketing_campaigns.every((r) => !r.brief.cardStyle), 'after 30 days it goes back to everyday posts');
 });
 
-test('week 4 posts the founding price and links to signup; the checker lets only $49 and $79 through', () => {
+test('week 4 posts the founding price and links to signup; the checker lets only $69 and $99 through', () => {
   const { LAUNCH } = require('../services/autopilot/topics');
   const w4 = LAUNCH.filter((t) => t.week === 4);
   assert.ok(w4.length >= 3 && w4.every((t) => t.link.endsWith('/lo-signup')));
   assert.ok(LAUNCH.every((t) => /No statistics/.test(t.idea) && /never say the product finds/i.test(t.idea)));
   const base = { title: 't', facebook: 'x'.repeat(70), linkedin: 'y'.repeat(90), instagram: 'z', bluesky: 'b', videoScript: 'v' };
-  assert.deepStrictEqual(checkPost({ ...base, facebook: 'Founding price is $49 a month instead of $79 for the first 25 loan officers. Start your 7-day free trial, no card.' + ' ok'.repeat(10) }), []);
+  assert.deepStrictEqual(checkPost({ ...base, facebook: 'Founding price is $69 a month instead of $99 for the first 25 loan officers. Start your 7-day free trial, no card.' + ' ok'.repeat(10) }), []);
   assert.ok(checkPost({ ...base, facebook: 'HomeListingAI finds new Realtors for you and fills your pipeline with guaranteed referrals every month.' }).length >= 2);
 });
 

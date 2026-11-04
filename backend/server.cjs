@@ -30601,7 +30601,7 @@ const LO_TRIAL_INVITE_CAP = 10;
 // ── LO plan tier — checks active Stripe subscription against LO price IDs ─────
 // Single source of truth for what plan an LO is on. Returns:
 //   'trial'   — in the 7-day trial window (app-level flag or Stripe 'trialing')
-//   'lo_lite' — active LO Lite plan ($79/mo)
+//   'lo_lite' — active LO Lite plan ($99/mo)
 //   'lo'      — active LO plan ($149/mo)
 //   'lo_pro'  — active LO Pro plan ($299/mo)
 //   'none'    — expired trial / no subscription
@@ -30705,13 +30705,13 @@ function buildLoZillowMathEmail({ name, link, unsubscribeUrl }) {
   <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:520px;margin:0 auto;color:#0f172a">
     <a href="${link}" style="display:block;border-radius:16px 16px 0 0;overflow:hidden;line-height:0">
       <img src="${LO_ZILLOW_MATH_IMAGE_URL}"
-           alt="One Zillow lead costs you $75-$150+. HomeListingAI? $79/mo."
+           alt="One Zillow lead costs you $75-$150+. HomeListingAI? $99/mo."
            width="520" style="width:100%;max-width:520px;height:auto;display:block;border-radius:16px 16px 0 0"/>
     </a>
     <div style="background:#ffffff;padding:26px 24px;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 16px 16px">
       <p style="font-size:15px;line-height:1.6;margin:0 0 14px">Hi ${firstName},</p>
       <p style="font-size:15px;line-height:1.6;margin:0 0 14px">That number isn't a scare tactic — it's the going rate. <strong>$75–$150 for one lead</strong> that was sold to five other people before you even picked up the phone.</p>
-      <p style="font-size:15px;line-height:1.6;margin:0 0 14px">HomeListingAI is <strong>$79/month, flat.</strong> An AI assistant on every partner agent's listing — answering buyers 24/7 and routing every warm financing lead to <strong>you first</strong>. Never shared. Never recycled.</p>
+      <p style="font-size:15px;line-height:1.6;margin:0 0 14px">HomeListingAI is <strong>$99/month, flat.</strong> An AI assistant on every partner agent's listing — answering buyers 24/7 and routing every warm financing lead to <strong>you first</strong>. Never shared. Never recycled.</p>
       <p style="font-size:15px;line-height:1.6;margin:0 0 6px;font-weight:700">One closed loan covers 20+ months. Less than one of their leads. Every single month.</p>
       <a href="${link}" style="display:block;background:linear-gradient(135deg,#d64327,#e05a3a);color:#fff;font-size:16px;font-weight:800;text-decoration:none;text-align:center;padding:15px;border-radius:14px;margin:20px 0 10px">See it live — takes 2 minutes →</a>
       <p style="font-size:12px;color:#64748b;text-align:center;margin:0 0 16px">7 days free · No card needed · Cancel anytime</p>
@@ -37559,7 +37559,7 @@ app.post('/api/payments/checkout-session', async (req, res) => {
     // STRIPE_LO_LITE_PRICE_ID is the newest of the three price env vars and its
     // presence on Render is unverified. Unlike LO/LO Pro (which have been live and
     // charging correctly for months), silently falling back to STRIPE_DEFAULT_PRICE_ID
-    // here could checkout a $79 LO Lite signup at the wrong price with no error.
+    // here could checkout a $99 LO Lite signup at the wrong price with no error.
     // Fail loud instead of mischarging — LO/LO Pro behavior is untouched.
     if (plan === 'lo_lite' && !process.env.STRIPE_LO_LITE_PRICE_ID) {
       console.error('[Checkout] STRIPE_LO_LITE_PRICE_ID is not set on this environment — refusing to fall back to a different plan\'s price for a LO Lite signup.');
@@ -37575,7 +37575,7 @@ app.post('/api/payments/checkout-session', async (req, res) => {
       customerId: agent.stripe_customer_id, // Pass existing customer ID if we have it
       provider,
       priceId: resolvedPriceId,
-      amountCents: plan === 'lo_pro' ? 29900 : (plan === 'lo_lite' ? 7900 : 14900),
+      amountCents: plan === 'lo_pro' ? 29900 : (plan === 'lo_lite' ? 9900 : 14900),
       trialPeriodDays: trialDays,
       // The payment webhook needs the real account id; a slug is not an id.
       agentId: agent.auth_user_id || agent.id,

@@ -69,7 +69,7 @@ const TermsOfServicePage: React.FC = () => {
                                     <li>Subscriptions are billed monthly. No annual lock-in.</li>
                                     <li>You may cancel at any time. Access continues through the end of your billing period.</li>
                                     <li>Each plan includes set limits (for example listings, texts and AI phone minutes). When you reach a limit, that feature pauses until your limit resets or you change plans. We do not charge extra for going over.</li>
-                                    <li>A launch price (for example $49 a month for the first 25 loan officers) stays the same for as long as your subscription stays active. If you cancel and come back later, the price then in effect applies.</li>
+                                    <li>A launch price (for example $69 a month for the first 25 loan officers) stays the same for as long as your subscription stays active. If you cancel and come back later, the price then in effect applies.</li>
                                     <li>We do not offer prorated refunds for partial months, except where required by law.</li>
                                     <li>We reserve the right to change pricing with 30 days' notice to active subscribers.</li>
                                 </ul>

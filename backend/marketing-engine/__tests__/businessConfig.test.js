@@ -43,7 +43,7 @@ test('another customer can use their own file: their site and prices drive the c
 
 test('prices from the file are the only money amounts a post may mention', () => {
   const body = 'Plain words about helping a loan officer start one agent relationship this week with a free page. ';
-  const good = { title: 'Start', facebook: `${body}${body} Only $79 a month. ${business.siteUrl}/lo-signup`, linkedin: `${body}${body} Only $79 a month. ${business.siteUrl}/lo-signup`, instagram: `${body}`, videoScript: body };
+  const good = { title: 'Start', facebook: `${body}${body} Only $99 a month. ${business.siteUrl}/lo-signup`, linkedin: `${body}${body} Only $99 a month. ${business.siteUrl}/lo-signup`, instagram: `${body}`, videoScript: body };
   const bad = { ...good, facebook: `${body}${body} Only $19 a month. ${business.siteUrl}`, linkedin: `${body}${body}Visit https://other.test/x` };
   assert.ok(!checkPost(good).some((p) => p.includes('money amount')));
   assert.ok(checkPost(bad).some((p) => p.includes('money amount (')));

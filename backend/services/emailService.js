@@ -455,7 +455,7 @@ const TRIAL_DRIP = {
         <li style="margin-bottom: 8px;">📊 Send your agent a live link showing the buyer leads coming in.</li>
         <li style="margin-bottom: 8px;">🤝 When they see <em>you</em> filling their pipeline, you're indispensable.</li>
       </ul>
-      <p class="body-text">This is how a tool that starts at $79/mo turns into a referral relationship worth six figures a year.</p>`,
+      <p class="body-text">This is how a tool that starts at $99/mo turns into a referral relationship worth six figures a year.</p>`,
     proTip: `Text your agent the Live Dashboard link after their open house. Watching leads roll in live is what makes them call you first next time.`
   },
   7: {
@@ -469,7 +469,7 @@ const TRIAL_DRIP = {
       <div style="background-color: #f0fdf4; border-left: 4px solid #22c55e; padding: 15px; margin: 20px 0; border-radius: 4px;">
         <ul class="body-text" style="padding-left: 20px; margin: 0; color: #166534;">
           <li style="margin-bottom: 6px;"><strong>One closed loan:</strong> ~$3,000–$6,000 commission</li>
-          <li style="margin-bottom: 6px;"><strong>HomeListingAI:</strong> from $79/mo</li>
+          <li style="margin-bottom: 6px;"><strong>HomeListingAI:</strong> from $99/mo</li>
         </ul>
         <p class="body-text" style="margin: 10px 0 0; color: #166534;">One warm lead that closes covers you for <strong>years.</strong></p>
       </div>

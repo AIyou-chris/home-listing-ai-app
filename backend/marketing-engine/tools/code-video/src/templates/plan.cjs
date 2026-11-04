@@ -17,7 +17,7 @@ const DEFAULTS = {
   hook: ['One plan.', 'Everything in it.'],
   hookAccent: 'Everything in it.',
   planName: 'Build it yourself',
-  price: '$79/month',
+  price: '$99/month',
   items: ['Answers website chat', 'Answers your phone 24/7', 'Books appointments', 'Follows up and keeps your CRM'],
   perks: ['No setup fee', 'No credit card to start'],
   sampleLabel: 'PLAN SHOWN',
@@ -121,7 +121,7 @@ function createScene(input) {
   return { duration: DURATION, draw, config: cfg };
 }
 
-/** "$79/month" read as a person would say it. */
+/** "$99/month" read as a person would say it. */
 const spokenPrice = price => String(price).replace(/\/\s*mo(?:nth)?\b/i, ' a month');
 
 function narration(input) {

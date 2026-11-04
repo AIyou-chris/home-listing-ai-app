@@ -70,3 +70,8 @@
   for = "/home-original"
   [headers.values]
     X-Robots-Tag = "noindex, nofollow"
+
+[[headers]]
+  for = "/home-v2"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"

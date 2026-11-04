@@ -85,7 +85,7 @@ const ForLoanOfficersPage: React.FC = () => {
               <div className="mt-1 text-[11px] font-bold leading-snug text-slate-400">ONE shared Zillow lead — sold to 5 LOs</div>
             </div>
             <div className="flex-1 rounded-2xl border border-[#d64327]/40 bg-[#d64327]/10 p-4">
-              <div className="text-[24px] font-black text-[#ff7a4d]">$79<span className="text-[14px] text-white">/mo</span></div>
+              <div className="text-[24px] font-black text-[#ff7a4d]">$99<span className="text-[14px] text-white">/mo</span></div>
               <div className="mt-1 text-[11px] font-bold leading-snug text-slate-300">Leads from your agents' listings, not a shared list</div>
             </div>
           </div>

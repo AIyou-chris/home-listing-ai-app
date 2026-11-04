@@ -1,6 +1,6 @@
 'use strict';
 
-// Founding price: the first 25 loan officers pay $49 instead of $79 for as long as they stay subscribed.
+// Founding price: the first 25 loan officers pay $69 instead of $99 for as long as they stay subscribed.
 // The discount itself is a Stripe coupon (duration "forever", max redemptions 25) whose id is in the Render
 // env var FOUNDING_COUPON_ID. Stripe counts the redemptions, so the 26th checkout simply gets no discount.
 // Nothing here can fail a checkout: any problem means "no discount".

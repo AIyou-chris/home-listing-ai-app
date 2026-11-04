@@ -12,7 +12,7 @@ type Plan = 'lo_lite';
 const PLANS: Record<Plan, { name: string; price: string; tagline: string; features: string[]; highlight: boolean }> = {
     lo_lite: {
         name: 'HomeListingAI',
-        price: '$79',
+        price: '$99',
         tagline: 'Everything a loan officer needs.',
         highlight: false,
         features: [
@@ -134,7 +134,7 @@ const LOSignupPage: React.FC = () => {
                     <p className="text-white font-bold text-lg">{PLANS.lo_lite.name}</p>
                     <div className="mt-3 rounded-2xl border border-cyan-400/60 bg-cyan-500/10 p-4">
                         <p className="text-cyan-300 font-extrabold tracking-widest text-xs uppercase mb-1">Launch price · first 25 loan officers</p>
-                        <p className="text-white"><span className="text-5xl font-extrabold">$49</span> <span className="text-slate-400">/ month</span> <span className="text-xl text-slate-500 line-through ml-2">$79</span></p>
+                        <p className="text-white"><span className="text-5xl font-extrabold">$69</span> <span className="text-slate-400">/ month</span> <span className="text-xl text-slate-500 line-through ml-2">$99</span></p>
                         <p className="text-slate-200 text-sm mt-1">Locked in for as long as you stay subscribed.</p>
                     </div>
                     <ul className="mt-4 space-y-2 text-left inline-block">
@@ -248,7 +248,7 @@ const LOSignupPage: React.FC = () => {
                             <div className="flex items-center justify-between bg-cyan-950/30 border border-cyan-800/30 rounded-lg px-4 py-3">
                                 <div>
                                     <p className="text-sm font-semibold text-white">{PLANS[selectedPlan].name} Plan</p>
-                                    <p className="text-xs text-slate-400">7-day free trial, then $49/mo launch price (first 25 loan officers), {PLANS[selectedPlan].price}/mo after that</p>
+                                    <p className="text-xs text-slate-400">7-day free trial, then $69/mo launch price (first 25 loan officers), {PLANS[selectedPlan].price}/mo after that</p>
                                 </div>
                             </div>
 

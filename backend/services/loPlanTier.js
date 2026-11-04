@@ -3,9 +3,9 @@
 // Which loan-officer plan does a Stripe price mean?
 // 1. The three price ids from Render settings (STRIPE_LO_LITE_PRICE_ID, STRIPE_LO_PRICE_ID, STRIPE_LO_PRO_PRICE_ID).
 // 2. If those are missing or do not match (a mistyped setting would lock out every paying customer), the monthly
-//    amount decides: $79 = lo_lite, $149 = lo, $299 = lo_pro. Only used for customers that our own checkout created.
+//    amount decides: $79/$99 = lo_lite, $149 = lo, $299 = lo_pro. Only used for customers that our own checkout created.
 
-const AMOUNT_TO_TIER = { 7900: 'lo_lite', 14900: 'lo', 29900: 'lo_pro' };
+const AMOUNT_TO_TIER = { 7900: 'lo_lite', 9900: 'lo_lite', 6900: 'lo_lite', 14900: 'lo', 29900: 'lo_pro' };
 
 function tierForPrice(price, ids = {}) {
   if (!price) return null;

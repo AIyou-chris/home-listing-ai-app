@@ -28,9 +28,9 @@ export const PricingSectionNew: React.FC<PricingProps> = ({ onNavigateToSignUp: 
                     <div className="mb-6 rounded-2xl border border-cyan-400/60 bg-cyan-500/10 p-5 text-center">
                         <p className="text-cyan-300 font-extrabold tracking-widest text-sm uppercase mb-2">Launch price · first 25 loan officers</p>
                         <div className="flex items-baseline justify-center gap-3">
-                            <span className="text-6xl sm:text-7xl font-extrabold text-white">$49</span>
+                            <span className="text-6xl sm:text-7xl font-extrabold text-white">$69</span>
                             <span className="text-slate-400">/ month</span>
-                            <span className="text-2xl text-slate-500 line-through">$79</span>
+                            <span className="text-2xl text-slate-500 line-through">$99</span>
                         </div>
                         <p className="text-slate-200 text-sm mt-2">Locked in for as long as you stay subscribed.</p>
                     </div>

@@ -14,7 +14,7 @@ const DEFAULT_LIMITS = {
     reminder_calls_per_month: 0,
     stored_leads_cap: 25
   },
-  // 'lo_lite' = LO Lite ($79/mo, 5 listings), 'starter' = LO plan ($149/mo,
+  // 'lo_lite' = LO Lite ($99/mo, 5 listings), 'starter' = LO plan ($149/mo,
   // 20 listings), 'pro' = LO Pro ($299/mo, 50 listings) — must stay in sync
   // with the marketed plans in src/components/ComparePlansModal.tsx and
   // LOSignupPage.tsx.

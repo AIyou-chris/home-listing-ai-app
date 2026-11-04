@@ -49,7 +49,7 @@ test('a trial button is refused when the post does not offer a trial; the plan s
   const PLAN = { hook1: 'One plan.', hook2: 'Everything in it.', hookAccent: 'Everything in it.', planName: 'Loan officer plan', price: '$12/month', item1: 'Listing pages', item2: 'WOW Links', item3: 'Buyer chat', item4: 'AI phone line', perk1: '7-day free trial', perk2: 'No card to start', endHeadline1: 'One plan.', endHeadline2: 'More agents.', endAccent: 'More agents.', endLine: 'One plan for your agent partnerships.', cta: 'LEARN MORE', small: 'Visit homelistingai.com' };
   const bad = await writeScene({ name: 'plan', post: POST, openai: fakeAI(PLAN) });
   assert.strictEqual(bad.ok, false);
-  const good = await writeScene({ name: 'plan', post: POST, openai: fakeAI({ ...PLAN, price: '$79/month' }) });
+  const good = await writeScene({ name: 'plan', post: POST, openai: fakeAI({ ...PLAN, price: '$99/month' }) });
   assert.strictEqual(good.ok, true);
 });
 

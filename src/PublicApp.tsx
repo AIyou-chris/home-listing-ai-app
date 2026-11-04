@@ -128,6 +128,16 @@ const PublicApp: React.FC = () => {
             }
           />
           <Route path="/home-preview" element={<HomePreviewPage />} />
+          <Route path="/home-v2" element={
+            <LandingPage
+              onNavigateToSignUp={handleNavigateToSignUp}
+              onNavigateToSignIn={handleNavigateToSignIn}
+              onEnterDemoMode={handleEnterDemoMode}
+              onOpenConsultationModal={() => openConsultationModal('realtor')}
+              onNavigateToAdmin={handleNavigateToAdmin}
+              onNavigateToShowcase={handleNavigateToShowcase}
+            />
+          } />
           <Route path="/landing" element={<Navigate to="/" replace />} />
           <Route path="/blog" element={<BlogIndex />} />
           <Route path="/blog/:slug" element={<BlogPost />} />

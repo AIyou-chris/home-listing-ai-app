@@ -18,7 +18,7 @@ test('every word on screen passes the same safety rules as a post', () => {
       if (/^#[0-9a-f]{6}$/i.test(text)) continue;
       assert.deepStrictEqual(findVoiceViolations(text), [], `${name}: ${text}`);
       assert.ok(!PLATFORM_BANNED_PHRASES.some((p) => text.toLowerCase().includes(p)), `${name}: banned claim in "${text}"`);
-      assert.ok(!/guarantee|lowest rate|best rate|approved in|\$\s?\d|\d+\s?%/i.test(text.replace(/555-0142/, '').replace(/\$(49|79)(\/month)?/g, '')), `${name}: promise, price or statistic in "${text}"`);
+      assert.ok(!/guarantee|lowest rate|best rate|approved in|\$\s?\d|\d+\s?%/i.test(text.replace(/555-0142/, '').replace(/\$(69|99)(\/month)?/g, '')), `${name}: promise, price or statistic in "${text}"`);
     }
   }
 });

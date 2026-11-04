@@ -26,7 +26,7 @@ type PaidPlanId = Exclude<PlanId, 'free'>;
 
 const planLabels: Record<PlanId, string> = {
   free: 'Free',
-  lo_lite: 'HomeListingAI — $79/mo',
+  lo_lite: 'HomeListingAI — $99/mo',
   starter: 'LO — $149/mo',
   pro: 'LO Pro — $299/mo'
 };
@@ -303,7 +303,7 @@ const BillingSettingsPage: React.FC<BillingSettingsProps> = ({
                   disabled={planButtons.liteDisabled}
                   className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                 >
-                  {busy === 'lo_lite' ? 'Opening checkout…' : 'Start plan — $79/mo'}
+                  {busy === 'lo_lite' ? 'Opening checkout…' : 'Start plan — $99/mo'}
                 </button>
               </>
             ) : (
