@@ -103,8 +103,9 @@ const PublicApp: React.FC = () => {
     <>
       <Suspense fallback={routeFallback}>
         <Routes>
+          <Route path="/" element={<HomePreviewPage />} />
           <Route
-            path="/"
+            path="/home-original"
             element={
               <ErrorBoundary
                 fallback={

@@ -65,3 +65,8 @@
   for = "/home-preview"
   [headers.values]
     X-Robots-Tag = "noindex, nofollow"
+
+[[headers]]
+  for = "/home-original"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
