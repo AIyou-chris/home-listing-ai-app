@@ -314,13 +314,13 @@ const DemoDashboardLayout = () => {
                     className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-200 bg-white px-3 py-3 shadow-sm"
                     style={{
                         display: isDesktop ? 'none' : undefined,
-                        paddingTop: 'calc(env(safe-area-inset-top) + 0.75rem)',
-                        paddingBottom: 'calc(env(safe-area-inset-bottom) + 0.5rem)'
+                        paddingTop: `calc(env(safe-area-inset-top) + ${pageRendersOwnTitle(location.pathname) ? '0.25rem' : '0.75rem'})`,
+                        paddingBottom: pageRendersOwnTitle(location.pathname) ? '0.25rem' : 'calc(env(safe-area-inset-bottom) + 0.5rem)'
                     }}
                 >
                     <button
                         onClick={() => setIsSidebarOpen(true)}
-                        className="rounded-lg p-2 text-slate-600 transition-colors hover:bg-slate-100"
+                        className={`rounded-lg p-2 text-slate-600 transition-colors hover:bg-slate-100 ${pageRendersOwnTitle(location.pathname) ? 'flex min-h-[44px] min-w-[44px] items-center justify-center' : ''}`}
                         aria-label="Open navigation menu"
                     >
                         <span className="material-symbols-outlined text-xl">menu</span>
@@ -368,13 +368,13 @@ const BlueprintDashboardLayout = () => {
                     className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-200 bg-white px-3 py-3 shadow-sm"
                     style={{
                         display: isDesktop ? 'none' : undefined,
-                        paddingTop: 'calc(env(safe-area-inset-top) + 0.75rem)',
-                        paddingBottom: 'calc(env(safe-area-inset-bottom) + 0.5rem)'
+                        paddingTop: `calc(env(safe-area-inset-top) + ${pageRendersOwnTitle(location.pathname) ? '0.25rem' : '0.75rem'})`,
+                        paddingBottom: pageRendersOwnTitle(location.pathname) ? '0.25rem' : 'calc(env(safe-area-inset-bottom) + 0.5rem)'
                     }}
                 >
                     <button
                         onClick={() => setIsSidebarOpen(true)}
-                        className="rounded-lg p-2 text-slate-600 transition-colors hover:bg-slate-100"
+                        className={`rounded-lg p-2 text-slate-600 transition-colors hover:bg-slate-100 ${pageRendersOwnTitle(location.pathname) ? 'flex min-h-[44px] min-w-[44px] items-center justify-center' : ''}`}
                         aria-label="Open navigation menu"
                     >
                         <span className="material-symbols-outlined text-xl">menu</span>
@@ -420,13 +420,13 @@ const ProtectedDashboardLayout: React.FC = () => {
                     className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-200 bg-white px-3 py-3 shadow-sm"
                     style={{
                         display: isDesktop ? 'none' : undefined,
-                        paddingTop: 'calc(env(safe-area-inset-top) + 0.75rem)',
-                        paddingBottom: 'calc(env(safe-area-inset-bottom) + 0.5rem)'
+                        paddingTop: `calc(env(safe-area-inset-top) + ${pageRendersOwnTitle(location.pathname) ? '0.25rem' : '0.75rem'})`,
+                        paddingBottom: pageRendersOwnTitle(location.pathname) ? '0.25rem' : 'calc(env(safe-area-inset-bottom) + 0.5rem)'
                     }}
                 >
                     <button
                         onClick={() => setIsSidebarOpen(true)}
-                        className="rounded-lg p-2 text-slate-600 transition-colors hover:bg-slate-100"
+                        className={`rounded-lg p-2 text-slate-600 transition-colors hover:bg-slate-100 ${pageRendersOwnTitle(location.pathname) ? 'flex min-h-[44px] min-w-[44px] items-center justify-center' : ''}`}
                         aria-label="Open navigation menu"
                     >
                         <span className="material-symbols-outlined text-xl">menu</span>

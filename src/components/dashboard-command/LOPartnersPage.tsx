@@ -294,7 +294,7 @@ const InviteModal: React.FC<{ onClose: () => void; onSent: () => void; usage: In
               The agent gets a live listing demo with your financing chatbot already running, before they even sign up.
             </p>
             {usage && usage.limit != null && (
-              <p className="mb-4 rounded-lg bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700">
+              <p className="mb-4 rounded-lg bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700">
                 {usage.used} of {usage.limit} WOW Links used this month
               </p>
             )}
@@ -308,7 +308,7 @@ const InviteModal: React.FC<{ onClose: () => void; onSent: () => void; usage: In
                   <option value="">Use a sample listing (default)</option>
                   {listings.map(l => (<option key={l.id} value={l.id}>{l.address}</option>))}
                 </select>
-                <p className="mt-1.5 text-xs text-slate-600">
+                <p className="mt-1.5 text-sm text-slate-600">
                   {listings.length === 0 ? 'You have no live listings yet, so we show a sample home. A WOW Link is a live listing page with your loan help built in.' : 'Pick one of your live listings, or use the sample. A WOW Link is a live listing page with your loan help built in.'}
                 </p>
               </div>
@@ -461,9 +461,9 @@ const PartnerCard: React.FC<{ partner: Partner; onViewListings: (p: Partner) => 
               </span>
             )}
           </div>
-          <p className="truncate text-xs text-slate-600">{partner.company || partner.email || '—'}</p>
+          <p className="truncate text-sm text-slate-600">{partner.company || partner.email || '—'}</p>
           {followUpLabel && (
-            <p className="mt-0.5 text-xs text-slate-600">{followUpLabel}</p>
+            <p className="mt-0.5 text-sm text-slate-600">{followUpLabel}</p>
           )}
           {needsCall && (
             <span className="mt-1 inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-bold text-amber-900">
@@ -499,7 +499,7 @@ const PartnerCard: React.FC<{ partner: Partner; onViewListings: (p: Partner) => 
                 <div className="flex items-center gap-2 flex-1">
                   <a href={`tel:${partner.phone}`} className="text-sm font-semibold text-slate-800 hover:text-primary-600 transition-colors">{partner.phone}</a>
                   <span className="text-slate-300">·</span>
-                  <a href={`sms:${partner.phone}`} className="inline-flex min-h-[44px] items-center text-xs font-semibold text-slate-700 hover:text-primary-700">Text</a>
+                  <a href={`sms:${partner.phone}`} className="inline-flex min-h-[44px] items-center text-sm font-semibold text-slate-700 hover:text-primary-700">Text</a>
                 </div>
               </div>
             )}
@@ -516,7 +516,7 @@ const PartnerCard: React.FC<{ partner: Partner; onViewListings: (p: Partner) => 
               </div>
             )}
             {!partner.phone && !partner.email && !partner.website && (
-              <p className="text-xs italic text-slate-600">No contact details on file</p>
+              <p className="text-sm italic text-slate-600">No contact details on file</p>
             )}
           </div>
 
@@ -534,7 +534,7 @@ const PartnerCard: React.FC<{ partner: Partner; onViewListings: (p: Partner) => 
               <button
                 onClick={saveNotes}
                 disabled={notesDraft === (meta.notes || '')}
-                className={`${loSolid} !min-h-[44px] text-xs`}
+                className={`${loSolid} !min-h-[44px] text-sm`}
               >
                 {notesSaved ? '✓ Saved' : 'Save'}
               </button>
@@ -588,11 +588,11 @@ const PartnerCard: React.FC<{ partner: Partner; onViewListings: (p: Partner) => 
               }
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold text-slate-800 truncate">{listing.address}</p>
-              <p className="text-xs text-slate-600">{formatPrice(listing.price)}</p>
+              <p className="text-sm font-semibold text-slate-800 truncate">{listing.address}</p>
+              <p className="text-sm text-slate-600">{formatPrice(listing.price)}</p>
             </div>
             <div className="flex items-center gap-3 flex-shrink-0">
-              <span className="text-xs text-slate-700">{listing.totalLeads} leads</span>
+              <span className="text-sm text-slate-700">{listing.totalLeads} leads</span>
               {listing.status === 'published'
                 ? <LoTag tone="green">Live</LoTag>
                 : <LoTag tone="slate">Draft</LoTag>
@@ -601,13 +601,13 @@ const PartnerCard: React.FC<{ partner: Partner; onViewListings: (p: Partner) => 
           </div>
         ))}
         {partner.listings.length === 0 && (
-          <div className="px-5 py-3 text-xs text-slate-600">No listings yet</div>
+          <div className="px-5 py-3 text-sm text-slate-600">No listings yet</div>
         )}
       </div>
 
       {/* Actions */}
       <div className="flex flex-wrap gap-2 border-t border-slate-100 bg-slate-50 p-4">
-        <p className="w-full text-xs font-semibold text-slate-700">Next step: {partner.listings.length === 0 ? 'add them to a listing.' : needsCall ? 'give them a call this week.' : 'check how their listings are doing.'}</p>
+        <p className="w-full text-sm font-semibold text-slate-700">Next step: {partner.listings.length === 0 ? 'add them to a listing.' : needsCall ? 'give them a call this week.' : 'check how their listings are doing.'}</p>
         <button
           onClick={() => onViewListings(partner)}
           className={`${loSolid} flex-1`}
@@ -616,7 +616,7 @@ const PartnerCard: React.FC<{ partner: Partner; onViewListings: (p: Partner) => 
         </button>
         {SHOW_PARTNER_EXTRAS && <button
           onClick={logFollowUp}
-          className="px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-700 text-xs font-semibold transition-all"
+          className="px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-700 text-sm font-semibold transition-all"
           title="Log follow-up"
           aria-label="Log that you talked to this partner"
         >
@@ -625,7 +625,7 @@ const PartnerCard: React.FC<{ partner: Partner; onViewListings: (p: Partner) => 
         {SHOW_PARTNER_EXTRAS && <button
           onClick={openRecapPreview}
           disabled={recapLoading}
-          className="px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 text-xs font-semibold transition-all disabled:opacity-50"
+          className="px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 text-sm font-semibold transition-all disabled:opacity-50"
           title="Email this partner a 'what we did together this month' recap"
         >
           {recapLoading ? '…' : '📊 Recap'}
@@ -654,13 +654,13 @@ const PartnerCard: React.FC<{ partner: Partner; onViewListings: (p: Partner) => 
                   onRemoved()
                 } catch { showToast.error('Failed to remove partner') }
               }}
-              className="inline-flex min-h-[44px] items-center rounded-xl bg-red-700 px-3 text-xs font-bold text-white hover:bg-red-800"
+              className="inline-flex min-h-[44px] items-center rounded-xl bg-red-700 px-3 text-sm font-bold text-white hover:bg-red-800"
             >
               Remove
             </button>
             <button
               onClick={() => setRemoveConfirm(false)}
-              className={`${loGhost} px-3 text-xs`}
+              className={`${loGhost} px-3 text-sm`}
             >
               Cancel
             </button>
@@ -747,7 +747,7 @@ const PartnerDetail: React.FC<{ partner: Partner; onClose: () => void }> = ({ pa
         <Avatar src={partner.headshotUrl} name={partner.name} size={40} />
         <div className="min-w-0 flex-1">
           <p className="truncate text-base font-extrabold text-slate-900">{partner.name}</p>
-          <p className="truncate text-xs text-slate-600">{partner.company || '—'}</p>
+          <p className="truncate text-sm text-slate-600">{partner.company || '—'}</p>
         </div>
       </div>
 
@@ -933,7 +933,7 @@ const LOPartnersPage: React.FC = () => {
           <h2 className="text-lg font-extrabold text-slate-900">Send a WOW Link</h2>
           <p className="text-sm text-slate-700">The agent gets a live listing demo with your financing chat already running, before they even sign up.</p>
           {inviteUsage && inviteUsage.limit != null && (
-            <p className="mt-1 text-xs font-semibold text-slate-700">{inviteUsage.used} of {inviteUsage.limit} WOW Links used this month</p>
+            <p className="mt-1 text-sm font-semibold text-slate-700">{inviteUsage.used} of {inviteUsage.limit} WOW Links used this month</p>
           )}
         </div>
         <button onClick={() => setShowInvite(true)} className={`${loSolid} w-full sm:w-auto`}>
@@ -962,7 +962,7 @@ const LOPartnersPage: React.FC = () => {
       {/* Empty state */}
       {!loadFailed && !hasContent && (
         <LoSectionCard icon="handshake" title="No partners yet" description="Add a real estate agent as a partner. We'll send them a magic link. Their co-branded listing page will be live before they even log in.">
-          <p className="text-xs font-semibold text-slate-700">Next step: tap the blue button above.</p>
+          <p className="text-sm font-semibold text-slate-700">Next step: tap the blue button above.</p>
         </LoSectionCard>
       )}
 
@@ -984,7 +984,7 @@ const LOPartnersPage: React.FC = () => {
                       <Avatar name={invite.name || invite.email} size={40} />
                       <div className="min-w-0">
                         <p className="truncate text-sm font-extrabold text-slate-900">{invite.name || invite.email}</p>
-                        <p className="truncate text-xs text-slate-600">{invite.email} · sent {toRelativeTime(invite.sentAt)}</p>
+                        <p className="truncate text-sm text-slate-600">{invite.email} · sent {toRelativeTime(invite.sentAt)}</p>
                       </div>
                     </div>
                     {invite.ctaClickedAt ? (
@@ -995,12 +995,12 @@ const LOPartnersPage: React.FC = () => {
                       <LoTag tone="slate">Not opened yet</LoTag>
                     )}
                   </div>
-                  <p className="mt-3 text-xs font-semibold text-slate-700">
+                  <p className="mt-3 text-sm font-semibold text-slate-700">
                     Next step: {invite.ctaClickedAt ? 'call them while it is fresh.' : invite.openedAt ? 'send a quick text to say hi.' : 'text them the link so it gets opened.'}
                   </p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {invite.smsText && (
-                      <button onClick={() => copy(invite.smsText as string, 'Text copied. Paste it in Messages.')} className={`${btn} border-primary-600 bg-primary-600 text-white hover:bg-primary-700`}>
+                      <button onClick={() => copy(invite.smsText as string, 'Text copied. Paste it in Messages.')} className={loSolid}>
                         💬 Copy text
                       </button>
                     )}

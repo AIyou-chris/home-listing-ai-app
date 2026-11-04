@@ -18,7 +18,7 @@ export const LoIcon: React.FC<{ name: string; className?: string }> = ({ name, c
 export const LoPageHeader: React.FC<{ title: string; subtitle?: string; action?: React.ReactNode }> = ({ title, subtitle, action }) => (
   <div className="flex flex-wrap items-start justify-between gap-3">
     <div>
-      <h1 className="text-4xl font-black tracking-tight text-slate-900">{title}</h1>
+      <h1 className="text-3xl font-black tracking-tight text-slate-900 sm:text-4xl">{title}</h1>
       {subtitle && <p className="mt-1 text-sm text-slate-600">{subtitle}</p>}
     </div>
     {action}
@@ -55,7 +55,7 @@ export const LoSectionCard: React.FC<{ icon: string; title: string; description?
 export const LoRow: React.FC<{ icon: string; title: string; description?: string; ok?: boolean; tag?: string; next?: string; onClick?: () => void; children?: React.ReactNode }> = ({ icon, title, description, ok, tag, next, onClick, children }) => {
   const body = (
     <>
-      {ok !== undefined && <LoIcon name={ok ? 'check_circle' : 'radio_button_unchecked'} className={`text-2xl ${ok ? 'text-green-600' : 'text-amber-500'}`} />}
+      {ok !== undefined && <LoIcon name={ok ? 'check_circle' : 'radio_button_unchecked'} className={`text-2xl ${ok ? 'text-green-700' : 'text-amber-700'}`} />}
       <span aria-hidden="true" className="material-symbols-outlined flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary-700">{icon}</span>
       <div className="min-w-0 flex-1 basis-48 text-left"><p className="text-sm font-extrabold text-slate-900">{title}</p>{description && <p className="text-xs text-slate-600">{description}</p>}</div>
       {tag && <LoTag>{tag}</LoTag>}

@@ -9,8 +9,8 @@ type Api = (path: string, init?: RequestInit) => Promise<Response>;
 const DEMO_PROGRAMS: Program[] = [
   { id: 'demo1', name: 'First-time buyer program', summary: 'A program built for people buying their first home. Ask me if you could qualify.', points: ['Made for first-time buyers', 'I walk you through every step'], doc: { url: null, name: 'program-sheet.pdf' } },
 ];
-const ghost = 'rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50';
-const solid = 'rounded-xl bg-primary-600 px-4 py-2 text-sm font-extrabold text-white hover:bg-primary-700 disabled:opacity-60';
+const ghost = 'inline-flex min-h-[44px] items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50';
+const solid = 'inline-flex min-h-[44px] items-center justify-center rounded-xl bg-primary-600 px-4 py-2 text-sm font-extrabold text-white hover:bg-primary-700 disabled:opacity-60';
 const field = 'w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900';
 
 const readFile = (file: File): Promise<string> => new Promise((resolve, reject) => {

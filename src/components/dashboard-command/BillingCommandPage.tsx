@@ -37,14 +37,14 @@ const planMeta: Record<PlanId, { name: string; monthly: string; subtitle: string
     subtitle: '5 listings, 50 texts and 100 AI phone minutes a month, co-branded with your name.'
   },
   starter: {
-    name: 'LO',
-    monthly: '$149/mo',
-    subtitle: '20 listings, 250 SMS/month, full co-branding on every page.'
+    name: 'HomeListingAI',
+    monthly: '$99/mo',
+    subtitle: '5 listings, 50 texts and 100 AI phone minutes a month, co-branded with your name.'
   },
   pro: {
-    name: 'LO Pro',
-    monthly: '$299/mo',
-    subtitle: '50 listings, up to 2,000 SMS, priority routing & ROI dashboard.'
+    name: 'HomeListingAI',
+    monthly: '$99/mo',
+    subtitle: '5 listings, 50 texts and 100 AI phone minutes a month, co-branded with your name.'
   }
 };
 
@@ -176,7 +176,7 @@ const BillingCommandPage: React.FC = () => {
       )}
 
       {error && (
-        <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{error}</div>
+        <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">We could not load your usage right now. Please try again in a minute.</div>
       )}
 
       <BillingValueProofWidget />
@@ -201,13 +201,13 @@ const BillingCommandPage: React.FC = () => {
           </div>
           <div className="text-right">
             <p className="text-4xl font-black tracking-tight text-slate-900">{currentPlan.monthly}</p>
-            {currentPlanId === 'free' && (
-              <p className="text-xs font-semibold text-slate-700">Launch price: $69/mo for the first 25 loan officers.</p>
+            {(currentPlanId === 'free' || planStatus === 'Trialing') && (
+              <p className="text-xs font-semibold text-slate-700">$99 regular / $69 launch (first 25 loan officers)</p>
             )}
           </div>
         </div>
 
-        <ul className={`mt-5 grid gap-2 sm:grid-cols-2 ${currentPlanId === 'free' || currentPlanId === 'lo_lite' ? '' : 'hidden'}`}>
+        <ul className="mt-5 grid gap-2 sm:grid-cols-2">
           {INCLUDED.map((item) => (
             <li key={item} className="flex items-start gap-2 text-sm text-slate-800">
               <LoIcon name="check_circle" className="text-xl text-green-600" />

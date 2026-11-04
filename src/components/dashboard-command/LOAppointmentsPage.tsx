@@ -5,7 +5,7 @@ import toast from 'react-hot-toast'
 import { buildApiUrl } from '../../lib/api'
 import { authHeaders } from '../../services/dashboard/utils';
 import { supabase } from '../../services/supabase'
-import { LoPageHeader, LoTag, LoIcon, LoIconTile, loCard, loSolid, loGhost } from './loUi'
+import { LoPageHeader, LoTag, LoIcon, LoIconTile, loCard, loSolid, loGhost, loInput } from './loUi'
 
 // Every appointment call must carry the login token: the API is owner-scoped now.
 const apiHeaders = async (json = false): Promise<HeadersInit> => {
@@ -168,13 +168,16 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({ onClose, onSave, saving, 
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-          <h2 id="schedule-title" className="text-lg font-semibold text-slate-800">Schedule Meeting</h2>
+          <div className="flex items-center gap-3">
+            <LoIconTile name="event" tone="blue" />
+            <h2 id="schedule-title" className="text-lg font-extrabold text-slate-900">Schedule Meeting</h2>
+          </div>
           <button
             onClick={onClose}
             aria-label="Close"
-            className="flex h-10 w-10 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
+            className="flex h-11 w-11 items-center justify-center rounded-full text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-700"
           >
-            <span className="material-symbols-outlined text-xl">close</span>
+            <span aria-hidden="true" className="material-symbols-outlined text-xl">close</span>
           </button>
         </div>
 
@@ -182,17 +185,17 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({ onClose, onSave, saving, 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {/* Meeting type */}
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">Meeting Type</label>
+            <label className="block text-sm font-bold text-slate-800 mb-2">Meeting Type</label>
             <div className="grid grid-cols-2 gap-2">
               {MEETING_KINDS.map(k => (
                 <button
                   key={k}
                   type="button"
                   onClick={() => set('kind', k)}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium border transition-all ${
+                  className={`flex min-h-[44px] items-center gap-2 px-3 py-2 rounded-xl text-sm font-bold border transition-all ${
                     form.kind === k
                       ? 'border-primary-500 bg-primary-50 text-primary-700 shadow-sm'
-                      : 'border-slate-200 text-slate-600 hover:border-slate-300'
+                      : 'border-slate-300 text-slate-700 hover:border-slate-400'
                   }`}
                 >
                   <span className="material-symbols-outlined text-base">{KIND_ICONS[k]}</span>
@@ -204,38 +207,38 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({ onClose, onSave, saving, 
 
           {/* Contact name */}
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              Contact Name <span className="text-red-400">*</span>
+            <label className="block text-sm font-bold text-slate-800 mb-1">
+              Contact Name <span className="text-red-600">*</span>
             </label>
             <input
               type="text"
               value={form.name}
               onChange={e => set('name', e.target.value)}
               placeholder="Full name"
-              className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent"
+              className={`${loInput} min-h-[44px]`}
             />
           </div>
 
           {/* Email + Phone */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
+              <label className="block text-sm font-bold text-slate-800 mb-1">Email</label>
               <input
                 type="email"
                 value={form.email}
                 onChange={e => set('email', e.target.value)}
                 placeholder="email@example.com"
-                className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent"
+                className={`${loInput} min-h-[44px]`}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Phone</label>
+              <label className="block text-sm font-bold text-slate-800 mb-1">Phone</label>
               <input
                 type="tel"
                 value={form.phone}
                 onChange={e => set('phone', e.target.value)}
                 placeholder="(555) 000-0000"
-                className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent"
+                className={`${loInput} min-h-[44px]`}
               />
             </div>
           </div>
@@ -243,70 +246,70 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({ onClose, onSave, saving, 
           {/* Date + Time */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Date <span className="text-red-400">*</span>
+              <label className="block text-sm font-bold text-slate-800 mb-1">
+                Date <span className="text-red-600">*</span>
               </label>
               <input
                 type="date"
                 value={form.date}
                 onChange={e => set('date', e.target.value)}
-                className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent"
+                className={`${loInput} min-h-[44px]`}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Time</label>
+              <label className="block text-sm font-bold text-slate-800 mb-1">Time</label>
               <input
                 type="time"
                 value={form.time}
                 onChange={e => set('time', e.target.value)}
-                className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent"
+                className={`${loInput} min-h-[44px]`}
               />
             </div>
           </div>
 
           {/* Location */}
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Location / Meet Link</label>
+            <label className="block text-sm font-bold text-slate-800 mb-1">Location / Meet Link</label>
             <input
               type="text"
               value={form.location}
               onChange={e => set('location', e.target.value)}
               placeholder="Office, Zoom link, coffee shop…"
-              className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent"
+              className={`${loInput} min-h-[44px]`}
             />
           </div>
 
           {/* Notes */}
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Notes</label>
+            <label className="block text-sm font-bold text-slate-800 mb-1">Notes</label>
             <textarea
               value={form.notes}
               onChange={e => set('notes', e.target.value)}
               rows={2}
               placeholder="Agenda, talking points, context…"
-              className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent resize-none"
+              className={`${loInput} resize-none`}
             />
           </div>
 
           {/* Reminders */}
           <div className="rounded-xl border border-slate-200 p-3">
-            <p className="text-sm font-medium text-slate-700 mb-2">Reminders</p>
-            <label className="flex items-center gap-2 text-sm text-slate-600">
+            <p className="text-sm font-bold text-slate-800 mb-1">Reminders</p>
+            <label className="flex items-center gap-2 text-sm text-slate-700">
               <input
                 type="checkbox"
                 checked={form.remindMe}
                 onChange={e => setForm(prev => ({ ...prev, remindMe: e.target.checked }))}
-                className="h-4 w-4 rounded border-slate-300"
+                className="h-5 w-5 rounded border-slate-300"
               />
               Remind me 1 hour before
             </label>
-            <label className="mt-2 flex items-center gap-2 text-sm text-slate-600">
+            <label className="mt-2 flex items-center gap-2 text-sm text-slate-700">
               <input
                 type="checkbox"
                 checked={form.remindThem && Boolean(form.email || form.phone)}
                 disabled={!form.email && !form.phone}
                 onChange={e => setForm(prev => ({ ...prev, remindThem: e.target.checked }))}
-                className="h-4 w-4 rounded border-slate-300"
+                className="h-5 w-5 rounded border-slate-300"
               />
               Remind them the day before
               {!form.email && !form.phone && <span className="text-xs text-slate-600">(add an email or phone)</span>}
@@ -318,14 +321,14 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({ onClose, onSave, saving, 
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 transition-colors"
+              className={loGhost}
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="px-5 py-2 text-sm font-semibold bg-primary-600 text-white rounded-xl hover:bg-primary-700 active:scale-95 transition-all disabled:opacity-60"
+              className={loSolid}
             >
               {saving ? 'Scheduling…' : 'Schedule Meeting'}
             </button>
@@ -664,9 +667,16 @@ const LOAppointmentsPage: React.FC = () => {
 
         {/* Load failed */}
         {!loading && loadFailed && (
-          <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-800">
-            We couldn't load your meetings just now.{' '}
-            <button onClick={() => { setLoading(true); void load() }} className="font-bold underline">Try again</button>
+          <div className={`${loCard} flex flex-wrap items-center gap-4`} role="alert">
+            <LoIconTile name="error" tone="amber" />
+            <div className="min-w-0 flex-1 basis-56">
+              <p className="text-base font-extrabold text-slate-900">We couldn't load your meetings just now.</p>
+              <p className="text-sm text-slate-600">Check your connection, then try again.</p>
+            </div>
+            <button onClick={() => { setLoading(true); void load() }} className={loSolid}>
+              <LoIcon name="refresh" className="text-lg" />
+              Try again
+            </button>
           </div>
         )}
 

@@ -885,7 +885,7 @@ const LOBrainPage: React.FC = () => {
                     { ok: tested, icon: 'play_circle', label: 'Tried it', done: 'You tested the AI and it is working.', todo: 'Tap Test it and ask it a question.', tag: 'Test', next: tested ? 'Try another scenario' : 'Test it now' },
                   ].map((c) => (
                     <li key={c.label} className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5">
-                      <span aria-hidden="true" className={`material-symbols-outlined text-2xl ${c.ok ? 'text-green-600' : 'text-amber-500'}`}>{c.ok ? 'check_circle' : 'radio_button_unchecked'}</span>
+                      <span aria-hidden="true" className={`material-symbols-outlined text-2xl ${c.ok ? 'text-green-700' : 'text-amber-700'}`}>{c.ok ? 'check_circle' : 'radio_button_unchecked'}</span>
                       <span aria-hidden="true" className="material-symbols-outlined flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-700">{c.icon}</span>
                       <div className="min-w-0 flex-1 basis-48"><p className="text-sm font-extrabold text-slate-900">{c.label}</p><p className="text-xs text-slate-600">{c.ok ? c.done : c.todo}</p></div>
                       <span className="rounded-md bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-800">{c.tag}</span>

@@ -28,8 +28,8 @@ type PaidPlanId = Exclude<PlanId, 'free'>;
 const planLabels: Record<PlanId, string> = {
   free: 'Free',
   lo_lite: 'HomeListingAI — $99/mo',
-  starter: 'LO — $149/mo',
-  pro: 'LO Pro — $299/mo'
+  starter: 'HomeListingAI — $99/mo',
+  pro: 'HomeListingAI — $99/mo'
 };
 
 const statusLabels: Record<string, string> = {

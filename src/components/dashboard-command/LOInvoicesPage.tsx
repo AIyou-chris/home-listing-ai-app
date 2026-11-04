@@ -206,7 +206,7 @@ const LOInvoicesPage: React.FC = () => {
   }
 
   const inputCls = loInput
-  const labelCls = 'mb-1 block text-xs font-bold text-slate-700'
+  const labelCls = 'mb-1 block text-sm font-bold text-slate-700'
 
   return (
     <div className="mx-auto max-w-4xl space-y-6 px-4 pb-28 pt-6 sm:pt-8">
@@ -282,7 +282,7 @@ const LOInvoicesPage: React.FC = () => {
                   <LoIconTile name="receipt_long" tone={style.tone === 'slate' ? 'slate' : style.tone === 'green' ? 'green' : style.tone === 'red' ? 'amber' : 'blue'} />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-base font-extrabold text-slate-900">{inv.agentName || inv.agentEmail}</p>
-                    <p className="truncate text-xs text-slate-600">
+                    <p className="truncate text-sm text-slate-600">
                       {inv.invoiceNumber}{inv.listingAddress ? ` · ${inv.listingAddress}` : ''}
                     </p>
                   </div>
@@ -291,7 +291,7 @@ const LOInvoicesPage: React.FC = () => {
                     <LoTag tone={style.tone}>{style.label}</LoTag>
                   </div>
                 </div>
-                <p className="mt-3 text-xs text-slate-600">
+                <p className="mt-3 text-sm text-slate-600">
                   Sent {shortDate(inv.sentAt)}
                   {inv.dueDate ? ` · due ${shortDate(inv.dueDate)}` : ''}
                   {inv.paidAt ? ` · paid ${shortDate(inv.paidAt)}` : ''}
@@ -427,7 +427,7 @@ const LOInvoicesPage: React.FC = () => {
                   <textarea id="inv-note" rows={2} maxLength={1000} className={inputCls} value={note} onChange={(e) => setNote(e.target.value)} />
                 </div>
 
-                <p className="text-xs text-slate-600">
+                <p className="text-sm text-slate-600">
                   HomeListingAI does not process or hold payments and is not a party to this invoice. Check with your compliance team that the amounts you charge are right for your state.
                 </p>
                 {formError && <p role="alert" className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{formError}</p>}

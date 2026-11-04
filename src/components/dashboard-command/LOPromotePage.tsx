@@ -33,9 +33,9 @@ const PLATFORMS: Record<Platform, string> = { linkedin: 'LinkedIn', facebook: 'F
 const PLAN_KEY = 'lo_promote_plan_v1';
 
 const card = 'rounded-2xl border border-slate-200 bg-white shadow-sm p-5';
-const ghost = 'rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50';
-const solid = 'rounded-xl bg-primary-600 px-4 py-2 text-sm font-extrabold text-white hover:bg-primary-700 disabled:opacity-60';
-const chipCls = (on: boolean) => `rounded-full border px-3 py-1.5 text-xs font-bold ${on ? 'border-primary-600 bg-primary-600 text-white' : 'border-slate-200 bg-white text-slate-700'}`;
+const ghost = 'inline-flex min-h-[44px] items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50';
+const solid = 'inline-flex min-h-[44px] items-center justify-center rounded-xl bg-primary-600 px-4 py-2 text-sm font-extrabold text-white hover:bg-primary-700 disabled:opacity-60';
+const chipCls = (on: boolean) => `inline-flex min-h-[44px] items-center rounded-full border px-3 py-1.5 text-xs font-bold ${on ? 'border-primary-600 bg-primary-600 text-white' : 'border-slate-200 bg-white text-slate-700'}`;
 
 const api = async (path: string, init: RequestInit = {}) => {
   const headers = { ...(await authHeaders(null)), ...(init.body ? { 'Content-Type': 'application/json' } : {}) };
@@ -331,7 +331,7 @@ const LOPromotePage: React.FC = () => {
             </div>
             <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-600">
               <span>Plan it for</span>
-              <select aria-label="Day" value={planDay} onChange={(e) => setPlanDay(Number(e.target.value))} className="rounded-lg border border-slate-300 bg-slate-50 px-2 py-1 text-slate-900">{DAYS.map((d, i) => <option key={d} value={i}>{d}</option>)}</select>
+              <select aria-label="Day" value={planDay} onChange={(e) => setPlanDay(Number(e.target.value))} className="min-h-[44px] rounded-lg border border-slate-300 bg-slate-50 px-2 py-1 text-slate-900">{DAYS.map((d, i) => <option key={d} value={i}>{d}</option>)}</select>
               <button type="button" className={ghost} onClick={addToPlan}>Add to my week</button>
             </div>
             <p className="mt-2 text-xs text-slate-600">Nothing is posted for you. LinkedIn and Facebook open in a new tab with your words copied.</p>
@@ -380,7 +380,7 @@ const LOPromotePage: React.FC = () => {
               {pictures.map((p) => (
                 <div key={p.name} className="relative overflow-hidden rounded-lg bg-slate-100">
                   {p.url && <img src={p.url} alt="" className="aspect-square w-full object-cover" />}
-                  <button type="button" aria-label="Delete picture" onClick={() => void removePicture(p.name)} className="absolute right-1 top-1 flex h-7 w-7 items-center justify-center rounded-full bg-slate-900/80 text-sm text-slate-900">×</button>
+                  <button type="button" aria-label="Delete picture" onClick={() => void removePicture(p.name)} className="absolute right-0 top-0 flex h-11 w-11 items-center justify-center rounded-full bg-slate-900/80 text-sm text-slate-900">×</button>
                 </div>
               ))}
               <label className="flex aspect-square cursor-pointer items-center justify-center rounded-lg border border-dashed border-slate-300 text-xs font-bold text-slate-600">
@@ -392,7 +392,7 @@ const LOPromotePage: React.FC = () => {
 
           <section className={card} aria-label="Results">
             <div className="flex items-center justify-between"><h2 className="text-lg font-extrabold text-slate-900">📈 Results</h2>
-              <select aria-label="Time range" value={days} onChange={(e) => setDays(Number(e.target.value))} className="rounded-lg border border-slate-300 bg-slate-50 px-2 py-1 text-xs text-slate-900"><option value={7}>7 days</option><option value={30}>30 days</option><option value={90}>90 days</option></select></div>
+              <select aria-label="Time range" value={days} onChange={(e) => setDays(Number(e.target.value))} className="min-h-[44px] rounded-lg border border-slate-300 bg-slate-50 px-2 py-1 text-sm text-slate-900"><option value={7}>7 days</option><option value={30}>30 days</option><option value={90}>90 days</option></select></div>
             <div className="mt-4 flex h-24 items-end gap-1.5" aria-label="Requests by day">
               {(stats?.by_day || []).map((d, i) => <div key={`${d.date}-${i}`} title={`${d.date}: ${d.count}`} className="flex-1 rounded-t-md bg-primary-600" style={{ height: `${Math.max(6, (d.count / maxDay) * 100)}%` }} />)}
             </div>
