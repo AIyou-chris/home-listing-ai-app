@@ -158,6 +158,11 @@ function ScoreChip() {
   return <div className="l3-score" role="img" aria-label="Example Homebuyer 101 readiness score"><svg viewBox="0 0 36 36" width="54" height="54"><circle cx="18" cy="18" r="15" fill="none" stroke="#dbe8ff" strokeWidth="4" /><circle cx="18" cy="18" r="15" fill="none" stroke="#1d4ed8" strokeWidth="4" strokeDasharray="70 100" strokeLinecap="round" transform="rotate(-90 18 18)" /></svg><div><b>Ready score</b><small>Homebuyer 101</small></div></div>;
 }
 
+function Box({ children, chips }: { children: React.ReactNode; chips?: React.ReactNode }) {
+  return <div className="ll-box">{children}{chips}</div>;
+}
+const Float = ({ at, children }: { at: string; children: React.ReactNode }) => <div className={`ll-float ${at}`}><div className="l3-in">{children}</div></div>;
+
 /* ---------- Page ---------- */
 
 
@@ -211,6 +216,25 @@ export default function ApprovedLandingPage(props: Props) {
     heroRef.current?.style.setProperty('--my', String(((e.clientY - r.top) / r.height - 0.5) * 2));
   };
   const untilt = () => { heroRef.current?.style.setProperty('--mx', '0'); heroRef.current?.style.setProperty('--my', '0'); };
+  useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const nodes = Array.from(root.current?.querySelectorAll<HTMLElement>('.ll-tour, .ll-price, .ll-three') || []);
+    let raf = 0;
+    const update = () => {
+      raf = 0;
+      const vh = window.innerHeight;
+      nodes.forEach(n => {
+        const r = n.getBoundingClientRect();
+        const c = ((r.top + r.height / 2) - vh / 2) / (vh / 2 + r.height / 2);
+        n.style.setProperty('--c', Math.max(-1, Math.min(1, c)).toFixed(3));
+      });
+    };
+    const onScroll = () => { if (!raf) raf = window.requestAnimationFrame(update); };
+    update();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
+    return () => { window.removeEventListener('scroll', onScroll); window.removeEventListener('resize', onScroll); if (raf) window.cancelAnimationFrame(raf); };
+  }, []);
   const trial = () => navigate('/lo-signup');
 
   return <div className="approved-landing" ref={root}>
@@ -276,22 +300,22 @@ export default function ApprovedLandingPage(props: Props) {
           <div className="ll-tour ll-reveal">
             <div><p className="ll-step">1 · Create &amp; share</p><h3>Marketing in a few taps.</h3>
               <p>Make a post, an image, or a short video with music. Copy the link or download the QR code. Posts are drafts you read first, and they never mention rates or payments on their own.</p></div>
-            <MarketingMock />
+            <Box chips={<><Float at="f-tr"><QrChip /></Float><Float at="f-bl"><VideoChip /></Float></>}><MarketingMock /></Box>
           </div>
           <div className="ll-tour ll-flip ll-reveal">
             <div><p className="ll-step">2 · Capture inquiries</p><h3>See where every buyer came from.</h3>
               <p>Each inquiry lands in Leads with its source and what the buyer asked. You and your agent partner get an alert right away.</p></div>
-            <LeadsMock />
+            <Box chips={<><Float at="f-tl"><ScoreChip /></Float><Float at="f-br"><LeadCard /></Float></>}><LeadsMock /></Box>
           </div>
           <div className="ll-tour ll-reveal">
             <div><p className="ll-step">3 · Follow up</p><h3>Never lose a not-ready buyer.</h3>
               <p>Pick “check back in 3 days” and it shows up on your Today page. Your AI Brain answers buyers and calls in your voice in the meantime.</p></div>
-            <BrainMock />
+            <Box chips={<Float at="f-tr"><BrainCard /></Float>}><BrainMock /></Box>
           </div>
           <div className="ll-tour ll-flip ll-reveal">
             <div><p className="ll-step">Bonus · Agent partners</p><h3>Give agents a WOW Link.</h3>
               <p>Their listing opens as an app with your name and NMLS number on it. Buyers ask about the home, then talk to you. Nobody else gets the lead.</p></div>
-            <div className="ll-phonewrap"><Phone /></div>
+            <div className="ll-phonewrap"><Box chips={<><Float at="f-tl"><QrChip /></Float><Float at="f-br"><ScoreChip /></Float></>}><Phone /></Box></div>
           </div>
         </div>
       </section>

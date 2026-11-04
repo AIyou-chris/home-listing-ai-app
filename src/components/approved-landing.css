@@ -38,7 +38,7 @@
 .ll-bar{display:flex;align-items:center;gap:6px;background:#eef3fb;padding:9px 12px;border-bottom:1px solid #d6e0f2}
 .ll-bar i{width:9px;height:9px;border-radius:50%;background:#c3cfe4}
 .ll-bar span{margin-left:10px;background:#fff;border-radius:6px;padding:2px 12px;color:#64748b;font-size:11px}
-.ll-app{display:grid;grid-template-columns:128px 1fr}
+.ll-app{display:grid;grid-template-columns:152px minmax(0,1fr)}
 .ll-side{background:#f7faff;border-right:1px solid #e3eaf6;padding:12px 8px}
 .ll-brand{font-weight:900;font-size:12px;display:flex;gap:4px;align-items:center;margin-bottom:10px;color:#0b1736}
 .ll-nav{display:flex;gap:7px;align-items:center;padding:7px 8px;border-radius:8px;color:#334155;font-weight:600}
@@ -126,7 +126,7 @@
 .ll-final p{color:#c7d7ff;font-size:19px}
 
 /* reveal */
-.ll-reveal{opacity:0;transform:translateY(18px);transition:opacity .6s,transform .6s}
+.ll-reveal{opacity:0;transform:perspective(1400px) rotateX(9deg) translateY(34px);transform-origin:50% 100%;transition:opacity .7s,transform .8s cubic-bezier(.2,.8,.2,1)}
 .ll-reveal.ll-in{opacity:1;transform:none}
 @media (prefers-reduced-motion:reduce){.ll-reveal{opacity:1;transform:none;transition:none}.ll-toast{animation:none}.ll-btn{transition:none}}
 
@@ -222,3 +222,33 @@
   .l3 .ll-eyebrow{font-size:10.5px;padding:6px 9px}
 }
 @media (prefers-reduced-motion:reduce){.l3-in{animation:none}.l3-scene{transition:none}}
+
+
+/* ===== mock screens: keep text upright and in its own lane ===== */
+.ll .ll-window .ll-side{overflow:hidden}
+.ll .ll-window .ll-brand{font-size:12px;line-height:1.2;white-space:nowrap;margin:0 0 10px;letter-spacing:0}
+.ll .ll-window .ll-nav{font-size:12.5px;line-height:1.2;white-space:nowrap;margin:0 0 2px}
+.ll .ll-window .ll-h{font-size:20px;line-height:1.2;margin:0}
+.ll .ll-window .ll-sub{font-size:12px;line-height:1.35}
+.ll .ll-window .ll-main p,.ll .ll-window small,.ll .ll-window b{letter-spacing:0}
+.ll .ll-window .ll-main{overflow:hidden}
+
+/* ===== 3D scroll motion for the sections below the hero ===== */
+.ll-tour,.ll-price,.ll-three{--c:0;--d:1}
+.ll-tour.ll-flip{--d:-1}
+.ll-box{position:relative;transform-style:preserve-3d;max-width:560px;width:100%;margin:0 auto;
+  transform:perspective(1500px) rotateY(calc(var(--c) * var(--d) * -18deg)) rotateX(calc(var(--c) * 6deg)) translate3d(0,calc(var(--c) * 40px),0)}
+.ll-box .ll-window{max-width:none}
+.ll-float{position:absolute;z-index:3;transform-style:preserve-3d;
+  transform:translate3d(calc(var(--c) * var(--d) * -70px),calc(var(--c) * -50px),90px)}
+.ll-float.f-tr{right:-34px;top:-30px}.ll-float.f-tl{left:-34px;top:-26px}
+.ll-float.f-br{right:-26px;bottom:-34px;width:250px}.ll-float.f-bl{left:-26px;bottom:-34px}
+.ll-phonewrap .ll-box{width:260px;max-width:260px}
+.ll-phonewrap .ll-phone{transform:none}
+.ll-three .ll-feature{transform:perspective(1200px) rotateX(calc(var(--c) * 8deg)) translateY(calc(var(--c) * 24px));transition:box-shadow .2s}
+.ll-three .ll-feature:hover{box-shadow:0 22px 44px #17376826}
+.ll-price{transform:perspective(1400px) rotateX(calc(var(--c) * 7deg)) translateY(calc(var(--c) * 30px))}
+@media(max-width:960px){.ll-float.f-tr{right:-8px}.ll-float.f-tl{left:-8px}.ll-float.f-br{right:-8px;width:220px}.ll-float.f-bl{left:-8px}.ll-box{transform:none}.ll-float{transform:translate3d(0,0,0)}}
+@media(max-width:560px){.ll-float{display:none}}
+@media (prefers-reduced-motion:reduce){.ll-box,.ll-float,.ll-three .ll-feature,.ll-price{transform:none}.ll-reveal{transform:none}}
+.approved-landing{overflow-x:clip}
