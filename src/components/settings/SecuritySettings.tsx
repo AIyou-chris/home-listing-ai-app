@@ -77,7 +77,7 @@ const TwoFactorSection: React.FC = () => {
         {success && <div className="p-3 rounded-lg bg-green-50 text-green-700 text-sm">{success}</div>}
         {error && <div className="p-3 rounded-lg bg-red-50 text-red-700 text-sm">{error}</div>}
 
-        {status === 'loading' && <p className="text-sm text-slate-400">Checking status…</p>}
+        {status === 'loading' && <p className="text-sm text-slate-600">Checking status…</p>}
 
         {status === 'enabled' && !qrCode && (
           <div className="flex items-start justify-between p-4 bg-green-50 border border-green-200 rounded-xl gap-4">
@@ -135,7 +135,7 @@ const TwoFactorSection: React.FC = () => {
             </div>
             {secret && (
               <div className="rounded-lg bg-slate-50 border border-slate-200 p-3">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Can't scan? Enter this code manually</p>
+                <p className="text-xs font-bold text-slate-700 uppercase tracking-wide mb-1">Can't scan? Enter this code manually</p>
                 <p className="text-xs font-mono text-slate-700 break-all select-all">{secret}</p>
               </div>
             )}

@@ -414,7 +414,7 @@ const LeadCard: React.FC<{
                   ) : (
                     <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
                       {convMessages.map((msg) => (
-                        <div key={msg.id} className={`rounded-lg px-3 py-2 text-sm ${msg.sender === 'visitor' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-800'}`}>
+                        <div key={msg.id} className={`rounded-xl px-3 py-2 text-sm ${msg.sender === 'visitor' ? 'bg-primary-50 text-slate-900' : 'border border-slate-200 bg-white text-slate-800'}`}>
                           <p>{msg.text}</p>
                           <p className="mt-1 text-xs opacity-80">
                             {msg.sender === 'visitor' ? 'Buyer' : 'Your AI'} · {new Date(msg.created_at).toLocaleString()}
@@ -429,7 +429,7 @@ const LeadCard: React.FC<{
           )}
 
           {lead.isTest && (
-            <button onClick={() => void handleDeleteTest()} className="inline-flex min-h-[44px] items-center rounded-xl border border-rose-300 bg-white px-4 text-sm font-bold text-rose-800 hover:bg-rose-50">
+            <button onClick={() => void handleDeleteTest()} className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-rose-300 bg-white px-4 text-sm font-bold text-rose-800 hover:bg-rose-50">
               Delete test lead
             </button>
           )}
@@ -646,8 +646,8 @@ const LOLeadsPage: React.FC = () => {
               <li key={l.id} className="flex flex-wrap items-center gap-3 rounded-xl bg-white px-3 py-2.5 ring-1 ring-slate-200">
                 <span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary-100 text-xs font-extrabold text-primary-800">{(l.name || '?').split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase()}</span>
                 <div className="min-w-0 flex-1 basis-40"><p className="text-sm font-extrabold text-slate-900">Follow up with {l.name || 'this buyer'}</p><p className="text-xs text-slate-600">You set a reminder to check back.</p></div>
-                <button type="button" onClick={() => void moveReminder(l, 3)} className="min-h-[40px] rounded-lg border border-slate-300 bg-white px-3 text-sm font-bold text-slate-700 hover:bg-slate-50">Later</button>
-                <button type="button" onClick={() => void moveReminder(l, null)} className="inline-flex min-h-[40px] items-center gap-1 rounded-lg bg-primary-600 px-3 text-sm font-bold text-white hover:bg-primary-700"><span aria-hidden="true" className="material-symbols-outlined text-base">check</span>Done</button>
+                <button type="button" onClick={() => void moveReminder(l, 3)} className={loGhost}>Later</button>
+                <button type="button" onClick={() => void moveReminder(l, null)} className={loSolid}><span aria-hidden="true" className="material-symbols-outlined text-base">check</span>Done</button>
               </li>
             ))}
           </ul>
@@ -693,7 +693,7 @@ const LOLeadsPage: React.FC = () => {
         </div>
       ) : leads.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 py-16 text-center">
-          <span className="material-symbols-outlined text-4xl text-slate-400" aria-hidden="true">person_search</span>
+          <span className="material-symbols-outlined text-4xl text-slate-600" aria-hidden="true">person_search</span>
           <p className="mt-3 text-sm font-semibold text-slate-700">{filtering ? 'No leads match that' : 'No leads yet'}</p>
           <p className="mx-auto mt-1 max-w-xs text-xs text-slate-600">
             {filtering

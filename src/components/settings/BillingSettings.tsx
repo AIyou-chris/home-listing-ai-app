@@ -12,6 +12,7 @@ import { supabase } from '../../services/supabase';
 import { fetchOnboardingState } from '../../services/onboardingService';
 import { fetchMyInvoices, formatCents, type Invoice } from '../../services/loInvoiceService';
 import { FeatureSection } from './SettingsCommon';
+import { LoRow, LoTag, loCard } from '../dashboard-command/loUi';
 
 interface BillingSettingsProps {
   settings: BillingSettings;
@@ -176,7 +177,7 @@ const BillingSettingsPage: React.FC<BillingSettingsProps> = ({
               value={deleteConfirmation}
               onChange={(event) => setDeleteConfirmation(event.target.value)}
               placeholder="DELETE"
-              className="w-full rounded-lg border border-rose-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-rose-400 focus:outline-none focus:ring-2 focus:ring-rose-200 sm:max-w-xs"
+              className="w-full rounded-lg border border-rose-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-500 focus:border-rose-400 focus:outline-none focus:ring-2 focus:ring-rose-200 sm:max-w-xs"
             />
             <button
               type="button"
@@ -203,7 +204,12 @@ const BillingSettingsPage: React.FC<BillingSettingsProps> = ({
   }, [isFreeAgent]);
 
   if (accountType === null || (loadingSnapshot && !isBlueprintMode)) {
-    return <div className="p-8 text-sm text-slate-500">Loading billing…</div>;
+    return (
+      <div className="space-y-5 p-4 sm:p-6" role="status" aria-label="Loading billing">
+        <div className={`${loCard} h-28 animate-pulse bg-slate-100`} />
+        <div className={`${loCard} h-40 animate-pulse bg-slate-100`} />
+      </div>
+    );
   }
 
   if (isFreeAgent) {
@@ -230,7 +236,7 @@ const BillingSettingsPage: React.FC<BillingSettingsProps> = ({
         <FeatureSection title="Invoices from your loan officer" icon="receipt_long">
           <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
             {myInvoices.length === 0 ? (
-              <p className="p-6 text-sm text-slate-500">
+              <p className="p-6 text-sm text-slate-700">
                 No invoices. If you and your loan officer split a marketing cost, their invoice will show up here and in your email.
               </p>
             ) : (
@@ -239,7 +245,7 @@ const BillingSettingsPage: React.FC<BillingSettingsProps> = ({
                   <li key={inv.link} className="flex flex-wrap items-center justify-between gap-3 p-4">
                     <div className="min-w-0">
                       <p className="text-sm font-bold text-slate-900">{inv.invoiceNumber} · {formatCents(inv.totalCents)}</p>
-                      <p className="truncate text-xs text-slate-500">
+                      <p className="truncate text-xs text-slate-600">
                         From {inv.loName || 'your loan officer'}{inv.listingAddress ? ` · ${inv.listingAddress}` : ''}
                         {inv.dueDate ? ` · due ${inv.dueDate}` : ''}
                       </p>
@@ -248,7 +254,7 @@ const BillingSettingsPage: React.FC<BillingSettingsProps> = ({
                       <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${inv.status === 'paid' ? 'bg-green-100 text-green-800' : inv.status === 'overdue' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'}`}>
                         {inv.status === 'paid' ? 'Paid' : inv.status === 'overdue' ? 'Overdue' : 'Open'}
                       </span>
-                      <a href={inv.link} target="_blank" rel="noopener noreferrer" className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50">
+                      <a href={inv.link} target="_blank" rel="noopener noreferrer" className="rounded-lg border border-slate-300 min-h-[44px] inline-flex items-center px-3 text-sm font-bold text-slate-700 hover:bg-slate-50">
                         View
                       </a>
                     </div>
@@ -256,7 +262,7 @@ const BillingSettingsPage: React.FC<BillingSettingsProps> = ({
                 ))}
               </ul>
             )}
-            <p className="border-t border-slate-100 p-4 text-xs text-slate-500">
+            <p className="border-t border-slate-100 p-4 text-xs text-slate-600">
               You pay your loan officer directly, the way you agreed. HomeListingAI does not take or hold payments.
             </p>
           </div>
@@ -290,7 +296,7 @@ const BillingSettingsPage: React.FC<BillingSettingsProps> = ({
               </p>
             </div>
             {loadingSnapshot ? (
-              <p className="text-sm text-slate-500">Loading billing status…</p>
+              <div role="status" aria-label="Loading billing status" className="h-12 w-40 animate-pulse rounded-xl bg-primary-100" />
             ) : null}
           </div>
 
@@ -331,54 +337,27 @@ const BillingSettingsPage: React.FC<BillingSettingsProps> = ({
       </FeatureSection>
 
       <FeatureSection title="Billing history" icon="history">
-        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+        <div className="space-y-2">
           {settings.history && settings.history.length > 0 ? (
-            <table className="min-w-full divide-y divide-slate-200">
-              <thead className="bg-slate-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Date</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Description</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Amount</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">Invoice</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-slate-200">
-                {settings.history.map((entry) => (
-                  <tr key={entry.id}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">{entry.date}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-900 font-medium">{entry.description || 'Subscription'}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
-                      ${typeof entry.amount === 'number' ? entry.amount.toFixed(2) : entry.amount}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span
-                        className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          entry.status === 'Paid'
-                            ? 'bg-green-100 text-green-800'
-                            : entry.status === 'Pending'
-                              ? 'bg-yellow-100 text-yellow-800'
-                              : 'bg-red-100 text-red-800'
-                        }`}
-                      >
-                        {entry.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      {entry.invoiceUrl ? (
-                        <a href={entry.invoiceUrl} target="_blank" rel="noopener noreferrer" className="text-primary-600 hover:text-primary-900">
-                          Download
-                        </a>
-                      ) : (
-                        <span className="text-slate-400">Unavailable</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            settings.history.map((entry) => (
+              <LoRow
+                key={entry.id}
+                icon="receipt_long"
+                title={`${entry.description || 'Subscription'} · $${typeof entry.amount === 'number' ? entry.amount.toFixed(2) : entry.amount}`}
+                description={entry.date}
+              >
+                <LoTag tone={entry.status === 'Paid' ? 'green' : entry.status === 'Pending' ? 'amber' : 'red'}>{entry.status}</LoTag>
+                {entry.invoiceUrl ? (
+                  <a href={entry.invoiceUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-[44px] items-center px-2 text-sm font-bold text-primary-700 hover:underline">
+                    Download
+                  </a>
+                ) : (
+                  <span className="text-sm text-slate-600">Unavailable</span>
+                )}
+              </LoRow>
+            ))
           ) : (
-            <div className="p-8 text-center text-slate-500">No billing history available yet.</div>
+            <div className={`${loCard} text-center text-sm text-slate-700`}>No billing history available yet.</div>
           )}
         </div>
       </FeatureSection>

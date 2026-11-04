@@ -14,9 +14,9 @@ import { LoPageHeader, LoIconTile, LoTag, LoIcon, loCard, loSolid, loGhost, loIn
 
 // Only the pieces your name actually shows on. (QR, Share Kit and Open House never changed anything.)
 const PIECE_LABELS: Record<string, { label: string; icon: string }> = {
-  listing_page:  { label: 'Public listing page', icon: '🏠' },
-  flyer:         { label: 'Flyer',               icon: '📄' },
-  social:        { label: 'Social post',         icon: '📱' },
+  listing_page:  { label: 'Public listing page', icon: 'home' },
+  flyer:         { label: 'Flyer',               icon: 'description' },
+  social:        { label: 'Social post',         icon: 'smartphone' },
 };
 type Toggles = Record<string, boolean>;
 
@@ -155,7 +155,7 @@ const BrandingTogglePanel: React.FC<{ listingId: string; demo?: boolean }> = ({ 
                   : 'border-slate-200 bg-white text-slate-600'
               }`}
             >
-              <span>{icon}</span>
+              <LoIcon name={icon} className="text-xl" />
               <span className="flex-1 text-left">{label}</span>
               <span className={`h-2 w-2 rounded-full ${on ? 'bg-primary-500' : 'bg-slate-300'}`} />
             </button>
@@ -322,19 +322,19 @@ const ListingCard: React.FC<ListingCardProps> = ({ listing, mode, onRemove, onAd
           >
             Yes, remove
           </button>
-          <button onClick={() => setRemoveConfirm(false)} className="min-h-[44px] rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700">Keep it</button>
+          <button onClick={() => setRemoveConfirm(false)} className={loGhost}>Keep it</button>
         </div>
       )}
       {mode === 'assigned' && phoneEnabled && showPhone && (
         <div>
           <ListingPhonePanel listingId={listing.id} line={phoneLine || null} demo={demo} onChange={(l) => onPhoneLine?.(listing.id, l)} />
-          <button onClick={() => setShowPhone(false)} className="mt-1 min-h-[44px] text-sm font-semibold text-slate-700 underline">Hide phone settings</button>
+          <button onClick={() => setShowPhone(false)} className={`${loGhost} mt-2`}>Hide phone settings</button>
         </div>
       )}
       {mode === 'assigned' && showToggles && (
         <div>
           <BrandingTogglePanel listingId={listing.id} demo={demo} />
-          <button onClick={() => setShowToggles(false)} className="mt-1 min-h-[44px] text-sm font-semibold text-slate-700 underline">Hide branding</button>
+          <button onClick={() => setShowToggles(false)} className={`${loGhost} mt-2`}>Hide branding</button>
         </div>
       )}
       </div>
@@ -583,7 +583,7 @@ const LOListingsPage: React.FC = () => {
         ) : loadFailed ? (
           <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-800">
             We couldn't load your listings just now.{' '}
-            <button onClick={() => window.location.reload()} className="min-h-[44px] font-bold underline">Reload the page</button>
+            <button onClick={() => window.location.reload()} className={`${loGhost} mt-2`}>Reload the page</button>
           </div>
         ) : assigned.length === 0 ? (
           <div className={`${loCard} border-dashed p-8 text-center`}>
@@ -636,7 +636,7 @@ const LOListingsPage: React.FC = () => {
               <button
                 onClick={() => void handleBuildListing()}
                 disabled={creating}
-                className={`${loSolid} shrink-0`}
+                className={`${assigned.length === 0 ? loGhost : loSolid} shrink-0`}
               >
                 <span className="material-symbols-outlined text-lg">{creating ? 'progress_activity' : 'add_home_work'}</span>
                 {creating ? 'Starting…' : 'Build a Listing'}

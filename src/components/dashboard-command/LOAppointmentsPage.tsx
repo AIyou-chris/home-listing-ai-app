@@ -5,7 +5,7 @@ import toast from 'react-hot-toast'
 import { buildApiUrl } from '../../lib/api'
 import { authHeaders } from '../../services/dashboard/utils';
 import { supabase } from '../../services/supabase'
-import { LoPageHeader, LoTag, LoIcon, loCard, loSolid, loGhost } from './loUi'
+import { LoPageHeader, LoTag, LoIcon, LoIconTile, loCard, loSolid, loGhost } from './loUi'
 
 // Every appointment call must carry the login token: the API is owner-scoped now.
 const apiHeaders = async (json = false): Promise<HeadersInit> => {
@@ -309,7 +309,7 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({ onClose, onSave, saving, 
                 className="h-4 w-4 rounded border-slate-300"
               />
               Remind them the day before
-              {!form.email && !form.phone && <span className="text-xs text-slate-400">(add an email or phone)</span>}
+              {!form.email && !form.phone && <span className="text-xs text-slate-600">(add an email or phone)</span>}
             </label>
           </div>
 
@@ -651,8 +651,14 @@ const LOAppointmentsPage: React.FC = () => {
 
         {/* Loading */}
         {loading && (
-          <div className="flex items-center justify-center py-20">
-            <span className="material-symbols-outlined animate-spin text-3xl text-slate-500">progress_activity</span>
+          <div className="space-y-3" aria-busy="true" aria-label="Loading meetings">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="animate-pulse rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="h-4 w-1/3 rounded bg-slate-200" />
+                <div className="mt-3 h-3 w-2/3 rounded bg-slate-100" />
+                <div className="mt-4 h-11 w-32 rounded-xl bg-slate-100" />
+              </div>
+            ))}
           </div>
         )}
 
@@ -667,8 +673,8 @@ const LOAppointmentsPage: React.FC = () => {
         {/* Empty state */}
         {!loading && !loadFailed && !hasAny && (
           <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-5 py-14 text-center">
-            <LoIcon name="calendar_today" className="text-4xl text-slate-500" />
-            <p className="mt-3 text-base font-extrabold text-slate-900">No meetings yet</p>
+            <div className="flex justify-center"><LoIconTile name="calendar_today" tone="blue" /></div>
+            <p className="mt-4 text-base font-extrabold text-slate-900">No meetings yet</p>
             <p className="mx-auto mt-1 max-w-xs text-sm text-slate-600">Schedule your first consultation, call, or agent check-in.</p>
             <button onClick={() => setShowModal(true)} className={`${loSolid} mt-4`}>
               Schedule Meeting

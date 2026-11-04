@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { supabase } from '../../services/supabase'
 import { buildApiUrl } from '../../lib/api'
 import { waitForAuthenticatedSession } from '../../services/authSession'
+import { LoSectionCard, loCard, loInput, loSolid, LoTag } from '../dashboard-command/loUi'
 
 // ─── US States ────────────────────────────────────────────────────────────────
 
@@ -34,29 +35,29 @@ const StatesMultiSelect: React.FC<{ selected: string[]; onChange: (s: string[]) 
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
-        className="w-full min-h-[42px] rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-left focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100 flex flex-wrap gap-1.5 items-center shadow-sm"
+        className="w-full min-h-[44px] rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-left focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100 flex flex-wrap gap-1.5 items-center shadow-sm"
       >
         {selected.length === 0
-          ? <span className="text-slate-400">Select states…</span>
+          ? <span className="text-slate-600">Select states…</span>
           : selected.map(s => (
             <span key={s} className="inline-flex items-center gap-1 rounded-md bg-primary-100 px-2 py-0.5 text-xs font-semibold text-primary-700">
               {s}
-              <span onClick={e => { e.stopPropagation(); onChange(selected.filter(x => x !== s)) }} className="cursor-pointer text-primary-400 hover:text-primary-700">×</span>
+              <span onClick={e => { e.stopPropagation(); onChange(selected.filter(x => x !== s)) }} className="cursor-pointer text-primary-700 hover:text-primary-900">×</span>
             </span>
           ))
         }
-        <span className="ml-auto text-slate-400 text-xs flex-shrink-0">{open ? '▲' : '▼'}</span>
+        <span className="ml-auto text-slate-600 text-xs flex-shrink-0">{open ? '▲' : '▼'}</span>
       </button>
       {open && (
         <div className="absolute z-50 mt-1 w-full rounded-xl border border-slate-200 bg-white shadow-lg">
           <div className="p-2 border-b border-slate-100">
-            <input autoFocus value={search} onChange={e => setSearch(e.target.value)} placeholder="Search states…" className="w-full rounded-md border border-slate-200 px-3 py-1.5 text-sm focus:border-primary-500 focus:outline-none" />
+            <input autoFocus value={search} onChange={e => setSearch(e.target.value)} placeholder="Search states…" className="w-full rounded-md border border-slate-300 px-3 py-1.5 text-sm placeholder-slate-500 focus:border-primary-500 focus:outline-none" />
           </div>
           <div className="flex gap-2 px-3 py-1.5 border-b border-slate-100">
             <button type="button" onClick={() => onChange(US_STATES)} className="text-xs text-primary-600 font-semibold hover:underline">Select all</button>
             <span className="text-slate-300">|</span>
-            <button type="button" onClick={() => onChange([])} className="text-xs text-slate-500 font-semibold hover:underline">Clear</button>
-            {selected.length > 0 && <span className="ml-auto text-xs text-slate-400">{selected.length} selected</span>}
+            <button type="button" onClick={() => onChange([])} className="text-xs text-slate-700 font-semibold hover:underline">Clear</button>
+            {selected.length > 0 && <span className="ml-auto text-xs text-slate-600">{selected.length} selected</span>}
           </div>
           <div className="max-h-52 overflow-y-auto py-1">
             {filtered.map(state => (
@@ -93,10 +94,9 @@ const empty = (): LOProfile => ({
   state_license_number: '', title: ''
 })
 
-const fieldCls =
-  'w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-100 placeholder-slate-400'
+const fieldCls = loInput
 
-const label = 'mb-1 block text-[10px] font-semibold uppercase tracking-widest text-slate-400'
+const label = 'mb-1 block text-xs font-bold text-slate-700'
 
 // ─── Component ─────────────────────────────────────────────────────────────────
 
@@ -263,66 +263,63 @@ const LOProfileSettings: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
 
-      {/* Incomplete profile warning */}
       {missing.length > 0 && (
         <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
-          <span className="material-symbols-outlined text-base text-amber-500 mt-0.5 shrink-0">warning</span>
-          <p className="text-sm text-amber-800">
+          <span aria-hidden="true" className="material-symbols-outlined text-base text-amber-700 mt-0.5 shrink-0">warning</span>
+          <p className="text-sm text-amber-900">
             <span className="font-semibold">Your profile is incomplete.</span>{' '}
             Add your {missing.join(', ')} so buyers see your full info on every listing you're co-branded on.
           </p>
         </div>
       )}
 
-      {/* Headshot */}
-      <div className="flex flex-col items-center gap-3 sm:flex-row sm:items-start sm:gap-6">
-        <div className="flex flex-col items-center gap-2">
-          <div
-            onClick={() => fileRef.current?.click()}
-            className="relative h-24 w-24 cursor-pointer overflow-hidden rounded-full border-2 border-slate-200 bg-slate-100 transition hover:border-primary-400"
-          >
-            {profile.headshot_url ? (
-              <img src={profile.headshot_url} alt="Headshot" className="h-full w-full object-cover" />
-            ) : (
-              <div className="flex h-full w-full flex-col items-center justify-center gap-1">
-                <span className="material-symbols-outlined text-4xl text-slate-300">person</span>
-              </div>
-            )}
-            {uploading && (
-              <div className="absolute inset-0 flex items-center justify-center bg-white/75">
-                <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary-600 border-t-transparent" />
-              </div>
+      <LoSectionCard icon="person" title="Your photo" description="Buyers see this on every listing you share.">
+        <div className="flex flex-col items-center gap-3 sm:flex-row sm:items-start sm:gap-6">
+          <div className="flex flex-col items-center gap-2">
+            <div
+              onClick={() => fileRef.current?.click()}
+              className="relative h-24 w-24 cursor-pointer overflow-hidden rounded-full border-2 border-slate-200 bg-slate-100 transition hover:border-primary-400"
+            >
+              {profile.headshot_url ? (
+                <img src={profile.headshot_url} alt="Headshot" className="h-full w-full object-cover" />
+              ) : (
+                <div className="flex h-full w-full flex-col items-center justify-center gap-1">
+                  <span aria-hidden="true" className="material-symbols-outlined text-4xl text-slate-500">person</span>
+                </div>
+              )}
+              {uploading && (
+                <div className="absolute inset-0 flex items-center justify-center bg-white/75">
+                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary-600 border-t-transparent" />
+                </div>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              className="min-h-[44px] px-2 text-sm font-bold text-primary-700 hover:underline"
+            >
+              {uploading ? 'Uploading…' : profile.headshot_url ? 'Change photo' : 'Upload photo'}
+            </button>
+            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleHeadshotFile} />
+          </div>
+
+          <div className="flex-1 space-y-1 text-center sm:text-left">
+            <p className="text-lg font-extrabold text-slate-900">
+              {[profile.first_name, profile.last_name].filter(Boolean).join(' ') || 'Your Name'}
+            </p>
+            <p className="text-sm text-slate-700">{profile.title || 'Loan Officer'}</p>
+            <p className="text-sm text-slate-700">{profile.company || 'Your Company'}</p>
+            {profile.nmls_number && (
+              <p className="text-xs text-slate-600">{profile.nmls_number}</p>
             )}
           </div>
-          <button
-            type="button"
-            onClick={() => fileRef.current?.click()}
-            className="text-xs font-semibold text-primary-600 hover:underline"
-          >
-            {uploading ? 'Uploading…' : profile.headshot_url ? 'Change photo' : 'Upload photo'}
-          </button>
-          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleHeadshotFile} />
         </div>
+      </LoSectionCard>
 
-        <div className="flex-1 space-y-1 text-center sm:text-left">
-          <p className="text-lg font-bold text-slate-900">
-            {[profile.first_name, profile.last_name].filter(Boolean).join(' ') || 'Your Name'}
-          </p>
-          <p className="text-sm text-slate-500">{profile.title || 'Loan Officer'}</p>
-          <p className="text-sm text-slate-500">{profile.company || 'Your Company'}</p>
-          {profile.nmls_number && (
-            <p className="text-xs text-slate-400">{profile.nmls_number}</p>
-          )}
-        </div>
-      </div>
-
-      {/* Brokerage Logo */}
-      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-        <p className="text-sm font-semibold text-slate-800">Brokerage Logo</p>
-        <p className="mt-0.5 text-xs text-slate-500">Your lender or team logo — shown alongside your headshot on co-branded listings.</p>
-        <div className="mt-3 flex items-center gap-4">
+      <LoSectionCard icon="apartment" title="Brokerage logo" description="Your lender or team logo. Shown next to your photo on co-branded listings.">
+        <div className="flex items-center gap-4">
           <div
             onClick={() => logoRef.current?.click()}
             className="relative h-16 w-24 shrink-0 cursor-pointer overflow-hidden rounded-xl border-2 border-slate-200 bg-white transition hover:border-primary-400"
@@ -331,7 +328,7 @@ const LOProfileSettings: React.FC = () => {
               <img src={profile.logo_url} alt="Logo" className="h-full w-full object-contain p-1" />
             ) : (
               <div className="flex h-full w-full flex-col items-center justify-center gap-1">
-                <span className="material-symbols-outlined text-2xl text-slate-300">image</span>
+                <span aria-hidden="true" className="material-symbols-outlined text-2xl text-slate-500">image</span>
               </div>
             )}
             {uploadingLogo && (
@@ -340,11 +337,11 @@ const LOProfileSettings: React.FC = () => {
               </div>
             )}
           </div>
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col">
             <button
               type="button"
               onClick={() => logoRef.current?.click()}
-              className="text-xs font-semibold text-primary-600 hover:underline"
+              className="min-h-[44px] px-2 text-left text-sm font-bold text-primary-700 hover:underline"
             >
               {uploadingLogo ? 'Uploading…' : profile.logo_url ? 'Change logo' : 'Upload logo'}
             </button>
@@ -352,7 +349,7 @@ const LOProfileSettings: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setProfile(p => ({ ...p, logo_url: '' }))}
-                className="text-xs text-slate-400 hover:text-rose-500 transition-colors text-left"
+                className="min-h-[44px] px-2 text-left text-sm text-slate-700 hover:text-rose-700 transition-colors"
               >
                 Remove
               </button>
@@ -361,103 +358,98 @@ const LOProfileSettings: React.FC = () => {
           </div>
         </div>
         <input type="hidden" value={profile.logo_url} readOnly />
-      </div>
+      </LoSectionCard>
 
-      <div className="h-px bg-slate-100" />
+      <LoSectionCard icon="badge" title="About you" description="Your name, company and license. Buyers and your AI financing bot use these.">
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label className={label}>First Name</label>
+              <input value={profile.first_name} onChange={up('first_name')} placeholder="Jane" className={fieldCls} />
+            </div>
+            <div>
+              <label className={label}>Last Name</label>
+              <input value={profile.last_name} onChange={up('last_name')} placeholder="Smith" className={fieldCls} />
+            </div>
+          </div>
 
-      {/* Name row */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div>
-          <label className={label}>First Name</label>
-          <input value={profile.first_name} onChange={up('first_name')} placeholder="Jane" className={fieldCls} />
-        </div>
-        <div>
-          <label className={label}>Last Name</label>
-          <input value={profile.last_name} onChange={up('last_name')} placeholder="Smith" className={fieldCls} />
-        </div>
-      </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label className={label}>Title</label>
+              <input value={profile.title} onChange={up('title')} placeholder="Loan Officer" className={fieldCls} />
+            </div>
+            <div>
+              <label className={label}>Company / Lender</label>
+              <input value={profile.company} onChange={up('company')} placeholder="Rocket Mortgage" className={fieldCls} />
+            </div>
+          </div>
 
-      {/* Title + Company */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div>
-          <label className={label}>Title</label>
-          <input value={profile.title} onChange={up('title')} placeholder="Loan Officer" className={fieldCls} />
-        </div>
-        <div>
-          <label className={label}>Company / Lender</label>
-          <input value={profile.company} onChange={up('company')} placeholder="Rocket Mortgage" className={fieldCls} />
-        </div>
-      </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div>
+              <label className={label}>License Number</label>
+              <input
+                value={profile.nmls_number}
+                onChange={up('nmls_number')}
+                placeholder="e.g. WA1234 or NMLS# 12345"
+                className={fieldCls}
+              />
+            </div>
+            <div>
+              <label className={label}>State License #</label>
+              <input
+                value={profile.state_license_number}
+                onChange={up('state_license_number')}
+                placeholder="e.g. LO-12345"
+                className={fieldCls}
+              />
+            </div>
+            <div>
+              <label className={label}>Phone</label>
+              <input value={profile.phone} onChange={up('phone')} placeholder="(555) 000-0000" className={fieldCls} />
+            </div>
+          </div>
 
-      {/* NMLS + State License + Phone */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div>
-          <label className={label}>License Number</label>
-          <input
-            value={profile.nmls_number}
-            onChange={up('nmls_number')}
-            placeholder="e.g. WA1234 or NMLS# 12345"
-            className={fieldCls}
-          />
+          <div>
+            <label className={label}>Email</label>
+            <input value={profile.email} onChange={up('email')} type="email" placeholder="you@lender.com" className={fieldCls} />
+          </div>
         </div>
-        <div>
-          <label className={label}>State License #</label>
-          <input
-            value={profile.state_license_number}
-            onChange={up('state_license_number')}
-            placeholder="e.g. LO-12345"
-            className={fieldCls}
-          />
-        </div>
-        <div>
-          <label className={label}>Phone</label>
-          <input value={profile.phone} onChange={up('phone')} placeholder="(555) 000-0000" className={fieldCls} />
-        </div>
-      </div>
+      </LoSectionCard>
 
-      {/* Email */}
-      <div>
-        <label className={label}>Email</label>
-        <input value={profile.email} onChange={up('email')} type="email" placeholder="you@lender.com" className={fieldCls} />
-      </div>
-
-      {/* States licensed in */}
-      <div>
-        <label className={label}>States Licensed In</label>
-        <p className="mb-2 text-xs text-slate-400">Shown on your LO AI chatbot so buyers know if you can help them.</p>
+      <LoSectionCard icon="map" title="States you are licensed in" description="Shown on your AI chatbot so buyers know if you can help them.">
         <StatesMultiSelect selected={lendingStates} onChange={setLendingStates} />
-      </div>
+      </LoSectionCard>
 
-      {/* Error */}
       {error && (
-        <p className="text-sm font-medium text-rose-600">{error}</p>
+        <p className="text-sm font-semibold text-rose-700">{error}</p>
       )}
 
-      {/* Save */}
       <div className="flex items-center gap-3">
         <button
           type="button"
           onClick={() => void handleSave()}
           disabled={saving || uploading || uploadingLogo}
-          className="rounded-xl bg-primary-600 px-6 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
+          className={loSolid}
         >
           {saving ? 'Saving…' : 'Save Profile'}
         </button>
         {saved && (
-          <span className="flex items-center gap-1 text-sm font-semibold text-emerald-600">
-            <span className="material-symbols-outlined text-base">check_circle</span>
+          <span className="flex items-center gap-1 text-sm font-semibold text-emerald-700">
+            <span aria-hidden="true" className="material-symbols-outlined text-base">check_circle</span>
             Saved!
           </span>
         )}
       </div>
 
-      <p className="text-[11px] text-slate-400">
+      <p className="text-xs text-slate-600">
         This profile shows on every listing you're co-branded on and in your AI financing bot. Keep it current so buyers see the real you.
       </p>
 
-      {/* Live preview */}
-      <div className="pt-2">
-        <p className="mb-3 text-sm font-semibold text-slate-700">Live preview — how buyers see you on listings</p>
+      <section className={loCard} aria-label="Live preview">
+        <div className="mb-3 flex items-center gap-2">
+          <p className="text-sm font-extrabold text-slate-900">Live preview: how buyers see you on listings</p>
+          <LoTag>Preview</LoTag>
+        </div>
         <div
           className="rounded-2xl p-5 text-white shadow-lg"
           style={{ background: 'linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%)' }}
@@ -471,17 +463,17 @@ const LOProfileSettings: React.FC = () => {
               />
             ) : (
               <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full border-2 border-white/30 bg-white/10">
-                <span className="material-symbols-outlined text-3xl text-white/60">person</span>
+                <span aria-hidden="true" className="material-symbols-outlined text-3xl text-white/80">person</span>
               </div>
             )}
             <div className="min-w-0">
               <p className="text-base font-bold leading-tight">
                 {[profile.first_name, profile.last_name].filter(Boolean).join(' ') || 'Your Name'}
               </p>
-              <p className="text-sm text-blue-100">{profile.title || 'Loan Officer'}</p>
-              <p className="text-sm text-blue-200">{profile.company || 'Your Company'}</p>
+              <p className="text-sm text-blue-50">{profile.title || 'Loan Officer'}</p>
+              <p className="text-sm text-blue-50">{profile.company || 'Your Company'}</p>
               {profile.nmls_number && (
-                <p className="mt-0.5 text-[11px] text-blue-300">NMLS# {profile.nmls_number}</p>
+                <p className="mt-0.5 text-xs text-blue-50">NMLS# {profile.nmls_number}</p>
               )}
             </div>
             {profile.logo_url && (
@@ -493,17 +485,17 @@ const LOProfileSettings: React.FC = () => {
             )}
           </div>
           <div className="mt-4 grid grid-cols-2 gap-2">
-            <button type="button" className="flex items-center justify-center gap-1.5 rounded-xl bg-white py-2.5 text-sm font-semibold text-blue-700 shadow-sm">
-              <span className="material-symbols-outlined text-base">call</span>
+            <button type="button" className="flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl bg-white py-2.5 text-sm font-semibold text-blue-700 shadow-sm">
+              <span aria-hidden="true" className="material-symbols-outlined text-base">call</span>
               Call
             </button>
-            <button type="button" className="flex items-center justify-center gap-1.5 rounded-xl border border-white/30 bg-white/10 py-2.5 text-sm font-semibold text-white">
-              <span className="material-symbols-outlined text-base">mail</span>
+            <button type="button" className="flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl border border-white/30 bg-white/10 py-2.5 text-sm font-semibold text-white">
+              <span aria-hidden="true" className="material-symbols-outlined text-base">mail</span>
               Email
             </button>
           </div>
         </div>
-      </div>
+      </section>
 
     </div>
   )

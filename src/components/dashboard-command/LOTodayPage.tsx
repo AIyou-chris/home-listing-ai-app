@@ -7,7 +7,7 @@ import CallNowHero from './CallNowHero'
 import { CallTextButtons, WaitingBadge } from './LeadActions'
 import type { DashboardLeadItem } from '../../services/dashboardCommandService'
 import { markLoLeadContacted, setLoLeadFollowUp } from '../../services/loLeads'
-import { LoIcon, LoIconTile, LoPageHeader, LoSectionCard, LoStat, LoTag, loGhost, loSolid } from './loUi'
+import { LoIcon, LoIconTile, LoPageHeader, LoSectionCard, LoStat, LoTag, loGhost, loInput, loSolid } from './loUi'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -169,7 +169,7 @@ const LoTestimonialAsk: React.FC = () => {
   const remember = (v: string) => { try { localStorage.setItem(TESTIMONIAL_FLAG, v); } catch { /* private mode */ } };
 
   const submit = async () => {
-    if (quote.trim().length < 10) { setError('Give us at least a sentence 🙂'); return; }
+    if (quote.trim().length < 10) { setError('Give us at least a sentence.'); return; }
     setState('sending');
     setError(null);
     try {
@@ -192,7 +192,7 @@ const LoTestimonialAsk: React.FC = () => {
   if (state === 'done') {
     return (
       <div className="rounded-2xl border border-green-200 bg-green-50 px-5 py-4 text-sm font-semibold text-green-800">
-        🙏 Thank you! We'll check with you before using your quote anywhere.
+        <span className="inline-flex items-center gap-2"><LoIcon name="favorite" className="text-xl" />Thank you! We'll check with you before using your quote anywhere.</span>
       </div>
     );
   }
@@ -202,12 +202,12 @@ const LoTestimonialAsk: React.FC = () => {
       <div className="flex items-start gap-3">
         <LoIconTile name="reviews" tone="amber" />
         <div className="min-w-0 flex-1">
-          <p className="text-lg font-extrabold text-slate-900">🎉 You're getting leads — mind sharing a sentence about it?</p>
+          <p className="text-lg font-extrabold text-slate-900">You're getting leads. Mind sharing a sentence about it?</p>
           <p className="mt-0.5 text-sm text-slate-600">Real words from real LOs are the only marketing we'll ever run. We'll ask before quoting you.</p>
         </div>
         <button
           onClick={() => { remember('dismissed'); setState('hidden'); }}
-          className="flex min-h-[44px] flex-shrink-0 items-center px-2 text-xs font-semibold text-slate-600 hover:text-slate-900"
+          className={`${loGhost} flex-shrink-0 !px-3 text-xs`}
         >
           No thanks
         </button>
@@ -215,7 +215,7 @@ const LoTestimonialAsk: React.FC = () => {
       {state === 'idle' ? (
         <button
           onClick={() => setState('open')}
-          className="mt-4 inline-flex min-h-[44px] items-center rounded-xl bg-amber-600 px-4 text-sm font-extrabold text-white shadow-sm transition-colors hover:bg-amber-700"
+          className={`${loGhost} mt-4`}
         >
           Sure, I'll say something
         </button>
@@ -227,15 +227,15 @@ const LoTestimonialAsk: React.FC = () => {
             maxLength={600}
             rows={3}
             placeholder='e.g. "Two warm leads in my first week — from listings I didn&apos;t pay a dime to advertise."'
-            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 placeholder-slate-500 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
+            className={loInput}
           />
           {error && <p className="mt-1 text-xs font-semibold text-red-700">{error}</p>}
           <button
             onClick={submit}
             disabled={state === 'sending'}
-            className="mt-2 inline-flex min-h-[44px] items-center rounded-xl bg-amber-600 px-4 text-sm font-extrabold text-white shadow-sm transition-colors hover:bg-amber-700 disabled:opacity-60"
+            className={`${loGhost} mt-2`}
           >
-            {state === 'sending' ? 'Sending…' : 'Send it 🚀'}
+            {state === 'sending' ? 'Sending…' : 'Send it'}
           </button>
         </div>
       )}
@@ -266,7 +266,7 @@ const AiActivityCard: React.FC<{ data: LODashboardData; navTo: (p: string) => vo
         {brain && brain.active && !brain.hasKnowledge && (
           <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm font-semibold text-amber-900">
             Your AI has nothing to read yet. Add your rate sheet and loan programs so it answers like you.{' '}
-            <button onClick={() => navTo('/lo-chatbot')} className="underline">Teach it now</button>
+            <button onClick={() => navTo('/lo-chatbot')} className={`${loGhost} mt-2 !bg-white`}>Teach it now</button>
           </p>
         )}
         {calls && (
@@ -341,7 +341,7 @@ const LOSetupChecklist: React.FC<{ setup: LOSetupState; onDismiss: () => void; n
         <div className="h-2 flex-1 overflow-hidden rounded-full bg-primary-100">
           <div className="h-full rounded-full bg-primary-600 transition-all duration-500" style={{ width: `${pct}%` }} />
         </div>
-        <button onClick={onDismiss} className="min-h-[44px] px-2 text-xs font-semibold text-slate-600 hover:text-slate-900" title="Dismiss">Dismiss</button>
+        <button onClick={onDismiss} className={`${loGhost} !px-3 text-xs`} title="Dismiss" aria-label="Dismiss">Dismiss</button>
       </div>
       <ul className="grid gap-2" aria-label="Setup checks">
         {steps.map((step, i) => (
@@ -494,7 +494,7 @@ const LOTodayPage: React.FC = () => {
         <h2 className="text-lg font-extrabold text-slate-900">Get your next warm lead</h2>
         <p className="text-sm text-slate-600">Send an agent a WOW link. Their buyers chat with your AI, and you get the lead.</p>
       </div>
-      <button onClick={() => navTo('/lo-partners')} className={`${loSolid} shrink-0`}>
+      <button onClick={() => navTo('/lo-partners')} className={`${heroLead ? loGhost : loSolid} shrink-0`}>
         <LoIcon name="send" className="text-lg" />Send a WOW link
       </button>
     </div>
@@ -507,8 +507,8 @@ const LOTodayPage: React.FC = () => {
 
       {/* ── Greeting ─────────────────────────────────────────────────────────── */}
       <LoPageHeader
-        title={`Good ${dayPart()} 👋`}
-        subtitle={`Here's your pipeline across ${stats.assignedListings} listing${stats.assignedListings !== 1 ? 's' : ''}.`}
+        title="Today"
+        subtitle={`Good ${dayPart()}. Here is your pipeline across ${stats.assignedListings} listing${stats.assignedListings !== 1 ? 's' : ''}.`}
       />
 
       {heroLead && <CallNowHero lead={heroLead} onOpen={(id) => navTo(`/lo-leads?lead=${id}`)} onCalled={handleCalled} />}
@@ -574,7 +574,7 @@ const LOTodayPage: React.FC = () => {
           {recentLeads.length === 0 ? (
             <div className="px-5 py-12 text-center text-sm text-slate-600">
               <p>No leads yet. The fastest way to get one:</p>
-              <button onClick={() => navTo('/lo-partners')} className={`${loSolid} mt-4`}>
+              <button onClick={() => navTo('/lo-partners')} className={`${heroLead ? loGhost : loSolid} mt-4`}>
                 <LoIcon name="send" className="text-lg" />Send a WOW link to an agent
               </button>
             </div>
@@ -639,7 +639,7 @@ const LOTodayPage: React.FC = () => {
                   <div className="h-10 w-10 flex-shrink-0 overflow-hidden rounded-lg bg-slate-100">
                     {listing.heroPhoto
                       ? <img src={listing.heroPhoto} alt="" className="h-full w-full object-cover" />
-                      : <div className="flex h-full w-full items-center justify-center text-lg text-slate-500">🏠</div>
+                      : <div className="flex h-full w-full items-center justify-center bg-primary-50 text-primary-700"><LoIcon name="home" className="text-xl" /></div>
                     }
                   </div>
                   <div className="min-w-0 flex-1">

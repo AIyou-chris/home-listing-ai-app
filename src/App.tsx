@@ -148,7 +148,7 @@ type AppRole = 'admin' | 'agent' | 'user' | null;
 // };
 
 import { ImpersonationProvider } from './context/ImpersonationContext';
-import { resolveDashboardPageTitle } from './utils/dashboardPageTitle';
+import { resolveDashboardPageTitle, pageRendersOwnTitle } from './utils/dashboardPageTitle';
 
 // ─── Module-level contexts ───────────────────────────────────────────────────
 // ProtectedDashboardLayout and CheckoutRouteWrapper are defined OUTSIDE App so
@@ -325,7 +325,9 @@ const DemoDashboardLayout = () => {
                     >
                         <span className="material-symbols-outlined text-xl">menu</span>
                     </button>
-                    <h1 className="truncate px-3 text-base font-semibold text-slate-900">{pageTitle}</h1>
+                    {pageRendersOwnTitle(location.pathname)
+                        ? <div className="flex-1" aria-hidden="true" />
+                        : <h1 className="truncate px-3 text-base font-semibold text-slate-900">{pageTitle}</h1>}
                     <div className="w-10" aria-hidden="true" />
                 </header>
                 <main className="relative z-0 flex-1 overflow-x-hidden overflow-y-auto bg-slate-50">
@@ -377,7 +379,9 @@ const BlueprintDashboardLayout = () => {
                     >
                         <span className="material-symbols-outlined text-xl">menu</span>
                     </button>
-                    <h1 className="truncate px-3 text-base font-semibold text-slate-900">{pageTitle}</h1>
+                    {pageRendersOwnTitle(location.pathname)
+                        ? <div className="flex-1" aria-hidden="true" />
+                        : <h1 className="truncate px-3 text-base font-semibold text-slate-900">{pageTitle}</h1>}
                     <div className="w-10" aria-hidden="true" />
                 </header>
                 <main className="relative z-0 flex-1 overflow-x-hidden overflow-y-auto bg-slate-50">
@@ -427,9 +431,11 @@ const ProtectedDashboardLayout: React.FC = () => {
                     >
                         <span className="material-symbols-outlined text-xl">menu</span>
                     </button>
-                    <h1 className="truncate px-3 text-base font-semibold text-slate-900">
-                        {resolveDashboardPageTitle(location.pathname)}
-                    </h1>
+                    {pageRendersOwnTitle(location.pathname)
+                        ? <div className="flex-1" aria-hidden="true" />
+                        : <h1 className="truncate px-3 text-base font-semibold text-slate-900">
+                            {resolveDashboardPageTitle(location.pathname)}
+                        </h1>}
                     <div className="flex w-10 justify-end">
                         {user && <NotificationSystem userId={user.uid} />}
                     </div>

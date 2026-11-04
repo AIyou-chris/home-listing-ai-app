@@ -230,7 +230,7 @@ const LOInvoicesPage: React.FC = () => {
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Filter invoices">
+        <div className="flex flex-wrap gap-2" role="tablist" aria-label="Filter invoices">
           {(['all', 'open', 'paid', 'void'] as Filter[]).map((f) => (
             <button
               key={f}
@@ -238,7 +238,7 @@ const LOInvoicesPage: React.FC = () => {
               role="tab"
               aria-selected={filter === f}
               onClick={() => setFilter(f)}
-              className={`min-h-[44px] rounded-full border px-4 text-sm font-bold capitalize transition ${filter === f ? 'border-primary-600 bg-primary-600 text-white' : 'border-slate-300 bg-white text-slate-700 hover:border-primary-500'}`}
+              className={`min-h-[44px] rounded-xl border px-4 text-sm font-bold capitalize transition ${filter === f ? 'border-primary-600 bg-primary-600 text-white shadow-sm' : 'border-slate-300 bg-white text-slate-800 hover:border-primary-500 hover:text-primary-700'}`}
             >
               {f}
             </button>
@@ -252,7 +252,9 @@ const LOInvoicesPage: React.FC = () => {
       </div>
 
       {loading ? (
-        <p className="py-10 text-center text-sm text-slate-600">Loading invoices…</p>
+        <div role="status" aria-label="Loading invoices" className="space-y-2">
+          {[0, 1, 2].map((n) => <div key={n} className={`${loCard} h-20 animate-pulse bg-slate-100`} />)}
+        </div>
       ) : error ? (
         <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           {error}{' '}
@@ -346,7 +348,7 @@ const LOInvoicesPage: React.FC = () => {
               <form onSubmit={(e) => void submit(e)} className="space-y-4">
                 <div className="flex items-center justify-between">
                   <h2 className="text-lg font-black text-slate-900">New invoice</h2>
-                  <button type="button" onClick={() => setFormOpen(false)} aria-label="Close" className="rounded-full px-3 py-1 text-xl text-slate-500">×</button>
+                  <button type="button" onClick={() => setFormOpen(false)} aria-label="Close" className="flex h-11 w-11 items-center justify-center rounded-xl text-slate-700 hover:bg-slate-100"><LoIcon name="close" /></button>
                 </div>
 
                 {partners.length > 0 && (
@@ -389,14 +391,14 @@ const LOInvoicesPage: React.FC = () => {
                         <input aria-label={`Line ${i + 1} amount`} inputMode="decimal" className={`${inputCls} !w-28 shrink-0`} value={line.amount} placeholder="$0.00"
                           onChange={(e) => setLines((prev) => prev.map((l, j) => (j === i ? { ...l, amount: e.target.value } : l)))} />
                         {lines.length > 1 && (
-                          <button type="button" aria-label={`Remove line ${i + 1}`} onClick={() => setLines((prev) => prev.filter((_, j) => j !== i))} className="shrink-0 rounded-lg px-2 text-lg text-slate-400">×</button>
+                          <button type="button" aria-label={`Remove line ${i + 1}`} onClick={() => setLines((prev) => prev.filter((_, j) => j !== i))} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-slate-700 hover:bg-slate-100"><LoIcon name="close" /></button>
                         )}
                       </div>
                     ))}
                   </div>
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {LINE_IDEAS.map((idea) => (
-                      <button key={idea} type="button" className="rounded-full border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-600"
+                      <button key={idea} type="button" className="min-h-[44px] rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800 hover:border-primary-500"
                         onClick={() => setLines((prev) => {
                           const emptyAt = prev.findIndex((l) => !l.description.trim() && !l.amount.trim())
                           if (emptyAt >= 0) return prev.map((l, j) => (j === emptyAt ? { ...l, description: idea } : l))
@@ -405,7 +407,7 @@ const LOInvoicesPage: React.FC = () => {
                         + {idea}
                       </button>
                     ))}
-                    <button type="button" className="rounded-full border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-600" onClick={() => setLines((prev) => (prev.length >= 20 ? prev : [...prev, emptyLine()]))}>+ Another line</button>
+                    <button type="button" className="min-h-[44px] rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800 hover:border-primary-500" onClick={() => setLines((prev) => (prev.length >= 20 ? prev : [...prev, emptyLine()]))}>+ Another line</button>
                   </div>
                   <p className="mt-2 text-right text-sm font-black text-slate-900">Total {formatCents(totalCents)}</p>
                 </div>
@@ -425,7 +427,7 @@ const LOInvoicesPage: React.FC = () => {
                   <textarea id="inv-note" rows={2} maxLength={1000} className={inputCls} value={note} onChange={(e) => setNote(e.target.value)} />
                 </div>
 
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-slate-600">
                   HomeListingAI does not process or hold payments and is not a party to this invoice. Check with your compliance team that the amounts you charge are right for your state.
                 </p>
                 {formError && <p role="alert" className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{formError}</p>}

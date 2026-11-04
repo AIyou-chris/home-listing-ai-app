@@ -13,3 +13,7 @@ export const resolveDashboardPageTitle = (pathname: string): string => {
   if (pathname.includes('/settings')) return 'Settings'
   return 'Today'
 }
+
+// LO pages, Settings and Billing print their own big page heading, so the header bar skips its title there.
+export const pageRendersOwnTitle = (pathname: string): boolean =>
+  /\/lo-[a-z-]+/.test(pathname) || /\/(settings|billing)(\/|$)/.test(pathname)

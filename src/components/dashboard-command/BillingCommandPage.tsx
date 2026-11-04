@@ -7,7 +7,8 @@ import {
   type DashboardBillingSnapshot,
   type PlanId
 } from '../../services/dashboardBillingService';
-import { LoIconTile, LoPageHeader, loCard, loGhost, loSolid } from './loUi';
+import { LoIcon, LoIconTile, LoPageHeader, LoTag, loCard, loCardTint, loGhost, loSolid } from './loUi';
+import { INCLUDED } from '../../lib/loPlanFeatures';
 import BillingValueProofWidget from '../dashboard-widgets/BillingValueProofWidget';
 
 const meterOrder: Array<keyof DashboardBillingSnapshot['usage']> = [
@@ -144,7 +145,14 @@ const BillingCommandPage: React.FC = () => {
   if (loading) {
     return (
       <div className="mx-auto max-w-5xl px-4 py-6 md:px-8">
-        <div className={`${loCard} text-sm text-slate-600`}>Loading billing…</div>
+        <div role="status" aria-label="Loading billing" className="space-y-5">
+          <div className={`${loCard} h-12 w-48 animate-pulse bg-slate-100`} />
+          <div className={`${loCard} h-64 animate-pulse bg-slate-100`} />
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className={`${loCard} h-24 animate-pulse bg-slate-100`} />
+            <div className={`${loCard} h-24 animate-pulse bg-slate-100`} />
+          </div>
+        </div>
       </div>
     );
   }
@@ -168,59 +176,76 @@ const BillingCommandPage: React.FC = () => {
       )}
 
       {error && (
-        <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>
+        <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{error}</div>
       )}
 
       <BillingValueProofWidget />
 
-      <section className={loCard} aria-label="Current plan">
-        <div className="flex flex-wrap items-center justify-between gap-4">
+      <section className={loCardTint} aria-label="Current plan">
+        <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex items-start gap-3">
             <LoIconTile name="credit_card" />
             <div>
-            <p className="text-xs font-bold text-slate-600">Current plan</p>
-            <p className="text-2xl font-black text-slate-900">{currentPlan.name}</p>
-            <p className="mt-1 text-sm text-slate-600">Status: {planStatus}</p>
-            <p className="text-sm text-slate-600">
-              {snapshot?.plan.current_period_end
-                ? `Next billing date: ${new Date(snapshot.plan.current_period_end).toLocaleDateString()}`
-                : 'No upcoming charge scheduled'}
-            </p>
+              <p className="text-xs font-bold text-primary-800">Current plan</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-2xl font-black text-slate-900">{currentPlan.name}</p>
+                <LoTag tone={planStatus === 'Past due' ? 'red' : 'green'}>{planStatus}</LoTag>
+              </div>
+              <p className="mt-1 text-sm text-slate-700">{currentPlan.subtitle}</p>
+              <p className="text-sm text-slate-700">
+                {snapshot?.plan.current_period_end
+                  ? `Next billing date: ${new Date(snapshot.plan.current_period_end).toLocaleDateString()}`
+                  : 'No upcoming charge scheduled'}
+              </p>
             </div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            {currentPlanId === 'free' ? (
-              <>
-                <button
-                  type="button"
-                  onClick={() => void startUpgrade('lo_lite')}
-                  disabled={busy !== null}
-                  className={loSolid}
-                >
-                  {busy === 'lo_lite' ? 'Loading…' : 'Start plan — $99/mo'}
-                </button>
-              </>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  onClick={() => void openPortal()}
-                  disabled={busy !== null}
-                  className={loGhost}
-                >
-                  {busy === 'portal' ? 'Loading…' : 'Manage plan'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void openPortal()}
-                  disabled={busy !== null}
-                  className={`${loGhost} !border-rose-300 !text-rose-700`}
-                >
-                  Cancel
-                </button>
-              </>
+          <div className="text-right">
+            <p className="text-4xl font-black tracking-tight text-slate-900">{currentPlan.monthly}</p>
+            {currentPlanId === 'free' && (
+              <p className="text-xs font-semibold text-slate-700">Launch price: $69/mo for the first 25 loan officers.</p>
             )}
           </div>
+        </div>
+
+        <ul className={`mt-5 grid gap-2 sm:grid-cols-2 ${currentPlanId === 'free' || currentPlanId === 'lo_lite' ? '' : 'hidden'}`}>
+          {INCLUDED.map((item) => (
+            <li key={item} className="flex items-start gap-2 text-sm text-slate-800">
+              <LoIcon name="check_circle" className="text-xl text-green-600" />
+              <span>{item}</span>
+            </li>
+          ))}
+        </ul>
+
+        <div className="mt-5 flex flex-wrap gap-2">
+          {currentPlanId === 'free' ? (
+            <button
+              type="button"
+              onClick={() => void startUpgrade('lo_lite')}
+              disabled={busy !== null}
+              className={loSolid}
+            >
+              {busy === 'lo_lite' ? 'Loading…' : 'Start plan — $99/mo'}
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => void openPortal()}
+                disabled={busy !== null}
+                className={loSolid}
+              >
+                {busy === 'portal' ? 'Loading…' : 'Manage plan'}
+              </button>
+              <button
+                type="button"
+                onClick={() => void openPortal()}
+                disabled={busy !== null}
+                className={`${loGhost} !border-rose-300 !text-rose-700`}
+              >
+                Cancel
+              </button>
+            </>
+          )}
         </div>
       </section>
 
@@ -233,15 +258,13 @@ const BillingCommandPage: React.FC = () => {
           const percent = formatPercent(used, limit);
           return (
             <article key={key} className={loCard}>
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-semibold text-slate-900">{meterLabels[key] || key}</p>
-                <p className="text-xs font-semibold text-slate-700">
-                  {used} / {limit > 0 ? limit : 0}
-                </p>
-              </div>
+              <p className="text-3xl font-black tracking-tight text-slate-900">
+                {used} <span className="text-base font-bold text-slate-700">/ {limit > 0 ? limit : 0}</span>
+              </p>
+              <p className="text-sm font-semibold text-slate-700">{meterLabels[key] || key}</p>
               <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200">
                 <div
-                  className={`h-full rounded-full ${percent >= 90 ? 'bg-rose-500' : percent >= 80 ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                  className={`h-full rounded-full ${percent >= 90 ? 'bg-rose-600' : percent >= 80 ? 'bg-amber-600' : 'bg-emerald-600'}`}
                   style={{ width: `${percent}%` }}
                 />
               </div>

@@ -187,7 +187,7 @@ const CalendarSettingsPage: React.FC<CalendarSettingsProps> = ({
                             <h4 className="font-semibold text-slate-800 flex items-center gap-2">
                                 SMS Reminders
                                 {smsComingSoon && (
-                                    <span className="inline-flex items-center rounded-full bg-amber-100 text-amber-700 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide">
+                                    <span className="inline-flex items-center rounded-full bg-amber-100 text-amber-900 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide">
                                         Unavailable
                                     </span>
                                 )}

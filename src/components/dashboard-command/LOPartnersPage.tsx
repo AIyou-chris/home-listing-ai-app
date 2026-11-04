@@ -5,7 +5,7 @@ import { buildApiUrl } from '../../lib/api'
 import { authHeaders } from '../../services/dashboard/utils'
 import { showToast } from '../../utils/toastService'
 import LOROIWidget from '../dashboard-widgets/LOROIWidget'
-import { LoPageHeader, LoSectionCard, LoIconTile, LoIcon, LoTag, loCardTint, loSolid, loGhost } from './loUi'
+import { LoPageHeader, LoSectionCard, LoIconTile, LoIcon, LoTag, LoStat, loCardTint, loSolid, loGhost, loInput } from './loUi'
 
 // ─── Auth helpers ─────────────────────────────────────────────────────────────
 
@@ -252,7 +252,7 @@ const InviteModal: React.FC<{ onClose: () => void; onSent: () => void; usage: In
     }
   }
 
-  const input = 'w-full border border-slate-300 rounded-xl px-4 py-3 text-sm text-slate-900 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500'
+  const input = loInput
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" role="dialog" aria-modal="true" aria-labelledby="invite-title" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}>
@@ -288,7 +288,7 @@ const InviteModal: React.FC<{ onClose: () => void; onSent: () => void; usage: In
           <>
             <div className="mb-2 flex items-center justify-between">
               <h3 id="invite-title" className="text-lg font-bold text-slate-900">Send a WOW Link</h3>
-              <button onClick={onClose} aria-label="Close" className="flex h-10 w-10 items-center justify-center rounded-full text-2xl text-slate-500 hover:bg-slate-100">×</button>
+              <button onClick={onClose} aria-label="Close" className="flex h-11 w-11 items-center justify-center rounded-full text-slate-600 transition hover:bg-slate-100"><LoIcon name="close" /></button>
             </div>
             <p className="mb-4 text-sm text-slate-600">
               The agent gets a live listing demo with your financing chatbot already running, before they even sign up.
@@ -524,7 +524,7 @@ const PartnerCard: React.FC<{ partner: Partner; onViewListings: (p: Partner) => 
           <div>
             <p className="mb-1.5 text-xs font-bold uppercase tracking-wide text-slate-600">Notes</p>
             <textarea
-              className="w-full resize-none rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder-slate-500 focus:border-primary-600 focus:outline-none focus:ring-2 focus:ring-primary-200"
+              className={`${loInput} resize-none`}
               rows={2}
               placeholder={`Notes about ${partner.name.split(' ')[0]}…`}
               value={notesDraft}
@@ -584,7 +584,7 @@ const PartnerCard: React.FC<{ partner: Partner; onViewListings: (p: Partner) => 
             <div className="w-9 h-9 rounded-lg overflow-hidden bg-slate-100 flex-shrink-0">
               {listing.heroPhoto
                 ? <img src={listing.heroPhoto} alt="" className="w-full h-full object-cover" />
-                : <div className="flex h-full w-full items-center justify-center text-slate-500">🏠</div>
+                : <div className="flex h-full w-full items-center justify-center bg-primary-50 text-primary-700"><LoIcon name="home" className="text-xl" /></div>
               }
             </div>
             <div className="flex-1 min-w-0">
@@ -681,7 +681,7 @@ const PartnerCard: React.FC<{ partner: Partner; onViewListings: (p: Partner) => 
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-label="Recap preview">
           <div className="flex max-h-[90vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
             <div className="border-b border-slate-100 px-5 py-4">
-              <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Preview. Nothing is sent yet.</p>
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-600">Preview. Nothing is sent yet.</p>
               <p className="mt-1 text-sm font-semibold text-slate-900">To: {recapPreview.to}</p>
               <p className="text-sm text-slate-600">{recapPreview.subject}</p>
             </div>
@@ -740,116 +740,102 @@ const PartnerDetail: React.FC<{ partner: Partner; onClose: () => void }> = ({ pa
   return (
   <div className="fixed inset-0 z-40 flex" role="dialog" aria-modal="true" aria-label={`${partner.name} details`}>
     <div className="flex-1 bg-black/30" onClick={onClose} />
-    <div className="w-full max-w-lg bg-white h-full overflow-y-auto shadow-2xl">
+    <div className="h-full w-full max-w-lg overflow-y-auto bg-slate-50 shadow-2xl">
       {/* Header */}
-      <div className="sticky top-0 bg-white border-b border-slate-100 pl-6 pr-16 py-4 flex items-center gap-4 z-10">
-        <button onClick={onClose} aria-label="Back to partners" className="flex h-10 w-10 items-center justify-center rounded-full text-xl font-bold text-slate-500 hover:bg-slate-100 hover:text-slate-800">←</button>
-        <Avatar src={partner.headshotUrl} name={partner.name} size={36} />
-        <div className="flex-1">
-          <p className="font-bold text-slate-900">{partner.name}</p>
-          <p className="text-xs text-slate-400">{partner.company || '—'}</p>
+      <div className="sticky top-0 z-10 flex items-center gap-3 border-b border-slate-200 bg-white py-3 pl-4 pr-16">
+        <button onClick={onClose} aria-label="Back to partners" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-700 transition hover:bg-slate-100 hover:text-slate-900"><LoIcon name="arrow_back" /></button>
+        <Avatar src={partner.headshotUrl} name={partner.name} size={40} />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-base font-extrabold text-slate-900">{partner.name}</p>
+          <p className="truncate text-xs text-slate-600">{partner.company || '—'}</p>
         </div>
       </div>
 
-      <div className="p-6 space-y-6">
+      <div className="space-y-4 p-4 sm:p-5">
         {/* Stats row */}
         <div className="grid grid-cols-3 gap-3">
-          <div className="rounded-xl border border-slate-200 p-4 text-center">
-            <p className="text-2xl font-black text-slate-900">{partner.totalLeads}</p>
-            <p className="text-[10px] text-slate-400 font-semibold uppercase mt-0.5">Total Leads</p>
-          </div>
-          <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4 text-center">
-            <p className="text-2xl font-black text-emerald-700">{partner.listings.reduce((s, l) => s + l.totalViews, 0)}</p>
-            <p className="text-[10px] text-emerald-500 font-semibold uppercase mt-0.5">Views</p>
-          </div>
-          <div className="rounded-xl border border-slate-200 p-4 text-center">
-            <p className="text-2xl font-black text-slate-900">{partner.listings.length}</p>
-            <p className="text-[10px] text-slate-400 font-semibold uppercase mt-0.5">Listings</p>
-          </div>
+          <LoStat value={partner.totalLeads} label="Leads" />
+          <LoStat value={partner.listings.reduce((sum, l) => sum + l.totalViews, 0)} label="Views" />
+          <LoStat value={partner.listings.length} label="Listings" />
         </div>
 
         {/* Contact */}
-        <div className="rounded-xl border border-slate-200 p-4 space-y-2.5">
-          <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">Contact</p>
-          {partner.phone && (
-            <div className="flex items-center gap-2">
-              <span>📞</span>
-              <a href={`tel:${partner.phone}`} className="text-sm font-semibold text-slate-800 hover:text-primary-600">{partner.phone}</a>
-              <span className="text-slate-300">·</span>
-              <a href={`sms:${partner.phone}`} className="text-xs text-slate-500 hover:text-primary-600">Text</a>
-            </div>
-          )}
-          {partner.email && (
-            <div className="flex items-center gap-2">
-              <span>✉️</span>
-              <a href={`mailto:${partner.email}`} className="text-sm font-semibold text-slate-800 hover:text-primary-600">{partner.email}</a>
-            </div>
-          )}
-          {partner.website && (
-            <div className="flex items-center gap-2">
-              <span>🌐</span>
-              <a href={partner.website} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-primary-600 hover:text-primary-700">{partner.website.replace(/^https?:\/\//, '')}</a>
-            </div>
-          )}
-          <p className="text-xs text-slate-400 pt-1">Partner since {new Date(partner.joinedAt).toLocaleDateString()}</p>
-        </div>
+        <LoSectionCard icon="contact_phone" title="Contact" description={`Partner since ${new Date(partner.joinedAt).toLocaleDateString()}`}>
+          <div className="flex flex-wrap gap-2">
+            {partner.phone && (
+              <>
+                <a href={`tel:${partner.phone}`} className={loGhost}><LoIcon name="call" className="text-lg" />Call</a>
+                <a href={`sms:${partner.phone}`} className={loGhost}><LoIcon name="sms" className="text-lg" />Text</a>
+              </>
+            )}
+            {partner.email && (
+              <a href={`mailto:${partner.email}`} className={loGhost}><LoIcon name="mail" className="text-lg" />Email</a>
+            )}
+          </div>
+          <div className="mt-3 space-y-1 text-sm text-slate-700">
+            {partner.phone && <p className="break-words font-semibold">{partner.phone}</p>}
+            {partner.email && <p className="break-all font-semibold">{partner.email}</p>}
+            {partner.website && (
+              <a href={partner.website} target="_blank" rel="noopener noreferrer" className="block break-all font-semibold text-primary-700 hover:text-primary-800">{partner.website.replace(/^https?:\/\//, '')}</a>
+            )}
+          </div>
+        </LoSectionCard>
 
         {/* Notes */}
-        <div className="rounded-xl border border-slate-200 p-4">
-          <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">Notes</p>
+        <LoSectionCard icon="sticky_note_2" title="Notes" tone="amber">
           <textarea
-            className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-primary-400 resize-none"
+            className={`${loInput} resize-none`}
             rows={3}
+            aria-label="Notes"
             placeholder={`Notes about ${partner.name.split(' ')[0]}…`}
             value={notesDraft}
             onChange={e => setNotesDraft(e.target.value)}
           />
-          <div className="flex justify-end mt-2">
+          <div className="mt-3 flex justify-end">
             <button
               onClick={saveNotes}
               disabled={notesDraft === (loadMeta()[partner.partnershipId]?.notes || '')}
-              className="text-xs font-semibold px-4 py-1.5 rounded-lg bg-primary-600 text-white disabled:opacity-40 hover:bg-primary-700 transition-all"
+              className={loSolid}
             >
               {notesSaved ? '✓ Saved' : 'Save Notes'}
             </button>
           </div>
-        </div>
+        </LoSectionCard>
 
         {/* Schedule appointment */}
         <button
           type="button"
           onClick={() => navigate(scheduleWithPartner(partner, demoMode))}
-          className="flex items-center justify-center gap-2 w-full bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-xl py-3 text-sm transition-all"
+          className={`${loSolid} w-full`}
         >
-          📅 Schedule Appointment
+          <LoIcon name="event" className="text-lg" />Schedule Appointment
         </button>
         {!demoMode && partner.email && (
           <button
             type="button"
             onClick={() => navigate(invoiceWithPartner(partner))}
-            className="flex items-center justify-center gap-2 w-full border border-slate-200 rounded-xl py-3 text-sm font-bold text-slate-700 bg-white hover:bg-slate-50 transition-all"
+            className={`${loGhost} w-full`}
           >
-            🧾 Send invoice
+            <LoIcon name="receipt_long" className="text-lg" />Send invoice
           </button>
         )}
 
         {/* Listings */}
-        <div>
-          <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">Listings</p>
+        <LoSectionCard icon="home_work" title="Listings" tone="green">
           <div className="space-y-3">
             {partner.listings.map(listing => (
-              <div key={listing.listingId} className="rounded-xl border border-slate-200 overflow-hidden">
+              <div key={listing.listingId} className="overflow-hidden rounded-xl border border-slate-200 bg-white">
                 {listing.heroPhoto && (
-                  <img src={listing.heroPhoto} alt="" className="w-full h-28 object-cover" />
+                  <img src={listing.heroPhoto} alt="" className="h-28 w-full object-cover" />
                 )}
-                <div className="p-4 space-y-3">
+                <div className="space-y-3 p-4">
                   <div>
-                    <p className="font-semibold text-slate-900 text-sm">{listing.address}</p>
-                    <div className="flex items-center gap-3 mt-1">
-                      <span className="text-sm text-slate-500">{formatPrice(listing.price)}</span>
+                    <p className="text-sm font-extrabold text-slate-900">{listing.address}</p>
+                    <div className="mt-1 flex items-center gap-3">
+                      <span className="text-sm text-slate-700">{formatPrice(listing.price)}</span>
                       {listing.status === 'published'
-                        ? <span className="text-xs font-bold text-emerald-600">● Live</span>
-                        : <span className="text-xs text-slate-400">Draft</span>
+                        ? <LoTag tone="green">Live</LoTag>
+                        : <LoTag tone="slate">Draft</LoTag>
                       }
                     </div>
                   </div>
@@ -858,10 +844,10 @@ const PartnerDetail: React.FC<{ partner: Partner; onClose: () => void }> = ({ pa
               </div>
             ))}
             {partner.listings.length === 0 && (
-              <p className="text-sm text-slate-400 text-center py-4">No listings yet — add one from the LO Listings page.</p>
+              <p className="py-4 text-center text-sm text-slate-600">No listings yet — add one from the LO Listings page.</p>
             )}
           </div>
-        </div>
+        </LoSectionCard>
 
       </div>
     </div>

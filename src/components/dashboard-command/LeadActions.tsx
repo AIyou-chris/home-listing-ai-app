@@ -44,13 +44,13 @@ export const LeadReason: React.FC<{ lead: DashboardLeadItem; className?: string 
 
 export const CallTextButtons: React.FC<{ phone: string | null; big?: boolean; onUsed?: () => void }> = ({ phone, big = false, onUsed }) => {
   if (!phone) return null
-  const size = big ? 'min-h-[44px] px-5 text-sm' : 'min-h-[36px] px-3 text-xs'
+  const size = big ? 'min-h-[44px] px-5 text-sm' : 'min-h-[44px] px-4 text-sm'
   return (
     <>
-      <a href={`tel:${phone}`} onClick={onUsed} className={`inline-flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600 font-bold text-white hover:bg-emerald-700 ${size}`}>
+      <a href={`tel:${phone}`} onClick={onUsed} className={`inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 font-bold text-white hover:bg-emerald-700 ${size}`}>
         <span className="material-symbols-outlined text-[18px]">call</span> Call
       </a>
-      <a href={`sms:${phone}`} onClick={onUsed} className={`inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-300 bg-white font-bold text-slate-800 hover:bg-slate-50 ${size}`}>
+      <a href={`sms:${phone}`} onClick={onUsed} className={`inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-300 bg-white font-bold text-slate-800 hover:bg-slate-50 ${size}`}>
         <span className="material-symbols-outlined text-[18px]">sms</span> Text
       </a>
     </>
@@ -60,7 +60,7 @@ export const CallTextButtons: React.FC<{ phone: string | null; big?: boolean; on
 export const AskLoButton: React.FC<{ lead: Pick<DashboardLeadItem, 'id' | 'name' | 'can_ask_lo' | 'lo_name'>; big?: boolean }> = ({ lead, big = false }) => {
   const [state, setState] = useState<'idle' | 'sending' | 'sent'>('idle')
   if (!lead.can_ask_lo) return null
-  const size = big ? 'min-h-[44px] px-5 text-sm' : 'min-h-[36px] px-3 text-xs'
+  const size = big ? 'min-h-[44px] px-5 text-sm' : 'min-h-[44px] px-4 text-sm'
   const who = lead.lo_name || 'my loan officer'
   const send = async () => {
     setState('sending')
@@ -78,7 +78,7 @@ export const AskLoButton: React.FC<{ lead: Pick<DashboardLeadItem, 'id' | 'name'
       type="button"
       onClick={() => void send()}
       disabled={state !== 'idle'}
-      className={`inline-flex items-center justify-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 font-bold text-emerald-800 hover:bg-emerald-100 disabled:opacity-70 ${size}`}
+      className={`inline-flex items-center justify-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 font-bold text-emerald-800 hover:bg-emerald-100 disabled:opacity-70 ${size}`}
     >
       <span className="material-symbols-outlined text-[18px]">{state === 'sent' ? 'check_circle' : 'support_agent'}</span>
       {state === 'sent' ? 'Asked ✓' : state === 'sending' ? 'Sending…' : `Ask ${who} to call`}

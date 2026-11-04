@@ -340,18 +340,18 @@ const LOPromotePage: React.FC = () => {
 
         <section className={card} aria-label="Your week">
           <h2 className="text-lg font-extrabold text-slate-900">🗓 Your week</h2>
-          <p className="mb-4 mt-1 text-sm text-slate-600">Plan it once. Tap a post to edit it. Saved on this device.</p>
+          <p className="mb-4 mt-1 text-sm text-slate-700">Plan it once. Tap a post to edit it. Saved on this device.</p>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
             {DAYS.map((d, i) => (
               <div key={d} className={`min-h-[110px] rounded-xl border p-2 ${i === today ? 'border-primary-600 bg-primary-50' : 'border-slate-200 bg-slate-50'}`}>
                 <p className="mb-1 text-xs font-bold text-slate-900">{d}{i === today ? ' · today' : ''}</p>
                 {plan.filter((p) => p.day === i).map((p) => (
-                  <div key={p.id} className="mb-1 rounded-lg bg-slate-300 p-1.5 text-[11px] font-bold text-slate-900">
+                  <div key={p.id} className="mb-1 rounded-lg bg-slate-300 p-1.5 text-xs font-bold text-slate-900">
                     <button type="button" className="block w-full text-left" onClick={() => loadFromPlan(p)}>{PLATFORMS[p.platform]}<br />{p.title}</button>
-                    <button type="button" aria-label="Remove from plan" onClick={() => removeFromPlan(p.id)} className="mt-0.5 text-[10px] font-semibold underline">remove</button>
+                    <button type="button" aria-label="Remove from plan" onClick={() => removeFromPlan(p.id)} className="mt-0.5 text-xs font-semibold underline">remove</button>
                   </div>
                 ))}
-                {!plan.some((p) => p.day === i) && <p className="rounded-lg border border-dashed border-slate-300 p-1.5 text-[11px] text-slate-600">open</p>}
+                {!plan.some((p) => p.day === i) && <p className="rounded-lg border border-dashed border-slate-300 p-1.5 text-xs text-slate-700">open</p>}
               </div>
             ))}
           </div>

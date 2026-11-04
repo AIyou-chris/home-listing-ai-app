@@ -255,12 +255,12 @@ const NotificationSettingsPage: React.FC<NotificationSettingsProps> = ({
                                     <h4 className="font-medium text-slate-900 flex items-center gap-2">
                                         {item.label}
                                         {smsComingSoon && (item.key === 'smsNewLeadAlerts' || item.key === 'voiceAppointmentReminders') && (
-                                            <span className="inline-flex items-center rounded-full bg-amber-100 text-amber-700 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide">
+                                            <span className="inline-flex items-center rounded-full bg-amber-100 text-amber-900 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide">
                                                 Unavailable
                                             </span>
                                         )}
                                         {smsLocked && (item.key === 'voiceAppointmentReminders' || item.key === 'smsNewLeadAlerts') && (
-                                            <span className="inline-flex items-center rounded-full bg-indigo-100 text-indigo-700 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide">
+                                            <span className="inline-flex items-center rounded-full bg-indigo-100 text-indigo-800 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide">
                                                 PAID
                                             </span>
                                         )}
