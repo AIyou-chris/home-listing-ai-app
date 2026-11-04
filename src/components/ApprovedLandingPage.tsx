@@ -163,6 +163,14 @@ function Box({ children, chips }: { children: React.ReactNode; chips?: React.Rea
 }
 const Float = ({ at, children }: { at: string; children: React.ReactNode }) => <div className={`ll-float ${at}`}><div className="l3-in">{children}</div></div>;
 
+const PATH = [
+  ['link', 'Share your link', 'Post your borrower link, a Homebuyer 101 lesson, or a loan program page. Make the post, image or video in a few taps.', 'Buyers find you'],
+  ['forum', 'They learn and ask', 'The lesson, the AI chat and your AI phone line answer buyers in your voice, day and night.', 'They open up'],
+  ['notifications_active', 'You get the lead', 'You see who they are, where they came from and what they asked. You and your agent partner get an alert.', 'Only you have it'],
+  ['event_available', 'You follow up on time', 'Pick “check back in 3 days.” It shows on your Today page so nobody slips away.', 'No one is forgotten'],
+  ['emoji_events', 'You close the loan', 'You were first in the conversation, you knew the question, and you called at the right time.', 'More closed deals'],
+];
+
 /* ---------- Page ---------- */
 
 
@@ -218,7 +226,7 @@ export default function ApprovedLandingPage(props: Props) {
   const untilt = () => { heroRef.current?.style.setProperty('--mx', '0'); heroRef.current?.style.setProperty('--my', '0'); };
   useEffect(() => {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    const nodes = Array.from(root.current?.querySelectorAll<HTMLElement>('.ll-tour, .ll-price, .ll-three') || []);
+    const nodes = Array.from(root.current?.querySelectorAll<HTMLElement>('.ll-tour, .ll-price, .ll-three, .ll-path') || []);
     let raf = 0;
     const update = () => {
       raf = 0;
@@ -275,6 +283,32 @@ export default function ApprovedLandingPage(props: Props) {
         </div>
       </section>
 
+      {/* HOW IT WORKS: the simple path to a closed loan */}
+      <section id="how-it-works" className="ll-section ll-pathsec">
+        <div className="ll-wrap">
+          <p className="ll-eyebrow ll-center">How it works</p>
+          <h2 className="ll-h2 ll-center">From first click to <span>closed loan.</span></h2>
+          <p className="ll-center ll-lead-copy">Five simple steps. Each one puts you in the conversation first.</p>
+          <ol className="ll-path">
+            <li className="ll-pathline" aria-hidden="true"><i /></li>
+            {PATH.map(([ic, t, d, r], i) => (
+              <li key={t} className="ll-pstep ll-reveal" style={{ transitionDelay: `${i * 90}ms` }}>
+                <span className="ll-pnode"><Icon name={ic} /><b>{i + 1}</b></span>
+                <h3>{t}</h3>
+                <p>{d}</p>
+                <span className="ll-presult"><Icon name="check_circle" />{r}</span>
+              </li>
+            ))}
+          </ol>
+          <div className="ll-why ll-reveal">
+            {[['bolt', 'You are first', 'The buyer asks you, not a lead list.'], ['lock', 'You are the only one', 'No shared leads. No race against other loan officers.'], ['schedule', 'You never forget', 'Reminders bring every not-ready buyer back to you.']].map(([ic, t, d]) => (
+              <div key={t}><span className="ll-chip"><Icon name={ic} /></span><b>{t}</b><small>{d}</small></div>
+            ))}
+          </div>
+          <div className="ll-center"><button type="button" className="ll-btn ll-btn-solid" onClick={trial}>Start your free trial <Icon name="arrow_forward" /></button></div>
+        </div>
+      </section>
+
       {/* THREE WAYS */}
       <section className="ll-section ll-tint ll-reveal">
         <div className="ll-wrap">
@@ -292,7 +326,7 @@ export default function ApprovedLandingPage(props: Props) {
       </section>
 
       {/* TOUR */}
-      <section id="how-it-works" className="ll-section">
+      <section id="see-it" className="ll-section">
         <div className="ll-wrap">
           <p className="ll-eyebrow ll-center">How it works</p>
           <h2 className="ll-h2 ll-center">Create. Capture. <span>Follow up.</span></h2>
