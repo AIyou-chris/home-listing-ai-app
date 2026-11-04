@@ -369,3 +369,13 @@
   .ll-mkcta .ll-btn{width:100%}
 }
 @media (prefers-reduced-motion:reduce){.ll-mkflyer,.ll-mkchip{transform:none}}
+
+.ll-mktools{margin-top:72px}
+.ll .ll-mkh3{font-size:clamp(24px,3vw,36px);font-weight:900;line-height:1.1;text-align:center;color:#0b1736;margin-bottom:26px}
+.ll .ll-mkh3 span{color:#1d4ed8}
+.ll-mktiles{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.ll-mktile{background:#fff;border:1px solid #dbe5f5;border-radius:18px;padding:20px;box-shadow:0 10px 30px #17376814}
+.ll .ll-mktile h4{font-size:17px;font-weight:800;color:#0b1736;margin:12px 0 6px}
+.ll-mktile p{font-size:14.5px;line-height:1.5;color:#475569}
+@media(max-width:960px){.ll-mktiles{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:560px){.ll-mktiles{grid-template-columns:1fr}.ll-mktools{margin-top:48px}}

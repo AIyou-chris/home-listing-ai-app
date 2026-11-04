@@ -429,6 +429,19 @@ export default function ApprovedLandingPage(props: Props) {
             <small className="ll-mknote">Try it yourself. Fill it in like a buyer and it shows up in my account, so I can follow up. The flyer is a sample. Yours gets your name, photo and QR code.</small>
           </div>
         </div>
+        <div className="ll-wrap ll-mktools">
+          <h3 className="ll-mkh3">Posts and videos, <span>written for you. Approved by you.</span></h3>
+          <div className="ll-mktiles">
+            {[
+              ['edit_note', 'Social posts in seconds', 'Pick a topic and the AI writes drafts for LinkedIn, Facebook, Instagram and email. Edit the words, add your picture, share with one tap.'],
+              ['movie', 'Short branded videos', 'Make a video from a program, a lesson or a listing. Your name and NMLS are on it. Download it and post it anywhere.'],
+              ['palette', 'Pictures that match', 'Pick a shape and a color, drop in a photo, and get a post image ready to download. No design skills needed.'],
+              ['toggle_on', 'You stay in control', 'Every post starts as a draft. You read it, change it, and press share. Nothing goes out without your yes.'],
+            ].map(([ic, t, d]) => (
+              <article key={t} className="ll-mktile"><span className="ll-chip ll-chip-lg"><Icon name={ic} /></span><h4>{t}</h4><p>{d}</p></article>
+            ))}
+          </div>
+        </div>
       </section>
 
       {/* THREE WAYS */}
