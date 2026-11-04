@@ -171,6 +171,65 @@ const PATH = [
   ['emoji_events', 'You close the loan', 'You were first in the conversation, you knew the question, and you called at the right time.', 'More closed deals'],
 ];
 
+function PhoneShell({ title, children, className = '' }: { title: string; children: React.ReactNode; className?: string }) {
+  return (
+    <div className={`ll-phone ll-wphone ${className}`} role="img" aria-label={title}>
+      <div className="ll-notch" />
+      <div className="ll-ptop"><Icon name="home" /> WOW Link <small>with your loan officer</small></div>
+      {children}
+    </div>
+  );
+}
+
+function WowListing() {
+  return (
+    <PhoneShell title="Example WOW Link: a listing with the agent and loan officer side by side">
+      <img src="/assets/landing/preview-home.jpg" alt="" width="640" height="480" loading="lazy" />
+      <div className="ll-pbody">
+        <b>124 Oak Street</b><small>Example listing · 4 bed · 3 bath</small>
+        <div className="ll-lo"><span className="ll-av">AG</span><div><b>Agent Name</b><small>Listing agent</small></div></div>
+        <div className="ll-lo"><span className="ll-av">YN</span><div><b>Your Name, Loan Officer</b><small>NMLS # shown here</small></div></div>
+        <div className="ll-ask"><Icon name="chat" /> Ask about financing</div>
+      </div>
+    </PhoneShell>
+  );
+}
+
+function WowChat() {
+  return (
+    <PhoneShell title="Example WOW Link chat: a buyer asks a financing question and the AI answers">
+      <div className="ll-pbody ll-chatbody">
+        <p className="ll-bub me">What would I need to put down on this one?</p>
+        <p className="ll-bub ai">Good question. Down payment options depend on the loan type. I can walk you through the choices. Want Your Name to follow up?</p>
+        <p className="ll-bub me">Yes please</p>
+        <p className="ll-bub ai">Great. What is your name and best number?</p>
+        <div className="ll-ask"><Icon name="send" /> Type a message…</div>
+      </div>
+    </PhoneShell>
+  );
+}
+
+function WowTour() {
+  return (
+    <PhoneShell title="Example WOW Link tour booking: choose a day and time to see the home">
+      <div className="ll-pbody">
+        <b>Book a tour</b><small>Pick a day that works for you</small>
+        <div className="ll-days">{['Sat', 'Sun', 'Mon', 'Tue'].map((d, i) => <span key={d} className={i === 1 ? 'on' : ''}>{d}</span>)}</div>
+        <div className="ll-times">{['10:00', '11:30', '1:00', '3:30'].map((t, i) => <span key={t} className={i === 2 ? 'on' : ''}>{t}</span>)}</div>
+        <div className="ll-ask"><Icon name="event_available" /> Request this tour</div>
+        <small>Your agent and your loan officer both get the request.</small>
+      </div>
+    </PhoneShell>
+  );
+}
+
+const WOW_STEPS = [
+  ['send', 'Send the link', 'Pick a listing and tap Send a WOW Link. The agent gets it by text or email.'],
+  ['phone_iphone', 'The agent opens an app', 'Their listing, their photos, and your name and NMLS number side by side.'],
+  ['forum', 'Buyers ask, the AI answers', 'Questions about the home and the financing get answered right away, in your voice.'],
+  ['notifications_active', 'You get the lead', 'Name, number and question go to you and your agent partner. Nobody else gets it.'],
+];
+
 /* ---------- Page ---------- */
 
 
@@ -226,7 +285,7 @@ export default function ApprovedLandingPage(props: Props) {
   const untilt = () => { heroRef.current?.style.setProperty('--mx', '0'); heroRef.current?.style.setProperty('--my', '0'); };
   useEffect(() => {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    const nodes = Array.from(root.current?.querySelectorAll<HTMLElement>('.ll-tour, .ll-price, .ll-three, .ll-path') || []);
+    const nodes = Array.from(root.current?.querySelectorAll<HTMLElement>('.ll-tour, .ll-price, .ll-three, .ll-path, .ll-wow') || []);
     let raf = 0;
     const update = () => {
       raf = 0;
@@ -309,6 +368,37 @@ export default function ApprovedLandingPage(props: Props) {
         </div>
       </section>
 
+      {/* WOW LINK: its own big section */}
+      <section id="wow-link" className="ll-wowsec ll-wow">
+        <div className="ll-wowglow" aria-hidden="true" />
+        <div className="ll-wrap ll-wowgrid">
+          <div className="ll-wowcopy">
+            <p className="ll-eyebrow ll-eyebrow-dark">The WOW Link</p>
+            <h2>Give every agent a listing app <span>with your name on it.</span></h2>
+            <p className="ll-wowlead">Send one link. Their listing opens as an app, co-branded with you. Buyers ask about the home, then talk to you. This is how you get in front of the buyers your agent partners already have.</p>
+            <ol className="ll-wowsteps">
+              {WOW_STEPS.map(([ic, t, d], i) => (
+                <li key={t}><span className="ll-wown"><Icon name={ic} /></span><div><b>{i + 1}. {t}</b><small>{d}</small></div></li>
+              ))}
+            </ol>
+            <ul className="ll-wowchips" aria-label="What is in a WOW Link">
+              {['Your name and NMLS on every screen', 'Agent and you side by side', 'AI chat 24/7', 'Tour booking', 'Live lead dashboard for the agent', 'QR code and share kit'].map(t => <li key={t}><Icon name="check_circle" />{t}</li>)}
+            </ul>
+            <div className="ll-wowcta">
+              <button type="button" className="ll-btn ll-btn-white" onClick={trial}>Send your first WOW Link <Icon name="arrow_forward" /></button>
+              <small>50 WOW Links a month are included. 7-day free trial, no card.</small>
+            </div>
+          </div>
+          <div className="ll-wowstage">
+            <div className="ll-wl l1"><div className="l3-in"><WowListing /></div></div>
+            <div className="ll-wl l2"><div className="l3-in"><WowChat /></div></div>
+            <div className="ll-wl l3"><div className="l3-in"><WowTour /></div></div>
+            <div className="ll-wlbadge b1"><div className="l3-in"><span className="ll-chip ll-chip-ok"><Icon name="notifications_active" /></span><div><b>New lead</b><small>Sent to you and the agent</small></div></div></div>
+            <div className="ll-wlbadge b2"><div className="l3-in"><span className="ll-chip"><Icon name="qr_code_2" /></span><div><b>Scan to open</b><small>On a sign or a flyer</small></div></div></div>
+          </div>
+        </div>
+      </section>
+
       {/* THREE WAYS */}
       <section className="ll-section ll-tint ll-reveal">
         <div className="ll-wrap">
@@ -345,11 +435,6 @@ export default function ApprovedLandingPage(props: Props) {
             <div><p className="ll-step">3 · Follow up</p><h3>Never lose a not-ready buyer.</h3>
               <p>Pick “check back in 3 days” and it shows up on your Today page. Your AI Brain answers buyers and calls in your voice in the meantime.</p></div>
             <Box chips={<Float at="f-tr"><BrainCard /></Float>}><BrainMock /></Box>
-          </div>
-          <div className="ll-tour ll-flip ll-reveal">
-            <div><p className="ll-step">Bonus · Agent partners</p><h3>Give agents a WOW Link.</h3>
-              <p>Their listing opens as an app with your name and NMLS number on it. Buyers ask about the home, then talk to you. Nobody else gets the lead.</p></div>
-            <div className="ll-phonewrap"><Box chips={<><Float at="f-tl"><QrChip /></Float><Float at="f-br"><ScoreChip /></Float></>}><Phone /></Box></div>
           </div>
         </div>
       </section>
