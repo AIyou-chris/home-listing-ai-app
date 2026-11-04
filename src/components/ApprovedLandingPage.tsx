@@ -390,9 +390,9 @@ export default function ApprovedLandingPage(props: Props) {
             </div>
           </div>
           <div className="ll-wowstage">
-            <div className="ll-wl l1"><div className="l3-in"><WowListing /></div></div>
-            <div className="ll-wl l2"><div className="l3-in"><WowChat /></div></div>
-            <div className="ll-wl l3"><div className="l3-in"><WowTour /></div></div>
+            <div className="ll-wl w1"><div className="l3-in"><WowListing /></div></div>
+            <div className="ll-wl w2"><div className="l3-in"><WowChat /></div></div>
+            <div className="ll-wl w3"><div className="l3-in"><WowTour /></div></div>
             <div className="ll-wlbadge b1"><div className="l3-in"><span className="ll-chip ll-chip-ok"><Icon name="notifications_active" /></span><div><b>New lead</b><small>Sent to you and the agent</small></div></div></div>
             <div className="ll-wlbadge b2"><div className="l3-in"><span className="ll-chip"><Icon name="qr_code_2" /></span><div><b>Scan to open</b><small>On a sign or a flyer</small></div></div></div>
           </div>

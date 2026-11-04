@@ -307,9 +307,9 @@
 .ll-wl{position:absolute;top:70px;transform-style:preserve-3d}
 .ll-wphone{width:228px}
 .ll-wphone img{height:110px}
-.ll-wl.l1{left:2%;transform:translate3d(calc(var(--c) * 40px),calc(var(--c) * 30px),0) rotateY(calc(18deg + var(--c) * 10deg)) rotateZ(-3deg)}
-.ll-wl.l2{left:31%;top:10px;z-index:2;transform:translate3d(0,calc(var(--c) * 50px),90px) rotateY(calc(var(--c) * 8deg))}
-.ll-wl.l3{right:0;transform:translate3d(calc(var(--c) * -40px),calc(var(--c) * 30px),0) rotateY(calc(-18deg + var(--c) * 10deg)) rotateZ(3deg)}
+.ll-wl.w1{left:2%;transform:translate3d(calc(var(--c) * 40px),calc(var(--c) * 30px),0) rotateY(calc(18deg + var(--c) * 10deg)) rotateZ(-3deg)}
+.ll-wl.w2{left:31%;top:10px;z-index:2;transform:translate3d(0,calc(var(--c) * 50px),90px) rotateY(calc(var(--c) * 8deg))}
+.ll-wl.w3{right:0;transform:translate3d(calc(var(--c) * -40px),calc(var(--c) * 30px),0) rotateY(calc(-18deg + var(--c) * 10deg)) rotateZ(3deg)}
 .ll-wlbadge{position:absolute;z-index:3}
 .ll-wlbadge>div{display:flex;gap:10px;align-items:center;background:#fff;color:#0b1736;border-radius:14px;padding:10px 14px;box-shadow:0 18px 40px #00000055}
 .ll-wlbadge b{display:block;font-size:13px}.ll-wlbadge small{font-size:12px;color:#475569}
@@ -326,7 +326,7 @@
   .ll-wowsec{padding:64px 0}
   .ll-wowgrid{grid-template-columns:1fr}
   .ll-wowstage{height:560px;order:-1;transform:scale(.92);transform-origin:50% 0;margin-bottom:-30px}
-  .ll-wl.l1{left:-4%}.ll-wl.l3{right:-4%}
+  .ll-wl.w1{left:-4%}.ll-wl.w3{right:-4%}
 }
 @media(max-width:560px){
   .ll-wowstage{height:470px;transform:scale(.62);transform-origin:50% 0;margin:0 -20% -150px}
