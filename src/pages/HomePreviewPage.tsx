@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, BookOpen, CalendarCheck, Handshake, House, Link2, MessageSquare, Play, QrCode } from 'lucide-react';
+import { INCLUDED } from '../lib/loPlanFeatures';
+import { ArrowRight, Check, BookOpen, CalendarCheck, Handshake, House, Link2, MessageSquare, Play, QrCode } from 'lucide-react';
 
 const primary = 'inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-blue-700 px-5 py-3 text-center text-sm font-bold text-white hover:bg-blue-800';
 const secondary = 'inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-blue-700 px-5 py-3 text-center text-sm font-bold text-blue-800 hover:bg-blue-50';
@@ -13,6 +14,8 @@ export default function HomePreviewPage() {
           <Link to="/home-preview" className="flex items-center gap-2 text-xl font-black tracking-tight text-slate-950"><House className="text-blue-700" aria-hidden="true" /> HomeListingAI</Link>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm font-semibold">
             <a href="#how-it-works">How it works</a>
+            <a href="#pricing">Pricing</a>
+            <a href="#faq">FAQ</a>
             <Link to="/signin">Sign in</Link>
             <Link to="/lo-signup" className={primary}>Start free trial</Link>
           </div>
@@ -100,6 +103,43 @@ export default function HomePreviewPage() {
             <p className="mt-2 text-blue-100">Explore the marketing tools, leads, and follow-up reminders.</p>
           </div>
           <Link to="/lo-demo" className={primary}>Open the demo <ArrowRight size={17} aria-hidden="true" /></Link>
+        </section>
+        <section id="pricing" className="my-10 scroll-mt-6 rounded-3xl bg-slate-100 p-5 sm:p-8">
+          <div className="mx-auto max-w-2xl">
+            <p className="text-sm font-bold uppercase tracking-wide text-blue-800">Pricing</p>
+            <h2 className="mt-2 text-3xl font-black">One plan for loan officers</h2>
+            <p className="mt-2 text-slate-700">Try it free for 7 days. No credit card needed.</p>
+            <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-5 sm:p-7">
+              <p className="text-sm font-bold text-blue-800">Launch offer for the first 25 loan officers</p>
+              <p className="mt-1"><span className="text-5xl font-black">$49</span><span className="text-slate-600"> / month</span></p>
+              <p className="mt-2 text-sm text-slate-700">Regular price is $79/month. Eligible launch subscribers keep their rate while subscribed.</p>
+              <ul className="my-5 grid gap-3 text-sm text-slate-800 sm:grid-cols-2">
+                {INCLUDED.map((item) => <li key={item} className="flex items-start gap-2"><Check size={16} className="mt-0.5 shrink-0 text-blue-700" aria-hidden="true" />{item}</li>)}
+              </ul>
+              <Link to="/lo-signup" className={primary}>Start your 7-day free trial</Link>
+              <p className="mt-3 text-sm text-slate-600">Month to month. Cancel anytime.</p>
+            </div>
+          </div>
+        </section>
+
+        <section id="faq" className="mx-auto my-10 max-w-2xl scroll-mt-6">
+          <p className="text-sm font-bold uppercase tracking-wide text-blue-800">FAQ</p>
+          <h2 className="mb-5 mt-2 text-3xl font-black">Frequently asked questions</h2>
+          <div className="space-y-3">
+            {[
+              ['Do I need an agent partner to start?', 'You can share your personal borrower link, Homebuyer 101 lesson, or loan program page directly. You can also send a WOW Link to an agent to show them a co-branded listing.'],
+              ['What can I create in Marketing?', 'Create posts, images, and branded videos. Copy a share link or download a QR code so buyers can open the page.'],
+              ['What happens when a borrower reaches out?', 'The inquiry appears in Leads with its source and the information the borrower chose to share. Set a reminder to follow up from Today.'],
+              ['What if I use all my AI phone minutes?', 'Calls ring your cell phone instead.'],
+              ['Do I need a card to try it?', 'No credit card is needed for the 7-day trial. Choose whether to subscribe after you try it.'],
+              ['Can I cancel anytime?', 'Yes. The plan is month to month. You can cancel from your billing settings.'],
+            ].map(([question, answer]) => (
+              <details key={question} className="rounded-xl border border-slate-200 bg-white px-4">
+                <summary className="cursor-pointer py-3 font-bold">{question}</summary>
+                <p className="pb-4 text-sm leading-relaxed text-slate-700">{answer}</p>
+              </details>
+            ))}
+          </div>
         </section>
       </main>
       <footer className="border-t border-slate-200 px-5 py-6 text-center text-sm text-slate-600">
