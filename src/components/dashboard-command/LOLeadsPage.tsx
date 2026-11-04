@@ -80,6 +80,7 @@ const DEMO_LEADS: Lead[] = [
     notes: 'Asked about pre-approval', status: 'New', intent_level: 'Hot', intent_reason: 'Asked about pre-approval and wants to tour this weekend.',
     listing_id: 'l1', listing_address: '4821 Ridgecrest Dr, Austin TX', agent_name: 'Jennifer Walsh', isTest: false, callId: null,
     created_at: new Date(Date.now() - 12 * 60000).toISOString(),
+    followUpAt: new Date(Date.now() - 3600000).toISOString(),
   },
   {
     id: '2', name: 'Maria Santos', email: 'maria@email.com', phone: '(737) 214-8830', source: 'chatbot', sourceType: null,
@@ -144,6 +145,7 @@ const LeadCard: React.FC<{
   useEffect(() => { setStatus(lead.status || 'New'); }, [lead.status]);
 
   const [followUpAt, setFollowUpAt] = useState<string | null>(lead.followUpAt ?? null);
+  useEffect(() => { setFollowUpAt(lead.followUpAt ?? null); }, [lead.followUpAt]);
   const chooseFollowUp = async (days: number | null) => {
     if (demo) { setFollowUpAt(days ? new Date(Date.now() + days * 86400000).toISOString() : null); return; }
     const r = await setLoLeadFollowUp(lead.id, days);
@@ -612,16 +614,25 @@ const LOLeadsPage: React.FC = () => {
     } catch { showToast.error('Export failed. Try again.'); }
   };
 
+  const endToday = new Date(); endToday.setHours(23, 59, 59, 999);
+  const dueNow = leads.filter((l) => l.followUpAt && new Date(l.followUpAt).getTime() <= endToday.getTime());
+  const moveReminder = async (l: Lead, days: number | null) => {
+    if (demoMode) { setLeads((prev) => prev.map((x) => x.id === l.id ? { ...x, followUpAt: days ? new Date(Date.now() + days * 86400000).toISOString() : null } : x)); return; }
+    const r = await setLoLeadFollowUp(l.id, days);
+    if (r === false) { showToast.error('Could not update the reminder.'); return; }
+    setLeads((prev) => prev.map((x) => x.id === l.id ? { ...x, followUpAt: r } : x));
+  };
+
   const filtering = filter !== 'all' || search.trim().length > 0;
 
   return (
-    <div className="mx-auto max-w-3xl space-y-5 px-4 pb-28 pt-6 sm:pt-8">
+    <div className="mx-auto max-w-4xl space-y-5 px-4 pb-28 pt-6 sm:pt-8">
       {/* Header */}
       <div className="flex items-start justify-between gap-4 pr-10">
         <div>
-          <h1 className="text-2xl font-black tracking-tight text-slate-900">My Leads</h1>
+          <h1 className="text-4xl font-black tracking-tight text-slate-900">Leads</h1>
           <p className="mt-1 text-sm text-slate-600">
-            Buyers who reached you through your AI chat, your AI phone line or a pre-approval form.
+            See new borrower conversations, questions, and next steps.
           </p>
           <button
             onClick={() => navigate(buildDashboardPath('/lo-appointments', demoMode))}
@@ -642,6 +653,26 @@ const LOLeadsPage: React.FC = () => {
       </div>
 
       <PageGuide pageKey="lo-leads" />
+
+      {dueNow.length > 0 && (
+        <section className="rounded-2xl border border-primary-200 bg-primary-50 p-4 shadow-sm" aria-label="Follow-ups for today">
+          <div className="flex items-center gap-2">
+            <span aria-hidden="true" className="material-symbols-outlined text-primary-700">event_available</span>
+            <h2 className="text-lg font-extrabold text-slate-900">Today</h2>
+            <span className="text-sm text-slate-700">{dueNow.length} follow-up reminder{dueNow.length === 1 ? '' : 's'} for today</span>
+          </div>
+          <ul className="mt-3 space-y-2">
+            {dueNow.map((l) => (
+              <li key={l.id} className="flex flex-wrap items-center gap-3 rounded-xl bg-white px-3 py-2.5 ring-1 ring-slate-200">
+                <span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary-100 text-xs font-extrabold text-primary-800">{(l.name || '?').split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase()}</span>
+                <div className="min-w-0 flex-1 basis-40"><p className="text-sm font-extrabold text-slate-900">Follow up with {l.name || 'this buyer'}</p><p className="text-xs text-slate-600">You set a reminder to check back.</p></div>
+                <button type="button" onClick={() => void moveReminder(l, 3)} className="min-h-[40px] rounded-lg border border-slate-300 bg-white px-3 text-sm font-bold text-slate-700 hover:bg-slate-50">Later</button>
+                <button type="button" onClick={() => void moveReminder(l, null)} className="inline-flex min-h-[40px] items-center gap-1 rounded-lg bg-primary-600 px-3 text-sm font-bold text-white hover:bg-primary-700"><span aria-hidden="true" className="material-symbols-outlined text-base">check</span>Done</button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {/* Filters + search */}
       <div className="space-y-3">

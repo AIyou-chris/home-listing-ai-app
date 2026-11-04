@@ -877,14 +877,20 @@ const LOBrainPage: React.FC = () => {
                   <div><dt className="lb-dim text-xs font-semibold uppercase tracking-wide">Listings using it</dt><dd className="text-2xl font-bold">{summary?.listings.length ?? '—'}</dd></div>
                   <div><dt className="lb-dim text-xs font-semibold uppercase tracking-wide">Readiness</dt><dd className={`pt-1.5 text-sm font-bold ${readiness.cls}`}>{readiness.text}</dd></div>
                 </dl>
-                <ul className="flex flex-wrap gap-2" aria-label="Setup checks">
+                <ul className="grid gap-2" aria-label="Setup checks">
                   {[
-                    { ok: sources.length > 0, label: 'Taught it', hint: 'Add knowledge' },
-                    { ok: config.is_active, label: 'Chat is on', hint: 'Chat is off' },
-                    { ok: phoneLive === true, label: 'Phone line live', hint: phoneLive === null ? 'Checking phone…' : 'No phone line yet' },
-                    { ok: tested, label: 'Tried it', hint: 'Tap Test it' },
+                    { ok: sources.length > 0, icon: 'menu_book', label: 'Taught it', done: 'Your programs, guidelines and talking points are added.', todo: 'Add your programs and talking points.', tag: 'Knowledge', next: sources.length > 0 ? 'Keep it up to date' : 'Add knowledge' },
+                    { ok: config.is_active, icon: 'chat', label: 'Chat on', done: 'Answering homebuyer questions on your links.', todo: 'Chat is off. Turn it on so buyers get answers.', tag: 'Chat', next: config.is_active ? 'Try another question' : 'Turn it on' },
+                    { ok: phoneLive === true, icon: 'call', label: 'Phone line live', done: 'Answering calls and buyer questions around the clock.', todo: phoneLive === null ? 'Checking your phone line…' : 'No AI phone line yet.', tag: 'Phone', next: phoneLive === true ? 'Share your AI number' : 'Set up a line' },
+                    { ok: tested, icon: 'play_circle', label: 'Tried it', done: 'You tested the AI and it is working.', todo: 'Tap Test it and ask it a question.', tag: 'Test', next: tested ? 'Try another scenario' : 'Test it now' },
                   ].map((c) => (
-                    <li key={c.label} className={`rounded-full border px-3 py-1 text-xs font-bold ${c.ok ? 'border-green-200 bg-green-50 text-green-800' : 'border-amber-200 bg-amber-50 text-amber-900'}`}>{c.ok ? '✓ ' : '○ '}{c.ok ? c.label : c.hint}</li>
+                    <li key={c.label} className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5">
+                      <span aria-hidden="true" className={`material-symbols-outlined text-2xl ${c.ok ? 'text-green-600' : 'text-amber-500'}`}>{c.ok ? 'check_circle' : 'radio_button_unchecked'}</span>
+                      <span aria-hidden="true" className="material-symbols-outlined flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-700">{c.icon}</span>
+                      <div className="min-w-0 flex-1 basis-48"><p className="text-sm font-extrabold text-slate-900">{c.label}</p><p className="text-xs text-slate-600">{c.ok ? c.done : c.todo}</p></div>
+                      <span className="rounded-md bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-800">{c.tag}</span>
+                      <span className="text-xs font-semibold text-slate-700">Next step: {c.next}</span>
+                    </li>
                   ))}
                 </ul>
               </div>

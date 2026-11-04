@@ -207,17 +207,17 @@ const LOPromotePage: React.FC = () => {
     <div className="mx-auto max-w-6xl px-3 py-4 md:px-6">
       <div className="space-y-5 text-slate-800">
         <div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">Marketing</h1>
+          <h1 className="text-4xl font-black tracking-tight text-slate-900">Marketing</h1>
           <p className="mt-1 text-sm text-slate-600">Get more homebuyer leads with ready-to-share links and lessons.</p>
         </div>
         <div className="grid items-start gap-4 xl:grid-cols-3">
           {([
-            { key: 'borrower', icon: 'link', title: 'Share my borrower link', description: 'Give borrowers a direct way to ask you for help.', url: link.url },
-            { key: 'lesson', icon: 'menu_book', title: 'Share Homebuyer 101', description: 'Give buyers a short interactive lesson on buying a home.', url: learnUrl },
+            { key: 'borrower', icon: 'link', title: 'Share my borrower link', description: 'Your personal link to start a homebuyer conversation with AI.', url: link.url },
+            { key: 'lesson', icon: 'menu_book', title: 'Share Homebuyer 101', description: 'A short, step-by-step lesson series that teaches buyers the basics.', url: learnUrl },
           ] as const).map((item) => (
             <section key={item.key} className={card} aria-label={item.title}>
               <div className="flex items-start gap-3">
-                <span aria-hidden="true" className="material-symbols-outlined rounded-xl bg-primary-50 p-2 text-primary-700">{item.icon}</span>
+                <span aria-hidden="true" className="material-symbols-outlined flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary-50 text-2xl text-primary-700">{item.icon}</span>
                 <div>
                   <h2 className="text-lg font-extrabold text-slate-900">{item.title}</h2>
                   <p className="text-sm text-slate-600">{item.description}</p>
@@ -225,7 +225,7 @@ const LOPromotePage: React.FC = () => {
               </div>
               <div className="mt-4 grid grid-cols-2 gap-2 text-center">
                 <a className={`${ghost} flex min-h-[44px] items-center justify-center`} href={item.url} target="_blank" rel="noreferrer">Preview</a>
-                <button type="button" className={`${solid} min-h-[44px]`} onClick={() => void copyText(item.url)}>Copy link</button>
+                <button type="button" className={`${solid} flex min-h-[44px] items-center justify-center gap-1.5`} onClick={() => void copyText(item.url)}><span aria-hidden="true" className="material-symbols-outlined text-base">link</span>Copy link</button>
               </div>
               <button type="button" className="mt-2 min-h-[44px] text-sm font-semibold text-primary-700" onClick={() => { setShareTarget(item.key); setShareOpen(true); }}>More ways to share</button>
             </section>

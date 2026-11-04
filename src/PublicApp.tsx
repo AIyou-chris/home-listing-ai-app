@@ -103,7 +103,16 @@ const PublicApp: React.FC = () => {
     <>
       <Suspense fallback={routeFallback}>
         <Routes>
-          <Route path="/" element={<HomePreviewPage />} />
+          <Route path="/" element={
+            <LandingPage
+              onNavigateToSignUp={handleNavigateToSignUp}
+              onNavigateToSignIn={handleNavigateToSignIn}
+              onEnterDemoMode={handleEnterDemoMode}
+              onOpenConsultationModal={() => openConsultationModal('realtor')}
+              onNavigateToAdmin={handleNavigateToAdmin}
+              onNavigateToShowcase={handleNavigateToShowcase}
+            />
+          } />
           <Route
             path="/home-original"
             element={
