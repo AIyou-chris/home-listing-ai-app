@@ -1,7 +1,8 @@
 import React from 'react';
+import './home-preview.css';
 import { Link } from 'react-router-dom';
 import { INCLUDED } from '../lib/loPlanFeatures';
-import { ArrowRight, Check, BookOpen, CalendarCheck, Handshake, House, Link2, MessageSquare, Play, QrCode } from 'lucide-react';
+import { ArrowRight, Check, GraduationCap, Bot, Users, CalendarCheck, Handshake, House, Link2, MessageSquare, Play, QrCode } from 'lucide-react';
 
 const primary = 'inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-blue-700 px-5 py-3 text-center text-sm font-bold text-white hover:bg-blue-800';
 const secondary = 'inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-blue-700 px-5 py-3 text-center text-sm font-bold text-blue-800 hover:bg-blue-50';
@@ -11,7 +12,7 @@ export default function HomePreviewPage() {
     <div className="min-h-screen bg-white text-slate-950">
       <header className="border-b border-slate-200">
         <nav aria-label="Main navigation" className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-5 py-4 sm:px-8">
-          <Link to="/home-preview" className="flex items-center gap-2 text-xl font-black tracking-tight text-slate-950"><House className="text-blue-700" aria-hidden="true" /> HomeListingAI</Link>
+          <Link to="/" className="flex items-center gap-2 text-xl font-black tracking-tight text-slate-950"><House className="text-blue-700" aria-hidden="true" /> HomeListingAI</Link>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm font-semibold">
             <a href="#how-it-works">How it works</a>
             <a href="#pricing">Pricing</a>
@@ -23,7 +24,7 @@ export default function HomePreviewPage() {
       </header>
 
       <main className="mx-auto max-w-7xl px-5 sm:px-8">
-        <section className="grid items-center gap-10 py-12 lg:grid-cols-[0.9fr_1.1fr] lg:gap-14 lg:py-20">
+        <section className="home-hero grid items-center lg:grid-cols-[0.88fr_1.12fr]">
           <div>
             <p className="inline-block rounded-lg bg-blue-100 px-3 py-2 text-xs font-extrabold tracking-wide text-blue-900">BUILT FOR LOAN OFFICERS, BY A LOAN OFFICER</p>
             <h1 className="mt-5 text-5xl font-black leading-[0.98] tracking-tight sm:text-6xl xl:text-7xl">Start more borrower conversations.</h1>
@@ -35,49 +36,58 @@ export default function HomePreviewPage() {
             </div>
           </div>
 
-          <div className="relative min-w-0 rounded-3xl bg-blue-50 p-3 sm:p-6">
-            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl sm:mr-16">
-              <div className="flex flex-wrap items-center justify-between gap-2 bg-blue-950 px-4 py-3 text-white">
-                <span className="flex items-center gap-2 text-sm font-bold"><House size={16} aria-hidden="true" /> WOW Link</span>
-                <span className="text-xs text-blue-100">Loan officer + agent</span>
+          <div className="home-art">
+            <div className="home-listing">
+              <div className="flex items-center justify-between gap-2 bg-blue-950 px-4 py-3 text-xs text-white">
+                <span className="flex items-center gap-2 font-extrabold"><House size={17} aria-hidden="true" /> WOW Link</span>
+                <span>Co-branded with your agent</span>
               </div>
-              <img className="aspect-[16/9] w-full object-cover" src="/demo/home-1.png" alt="Exterior of the example home" fetchPriority="high" />
+              <img className="home-listing-photo" src="/assets/landing/preview-home.jpg" alt="Example home with warm lights at dusk" fetchPriority="high" />
               <div className="p-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-blue-800">Example listing</p>
-                <p className="mt-1 text-xl font-extrabold">124 Oak Street</p>
-                <p className="mt-1 text-sm text-slate-600">A co-branded listing with an AI mortgage assistant.</p>
-                <Link className="mt-3 inline-flex min-h-11 items-center gap-2 text-sm font-bold text-blue-800 hover:underline" to="/lo-demo">Explore the loan officer demo <ArrowRight size={16} aria-hidden="true" /></Link>
+                <p className="text-xl font-black">124 Oak Street</p>
+                <p className="mt-1 text-xs text-slate-500">Example listing · Your name and NMLS</p>
+                <div className="my-3 flex gap-3 border-y border-slate-100 py-2 text-xs font-semibold text-blue-900"><span>Overview</span><span>Financing questions</span></div>
+                <p className="text-sm text-slate-600">Explore the home. Ask a question. Start a conversation.</p>
+                <Link to="/lo-demo" className="mt-3 inline-flex min-h-11 items-center gap-2 text-sm font-bold text-blue-800">Explore the demo <ArrowRight size={16} aria-hidden="true" /></Link>
               </div>
             </div>
-            <div className="mt-3 grid grid-cols-2 gap-3 sm:relative sm:-mt-5 sm:ml-20">
-              <Link to="/demo-dashboard/lo-promote" className="flex min-w-0 flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-lg hover:border-blue-400">
-                <Play className="text-blue-700" size={22} aria-hidden="true" />
-                <span className="text-sm font-extrabold">Branded video</span>
-                <span className="text-xs text-slate-600">Explore the video maker</span>
-              </Link>
-              <Link to="/learn/sample" className="flex min-w-0 flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-lg hover:border-blue-400">
-                <BookOpen className="text-blue-700" size={22} aria-hidden="true" />
-                <span className="text-sm font-extrabold">Homebuyer 101</span>
-                <span className="text-xs text-slate-600">Try the buyer lesson</span>
-              </Link>
+            <Link to="/demo-dashboard/lo-promote" className="home-video" aria-label="Explore branded video tools">
+              <img src="/assets/landing/preview-home.jpg" alt="" />
+              <span className="home-video-play"><Play size={30} fill="currentColor" aria-hidden="true" /></span>
+              <span className="block px-3 py-2 text-xs font-bold">Your listing. Your video.</span>
+            </Link>
+            <div className="home-lesson">
+              <p className="flex items-center gap-2 text-lg font-black"><GraduationCap className="shrink-0 text-blue-700" aria-hidden="true" /> Homebuyer 101</p>
+              <p className="my-2 text-sm text-slate-700">Help buyers take their next step.</p>
+              <Link to="/learn/sample" className={`${primary} w-full`}>Try the lesson <ArrowRight size={17} aria-hidden="true" /></Link>
             </div>
           </div>
         </section>
 
         <section aria-label="Two ways to reach borrowers" className="grid gap-4 lg:grid-cols-2">
-          <article className="rounded-3xl bg-slate-100 p-5 sm:p-7">
-            <BookOpen className="mb-3 text-blue-700" aria-hidden="true" />
-            <h2 className="text-2xl font-black tracking-tight sm:text-3xl">Reach borrowers directly</h2>
-            <p className="mt-2 text-slate-700">Share your personal link, Homebuyer 101, or a loan program page with your own audience.</p>
-            <p className="mt-4 text-sm font-bold text-blue-900">Posts · Images · Branded videos</p>
-            <Link to="/ask/sample" className="mt-3 inline-flex min-h-11 items-center gap-2 text-sm font-bold text-blue-800 hover:underline">See a sample borrower link <ArrowRight size={16} aria-hidden="true" /></Link>
+          <article className="home-feature">
+            <div className="flex items-start gap-3">
+              <Users size={34} className="mt-1 shrink-0 text-blue-700" aria-hidden="true" />
+              <div><h2 className="text-2xl font-black tracking-tight sm:text-3xl">Reach borrowers directly</h2>
+              <p className="mt-2 text-slate-700">Attract, educate, and engage homebuyers with ready-to-share mortgage content.</p></div>
+            </div>
+            <div className="home-feature-tiles">
+              <Link to="/learn/sample" className="home-feature-tile"><span className="home-feature-art"><GraduationCap size={40} className="text-blue-700" aria-hidden="true" /><strong>Homebuyer 101</strong><img src="/assets/landing/preview-home.jpg" alt="" className="h-12 w-full rounded-lg object-cover" /></span>Homebuyer 101</Link>
+              <Link to="/program/sample/demo1" className="home-feature-tile"><span className="home-feature-art"><strong>Loan programs</strong><span className="text-xs font-normal text-slate-700">Your program sheet</span><Check size={22} className="text-blue-700" aria-hidden="true" /><span className="text-xs font-normal text-slate-700">Your guidance</span></span>Loan program pages</Link>
+              <Link to="/demo-dashboard/lo-promote" className="home-feature-tile"><span className="home-feature-art relative !p-0"><img src="/assets/landing/preview-home.jpg" alt="" className="absolute inset-0 h-full w-full object-cover" /><Play size={42} className="relative rounded-full bg-slate-900/60 p-2 text-white" fill="currentColor" aria-hidden="true" /></span>Branded videos</Link>
+            </div>
           </article>
-          <article className="rounded-3xl bg-slate-100 p-5 sm:p-7">
-            <Handshake className="mb-3 text-blue-700" aria-hidden="true" />
-            <h2 className="text-2xl font-black tracking-tight sm:text-3xl">Give agents a WOW Link</h2>
-            <p className="mt-2 text-slate-700">Let agents preview a co-branded listing with your AI mortgage assistant built in.</p>
-            <p className="mt-4 flex items-center gap-2 text-sm font-bold text-blue-900"><QrCode size={17} aria-hidden="true" /> Listing links · QR codes · Flyers · Videos</p>
-            <Link to="/how-it-works" className="mt-3 inline-flex min-h-11 items-center gap-2 text-sm font-bold text-blue-800 hover:underline">See the WOW Link workflow <ArrowRight size={16} aria-hidden="true" /></Link>
+          <article className="home-feature">
+            <div className="flex items-start gap-3">
+              <Handshake size={34} className="mt-1 shrink-0 text-blue-700" aria-hidden="true" />
+              <div><h2 className="text-2xl font-black tracking-tight sm:text-3xl">Give agents a WOW Link</h2>
+              <p className="mt-2 text-slate-700">Partner with agents using co-branded listings and shareable tools.</p></div>
+            </div>
+            <div className="home-feature-tiles">
+              <Link to="/how-it-works" className="home-feature-tile"><span className="home-feature-art !p-0"><span className="w-full bg-blue-950 p-2 text-xs text-white">WOW Link</span><img src="/assets/landing/preview-home.jpg" alt="" className="min-h-0 w-full flex-1 object-cover" /></span>Co-branded listings</Link>
+              <Link to="/lo-demo" className="home-feature-tile"><span className="home-feature-art"><Bot size={35} className="text-blue-700" aria-hidden="true" /><span className="rounded-lg bg-blue-50 p-2 text-xs font-normal">Ask a financing question</span></span>AI mortgage assistant</Link>
+              <Link to="/demo-dashboard/lo-listings" className="home-feature-tile"><span className="home-feature-art"><QrCode size={76} className="text-blue-950" aria-hidden="true" /><span className="text-xs font-normal">Share the listing</span></span>QR codes &amp; listing videos</Link>
+            </div>
           </article>
         </section>
 
