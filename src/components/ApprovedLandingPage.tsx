@@ -243,6 +243,12 @@ export default function ApprovedLandingPage(props: Props) {
   }, []);
   const root = useRef<HTMLDivElement>(null);
   useEffect(() => {
+    const id = window.location.hash.replace('#', '');
+    if (!id) return;
+    const t = window.setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: 'auto' }), 400);
+    return () => window.clearTimeout(t);
+  }, []);
+  useEffect(() => {
     if (!scrollToSection) return;
     document.getElementById(scrollToSection)?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
     onScrollComplete?.();
