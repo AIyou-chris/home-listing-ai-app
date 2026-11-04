@@ -7,6 +7,7 @@ import { showToast } from '../../utils/toastService';
 import LOVideoMaker, { type VideoTopic } from './LOVideoMaker';
 import LOProgramsCard from './LOProgramsCard';
 import LOImageMaker from './LOImageMaker';
+import LOSocialConnect from './LOSocialConnect';
 
 interface MyLink { slug: string; url: string; name: string; company: string | null; nmls: string | null }
 interface Picture { name: string; url: string | null }
@@ -277,6 +278,8 @@ const LOPromotePage: React.FC = () => {
         </section>
 
 
+
+        <LOSocialConnect demo={demo} api={api} pictures={pictures} />
 
         <section id="promote-video" className={card} aria-label="Create a video">
           <h2 className="text-lg font-extrabold text-slate-900">🎬 Create a video</h2>

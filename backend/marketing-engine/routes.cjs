@@ -118,31 +118,54 @@ app.delete('/api/admin/house-social/connections/:platform', verifyAdmin, async (
   }
 });
 
-// The provider sends the admin back here. The one-time "state" saved when they clicked Connect proves who started it.
+// The provider sends the person back here. The one-time "state" saved when they clicked Connect proves who started it.
+// It is looked for among the admin's attempts first, then among loan officers' (their own table, their own page to land on).
+let loSocialStoreInstance = null;
+const getLoSocialStore = () => {
+  if (!loSocialStoreInstance && supabaseAdmin) {
+    loSocialStoreInstance = require('./services/houseSocialStore').createHouseSocialStore({ supabaseAdmin, tables: require('./services/houseSocialStore').LO_TABLES });
+  }
+  return loSocialStoreInstance;
+};
+const loReturn = (platform, result, message = '') => {
+  const params = new URLSearchParams({ social: platform, result });
+  if (message) params.set('message', String(message).slice(0, 240));
+  return `/dashboard/lo-promote?${params}`;
+};
 app.get('/api/marketing/oauth/:platform/callback', async (req, res) => {
   const { studioReturn } = require('./services/houseSocialStore');
   const { PLATFORMS, exchangeCode, accountFor } = require('./services/houseSocialOauth');
   const platform = String(req.params.platform || '').toLowerCase();
   if (!PLATFORMS.includes(platform)) return res.redirect(studioReturn(platform, 'error', 'Unknown platform'));
-  const store = getHouseSocialStore();
-  if (!store) return res.redirect(studioReturn(platform, 'error', 'Not available right now'));
+  const houseStore = getHouseSocialStore();
+  const loStore = getLoSocialStore();
+  if (!houseStore) return res.redirect(studioReturn(platform, 'error', 'Not available right now'));
+  let backTo = studioReturn;
   try {
+    const claim = async (state) => {
+      const house = await houseStore.claimState(state, platform);
+      if (house) return { attempt: house, store: houseStore, back: studioReturn };
+      const lo = loStore ? await loStore.claimState(state, platform).catch(() => null) : null;
+      return lo ? { attempt: lo, store: loStore, back: loReturn } : null;
+    };
     if (req.query.error) {
-      if (typeof req.query.state === 'string') await store.claimState(req.query.state, platform).catch(() => null);
+      if (typeof req.query.state === 'string') await claim(req.query.state).catch(() => null);
       return res.redirect(studioReturn(platform, 'cancelled'));
     }
     if (typeof req.query.state !== 'string' || typeof req.query.code !== 'string') {
       return res.redirect(studioReturn(platform, 'error', 'The connection link was incomplete. Please try again.'));
     }
-    const attempt = await store.claimState(req.query.state, platform);
-    if (!attempt) return res.redirect(studioReturn(platform, 'error', 'That connection link expired. Please try again.'));
+    const claimed = await claim(req.query.state);
+    if (!claimed) return res.redirect(studioReturn(platform, 'error', 'That connection link expired. Please try again.'));
+    backTo = claimed.back;
+    const { attempt, store } = claimed;
     const tokens = await exchangeCode(platform, { code: req.query.code, codeVerifier: attempt.code_verifier });
     const account = await accountFor(platform, tokens);
     await store.saveConnection(attempt.owner_id || attempt.started_by, platform, { account, tokens, connectedBy: attempt.started_by });
-    return res.redirect(studioReturn(platform, 'connected'));
+    return res.redirect(backTo(platform, 'connected'));
   } catch (err) {
     console.error('[House social] callback failed:', platform, err?.message || err);
-    return res.redirect(studioReturn(platform, 'error', 'Connection failed. Please try again.'));
+    return res.redirect(backTo(platform, 'error', 'Connection failed. Please try again.'));
   }
 });
 
