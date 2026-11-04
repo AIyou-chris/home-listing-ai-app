@@ -221,6 +221,7 @@ const HomebuyerClassPage: React.FC = () => {
     <div className="relative min-h-screen overflow-hidden bg-slate-50 px-4 py-8 text-slate-900">
       <style>{CSS}</style>
       <div className="relative mx-auto max-w-md space-y-5">
+        {search.get('utm_source') === 'landing_demo' && <p role="note" className="rounded-xl bg-primary-50 px-3 py-2 text-xs font-semibold text-primary-800 ring-1 ring-primary-200">You are seeing what your buyers see. Fill it out like a buyer and it lands in my Leads, so I can follow up.</p>}
         <div className="flex items-center gap-3">
           {lo.photo ? <img src={lo.photo} alt="" className="h-12 w-12 rounded-full object-cover ring-2 ring-slate-200" /> : <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white font-bold ring-2 ring-slate-200">{lo.name.charAt(0)}</div>}
           <div><p className="text-sm font-bold text-slate-900">{lo.name}</p><p className="text-xs text-slate-600">{[lo.company, lo.nmls ? `NMLS #${lo.nmls}` : null].filter(Boolean).join(' · ')}</p></div>

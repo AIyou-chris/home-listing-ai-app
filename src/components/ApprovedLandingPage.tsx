@@ -291,7 +291,7 @@ export default function ApprovedLandingPage(props: Props) {
   const untilt = () => { heroRef.current?.style.setProperty('--mx', '0'); heroRef.current?.style.setProperty('--my', '0'); };
   useEffect(() => {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    const nodes = Array.from(root.current?.querySelectorAll<HTMLElement>('.ll-tour, .ll-price, .ll-three, .ll-path, .ll-wow') || []);
+    const nodes = Array.from(root.current?.querySelectorAll<HTMLElement>('.ll-tour, .ll-price, .ll-three, .ll-path, .ll-wow, .ll-mk') || []);
     let raf = 0;
     const update = () => {
       raf = 0;
@@ -401,6 +401,32 @@ export default function ApprovedLandingPage(props: Props) {
             <div className="ll-wl w3"><div className="l3-in"><WowTour /></div></div>
             <div className="ll-wlbadge b1"><div className="l3-in"><span className="ll-chip ll-chip-ok"><Icon name="notifications_active" /></span><div><b>New lead</b><small>Sent to you and the agent</small></div></div></div>
             <div className="ll-wlbadge b2"><div className="l3-in"><span className="ll-chip"><Icon name="qr_code_2" /></span><div><b>Scan to open</b><small>On a sign or a flyer</small></div></div></div>
+          </div>
+        </div>
+      </section>
+
+      {/* LOAN OFFICER MARKETING */}
+      <section id="marketing" className="ll-mk ll-section">
+        <div className="ll-wrap ll-mkgrid">
+          <div className="ll-mkstage">
+            <div className="ll-mkflyer"><div className="l3-in"><img src="/assets/landing/sample-class-flyer.jpg" alt="Sample homebuyer class flyer with a QR code" loading="lazy" /></div></div>
+            <div className="ll-mkchip c1"><div className="l3-in"><span className="ll-chip ll-chip-ok"><Icon name="person_add" /></span><div><b>New lead</b><small>Finished the class, score 82</small></div></div></div>
+            <div className="ll-mkchip c2"><div className="l3-in"><span className="ll-chip"><Icon name="qr_code_2" /></span><div><b>Scan to start</b><small>Prints on every flyer</small></div></div></div>
+          </div>
+          <div className="ll-mkcopy">
+            <p className="ll-eyebrow">Loan officer marketing</p>
+            <h2 className="ll-h2">Nobody knows where rates go. <span>Be the loan officer buyers already trust.</span></h2>
+            <p className="ll-mklead">Slow markets reward the loan officers who show up before the buyer is ready. Teach first, and the buyer picks you when it is time to move. This is the toolkit that does it for you.</p>
+            <ul className="ll-mklist">
+              <li><span className="ll-chip ll-chip-lg"><Icon name="school" /></span><div><b>Homebuyer 101, a class that runs itself</b><small>A fun quiz, a cash calculator and a readiness score. Buyers who finish land in your Leads. Print the flyer, post the link, done.</small></div></li>
+              <li><span className="ll-chip ll-chip-lg"><Icon name="workspace_premium" /></span><div><b>Promote a program in minutes</b><small>Upload a program sheet. Get a page, safe draft posts, a video and a link. Nothing posts without your yes.</small></div></li>
+              <li><span className="ll-chip ll-chip-lg"><Icon name="verified_user" /></span><div><b>Your name and NMLS on everything</b><small>No rate promises, no made-up claims. Built to keep you on the right side of the rules.</small></div></li>
+            </ul>
+            <div className="ll-mkcta">
+              <a className="ll-btn ll-btn-solid" href="/learn/LoTest_One?utm_source=landing_demo" target="_blank" rel="noopener noreferrer">Take the class as a buyer <Icon name="arrow_forward" /></a>
+              <a className="ll-btn ll-btn-line" href="/downloads/sample-homebuyer-class-flyer.pdf" download>Download the sample flyer <Icon name="download" /></a>
+            </div>
+            <small className="ll-mknote">Try it yourself. Fill it in like a buyer and it shows up in my account, so I can follow up. The flyer is a sample. Yours gets your name, photo and QR code.</small>
           </div>
         </div>
       </section>
