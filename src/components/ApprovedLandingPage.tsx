@@ -126,16 +126,40 @@ function Phone({ className = '' }: { className?: string }) {
   );
 }
 
-function Toast() {
+function LeadCard() {
   return (
-    <div className="ll-toast" role="img" aria-label="Example alert: a new buyer lead from Homebuyer 101">
-      <span className="ll-chip ll-chip-ok"><Icon name="notifications_active" /></span>
-      <div><b>New lead</b><small>Jessica · Homebuyer 101</small></div>
+    <div className="l3-mini" role="img" aria-label="Example lead card: Jessica Miller from Homebuyer 101">
+      <div className="ll-row"><span className="ll-av">JM</span><div><b>Jessica Miller</b><small>Homebuyer 101 · New lead</small></div><span className="ll-pill">New</span></div>
+      <p className="ll-quote">“How much do I need down as a first-time buyer?”</p>
+      <div className="ll-row"><u className="ll-go">Follow up</u><span className="ll-date"><Icon name="event" /> In 3 days</span></div>
     </div>
   );
 }
 
+function BrainCard() {
+  return (
+    <div className="l3-mini" role="img" aria-label="Example AI Brain setup checks">
+      <p className="l3-mt"><Icon name="psychology" className="text-blue-600" /> AI Brain</p>
+      {['Taught it', 'Chat on', 'Phone line live', 'Tried it'].map(t => <p key={t} className="l3-ck"><Icon name="check_circle" className="ll-ok" />{t}</p>)}
+    </div>
+  );
+}
+
+function QrChip() {
+  const cells = Array.from({ length: 49 }, (_, i) => ((i * 7 + (i >> 2) * 3) % 5 < 2) || [0, 1, 7, 8, 5, 6, 12, 13, 35, 36, 42, 43].includes(i));
+  return <div className="l3-qr" role="img" aria-label="Example QR code">{cells.map((on, i) => <i key={i} className={on ? 'on' : ''} />)}</div>;
+}
+
+function VideoChip() {
+  return <div className="l3-vid" role="img" aria-label="Example short video with music"><img src="/assets/landing/preview-home.jpg" alt="" width="320" height="240" /><span className="l3-play"><Icon name="play_arrow" /></span><small><Icon name="music_note" /> 0:15</small></div>;
+}
+
+function ScoreChip() {
+  return <div className="l3-score" role="img" aria-label="Example Homebuyer 101 readiness score"><svg viewBox="0 0 36 36" width="54" height="54"><circle cx="18" cy="18" r="15" fill="none" stroke="#dbe8ff" strokeWidth="4" /><circle cx="18" cy="18" r="15" fill="none" stroke="#1d4ed8" strokeWidth="4" strokeDasharray="70 100" strokeLinecap="round" transform="rotate(-90 18 18)" /></svg><div><b>Ready score</b><small>Homebuyer 101</small></div></div>;
+}
+
 /* ---------- Page ---------- */
+
 
 export default function ApprovedLandingPage(props: Props) {
   const { scrollToSection, onScrollComplete } = props;
@@ -159,31 +183,71 @@ export default function ApprovedLandingPage(props: Props) {
     root.current?.querySelectorAll('.ll-reveal').forEach(el => observer.observe(el));
     return () => observer.disconnect();
   }, []);
+  const heroRef = useRef<HTMLElement>(null);
+  const [step, setStep] = useState(0);
+  useEffect(() => {
+    const el = heroRef.current; if (!el) return;
+    const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let raf = 0; let last = -1;
+    const update = () => {
+      raf = 0;
+      const r = el.getBoundingClientRect();
+      const span = Math.max(1, r.height - window.innerHeight);
+      const p = still ? 0.55 : Math.min(1, Math.max(0, -r.top / span));
+      el.style.setProperty('--s', String(window.innerWidth <= 960 ? Math.min(1, (window.innerWidth - 40) / 780) : Math.min(1, (window.innerWidth - 24) / 620)));
+      if (Math.abs(p - last) < 0.0005) return;
+      last = p; el.style.setProperty('--p', p.toFixed(4));
+      setStep(p < 0.34 ? 0 : p < 0.67 ? 1 : 2);
+    };
+    const onScroll = () => { if (!raf) raf = window.requestAnimationFrame(update); };
+    update();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
+    return () => { window.removeEventListener('scroll', onScroll); window.removeEventListener('resize', onScroll); if (raf) window.cancelAnimationFrame(raf); };
+  }, []);
+  const tilt = (e: React.PointerEvent<HTMLDivElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    heroRef.current?.style.setProperty('--mx', String(((e.clientX - r.left) / r.width - 0.5) * 2));
+    heroRef.current?.style.setProperty('--my', String(((e.clientY - r.top) / r.height - 0.5) * 2));
+  };
+  const untilt = () => { heroRef.current?.style.setProperty('--mx', '0'); heroRef.current?.style.setProperty('--my', '0'); };
   const trial = () => navigate('/lo-signup');
 
   return <div className="approved-landing" ref={root}>
     <SEO title="HomeListingAI — Start More Borrower Conversations" description="Built for loan officers by a loan officer. Share your own borrower link, a Homebuyer 101 lesson and loan program pages, send agents a WOW Link, and know who to follow up with next. 7-day free trial." />
     <PublicHeader {...props} onOpenContact={props.onOpenConsultationModal} />
     <main className="ll">
-      {/* HERO */}
-      <section className="ll-hero">
-        <div className="ll-wrap ll-herogrid">
-          <div>
-            <p className="ll-eyebrow">Built for loan officers, by a loan officer</p>
-            <h1>Start more borrower conversations.</h1>
-            <p className="ll-lead-copy">Make your own marketing, connect with agents, and always know who to follow up with next. No shared leads. No waiting on a realtor.</p>
-            <p className="ll-italic">Built from 15 years in the mortgage industry.</p>
-            <div className="ll-cta">
-              <button type="button" className="ll-btn ll-btn-solid" onClick={trial}>Start your free trial <Icon name="arrow_forward" /></button>
-              <button type="button" className="ll-btn ll-btn-line" onClick={() => navigate('/lo-demo')}>Try the demo</button>
+      {/* HERO: a 3D scene that opens up as you scroll */}
+      <section className="l3" ref={heroRef} data-step={step}>
+        <div className="l3-sticky">
+          <div className="ll-wrap l3-grid">
+            <div className="l3-copy">
+              <p className="ll-eyebrow">Built for loan officers, by a loan officer</p>
+              <h1>Start more borrower conversations.</h1>
+              <p className="ll-lead-copy">Make your own marketing, connect with agents, and always know who to follow up with next. No shared leads. No waiting on a realtor.</p>
+              <div className="ll-cta">
+                <button type="button" className="ll-btn ll-btn-solid" onClick={trial}>Start your free trial <Icon name="arrow_forward" /></button>
+                <button type="button" className="ll-btn ll-btn-line" onClick={() => navigate('/lo-demo')}>Try the demo</button>
+              </div>
+              <p className="ll-fine">7 days free · No card needed · Month to month</p>
+              <ol className="l3-steps" aria-label="How it works">
+                {['Create & share', 'Capture inquiries', 'Follow up'].map((t, i) => <li key={t} className={step === i ? 'on' : ''}><b>{i + 1}</b>{t}</li>)}
+              </ol>
             </div>
-            <p className="ll-fine">7 days free · No card needed · Month to month</p>
+            <div className="l3-view" onPointerMove={tilt} onPointerLeave={untilt}>
+              <div className="l3-glow" aria-hidden="true" />
+              <div className="l3-scene">
+                <div className="l3-layer l3-a"><div className="l3-in l3-win"><MarketingMock /></div></div>
+                <div className="l3-layer l3-b"><div className="l3-in l3-ph"><Phone /></div></div>
+                <div className="l3-layer l3-c"><div className="l3-in l3-card"><LeadCard /></div></div>
+                <div className="l3-layer l3-d"><div className="l3-in l3-card"><BrainCard /></div></div>
+                <div className="l3-layer l3-e"><div className="l3-in"><QrChip /></div></div>
+                <div className="l3-layer l3-f"><div className="l3-in"><VideoChip /></div></div>
+                <div className="l3-layer l3-g"><div className="l3-in"><ScoreChip /></div></div>
+              </div>
+            </div>
           </div>
-          <div className="ll-stage">
-            <MarketingMock />
-            <Phone className="ll-phone-hero" />
-            <Toast />
-          </div>
+          <p className="l3-hint" aria-hidden="true"><Icon name="mouse" /> Scroll to open it up</p>
         </div>
       </section>
 
