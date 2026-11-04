@@ -212,10 +212,10 @@ const NotificationSettingsPage: React.FC<NotificationSettingsProps> = ({
     };
 
     return (
-        <form onSubmit={handleSubmit} className="p-8 space-y-8 animate-fadeIn">
+        <form onSubmit={handleSubmit} className="space-y-5 p-4 animate-fadeIn sm:p-6">
             <div>
-                <h2 className="text-2xl font-bold text-slate-900">🔔 Notification Preferences</h2>
-                <p className="text-slate-500 mt-1">Choose how and when you want to be notified.</p>
+                <h2 className="text-4xl font-black tracking-tight text-slate-900">Notification Preferences</h2>
+                <p className="mt-1 text-sm text-slate-600">Choose how and when you want to be notified.</p>
             </div>
 
             <FeatureSection title="Email Delivery Settings" icon="forward_to_inbox">

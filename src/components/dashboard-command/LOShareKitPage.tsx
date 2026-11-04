@@ -7,6 +7,7 @@ import { buildDashboardPath, useDemoMode } from '../../demo/useDemoMode';
 import HoaDocsCard from './HoaDocsCard';
 import ListingReelCard from './ListingReelCard';
 import ListingExplainerCard from './ListingExplainerCard';
+import { LoPageHeader, LoIconTile, LoTag, loCard, loGhost } from './loUi';
 import ShareKitCards, { type KitListing, type KitLo, type KitRealtor, type Toggles } from './ShareKitCards';
 
 // The LO's co-branded kit for a listing they're on: link, QR, flyer, social caption.
@@ -60,10 +61,10 @@ const LOShareKitPage: React.FC = () => {
     } catch { showToast.error('Could not save that switch. Try again.'); }
   };
 
-  if (state === 'loading') return <div className="mx-auto max-w-3xl px-4 py-8 text-sm text-slate-500">Loading your share kit…</div>;
+  if (state === 'loading') return <div className="mx-auto max-w-6xl px-3 py-8 text-sm text-slate-600 md:px-6">Loading your share kit…</div>;
 
   const back = (
-    <button type="button" onClick={() => navigate(buildDashboardPath('/lo-listings', demoMode))} className="mb-4 flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-slate-900">
+    <button type="button" onClick={() => navigate(buildDashboardPath('/lo-listings', demoMode))} className={`${loGhost} mb-4`}>
       <span className="material-symbols-outlined text-[18px]">arrow_back</span> Back to Listings
     </button>
   );
@@ -74,43 +75,56 @@ const LOShareKitPage: React.FC = () => {
       : state === 'no_link'
         ? "This home doesn't have a public link yet. Ask the agent to open its Share Kit once."
         : 'Could not load the share kit. Try again in a minute.';
-    return <div className="mx-auto max-w-3xl px-4 py-8">{back}<div className="rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">{msg}</div></div>;
+    return <div className="mx-auto max-w-6xl px-3 py-6 md:px-6">{back}<div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">{msg}</div></div>;
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-4 px-4 py-6 pr-12 md:px-8">
+    <div className="mx-auto max-w-6xl space-y-5 px-3 py-4 pr-12 md:px-6">
       {back}
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">Share Kit</h1>
-        <p className="text-sm text-slate-500">{listing.address}{listing.price ? ` · ${money(listing.price)}` : ''}</p>
-      </div>
+      <LoPageHeader
+        title="Share Kit"
+        subtitle={`${listing.address}${listing.price ? ` · ${money(listing.price)}` : ''}`}
+      />
 
       <ShareKitCards listing={listing} lo={lo} realtor={realtor} toggles={toggles} onToggle={(piece, v) => void setToggle(piece, v)} utmSource="lo_share_kit" />
 
-      <details className="rounded-xl border border-slate-200 bg-white p-4">
-        <summary className="cursor-pointer text-sm font-semibold text-slate-900">Create video</summary>
-        <p className="mt-1 text-xs text-slate-500">Pick a style. Optional — your link, QR and flyer above are all you need to start.</p>
-        <div className="mt-3 flex gap-2">
+      <details className={`group ${loCard}`}>
+        <summary className="flex min-h-[48px] cursor-pointer list-none items-center gap-3">
+          <LoIconTile name="movie" tone="amber" />
+          <span className="flex-1">
+            <span className="block text-lg font-extrabold text-slate-900">Create video</span>
+            <span className="block text-sm text-slate-600">Optional. Your link, QR and flyer above are all you need to start.</span>
+          </span>
+          <LoTag tone="slate">Optional</LoTag>
+        </summary>
+        <p className="mt-4 text-sm text-slate-600">Pick a style.</p>
+        <div className="mt-2 flex flex-wrap gap-2">
           {([['explainer', 'Explainer video'], ['reel', 'Photo reel']] as const).map(([key, label]) => (
             <button key={key} type="button" onClick={() => setVideoKind(key)}
-              className={`rounded-full px-3 py-1.5 text-xs font-semibold ${videoKind === key ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700'}`}>{label}</button>
+              className={`min-h-[44px] rounded-full px-4 text-sm font-semibold ${videoKind === key ? 'bg-primary-600 text-white' : 'border border-slate-300 bg-white text-slate-800'}`}>{label}</button>
           ))}
         </div>
-        <div className="mt-3">
+        <div className="mt-4">
           {videoKind === 'explainer'
             ? <ListingExplainerCard listingId={listingId} demo={demo} />
             : <ListingReelCard listingId={listingId} photoCount={listing.photos.length} demo={demo} />}
         </div>
       </details>
 
-      <details className="rounded-xl border border-slate-200 bg-white p-4">
-        <summary className="cursor-pointer text-sm font-semibold text-slate-900">Property documents (condo review)</summary>
-        <div className="mt-3">
+      <details className={`group ${loCard}`}>
+        <summary className="flex min-h-[48px] cursor-pointer list-none items-center gap-3">
+          <LoIconTile name="description" tone="slate" />
+          <span className="flex-1">
+            <span className="block text-lg font-extrabold text-slate-900">Property documents (condo review)</span>
+            <span className="block text-sm text-slate-600">Upload condo papers and get a plain summary.</span>
+          </span>
+        </summary>
+        <div className="mt-4">
           <HoaDocsCard listingId={listingId} address={listing.address} demo={demo} />
         </div>
       </details>
 
-      <p className="text-xs text-slate-400">Your name, photo, logo and NMLS come from your profile in Settings.</p>
+      <p className="text-xs text-slate-600">Your name, photo, logo and NMLS come from your profile in Settings.</p>
     </div>
   );
 };

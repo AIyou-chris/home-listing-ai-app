@@ -5,6 +5,7 @@ import toast from 'react-hot-toast'
 import { buildApiUrl } from '../../lib/api'
 import { authHeaders } from '../../services/dashboard/utils';
 import { supabase } from '../../services/supabase'
+import { LoPageHeader, LoTag, LoIcon, loCard, loSolid, loGhost } from './loUi'
 
 // Every appointment call must carry the login token: the API is owner-scoped now.
 const apiHeaders = async (json = false): Promise<HeadersInit> => {
@@ -23,13 +24,6 @@ const MEETING_KINDS: MeetingKind[] = [
   'Borrower Call',
   'Agent Check-in',
 ]
-
-const KIND_COLORS: Record<MeetingKind, string> = {
-  'Consultation':    'bg-primary-100 text-primary-700 border border-primary-200',
-  'Coffee Meeting':  'bg-amber-100 text-amber-700 border border-amber-200',
-  'Borrower Call':   'bg-sky-100 text-sky-700 border border-sky-200',
-  'Agent Check-in':  'bg-emerald-100 text-emerald-700 border border-emerald-200',
-}
 
 const KIND_ICONS: Record<MeetingKind, string> = {
   'Consultation':    'person',
@@ -359,116 +353,83 @@ const AppointmentCard: React.FC<AppointmentCardProps> = ({
   cancelConfirmId,
   setCancelConfirmId,
 }) => {
-  const kindColor = KIND_COLORS[appt.type] ?? 'bg-slate-100 text-slate-600 border border-slate-200'
   const kindIcon  = KIND_ICONS[appt.type]  ?? 'event'
   const timeLabel = formatTime(appt)
   const statusLower = appt.status.toLowerCase()
   const isCompleted = statusLower === 'completed'
   const isCanceled  = statusLower === 'canceled' || statusLower === 'cancelled'
 
+  const dateObj = appt.date ? new Date(appt.date + 'T12:00:00') : null
+  const month = dateObj ? dateObj.toLocaleDateString('en-US', { month: 'short' }) : ''
+  const dayNum = dateObj ? dateObj.getDate() : ''
+  const statusTone = isCompleted ? 'green' : isCanceled ? 'slate' : statusLower === 'confirmed' ? 'green' : 'blue'
+  const statusText = isCompleted ? 'Completed' : isCanceled ? 'Canceled' : statusLower === 'confirmed' ? 'Confirmed' : 'Scheduled'
+  const actionCls = 'inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl px-3 text-sm font-bold transition-colors'
+
   return (
-    <div className={`bg-white rounded-2xl border shadow-sm p-4 flex flex-col gap-3 transition-opacity ${
-      isCompleted || isCanceled ? 'opacity-60' : ''
-    }`}>
-      {/* Top row: name + type badge */}
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <p className="font-semibold text-slate-800 text-sm leading-snug">{appt.leadName || '—'}</p>
-          <p className="text-xs text-slate-400 mt-0.5">
+    <div className={`${loCard} flex flex-col gap-4 transition-opacity ${isCompleted || isCanceled ? 'opacity-70' : ''}`}>
+      <div className="flex items-start gap-4">
+        {/* Date tile */}
+        <div aria-hidden="true" className="flex h-16 w-16 shrink-0 flex-col items-center justify-center rounded-2xl bg-primary-50 text-primary-800">
+          <span className="text-xs font-bold uppercase leading-none">{month}</span>
+          <span className="text-2xl font-black leading-tight">{dayNum || <LoIcon name="event" />}</span>
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-base font-extrabold leading-snug text-slate-900">{appt.leadName || '—'}</p>
+            <LoTag tone={statusTone}>{statusText}</LoTag>
+          </div>
+          <p className="mt-0.5 text-sm font-semibold text-slate-700">
             {formatDate(appt.date)}{timeLabel ? ` · ${timeLabel}` : ''}
           </p>
+          <p className="mt-1 inline-flex items-center gap-1 text-xs font-bold text-primary-800">
+            <LoIcon name={kindIcon} className="text-sm" />{appt.type}
+          </p>
+          {appt.location && (
+            <p className="mt-1 flex items-start gap-1.5 text-sm text-slate-600">
+              <LoIcon name="location_on" className="text-base text-slate-500" />
+              <span className="min-w-0 break-words">{appt.location}</span>
+            </p>
+          )}
         </div>
-        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${kindColor}`}>
-          <span className="material-symbols-outlined text-xs">{kindIcon}</span>
-          {appt.type}
-        </span>
       </div>
 
-      {/* Location */}
-      {appt.location && (
-        <div className="flex items-center gap-1.5 text-xs text-slate-500">
-          <span className="material-symbols-outlined text-sm text-slate-400">location_on</span>
-          <span className="truncate">{appt.location}</span>
-        </div>
-      )}
-
-      {/* Notes */}
       {appt.notes && (
-        <p className="text-xs text-slate-500 bg-slate-50 rounded-lg px-3 py-2 line-clamp-2">
-          {appt.notes}
-        </p>
+        <p className="rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-700 line-clamp-3">{appt.notes}</p>
       )}
 
-      {/* Status badge for terminal states */}
-      {(isCompleted || isCanceled) && (
-        <span className={`self-start inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-          isCompleted
-            ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
-            : 'bg-slate-100 text-slate-500 border border-slate-200'
-        }`}>
-          <span className="material-symbols-outlined text-xs">
-            {isCompleted ? 'check_circle' : 'cancel'}
-          </span>
-          {isCompleted ? 'Completed' : 'Canceled'}
-        </span>
-      )}
-
-      {/* Actions — only for active appointments */}
       {!isCompleted && !isCanceled && (
-        <div className="flex items-center gap-2 pt-1 border-t border-slate-100">
-          {/* Call */}
+        <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
+          <button onClick={() => onComplete(appt.id)} className={loSolid}>
+            <LoIcon name="check_circle" className="text-lg" />
+            Done
+          </button>
           {appt.phone && (
-            <a
-              href={`tel:${appt.phone}`}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-600 hover:bg-slate-100 transition-colors"
-            >
-              <span className="material-symbols-outlined text-sm">call</span>
+            <a href={`tel:${appt.phone}`} className={loGhost}>
+              <LoIcon name="call" className="text-lg" />
               Call
             </a>
           )}
-          {/* Email */}
           {appt.email && (
-            <a
-              href={`mailto:${appt.email}`}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-600 hover:bg-slate-100 transition-colors"
-            >
-              <span className="material-symbols-outlined text-sm">mail</span>
+            <a href={`mailto:${appt.email}`} className={loGhost}>
+              <LoIcon name="mail" className="text-lg" />
               Email
             </a>
           )}
-
           <div className="ml-auto flex items-center gap-1">
-            {/* Complete */}
-            <button
-              onClick={() => onComplete(appt.id)}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-emerald-600 hover:bg-emerald-50 transition-colors"
-            >
-              <span className="material-symbols-outlined text-sm">check_circle</span>
-              Done
-            </button>
-
-            {/* Cancel — with inline confirm */}
             {cancelConfirmId === appt.id ? (
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => onCancel(appt.id)}
-                  className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-rose-500 text-white hover:bg-rose-600 transition-colors"
-                >
+              <>
+                <button onClick={() => onCancel(appt.id)} className={`${actionCls} bg-rose-600 text-white hover:bg-rose-700`}>
                   Cancel meeting
                 </button>
-                <button
-                  onClick={() => setCancelConfirmId(null)}
-                  className="px-2 py-1.5 rounded-lg text-xs text-slate-500 hover:text-slate-700 transition-colors"
-                >
+                <button onClick={() => setCancelConfirmId(null)} className={`${actionCls} text-slate-700 hover:bg-slate-100`}>
                   ✕
                 </button>
-              </div>
+              </>
             ) : (
-              <button
-                onClick={() => setCancelConfirmId(appt.id)}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-colors"
-              >
-                <span className="material-symbols-outlined text-sm">close</span>
+              <button onClick={() => setCancelConfirmId(appt.id)} className={`${actionCls} text-slate-700 hover:bg-rose-50 hover:text-rose-700`}>
+                <LoIcon name="close" className="text-lg" />
+                <span className="sr-only">Cancel</span>
               </button>
             )}
           </div>
@@ -489,20 +450,17 @@ const Section: React.FC<{
   const [open, setOpen] = useState(defaultOpen)
 
   return (
-    <div className="mb-6">
+    <div>
       <button
         onClick={() => setOpen(v => !v)}
-        className="flex items-center gap-2 mb-3 group"
+        aria-expanded={open}
+        className="mb-3 flex min-h-[44px] items-center gap-2"
       >
-        <span className="text-sm font-semibold text-slate-700">{title}</span>
-        <span className="text-xs font-medium px-2 py-0.5 bg-slate-100 text-slate-500 rounded-full">
-          {count}
-        </span>
-        <span className={`material-symbols-outlined text-sm text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`}>
-          expand_more
-        </span>
+        <span className="text-lg font-extrabold text-slate-900">{title}</span>
+        <LoTag tone="slate">{count}</LoTag>
+        <LoIcon name="expand_more" className={`text-xl text-slate-600 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
-      {open && <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{children}</div>}
+      {open && <div className="space-y-3">{children}</div>}
     </div>
   )
 }
@@ -676,31 +634,25 @@ const LOAppointmentsPage: React.FC = () => {
 
   return (
     <div>
-      <div className="max-w-5xl mx-auto px-4 pb-28 pt-6 sm:pt-8">
+      <div className="mx-auto max-w-4xl space-y-6 px-4 pb-28 pt-6 sm:pt-8">
 
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8 pr-10">
-          <div>
-            <h1 className="text-2xl font-black tracking-tight text-slate-900">Appointments</h1>
-            <p className="text-sm text-slate-600 mt-1">Consultations, calls, and meetings with agents &amp; borrowers</p>
-          </div>
-          <button
-            onClick={() => setShowModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white text-sm font-semibold rounded-xl hover:bg-primary-700 active:scale-95 transition-all shadow-sm"
-          >
-            <span className="material-symbols-outlined text-base">add</span>
-            Schedule Meeting
-          </button>
-        </div>
+        <LoPageHeader
+          title="Appointments"
+          subtitle="Consultations, calls, and meetings with agents and borrowers."
+          action={(
+            <button onClick={() => setShowModal(true)} className={`${loSolid} mr-10`}>
+              <LoIcon name="add" className="text-lg" />
+              Schedule Meeting
+            </button>
+          )}
+        />
 
-        <div className="mb-8">
-          <PageGuide pageKey="lo-appointments" />
-        </div>
+        <PageGuide pageKey="lo-appointments" />
 
         {/* Loading */}
         {loading && (
           <div className="flex items-center justify-center py-20">
-            <span className="material-symbols-outlined text-3xl text-slate-300 animate-spin">progress_activity</span>
+            <span className="material-symbols-outlined animate-spin text-3xl text-slate-500">progress_activity</span>
           </div>
         )}
 
@@ -714,16 +666,11 @@ const LOAppointmentsPage: React.FC = () => {
 
         {/* Empty state */}
         {!loading && !loadFailed && !hasAny && (
-          <div className="flex flex-col items-center justify-center py-24 gap-4">
-            <span className="material-symbols-outlined text-5xl text-slate-200">calendar_today</span>
-            <div className="text-center">
-              <p className="text-base font-semibold text-slate-600">No meetings yet</p>
-              <p className="text-sm text-slate-400 mt-1">Schedule your first consultation, call, or agent check-in</p>
-            </div>
-            <button
-              onClick={() => setShowModal(true)}
-              className="mt-2 px-5 py-2.5 bg-primary-600 text-white text-sm font-semibold rounded-xl hover:bg-primary-700 transition-all shadow-sm"
-            >
+          <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-5 py-14 text-center">
+            <LoIcon name="calendar_today" className="text-4xl text-slate-500" />
+            <p className="mt-3 text-base font-extrabold text-slate-900">No meetings yet</p>
+            <p className="mx-auto mt-1 max-w-xs text-sm text-slate-600">Schedule your first consultation, call, or agent check-in.</p>
+            <button onClick={() => setShowModal(true)} className={`${loSolid} mt-4`}>
               Schedule Meeting
             </button>
           </div>

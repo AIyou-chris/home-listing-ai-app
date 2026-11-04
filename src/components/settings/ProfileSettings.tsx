@@ -18,10 +18,10 @@ const ProfileSettings: React.FC<ProfileSettingsProps> = ({
 
     if (isLO) {
         return (
-            <div className="p-8 space-y-8 animate-fadeIn">
+            <div className="space-y-5 p-4 animate-fadeIn sm:p-6">
                 <div>
-                    <h2 className="text-2xl font-bold text-slate-900">Profile</h2>
-                    <p className="text-slate-500 mt-1">Your public LO profile — shows on every listing you're co-branded on.</p>
+                    <h2 className="text-4xl font-black tracking-tight text-slate-900">Profile</h2>
+                    <p className="mt-1 text-sm text-slate-600">Your public LO profile — shows on every listing you're co-branded on.</p>
                 </div>
                 <FeatureSection title="Loan Officer Profile" icon="badge">
                     <LOProfileSettings />
@@ -31,10 +31,10 @@ const ProfileSettings: React.FC<ProfileSettingsProps> = ({
     }
 
     return (
-        <div className="p-8 space-y-8 animate-fadeIn">
+        <div className="space-y-5 p-4 animate-fadeIn sm:p-6">
             <div>
-                <h2 className="text-2xl font-bold text-slate-900">Profile Settings</h2>
-                <p className="text-slate-500 mt-1">Manage your public profile and digital presence.</p>
+                <h2 className="text-4xl font-black tracking-tight text-slate-900">Profile Settings</h2>
+                <p className="mt-1 text-sm text-slate-600">Manage your public profile and digital presence.</p>
             </div>
 
             <FeatureSection title="AI Business Card" icon="badge">

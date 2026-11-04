@@ -139,7 +139,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
             {/* Sidebar */}
             <div className="w-64 bg-white border-r border-slate-200 hidden md:flex flex-col flex-shrink-0 h-screen sticky top-0">
                 <div className="p-6">
-                    <h1 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                    <h1 className="text-2xl font-black tracking-tight text-slate-900 flex items-center gap-2">
                         <span className="material-symbols-outlined text-primary-600">settings</span>
                         Settings
                     </h1>
@@ -149,12 +149,12 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                         <button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id as 'profile' | 'notifications' | 'email' | 'calendar' | 'security' | 'billing')}
-                            className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg transition-colors ${activeTab === tab.id
-                                ? 'bg-primary-50 text-primary-700'
-                                : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                            className={`w-full flex min-h-[44px] items-center gap-3 px-4 py-3 text-sm font-bold rounded-xl transition-colors ${activeTab === tab.id
+                                ? 'bg-primary-600 text-white'
+                                : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
                                 }`}
                         >
-                            <span className={`material-symbols-outlined w-5 h-5 ${activeTab === tab.id ? 'text-primary-600' : 'text-slate-400'}`}>
+                            <span className={`material-symbols-outlined w-5 h-5 ${activeTab === tab.id ? 'text-white' : 'text-slate-600'}`}>
                                 {tab.icon}
                             </span>
                             {tab.label}
@@ -172,8 +172,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                     {/* Mobile Header */}
                     <div className="md:hidden bg-white border-b border-slate-200 p-4 sticky top-0 z-10">
                         <div className="flex items-center justify-between mb-4">
-                            <h1 className="text-lg font-bold text-slate-800">Settings</h1>
-                            <button onClick={onBackToDashboard} className="p-2 text-slate-600">
+                            <h1 className="text-2xl font-black tracking-tight text-slate-900">Settings</h1>
+                            <button onClick={onBackToDashboard} aria-label="Close settings" className="flex h-11 w-11 items-center justify-center text-slate-700">
                                 <span className="material-symbols-outlined">close</span>
                             </button>
                         </div>
@@ -182,9 +182,9 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                                 <button
                                     key={tab.id}
                                     onClick={() => setActiveTab(tab.id as 'profile' | 'notifications' | 'email' | 'calendar' | 'security' | 'billing')}
-                                    className={`flex-shrink-0 px-4 py-2 text-sm font-medium rounded-full whitespace-nowrap ${activeTab === tab.id
+                                    className={`flex-shrink-0 min-h-[44px] px-4 text-sm font-bold rounded-full whitespace-nowrap ${activeTab === tab.id
                                         ? 'bg-primary-600 text-white'
-                                        : 'bg-slate-100 text-slate-600'
+                                        : 'bg-slate-100 text-slate-700'
                                         }`}
                                 >
                                     {tab.label}
@@ -264,7 +264,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                                     onSave={isDemoMode ? async () => { } : onSaveProfile}
                                 />
                                 {/* Trust & compliance section */}
-                                <div className="mx-6 mb-6 mt-2 space-y-3">
+                                <div className="mx-4 mb-6 mt-2 space-y-3 sm:mx-6">
                                     <div className="flex gap-3 rounded-2xl border border-slate-100 bg-slate-50 px-5 py-4">
                                         <span className="material-symbols-outlined mt-0.5 flex-shrink-0 text-[20px] text-primary-500">lock</span>
                                         <div>
@@ -330,7 +330,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                                 type="button"
                                 onClick={() => void hardRefreshApp()}
                                 disabled={refreshingApp}
-                                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                                className="inline-flex min-h-[44px] items-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-800 transition hover:border-primary-500 hover:text-primary-700 disabled:cursor-not-allowed disabled:opacity-60"
                             >
                                 {refreshingApp ? 'Refreshing…' : 'Refresh app'}
                             </button>

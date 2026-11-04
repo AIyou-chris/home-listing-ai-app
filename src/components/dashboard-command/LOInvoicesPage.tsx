@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import PageGuide from './PageGuide'
+import { LoIcon, LoIconTile, LoPageHeader, LoStat, LoTag, loCard, loGhost, loSolid, loInput } from './loUi'
 import { buildApiUrl } from '../../lib/api'
 import { authHeaders } from '../../services/dashboard/utils'
 import { showToast } from '../../utils/toastService'
@@ -29,11 +30,11 @@ type Filter = 'all' | 'open' | 'paid' | 'void'
 const PAY_NOTE_KEY = 'hlai_invoice_pay_instructions'
 const LINE_IDEAS = ['Share of flyer printing', 'Share of social ads', 'Share of open house signs', 'Share of mailers']
 
-const STATUS_STYLE: Record<InvoiceStatus, { label: string; cls: string }> = {
-  sent: { label: 'Sent', cls: 'bg-blue-50 text-blue-700 border-blue-200' },
-  overdue: { label: 'Overdue', cls: 'bg-red-50 text-red-700 border-red-200' },
-  paid: { label: 'Paid', cls: 'bg-green-50 text-green-700 border-green-200' },
-  void: { label: 'Void', cls: 'bg-slate-100 text-slate-600 border-slate-200' }
+const STATUS_STYLE: Record<InvoiceStatus, { label: string; tone: 'blue' | 'red' | 'green' | 'slate' }> = {
+  sent: { label: 'Sent', tone: 'blue' },
+  overdue: { label: 'Overdue', tone: 'red' },
+  paid: { label: 'Paid', tone: 'green' },
+  void: { label: 'Void', tone: 'slate' }
 }
 
 const readStored = (key: string) => {
@@ -204,40 +205,28 @@ const LOInvoicesPage: React.FC = () => {
     try { await downloadInvoicesCsv() } catch (err) { showToast.error(err instanceof Error ? err.message : 'Could not export.') }
   }
 
-  const inputCls = 'w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100'
-  const labelCls = 'mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500'
+  const inputCls = loInput
+  const labelCls = 'mb-1 block text-xs font-bold text-slate-700'
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6 px-4 pb-28 pt-6 sm:pt-8">
-      <div className="flex flex-col gap-3 pr-10 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-black tracking-tight text-slate-900">Invoices</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Bill an agent for their share of marketing. They pay you directly. We never touch the money.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => { resetForm(); setSentInvoice(null); setFormOpen(true) }}
-          className="rounded-xl bg-primary-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-primary-700"
-        >
-          + New invoice
-        </button>
-      </div>
+    <div className="mx-auto max-w-4xl space-y-6 px-4 pb-28 pt-6 sm:pt-8">
+      <LoPageHeader
+        title="Invoices"
+        subtitle="Bill an agent for their share of marketing. They pay you directly. We never touch the money."
+        action={(
+          <button type="button" onClick={() => { resetForm(); setSentInvoice(null); setFormOpen(true) }} className={loSolid}>
+            <LoIcon name="add" className="text-lg" />
+            + New invoice
+          </button>
+        )}
+      />
 
       <PageGuide pageKey="lo-invoices" />
 
-      <div className="grid grid-cols-3 gap-3">
-        {[
-          { label: 'Waiting on payment', value: summary.outstandingCents, cls: 'text-slate-900' },
-          { label: 'Overdue', value: summary.overdueCents, cls: summary.overdueCents > 0 ? 'text-red-600' : 'text-slate-900' },
-          { label: 'Paid', value: summary.paidCents, cls: 'text-green-600' }
-        ].map((c) => (
-          <div key={c.label} className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-            <p className="text-xs font-semibold text-slate-500">{c.label}</p>
-            <p className={`mt-1 text-lg font-black ${c.cls}`}>{formatCents(c.value)}</p>
-          </div>
-        ))}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <LoStat value={formatCents(summary.outstandingCents)} label="Waiting on payment" />
+        <LoStat value={<span className={summary.overdueCents > 0 ? 'text-red-700' : ''}>{formatCents(summary.overdueCents)}</span>} label="Overdue" />
+        <LoStat value={<span className="text-green-700">{formatCents(summary.paidCents)}</span>} label="Paid" />
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -249,30 +238,31 @@ const LOInvoicesPage: React.FC = () => {
               role="tab"
               aria-selected={filter === f}
               onClick={() => setFilter(f)}
-              className={`rounded-full border px-3 py-1.5 text-xs font-bold capitalize ${filter === f ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-600'}`}
+              className={`min-h-[44px] rounded-full border px-4 text-sm font-bold capitalize transition ${filter === f ? 'border-primary-600 bg-primary-600 text-white' : 'border-slate-300 bg-white text-slate-700 hover:border-primary-500'}`}
             >
               {f}
             </button>
           ))}
         </div>
         {invoices.length > 0 && (
-          <button type="button" onClick={() => void exportCsv()} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700">
+          <button type="button" onClick={() => void exportCsv()} className={loGhost}>
             Download CSV
           </button>
         )}
       </div>
 
       {loading ? (
-        <p className="py-10 text-center text-sm text-slate-500">Loading invoices…</p>
+        <p className="py-10 text-center text-sm text-slate-600">Loading invoices…</p>
       ) : error ? (
         <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           {error}{' '}
           <button type="button" onClick={() => void load()} className="font-bold underline">Try again</button>
         </div>
       ) : visible.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center">
+        <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center shadow-sm">
+          <div className="mb-3 flex justify-center"><LoIconTile name="receipt_long" /></div>
           <p className="text-base font-bold text-slate-800">{invoices.length === 0 ? 'No invoices yet' : 'Nothing here'}</p>
-          <p className="mx-auto mt-1 max-w-sm text-sm text-slate-500">
+          <p className="mx-auto mt-1 max-w-sm text-sm text-slate-600">
             {invoices.length === 0
               ? 'When you and an agent split a marketing cost, send them an invoice for their share. It takes about a minute.'
               : 'No invoices match this filter.'}
@@ -285,20 +275,21 @@ const LOInvoicesPage: React.FC = () => {
             const open = inv.status === 'sent' || inv.status === 'overdue'
             const busy = busyId === inv.id
             return (
-              <li key={inv.id || inv.invoiceNumber} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-bold text-slate-900">{inv.agentName || inv.agentEmail}</p>
-                    <p className="truncate text-xs text-slate-500">
+              <li key={inv.id || inv.invoiceNumber} className={loCard}>
+                <div className="flex items-start gap-3">
+                  <LoIconTile name="receipt_long" tone={style.tone === 'slate' ? 'slate' : style.tone === 'green' ? 'green' : style.tone === 'red' ? 'amber' : 'blue'} />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-base font-extrabold text-slate-900">{inv.agentName || inv.agentEmail}</p>
+                    <p className="truncate text-xs text-slate-600">
                       {inv.invoiceNumber}{inv.listingAddress ? ` · ${inv.listingAddress}` : ''}
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="text-base font-black text-slate-900">{formatCents(inv.totalCents)}</p>
-                    <span className={`mt-1 inline-block rounded-full border px-2 py-0.5 text-xs font-bold ${style.cls}`}>{style.label}</span>
+                    <p className="text-lg font-black text-slate-900">{formatCents(inv.totalCents)}</p>
+                    <LoTag tone={style.tone}>{style.label}</LoTag>
                   </div>
                 </div>
-                <p className="mt-2 text-xs text-slate-500">
+                <p className="mt-3 text-xs text-slate-600">
                   Sent {shortDate(inv.sentAt)}
                   {inv.dueDate ? ` · due ${shortDate(inv.dueDate)}` : ''}
                   {inv.paidAt ? ` · paid ${shortDate(inv.paidAt)}` : ''}
@@ -307,22 +298,22 @@ const LOInvoicesPage: React.FC = () => {
                   {inv.reminderCount ? ` · ${inv.reminderCount} reminder${inv.reminderCount > 1 ? 's' : ''}` : ''}
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <button type="button" onClick={() => void copyLink(inv.link)} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700">Copy link</button>
+                  <button type="button" onClick={() => void copyLink(inv.link)} className={loGhost}>Copy link</button>
                   {open && (
-                    <button type="button" disabled={busy} onClick={() => void act(inv, () => remindInvoice(inv.id as string), 'Reminder sent.')} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 disabled:opacity-50">Remind</button>
+                    <button type="button" disabled={busy} onClick={() => void act(inv, () => remindInvoice(inv.id as string), 'Reminder sent.')} className={loGhost}>Remind</button>
                   )}
                   {open && (
-                    <button type="button" disabled={busy} onClick={() => void act(inv, () => setInvoicePaid(inv.id as string, true), 'Marked paid.')} className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50">Mark paid</button>
+                    <button type="button" disabled={busy} onClick={() => void act(inv, () => setInvoicePaid(inv.id as string, true), 'Marked paid.')} className={`${loSolid} !bg-green-700 hover:!bg-green-800`}>Mark paid</button>
                   )}
                   {inv.status === 'paid' && (
-                    <button type="button" disabled={busy} onClick={() => void act(inv, () => setInvoicePaid(inv.id as string, false), 'Marked unpaid.')} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 disabled:opacity-50">Mark unpaid</button>
+                    <button type="button" disabled={busy} onClick={() => void act(inv, () => setInvoicePaid(inv.id as string, false), 'Marked unpaid.')} className={loGhost}>Mark unpaid</button>
                   )}
                   {open && (
                     <button
                       type="button"
                       disabled={busy}
                       onClick={() => { if (window.confirm(`Void invoice ${inv.invoiceNumber}? The agent will no longer be able to open it.`)) void act(inv, () => voidInvoice(inv.id as string), 'Invoice voided.') }}
-                      className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-bold text-red-600 disabled:opacity-50"
+                      className={`${loGhost} !border-red-300 !text-red-700`}
                     >
                       Void
                     </button>
@@ -347,8 +338,8 @@ const LOInvoicesPage: React.FC = () => {
                     : 'The email could not be delivered. Copy the link and send it yourself.'}
                 </p>
                 <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
-                  <button type="button" onClick={() => void copyLink(sentInvoice.invoice.link)} className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-bold text-slate-700">Copy link</button>
-                  <button type="button" onClick={() => { setFormOpen(false); setSentInvoice(null) }} className="rounded-xl bg-primary-600 px-4 py-2.5 text-sm font-bold text-white">Done</button>
+                  <button type="button" onClick={() => void copyLink(sentInvoice.invoice.link)} className={loGhost}>Copy link</button>
+                  <button type="button" onClick={() => { setFormOpen(false); setSentInvoice(null) }} className={loSolid}>Done</button>
                 </div>
               </div>
             ) : (
@@ -438,7 +429,7 @@ const LOInvoicesPage: React.FC = () => {
                   HomeListingAI does not process or hold payments and is not a party to this invoice. Check with your compliance team that the amounts you charge are right for your state.
                 </p>
                 {formError && <p role="alert" className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{formError}</p>}
-                <button type="submit" disabled={saving || totalCents === 0} className="w-full rounded-xl bg-primary-600 py-3 text-sm font-bold text-white hover:bg-primary-700 disabled:opacity-50">
+                <button type="submit" disabled={saving || totalCents === 0} className={`${loSolid} w-full`}>
                   {saving ? 'Sending…' : `Send invoice${totalCents ? ` · ${formatCents(totalCents)}` : ''}`}
                 </button>
               </form>

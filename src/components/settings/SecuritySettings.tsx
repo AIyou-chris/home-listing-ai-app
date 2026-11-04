@@ -252,10 +252,10 @@ const SecuritySettingsPage: React.FC<SecuritySettingsProps> = ({
     };
 
     return (
-        <div className="p-8 space-y-8 animate-fadeIn">
+        <div className="space-y-5 p-4 animate-fadeIn sm:p-6">
             <div>
-                <h2 className="text-2xl font-bold text-slate-900">🔐 Security Settings</h2>
-                <p className="text-slate-500 mt-1">Manage your account security, passwords, and privacy settings.</p>
+                <h2 className="text-4xl font-black tracking-tight text-slate-900">Security Settings</h2>
+                <p className="mt-1 text-sm text-slate-600">Manage your account security, passwords, and privacy settings.</p>
             </div>
 
             <form onSubmit={handlePasswordSave}>

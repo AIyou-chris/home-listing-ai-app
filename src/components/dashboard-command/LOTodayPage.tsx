@@ -7,6 +7,7 @@ import CallNowHero from './CallNowHero'
 import { CallTextButtons, WaitingBadge } from './LeadActions'
 import type { DashboardLeadItem } from '../../services/dashboardCommandService'
 import { markLoLeadContacted, setLoLeadFollowUp } from '../../services/loLeads'
+import { LoIcon, LoIconTile, LoPageHeader, LoSectionCard, LoStat, LoTag, loGhost, loSolid } from './loUi'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -190,7 +191,7 @@ const LoTestimonialAsk: React.FC = () => {
   if (state === 'hidden') return null;
   if (state === 'done') {
     return (
-      <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm font-semibold text-emerald-800">
+      <div className="rounded-2xl border border-green-200 bg-green-50 px-5 py-4 text-sm font-semibold text-green-800">
         🙏 Thank you! We'll check with you before using your quote anywhere.
       </div>
     );
@@ -198,14 +199,15 @@ const LoTestimonialAsk: React.FC = () => {
 
   return (
     <div className="rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 to-white p-5 shadow-sm">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-sm font-extrabold text-slate-900">🎉 You're getting leads — mind sharing a sentence about it?</p>
-          <p className="mt-0.5 text-xs text-slate-500">Real words from real LOs are the only marketing we'll ever run. We'll ask before quoting you.</p>
+      <div className="flex items-start gap-3">
+        <LoIconTile name="reviews" tone="amber" />
+        <div className="min-w-0 flex-1">
+          <p className="text-lg font-extrabold text-slate-900">🎉 You're getting leads — mind sharing a sentence about it?</p>
+          <p className="mt-0.5 text-sm text-slate-600">Real words from real LOs are the only marketing we'll ever run. We'll ask before quoting you.</p>
         </div>
         <button
           onClick={() => { remember('dismissed'); setState('hidden'); }}
-          className="flex-shrink-0 text-xs font-semibold text-slate-400 hover:text-slate-600"
+          className="flex min-h-[44px] flex-shrink-0 items-center px-2 text-xs font-semibold text-slate-600 hover:text-slate-900"
         >
           No thanks
         </button>
@@ -213,25 +215,25 @@ const LoTestimonialAsk: React.FC = () => {
       {state === 'idle' ? (
         <button
           onClick={() => setState('open')}
-          className="mt-3 rounded-xl bg-amber-500 px-4 py-2 text-xs font-extrabold text-white transition-colors hover:bg-amber-600"
+          className="mt-4 inline-flex min-h-[44px] items-center rounded-xl bg-amber-600 px-4 text-sm font-extrabold text-white shadow-sm transition-colors hover:bg-amber-700"
         >
           Sure, I'll say something
         </button>
       ) : (
-        <div className="mt-3">
+        <div className="mt-4">
           <textarea
             value={quote}
             onChange={(e) => setQuote(e.target.value)}
             maxLength={600}
             rows={3}
             placeholder='e.g. "Two warm leads in my first week — from listings I didn&apos;t pay a dime to advertise."'
-            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
+            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 placeholder-slate-500 focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100"
           />
-          {error && <p className="mt-1 text-xs font-semibold text-red-600">{error}</p>}
+          {error && <p className="mt-1 text-xs font-semibold text-red-700">{error}</p>}
           <button
             onClick={submit}
             disabled={state === 'sending'}
-            className="mt-2 rounded-xl bg-amber-500 px-4 py-2 text-xs font-extrabold text-white transition-colors hover:bg-amber-600 disabled:opacity-60"
+            className="mt-2 inline-flex min-h-[44px] items-center rounded-xl bg-amber-600 px-4 text-sm font-extrabold text-white shadow-sm transition-colors hover:bg-amber-700 disabled:opacity-60"
           >
             {state === 'sending' ? 'Sending…' : 'Send it 🚀'}
           </button>
@@ -250,27 +252,19 @@ const AiActivityCard: React.FC<{ data: LODashboardData; navTo: (p: string) => vo
   const recent = calls?.recent ?? []
   if (!calls && !brain) return null
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-5 py-4">
-        <div className="flex items-center gap-2">
-          <span className="material-symbols-outlined text-xl text-primary-600" aria-hidden="true">psychology</span>
-          <h2 className="text-sm font-bold text-slate-900">Your AI</h2>
-          {brain && (
-            <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${brain.active ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
-              {brain.active ? 'ON' : 'OFF'}
-            </span>
-          )}
+    <LoSectionCard icon="psychology" title="Your AI" description="What your AI did while you were busy.">
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          {brain && <LoTag tone={brain.active ? 'green' : 'red'}>{brain.active ? 'ON' : 'OFF'}</LoTag>}
+          <button onClick={() => navTo('/lo-chatbot')} className={`${loGhost} ml-auto`}>Open AI Brain<LoIcon name="arrow_forward" className="text-base" /></button>
         </div>
-        <button onClick={() => navTo('/lo-chatbot')} className="text-xs font-semibold text-primary-700 hover:underline">Open AI Brain →</button>
-      </div>
-      <div className="px-5 py-4">
         {brain && !brain.active && (
-          <p className="mb-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-800">
+          <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm font-semibold text-rose-800">
             Your AI is off. Buyers are sent to you and calls ring your cell. Turn it on from the Listings page.
           </p>
         )}
         {brain && brain.active && !brain.hasKnowledge && (
-          <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">
+          <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm font-semibold text-amber-900">
             Your AI has nothing to read yet. Add your rate sheet and loan programs so it answers like you.{' '}
             <button onClick={() => navTo('/lo-chatbot')} className="underline">Teach it now</button>
           </p>
@@ -279,33 +273,33 @@ const AiActivityCard: React.FC<{ data: LODashboardData; navTo: (p: string) => vo
           <p className="text-sm text-slate-700">
             <span className="text-2xl font-black text-slate-900">{calls.today}</span>{' '}
             call{calls.today === 1 ? '' : 's'} answered today
-            <span className="text-slate-500"> · {calls.week} this week</span>
+            <span className="text-slate-600"> · {calls.week} this week</span>
           </p>
         )}
         {recent.length > 0 ? (
-          <ul className="mt-3 divide-y divide-slate-100">
+          <ul className="grid gap-2">
             {recent.map((c) => (
               <li key={c.id}>
                 <button
                   type="button"
                   onClick={() => navTo(c.leadId ? `/lo-leads?lead=${c.leadId}` : '/lo-chatbot')}
-                  className="flex w-full items-start gap-3 py-2.5 text-left hover:bg-slate-50"
+                  className="flex min-h-[44px] w-full items-start gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-left transition hover:border-primary-400"
                 >
-                  <span className="material-symbols-outlined mt-0.5 text-lg text-slate-500" aria-hidden="true">call</span>
+                  <span className="material-symbols-outlined flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary-700" aria-hidden="true">call</span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold text-slate-900">{c.name || c.from || 'Unknown caller'}</span>
-                    <span className="line-clamp-2 text-xs text-slate-500">{c.summary || 'No summary yet'}</span>
+                    <span className="block truncate text-sm font-extrabold text-slate-900">{c.name || c.from || 'Unknown caller'}</span>
+                    <span className="line-clamp-2 text-xs text-slate-600">{c.summary || 'No summary yet'}</span>
                   </span>
-                  <span className="flex-shrink-0 text-xs text-slate-500">{toRelativeTime(c.startedAt)}</span>
+                  <span className="flex-shrink-0 text-xs text-slate-600">{toRelativeTime(c.startedAt)}</span>
                 </button>
               </li>
             ))}
           </ul>
         ) : (
-          calls && <p className="mt-2 text-xs text-slate-500">No calls yet. When a buyer calls your AI number, the summary shows up here.</p>
+          calls && <p className="text-sm text-slate-600">No calls yet. When a buyer calls your AI number, the summary shows up here.</p>
         )}
       </div>
-    </section>
+    </LoSectionCard>
   )
 }
 
@@ -342,55 +336,31 @@ const LOSetupChecklist: React.FC<{ setup: LOSetupState; onDismiss: () => void; n
   const pct = Math.round((doneCount / steps.length) * 100)
 
   return (
-    <div className="rounded-2xl border border-primary-200 bg-gradient-to-br from-primary-50 to-white shadow-sm overflow-hidden">
-      <div className="px-5 py-4 border-b border-primary-100 flex items-center justify-between">
-        <div>
-          <h2 className="font-bold text-slate-900 text-sm">🚀 Get set up — {doneCount} of {steps.length} done</h2>
-          <p className="text-xs text-slate-500 mt-0.5">Complete these steps to start getting warm leads from your agent partners.</p>
+    <LoSectionCard icon="rocket_launch" title={`Get set up: ${doneCount} of ${steps.length} done`} description="Finish these steps to start getting warm leads from your agent partners.">
+      <div className="mb-4 flex items-center gap-3">
+        <div className="h-2 flex-1 overflow-hidden rounded-full bg-primary-100">
+          <div className="h-full rounded-full bg-primary-600 transition-all duration-500" style={{ width: `${pct}%` }} />
         </div>
-        <button
-          onClick={onDismiss}
-          className="text-slate-400 hover:text-slate-600 text-xs font-semibold ml-4 flex-shrink-0"
-          title="Dismiss"
-        >
-          Dismiss
-        </button>
+        <button onClick={onDismiss} className="min-h-[44px] px-2 text-xs font-semibold text-slate-600 hover:text-slate-900" title="Dismiss">Dismiss</button>
       </div>
-
-      {/* Progress bar */}
-      <div className="h-1.5 bg-primary-100">
-        <div
-          className="h-full bg-primary-600 transition-all duration-500"
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-
-      <ul className="divide-y divide-slate-100">
+      <ul className="grid gap-2" aria-label="Setup checks">
         {steps.map((step, i) => (
-          <li
-            key={i}
-            className={`flex items-center gap-4 px-5 py-4 ${!step.done ? 'cursor-pointer hover:bg-primary-50 transition-colors' : ''}`}
-            onClick={!step.done ? step.action : undefined}
-          >
-            {/* Check circle */}
-            <div className={`w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center text-sm font-bold border-2 ${
-              step.done
-                ? 'bg-emerald-500 border-emerald-500 text-white'
-                : 'border-slate-300 text-slate-400 bg-white'
-            }`}>
-              {step.done ? '✓' : i + 1}
+          <li key={i}>
+            <div
+              className={`flex min-h-[44px] flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5 ${!step.done ? 'cursor-pointer transition hover:border-primary-400' : ''}`}
+              onClick={!step.done ? step.action : undefined}
+            >
+              <LoIcon name={step.done ? 'check_circle' : 'radio_button_unchecked'} className={`text-2xl ${step.done ? 'text-green-600' : 'text-amber-500'}`} />
+              <div className="min-w-0 flex-1 basis-48">
+                <p className={`text-sm font-extrabold ${step.done ? 'text-slate-500 line-through' : 'text-slate-900'}`}>{step.label}</p>
+                <p className="text-xs text-slate-600">{step.sub}</p>
+              </div>
+              {step.done ? <LoTag tone="green">Done</LoTag> : <span className="text-xs font-semibold text-primary-700">Start →</span>}
             </div>
-            <div className="flex-1 min-w-0">
-              <p className={`text-sm font-semibold ${step.done ? 'text-slate-400 line-through' : 'text-slate-900'}`}>{step.label}</p>
-              <p className="text-xs text-slate-400 mt-0.5">{step.sub}</p>
-            </div>
-            {!step.done && (
-              <span className="text-xs text-primary-600 font-semibold flex-shrink-0">Start →</span>
-            )}
           </li>
         ))}
       </ul>
-    </div>
+    </LoSectionCard>
   )
 }
 
@@ -491,7 +461,7 @@ const LOTodayPage: React.FC = () => {
         <p>{error || 'No data available'}</p>
         <button
           onClick={() => { setError(null); setLoading(true); void load() }}
-          className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-bold text-white hover:bg-primary-700"
+          className={loSolid}
         >
           Try again
         </button>
@@ -518,35 +488,38 @@ const LOTodayPage: React.FC = () => {
   const draftCount = data.assignedListings.filter((l) => l.status === 'draft').length
 
   const wowCard = (
-      <div className="flex flex-col items-start justify-between gap-3 rounded-2xl border border-primary-200 bg-primary-50 p-5 sm:flex-row sm:items-center">
-        <div>
-          <h2 className="text-sm font-bold text-slate-900">Get your next warm lead</h2>
-          <p className="mt-0.5 text-xs text-slate-600">Send an agent a WOW link. Their buyers chat with your AI, and you get the lead.</p>
-        </div>
-        <button
-          onClick={() => navTo('/lo-partners')}
-          className="shrink-0 rounded-lg bg-primary-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-primary-700"
-        >
-          Send a WOW link
-        </button>
+    <div className="flex flex-col items-start gap-4 rounded-2xl border border-primary-200 bg-primary-50 p-5 shadow-sm sm:flex-row sm:items-center">
+      <LoIconTile name="send" />
+      <div className="min-w-0 flex-1">
+        <h2 className="text-lg font-extrabold text-slate-900">Get your next warm lead</h2>
+        <p className="text-sm text-slate-600">Send an agent a WOW link. Their buyers chat with your AI, and you get the lead.</p>
       </div>
+      <button onClick={() => navTo('/lo-partners')} className={`${loSolid} shrink-0`}>
+        <LoIcon name="send" className="text-lg" />Send a WOW link
+      </button>
+    </div>
   )
 
+  const followUps = data.followUps || []
+
   return (
-    <div className="space-y-6 pb-24">
+    <div className="mx-auto w-full max-w-6xl space-y-6 pb-24">
 
       {/* ── Greeting ─────────────────────────────────────────────────────────── */}
-      <div>
-        <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-          Good {dayPart()} 👋
-        </h1>
-        <p className="text-slate-500 text-sm mt-1">
-          Here's your pipeline across {stats.assignedListings} listing{stats.assignedListings !== 1 ? 's' : ''}.
-        </p>
-      </div>
+      <LoPageHeader
+        title={`Good ${dayPart()} 👋`}
+        subtitle={`Here's your pipeline across ${stats.assignedListings} listing${stats.assignedListings !== 1 ? 's' : ''}.`}
+      />
 
       {heroLead && <CallNowHero lead={heroLead} onOpen={(id) => navTo(`/lo-leads?lead=${id}`)} onCalled={handleCalled} />}
       {!heroLead && wowCard}
+
+      {/* ── Numbers ─────────────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-3">
+        <LoStat value={stats.newToday} label="New today" />
+        <LoStat value={<span className="text-rose-700">{stats.hotLeads ?? 0}</span>} label="Hot leads" />
+        <LoStat value={stats.partnersReached ?? 0} label="Agents reached" />
+      </div>
 
       {/* ── Setup Checklist (shown until onboarding complete or dismissed) ────── */}
       {setup && !setupDismissed && (
@@ -557,12 +530,21 @@ const LOTodayPage: React.FC = () => {
         />
       )}
 
-      {/* ── Numbers in one line ─────────────────────────────────────────────────── */}
-      <p className="text-sm text-slate-600">
-        <span className="font-bold text-slate-900">{stats.newToday}</span> new today
-        {' · '}<span className="font-bold text-rose-700">{stats.hotLeads ?? 0}</span> hot
-        {' · '}<span className="font-bold text-slate-900">{stats.partnersReached ?? 0}</span> agents reached
-      </p>
+      {/* ── Buyers who said "not yet" and are due for a check-in ─────────────── */}
+      {followUps.length > 0 && (
+        <LoSectionCard icon="schedule" title={`Time to check back (${followUps.length})`} description="You said you would follow up with these people." tone="amber">
+          <div className="grid gap-2">
+            {followUps.map((f) => (
+              <div key={f.id} className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5">
+                <button type="button" onClick={() => navTo(`/lo-leads?lead=${f.id}`)} className="min-h-[44px] min-w-0 flex-1 basis-40 truncate text-left text-sm font-extrabold text-slate-900 hover:text-primary-700">{f.name}</button>
+                <CallTextButtons phone={f.phone} onUsed={() => handleCalled(f.id)} />
+                <button type="button" onClick={() => handleFollowUp(f.id, 30)} className={loGhost}>Later</button>
+                <button type="button" onClick={() => handleFollowUp(f.id, null)} className={loGhost}>Done</button>
+              </div>
+            ))}
+          </div>
+        </LoSectionCard>
+      )}
 
       {/* ── What the AI did while you were busy ──────────────────────────────── */}
       {data.brain && (!data.brain.active || !data.brain.hasKnowledge) && <AiActivityCard data={data} navTo={navTo} />}
@@ -571,57 +553,33 @@ const LOTodayPage: React.FC = () => {
       {stats.totalLeads >= 2 && <LoTestimonialAsk />}
 
       {!demoMode && (
-        <button type="button" onClick={() => navTo('/lo-promote')} className="flex w-full items-center justify-between rounded-2xl border border-slate-200 bg-white px-5 py-4 text-left shadow-sm hover:border-slate-400">
-          <span><span className="block text-sm font-bold text-slate-900">Your personal link</span><span className="block text-xs text-slate-600">Get requests without an agent. Copy it, share the QR, post it.</span></span>
-          <span className="text-xs font-semibold text-primary-600">Open →</span>
+        <button type="button" onClick={() => navTo('/lo-promote')} className="flex min-h-[44px] w-full items-center gap-4 rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:border-primary-400">
+          <LoIconTile name="share" />
+          <span className="min-w-0 flex-1"><span className="block text-lg font-extrabold text-slate-900">Your personal link</span><span className="block text-sm text-slate-600">Get requests without an agent. Copy it, share the QR, post it.</span></span>
+          <span className="inline-flex items-center gap-1 text-sm font-bold text-primary-700">Open<LoIcon name="arrow_forward" className="text-base" /></span>
         </button>
-      )}
-
-      {/* ── Buyers who said "not yet" and are due for a check-in ─────────────── */}
-      {(data.followUps || []).length > 0 && (
-        <div className="rounded-2xl border border-violet-200 bg-violet-50 p-4 shadow-sm">
-          <h2 className="text-sm font-bold text-violet-900">Time to check back ({(data.followUps || []).length})</h2>
-          <p className="mb-3 text-xs text-violet-800">You said you would follow up with these people.</p>
-          <div className="space-y-2">
-            {(data.followUps || []).map((f) => (
-              <div key={f.id} className="flex flex-wrap items-center gap-2 rounded-xl bg-white px-3 py-2">
-                <button type="button" onClick={() => navTo(`/lo-leads?lead=${f.id}`)} className="min-w-0 flex-1 truncate text-left text-sm font-bold text-slate-900 hover:underline">{f.name}</button>
-                <CallTextButtons phone={f.phone} onUsed={() => handleCalled(f.id)} />
-                <button type="button" onClick={() => handleFollowUp(f.id, 30)} className="min-h-[36px] rounded-lg border border-slate-300 bg-white px-3 text-xs font-bold text-slate-700 hover:bg-slate-50">Later</button>
-                <button type="button" onClick={() => handleFollowUp(f.id, null)} className="min-h-[36px] rounded-lg border border-slate-300 bg-white px-3 text-xs font-bold text-slate-700 hover:bg-slate-50">Done</button>
-              </div>
-            ))}
-          </div>
-        </div>
       )}
 
       {/* ── Two column layout ─────────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
 
         {/* Recent leads — wider col */}
-        <div className="lg:col-span-3 rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-            <h2 className="font-bold text-slate-900 text-sm">Recent Leads</h2>
-            <button
-              onClick={() => navTo('/lo-leads')}
-              className="text-xs text-primary-600 font-semibold hover:underline"
-            >
-              View all →
-            </button>
+        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm lg:col-span-3" aria-label="Recent leads">
+          <div className="flex items-center gap-3 px-5 pt-5">
+            <LoIconTile name="group" />
+            <h2 className="min-w-0 flex-1 text-lg font-extrabold text-slate-900">Recent Leads</h2>
+            <button onClick={() => navTo('/lo-leads')} className={loGhost}>View all<LoIcon name="arrow_forward" className="text-base" /></button>
           </div>
 
           {recentLeads.length === 0 ? (
-            <div className="py-12 text-center text-slate-400 text-sm px-5">
+            <div className="px-5 py-12 text-center text-sm text-slate-600">
               <p>No leads yet. The fastest way to get one:</p>
-              <button
-                onClick={() => navTo('/lo-partners')}
-                className="mt-3 rounded-lg bg-primary-600 px-4 py-2 text-sm font-bold text-white hover:bg-primary-700"
-              >
-                Send a WOW link to an agent
+              <button onClick={() => navTo('/lo-partners')} className={`${loSolid} mt-4`}>
+                <LoIcon name="send" className="text-lg" />Send a WOW link to an agent
               </button>
             </div>
           ) : (
-            <ul className="divide-y divide-slate-50">
+            <ul className="mt-4 divide-y divide-slate-100 border-t border-slate-100">
               {recentLeads.map(lead => {
                 const ctx = contextLabel(lead.context)
                 const subline = lead.intentReason || lead.email || lead.phone || 'No contact info'
@@ -635,13 +593,13 @@ const LOTodayPage: React.FC = () => {
                       <div className={`mt-1.5 h-2.5 w-2.5 flex-shrink-0 rounded-full ${intentColor(lead.intentLevel)}`} title={`${toIntentLevel(lead.intentLevel)} lead`} />
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                          <p className="truncate text-sm font-semibold text-slate-900">{lead.name}</p>
-                          <span className={`flex-shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-bold ${ctx.color}`}>{ctx.label}</span>
+                          <p className="truncate text-sm font-extrabold text-slate-900">{lead.name}</p>
+                          <span className={`flex-shrink-0 rounded-md border px-2 py-0.5 text-xs font-bold ${ctx.color}`}>{ctx.label}</span>
                           <WaitingBadge lead={{ status: lead.status, created_at: lead.createdAt, intent_level: toIntentLevel(lead.intentLevel) }} />
                         </div>
-                        <p className="mt-0.5 line-clamp-2 text-xs text-slate-500">{subline}</p>
+                        <p className="mt-0.5 line-clamp-2 text-xs text-slate-600">{subline}</p>
                       </div>
-                      <span className="flex-shrink-0 pt-0.5 text-xs text-slate-500">{toRelativeTime(lead.createdAt)}</span>
+                      <span className="flex-shrink-0 pt-0.5 text-xs text-slate-600">{toRelativeTime(lead.createdAt)}</span>
                     </div>
                     {lead.phone && (
                       <div className="mt-2.5 flex gap-2 pl-[22px]" onClick={(e) => e.stopPropagation()}>
@@ -653,62 +611,50 @@ const LOTodayPage: React.FC = () => {
               })}
             </ul>
           )}
-        </div>
+        </section>
 
         {/* Assigned listings — narrower col */}
-        <div className="lg:col-span-2 rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-            <h2 className="font-bold text-slate-900 text-sm">My Listings</h2>
-            <button
-              onClick={() => navTo('/lo-listings')}
-              className="text-xs text-primary-600 font-semibold hover:underline"
-            >
-              Manage →
-            </button>
+        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm lg:col-span-2" aria-label="My listings">
+          <div className="flex items-center gap-3 px-5 pt-5">
+            <LoIconTile name="home" tone="green" />
+            <h2 className="min-w-0 flex-1 text-lg font-extrabold text-slate-900">My Listings</h2>
+            <button onClick={() => navTo('/lo-listings')} className={loGhost}>Manage<LoIcon name="arrow_forward" className="text-base" /></button>
           </div>
 
           {assignedListings.length === 0 ? (
-            <div className="py-12 text-center text-slate-400 text-sm px-5">
+            <div className="px-5 py-12 text-center text-sm text-slate-600">
               {draftCount > 0 ? `No live listings yet (${draftCount} in draft) — ` : 'No listings yet — '}{' '}
-              <button
-                onClick={() => navTo('/lo-listings')}
-                className="text-primary-600 font-semibold hover:underline"
-              >
+              <button onClick={() => navTo('/lo-listings')} className="font-bold text-primary-700 hover:underline">
                 {draftCount > 0 ? 'finish one' : 'add one'}
               </button>
             </div>
           ) : (
-            <ul className="divide-y divide-slate-50">
+            <ul className="mt-4 divide-y divide-slate-100 border-t border-slate-100">
               {assignedListings.map(listing => (
                 <li
                   key={listing.listingId}
-                  className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 cursor-pointer transition-colors"
+                  className="flex min-h-[56px] cursor-pointer items-center gap-3 px-4 py-3 transition-colors hover:bg-slate-50"
                   onClick={() => navTo('/lo-listings')}
                 >
-                  {/* Thumbnail */}
-                  <div className="w-10 h-10 rounded-lg overflow-hidden bg-slate-100 flex-shrink-0">
+                  <div className="h-10 w-10 flex-shrink-0 overflow-hidden rounded-lg bg-slate-100">
                     {listing.heroPhoto
-                      ? <img src={listing.heroPhoto} alt="" className="w-full h-full object-cover" />
-                      : <div className="w-full h-full flex items-center justify-center text-slate-300 text-lg">🏠</div>
+                      ? <img src={listing.heroPhoto} alt="" className="h-full w-full object-cover" />
+                      : <div className="flex h-full w-full items-center justify-center text-lg text-slate-500">🏠</div>
                     }
                   </div>
-
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-slate-900 truncate leading-snug">{listing.address}</p>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-xs text-slate-400">{formatPrice(listing.price)}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-extrabold leading-snug text-slate-900">{listing.address}</p>
+                    <div className="mt-0.5 flex items-center gap-2">
+                      <span className="text-xs text-slate-600">{formatPrice(listing.price)}</span>
                       {listing.status === 'published'
-                        ? <span className="text-[10px] font-bold text-emerald-600">● Live</span>
-                        : <span className="text-[10px] font-bold text-slate-400">Draft</span>
+                        ? <LoTag tone="green">● Live</LoTag>
+                        : <LoTag tone="slate">Draft</LoTag>
                       }
                     </div>
                   </div>
-
-                  {/* Lead count */}
                   <div className="flex-shrink-0 text-right">
                     <p className="text-sm font-black text-slate-900">{listing.leadCount}</p>
-                    <p className="text-[10px] text-slate-400">leads</p>
+                    <p className="text-xs text-slate-600">leads</p>
                   </div>
                 </li>
               ))}
@@ -717,12 +663,12 @@ const LOTodayPage: React.FC = () => {
           {assignedListings.length > 0 && draftCount > 0 && (
             <button
               onClick={() => navTo('/lo-listings')}
-              className="w-full border-t border-slate-100 px-4 py-3 text-left text-xs font-semibold text-slate-500 hover:bg-slate-50"
+              className="min-h-[44px] w-full border-t border-slate-100 px-4 py-3 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50"
             >
               {draftCount} draft{draftCount !== 1 ? 's' : ''} not live yet — finish →
             </button>
           )}
-        </div>
+        </section>
       </div>
 
       {heroLead && wowCard}

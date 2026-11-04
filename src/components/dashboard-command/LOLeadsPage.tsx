@@ -7,6 +7,7 @@ import { authHeaders } from '../../services/dashboard/utils';
 import { deleteLoTestLead, markLoLeadContacted, setLoLeadFollowUp } from '../../services/loLeads';
 import { CallTextButtons, WaitingBadge } from './LeadActions';
 import { showToast } from '../../utils/toastService';
+import { LoPageHeader, LoTag, LoIcon, loCard, loSolid, loGhost, loInput } from './loUi';
 
 type LeadStatus = 'New' | 'Contacted' | 'Qualified' | 'Closed';
 type Filter = 'all' | 'hot' | 'new' | 'contacted';
@@ -240,85 +241,90 @@ const LeadCard: React.FC<{
     else showToast.error('Could not delete the test lead.');
   };
 
-  return (
-    <div id={`lead-${lead.id}`} className={`overflow-hidden rounded-xl border bg-white shadow-sm ${expanded ? 'border-primary-300' : 'border-slate-200'}`}>
-      {/* Summary row */}
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-expanded={expanded}
-        className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-slate-50"
-      >
-        <div className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full text-sm font-bold ${lead.intent_level === 'Hot' ? 'bg-rose-100 text-rose-800' : 'bg-slate-100 text-slate-700'}`}>
-          {displayName.charAt(0).toUpperCase()}
-        </div>
+  const initials = (lead.name || lead.email || '?').trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase();
+  const statusTone = ({ New: 'blue', Contacted: 'amber', Qualified: 'slate', Closed: 'green' } as const)[status] || 'slate';
+  const question = lead.notes || lead.intent_reason || null;
+  const chip = 'min-h-[44px] rounded-full border border-slate-300 bg-white px-4 text-sm font-bold text-slate-800 hover:border-primary-500 hover:text-primary-700';
 
+  return (
+    <div id={`lead-${lead.id}`} className={`${loCard} ${expanded ? 'border-primary-300' : ''}`}>
+      {/* Who */}
+      <div className="flex items-start gap-3">
+        <div aria-hidden="true" className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-base font-extrabold ${lead.intent_level === 'Hot' ? 'bg-rose-100 text-rose-800' : 'bg-primary-50 text-primary-800'}`}>
+          {initials}
+        </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <p className="truncate text-sm font-semibold text-slate-900">{displayName}</p>
-            {lead.isTest && <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[11px] font-black uppercase tracking-wide text-white">Test</span>}
-            {lead.intent_level === 'Hot' && <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-black uppercase tracking-wide text-rose-800">🔥 Hot</span>}
-            {lead.intent_level === 'Warm' && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-black uppercase tracking-wide text-amber-900">Warm</span>}
-            {lead.intent_level === 'Cold' && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-black uppercase tracking-wide text-slate-700">Cold</span>}
-            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold ${src.color}`}>
-              <span className="material-symbols-outlined text-[12px]" aria-hidden="true">{src.icon}</span>{src.label}
-            </span>
-            <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${STATUS_OPTIONS.find(s => s.value === status)?.color || 'bg-slate-100 text-slate-700'}`}>{status}</span>
+            <p className="break-words text-base font-extrabold text-slate-900">{displayName}</p>
+            <LoTag tone={statusTone}>{status}</LoTag>
+            {lead.isTest && <LoTag tone="slate">Test</LoTag>}
+            {lead.intent_level === 'Hot' && <LoTag tone="red">🔥 Hot</LoTag>}
+            {lead.intent_level === 'Warm' && <LoTag tone="amber">Warm</LoTag>}
+            {lead.intent_level === 'Cold' && <LoTag tone="slate">Cold</LoTag>}
             <WaitingBadge lead={{ status, created_at: lead.created_at, intent_level: lead.intent_level }} />
           </div>
-          {lead.intent_reason && (
-            <p className="mt-1 line-clamp-2 text-xs text-slate-600">{lead.intent_reason}</p>
-          )}
+          <p className="mt-1 flex flex-wrap items-center gap-1.5 text-sm text-slate-600">
+            Source: <LoTag><LoIcon name={src.icon} className="mr-1 text-sm" />{src.label}</LoTag>
+            <span className="text-xs text-slate-600">· {timeAgo(lead.created_at)}</span>
+          </p>
           {lead.listing_address && (
-            <p className="mt-0.5 truncate text-xs text-slate-500">
-              <span className="material-symbols-outlined mr-0.5 align-middle text-[12px]" aria-hidden="true">home_pin</span>
+            <p className="mt-1 text-xs text-slate-600">
+              <LoIcon name="home_pin" className="mr-0.5 align-middle text-sm" />
               {lead.listing_address}{lead.agent_name ? ` · ${lead.agent_name}'s listing` : ''}
             </p>
           )}
         </div>
+      </div>
 
-        <div className="flex flex-shrink-0 items-center gap-1.5 pt-0.5 text-right">
-          <span className="whitespace-nowrap text-xs text-slate-500">{timeAgo(lead.created_at)}</span>
-          <span className={`material-symbols-outlined text-base text-slate-500 transition-transform ${expanded ? 'rotate-180' : ''}`} aria-hidden="true">expand_more</span>
-        </div>
-      </button>
-
-      {/* One-tap actions, always visible */}
-      {(lead.phone || lead.email) && (
-        <div className="flex flex-wrap gap-2 px-4 pb-3 pl-[68px]">
-          {lead.phone && <CallTextButtons phone={lead.phone} onUsed={handleReached} />}
-          {lead.phone && !lead.isTest && (
-            <button
-              type="button"
-              onClick={() => onBook(lead)}
-              className="inline-flex min-h-[36px] items-center justify-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 text-xs font-bold text-slate-800 hover:bg-slate-50"
-            >
-              <span className="material-symbols-outlined text-[18px]" aria-hidden="true">event</span> Book a call
-            </button>
-          )}
-          {!lead.phone && lead.email && (
-            <a href={`mailto:${lead.email}`} onClick={handleReached} className="inline-flex min-h-[36px] items-center justify-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 text-xs font-bold text-slate-800 hover:bg-slate-50">
-              <span className="material-symbols-outlined text-[18px]" aria-hidden="true">mail</span> Email
-            </a>
-          )}
+      {/* The question */}
+      {question && (
+        <div className="mt-4">
+          <p className="mb-1.5 text-xs font-bold uppercase tracking-wider text-slate-600">{isPhoneLead ? 'Call summary' : 'Borrower question'}</p>
+          <blockquote className="rounded-xl border-l-4 border-primary-300 bg-slate-50 px-4 py-3 text-sm text-slate-800">“{question}”</blockquote>
         </div>
       )}
 
+      {/* Actions */}
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <button type="button" onClick={onToggle} aria-expanded={expanded} className={loSolid}>
+          <LoIcon name={expanded ? 'expand_less' : 'bolt'} className="text-lg" />
+          Follow up
+        </button>
+        {lead.phone && <CallTextButtons phone={lead.phone} big onUsed={handleReached} />}
+        {!lead.phone && lead.email && (
+          <a href={`mailto:${lead.email}`} onClick={handleReached} className={loGhost}>
+            <LoIcon name="mail" className="text-lg" /> Email
+          </a>
+        )}
+        {followUpAt && <LoTag tone="amber">Reminder: {new Date(followUpAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</LoTag>}
+      </div>
+
       {/* Expanded detail */}
       {expanded && (
-        <div className="space-y-3 border-t border-slate-100 bg-slate-50 px-4 py-3">
+        <div className="mt-4 space-y-4 border-t border-slate-100 pt-4">
           <div>
-            <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">Pipeline status</p>
-            <div className="flex flex-wrap gap-1.5">
+            <p className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-600">Not ready yet? Remind me to check back</p>
+            <div className="flex flex-wrap items-center gap-2">
+              {[{ d: 7, l: '1 week' }, { d: 30, l: '1 month' }, { d: 90, l: '3 months' }, { d: 180, l: '6 months' }].map((o) => (
+                <button key={o.d} type="button" onClick={() => void chooseFollowUp(o.d)} className={chip}>{o.l}</button>
+              ))}
+              {followUpAt && <button type="button" onClick={() => void chooseFollowUp(null)} className="min-h-[44px] px-2 text-sm font-semibold text-slate-700 underline">Clear</button>}
+            </div>
+            {followUpAt && <p className="mt-2 text-sm font-semibold text-amber-900">Reminder: {new Date(followUpAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</p>}
+          </div>
+
+          <div>
+            <p className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-600">Pipeline status</p>
+            <div className="flex flex-wrap gap-2">
               {STATUS_OPTIONS.map(opt => (
                 <button
                   key={opt.value}
                   onClick={() => void handleStatusChange(opt.value)}
                   disabled={updatingStatus}
-                  className={`min-h-[36px] rounded-full px-3.5 text-xs font-bold transition ${
+                  className={`min-h-[44px] rounded-full px-4 text-sm font-bold transition ${
                     status === opt.value
                       ? `${opt.color} ring-2 ring-current ring-offset-1`
-                      : `border border-slate-200 bg-white text-slate-600 ${opt.hover}`
+                      : `border border-slate-300 bg-white text-slate-700 ${opt.hover}`
                   } disabled:opacity-50`}
                 >
                   {opt.label}
@@ -327,45 +333,34 @@ const LeadCard: React.FC<{
             </div>
           </div>
 
-          <div>
-            <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">Not ready yet? Remind me to check back</p>
-            <div className="flex flex-wrap items-center gap-1.5">
-              {[{ d: 7, l: '1 week' }, { d: 30, l: '1 month' }, { d: 90, l: '3 months' }, { d: 180, l: '6 months' }].map((o) => (
-                <button key={o.d} type="button" onClick={() => void chooseFollowUp(o.d)} className="min-h-[36px] rounded-full border border-slate-200 bg-white px-3.5 text-xs font-bold text-slate-600 hover:bg-slate-100">{o.l}</button>
-              ))}
-              {followUpAt && <button type="button" onClick={() => void chooseFollowUp(null)} className="min-h-[36px] px-2 text-xs font-semibold text-slate-600 underline">Clear</button>}
-            </div>
-            {followUpAt && <p className="mt-1.5 text-xs font-semibold text-violet-800">Reminder: {new Date(followUpAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</p>}
-          </div>
-
           <div className="flex flex-wrap gap-2">
+            {lead.phone && !lead.isTest && (
+              <button type="button" onClick={() => onBook(lead)} className={loGhost}>
+                <LoIcon name="event" className="text-lg" /> Book a call
+              </button>
+            )}
             {lead.email && (
-              <a href={`mailto:${lead.email}`} className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">
-                <span className="material-symbols-outlined text-sm text-primary-600" aria-hidden="true">mail</span>{lead.email}
+              <a href={`mailto:${lead.email}`} className={loGhost}>
+                <LoIcon name="mail" className="text-lg text-primary-600" />{lead.email}
               </a>
             )}
             {lead.phone && (
-              <button
-                onClick={() => setShowSms(v => !v)}
-                className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold transition ${
-                  showSms ? 'border-violet-300 bg-violet-50 text-violet-800' : 'border-slate-200 bg-white text-slate-700 hover:border-violet-200 hover:bg-violet-50'
-                }`}
-              >
-                <span className="material-symbols-outlined text-sm" aria-hidden="true">sms</span>
+              <button onClick={() => setShowSms(v => !v)} aria-expanded={showSms} className={loGhost}>
+                <LoIcon name="sms" className="text-lg" />
                 Send a text from here
               </button>
             )}
           </div>
 
           {lead.phone && showSms && (
-            <div className="space-y-2 rounded-xl border border-violet-200 bg-violet-50 p-3">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-violet-700">Text {firstName}</p>
-              <div className="flex flex-wrap gap-1.5">
+            <div className="space-y-2 rounded-xl border border-primary-200 bg-primary-50 p-3">
+              <p className="text-xs font-bold uppercase tracking-wider text-primary-800">Text {firstName}</p>
+              <div className="flex flex-wrap gap-2">
                 {QUICK_TEXTS.map((t, i) => (
                   <button
                     key={i}
                     onClick={() => setSmsText(t.replace('{name}', firstName))}
-                    className="min-h-[32px] rounded-lg border border-violet-200 bg-white px-2.5 text-xs font-semibold text-violet-800 hover:bg-violet-100"
+                    className="min-h-[44px] rounded-xl border border-primary-200 bg-white px-3 text-sm font-semibold text-primary-800 hover:bg-primary-100"
                   >
                     Quick {i + 1}
                   </button>
@@ -377,28 +372,21 @@ const LeadCard: React.FC<{
                 placeholder={`Hi ${firstName}…`}
                 rows={3}
                 aria-label={`Text message to ${firstName}`}
-                className="w-full resize-none rounded-lg border border-violet-200 bg-white px-3 py-2 text-sm text-slate-800 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-violet-400"
+                className={`${loInput} resize-none`}
               />
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className={`text-xs ${smsText.length > 160 ? 'font-semibold text-red-700' : 'text-slate-600'}`}>
                   {smsText.length}/160{smsText.length > 160 ? ' · sends as 2 texts' : ''}
                 </span>
                 <button
                   onClick={() => void handleSendSms()}
                   disabled={sending || !smsText.trim() || sent}
-                  className="flex min-h-[36px] items-center gap-1.5 rounded-lg bg-violet-700 px-4 text-xs font-bold text-white hover:bg-violet-800 disabled:opacity-50"
+                  className={loSolid}
                 >
-                  <span className="material-symbols-outlined text-sm" aria-hidden="true">{sent ? 'check_circle' : 'send'}</span>
+                  <LoIcon name={sent ? 'check_circle' : 'send'} className="text-lg" />
                   {sending ? 'Sending…' : sent ? 'Sent!' : 'Send text'}
                 </button>
               </div>
-            </div>
-          )}
-
-          {lead.notes && (
-            <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-              <p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-slate-500">{isPhoneLead ? 'Call summary' : 'What they asked'}</p>
-              <p className="text-sm text-slate-800">{lead.notes}</p>
             </div>
           )}
 
@@ -411,7 +399,7 @@ const LeadCard: React.FC<{
                   setShowConversation(next);
                   if (next && convMessages.length === 0 && !convLoading) void loadConversation();
                 }}
-                className="min-h-[36px] rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-800 transition hover:bg-slate-100"
+                className={loGhost}
               >
                 {showConversation ? 'Hide' : 'View'} {isPhoneLead ? 'call transcript' : 'conversation'}
               </button>
@@ -428,7 +416,7 @@ const LeadCard: React.FC<{
                       {convMessages.map((msg) => (
                         <div key={msg.id} className={`rounded-lg px-3 py-2 text-sm ${msg.sender === 'visitor' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-800'}`}>
                           <p>{msg.text}</p>
-                          <p className="mt-1 text-[11px] opacity-80">
+                          <p className="mt-1 text-xs opacity-80">
                             {msg.sender === 'visitor' ? 'Buyer' : 'Your AI'} · {new Date(msg.created_at).toLocaleString()}
                           </p>
                         </div>
@@ -441,12 +429,12 @@ const LeadCard: React.FC<{
           )}
 
           {lead.isTest && (
-            <button onClick={() => void handleDeleteTest()} className="min-h-[36px] rounded-lg border border-rose-300 bg-white px-3 text-xs font-bold text-rose-800 hover:bg-rose-50">
+            <button onClick={() => void handleDeleteTest()} className="inline-flex min-h-[44px] items-center rounded-xl border border-rose-300 bg-white px-4 text-sm font-bold text-rose-800 hover:bg-rose-50">
               Delete test lead
             </button>
           )}
 
-          <p className="text-[11px] text-slate-500">Submitted {new Date(lead.created_at).toLocaleString()}</p>
+          <p className="text-xs text-slate-600">Submitted {new Date(lead.created_at).toLocaleString()}</p>
         </div>
       )}
     </div>
@@ -627,30 +615,22 @@ const LOLeadsPage: React.FC = () => {
 
   return (
     <div className="mx-auto max-w-4xl space-y-5 px-4 pb-28 pt-6 sm:pt-8">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4 pr-10">
-        <div>
-          <h1 className="text-4xl font-black tracking-tight text-slate-900">Leads</h1>
-          <p className="mt-1 text-sm text-slate-600">
-            See new borrower conversations, questions, and next steps.
-          </p>
-          <button
-            onClick={() => navigate(buildDashboardPath('/lo-appointments', demoMode))}
-            className="mt-2 inline-flex min-h-[40px] items-center gap-1 text-sm font-semibold text-blue-700 underline"
-          >
-            See showings and appointments
-          </button>
-        </div>
-        {!demoMode && (
-          <button
-            onClick={() => void exportCsv()}
-            className="flex min-h-[40px] flex-shrink-0 items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-          >
-            <span className="material-symbols-outlined text-lg" aria-hidden="true">download</span>
+      <LoPageHeader
+        title="Leads"
+        subtitle="See new borrower conversations, questions, and next steps."
+        action={!demoMode ? (
+          <button onClick={() => void exportCsv()} className={`${loGhost} mr-10`}>
+            <LoIcon name="download" className="text-lg" />
             <span className="hidden sm:inline">Export CSV</span>
           </button>
-        )}
-      </div>
+        ) : undefined}
+      />
+      <button
+        onClick={() => navigate(buildDashboardPath('/lo-appointments', demoMode))}
+        className="-mt-2 inline-flex min-h-[44px] items-center gap-1 text-sm font-semibold text-primary-700 underline"
+      >
+        See showings and appointments
+      </button>
 
       <PageGuide pageKey="lo-leads" />
 
@@ -683,7 +663,7 @@ const LOLeadsPage: React.FC = () => {
               type="button"
               onClick={() => setFilter(f.key)}
               aria-pressed={filter === f.key}
-              className={`min-h-[40px] rounded-full px-4 text-sm font-bold transition ${
+              className={`min-h-[44px] rounded-full px-4 text-sm font-bold transition ${
                 filter === f.key ? 'bg-primary-600 text-white shadow-sm' : 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
               }`}
             >
@@ -697,14 +677,14 @@ const LOLeadsPage: React.FC = () => {
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search by name, email or phone"
           aria-label="Search leads"
-          className="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-800 placeholder-slate-500"
+          className={loInput}
         />
       </div>
 
       {/* List */}
       {loading && leads.length === 0 ? (
         <div className="space-y-3">
-          {[1, 2, 3].map((i) => <div key={i} className="h-20 animate-pulse rounded-xl bg-slate-100" />)}
+          {[1, 2, 3].map((i) => <div key={i} className="h-40 animate-pulse rounded-2xl bg-slate-100" />)}
         </div>
       ) : loadFailed ? (
         <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-800">
@@ -723,14 +703,14 @@ const LOLeadsPage: React.FC = () => {
           {!filtering && (
             <button
               onClick={() => navigate(buildDashboardPath('/lo-partners', demoMode))}
-              className="mt-4 rounded-lg bg-primary-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-primary-700"
+              className={`${loSolid} mt-4`}
             >
               Send a WOW link to an agent
             </button>
           )}
         </div>
       ) : (
-        <div className={`space-y-2 transition-opacity ${loading ? 'opacity-60' : ''}`}>
+        <div className={`space-y-4 transition-opacity ${loading ? 'opacity-60' : ''}`}>
           {leads.map((lead) => (
             <LeadCard
               key={lead.id}
@@ -747,7 +727,7 @@ const LOLeadsPage: React.FC = () => {
             <button
               onClick={() => void loadMore()}
               disabled={loadingMore}
-              className="w-full rounded-xl border border-slate-300 bg-white py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+              className={`${loGhost} w-full`}
             >
               {loadingMore ? 'Loading…' : 'Load more leads'}
             </button>

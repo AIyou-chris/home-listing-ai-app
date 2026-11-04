@@ -9,9 +9,9 @@ export const TabButton: React.FC<{
     return (
         <button
             onClick={onClick}
-            className={`flex items-center gap-2.5 px-3 py-2.5 text-sm font-medium rounded-lg transition-colors duration-200 ${isActive
-                ? 'bg-primary-50 text-primary-600'
-                : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
+            className={`flex min-h-[44px] items-center gap-2.5 rounded-full px-4 text-sm font-bold transition-colors duration-200 ${isActive
+                ? 'bg-primary-600 text-white'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                 }`}
         >
             <span className="material-symbols-outlined w-5 h-5">{icon}</span>
@@ -53,12 +53,15 @@ export const ToggleSwitch: React.FC<{
     )
 }
 
-export const FeatureSection: React.FC<{ title: string; icon: string; children: React.ReactNode; iconClassName?: string }> = ({ title, icon, children, iconClassName }) => (
-    <div className="mt-8 pt-8 border-t border-slate-200">
-        <div className="flex items-center gap-3 mb-6">
-            <span className={`material-symbols-outlined w-6 h-6 ${iconClassName || 'text-slate-500'}`}>{icon}</span>
-            <h3 className="text-xl font-bold text-slate-900">{title}</h3>
+export const FeatureSection: React.FC<{ title: string; icon: string; children: React.ReactNode; iconClassName?: string; description?: string }> = ({ title, icon, children, iconClassName, description }) => (
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6" aria-label={title}>
+        <div className="mb-5 flex items-start gap-3">
+            <span aria-hidden="true" className={`material-symbols-outlined flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary-50 text-2xl text-primary-700 ${iconClassName ? '' : ''}`}>{icon}</span>
+            <div className="min-w-0">
+                <h3 className="text-lg font-extrabold text-slate-900">{title}</h3>
+                {description && <p className="text-sm text-slate-600">{description}</p>}
+            </div>
         </div>
         <div className="space-y-4">{children}</div>
-    </div>
+    </section>
 );

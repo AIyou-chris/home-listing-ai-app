@@ -8,6 +8,7 @@ import { authHeaders } from '../../services/dashboard/utils';
 import { showToast } from '../../utils/toastService';
 import { buildDashboardPath, useDemoMode } from '../../demo/useDemoMode';
 import { createListingDraft } from '../../services/listingBuilderService';
+import { LoPageHeader, LoIconTile, LoTag, LoIcon, loCard, loSolid, loGhost, loInput } from './loUi';
 
 // ─── Branding toggle types ────────────────────────────────────────────────────
 
@@ -133,11 +134,11 @@ const BrandingTogglePanel: React.FC<{ listingId: string; demo?: boolean }> = ({ 
     } finally { setSaving(false); }
   };
 
-  if (!toggles) return <div className="mt-3 h-16 animate-pulse rounded-lg bg-slate-100" />;
+  if (!toggles) return <div className="mt-3 h-16 animate-pulse rounded-xl bg-slate-100" />;
 
   return (
-    <div className="mt-3 rounded-xl border border-slate-100 bg-slate-50 p-3">
-      <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+    <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+      <p className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-600">
         Where your co-brand shows {saving && <span className="text-primary-500">· Saving…</span>}
       </p>
       <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-3">
@@ -148,10 +149,10 @@ const BrandingTogglePanel: React.FC<{ listingId: string; demo?: boolean }> = ({ 
               key={piece}
               type="button"
               onClick={() => void handleToggle(piece, !on)}
-              className={`flex min-h-[40px] items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all ${
+              className={`flex min-h-[44px] items-center gap-2 rounded-xl border px-3 py-1.5 text-sm font-semibold transition-all ${
                 on
                   ? 'border-primary-200 bg-primary-50 text-primary-700'
-                  : 'border-slate-200 bg-white text-slate-400'
+                  : 'border-slate-200 bg-white text-slate-600'
               }`}
             >
               <span>{icon}</span>
@@ -167,11 +168,11 @@ const BrandingTogglePanel: React.FC<{ listingId: string; demo?: boolean }> = ({ 
 
 // ─── Listing card ─────────────────────────────────────────────────────────────
 
-const STATUS_CHIP: Record<string, { label: string; cls: string }> = {
-  published: { label: 'Live', cls: 'bg-emerald-100 text-emerald-800' },
-  draft: { label: 'Draft', cls: 'bg-slate-100 text-slate-700' },
-  sold: { label: 'Sold', cls: 'bg-amber-100 text-amber-900' },
-  archived: { label: 'Archived', cls: 'bg-slate-100 text-slate-700' },
+const STATUS_CHIP: Record<string, { label: string; tone: 'green' | 'slate' | 'amber' }> = {
+  published: { label: 'Live', tone: 'green' },
+  draft: { label: 'Draft', tone: 'slate' },
+  sold: { label: 'Sold', tone: 'amber' },
+  archived: { label: 'Archived', tone: 'slate' },
 };
 
 // Per-listing phone numbers are hidden at launch: they are not part of the single plan.
@@ -225,43 +226,44 @@ const ListingCard: React.FC<ListingCardProps> = ({ listing, mode, onRemove, onAd
   const menuItem = 'flex w-full min-h-[44px] items-center gap-2.5 px-4 text-left text-sm font-semibold text-slate-800 hover:bg-slate-50';
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="flex items-start gap-3 sm:gap-4">
+    <div className="rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:shadow-md">
+      <div className="flex flex-col sm:flex-row">
         {listing.heroPhoto ? (
-          <img src={listing.heroPhoto} alt="" className="h-16 w-20 flex-shrink-0 rounded-lg object-cover sm:w-24" />
+          <img src={listing.heroPhoto} alt="" className="h-44 w-full flex-shrink-0 rounded-t-2xl object-cover sm:h-auto sm:w-48 sm:rounded-l-2xl sm:rounded-tr-none" />
         ) : (
-          <div className="flex h-16 w-20 flex-shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500 sm:w-24" aria-hidden="true">
-            <span className="material-symbols-outlined text-3xl">home</span>
+          <div className="flex h-32 w-full flex-shrink-0 items-center justify-center rounded-t-2xl bg-primary-50 text-primary-700 sm:h-auto sm:w-48 sm:rounded-l-2xl sm:rounded-tr-none" aria-hidden="true">
+            <span className="material-symbols-outlined text-5xl">home</span>
           </div>
         )}
-        <div className="min-w-0 flex-1">
-          <p className="break-words text-sm font-semibold leading-snug text-slate-900">{listing.address}</p>
-          <p className="mt-0.5 text-sm text-slate-600">
+        <div className="min-w-0 flex-1 p-5">
+          <div className="flex flex-wrap items-center gap-2">
+            <LoTag tone={chip.tone}>{chip.label}</LoTag>
+            {listing.title && <span className="truncate text-xs font-semibold text-slate-600">{listing.title}</span>}
+          </div>
+          <p className="mt-2 break-words text-lg font-extrabold leading-snug text-slate-900">{listing.address}</p>
+          <p className="mt-1 text-sm font-semibold text-slate-700">
             {fmt(listing.price)}
             {listing.bedrooms > 0 && ` · ${listing.bedrooms}bd`}
             {listing.bathrooms > 0 && ` ${listing.bathrooms}ba`}
             {listing.sqft > 0 && ` · ${listing.sqft.toLocaleString()} sqft`}
           </p>
-          <span className={`mt-1.5 inline-block rounded-full px-2 py-0.5 text-xs font-bold ${chip.cls}`}>{chip.label}</span>
-        </div>
-      </div>
 
-      {mode === 'assigned' ? (
-        <div className="mt-3 flex items-center gap-2">
+          {mode === 'assigned' ? (
+        <div className="mt-4 flex flex-wrap items-center gap-2">
           {/* The one main thing to do with a listing */}
           <button
             onClick={() => navigate(buildDashboardPath(`/lo-listings/${listing.id}/share-kit`, Boolean(demo)))}
-            className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 text-sm font-bold text-white hover:bg-primary-700"
+            className={`${loSolid} flex-1 sm:flex-none`}
           >
             <span className="material-symbols-outlined text-xl" aria-hidden="true">ios_share</span> Share Kit
           </button>
           <button
             onClick={handleShareDashboard}
             disabled={sharingDash}
-            className="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3.5 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+            className={loGhost}
           >
             <span className="material-symbols-outlined text-xl" aria-hidden="true">monitoring</span>
-            <span className="hidden sm:inline">{sharingDash ? 'Opening…' : 'Live dashboard'}</span>
+            <span>{sharingDash ? 'Opening…' : 'Live dashboard'}</span>
           </button>
           <div className="relative" ref={menuRef}>
             <button
@@ -269,12 +271,12 @@ const ListingCard: React.FC<ListingCardProps> = ({ listing, mode, onRemove, onAd
               aria-haspopup="menu"
               aria-expanded={menuOpen}
               aria-label="More actions"
-              className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+              className={`${loGhost} min-w-[44px] !px-0`}
             >
               <span className="material-symbols-outlined text-xl" aria-hidden="true">more_horiz</span>
             </button>
             {menuOpen && (
-              <div role="menu" className="absolute right-0 z-20 mt-1 w-56 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">
+              <div role="menu" className="absolute right-0 z-20 mt-1 w-56 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg">
                 {listing.canEdit && (
                   <button role="menuitem" className={menuItem} onClick={() => { setMenuOpen(false); navigate(buildDashboardPath(`/listings/${listing.id}/edit`, Boolean(demo))); }}>
                     <span className="material-symbols-outlined text-xl text-slate-600" aria-hidden="true">edit</span> Edit listing
@@ -297,42 +299,45 @@ const ListingCard: React.FC<ListingCardProps> = ({ listing, mode, onRemove, onAd
           </div>
         </div>
       ) : (
-        <div className="mt-3">
+        <div className="mt-4">
           <button
             onClick={() => onAdd?.(listing.id)}
             disabled={loading}
-            className="inline-flex min-h-[44px] w-full items-center justify-center rounded-lg bg-primary-600 px-4 text-sm font-bold text-white hover:bg-primary-700 disabled:opacity-40"
+            className={`${loSolid} w-full sm:w-auto`}
           >
             {loading ? 'Adding…' : 'Add me to this listing'}
           </button>
         </div>
-      )}
-
+          )}
+        </div>
+      </div>
+      <div className="px-5 empty:hidden [&>*:last-child]:mb-5">
       {mode === 'assigned' && removeConfirm && (
-        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 p-3">
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3">
           <p className="min-w-0 flex-1 text-sm font-semibold text-rose-900">Take your name off this listing?</p>
           <button
             onClick={() => { setRemoveConfirm(false); onRemove?.(listing.id); }}
             disabled={loading}
-            className="min-h-[40px] rounded-lg bg-rose-700 px-4 text-sm font-bold text-white hover:bg-rose-800 disabled:opacity-40"
+            className="min-h-[44px] rounded-xl bg-rose-700 px-4 text-sm font-bold text-white hover:bg-rose-800 disabled:opacity-40"
           >
             Yes, remove
           </button>
-          <button onClick={() => setRemoveConfirm(false)} className="min-h-[40px] rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700">Keep it</button>
+          <button onClick={() => setRemoveConfirm(false)} className="min-h-[44px] rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700">Keep it</button>
         </div>
       )}
       {mode === 'assigned' && phoneEnabled && showPhone && (
         <div>
           <ListingPhonePanel listingId={listing.id} line={phoneLine || null} demo={demo} onChange={(l) => onPhoneLine?.(listing.id, l)} />
-          <button onClick={() => setShowPhone(false)} className="mt-2 text-xs font-semibold text-slate-600 underline">Hide phone settings</button>
+          <button onClick={() => setShowPhone(false)} className="mt-1 min-h-[44px] text-sm font-semibold text-slate-700 underline">Hide phone settings</button>
         </div>
       )}
       {mode === 'assigned' && showToggles && (
         <div>
           <BrandingTogglePanel listingId={listing.id} demo={demo} />
-          <button onClick={() => setShowToggles(false)} className="mt-2 text-xs font-semibold text-slate-600 underline">Hide branding</button>
+          <button onClick={() => setShowToggles(false)} className="mt-1 min-h-[44px] text-sm font-semibold text-slate-700 underline">Hide branding</button>
         </div>
       )}
+      </div>
     </div>
   );
 };
@@ -546,59 +551,55 @@ const LOListingsPage: React.FC = () => {
   };
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6 px-4 pb-28 pt-6 sm:pt-8">
+    <div className="mx-auto max-w-6xl space-y-6 px-3 pb-28 pt-4 md:px-6">
       {/* AI on/off — the first thing on the page */}
       <div className="pr-10">
         <AiPowerSwitch demo={demoMode} />
       </div>
 
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-black tracking-tight text-slate-900">My Listings</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Co-brand any listing — your info and the agent's appear side by side on every marketing piece.
-        </p>
-      </div>
+      <LoPageHeader
+        title="My Listings"
+        subtitle="Co-brand any listing. Your info and the agent's appear side by side on every marketing piece."
+      />
 
       <PageGuide pageKey="lo-listings" />
 
       {/* Assigned listings */}
-      <div>
-        <h2 className="mb-3 text-base font-semibold text-slate-800">
-          Listings I'm on{' '}
-          {!loadingAssigned && assigned.length > 0 && (
-            <span className="ml-1 rounded-full bg-primary-100 px-2 py-0.5 text-xs font-semibold text-primary-700">
-              {assigned.length}
-            </span>
-          )}
-        </h2>
+      <section aria-label="Listings I'm on">
+        <div className="mb-3 flex items-center gap-3">
+          <LoIconTile name="home_work" />
+          <h2 className="text-lg font-extrabold text-slate-900">
+            Listings I'm on{' '}
+            {!loadingAssigned && assigned.length > 0 && <LoTag>{assigned.length}</LoTag>}
+          </h2>
+        </div>
 
         {loadingAssigned ? (
           <div className="space-y-3">
             {[1, 2].map((i) => (
-              <div key={i} className="h-24 animate-pulse rounded-xl bg-slate-100" />
+              <div key={i} className="h-40 animate-pulse rounded-2xl bg-slate-100" />
             ))}
           </div>
         ) : loadFailed ? (
-          <div className="rounded-xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-800">
+          <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-800">
             We couldn't load your listings just now.{' '}
-            <button onClick={() => window.location.reload()} className="font-bold underline">Reload the page</button>
+            <button onClick={() => window.location.reload()} className="min-h-[44px] font-bold underline">Reload the page</button>
           </div>
         ) : assigned.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-slate-200 p-8 text-center">
-            <p className="text-3xl">🏠</p>
-            <p className="mt-2 text-sm font-medium text-slate-600">No listings yet — they come from your agent partners.</p>
-            <p className="mt-1 text-sm text-slate-400">Send your first WOW Link and your agent's listings show up here with your AI on them.</p>
+          <div className={`${loCard} border-dashed p-8 text-center`}>
+            <div className="flex justify-center"><LoIconTile name="home" /></div>
+            <p className="mt-3 text-base font-extrabold text-slate-900">No listings yet. They come from your agent partners.</p>
+            <p className="mt-1 text-sm text-slate-600">Send your first WOW Link and your agent's listings show up here with your AI on them.</p>
             <button
               onClick={() => navigate(buildDashboardPath('/lo-partners', demoMode))}
-              className="mt-4 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-primary-700"
+              className={`${loSolid} mt-4`}
             >
-              🚀 Send my first WOW Link →
+              <LoIcon name="rocket_launch" className="text-xl" /> Send my first WOW Link
             </button>
-            <p className="mt-3 text-xs text-slate-400">Already partnered? Open “Add a listing” below to find one and add yourself.</p>
+            <p className="mt-3 text-xs text-slate-600">Already partnered? Open “Add a listing” below to find one and add yourself.</p>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-4">
             {assigned.map((listing) => (
               <ListingCard
                 key={listing.id}
@@ -614,75 +615,77 @@ const LOListingsPage: React.FC = () => {
             ))}
           </div>
         )}
-      </div>
+      </section>
 
       {/* Add a listing: build your own, or co-brand an agent's. Closed once you have listings. */}
       <details open={!loadingAssigned && assigned.length === 0} className="group rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <summary className="flex min-h-[48px] cursor-pointer list-none items-center justify-between px-5 py-3 text-base font-semibold text-slate-800">
-          <span>＋ Add a listing</span>
-          <span className="text-xs font-semibold text-primary-600 group-open:hidden">Open ▾</span>
+        <summary className="flex min-h-[64px] cursor-pointer list-none items-center gap-3 px-5 py-3 text-lg font-extrabold text-slate-900">
+          <LoIconTile name="add_home" tone="slate" />
+          <span className="flex-1">＋ Add a listing</span>
+          <span className="text-sm font-semibold text-primary-700 group-open:hidden">Open ▾</span>
         </summary>
-        <div className="space-y-4 border-t border-slate-100 p-4">
-      <div className="rounded-xl border border-primary-200 bg-primary-50/60 p-4">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-base font-semibold text-slate-800">Build a listing</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Create your own listing from scratch — the full builder, co-branded to you automatically.
-            </p>
+        <div className="space-y-4 border-t border-slate-100 p-5">
+          <div className="rounded-2xl border border-primary-200 bg-primary-50 p-5">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-lg font-extrabold text-slate-900">Build a listing</h2>
+                <p className="mt-1 text-sm text-slate-700">
+                  Create your own listing from scratch — the full builder, co-branded to you automatically.
+                </p>
+              </div>
+              <button
+                onClick={() => void handleBuildListing()}
+                disabled={creating}
+                className={`${loSolid} shrink-0`}
+              >
+                <span className="material-symbols-outlined text-lg">{creating ? 'progress_activity' : 'add_home_work'}</span>
+                {creating ? 'Starting…' : 'Build a Listing'}
+              </button>
+            </div>
           </div>
-          <button
-            onClick={() => void handleBuildListing()}
-            disabled={creating}
-            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-primary-700 disabled:opacity-60"
-          >
-            <span className="material-symbols-outlined text-lg">{creating ? 'progress_activity' : 'add_home_work'}</span>
-            {creating ? 'Starting…' : 'Build a Listing'}
-          </button>
-        </div>
-      </div>
 
-      {/* Find a listing */}
-      <div className="rounded-xl border border-slate-200 bg-white p-4">
-        <h2 className="mb-1 text-base font-semibold text-slate-800">Find a listing</h2>
-        <p className="mb-4 text-sm text-slate-500">Or search by address or city to co-brand an existing agent's listing.</p>
-        <div className="relative">
-          <input
-            type="text"
-            placeholder="123 Main St, Austin…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-100"
-          />
-          {searching && (
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">Searching…</span>
-          )}
-        </div>
-
-        {searchResults.length > 0 && (
-          <div className="mt-4 space-y-3">
-            {searchResults.map((listing) => (
-              <ListingCard
-                key={listing.id}
-                listing={listing}
-                mode="search"
-                onAdd={handleAdd}
-                loading={addingId === listing.id}
+          {/* Find a listing */}
+          <div className={loCard}>
+            <h2 className="mb-1 text-lg font-extrabold text-slate-900">Find a listing</h2>
+            <p className="mb-4 text-sm text-slate-600">Or search by address or city to co-brand an existing agent's listing.</p>
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="123 Main St, Austin…"
+                aria-label="Search listings by address or city"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                className={`${loInput} min-h-[44px]`}
               />
-            ))}
+              {searching && (
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-600">Searching…</span>
+              )}
+            </div>
+
+            {searchResults.length > 0 && (
+              <div className="mt-4 space-y-4">
+                {searchResults.map((listing) => (
+                  <ListingCard
+                    key={listing.id}
+                    listing={listing}
+                    mode="search"
+                    onAdd={handleAdd}
+                    loading={addingId === listing.id}
+                  />
+                ))}
+              </div>
+            )}
+
+            {searchFailed && !searching && (
+              <p className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+                Search didn't work just now. Try typing it again.
+              </p>
+            )}
+
+            {query.trim().length >= 2 && !searching && !searchFailed && searchResults.length === 0 && (
+              <p className="mt-4 text-sm text-slate-600">No listings found for "{query}".</p>
+            )}
           </div>
-        )}
-
-        {searchFailed && !searching && (
-          <p className="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
-            Search didn't work just now. Try typing it again.
-          </p>
-        )}
-
-        {query.trim().length >= 2 && !searching && !searchFailed && searchResults.length === 0 && (
-          <p className="mt-4 text-sm text-slate-400">No listings found for "{query}".</p>
-        )}
-      </div>
         </div>
       </details>
     </div>

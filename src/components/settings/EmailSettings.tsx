@@ -56,10 +56,10 @@ const EmailSettingsPage: React.FC<EmailSettingsProps> = ({
     };
 
     return (
-        <div className="p-8 space-y-12 animate-fadeIn">
+        <div className="space-y-5 p-4 animate-fadeIn sm:p-6">
             <div>
-                <h2 className="text-2xl font-bold text-slate-900">📧 Lead Inbox</h2>
-                <p className="text-slate-500 mt-1">This is your dedicated intake address for portal leads and forwarded buyer inquiries.</p>
+                <h2 className="text-4xl font-black tracking-tight text-slate-900">Lead Inbox</h2>
+                <p className="mt-1 text-sm text-slate-600">This is your dedicated intake address for portal leads and forwarded buyer inquiries.</p>
             </div>
 
             <FeatureSection title="Lead Inbox Routing" icon="mail">

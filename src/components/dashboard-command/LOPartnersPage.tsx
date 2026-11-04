@@ -5,6 +5,7 @@ import { buildApiUrl } from '../../lib/api'
 import { authHeaders } from '../../services/dashboard/utils'
 import { showToast } from '../../utils/toastService'
 import LOROIWidget from '../dashboard-widgets/LOROIWidget'
+import { LoPageHeader, LoSectionCard, LoIconTile, LoIcon, LoTag, loCardTint, loSolid, loGhost } from './loUi'
 
 // ─── Auth helpers ─────────────────────────────────────────────────────────────
 
@@ -141,9 +142,9 @@ const toFollowUpLabel = (ts: string | null | undefined) => {
 }
 
 const RATINGS: { key: PartnerRating; label: string; emoji: string; color: string }[] = [
-  { key: 'hot',  label: 'Hot',  emoji: '🔥', color: 'bg-red-50 border-red-200 text-red-600' },
-  { key: 'warm', label: 'Warm', emoji: '👍', color: 'bg-amber-50 border-amber-200 text-amber-600' },
-  { key: 'cold', label: 'Cold', emoji: '❄️', color: 'bg-slate-100 border-slate-200 text-slate-500' },
+  { key: 'hot',  label: 'Hot',  emoji: '🔥', color: 'bg-red-50 border-red-200 text-red-700' },
+  { key: 'warm', label: 'Warm', emoji: '👍', color: 'bg-amber-50 border-amber-200 text-amber-800' },
+  { key: 'cold', label: 'Cold', emoji: '❄️', color: 'bg-slate-100 border-slate-300 text-slate-700' },
 ]
 
 const toRelativeTime = (v: string) => {
@@ -446,25 +447,26 @@ const PartnerCard: React.FC<{ partner: Partner; onViewListings: (p: Partner) => 
   const activeRating = RATINGS.find(r => r.key === meta.rating)
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md">
       {/* Header */}
       <div className="flex items-center gap-4 p-5 border-b border-slate-100">
         <Avatar src={partner.headshotUrl} name={partner.name} size={48} />
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <p className="font-bold text-slate-900 text-base">{partner.name}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-base font-extrabold text-slate-900">{partner.name}</p>
+            <LoTag tone="green">Active</LoTag>
             {activeRating && (
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${activeRating.color}`}>
+              <span className={`rounded-md border px-2 py-0.5 text-xs font-bold ${activeRating.color}`}>
                 {activeRating.emoji} {activeRating.label}
               </span>
             )}
           </div>
-          <p className="text-slate-500 text-xs truncate">{partner.company || partner.email || '—'}</p>
+          <p className="truncate text-xs text-slate-600">{partner.company || partner.email || '—'}</p>
           {followUpLabel && (
-            <p className="text-[11px] text-slate-400 mt-0.5">{followUpLabel}</p>
+            <p className="mt-0.5 text-xs text-slate-600">{followUpLabel}</p>
           )}
           {needsCall && (
-            <span className="mt-1 inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-800">
+            <span className="mt-1 inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-bold text-amber-900">
               📞 Call this week · {daysSinceTouch}d since you talked
             </span>
           )}
@@ -472,11 +474,11 @@ const PartnerCard: React.FC<{ partner: Partner; onViewListings: (p: Partner) => 
         <div className="flex items-center gap-3 flex-shrink-0">
           <div className="text-right">
             <p className="text-2xl font-black text-slate-900">{partner.totalLeads}</p>
-            <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wide">leads</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">leads</p>
           </div>
           <button
             onClick={() => setExpanded(v => !v)}
-            className={`w-7 h-7 rounded-full flex items-center justify-center border text-xs font-bold transition-all ${expanded ? 'bg-primary-600 border-primary-600 text-white' : 'border-slate-200 text-slate-400 hover:border-primary-300 hover:text-primary-600'}`}
+            className={`flex h-11 w-11 items-center justify-center rounded-full border text-xs font-bold transition-all ${expanded ? 'border-primary-600 bg-primary-600 text-white' : 'border-slate-300 text-slate-600 hover:border-primary-500 hover:text-primary-700'}`}
             title={expanded ? 'Collapse' : 'Show details'}
             aria-label={expanded ? 'Hide partner details' : 'Show partner details'}
             aria-expanded={expanded}
@@ -497,7 +499,7 @@ const PartnerCard: React.FC<{ partner: Partner; onViewListings: (p: Partner) => 
                 <div className="flex items-center gap-2 flex-1">
                   <a href={`tel:${partner.phone}`} className="text-sm font-semibold text-slate-800 hover:text-primary-600 transition-colors">{partner.phone}</a>
                   <span className="text-slate-300">·</span>
-                  <a href={`sms:${partner.phone}`} className="text-xs text-slate-500 hover:text-primary-600 transition-colors">Text</a>
+                  <a href={`sms:${partner.phone}`} className="inline-flex min-h-[44px] items-center text-xs font-semibold text-slate-700 hover:text-primary-700">Text</a>
                 </div>
               </div>
             )}
@@ -514,15 +516,15 @@ const PartnerCard: React.FC<{ partner: Partner; onViewListings: (p: Partner) => 
               </div>
             )}
             {!partner.phone && !partner.email && !partner.website && (
-              <p className="text-xs text-slate-400 italic">No contact details on file</p>
+              <p className="text-xs italic text-slate-600">No contact details on file</p>
             )}
           </div>
 
           {/* Notes */}
           <div>
-            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-1.5">Notes</p>
+            <p className="mb-1.5 text-xs font-bold uppercase tracking-wide text-slate-600">Notes</p>
             <textarea
-              className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-primary-400 resize-none bg-white"
+              className="w-full resize-none rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder-slate-500 focus:border-primary-600 focus:outline-none focus:ring-2 focus:ring-primary-200"
               rows={2}
               placeholder={`Notes about ${partner.name.split(' ')[0]}…`}
               value={notesDraft}
@@ -532,7 +534,7 @@ const PartnerCard: React.FC<{ partner: Partner; onViewListings: (p: Partner) => 
               <button
                 onClick={saveNotes}
                 disabled={notesDraft === (meta.notes || '')}
-                className="text-xs font-semibold px-3 py-1 rounded-lg bg-primary-600 text-white disabled:opacity-40 hover:bg-primary-700 transition-all"
+                className={`${loSolid} !min-h-[44px] text-xs`}
               >
                 {notesSaved ? '✓ Saved' : 'Save'}
               </button>
@@ -543,7 +545,7 @@ const PartnerCard: React.FC<{ partner: Partner; onViewListings: (p: Partner) => 
           <button
             type="button"
             onClick={() => navigate(scheduleWithPartner(partner, demoMode))}
-            className="flex items-center justify-center gap-2 w-full border border-primary-200 rounded-xl py-2.5 text-sm font-bold text-primary-600 bg-primary-50 hover:bg-primary-100 transition-all"
+            className={`${loGhost} w-full`}
           >
             📅 Schedule Appointment
           </button>
@@ -551,7 +553,7 @@ const PartnerCard: React.FC<{ partner: Partner; onViewListings: (p: Partner) => 
             <button
               type="button"
               onClick={() => navigate(invoiceWithPartner(partner))}
-              className="flex items-center justify-center gap-2 w-full border border-slate-200 rounded-xl py-2.5 text-sm font-bold text-slate-700 bg-white hover:bg-slate-50 transition-all"
+              className={`${loGhost} w-full`}
             >
               🧾 Send invoice
             </button>
@@ -560,14 +562,14 @@ const PartnerCard: React.FC<{ partner: Partner; onViewListings: (p: Partner) => 
       )}
 
       {/* Rating row */}
-      <div className="flex items-center gap-2 px-5 py-3 border-b border-slate-100 bg-slate-50/60">
-        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mr-1">Rate</p>
+      <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 bg-slate-50/60 px-5 py-2">
+        <p className="mr-1 text-xs font-bold uppercase tracking-wide text-slate-600">Rate</p>
         {RATINGS.map(r => (
           <button
             key={r.key}
             onClick={() => setRating(meta.rating === r.key ? null : r.key as PartnerRating)}
-            className={`flex items-center gap-1 px-2.5 py-1 rounded-full border text-[11px] font-bold transition-all ${
-              meta.rating === r.key ? r.color : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300'
+            className={`flex min-h-[44px] items-center gap-1 rounded-full border px-3 text-xs font-bold transition-all ${
+              meta.rating === r.key ? r.color : 'border-slate-300 bg-white text-slate-700 hover:border-slate-400'
             }`}
           >
             {r.emoji} {r.label}
@@ -582,32 +584,33 @@ const PartnerCard: React.FC<{ partner: Partner; onViewListings: (p: Partner) => 
             <div className="w-9 h-9 rounded-lg overflow-hidden bg-slate-100 flex-shrink-0">
               {listing.heroPhoto
                 ? <img src={listing.heroPhoto} alt="" className="w-full h-full object-cover" />
-                : <div className="w-full h-full flex items-center justify-center text-slate-300">🏠</div>
+                : <div className="flex h-full w-full items-center justify-center text-slate-500">🏠</div>
               }
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-xs font-semibold text-slate-800 truncate">{listing.address}</p>
-              <p className="text-[11px] text-slate-400">{formatPrice(listing.price)}</p>
+              <p className="text-xs text-slate-600">{formatPrice(listing.price)}</p>
             </div>
             <div className="flex items-center gap-3 flex-shrink-0">
-              <span className="text-xs text-slate-500">{listing.totalLeads} leads</span>
+              <span className="text-xs text-slate-700">{listing.totalLeads} leads</span>
               {listing.status === 'published'
-                ? <span className="text-[10px] font-bold text-emerald-600">● Live</span>
-                : <span className="text-[10px] text-slate-400">Draft</span>
+                ? <LoTag tone="green">Live</LoTag>
+                : <LoTag tone="slate">Draft</LoTag>
               }
             </div>
           </div>
         ))}
         {partner.listings.length === 0 && (
-          <div className="px-5 py-3 text-xs text-slate-400">No listings yet</div>
+          <div className="px-5 py-3 text-xs text-slate-600">No listings yet</div>
         )}
       </div>
 
       {/* Actions */}
-      <div className="flex gap-2 p-4 bg-slate-50 border-t border-slate-100">
+      <div className="flex flex-wrap gap-2 border-t border-slate-100 bg-slate-50 p-4">
+        <p className="w-full text-xs font-semibold text-slate-700">Next step: {partner.listings.length === 0 ? 'add them to a listing.' : needsCall ? 'give them a call this week.' : 'check how their listings are doing.'}</p>
         <button
           onClick={() => onViewListings(partner)}
-          className="flex-1 bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold rounded-lg py-2.5 transition-all"
+          className={`${loSolid} flex-1`}
         >
           View Partner →
         </button>
@@ -630,7 +633,7 @@ const PartnerCard: React.FC<{ partner: Partner; onViewListings: (p: Partner) => 
         {partner.email && (
           <a
             href={`mailto:${partner.email}`}
-            className="px-3 py-2.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-white text-xs font-semibold transition-all"
+            className={`${loGhost} min-w-[44px] px-3`}
             aria-label="Email this partner"
           >
             ✉️
@@ -651,13 +654,13 @@ const PartnerCard: React.FC<{ partner: Partner; onViewListings: (p: Partner) => 
                   onRemoved()
                 } catch { showToast.error('Failed to remove partner') }
               }}
-              className="px-2.5 py-2 rounded-lg bg-red-600 text-white text-xs font-bold hover:bg-red-700 transition-all"
+              className="inline-flex min-h-[44px] items-center rounded-xl bg-red-700 px-3 text-xs font-bold text-white hover:bg-red-800"
             >
               Remove
             </button>
             <button
               onClick={() => setRemoveConfirm(false)}
-              className="px-2.5 py-2 rounded-lg border border-slate-200 bg-white text-slate-600 text-xs font-semibold hover:bg-slate-50 transition-all"
+              className={`${loGhost} px-3 text-xs`}
             >
               Cancel
             </button>
@@ -665,7 +668,7 @@ const PartnerCard: React.FC<{ partner: Partner; onViewListings: (p: Partner) => 
         ) : (
           <button
             onClick={() => setRemoveConfirm(true)}
-            className="px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-400 hover:bg-red-50 hover:border-red-200 hover:text-red-600 text-xs font-semibold transition-all"
+            className={`${loGhost} min-w-[44px] px-3 hover:!border-red-300 hover:!text-red-700`}
             title="Remove partner"
             aria-label="Remove partner"
           >
@@ -929,90 +932,86 @@ const LOPartnersPage: React.FC = () => {
     </div>
   )
 
+  const hasContent = partners.length > 0 || pendingInvites.length > 0
   return (
-    <div className="space-y-6 pb-28">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-black text-slate-900 tracking-tight">Partner Agents</h1>
-        <p className="text-slate-500 text-sm mt-1">
-          {partners.length} active partner{partners.length !== 1 ? 's' : ''}
-          {pendingInvites.length > 0 && ` · ${pendingInvites.length} invite pending`}
-        </p>
-        {!demoMode && (
-          <button
-            onClick={() => navigate('/dashboard/lo-invoices')}
-            className="mt-2 inline-flex min-h-[40px] items-center gap-1 text-sm font-semibold text-blue-700 underline"
-          >
-            Invoices to your agents
-          </button>
-        )}
-      </div>
+    <div className="mx-auto max-w-6xl space-y-6 pb-28">
+      <LoPageHeader
+        title="Agent partners"
+        subtitle={`${partners.length} active partner${partners.length !== 1 ? 's' : ''}${pendingInvites.length > 0 ? ` · ${pendingInvites.length} invite pending` : ''}. Send an agent a live listing demo and watch the leads come in.`}
+      />
 
-      {/* Add partner button — only when there's content (empty state has its own CTA) */}
-      {(partners.length > 0 || pendingInvites.length > 0) && (
-        <div className="flex flex-wrap items-center justify-between gap-3">
+      {/* The one big action */}
+      <section className={`${loCardTint} flex flex-wrap items-center gap-4`} aria-label="Send a WOW Link">
+        <LoIconTile name="rocket_launch" />
+        <div className="min-w-0 flex-1 basis-60">
+          <h2 className="text-lg font-extrabold text-slate-900">Send a WOW Link</h2>
+          <p className="text-sm text-slate-700">The agent gets a live listing demo with your financing chat already running, before they even sign up.</p>
           {inviteUsage && inviteUsage.limit != null && (
-            <p className="text-xs font-semibold text-slate-600">{inviteUsage.used} of {inviteUsage.limit} WOW Links used this month</p>
+            <p className="mt-1 text-xs font-semibold text-slate-700">{inviteUsage.used} of {inviteUsage.limit} WOW Links used this month</p>
           )}
-          <button
-            onClick={() => setShowInvite(true)}
-            className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-xl px-7 py-3.5 text-base transition-all shadow-sm"
-          >
-            Send a WOW Link
-          </button>
+        </div>
+        <button onClick={() => setShowInvite(true)} className={`${loSolid} w-full sm:w-auto`}>
+          <LoIcon name="send" className="text-base" />
+          {hasContent ? 'Send a WOW Link' : '+ Add Your First Partner'}
+        </button>
+      </section>
+
+      {!demoMode && (
+        <button
+          onClick={() => navigate('/dashboard/lo-invoices')}
+          className="inline-flex min-h-[44px] items-center gap-1.5 text-sm font-semibold text-primary-700 hover:underline"
+        >
+          <LoIcon name="receipt_long" className="text-base" />
+          Invoices to your agents
+        </button>
+      )}
+
+      {loadFailed && (
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-800">
+          We couldn't load your partners just now.{' '}
+          <button onClick={() => { setLoading(true); void load() }} className="min-h-[44px] font-bold underline">Try again</button>
         </div>
       )}
 
       {/* Empty state */}
-      {loadFailed && (
-        <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-800">
-          We couldn't load your partners just now.{' '}
-          <button onClick={() => { setLoading(true); void load() }} className="font-bold underline">Try again</button>
-        </div>
+      {!loadFailed && !hasContent && (
+        <LoSectionCard icon="handshake" title="No partners yet" description="Add a real estate agent as a partner. We'll send them a magic link. Their co-branded listing page will be live before they even log in.">
+          <p className="text-xs font-semibold text-slate-700">Next step: tap the blue button above.</p>
+        </LoSectionCard>
       )}
 
-      {!loadFailed && partners.length === 0 && pendingInvites.length === 0 && (
-        <div className="rounded-2xl border-2 border-dashed border-slate-200 p-16 text-center">
-          <div className="text-5xl mb-4">🤝</div>
-          <h3 className="text-lg font-bold text-slate-900 mb-2">No partners yet</h3>
-          <p className="text-slate-500 text-sm max-w-sm mx-auto mb-6">
-            Add a real estate agent as a partner. We'll send them a magic link — their co-branded listing page will be live before they even log in.
-          </p>
-          <button
-            onClick={() => setShowInvite(true)}
-            className="bg-primary-600 text-white font-bold rounded-xl px-8 py-3 text-sm hover:bg-primary-700 transition-all"
-          >
-            + Add Your First Partner
-          </button>
-        </div>
-      )}
 
       {/* Pending invites */}
       {pendingInvites.length > 0 && (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
-          <p className="text-xs font-bold text-amber-700 uppercase tracking-wide mb-3">Pending Invites</p>
-          <div className="space-y-4">
+        <LoSectionCard icon="mark_email_unread" tone="amber" title="Pending Invites" description="WOW Links you sent that the agent has not joined yet.">
+          <div className="space-y-3">
             {pendingInvites.map(invite => {
               const firstName = invite.name?.split(' ')[0] || 'there'
               const copy = (text: string, done: string) => {
                 void navigator.clipboard.writeText(text).then(() => showToast.success(done)).catch(() => showToast.error('Could not copy. Try again.'))
               }
-              const btn = 'inline-flex min-h-[40px] items-center justify-center rounded-lg border bg-white px-3.5 text-xs font-bold transition-all'
+              const btn = 'inline-flex min-h-[44px] items-center justify-center rounded-xl border bg-white px-3.5 text-sm font-bold transition-all'
               return (
-                <div key={invite.id} className="rounded-xl border border-amber-200 bg-white p-3.5">
+                <div key={invite.id} className="rounded-xl border border-slate-200 bg-white p-4">
                   <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-slate-900">{invite.name || invite.email}</p>
-                      <p className="truncate text-xs text-slate-600">{invite.email} · sent {toRelativeTime(invite.sentAt)}</p>
+                    <div className="flex min-w-0 items-center gap-3">
+                      <Avatar name={invite.name || invite.email} size={40} />
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-extrabold text-slate-900">{invite.name || invite.email}</p>
+                        <p className="truncate text-xs text-slate-600">{invite.email} · sent {toRelativeTime(invite.sentAt)}</p>
+                      </div>
                     </div>
                     {invite.ctaClickedAt ? (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-1 text-xs font-bold text-green-800">🔥 Clicked through · {toRelativeTime(invite.ctaClickedAt)}</span>
+                      <LoTag tone="green">🔥 Clicked through · {toRelativeTime(invite.ctaClickedAt)}</LoTag>
                     ) : invite.openedAt ? (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2.5 py-1 text-xs font-bold text-blue-800">👀 Opened · {toRelativeTime(invite.openedAt)}</span>
+                      <LoTag tone="blue">👀 Opened · {toRelativeTime(invite.openedAt)}</LoTag>
                     ) : (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-700">Not opened yet</span>
+                      <LoTag tone="slate">Not opened yet</LoTag>
                     )}
                   </div>
+                  <p className="mt-3 text-xs font-semibold text-slate-700">
+                    Next step: {invite.ctaClickedAt ? 'call them while it is fresh.' : invite.openedAt ? 'send a quick text to say hi.' : 'text them the link so it gets opened.'}
+                  </p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {invite.smsText && (
                       <button onClick={() => copy(invite.smsText as string, 'Text copied. Paste it in Messages.')} className={`${btn} border-primary-600 bg-primary-600 text-white hover:bg-primary-700`}>
@@ -1099,12 +1098,12 @@ const LOPartnersPage: React.FC = () => {
               )
             })}
           </div>
-        </div>
+        </LoSectionCard>
       )}
 
       {/* Partner grid */}
       {partners.length > 0 && (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
           {[...partners]
             .sort((a, b) => (b.totalLeads - a.totalLeads) || (new Date(b.joinedAt || 0).getTime() - new Date(a.joinedAt || 0).getTime()))
             .map(partner => (

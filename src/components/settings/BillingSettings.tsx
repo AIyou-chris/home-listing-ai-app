@@ -208,10 +208,10 @@ const BillingSettingsPage: React.FC<BillingSettingsProps> = ({
 
   if (isFreeAgent) {
     return (
-      <div className="p-8 space-y-8 animate-fadeIn">
+      <div className="space-y-5 p-4 animate-fadeIn sm:p-6">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">Billing</h2>
-          <p className="text-slate-500 mt-1">There is nothing to buy here.</p>
+          <h2 className="text-4xl font-black tracking-tight text-slate-900">Billing</h2>
+          <p className="mt-1 text-sm text-slate-600">There is nothing to buy here.</p>
         </div>
 
         {error && (
@@ -219,7 +219,7 @@ const BillingSettingsPage: React.FC<BillingSettingsProps> = ({
         )}
 
         <FeatureSection title="Your plan" icon="credit_card">
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="rounded-2xl border border-primary-200 bg-primary-50 p-5">
             <h3 className="text-xl font-bold text-slate-900">Included with your loan officer</h3>
             <p className="mt-2 text-sm text-slate-600">
               Your listings, lead capture and share kit are covered. You do not pay HomeListingAI.
@@ -268,10 +268,10 @@ const BillingSettingsPage: React.FC<BillingSettingsProps> = ({
   }
 
   return (
-    <div className="p-8 space-y-8 animate-fadeIn">
+    <div className="space-y-5 p-4 animate-fadeIn sm:p-6">
       <div>
-        <h2 className="text-2xl font-bold text-slate-900">Billing</h2>
-        <p className="text-slate-500 mt-1">Pick your plan, upgrade when you want, and manage billing from one place.</p>
+        <h2 className="text-4xl font-black tracking-tight text-slate-900">Billing</h2>
+        <p className="mt-1 text-sm text-slate-600">Pick your plan, upgrade when you want, and manage billing from one place.</p>
       </div>
 
       {error && (
@@ -279,13 +279,13 @@ const BillingSettingsPage: React.FC<BillingSettingsProps> = ({
       )}
 
       <FeatureSection title="Current plan" icon="credit_card">
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="rounded-2xl border border-primary-200 bg-primary-50 p-5">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <p className="text-xs uppercase tracking-wide text-slate-500">Current plan</p>
-              <h3 className="mt-1 text-2xl font-bold text-slate-900">{currentPlanLabel}</h3>
+              <p className="text-xs font-bold text-primary-800">Current plan</p>
+              <h3 className="mt-1 text-3xl font-black tracking-tight text-slate-900">{currentPlanLabel}</h3>
               <p className="mt-2 text-sm text-slate-600">Status: {currentStatus}</p>
-              <p className="text-sm text-slate-500">
+              <p className="text-sm text-slate-600">
                 Next billing date: {nextBillingDate ? new Date(nextBillingDate).toLocaleDateString() : isPaidPlan ? 'Not available' : 'N/A on Free'}
               </p>
             </div>
@@ -301,7 +301,7 @@ const BillingSettingsPage: React.FC<BillingSettingsProps> = ({
                   type="button"
                   onClick={() => void startCheckout('lo_lite')}
                   disabled={planButtons.liteDisabled}
-                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                  className="inline-flex min-h-[44px] items-center justify-center rounded-xl bg-primary-600 px-4 text-sm font-extrabold text-white shadow-sm transition hover:bg-primary-700 disabled:opacity-60"
                 >
                   {busy === 'lo_lite' ? 'Opening checkout…' : 'Start plan — $99/mo'}
                 </button>
@@ -312,7 +312,7 @@ const BillingSettingsPage: React.FC<BillingSettingsProps> = ({
                   type="button"
                   onClick={() => void openPortal()}
                   disabled={busy !== null}
-                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                  className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-800 transition hover:border-primary-500 hover:text-primary-700 disabled:opacity-60"
                 >
                   {busy === 'portal' ? 'Opening…' : 'Manage plan'}
                 </button>
@@ -320,7 +320,7 @@ const BillingSettingsPage: React.FC<BillingSettingsProps> = ({
                   type="button"
                   onClick={() => void openPortal()}
                   disabled={busy !== null}
-                  className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100 disabled:opacity-50"
+                  className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-rose-300 bg-white px-4 text-sm font-bold text-rose-700 transition hover:bg-rose-50 disabled:opacity-60"
                 >
                   Cancel
                 </button>

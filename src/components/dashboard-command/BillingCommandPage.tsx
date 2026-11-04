@@ -7,6 +7,7 @@ import {
   type DashboardBillingSnapshot,
   type PlanId
 } from '../../services/dashboardBillingService';
+import { LoIconTile, LoPageHeader, loCard, loGhost, loSolid } from './loUi';
 import BillingValueProofWidget from '../dashboard-widgets/BillingValueProofWidget';
 
 const meterOrder: Array<keyof DashboardBillingSnapshot['usage']> = [
@@ -143,20 +144,17 @@ const BillingCommandPage: React.FC = () => {
   if (loading) {
     return (
       <div className="mx-auto max-w-5xl px-4 py-6 md:px-8">
-        <div className="rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-500">Loading billing…</div>
+        <div className={`${loCard} text-sm text-slate-600`}>Loading billing…</div>
       </div>
     );
   }
 
   return (
     <div className="mx-auto max-w-5xl space-y-5 px-4 py-6 md:px-8">
-      <header>
-        <h1 className="text-3xl font-bold text-slate-900">Billing</h1>
-        <p className="mt-1 text-sm text-slate-600">Free account by default. Upgrade from here anytime.</p>
-      </header>
+      <LoPageHeader title="Billing" subtitle="Free account by default. Upgrade from here anytime." />
 
       {warningTriggered && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           <p className="font-semibold">You’re close to your limit.</p>
           <p>Upgrade to keep everything running without interruptions.</p>
           {warningLines.length > 0 ? (
@@ -175,17 +173,20 @@ const BillingCommandPage: React.FC = () => {
 
       <BillingValueProofWidget />
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <section className={loCard} aria-label="Current plan">
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <p className="text-xs uppercase tracking-wide text-slate-500">Current plan</p>
-            <p className="text-2xl font-bold text-slate-900">{currentPlan.name}</p>
+          <div className="flex items-start gap-3">
+            <LoIconTile name="credit_card" />
+            <div>
+            <p className="text-xs font-bold text-slate-600">Current plan</p>
+            <p className="text-2xl font-black text-slate-900">{currentPlan.name}</p>
             <p className="mt-1 text-sm text-slate-600">Status: {planStatus}</p>
-            <p className="text-sm text-slate-500">
+            <p className="text-sm text-slate-600">
               {snapshot?.plan.current_period_end
                 ? `Next billing date: ${new Date(snapshot.plan.current_period_end).toLocaleDateString()}`
                 : 'No upcoming charge scheduled'}
             </p>
+            </div>
           </div>
           <div className="flex flex-wrap gap-2">
             {currentPlanId === 'free' ? (
@@ -194,7 +195,7 @@ const BillingCommandPage: React.FC = () => {
                   type="button"
                   onClick={() => void startUpgrade('lo_lite')}
                   disabled={busy !== null}
-                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                  className={loSolid}
                 >
                   {busy === 'lo_lite' ? 'Loading…' : 'Start plan — $99/mo'}
                 </button>
@@ -205,7 +206,7 @@ const BillingCommandPage: React.FC = () => {
                   type="button"
                   onClick={() => void openPortal()}
                   disabled={busy !== null}
-                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                  className={loGhost}
                 >
                   {busy === 'portal' ? 'Loading…' : 'Manage plan'}
                 </button>
@@ -213,7 +214,7 @@ const BillingCommandPage: React.FC = () => {
                   type="button"
                   onClick={() => void openPortal()}
                   disabled={busy !== null}
-                  className="rounded-lg border border-rose-200 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50"
+                  className={`${loGhost} !border-rose-300 !text-rose-700`}
                 >
                   Cancel
                 </button>
@@ -231,10 +232,10 @@ const BillingCommandPage: React.FC = () => {
           const limit = Number(meter.limit || 0);
           const percent = formatPercent(used, limit);
           return (
-            <article key={key} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <article key={key} className={loCard}>
               <div className="flex items-center justify-between">
                 <p className="text-sm font-semibold text-slate-900">{meterLabels[key] || key}</p>
-                <p className="text-xs font-semibold text-slate-500">
+                <p className="text-xs font-semibold text-slate-700">
                   {used} / {limit > 0 ? limit : 0}
                 </p>
               </div>
@@ -249,7 +250,7 @@ const BillingCommandPage: React.FC = () => {
         })}
       </section>
 
-      <section className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+      <section className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-700">
         Your plan includes 50 outbound texts and 100 AI phone minutes per month. Only automated outbound texts count toward your limit. When you reach it, texts pause until next month.
       </section>
     </div>
