@@ -1,6 +1,7 @@
 import React, { Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import SEO from './SEO';
+import WhiteLabelSection from './WhiteLabelSection';
 import { PublicHeader } from './layout/PublicHeader';
 import { PublicFooter } from './layout/PublicFooter';
 import { INCLUDED } from '../lib/loPlanFeatures';
@@ -500,6 +501,8 @@ export default function ApprovedLandingPage(props: Props) {
           </div>
         </div>
       </section>
+
+      <WhiteLabelSection />
 
       {/* FAQ */}
       <section id="faq" className="ll-section ll-reveal">

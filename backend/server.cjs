@@ -27247,6 +27247,10 @@ app.post('/api/email/send', requireAuth, async (req, res) => {
 });
 
 // Public Lead Capture (Chatbot / Contact Form)
+// Public contact form: bounded input and rate limits; fixed server-verified admin owner.
+// Saves only an inquiry and an unconfirmed calendar request. No mail, SMS, or AI calls.
+app.post('/api/public/white-label/inquiry', require('./services/whiteLabelInquiry').createWhiteLabelInquiryHandler({ db: supabaseAdmin }));
+
 app.post('/api/leads/public', async (req, res) => {
   try {
     const { name, email, phone, message, source, notifyAdmin, targetUserId } = req.body;

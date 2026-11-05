@@ -1,3 +1,26 @@
+# White label inquiry design QA — 2026-11-05
+
+Source: /Volumes/GFY/EatADick/.codex/generated_images/01a1acb7-489a-72a1-afff-54dca1d6a324/exec-f27261ae-7523-4dc5-bf23-51305351dfc4.png (displayed option 1, 1435 × 1096).
+Implementation: http://localhost:4180/#white-label; desktop 1440 × 1100 CSS px, mobile 390 × 844 CSS px; screenshot density 1.
+Evidence under tmp/white-label-qa/: desktop-final.jpg, desktop-form.jpg, mobile.jpg, mobile-form.jpg, comparison-final.jpg. The comparison places source and implementation in the same image at 720 px each, preserving aspect ratios. Source includes pricing and a form inset; implementation captures the actual section and an independently opened modal. This intentional state difference is not treated as fidelity drift.
+
+Findings: no remaining P0/P1/P2 issues.
+- Typography: existing Inter/system font, heavy navy headings with royal blue highlight; original copy and hierarchy preserved. Responsive wrapping remains legible.
+- Layout: section sits directly after pricing and before FAQ. Two columns on desktop, one on phones. Native dialog has bounded scrolling and a 44 px close control.
+- Tokens: existing blue buttons, pale blue surface, dark navy text, rounded corners; visible focus and error states.
+- Imagery: built-in ImageGen recreated the selected team workspace and phone illustration; 1024 px WebP (63 KB). Source image remains unchanged. Prompt: recreate only option 1's Your Office team workspace and overlapping navy listing phone, using the same pale blue/royal blue style, without page copy, pricing, form or CTA.
+- Content: selected section copy retained. Requested date/time and local time-zone label added. Form explicitly requests a meeting and promises manual confirmation, not an available or confirmed slot. Illustration labeled as an example.
+
+Comparison history: initial comparison found excessive vertical art whitespace. Applied a 1.3 aspect ratio with object-fit cover, preserving the workspace/phone subject; recaptured desktop-final.jpg and inspected comparison-final.jpg. No remaining actionable differences; the centered real dialog replaces the explanatory inset, and the existing desktop header is retained.
+
+Interactions: Inquire opens dialog; Escape closes it and restores focus; close and Done work. Submitted through the real handler against a local mock database: exactly one lead and one linked 30-minute unconfirmed appointment. Error/retry, validation, owner tampering, role validation, duplicate submits and partial saves are covered by tests. Mobile form stays within viewport (344 px dialog, 390 px viewport); document has no horizontal overflow. Browser console error check returned none.
+
+Checks: 13 backend tests, 2 frontend tests, typecheck, targeted lint, backend syntax and production build passed. Existing build chunk warnings remain. Live schema/constraints/admin owner verified read-only. No live inquiry write, external calendar sync, automatic email, or new AI runtime wiring tested or added. Calendar means the existing admin appointments calendar. No migration required.
+
+final result: passed
+
+---
+
 # Marketing Studio stage-one visual check — October 4, 2026
 
 Source visual truth: `/Volumes/GFY/EatADick/.codex/generated_images/01a1078b-c354-7911-8ef4-e6ca93bbc9f8/exec-fafea11d-d85f-470f-b450-1c5e1fdfa6e9.png`.

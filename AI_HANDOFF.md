@@ -1,3 +1,9 @@
+## 2026-11-05 — Codex: white label inquiry and admin calendar
+
+- Added selected option 1 below pricing, with a generated branded-workspace WebP. Inquire opens an accessible dialog for name, email, office, project and preferred date/time with browser time zone. Saves White Label Inquiry lead and linked 30-minute admin calendar request; needs confirmation, no automatic mail/reminders/funnel enrollment.
+- New bounded/rate-limited public route fixes ownership to the sole verified platform admin, fails closed if ambiguous, and uses stable random request IDs for safe retry after partial saves. Existing live fields/constraints/admin verified read-only; no migration or live test write. No AI calls or compression middleware added.
+- Validation: 13 backend and 2 frontend tests, typecheck, targeted lint, backend syntax, production build; desktop/mobile browser checks and local mock API submission passed. design-qa.md has evidence. Calendar wiring is internal admin appointments, not external Google Calendar sync; confirmation is manual. Changes prepared for main push.
+
 ## 2026-11-01 — Claude: Lead Finder gets free Google Maps import + 2-step LinkedIn DM queue
 
 - Shipped in HLAI: (1) `backend/scripts/maps-lead-finder.cjs` runs the free gosom Google Maps scraper in Docker on Chris's Mac (live server cannot run Docker) and saves a CSV; `importCsvRows` now reads gosom columns (`mapsRowToContact`: `title`=business, `emails` comma list, town from `complete_address` JSON). Real Tampa run: 20 found, 9 with email. (2) DM queue stage 2: statuses `dm_sent` -> `connected` (They accepted) -> `messaged`, route `POST /api/admin/lo-leads/:id/dm-stage` (moves only in order, 409 otherwise), new "Accepted" and "Messaged" tabs, `FOLLOWUP_TEMPLATE`. No migration: `status` is free text. Human does every LinkedIn send; no bot (LinkedIn bans automation).
