@@ -161,7 +161,7 @@ const sanitizePayload = (payload) => {
   const leadInsights = payload?.leadInsights || {};
 
   return {
-    replyDraft: normalizeText(payload?.replyDraft) || fallback.replyDraft,
+    replyDraft: require('./humanize.cjs').humanize(normalizeText(payload?.replyDraft)) || fallback.replyDraft,
     replyStyleNotes: coerceStringArray(payload?.replyStyleNotes, fallback.replyStyleNotes).slice(0, 4),
     leadInsights: {
       intent: normalizeText(leadInsights.intent) || fallback.leadInsights.intent,

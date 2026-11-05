@@ -26,3 +26,9 @@ test('keeps a capital letter at the start of a swapped word', () => {
 test('absolute lead promises are softened instead of failing a paid draft', () => {
   assert.strictEqual(scrubVoice('Never miss a lead again. No lead goes cold.'), 'Miss fewer leads again. Fewer leads go cold.');
 });
+
+test('takes the machine sound out: long dashes and stock AI words', () => {
+  const out = scrubVoice('Missed calls—they cost you. Delve into a robust fix.');
+  assert.ok(!out.includes('—'));
+  assert.ok(!/delve|robust/i.test(out));
+});
