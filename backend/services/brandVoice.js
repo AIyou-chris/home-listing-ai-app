@@ -49,6 +49,7 @@ const PLAIN_WORDS = [
   [/\bnever miss (?:a |any |another )?leads?\b/gi, 'miss fewer leads'], [/\bno lead goes cold\b/gi, 'fewer leads go cold'],
   [/\bsolutions?\b/gi, 'tool'], [/\butilize\b/gi, 'use'], [/\bfacilitate\b/gi, 'help']
 ];
+const { humanize } = require('./humanize.cjs');
 const scrubVoice = (value) => {
   if (typeof value !== 'string') return value;
   let text = value.replace(/^\s*attention\b[^!.\n]*[!.]\s*/i, '');
@@ -62,7 +63,8 @@ const scrubVoice = (value) => {
   text = text.replace(/\[(?:your )?name\]/gi, (m) => (/your/i.test(m) ? 'Chris' : 'there'));
   let seen = false;
   text = text.replace(/!/g, () => { if (!seen) { seen = true; return '!'; } return '.'; });
-  return text;
+  // Last, take the machine sound out: long dashes, invisible characters, stock AI words.
+  return humanize(text);
 };
 
 module.exports = { scrubVoice, BANNED_WORDS, VOICE_RULES, MARKETING_VOICE_RULES, findVoiceViolations };
