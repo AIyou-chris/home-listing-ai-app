@@ -32,6 +32,10 @@ const buildLimits = () => ({
   reels_account_month: num('SPEND_REELS_ACCOUNT_MONTH', 40),
   hoa_reads_day: num('SPEND_HOA_READS_DAY', 80),
   hoa_reads_account_day: num('SPEND_HOA_READS_ACCOUNT_DAY', 15),
+  // Loan officer social posting: keeps AI + posting cost to a few dollars per LO per month.
+  lo_social_posts_day: num('SPEND_LO_SOCIAL_POSTS_DAY', 6),
+  lo_social_drafts_month: num('SPEND_LO_SOCIAL_DRAFTS_MONTH', 30),
+  lo_social_images_month: num('SPEND_LO_SOCIAL_IMAGES_MONTH', 12),
   voice_previews_account_day: num('SPEND_VOICE_PREVIEWS_ACCOUNT_DAY', 30),
 });
 
@@ -144,6 +148,15 @@ const createSpendGuard = ({ now = () => new Date(), limits = buildLimits() } = {
     ]),
     voicePreview: ({ accountId }) => take('voice_preview', [
       { window: 'day', scope: `acct:${accountId}`, limit: l.voice_previews_account_day, label: 'Daily voice previews for one account' },
+    ]),
+    loSocialPost: ({ loId }) => take('lo_social_post', [
+      { window: 'day', scope: `lo:${loId}`, limit: l.lo_social_posts_day, label: 'Daily social posts for one loan officer' },
+    ]),
+    loSocialDraft: ({ loId }) => take('lo_social_draft', [
+      { window: 'month', scope: `lo:${loId}`, limit: l.lo_social_drafts_month, label: 'Monthly AI post drafts for one loan officer' },
+    ]),
+    loSocialImage: ({ loId }) => take('lo_social_image', [
+      { window: 'month', scope: `lo:${loId}`, limit: l.lo_social_images_month, label: 'Monthly picture posts for one loan officer' },
     ]),
     snapshot() {
       const out = {};

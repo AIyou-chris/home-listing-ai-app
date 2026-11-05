@@ -14,11 +14,14 @@ function studioReturn(platform, result, message = '') {
   return `/admin/marketing-funnels?${params}`;
 }
 
-function createHouseSocialStore({ supabaseAdmin }) {
+// `tables` lets the loan officers' own accounts use the same code on their own tables.
+function createHouseSocialStore({ supabaseAdmin, tables = {} }) {
+  const STATES = tables.states || 'house_social_oauth_states';
+  const CONNECTIONS = tables.connections || 'house_social_connections';
   async function rememberState(owner, platform, verifier) {
     const state = crypto.randomBytes(32).toString('hex');
-    await supabaseAdmin.from('house_social_oauth_states').delete().lt('expires_at', new Date().toISOString());
-    const { error } = await supabaseAdmin.from('house_social_oauth_states').insert({
+    await supabaseAdmin.from(STATES).delete().lt('expires_at', new Date().toISOString());
+    const { error } = await supabaseAdmin.from(STATES).insert({
       state_hash: stateHash(state), platform, code_verifier: verifier,
       owner_id: owner, started_by: owner, expires_at: new Date(Date.now() + STATE_TTL_MS).toISOString()
     });
@@ -28,7 +31,7 @@ function createHouseSocialStore({ supabaseAdmin }) {
 
   // Trade a returned state for the attempt that started it. One use only.
   async function claimState(state, platform) {
-    const { data, error } = await supabaseAdmin.from('house_social_oauth_states')
+    const { data, error } = await supabaseAdmin.from(STATES)
       .delete().eq('state_hash', stateHash(state)).eq('platform', platform)
       .gt('expires_at', new Date().toISOString())
       .select('platform, code_verifier, started_by, owner_id').maybeSingle();
@@ -53,17 +56,17 @@ function createHouseSocialStore({ supabaseAdmin }) {
       connected_by: connectedBy || null,
       last_checked_at: now, last_error: '', connected_at: now, updated_at: now
     };
-    const updated = await supabaseAdmin.from('house_social_connections').update(row).eq('owner_id', owner).eq('platform', platform).select('platform');
+    const updated = await supabaseAdmin.from(CONNECTIONS).update(row).eq('owner_id', owner).eq('platform', platform).select('platform');
     if (updated.error) throw updated.error;
     if (!updated.data?.length) {
-      const { error } = await supabaseAdmin.from('house_social_connections').insert({ ...row, owner_id: owner, platform });
+      const { error } = await supabaseAdmin.from(CONNECTIONS).insert({ ...row, owner_id: owner, platform });
       if (error) throw error;
     }
   }
 
   async function list(owner) {
     if (!owner) return [];
-    const { data, error } = await supabaseAdmin.from('house_social_connections')
+    const { data, error } = await supabaseAdmin.from(CONNECTIONS)
       .select('platform, status, account_label, last_error, connected_at, updated_at').eq('owner_id', owner);
     if (error) throw error;
     return data || [];
@@ -71,11 +74,14 @@ function createHouseSocialStore({ supabaseAdmin }) {
 
   async function remove(owner, platform) {
     if (!owner) throw new Error('A connection needs an owner');
-    const { error } = await supabaseAdmin.from('house_social_connections').delete().eq('owner_id', owner).eq('platform', platform);
+    const { error } = await supabaseAdmin.from(CONNECTIONS).delete().eq('owner_id', owner).eq('platform', platform);
     if (error) throw error;
   }
 
   return { rememberState, claimState, saveConnection, list, remove };
 }
 
-module.exports = { createHouseSocialStore, studioReturn, stateHash, STATE_TTL_MS };
+// Where loan officers' own accounts are kept (see lo-social-migration.sql).
+const LO_TABLES = { states: 'lo_social_oauth_states', connections: 'lo_social_connections' };
+
+module.exports = { createHouseSocialStore, LO_TABLES, studioReturn, stateHash, STATE_TTL_MS };

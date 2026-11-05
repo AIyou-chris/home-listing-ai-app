@@ -34803,6 +34803,12 @@ app.post('/api/lo/post-drafts', requireAuth, async (req, res) => {
   }
 });
 
+// ── LO connected social accounts + approve-first queue (nothing posts without the LO's Approve). ──
+require('./routes/loSocialRoutes').register(app, {
+  requireAuth, resolveLoAgentId, supabaseAdmin, guard: spendGuardModule.guard,
+  runLoDraftWriter, draftTopics: LO_DRAFT_TOPICS, runBackground: RUN_BACKGROUND_TASKS,
+});
+
 // ── LO loan programs: the LO uploads a program sheet and writes a few lines, then markets it. ──
 // Stored as one small JSON file per LO (no table). The sheet goes in the public ai-kb bucket: it is meant for borrowers.
 const LO_PROGRAM_BUCKET = 'ai-kb';
