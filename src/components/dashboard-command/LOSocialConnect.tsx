@@ -119,7 +119,7 @@ const LOSocialConnect: React.FC<{ demo: boolean; api: Api; pictures: Picture[] }
 
   return (
     <div className="space-y-5">
-      <LoSectionCard icon="hub" title="Connect your accounts" description="Link your own social pages once. We write posts, you tap Approve. Nothing ever posts without your yes.">
+      <LoSectionCard fold icon="hub" title="Connect your accounts" description="Link your own social pages once. We write posts, you tap Approve. Nothing ever posts without your yes.">
         {setupOff && !demo && <p className="mb-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">Social posting is not switched on for your account yet. Check back soon.</p>}
         <ul className="space-y-3">
           {NETWORKS.map((n) => {
@@ -156,7 +156,7 @@ const LOSocialConnect: React.FC<{ demo: boolean; api: Api; pictures: Picture[] }
         </ul>
       </LoSectionCard>
 
-      <LoSectionCard icon="fact_check" title="Posts waiting for your OK" description="AI writes the drafts. You read them, pick where they go, and tap Approve.">
+      <LoSectionCard fold icon="fact_check" title="Posts waiting for your OK" description="AI writes the drafts. You read them, pick where they go, and tap Approve.">
         <div className="flex flex-wrap gap-2">
           {TOPICS.map((t) => <button key={t.key} type="button" className={loGhost} disabled={!!busy} onClick={() => void writeDrafts(t.key)}>{busy === `draft-${t.key}` ? 'Writing…' : `✨ Write drafts: ${t.label}`}</button>)}
         </div>

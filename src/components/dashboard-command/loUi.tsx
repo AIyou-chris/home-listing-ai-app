@@ -38,7 +38,19 @@ export const LoTag: React.FC<{ children: React.ReactNode; tone?: 'blue' | 'green
 };
 
 /** A section card with an icon tile, a title, a sentence, and room for buttons underneath. */
-export const LoSectionCard: React.FC<{ icon: string; title: string; description?: string; children?: React.ReactNode; tone?: 'blue' | 'green' | 'amber' | 'slate' }> = ({ icon, title, description, children, tone }) => (
+export const loFoldSummary = "flex min-h-[44px] cursor-pointer list-none items-center justify-between gap-3 text-lg font-extrabold text-slate-900 after:text-slate-500 after:content-['▾'] group-open:after:rotate-180 [&::-webkit-details-marker]:hidden";
+
+export const LoSectionCard: React.FC<{ icon: string; title: string; description?: string; children?: React.ReactNode; tone?: 'blue' | 'green' | 'amber' | 'slate'; fold?: boolean }> = ({ icon, title, description, children, tone, fold }) => fold ? (
+  <details className={`${loCard} group`} aria-label={title}>
+    <summary className={loFoldSummary}>
+      <span className="flex items-start gap-3">
+        <LoIconTile name={icon} tone={tone} />
+        <span className="min-w-0"><span className="block text-lg font-extrabold text-slate-900">{title}</span>{description && <span className="block text-sm font-normal text-slate-600">{description}</span>}</span>
+      </span>
+    </summary>
+    {children && <div className="mt-4">{children}</div>}
+  </details>
+) : (
   <section className={loCard} aria-label={title}>
     <div className="flex items-start gap-3">
       <LoIconTile name={icon} tone={tone} />
