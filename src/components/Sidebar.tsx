@@ -170,7 +170,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, isDemoMode = false, 
 
   // In demo/blueprint mode there's no logged-in account, so accountType defaults
   // to 'realtor'. Detect the LO/office context from the URL so the correct nav shows.
-  const pathIsLO = /\/lo-(today|partners|listings|chatbot|leads|appointments|invoices|onboarding)/.test(location.pathname);
+  const pathIsLO = /\/lo-(today|partners|listings|chatbot|leads|appointments|invoices|onboarding|promote)/.test(location.pathname);
   const pathIsOffice = /\/office(\/|$)/.test(location.pathname);
   const isLO = accountType === 'lo' || pathIsLO;
   const isOffice = accountType === 'office' || pathIsOffice;
