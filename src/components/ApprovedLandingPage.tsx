@@ -493,7 +493,7 @@ export default function ApprovedLandingPage(props: Props) {
           <p className="ll-center ll-lead-copy">Try it free for 7 days. No card needed.</p>
           <div className="ll-price">
             <p className="ll-badge">Launch price · first 25 loan officers</p>
-            <p className="ll-amount"><b>$69</b><span>/ month</span><s>$99</s></p>
+            <p className="ll-amount"><b>$79</b><span>/ month</span><s>$99</s></p>
             <p className="ll-fine">Locked in for as long as you stay subscribed. Regular price is $99 a month.</p>
             <ul>{INCLUDED.map(item => <li key={item}><Icon name="check" />{item}</li>)}</ul>
             <button type="button" className="ll-btn ll-btn-solid ll-full" onClick={trial}>Start your 7-day free trial</button>

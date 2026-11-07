@@ -265,7 +265,7 @@ const sweepOwner = async (db, owner, { cfg, now = new Date(), send = sender.send
       const lastSent = (earlier || []).filter((e) => e.sent_at).map((e) => new Date(e.sent_at).getTime()).sort((a, b) => a - b).pop();
       if (lastSent && now.getTime() - lastSent < 2 * 86400000 - 3600000) { out.skipped += 1; continue; }
     }
-    const recipient = await rules.checkRecipient({ email: p.email, suppressed, mxLookup: mx, lastContactedAt: s.touch === 1 ? p.last_contacted_at : null });
+    const recipient = await rules.checkRecipient({ email: p.email, suppressed, mxLookup: mx, lastContactedAt: s.touch === 1 ? p.last_contacted_at : null, now: now.getTime() });
     if (!recipient.ok) { await cancel(recipient.failures[0].rule); continue; }
 
     const unsubscribeUrl = `${cfg.backendUrl}/api/public/cold-unsubscribe/${p.unsub_token}`;

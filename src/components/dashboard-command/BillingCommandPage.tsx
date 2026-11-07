@@ -202,7 +202,7 @@ const BillingCommandPage: React.FC = () => {
           <div className="text-right">
             <p className="text-4xl font-black tracking-tight text-slate-900">{currentPlan.monthly}</p>
             {(currentPlanId === 'free' || planStatus === 'Trialing') && (
-              <p className="text-xs font-semibold text-slate-700">$99 regular / $69 launch (first 25 loan officers)</p>
+              <p className="text-xs font-semibold text-slate-700">$99 regular / $79 launch (first 25 loan officers)</p>
             )}
           </div>
         </div>
