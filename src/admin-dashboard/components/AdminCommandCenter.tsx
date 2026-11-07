@@ -6,6 +6,7 @@ import Collapsible from '../../marketing-engine/screens/Collapsible'
 import { setAllOpen } from '../../marketing-engine/screens/collapsibleAll'
 import { TodayView, TodayData } from '../../marketing-engine/screens/TodayView'
 import { SiteAnalyticsCard } from './SiteAnalyticsCard'
+import { AdminBusinessStrip, BillingSummary } from './AdminBusinessStrip'
 import { SpendTodayCard } from './SpendTodayCard'
 
 
@@ -133,6 +134,8 @@ const AdminCommandCenter: React.FC = () => {
   const [security, setSecurity] = useState<SecurityResponse | null>(null)
   const [support, setSupport] = useState<SupportResponse | null>(null)
   const [metrics, setMetrics] = useState<MetricsResponse | null>(null)
+  const [billing, setBilling] = useState<BillingSummary | null>(null)
+  const [billingLoaded, setBillingLoaded] = useState(false)
   const [loading, setLoading] = useState(false)
   // While the first answer is still on its way we say so, instead of flashing "Not available".
   const NA = loading ? 'Loading…' : NOT_AVAILABLE
@@ -145,12 +148,13 @@ const AdminCommandCenter: React.FC = () => {
   const loadAll = useCallback(async () => {
     setLoading(true)
     try {
-      const [h, s, sp, m, td] = await Promise.all([
+      const [h, s, sp, m, td, bl] = await Promise.all([
         auth.makeAuthenticatedRequest('/api/admin/system/health').catch(() => null),
         auth.makeAuthenticatedRequest('/api/admin/security/monitor').catch(() => null),
         auth.makeAuthenticatedRequest('/api/admin/support/summary').catch(() => null),
         auth.makeAuthenticatedRequest('/api/admin/analytics/overview').catch(() => null),
-        auth.makeAuthenticatedRequest('/api/admin/today').catch(() => null)
+        auth.makeAuthenticatedRequest('/api/admin/today').catch(() => null),
+        auth.makeAuthenticatedRequest('/api/admin/billing').catch(() => null)
       ])
 
       if (h?.ok) setHealth(await h.json())
@@ -158,6 +162,8 @@ const AdminCommandCenter: React.FC = () => {
       if (sp?.ok) setSupport(await sp.json())
       if (m?.ok) setMetrics(await m.json())
       if (td?.ok) { setToday(await td.json()); setTodayError(false) } else setTodayError(true)
+      setBilling(bl?.ok ? await bl.json() : null)
+      setBillingLoaded(true)
     } catch (error) {
       console.warn('Admin command center load failed', error)
     } finally {
@@ -198,9 +204,17 @@ const AdminCommandCenter: React.FC = () => {
         </div>
       </div>
 
+      <AdminBusinessStrip
+        billing={billing}
+        loaded={billingLoaded}
+        leadsToday={metrics?.leadsToday}
+        needsItems={today?.needsMe?.available ? today.needsMe.items : []}
+        onGo={(to) => navigate(to === 'marketing' ? '/admin/marketing-funnels' : to === 'settings' ? '/admin/settings' : to)}
+      />
+
       <TodayView data={today} error={todayError} onGo={(to) => navigate(to === 'marketing' ? '/admin/marketing-funnels' : '/admin/settings')} />
 
-      <SiteAnalyticsCard />
+      <SiteAnalyticsCard signupsByDay={billing?.signupsByDay} />
 
       <CampaignStatsWidget stats={metrics?.campaignStats ?? null} loading={loading} />
 

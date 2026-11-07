@@ -22,7 +22,7 @@ const SALES_STEPS = [
         type: 'Email',
         subject: 'How many 2 A.M. showings did you do this week? 😴',
         previewText: 'You\'re working too hard — let AI take the night shift.',
-        content: `Hey {{LEAD.NAME}},\n\nBe honest — how many 2 A.M. showings or "just checking in" texts did you send this week?\n\nYeah... same. The market's quiet, but your burnout's not.\n\nMeanwhile, smart agents are sleeping through the chaos while Natural Lead AI books their next clients automatically.\n\nAnd right now, you can try it with a free trial — and if you love it, keep it for just $69/month.\n\nThat’s less than one dead “exclusive” lead that never calls back.\n\n👉 [Start your Free Trial – $69/month after]\n\nTalk with you soon,\n{{AGENT.NAME}}\n{{AGENT.PHONE}}\n{{AGENT.AICARDURL}}`,
+        content: `Hey {{LEAD.NAME}},\n\nBe honest — how many 2 A.M. showings or "just checking in" texts did you send this week?\n\nYeah... same. The market's quiet, but your burnout's not.\n\nMeanwhile, smart agents are sleeping through the chaos while Natural Lead AI books their next clients automatically.\n\nAnd right now, you can try it with a free trial — and if you love it, keep it for just $79/month.\n\nThat’s less than one dead “exclusive” lead that never calls back.\n\n👉 [Start your Free Trial – $79/month after]\n\nTalk with you soon,\n{{AGENT.NAME}}\n{{AGENT.PHONE}}\n{{AGENT.AICARDURL}}`,
         attachments: []
     },
     {

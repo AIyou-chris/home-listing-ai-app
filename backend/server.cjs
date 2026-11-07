@@ -26875,15 +26875,35 @@ app.get('/api/admin/billing', verifyAdmin, async (req, res) => {
   try {
     const { data, error } = await supabaseAdmin
       .from('agents')
-      .select('payment_status, subscription_status, is_demo')
+      .select('payment_status, subscription_status, is_demo, created_at')
       .neq('is_demo', true)
       .limit(5000);
     if (error) throw error;
     const rows = data || [];
     const isPaying = (r) => ['active', 'trialing'].includes(String(r.subscription_status || '').toLowerCase()) && r.payment_status !== 'comp';
+    const paying = rows.filter((r) => String(r.subscription_status || '').toLowerCase() === 'active' && r.payment_status !== 'comp').length;
+    // Founding spots come from Stripe's own redemption count. Any problem means "unknown", never a made-up number.
+    let founding = null;
+    try {
+      const couponId = String(process.env.FOUNDING_COUPON_ID || '').trim();
+      if (stripe && couponId) {
+        const coupon = await stripe.coupons.retrieve(couponId);
+        founding = { taken: coupon.times_redeemed || 0, max: coupon.max_redemptions || 25 };
+      }
+    } catch (_e) { founding = null; }
+    // An estimate: $99 per paying loan officer, minus $20 for each one on the $79 founding price.
+    const estMonthly = paying * 99 - Math.min(founding?.taken || 0, paying) * 20;
+    const signupsByDay = [];
+    for (let i = 13; i >= 0; i -= 1) {
+      const day = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
+      signupsByDay.push({ day, count: rows.filter((r) => String(r.created_at || '').slice(0, 10) === day).length });
+    }
     res.json({
       total: rows.length,
-      paying: rows.filter((r) => String(r.subscription_status || '').toLowerCase() === 'active' && r.payment_status !== 'comp').length,
+      paying,
+      estMonthly,
+      founding,
+      signupsByDay,
       trial: rows.filter((r) => r.payment_status === 'awaiting_payment' && !isPaying(r)).length,
       comped: rows.filter((r) => r.payment_status === 'comp').length,
       late: rows.filter((r) => ['past_due', 'unpaid'].includes(String(r.subscription_status || '').toLowerCase())).length

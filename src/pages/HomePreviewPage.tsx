@@ -121,7 +121,7 @@ export default function HomePreviewPage() {
             <p className="mt-2 text-slate-700">Try it free for 7 days. No credit card needed.</p>
             <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-5 sm:p-7">
               <p className="text-sm font-bold text-blue-800">Launch offer for the first 25 loan officers</p>
-              <p className="mt-1"><span className="text-5xl font-black">$69</span><span className="text-slate-600"> / month</span></p>
+              <p className="mt-1"><span className="text-5xl font-black">$79</span><span className="text-slate-600"> / month</span></p>
               <p className="mt-2 text-sm text-slate-700">Regular price is $99/month. Eligible launch subscribers keep their rate while subscribed.</p>
               <ul className="my-5 grid gap-3 text-sm text-slate-800 sm:grid-cols-2">
                 {INCLUDED.map((item) => <li key={item} className="flex items-start gap-2"><Check size={16} className="mt-0.5 shrink-0 text-blue-700" aria-hidden="true" />{item}</li>)}

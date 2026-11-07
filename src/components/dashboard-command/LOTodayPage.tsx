@@ -303,6 +303,34 @@ const AiActivityCard: React.FC<{ data: LODashboardData; navTo: (p: string) => vo
   )
 }
 
+// ─── Pipeline ─────────────────────────────────────────────────────────────────
+// Real counts from the dashboard numbers, drawn as bars against the total.
+
+const PipelineCard: React.FC<{ stats: LOStats; navTo: (p: string) => void }> = ({ stats, navTo }) => {
+  const total = Math.max(stats.totalLeads, 1)
+  const rows = [
+    { label: 'All leads', value: stats.totalLeads, bar: 'bg-primary-200 text-primary-900' },
+    { label: 'Pre-approval', value: stats.preApprovalLeads, bar: 'bg-emerald-200 text-emerald-900' },
+    { label: 'Showing', value: stats.showingLeads, bar: 'bg-sky-200 text-sky-900' },
+    { label: 'Hot', value: stats.hotLeads ?? 0, bar: 'bg-rose-200 text-rose-900' }
+  ]
+  return (
+    <LoSectionCard icon="stacked_bar_chart" title="Your pipeline" description={`${stats.newThisWeek} new this week · ${stats.newThisMonth} this month`}>
+      <ul className="space-y-2" aria-label="Pipeline">
+        {rows.map((r) => (
+          <li key={r.label} className="flex items-center gap-3 text-sm">
+            <span className="w-24 shrink-0 font-semibold text-slate-700">{r.label}</span>
+            <div className="h-7 flex-1 rounded-md bg-slate-100">
+              <div className={`flex h-full items-center rounded-md px-2 text-xs font-extrabold ${r.bar}`} style={{ width: `${Math.max(8, Math.round((r.value / total) * 100))}%` }}>{r.value}</div>
+            </div>
+          </li>
+        ))}
+      </ul>
+      <button onClick={() => navTo('/lo-leads')} className={`${loGhost} mt-3`}>Open leads<LoIcon name="arrow_forward" className="text-base" /></button>
+    </LoSectionCard>
+  )
+}
+
 // ─── Setup Checklist ──────────────────────────────────────────────────────────
 
 interface LOSetupState {
@@ -501,6 +529,8 @@ const LOTodayPage: React.FC = () => {
   )
 
   const followUps = data.followUps || []
+  const aiToday = data.aiCalls?.today ?? 0
+  const needsYou = recentLeads.filter((l) => String(l.status).toLowerCase() === 'new').length + followUps.length
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-6 pb-24">
@@ -508,17 +538,19 @@ const LOTodayPage: React.FC = () => {
       {/* ── Greeting ─────────────────────────────────────────────────────────── */}
       <LoPageHeader
         title="Today"
-        subtitle={`Good ${dayPart()}. Here is your pipeline across ${stats.assignedListings} listing${stats.assignedListings !== 1 ? 's' : ''}.`}
+        subtitle={`Good ${dayPart()}. ${needsYou === 0 ? 'Nobody is waiting on you.' : `${needsYou} ${needsYou === 1 ? 'person needs' : 'people need'} you.`}${aiToday > 0 ? ` Your AI answered ${aiToday} call${aiToday === 1 ? '' : 's'} today.` : ''}`}
+        action={data.brain ? <LoTag tone={data.brain.active ? 'green' : 'red'}>{data.brain.active ? '● My AI is ON' : 'My AI is OFF'}</LoTag> : undefined}
       />
 
       {heroLead && <CallNowHero lead={heroLead} onOpen={(id) => navTo(`/lo-leads?lead=${id}`)} onCalled={handleCalled} />}
       {!heroLead && wowCard}
 
       {/* ── Numbers ─────────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-3">
-        <LoStat value={stats.newToday} label="New today" />
-        <LoStat value={<span className="text-rose-700">{stats.hotLeads ?? 0}</span>} label="Hot leads" />
-        <LoStat value={stats.partnersReached ?? 0} label="Agents reached" />
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <LoStat value={stats.newToday} label="New today" note={`${stats.newThisWeek} this week`} />
+        <LoStat value={<span className="text-rose-700">{stats.hotLeads ?? 0}</span>} label="Hot leads" note="Call these first" />
+        <LoStat value={stats.preApprovalLeads} label="Pre-approval asks" />
+        <LoStat value={aiToday} label="AI calls today" note={`${data.aiCalls?.week ?? 0} this week · ${stats.partnersReached ?? 0} agents reached`} />
       </div>
 
       {/* ── Setup Checklist (shown until onboarding complete or dismissed) ────── */}
@@ -529,28 +561,6 @@ const LOTodayPage: React.FC = () => {
           navTo={navTo}
         />
       )}
-
-      {/* ── Buyers who said "not yet" and are due for a check-in ─────────────── */}
-      {followUps.length > 0 && (
-        <LoSectionCard icon="schedule" title={`Time to check back (${followUps.length})`} description="You said you would follow up with these people." tone="amber">
-          <div className="grid gap-2">
-            {followUps.map((f) => (
-              <div key={f.id} className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5">
-                <button type="button" onClick={() => navTo(`/lo-leads?lead=${f.id}`)} className="min-h-[44px] min-w-0 flex-1 basis-40 truncate text-left text-sm font-extrabold text-slate-900 hover:text-primary-700">{f.name}</button>
-                <CallTextButtons phone={f.phone} onUsed={() => handleCalled(f.id)} />
-                <button type="button" onClick={() => handleFollowUp(f.id, 30)} className={loGhost}>Later</button>
-                <button type="button" onClick={() => handleFollowUp(f.id, null)} className={loGhost}>Done</button>
-              </div>
-            ))}
-          </div>
-        </LoSectionCard>
-      )}
-
-      {/* ── What the AI did while you were busy ──────────────────────────────── */}
-      {data.brain && (!data.brain.active || !data.brain.hasKnowledge) && <AiActivityCard data={data} navTo={navTo} />}
-
-      {/* ── Testimonial ask (once they're getting real leads) ─────────────────── */}
-      {stats.totalLeads >= 2 && <LoTestimonialAsk />}
 
       {!demoMode && (
         <button type="button" onClick={() => navTo('/lo-promote')} className="flex min-h-[44px] w-full items-center gap-4 rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:border-primary-400">
@@ -563,8 +573,27 @@ const LOTodayPage: React.FC = () => {
       {/* ── Two column layout ─────────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
 
-        {/* Recent leads — wider col */}
-        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm lg:col-span-3" aria-label="Recent leads">
+        {/* Left: who needs you */}
+        <div className="space-y-6 lg:col-span-3">
+      {/* ── Buyers who said "not yet" and are due for a check-in ─────────────── */}
+        {followUps.length > 0 && (
+          <LoSectionCard icon="schedule" title={`Time to check back (${followUps.length})`} description="You said you would follow up with these people." tone="amber">
+            <div className="grid gap-2">
+              {followUps.map((f) => (
+                <div key={f.id} className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5">
+                  <button type="button" onClick={() => navTo(`/lo-leads?lead=${f.id}`)} className="min-h-[44px] min-w-0 flex-1 basis-40 truncate text-left text-sm font-extrabold text-slate-900 hover:text-primary-700">{f.name}</button>
+                  <CallTextButtons phone={f.phone} onUsed={() => handleCalled(f.id)} />
+                  <button type="button" onClick={() => handleFollowUp(f.id, 30)} className={loGhost}>Later</button>
+                  <button type="button" onClick={() => handleFollowUp(f.id, null)} className={loGhost}>Done</button>
+                </div>
+              ))}
+            </div>
+          </LoSectionCard>
+        )}
+  
+
+        {/* Recent leads */}
+        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm" aria-label="Recent leads">
           <div className="flex items-center gap-3 px-5 pt-5">
             <LoIconTile name="group" />
             <h2 className="min-w-0 flex-1 text-lg font-extrabold text-slate-900">Recent Leads</h2>
@@ -612,9 +641,13 @@ const LOTodayPage: React.FC = () => {
             </ul>
           )}
         </section>
+        </div>
 
-        {/* Assigned listings — narrower col */}
-        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm lg:col-span-2" aria-label="My listings">
+        {/* Right: the machine working for you */}
+        <div className="space-y-6 lg:col-span-2">
+        <PipelineCard stats={stats} navTo={navTo} />
+        <AiActivityCard data={data} navTo={navTo} />
+        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm" aria-label="My listings">
           <div className="flex items-center gap-3 px-5 pt-5">
             <LoIconTile name="home" tone="green" />
             <h2 className="min-w-0 flex-1 text-lg font-extrabold text-slate-900">My Listings</h2>
@@ -650,6 +683,7 @@ const LOTodayPage: React.FC = () => {
                         ? <LoTag tone="green">● Live</LoTag>
                         : <LoTag tone="slate">Draft</LoTag>
                       }
+                      {listing.status === 'published' && listing.leadCount === 0 && <LoTag tone="amber">No leads yet</LoTag>}
                     </div>
                   </div>
                   <div className="flex-shrink-0 text-right">
@@ -669,9 +703,13 @@ const LOTodayPage: React.FC = () => {
             </button>
           )}
         </section>
+        </div>
       </div>
 
       {heroLead && wowCard}
+
+      {/* ── Testimonial ask (once they're getting real leads) ─────────────────── */}
+      {stats.totalLeads >= 2 && <LoTestimonialAsk />}
 
     </div>
   )
